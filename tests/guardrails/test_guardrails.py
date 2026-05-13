@@ -1068,3 +1068,272 @@ class TestStreamAsyncIORails:
                 options=None,
                 include_metadata=False,
             )
+
+
+class TestLLMRailsOnlyMethods:
+    """Tests for methods that exist on LLMRails but not IORails.
+
+    Under LLMRails, each method must delegate to the underlying instance.
+    Under IORails, each must raise NotImplementedError.
+    """
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_generate_events_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.generate_events.return_value = [{"type": "BotMessage"}]
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
+        result = guardrails.generate_events(events)
+
+        mock_llmrails_instance.generate_events.assert_called_once_with(events)
+        assert result == [{"type": "BotMessage"}]
+
+    @pytest.mark.asyncio
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    async def test_generate_events_async_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.generate_events_async = AsyncMock(return_value=[{"type": "BotMessage"}])
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
+        result = await guardrails.generate_events_async(events)
+
+        mock_llmrails_instance.generate_events_async.assert_called_once_with(events)
+        assert result == [{"type": "BotMessage"}]
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_process_events_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.process_events.return_value = ([{"type": "BotMessage"}], {})
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        events = [{"type": "UtteranceUserActionFinished"}]
+        result = guardrails.process_events(events, state={"foo": "bar"}, blocking=True)
+
+        mock_llmrails_instance.process_events.assert_called_once_with(events, {"foo": "bar"}, True)
+        assert result == ([{"type": "BotMessage"}], {})
+
+    @pytest.mark.asyncio
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    async def test_process_events_async_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.process_events_async = AsyncMock(return_value=([{"type": "BotMessage"}], {}))
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        events = [{"type": "UtteranceUserActionFinished"}]
+        result = await guardrails.process_events_async(events, state={"foo": "bar"}, blocking=True)
+
+        mock_llmrails_instance.process_events_async.assert_called_once_with(events, {"foo": "bar"}, True)
+        assert result == ([{"type": "BotMessage"}], {})
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_check_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
+
+        sentinel = RailsResult(status=RailStatus.PASSED, content="ok")
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.check.return_value = sentinel
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        messages = [{"role": "user", "content": "hi"}]
+        result = guardrails.check(messages, rail_types=[RailType.INPUT])
+
+        mock_llmrails_instance.check.assert_called_once_with(messages, rail_types=[RailType.INPUT])
+        assert result is sentinel
+
+    @pytest.mark.asyncio
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    async def test_check_async_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
+
+        sentinel = RailsResult(status=RailStatus.PASSED, content="ok")
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.check_async = AsyncMock(return_value=sentinel)
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        messages = [{"role": "user", "content": "hi"}]
+        result = await guardrails.check_async(messages, rail_types=[RailType.OUTPUT])
+
+        mock_llmrails_instance.check_async.assert_called_once_with(messages, rail_types=[RailType.OUTPUT])
+        assert result is sentinel
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_action_delegates_and_returns_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_action.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+
+        def my_action():
+            pass
+
+        result = guardrails.register_action(my_action, name="my_action")
+
+        mock_llmrails_instance.register_action.assert_called_once_with(my_action, "my_action")
+        assert result is mock_llmrails_instance  # Pass-through, not Guardrails self
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_action_param_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_action_param.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        result = guardrails.register_action_param("my_param", 42)
+
+        mock_llmrails_instance.register_action_param.assert_called_once_with("my_param", 42)
+        assert result is mock_llmrails_instance
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_filter_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_filter.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+
+        def my_filter(x):
+            return x
+
+        result = guardrails.register_filter(my_filter, name="my_filter")
+
+        mock_llmrails_instance.register_filter.assert_called_once_with(my_filter, "my_filter")
+        assert result is mock_llmrails_instance
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_output_parser_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_output_parser.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+
+        def my_parser(s):
+            return s
+
+        result = guardrails.register_output_parser(my_parser, "my_parser")
+
+        mock_llmrails_instance.register_output_parser.assert_called_once_with(my_parser, "my_parser")
+        assert result is mock_llmrails_instance
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_prompt_context_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_prompt_context.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        result = guardrails.register_prompt_context("user_name", "alice")
+
+        mock_llmrails_instance.register_prompt_context.assert_called_once_with("user_name", "alice")
+        assert result is mock_llmrails_instance
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_embedding_search_provider_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        from nemoguardrails.embeddings.index import EmbeddingsIndex
+
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_embedding_search_provider.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+
+        class FakeIndex(EmbeddingsIndex):
+            pass
+
+        result = guardrails.register_embedding_search_provider("fake", FakeIndex)
+
+        mock_llmrails_instance.register_embedding_search_provider.assert_called_once_with("fake", FakeIndex)
+        assert result is mock_llmrails_instance
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_register_embedding_provider_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
+        from nemoguardrails.embeddings.providers.base import EmbeddingModel
+
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.register_embedding_provider.return_value = mock_llmrails_instance
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+
+        class FakeModel(EmbeddingModel):
+            engine_name = "fake"
+            model = "fake"
+
+            async def encode_async(self, documents):
+                return []
+
+            def encode(self, documents):
+                return []
+
+        result = guardrails.register_embedding_provider(FakeModel, name="fake")
+
+        mock_llmrails_instance.register_embedding_provider.assert_called_once_with(FakeModel, "fake")
+        assert result is mock_llmrails_instance
+
+    @pytest.mark.parametrize(
+        "method_name,args,is_async",
+        [
+            ("generate_events", ([],), False),
+            ("generate_events_async", ([],), True),
+            ("process_events", ([],), False),
+            ("process_events_async", ([],), True),
+            ("check", ([{"role": "user", "content": "hi"}],), False),
+            ("check_async", ([{"role": "user", "content": "hi"}],), True),
+            ("register_action", (lambda: None,), False),
+            ("register_action_param", ("p", 1), False),
+            ("register_filter", (lambda x: x,), False),
+            ("register_output_parser", (lambda x: x, "p"), False),
+            ("register_prompt_context", ("n", "v"), False),
+            ("register_embedding_search_provider", ("n", type("X", (), {})), False),
+            ("register_embedding_provider", (type("X", (), {}),), False),
+        ],
+    )
+    @pytest.mark.asyncio
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_iorails_raises_not_implemented(
+        self, mock_iorails_init, _content_safety_rails_config, method_name, args, is_async
+    ):
+        """Every LLMRails-only method must raise NotImplementedError under IORails."""
+        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+
+        method = getattr(guardrails, method_name)
+        with pytest.raises(NotImplementedError, match=f"IORails doesn't support {method_name}"):
+            if is_async:
+                await method(*args)
+            else:
+                method(*args)
+
+
+class TestGuardrailsPickle:
+    """Tests for __getstate__ / __setstate__ pickle support on Guardrails."""
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_getstate_returns_only_config(self, mock_llmrails_class, _nemoguards_rails_config):
+        mock_llmrails_class.return_value = MagicMock()
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        state = guardrails.__getstate__()
+        assert state == {"config": _nemoguards_rails_config}
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_setstate_rebuilds_from_in_memory_config(self, mock_llmrails_class, _nemoguards_rails_config):
+        """__setstate__ uses the pickled config directly when config_path is unset
+        (in-memory configs from RailsConfig.from_content)."""
+        mock_llmrails_class.return_value = MagicMock()
+
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": _nemoguards_rails_config})
+
+        assert guardrails.config is _nemoguards_rails_config
+        assert guardrails.verbose is False
+        # __init__ runs, so LLMRails is instantiated by the patched class
+        mock_llmrails_class.assert_called_once()

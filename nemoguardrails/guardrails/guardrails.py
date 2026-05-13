@@ -22,15 +22,18 @@ LLM responses with programmable guardrails.
 """
 
 import logging
-from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
+from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
 
+from nemoguardrails.colang.v2_x.runtime.flows import State
+from nemoguardrails.embeddings.index import EmbeddingsIndex
+from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
@@ -207,6 +210,166 @@ class Guardrails:
         # self.rails_engine must be LLMRails since we raise above if we're using IORails
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.update_llm(llm)
+
+    async def generate_events_async(self, events: List[dict]) -> List[dict]:
+        """Generate the next events based on the provided history.
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support generate_events_async()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return await llmrails.generate_events_async(events)
+
+    def generate_events(self, events: List[dict]) -> List[dict]:
+        """Synchronous version of generate_events_async.
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support generate_events()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.generate_events(events)
+
+    async def process_events_async(
+        self,
+        events: List[dict],
+        state: Union[Optional[dict], State] = None,
+        blocking: bool = False,
+    ) -> Tuple[List[dict], Union[dict, State]]:
+        """Process a sequence of events in a given state.
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support process_events_async()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return await llmrails.process_events_async(events, state, blocking)
+
+    def process_events(
+        self,
+        events: List[dict],
+        state: Union[Optional[dict], State] = None,
+        blocking: bool = False,
+    ) -> Tuple[List[dict], Union[dict, State]]:
+        """Synchronous version of process_events_async.
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support process_events()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.process_events(events, state, blocking)
+
+    async def check_async(
+        self,
+        messages: List[dict],
+        rail_types: Optional[List[RailType]] = None,
+    ) -> RailsResult:
+        """Run rails on messages based on their content (asynchronous).
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support check_async()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return await llmrails.check_async(messages, rail_types=rail_types)
+
+    def check(
+        self,
+        messages: List[dict],
+        rail_types: Optional[List[RailType]] = None,
+    ) -> RailsResult:
+        """Synchronous version of check_async.
+        Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support check()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.check(messages, rail_types=rail_types)
+
+    def register_action(self, action: Callable, name: Optional[str] = None) -> LLMRails:
+        """Register a custom action for the rails configuration.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_action()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_action(action, name)
+
+    def register_action_param(self, name: str, value: Any) -> LLMRails:
+        """Register a custom action parameter.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_action_param()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_action_param(name, value)
+
+    def register_filter(self, filter_fn: Callable, name: Optional[str] = None) -> LLMRails:
+        """Register a custom filter for the rails configuration.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_filter()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_filter(filter_fn, name)
+
+    def register_output_parser(self, output_parser: Callable, name: str) -> LLMRails:
+        """Register a custom output parser for the rails configuration.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_output_parser()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_output_parser(output_parser, name)
+
+    def register_prompt_context(self, name: str, value_or_fn: Any) -> LLMRails:
+        """Register a value to be included in the prompt context.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_prompt_context()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_prompt_context(name, value_or_fn)
+
+    def register_embedding_search_provider(self, name: str, cls: Type[EmbeddingsIndex]) -> LLMRails:
+        """Register a new embedding search provider.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_embedding_search_provider()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_embedding_search_provider(name, cls)
+
+    def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> LLMRails:
+        """Register a custom embedding provider.
+        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support register_embedding_provider()")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.register_embedding_provider(cls, name)
+
+    def __getstate__(self):
+        """Pickle support: only the config is preserved (mirrors LLMRails)."""
+        return {"config": self.config}
+
+    def __setstate__(self, state):
+        """Pickle support: rebuild from config (mirrors LLMRails)."""
+        if state["config"].config_path:
+            config = RailsConfig.from_path(state["config"].config_path)
+        else:
+            config = state["config"]
+        self.__init__(config=config, verbose=False)
 
     async def startup(self) -> None:
         """Lifecycle method to start the rails engine.
