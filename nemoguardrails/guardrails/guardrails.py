@@ -24,6 +24,8 @@ LLM responses with programmable guardrails.
 import logging
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
 
+from typing_extensions import Self
+
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -60,6 +62,11 @@ class Guardrails:
 
         self.config = config
         self.verbose = verbose
+        # Stored so pickle round-trips preserve the user's engine preference;
+        # without this, __setstate__ would default use_iorails=True and silently
+        # switch a use_iorails=False instance onto IORails when the config is
+        # IORails-compatible.
+        self.use_iorails = use_iorails
 
         if verbose:
             configure_logging(logging.DEBUG)
@@ -289,87 +296,98 @@ class Guardrails:
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.check(messages, rail_types=rail_types)
 
-    def register_action(self, action: Callable, name: Optional[str] = None) -> LLMRails:
+    def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_action()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_action(action, name)
+        llmrails.register_action(action, name)
+        return self
 
-    def register_action_param(self, name: str, value: Any) -> LLMRails:
+    def register_action_param(self, name: str, value: Any) -> Self:
         """Register a custom action parameter.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_action_param()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_action_param(name, value)
+        llmrails.register_action_param(name, value)
+        return self
 
-    def register_filter(self, filter_fn: Callable, name: Optional[str] = None) -> LLMRails:
+    def register_filter(self, filter_fn: Callable, name: Optional[str] = None) -> Self:
         """Register a custom filter for the rails configuration.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_filter()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_filter(filter_fn, name)
+        llmrails.register_filter(filter_fn, name)
+        return self
 
-    def register_output_parser(self, output_parser: Callable, name: str) -> LLMRails:
+    def register_output_parser(self, output_parser: Callable, name: str) -> Self:
         """Register a custom output parser for the rails configuration.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_output_parser()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_output_parser(output_parser, name)
+        llmrails.register_output_parser(output_parser, name)
+        return self
 
-    def register_prompt_context(self, name: str, value_or_fn: Any) -> LLMRails:
+    def register_prompt_context(self, name: str, value_or_fn: Any) -> Self:
         """Register a value to be included in the prompt context.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_prompt_context()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_prompt_context(name, value_or_fn)
+        llmrails.register_prompt_context(name, value_or_fn)
+        return self
 
-    def register_embedding_search_provider(self, name: str, cls: Type[EmbeddingsIndex]) -> LLMRails:
+    def register_embedding_search_provider(self, name: str, cls: Type[EmbeddingsIndex]) -> Self:
         """Register a new embedding search provider.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_embedding_search_provider()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_embedding_search_provider(name, cls)
+        llmrails.register_embedding_search_provider(name, cls)
+        return self
 
-    def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> LLMRails:
+    def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> Self:
         """Register a custom embedding provider.
-        Only supported for LLMRails. Returns the underlying LLMRails instance.
+        Only supported for LLMRails. Returns self so calls can be chained.
         """
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support register_embedding_provider()")
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.register_embedding_provider(cls, name)
+        llmrails.register_embedding_provider(cls, name)
+        return self
 
     def __getstate__(self):
-        """Pickle support: only the config is preserved (mirrors LLMRails)."""
-        return {"config": self.config}
+        """Pickle support: preserve config and use_iorails so the rebuilt
+        instance lands on the same engine. The llm is dropped (matches LLMRails).
+        """
+        return {"config": self.config, "use_iorails": self.use_iorails}
 
     def __setstate__(self, state):
-        """Pickle support: rebuild from config (mirrors LLMRails)."""
+        """Pickle support: rebuild from config + use_iorails. Older pickles
+        without use_iorails default to True for backwards compatibility.
+        """
         if state["config"].config_path:
             config = RailsConfig.from_path(state["config"].config_path)
         else:
             config = state["config"]
-        self.__init__(config=config, verbose=False)
+        self.__init__(config=config, verbose=False, use_iorails=state.get("use_iorails", True))
 
     async def startup(self) -> None:
         """Lifecycle method to start the rails engine.

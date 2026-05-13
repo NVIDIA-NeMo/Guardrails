@@ -1165,7 +1165,7 @@ class TestLLMRailsOnlyMethods:
         assert result is sentinel
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_register_action_delegates_and_returns_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
+    def test_register_action_delegates_and_returns_self(self, mock_llmrails_class, _nemoguards_rails_config):
         mock_llmrails_instance = MagicMock()
         mock_llmrails_instance.register_action.return_value = mock_llmrails_instance
         mock_llmrails_class.return_value = mock_llmrails_instance
@@ -1178,7 +1178,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_action(my_action, name="my_action")
 
         mock_llmrails_instance.register_action.assert_called_once_with(my_action, "my_action")
-        assert result is mock_llmrails_instance  # Pass-through, not Guardrails self
+        assert result is guardrails  # Returns Guardrails facade for chaining
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_action_param_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1190,7 +1190,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_action_param("my_param", 42)
 
         mock_llmrails_instance.register_action_param.assert_called_once_with("my_param", 42)
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_filter_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1206,7 +1206,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_filter(my_filter, name="my_filter")
 
         mock_llmrails_instance.register_filter.assert_called_once_with(my_filter, "my_filter")
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_output_parser_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1222,7 +1222,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_output_parser(my_parser, "my_parser")
 
         mock_llmrails_instance.register_output_parser.assert_called_once_with(my_parser, "my_parser")
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_prompt_context_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1234,7 +1234,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_prompt_context("user_name", "alice")
 
         mock_llmrails_instance.register_prompt_context.assert_called_once_with("user_name", "alice")
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_embedding_search_provider_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1252,7 +1252,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_embedding_search_provider("fake", FakeIndex)
 
         mock_llmrails_instance.register_embedding_search_provider.assert_called_once_with("fake", FakeIndex)
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_register_embedding_provider_delegates(self, mock_llmrails_class, _nemoguards_rails_config):
@@ -1277,7 +1277,7 @@ class TestLLMRailsOnlyMethods:
         result = guardrails.register_embedding_provider(FakeModel, name="fake")
 
         mock_llmrails_instance.register_embedding_provider.assert_called_once_with(FakeModel, "fake")
-        assert result is mock_llmrails_instance
+        assert result is guardrails
 
     @pytest.mark.parametrize(
         "method_name,args,is_async",
@@ -1318,11 +1318,44 @@ class TestGuardrailsPickle:
     """Tests for __getstate__ / __setstate__ pickle support on Guardrails."""
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_getstate_returns_only_config(self, mock_llmrails_class, _nemoguards_rails_config):
+    def test_getstate_preserves_config_and_use_iorails(self, mock_llmrails_class, _nemoguards_rails_config):
+        """__getstate__ preserves both config and use_iorails so the rebuilt
+        instance lands on the same engine after a pickle round-trip."""
         mock_llmrails_class.return_value = MagicMock()
         guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         state = guardrails.__getstate__()
-        assert state == {"config": _nemoguards_rails_config}
+        assert state == {"config": _nemoguards_rails_config, "use_iorails": False}
+
+    @patch.object(LLMRails, "__init__", return_value=None)
+    def test_setstate_preserves_llmrails_on_iorails_compatible_config(
+        self, mock_llmrails_init, _nemoguards_rails_config
+    ):
+        """Regression: a Guardrails(use_iorails=False) wrapper on an IORails-compatible
+        config must rebuild as LLMRails, not silently switch to IORails. Without
+        preserving use_iorails in pickle state, __setstate__ would default to True
+        and route to IORails, making all LLMRails-only methods raise NotImplementedError.
+
+        We patch LLMRails.__init__ (not the class itself) to keep class identity intact
+        so isinstance() works against the real LLMRails.
+        """
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": _nemoguards_rails_config, "use_iorails": False})
+
+        assert guardrails.config is _nemoguards_rails_config
+        assert isinstance(guardrails.rails_engine, LLMRails)
+        mock_llmrails_init.assert_called_once_with(_nemoguards_rails_config, None, False)
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_setstate_backwards_compat_old_pickle_without_use_iorails(
+        self, mock_iorails_init, _nemoguards_rails_config
+    ):
+        """Older pickles (pre-fix) only serialized {"config": ...}. __setstate__ must
+        still accept them, defaulting use_iorails to True."""
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": _nemoguards_rails_config})  # no use_iorails key
+
+        assert guardrails.use_iorails is True
+        assert isinstance(guardrails.rails_engine, IORails)
 
     @patch.object(IORails, "__init__", return_value=None)
     def test_setstate_rebuilds_from_in_memory_config_iorails(self, mock_iorails_init, _nemoguards_rails_config):
