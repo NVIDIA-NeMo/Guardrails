@@ -52,7 +52,7 @@ A custom model class must implement two async methods and three properties.
 ```python
 from typing import AsyncIterator, List, Optional, Union
 
-from nemoguardrails.types import (
+from nemoguardrails import (
     ChatMessage,
     LLMResponse,
     LLMResponseChunk,
@@ -197,13 +197,13 @@ my_config/
 import asyncio
 from typing import Any, AsyncIterator, List, Optional, Union
 
-from nemoguardrails.llm.providers import register_provider
-from nemoguardrails.types import (
+from nemoguardrails import (
     ChatMessage,
     LLMResponse,
     LLMResponseChunk,
     UsageInfo,
 )
+from nemoguardrails.llm.providers import register_provider
 
 
 class EchoLLMModel:

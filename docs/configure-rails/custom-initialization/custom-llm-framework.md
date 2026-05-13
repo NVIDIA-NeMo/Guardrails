@@ -66,7 +66,7 @@ A custom framework implements four methods.
 ```python
 from typing import Any, Dict, List, Optional
 
-from nemoguardrails.types import LLMModel
+from nemoguardrails import LLMModel
 
 
 class MyFramework:
@@ -133,8 +133,7 @@ my_config/
 ```python
 from typing import Any, Dict, List, Optional
 
-from nemoguardrails.llm.frameworks import register_framework, set_default_framework
-from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
+from nemoguardrails import LLMModel, LLMResponse, LLMResponseChunk, register_framework, set_default_framework
 
 
 class EchoLLMModel:

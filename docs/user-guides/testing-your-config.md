@@ -179,8 +179,8 @@ passing `llm_responses` (full `LLMResponse` objects) instead of `responses`
 (plain strings):
 
 ```python
+from nemoguardrails import LLMResponse
 from nemoguardrails.testing import FakeLLMModel
-from nemoguardrails.types import LLMResponse
 
 
 fake = FakeLLMModel(
