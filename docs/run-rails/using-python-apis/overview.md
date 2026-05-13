@@ -65,7 +65,7 @@ print(response["content"])
 
 ## Lifetime and Performance
 
-Construct `LLMRails` once per process and reuse it across requests. Initialization performs configuration validation, prompt template compilation, and loads the embedding model (FastEmbed). On a typical developer machine, this work takes on the order of several hundred milliseconds.
+Construct `LLMRails` once per process and reuse it across requests. Initialization validates configuration, compiles prompt templates, and loads the embedding model (FastEmbed). On a typical developer machine, this work takes on the order of several hundred milliseconds.
 
 After construction, individual `generate()` / `generate_async()` calls do not repeat that startup work, so reusing a single `LLMRails` instance is significantly faster than building a new one per request.
 
