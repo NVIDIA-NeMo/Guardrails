@@ -1,9 +1,9 @@
 ---
 title:
-  page: "Overview of the Guardrails API Server"
+  page: "Overview of the NVIDIA NeMo Guardrails Library API Server"
   nav: "Overview"
-description: "The Guardrails API server is a tool for running guardrails in a secure, isolated environment."
-keywords: ["NeMo Guardrails server", "FastAPI", "REST API", "chat completions", "guardrails HTTP"]
+description: "The NVIDIA NeMo Guardrails library API server runs guardrails in a secure, isolated environment."
+keywords: ["NVIDIA NeMo Guardrails library server", "FastAPI", "REST API", "chat completions", "guardrails HTTP"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]
 content:
@@ -12,60 +12,64 @@ content:
   audience: ["data_scientist", "engineer"]
 ---
 
-# Overview of the NeMo Guardrails Library API Server
+# Overview of the NVIDIA NeMo Guardrails Library API Server
 
-The NeMo Guardrails API server:
+The NVIDIA NeMo Guardrails library API server provides the following capabilities:
 
 - Loads guardrails configurations at startup.
 - Exposes an [OpenAI-compatible REST API](https://platform.openai.com/docs/api-reference/chat/create) for chat completions and model listing.
-- Works with the [OpenAI Python SDK](https://github.com/openai/openai-python) — use `OpenAI(base_url="http://localhost:8000/v1")`.
-- Includes a built-in Chat UI for testing.
-- Supports multiple configurations and combining them per-request.
+- Works with the [OpenAI Python SDK](https://github.com/openai/openai-python). Use `OpenAI(base_url="http://localhost:8000/v1")`.
+- Includes a built-in chat UI for testing.
+- Supports multiple configurations and combines them for each request.
 
 ## Quick Start
 
-The following steps show how to start the NeMo Guardrails API server using the provided configuration files and test it by sending requests to the endpoints.
+The following steps show how to start the NVIDIA NeMo Guardrails library API server with the provided configuration files and send test requests to the endpoints.
 
 ### Prerequisites
 
-Meet the following prerequisites to use the NeMo Guardrails API server.
+Meet the following prerequisites before you use the NVIDIA NeMo Guardrails library API server.
 
-1. If you haven't already, install the NeMo Guardrails library with the `server` extra, following the instructions in [](../../getting-started/installation-guide.md#extra-dependencies).
+1. Install the NVIDIA NeMo Guardrails library with the `server` extra. For instructions, refer to [Extra Dependencies](../../getting-started/installation-guide.md#extra-dependencies).
 
-2. Set up an environment variable for your NVIDIA API key.
+   ```bash
+   pip install nemoguardrails[server]
+   ```
+
+2. Set the environment variable for your NVIDIA API key.
 
     ```console
     export NVIDIA_API_KEY="your-nvidia-api-key"
     ```
 
-    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) and code examples throughout the documentation use NVIDIA-hosted models.
+    This key is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided [example configurations](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs) and code examples throughout the documentation use NVIDIA-hosted models.
 
 ### Start the Server
 
-Point the server to a parent directory containing multiple configuration subdirectories:
+Follow these steps to start the server:
 
-```console
-$ cd Guardrails
-$ nemoguardrails server --config examples/configs
-```
+1. Point the server to a parent directory that contains multiple configuration subdirectories:
 
-> Requires `pip install nemoguardrails[server]` to install the FastAPI server dependencies. See the [installation guide](../../getting-started/installation-guide.md#extra-dependencies) for details.
+    ```console
+    $ cd Guardrails
+    $ nemoguardrails server --config examples/configs
+    ```
 
-List available configurations:
+1. To check if the server is running and list the available configurations, use the following command:
 
-```console
-$ curl http://localhost:8000/v1/rails/configs
+    ```console
+    $ curl http://localhost:8000/v1/rails/configs
 
-[
-  {"id": "content_safety"},
-  {"id": "jailbreak_detection"},
-  {"id": "topic_safety"},
-  {"id": "llama_guard"},
-  ...
-]
-```
+    [
+      {"id": "content_safety"},
+      {"id": "jailbreak_detection"},
+      {"id": "topic_safety"},
+      {"id": "llama_guard"},
+      ...
+    ]
+    ```
 
-Each subdirectory with a `config.yml` or `config.yaml` file becomes an available config ID.
+Each subdirectory that contains a `config.yml` or `config.yaml` file becomes an available configuration ID.
 
 ### Send a Request
 
@@ -85,9 +89,9 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 ### View the Chat UI
 
-Open `http://localhost:8000` in your browser to access the built-in Chat UI for testing.
+Open `http://localhost:8000` in your browser to access the built-in chat UI for testing.
 
 ## Related Topics
 
-- [](../../reference/api-server-endpoints/index.md)
+- [API Server Endpoints](../../reference/api-server-endpoints/index.md)
 - [Introduction to LLM Benchmarking](https://docs.nvidia.com/nim/benchmarking/llm/latest/overview.html)
