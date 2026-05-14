@@ -769,22 +769,38 @@
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">polygraf mask pii on output</span>
 </pre></div>
 </div>
+<section id="retrieval-flows">
+<h3>Retrieval Flows<a class="headerlink" href="#retrieval-flows" title="Link to this heading">#</a></h3>
+<p>To detect or mask PII in retrieved documents, configure the <code class="docutils literal notranslate"><span class="pre">retrieval</span></code> entities and enable the retrieval flow variant:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">polygraf</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">server_endpoint</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://governance.api.polygraf.ai/gcp/pii/text-detect&quot;</span>
+<span class="w">      </span><span class="nt">retrieval</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">entities</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Email</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Person</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Phone</span>
+
+<span class="w">  </span><span class="nt">retrieval</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">polygraf detect pii on retrieval</span>
+<span class="w">      </span><span class="c1"># or for masking:</span>
+<span class="w">      </span><span class="c1"># - polygraf mask pii on retrieval</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="entity-types">
 <h2>Entity Types<a class="headerlink" href="#entity-types" title="Link to this heading">#</a></h2>
 <p>You can configure which entities to detect or mask by specifying them in the <code class="docutils literal notranslate"><span class="pre">entities</span></code> list. If you omit the <code class="docutils literal notranslate"><span class="pre">entities</span></code> list for detection, any detected PII will trigger the detection flow. For masking, if you omit the <code class="docutils literal notranslate"><span class="pre">entities</span></code> list, it will mask all detected PII.</p>
-<p>Common entities you might want to detect/mask:</p>
+<p>Entity labels should match the labels returned by your Polygraf deployment. Common entities you might want to detect/mask include:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">Person</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Email</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Phone</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CREDIT_CARD_NUMBER</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">PASSPORT_NUMBER</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">SSN</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LOCATION</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ORGANIZATION</span></code></p></li>
 </ul>
-<p>For a complete list of supported entity types, please refer to the Polygraf documentation.</p>
+<p>For a complete list of supported entity types, please refer to the <a class="reference external" href="https://polygraf.ai/api-agents/" rel="noreferer noopener" target="_blank">Polygraf documentation</a>.</p>
 </section>
 </section>
 
@@ -838,7 +854,10 @@
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#retrieval-flows">Retrieval Flows</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#entity-types">Entity Types</a></li>
 </ul>
   </nav></div>
