@@ -304,6 +304,7 @@ Pangea AI Guard <community/pangea>
 Patronus Evaluate API <community/patronus-evaluate-api>
 Patronus Lynx <community/patronus-lynx>
 PolicyAI <community/policyai>
+Polygraf <community/polygraf>
 Presidio <community/presidio>
 Private AI <community/privateai>
 Prompt Security <community/prompt-security>
