@@ -32,10 +32,11 @@
 <link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -43,7 +44,9 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../../_static/documentation_options.js?v=ba17ea1a"></script>
+
+
+    <script src="../../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -54,15 +57,19 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../../../_static/js/table-expander.js?v=b1f1aacf"></script>
+
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html" />
     <link rel="icon" href="../../../_static/favicon.png"/>
+
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="nemoguardrails.rails.llm.config.RailsConfig" href="nemoguardrails.rails.llm.config.RailsConfig.html" />
     <link rel="prev" title="Python API Reference" href="../index.html" />
+
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -73,6 +80,7 @@
 <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
 
   </head>
+
   
   
   <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
@@ -80,6 +88,8 @@
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+
   
   <div id="pst-scroll-pixel-helper"></div>
   
@@ -400,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -456,6 +467,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -553,12 +566,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -601,10 +622,19 @@
 <li class="toctree-l2"><a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -612,8 +642,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -684,7 +712,7 @@
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>config</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="nemoguardrails.rails.llm.config.RailsConfig.html#nemoguardrails.rails.llm.config.RailsConfig" title="nemoguardrails.rails.llm.config.RailsConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailsConfig</span></code></a></span>) – A rails configuration.</p></li>
-<li><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">BaseChatModel</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLLM</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>]</span>) – An optional LLM engine to use. If provided, this will be used as the main LLM
+<li><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<a class="reference internal" href="nemoguardrails.types.LLMModel.html#nemoguardrails.types.LLMModel" title="nemoguardrails.types.LLMModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code></a>]</span>) – An optional LLM engine to use. If provided, this will be used as the main LLM
 and will take precedence over any main LLM specified in the config.</p></li>
 <li><p><strong>verbose</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span>) – Whether the logging should be verbose or not.</p></li>
 </ul>
@@ -699,7 +727,7 @@ and will take precedence over any main LLM specified in the config.</p></li>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.llm">
-<span class="sig-name descname"><span class="pre">llm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseChatModel</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLLM</span></code><span class="pre">,</span> <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code><span class="pre">]</span></em><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">llm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><a class="reference internal" href="nemoguardrails.types.LLMModel.html#nemoguardrails.types.LLMModel" title="nemoguardrails.types.LLMModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code></a><span class="pre">]</span></em><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -713,7 +741,7 @@ and will take precedence over any main LLM specified in the config.</p></li>
 <dd><p>Replace the main LLM with the provided one.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>llm</strong> – The new LLM that should be used.</p>
+<dd class="field-odd"><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="nemoguardrails.types.LLMModel.html#nemoguardrails.types.LLMModel" title="nemoguardrails.types.LLMModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code></a></span>) – The new LLM that should be used.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -835,13 +863,16 @@ provided handler will be used for streaming.</p></li>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>events</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – The history of events to be used to generate the next events.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>events</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – The history of events to be used to generate the next events.</p></li>
+<li><p><strong>options</strong> – The options to be used for the generation.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span></p>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The newly generated event(s).</p>
+<dd class="field-odd"><p>The newly generate event(s).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -910,19 +941,17 @@ a clean state will be used.</p></li>
 <em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">check_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">messages</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rail_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/nemoguardrails/rails/llm/llmrails.html#LLMRails.check_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.check_async" title="Link to this definition">#</a></dt>
 <dd><p>Run rails on messages based on their content (asynchronous).</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is not provided, automatically determines which rails
-to run based on message roles:</p>
-<ul class="simple">
-<li><p>Only user messages: runs input rails</p></li>
-<li><p>Only assistant messages: runs output rails</p></li>
-<li><p>Both user and assistant messages: runs both input and output rails</p></li>
-<li><p>No user/assistant messages: logs warning and returns passing result</p></li>
-</ul>
+to run based on message roles:
+- Only user messages: runs input rails
+- Only assistant messages: runs output rails
+- Both user and assistant messages: runs both input and output rails
+- No user/assistant messages: logs warning and returns passing result</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is provided, runs exactly the specified rail types,
 skipping the auto-detection logic.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with <code class="docutils literal notranslate"><span class="pre">role</span></code> and <code class="docutils literal notranslate"><span class="pre">content</span></code> fields.
+<li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with ‘role’ and ‘content’ fields.
 Messages can contain any roles, but only user/assistant roles
 determine which rails execute when <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is not provided.</p></li>
 <li><p><strong>rail_types</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailType</span></code></a>]]</span>) – Optional list of rail types to run, e.g.
@@ -932,9 +961,9 @@ When provided, overrides automatic detection.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><ul class="simple">
-<li><p><strong>status</strong>: PASSED, MODIFIED, or BLOCKED</p></li>
-<li><p><strong>content</strong>: The final content after rails processing</p></li>
-<li><p><strong>rail</strong>: Name of the rail that blocked (if blocked)</p></li>
+<li><p>status: PASSED, MODIFIED, or BLOCKED</p></li>
+<li><p>content: The final content after rails processing</p></li>
+<li><p>rail: Name of the rail that blocked (if blocked)</p></li>
 </ul>
 </p>
 </dd>
@@ -942,24 +971,22 @@ When provided, overrides automatic detection.</p></li>
 <dd class="field-odd"><p>RailsResult containing</p>
 </dd>
 </dl>
-<p>Examples:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"># </span>Check<span class="w"> </span>user<span class="w"> </span>input<span class="w"> </span><span class="o">(</span>auto-detected<span class="o">)</span>
-<span class="go">result = await rails.check_async(</span>
-<span class="go">    [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}]</span>
-<span class="go">)</span>
+<p class="rubric">Examples</p>
+<p>Check user input (auto-detected):</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async([{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}])</span>
 <span class="go">if result.status == RailStatus.BLOCKED:</span>
 <span class="go">    print(f&quot;Blocked by: {result.rail}&quot;)</span>
-
-<span class="gp"># </span>Check<span class="w"> </span>bot<span class="w"> </span>output<span class="w"> </span>with<span class="w"> </span>context<span class="w"> </span><span class="o">(</span>auto-detected<span class="o">)</span>
-<span class="go">result = await rails.check_async([</span>
+</pre></div>
+</div>
+<p>Check bot output with context (auto-detected):</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async([</span>
 <span class="go">    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;},</span>
 <span class="go">    {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: &quot;Hi there!&quot;}</span>
 <span class="go">])</span>
-
-<span class="gp"># </span>Run<span class="w"> </span>only<span class="w"> </span>input<span class="w"> </span>rails<span class="w"> </span>explicitly
-<span class="go">result = await rails.check_async(</span>
-<span class="go">    messages, rail_types=[RailType.INPUT]</span>
-<span class="go">)</span>
+</pre></div>
+</div>
+<p>Run only input rails explicitly:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async(messages, rail_types=[RailType.INPUT])</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -973,8 +1000,7 @@ When provided, overrides automatic detection.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with ‘role’ and ‘content’ fields.</p></li>
-<li><p><strong>rails</strong> – Optional list of rail types to run. See check_async() for details.</p></li>
-<li><p><strong>rail_types</strong> (<em>List</em><em>[</em><a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><em>RailType</em></a><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>rail_types</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailType</span></code></a>]]</span>) – Optional list of rail types to run. See check_async() for details.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
@@ -1223,9 +1249,11 @@ When provided, overrides automatic detection.</p></li>
     </div>
   </div>
   
+
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
   <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
 <script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
 
 
   <footer class="bd-footer">
@@ -1249,12 +1277,7 @@ When provided, overrides automatic detection.</p></li>
   
   
   
-  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
-   | 
-  
-  
-  
-  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
    | 
   
   

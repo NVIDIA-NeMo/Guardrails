@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Overview of the NeMo Guardrails Library API Server &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Overview of the NVIDIA NeMo Guardrails Library API Server &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -32,10 +32,11 @@
 <link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -43,7 +44,9 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../_static/documentation_options.js?v=ba17ea1a"></script>
+
+
+    <script src="../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -54,15 +57,19 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../../_static/js/table-expander.js?v=b1f1aacf"></script>
+
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/run-rails/using-fastapi-server/overview.html" />
     <link rel="icon" href="../../_static/favicon.png"/>
+
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Run the NeMo Guardrails Server" href="run-guardrails-server.html" />
     <link rel="prev" title="Use the Guardrails API Server" href="index.html" />
+
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -73,6 +80,7 @@
 <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
 
   </head>
+
   
   
   <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
@@ -80,6 +88,8 @@
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+
   
   <div id="pst-scroll-pixel-helper"></div>
   
@@ -400,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -456,6 +467,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -553,12 +566,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -601,10 +622,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -612,8 +642,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -652,7 +680,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Use the Guardrails API Server</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Overview of the NeMo Guardrails Library API Server</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Overview of the NVIDIA NeMo Guardrails Library API Server</span></li>
   </ul>
 </nav>
 </div>
@@ -669,40 +697,47 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="overview-of-the-nemo-guardrails-library-api-server">
-<h1>Overview of the NeMo Guardrails Library API Server<a class="headerlink" href="#overview-of-the-nemo-guardrails-library-api-server" title="Link to this heading">#</a></h1>
-<p>The NeMo Guardrails API server:</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="overview-of-the-nvidia-nemo-guardrails-library-api-server">
+<h1>Overview of the NVIDIA NeMo Guardrails Library API Server<a class="headerlink" href="#overview-of-the-nvidia-nemo-guardrails-library-api-server" title="Link to this heading">#</a></h1>
+<p>The NVIDIA NeMo Guardrails library API server provides the following capabilities:</p>
 <ul class="simple">
 <li><p>Loads guardrails configurations at startup.</p></li>
 <li><p>Exposes an <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create" rel="noreferer noopener" target="_blank">OpenAI-compatible REST API</a> for chat completions and model listing.</p></li>
-<li><p>Works with the <a class="reference external" href="https://github.com/openai/openai-python" rel="noreferer noopener" target="_blank">OpenAI Python SDK</a> — use <code class="docutils literal notranslate"><span class="pre">OpenAI(base_url=&quot;http://localhost:8000/v1&quot;)</span></code>.</p></li>
-<li><p>Includes a built-in Chat UI for testing.</p></li>
-<li><p>Supports multiple configurations and combining them per-request.</p></li>
+<li><p>Works with the <a class="reference external" href="https://github.com/openai/openai-python" rel="noreferer noopener" target="_blank">OpenAI Python SDK</a>. Use <code class="docutils literal notranslate"><span class="pre">OpenAI(base_url=&quot;http://localhost:8000/v1&quot;)</span></code>.</p></li>
+<li><p>Includes a built-in chat UI for testing.</p></li>
+<li><p>Supports multiple configurations and combines them for each request.</p></li>
 </ul>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
-<p>The following steps show how to start the NeMo Guardrails API server using the provided configuration files and test it by sending requests to the endpoints.</p>
+<p>The following steps show how to start the NVIDIA NeMo Guardrails library API server with the provided configuration files and send test requests to the endpoints.</p>
 <section id="prerequisites">
 <h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h3>
-<p>Meet the following prerequisites to use the NeMo Guardrails API server.</p>
+<p>Meet the following prerequisites before you use the NVIDIA NeMo Guardrails library API server.</p>
 <ol class="arabic">
-<li><p>If you haven’t already, install the NeMo Guardrails library with the <code class="docutils literal notranslate"><span class="pre">nvidia</span></code> extra, following the instructions in <a class="reference internal" href="../../getting-started/installation-guide.html"><span class="std std-doc">Install the NeMo Guardrails Library</span></a>.</p></li>
-<li><p>Set up an environment variable for your NVIDIA API key.</p>
+<li><p>Install the NVIDIA NeMo Guardrails library with the <code class="docutils literal notranslate"><span class="pre">server</span></code> extra. For instructions, refer to <a class="reference internal" href="../../getting-started/installation-guide.html#extra-dependencies"><span class="std std-ref">Extra Dependencies</span></a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemoguardrails<span class="o">[</span>server<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+<li><p>Set the environment variable for your NVIDIA API key.</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">export NVIDIA_API_KEY=&quot;your-nvidia-api-key&quot;</span>
 </pre></div>
 </div>
-<p>This is required to access NVIDIA-hosted models on <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. The provided example configurations (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs" rel="noreferer noopener" target="_blank">examples/configs</a>) and code examples throughout the documentation use NVIDIA-hosted models.</p>
+<p>This key is required to access NVIDIA-hosted models on <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. The provided <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs" rel="noreferer noopener" target="_blank">example configurations</a> and code examples throughout the documentation use NVIDIA-hosted models.</p>
 </li>
 </ol>
 </section>
 <section id="start-the-server">
 <h3>Start the Server<a class="headerlink" href="#start-the-server" title="Link to this heading">#</a></h3>
-<p>Point the server to a parent directory containing multiple configuration subdirectories:</p>
+<p>Follow these steps to start the server:</p>
+<ol class="arabic">
+<li><p>Point the server to a parent directory that contains multiple configuration subdirectories:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span><span class="nb">cd</span><span class="w"> </span>Guardrails
 <span class="gp">$ </span>nemoguardrails<span class="w"> </span>server<span class="w"> </span>--config<span class="w"> </span>examples/configs
 </pre></div>
 </div>
-<p>List available configurations:</p>
+</li>
+<li><p>To check if the server is running and list the available configurations, use the following command:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>curl<span class="w"> </span>http://localhost:8000/v1/rails/configs
 
 <span class="go">[</span>
@@ -714,7 +749,9 @@
 <span class="go">]</span>
 </pre></div>
 </div>
-<p>Each subdirectory with a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> or <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> file becomes an available config ID.</p>
+</li>
+</ol>
+<p>Each subdirectory that contains a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> or <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> file becomes an available configuration ID.</p>
 </section>
 <section id="send-a-request">
 <h3>Send a Request<a class="headerlink" href="#send-a-request" title="Link to this heading">#</a></h3>
@@ -733,13 +770,14 @@
 </section>
 <section id="view-the-chat-ui">
 <h3>View the Chat UI<a class="headerlink" href="#view-the-chat-ui" title="Link to this heading">#</a></h3>
-<p>Open <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code> in your browser to access the built-in Chat UI for testing.</p>
+<p>Open <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code> in your browser to access the built-in chat UI for testing.</p>
 </section>
 </section>
 <section id="related-topics">
 <h2>Related Topics<a class="headerlink" href="#related-topics" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../reference/api-server-endpoints/index.html"><span class="std std-doc">NeMo Guardrails Library API Server Endpoints Reference</span></a></p></li>
+<li><p><a class="reference internal" href="../../reference/api-server-endpoints/index.html"><span class="std std-doc">API Server Endpoints</span></a></p></li>
+<li><p><a class="reference external" href="https://docs.nvidia.com/nim/benchmarking/llm/latest/overview.html" rel="noreferer noopener" target="_blank">Introduction to LLM Benchmarking</a></p></li>
 </ul>
 </section>
 </section>
@@ -817,9 +855,11 @@
     </div>
   </div>
   
+
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
   <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
 <script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
 
 
   <footer class="bd-footer">
@@ -843,12 +883,7 @@
   
   
   
-  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
-   | 
-  
-  
-  
-  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
    | 
   
   

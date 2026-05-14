@@ -16,10 +16,8 @@
 import logging
 from typing import Dict, FrozenSet, Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails.actions.actions import action
-from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -31,6 +29,7 @@ from nemoguardrails.llm.cache.utils import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -41,14 +40,14 @@ def _get_reasoning_enabled(llm_task_manager: LLMTaskManager) -> bool:
 
 @action()
 async def content_safety_check_input(
-    llms: Dict[str, BaseLLM],
+    llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     user_input: str = ""
 
     if context is not None:
@@ -98,14 +97,14 @@ async def content_safety_check_input(
             log.debug(f"Content safety cache hit for model '{model_name}'")
             return cached_result
 
-    result = await llm_call(
+    llm_response = await llm_call(
         llm,
         check_input_prompt,
         stop=stop,
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
-
-    result = llm_task_manager.parse_task_output(task, output=result)
+    warn_if_truncated(llm_response, task)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
 
     is_safe, *violated_policies = result
 
@@ -142,14 +141,14 @@ def content_safety_check_output_mapping(result: dict) -> bool:
 
 @action(output_mapping=content_safety_check_output_mapping)
 async def content_safety_check_output(
-    llms: Dict[str, BaseLLM],
+    llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     user_input: str = ""
     bot_response: str = ""
 
@@ -202,14 +201,14 @@ async def content_safety_check_output(
             log.debug(f"Content safety output cache hit for model '{model_name}'")
             return cached_result
 
-    result = await llm_call(
+    llm_response = await llm_call(
         llm,
         check_output_prompt,
         stop=stop,
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
-
-    result = llm_task_manager.parse_task_output(task, output=result)
+    warn_if_truncated(llm_response, task)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
 
     is_safe, *violated_policies = result
 

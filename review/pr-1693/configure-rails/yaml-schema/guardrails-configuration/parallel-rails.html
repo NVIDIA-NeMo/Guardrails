@@ -32,10 +32,11 @@
 <link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -43,7 +44,9 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../../../_static/documentation_options.js?v=ba17ea1a"></script>
+
+
+    <script src="../../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -54,13 +57,17 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../../../_static/js/table-expander.js?v=b1f1aacf"></script>
+
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/yaml-schema/guardrails-configuration/parallel-rails.html" />
     <link rel="icon" href="../../../_static/favicon.png"/>
+
     <link rel="search" title="Search" href="../../../search.html" />
+
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -71,6 +78,7 @@
 <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
 
   </head>
+
   
   
   <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
@@ -78,6 +86,8 @@
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+
   
   <div id="pst-scroll-pixel-helper"></div>
   
@@ -398,6 +408,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -454,6 +465,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -551,12 +564,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -599,10 +620,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -610,8 +640,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -667,17 +695,59 @@
   <section class="tex2jax_ignore mathjax_ignore" id="parallel-execution-of-input-and-output-rails">
 <h1>Parallel Execution of Input and Output Rails<a class="headerlink" href="#parallel-execution-of-input-and-output-rails" title="Link to this heading">#</a></h1>
 <p>You can configure input and output rails to run in parallel. This can improve latency and throughput.</p>
-<section id="when-to-use-parallel-rails-execution">
-<h2>When to Use Parallel Rails Execution<a class="headerlink" href="#when-to-use-parallel-rails-execution" title="Link to this heading">#</a></h2>
-<p>Use parallel execution:</p>
+<section id="iorails-engine">
+<h2>IORails Engine<a class="headerlink" href="#iorails-engine" title="Link to this heading">#</a></h2>
+<p>The IORails engine is an optimized execution engine that runs NemoGuard input and output rails in
+parallel with dedicated model management. The IORails engine is an opt-in feature. By default, the
+NeMo Guardrails library uses the LLMRails engine.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>IORails is an early-release feature and currently does not support streaming, reasoning models, and telemetry as in LLMRails.</p>
+</div>
+<section id="supported-flows">
+<h3>Supported Flows<a class="headerlink" href="#supported-flows" title="Link to this heading">#</a></h3>
+<p>The IORails engine supports the following flows:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code> / <code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">output</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topic</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">model</span></code></p></li>
+</ul>
+<p>When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
+Configurations that include custom flows, dialog rails, or other unsupported flows
+raise an error at initialization.</p>
+</section>
+<section id="enabling-iorails">
+<h3>Enabling IORails<a class="headerlink" href="#enabling-iorails" title="Link to this heading">#</a></h3>
+<p>To enable the IORails engine, set the <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE</span></code> environment variable to <code class="docutils literal notranslate"><span class="pre">1</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMO_GUARDRAILS_IORAILS_ENGINE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>examples/configs/content_safety
+</pre></div>
+</div>
+<p>When using the Python API, import the <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> class directly and pass <code class="docutils literal notranslate"><span class="pre">use_iorails=True</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;./config&quot;</span><span class="p">)</span>
+<span class="n">guardrails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="yaml-based-parallel-execution">
+<h2>YAML-Based Parallel Execution<a class="headerlink" href="#yaml-based-parallel-execution" title="Link to this heading">#</a></h2>
+<p>You can also configure existing LLMRails flows to run in parallel using the <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code>
+option in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. This approach works with any flow type and does not require
+the IORails engine.</p>
+<section id="when-to-use">
+<h3>When to Use<a class="headerlink" href="#when-to-use" title="Link to this heading">#</a></h3>
+<p>Use YAML-based parallel execution:</p>
 <ul class="simple">
 <li><p>For I/O-bound rails such as external API calls to LLMs or third-party integrations.</p></li>
 <li><p>If you have two or more independent input or output rails without shared state dependencies.</p></li>
 <li><p>In production environments where response latency affects user experience and business metrics.</p></li>
 </ul>
 </section>
-<section id="when-not-to-use-parallel-rails-execution">
-<h2>When Not to Use Parallel Rails Execution<a class="headerlink" href="#when-not-to-use-parallel-rails-execution" title="Link to this heading">#</a></h2>
+<section id="when-not-to-use">
+<h3>When Not to Use<a class="headerlink" href="#when-not-to-use" title="Link to this heading">#</a></h3>
 <p>Avoid parallel execution:</p>
 <ul class="simple">
 <li><p>For CPU-bound rails; it might not improve performance and can introduce overhead.</p></li>
@@ -685,8 +755,8 @@
 </ul>
 </section>
 <section id="configuration-example">
-<h2>Configuration Example<a class="headerlink" href="#configuration-example" title="Link to this heading">#</a></h2>
-<p>To enable parallel execution, set <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code> in the <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> and <code class="docutils literal notranslate"><span class="pre">rails.output</span></code> sections in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. The following configuration example is tested by NVIDIA and shows how to enable parallel execution for input and output rails.</p>
+<h3>Configuration Example<a class="headerlink" href="#configuration-example" title="Link to this heading">#</a></h3>
+<p>To enable parallel execution, set <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code> in the <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> and <code class="docutils literal notranslate"><span class="pre">rails.output</span></code> sections in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Input rail mutations can lead to erroneous results during parallel execution because of race conditions arising from the execution order and timing of parallel operations. This can result in output divergence compared to sequential execution. For such cases, use sequential mode.</p>
@@ -719,9 +789,9 @@
 <span class="w">      </span><span class="nt">chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
 <span class="w">      </span><span class="nt">context_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 <span class="w">      </span><span class="nt">stream_first</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="nt">streaming</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
 </pre></div>
 </div>
+</section>
 </section>
 </section>
 
@@ -756,9 +826,17 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-parallel-rails-execution">When to Use Parallel Rails Execution</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use-parallel-rails-execution">When Not to Use Parallel Rails Execution</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#iorails-engine">IORails Engine</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-flows">Supported Flows</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#enabling-iorails">Enabling IORails</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#yaml-based-parallel-execution">YAML-Based Parallel Execution</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use">When to Use</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use">When Not to Use</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
@@ -775,9 +853,11 @@
     </div>
   </div>
   
+
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
   <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
 <script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
 
 
   <footer class="bd-footer">
@@ -801,12 +881,7 @@
   
   
   
-  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
-   | 
-  
-  
-  
-  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
    | 
   
   

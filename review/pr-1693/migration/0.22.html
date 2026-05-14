@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Glossary &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Migrating to 0.22 &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -32,10 +32,11 @@
 <link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -43,26 +44,32 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
-    <script src="../_static/documentation_options.js?v=ba17ea1a"></script>
+
+
+    <script src="../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../_static/doctools.js?v=9a2dae69"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=6dbb43f8"></script>
     <script src="../_static/search-assets.bundle.js?v=00e3e057"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'resources/glossary';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'migration/0.22';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
-    <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/resources/glossary.html" />
+    <script src="../_static/js/table-expander.js?v=b1f1aacf"></script>
+
+    <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/migration/0.22.html" />
     <link rel="icon" href="../_static/favicon.png"/>
+
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Security Guidelines for LLM Integrations" href="security/guidelines.html" />
-    <link rel="prev" title="Frequently Asked Questions (FAQ)" href="faqs.html" />
+    <link rel="next" title="NeMo Guardrails Library Troubleshooting Guide" href="../troubleshooting.html" />
+    <link rel="prev" title="NeMo Guardrails Library API Server Endpoints Reference" href="../reference/api-server-endpoints/index.html" />
+
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -73,6 +80,7 @@
 <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
 
   </head>
+
   
   
   <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
@@ -80,6 +88,8 @@
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+
   
   <div id="pst-scroll-pixel-helper"></div>
   
@@ -400,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -456,6 +467,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -553,12 +566,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -582,7 +603,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../integration/tools-integration.html">Tools Integration</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
-<ul class="nav bd-sidenav">
+<ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../reference/colang-architecture-guide.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/guardrails-sequence-diagrams.html">Sequence Diagrams</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/use-case-diagrams.html">Use Case Diagrams</a></li>
@@ -601,20 +622,27 @@
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
-<ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="faqs.html">FAQs</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="security/guidelines.html">Security</a></li>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
 </nav></div>
@@ -649,7 +677,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Glossary</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Migrating to 0.22</span></li>
   </ul>
 </nav>
 </div>
@@ -666,27 +694,279 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="glossary">
-<h1>Glossary<a class="headerlink" href="#glossary" title="Link to this heading">#</a></h1>
-<p>Below are the main concepts used in NeMo Guardrails:</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="migrating-to-0-22">
+<h1>Migrating to 0.22<a class="headerlink" href="#migrating-to-0-22" title="Link to this heading">#</a></h1>
+<p>Starting with 0.22, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> no longer installs LangChain or provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages.
+NeMo Guardrails includes a default LLM framework that calls OpenAI-compatible endpoints directly.
+LangChain remains supported for engines whose APIs are not OpenAI-compatible, but you must opt in.</p>
+<p>Most configurations continue to work without changes.
+Some v0.21 configurations need a YAML update or an explicit LangChain opt-in.
+Use this guide to identify your configuration shape and apply the matching migration recipe.</p>
+<section id="migration-summary">
+<h2>Migration Summary<a class="headerlink" href="#migration-summary" title="Link to this heading">#</a></h2>
+<p>The following table summarizes the migration instructions by engine type.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>v0.21 Configurations</p></th>
+<th class="head"><p>Action</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, or <code class="docutils literal notranslate"><span class="pre">ollama</span></code> with standard OpenAI-compatible parameters</p></td>
+<td><p>No action required.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">vllm_openai</span></code> or another LangChain wrapper for an OpenAI-compatible provider such as DeepSeek, OpenRouter, Together.ai, Fireworks.ai, Groq, or <code class="docutils literal notranslate"><span class="pre">llama.cpp</span></code></p></td>
+<td><p>Rewrite the model entry. See <a class="reference internal" href="#openai-compatible-providers">OpenAI-compatible providers</a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with LangChain-only parameters such as <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, or <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code></p></td>
+<td><p>Rewrite the parameters. See <a class="reference internal" href="#mixed-shape-configs">Mixed-shape configs</a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, or <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
+<td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> or <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
+<td><p>Use LangChain for the Azure-specific helpers, or configure the default framework manually. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Custom provider registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code></p></td>
+<td><p>Match the provider class to the active framework. See <a class="reference internal" href="#custom-providers">Custom providers</a>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>For the engine-by-engine matrix, see <a class="reference internal" href="../about/supported-llms.html"><span class="std std-doc">Supported LLMs</span></a>.</p>
+</section>
+<section id="openai-compatible-providers">
+<h2>OpenAI-Compatible Providers<a class="headerlink" href="#openai-compatible-providers" title="Link to this heading">#</a></h2>
+<p>Several v0.21 engines are LangChain wrappers around providers that already expose an OpenAI-compatible <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> route.
+In 0.22, configure those providers with <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> so the default framework can call them directly.
+This path does not require LangChain or <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK</span></code>.</p>
+<section id="self-hosted-vllm">
+<h3>Self-Hosted vLLM<a class="headerlink" href="#self-hosted-vllm" title="Link to this heading">#</a></h3>
+<p>Before upgrading to v0.22, a self-hosted vLLM configuration might look like this:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">Configuration before v0.22</span><a class="headerlink" href="#id1" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llama_guard</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm_openai</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">openai_api_base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
+<span class="w">    </span><span class="nt">model_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/LlamaGuard-7b</span>
+</pre></div>
+</div>
+</div>
+<p>In v0.22, update the configuration to use the OpenAI-compatible engine:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Configuration starting with v0.22</span><a class="headerlink" href="#id2" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llama_guard</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/LlamaGuard-7b</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
+<span class="w">    </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EMPTY</span>
+</pre></div>
+</div>
+</div>
+<p>When self-hosted vLLM does not enforce authentication, set <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> to a non-empty placeholder such as <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code>.
+If your deployment requires a token, replace <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code> with the token value or set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> at the top level of the model entry:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">llama_guard</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/LlamaGuard-7b</span>
+<span class="w">  </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VLLM_API_KEY</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
+</div>
+</section>
+<section id="hosted-openai-compatible-providers">
+<h3>Hosted OpenAI-Compatible Providers<a class="headerlink" href="#hosted-openai-compatible-providers" title="Link to this heading">#</a></h3>
+<p>Before upgrading to v0.22, a hosted OpenAI-compatible provider configuration might look like this:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Configuration before v0.22</span><a class="headerlink" href="#id3" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek-reasoner</span>
+</pre></div>
+</div>
+</div>
+<p>In v0.22, update the configuration to use the OpenAI-compatible engine:</p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">Configuration starting with v0.22</span><a class="headerlink" href="#id4" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek-reasoner</span>
+<span class="w">  </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEEPSEEK_API_KEY</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://api.deepseek.com/v1</span>
+</pre></div>
+</div>
+</div>
+<p>Use the same pattern for other hosted OpenAI-compatible providers.
+Set <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to the provider’s OpenAI-compatible base URL and provide the API key with either <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> or the top-level <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> field.</p>
+</section>
+</section>
+<section id="mixed-shape-configs">
+<h2>Mixed-Shape Configs<a class="headerlink" href="#mixed-shape-configs" title="Link to this heading">#</a></h2>
+<p>Some v0.21 configs already use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> but pass LangChain-only parameters such as <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>, or provider-prefixed aliases such as <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code> and <code class="docutils literal notranslate"><span class="pre">*_base_url</span></code>.
+The 0.22 default framework forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request, so those LangChain-only keys do not apply.</p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text">Configuration before v0.22</span><a class="headerlink" href="#id5" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4o-mini</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">openai_api_base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:8001/v1</span>
+<span class="w">    </span><span class="nt">streaming</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">verbose</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text">Configuration starting with v0.22</span><a class="headerlink" href="#id6" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4o-mini</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:8001/v1</span>
+</pre></div>
+</div>
+</div>
+<p>Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> to <code class="docutils literal notranslate"><span class="pre">base_url</span></code>.
+Remove LangChain runtime flags and provider-prefixed aliases.
+Streaming still uses the <code class="docutils literal notranslate"><span class="pre">stream_async</span></code> API.</p>
+</section>
+<section id="unsupported-engine-on-the-default-framework">
+<h2>Unsupported Engine on the Default Framework<a class="headerlink" href="#unsupported-engine-on-the-default-framework" title="Link to this heading">#</a></h2>
+<p>If a v0.21 config uses an engine whose API is not OpenAI-compatible, configuration load fails on v0.22 unless you opt into LangChain.
+Engines that are not OpenAI-compatible include <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, and <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;. If your endpoint is OpenAI-compatible, set parameters.base_url. Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install the matching langchain-&lt;provider&gt; package (see migration guide).
+</pre></div>
+</div>
+<p>The provider name in the message changes to match your <code class="docutils literal notranslate"><span class="pre">engine:</span></code> value.
+Choose one remediation path based on your migration goal:</p>
 <ul class="simple">
-<li><p><strong>LLM-based Application</strong>: a software application that uses an LLM to drive</p></li>
-<li><p><strong>Bot</strong>: synonym for <em>LLM-based application</em>.</p></li>
-<li><p><strong>Utterance</strong>: the raw text coming from the user or the bot.</p></li>
-<li><p><strong>Intent</strong>: the canonical form (i.e. structured representation) of a user/bot utterance.</p></li>
-<li><p><strong>Event</strong>: something that has happened and is relevant to the conversation e.g. user is silent, user clicked something, user made a gesture, etc.</p></li>
-<li><p><strong>Action</strong>: a custom code that the bot can invoke; usually for connecting to third-party API.</p></li>
-<li><p><strong>Context</strong>: any data relevant to the conversation (i.e. a key-value dictionary).</p></li>
-<li><p><strong>Flow</strong>: a sequence of messages and events, potentially with additional branching logic.</p></li>
-<li><p><strong>Rails</strong>: specific ways of controlling the behavior of a conversational system (a.k.a. bot) e.g. not talk about politics, respond in a specific way to certain user requests, follow a predefined dialog path, use a specific language style, extract data etc.</p></li>
+<li><p>Keep the LangChain provider class. Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package, and then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Refer to <a class="reference internal" href="#using-langchain">Using LangChain</a> for the full procedure.</p></li>
+<li><p>Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. This includes self-hosted gateways, proxies, and hosted providers that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>. Refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
 </ul>
-<section id="recommended-naming-conventions">
-<h2>Recommended naming conventions<a class="headerlink" href="#recommended-naming-conventions" title="Link to this heading">#</a></h2>
-<p>User messages:</p>
+</section>
+<section id="using-langchain">
+<h2>Using LangChain<a class="headerlink" href="#using-langchain" title="Link to this heading">#</a></h2>
+<p>If your engine’s API is not OpenAI-compatible, keep using LangChain.
+This includes Anthropic, Cohere, Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM, and generic LangChain self-hosted providers.</p>
+<p>Install LangChain and the provider package you need, then select the LangChain LLM framework:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>langchain<span class="w"> </span>langchain-anthropic
+<span class="nb">export</span><span class="w"> </span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain
+</pre></div>
+</div>
+<p>The example above installs the Anthropic provider.
+Replace <code class="docutils literal notranslate"><span class="pre">langchain-anthropic</span></code> with the package for your provider.
+Engine names in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> stay bare; do not prefix them with <code class="docutils literal notranslate"><span class="pre">langchain/</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-3-5-sonnet-latest</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+</pre></div>
+</div>
+<p>To list the engine names LangChain recognizes, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain<span class="w"> </span>nemoguardrails<span class="w"> </span>find-providers
+</pre></div>
+</div>
+</section>
+<section id="azure-openai">
+<h2>Azure OpenAI<a class="headerlink" href="#azure-openai" title="Link to this heading">#</a></h2>
+<p>Azure OpenAI is OpenAI-compatible at the wire level, but it uses a deployment-name URL pattern and an <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string.
+You can use either LangChain or the default framework.</p>
+<p>A typical v0.21 Azure config looks like this:</p>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">Azure configuration before v0.22</span><a class="headerlink" href="#id7" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">azure_openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://my-resource.openai.azure.com/&quot;</span>
+<span class="w">    </span><span class="nt">azure_deployment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
+<span class="w">    </span><span class="nt">api_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2024-12-01-preview</span>
+</pre></div>
+</div>
+</div>
+<section id="langchain-path">
+<h3>LangChain Path<a class="headerlink" href="#langchain-path" title="Link to this heading">#</a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code> when you want Azure-specific helpers to build the deployment URL and <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>langchain<span class="w"> </span>langchain-openai
+<span class="nb">export</span><span class="w"> </span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain
+<span class="nb">export</span><span class="w"> </span><span class="nv">AZURE_OPENAI_API_KEY</span><span class="o">=</span>&lt;your-key&gt;
+</pre></div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id8">
+<div class="code-block-caption"><span class="caption-text">Azure configuration with LangChain in v0.22</span><a class="headerlink" href="#id8" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">azure_openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">azure_endpoint</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://my-resource.openai.azure.com/&quot;</span>
+<span class="w">    </span><span class="nt">azure_deployment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
+<span class="w">    </span><span class="nt">api_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-12-01-preview&quot;</span>
+</pre></div>
+</div>
+</div>
+<p>For this path, rename <code class="docutils literal notranslate"><span class="pre">base_url</span></code> to <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code>.
+The other Azure fields remain compatible with <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p>
+</section>
+<section id="default-framework-path">
+<h3>Default Framework Path<a class="headerlink" href="#default-framework-path" title="Link to this heading">#</a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> when you want to avoid LangChain.
+In this path, include the deployment name in <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, pass <code class="docutils literal notranslate"><span class="pre">api-version</span></code> through <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, and pass the Azure key through <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>.</p>
+<div class="literal-block-wrapper docutils container" id="id9">
+<div class="code-block-caption"><span class="caption-text">Azure configuration with the default framework in v0.22</span><a class="headerlink" href="#id9" title="Link to this code">#</a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://my-resource.openai.azure.com/openai/deployments/gpt-4.1-mini&quot;</span>
+<span class="w">    </span><span class="nt">default_query</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">api-version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-12-01-preview&quot;</span>
+<span class="w">    </span><span class="nt">default_headers</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">api-key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;your-azure-key&gt;&quot;</span>
+</pre></div>
+</div>
+</div>
+<p>Make sure <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> is unset when using this Azure configuration.
+Otherwise, the default framework also adds an <code class="docutils literal notranslate"><span class="pre">Authorization:</span> <span class="pre">Bearer</span></code> header from <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> alongside the Azure <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
+</section>
+</section>
+<section id="custom-providers">
+<h2>Custom Providers<a class="headerlink" href="#custom-providers" title="Link to this heading">#</a></h2>
+<p>Custom provider migration depends on which framework the provider class targets.</p>
 <ul class="simple">
-<li><p>the first word should be a verb; “ask”, “respond”, “inform”, “provide”, “express”, “comment”, “confirm”, “deny”, “request”</p></li>
-<li><p>the rest of the words should be nouns</p></li>
-<li><p>should read naturally (e.g. not <code class="docutils literal notranslate"><span class="pre">user</span> <span class="pre">credit</span> <span class="pre">card</span> <span class="pre">problem</span></code> vs. <code class="docutils literal notranslate"><span class="pre">user</span> <span class="pre">inform</span> <span class="pre">credit</span> <span class="pre">card</span> <span class="pre">problem</span></code>)</p></li>
+<li><p>If your provider class implements the <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code> protocol from <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>, register it with <code class="docutils literal notranslate"><span class="pre">register_provider</span></code> and use the default framework.</p></li>
+<li><p>If your provider class subclasses a LangChain model class such as <code class="docutils literal notranslate"><span class="pre">BaseChatModel</span></code>, set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and keep using <code class="docutils literal notranslate"><span class="pre">register_chat_provider</span></code>.</p></li>
+<li><p>If your provider uses <code class="docutils literal notranslate"><span class="pre">register_llm_provider</span></code> for a text-completion LangChain provider, set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and plan to migrate to a chat provider. <code class="docutils literal notranslate"><span class="pre">register_llm_provider</span></code> is deprecated.</p></li>
+</ul>
+<p>The registration call applies to the active framework for the process.
+A LangChain provider class does not become a default-framework provider automatically.</p>
+<p>For LangChain provider examples, see <a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html"><span class="std std-doc">Custom LLM Providers</span></a>.
+For the default framework interface, see the <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code> and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> protocols in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>.</p>
+</section>
+<section id="what-did-not-change">
+<h2>What Did Not Change<a class="headerlink" href="#what-did-not-change" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Tool calling. Provider-side function calls and tool calls use the same OpenAI-compatible <code class="docutils literal notranslate"><span class="pre">tools</span></code> and <code class="docutils literal notranslate"><span class="pre">tool_choice</span></code> request shape.</p></li>
+<li><p>Model types. Values such as <code class="docutils literal notranslate"><span class="pre">main</span></code>, <code class="docutils literal notranslate"><span class="pre">content_safety</span></code>, and <code class="docutils literal notranslate"><span class="pre">llama_guard</span></code> still identify how a configured model is used by rails.</p></li>
+<li><p>Embeddings. Embedding provider configuration is unchanged by the LLM framework split.</p></li>
+<li><p>Rails and prompts. Existing Colang flows, rails sections, and prompt task names keep the same structure.</p></li>
+</ul>
+</section>
+<section id="related-topics">
+<h2>Related Topics<a class="headerlink" href="#related-topics" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../troubleshooting.html"><span class="std std-doc">Troubleshooting</span></a> covers common errors.</p></li>
+<li><p><a class="reference internal" href="../about/supported-llms.html"><span class="std std-doc">Supported LLMs</span></a> lists every engine and how it routes.</p></li>
+<li><p><a class="reference internal" href="../configure-rails/configuration-reference.html"><span class="std std-doc">Configuration YAML Schema Reference</span></a> covers <code class="docutils literal notranslate"><span class="pre">models.*</span></code> field semantics for both modes.</p></li>
+<li><p><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html"><span class="std std-doc">Custom LLM Providers</span></a> covers LangChain custom provider registration.</p></li>
+<li><p><a class="reference internal" href="../about/release-notes.html"><span class="std std-doc">Release Notes</span></a> lists everything that shipped in 0.22.</p></li>
 </ul>
 </section>
 </section>
@@ -702,20 +982,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="faqs.html"
+       href="../reference/api-server-endpoints/index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Frequently Asked Questions (FAQ)</p>
+        <p class="prev-next-title">NeMo Guardrails Library API Server Endpoints Reference</p>
       </div>
     </a>
     <a class="right-next"
-       href="security/guidelines.html"
+       href="../troubleshooting.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Security Guidelines for LLM Integrations</p>
+        <p class="prev-next-title">NeMo Guardrails Library Troubleshooting Guide</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -740,7 +1020,23 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-naming-conventions">Recommended naming conventions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#migration-summary">Migration Summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#openai-compatible-providers">OpenAI-Compatible Providers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosted-vllm">Self-Hosted vLLM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hosted-openai-compatible-providers">Hosted OpenAI-Compatible Providers</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mixed-shape-configs">Mixed-Shape Configs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-langchain">Using LangChain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-openai">Azure OpenAI</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-path">LangChain Path</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#default-framework-path">Default Framework Path</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-providers">Custom Providers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-did-not-change">What Did Not Change</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#related-topics">Related Topics</a></li>
 </ul>
   </nav></div>
 
@@ -757,9 +1053,11 @@
     </div>
   </div>
   
+
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
   <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
 <script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
 
 
   <footer class="bd-footer">
@@ -783,12 +1081,7 @@
   
   
   
-  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
-   | 
-  
-  
-  
-  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
    | 
   
   
