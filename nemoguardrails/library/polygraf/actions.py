@@ -87,7 +87,7 @@ async def polygraf_detect_pii(
         return False
 
     if enabled_entities:
-        return any(e["entity_type"] in enabled_entities for e in entities)
+        return any(isinstance(e, dict) and e.get("entity_type") in enabled_entities for e in entities)
 
     return True
 
@@ -127,14 +127,25 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
     if not entities:
         return text
 
-    if enabled_entities:
-        entities = [e for e in entities if e["entity_type"] in enabled_entities]
+    # Drop any malformed entries defensively so a single bad item cannot
+    # break masking. Also apply the entity-type filter (if configured).
+    safe_entities = []
+    for entity in entities:
+        if not isinstance(entity, dict):
+            log.warning("Skipping non-dict Polygraf entity: %r", entity)
+            continue
+        entity_type = entity.get("entity_type")
+        start = entity.get("start")
+        end = entity.get("end")
+        if entity_type is None or not isinstance(start, int) or not isinstance(end, int):
+            log.warning("Skipping Polygraf entity with missing or invalid fields: %r", entity)
+            continue
+        if enabled_entities and entity_type not in enabled_entities:
+            continue
+        safe_entities.append((start, end, entity_type))
 
     masked_text = text
-    for entity in sorted(entities, key=lambda x: x["start"], reverse=True):
-        start = entity["start"]
-        end = entity["end"]
-        entity_type = entity["entity_type"]
+    for start, end, entity_type in sorted(safe_entities, key=lambda x: x[0], reverse=True):
         masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
     return masked_text

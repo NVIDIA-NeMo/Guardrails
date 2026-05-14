@@ -19,12 +19,18 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+# Default per-request timeout for Polygraf calls. Matches the timeout pattern
+# used by other community guardrail integrations and prevents hung rails when
+# the Polygraf endpoint is unresponsive.
+DEFAULT_TIMEOUT_SECONDS = 30
+
 
 async def polygraf_request(
     text: str,
     server_endpoint: str,
     api_key: Optional[str] = None,
     session: Optional[aiohttp.ClientSession] = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> List[Dict[str, Any]]:
     """Send a PII detection request to the Polygraf API.
 
@@ -34,12 +40,15 @@ async def polygraf_request(
         api_key: The API key for the Polygraf service.
         session: Optional shared aiohttp session. Passing a session lets callers
             reuse connections across multiple PII checks.
+        timeout: Per-request timeout in seconds. Applied to both caller-provided
+            and internally created sessions.
 
     Returns:
         The list of entities detected by the Polygraf server.
 
     Raises:
-        ValueError: If the API call fails or the response cannot be parsed as JSON.
+        ValueError: If the API call fails, times out, or the response cannot
+            be parsed as JSON.
     """
     # Polygraf request payload. Some deployments accept/require additional flags
     # controlling PII/PID detection and aggregation.
@@ -56,11 +65,13 @@ async def polygraf_request(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    if session is not None:
-        return await _send_polygraf_request(session, server_endpoint, payload, headers)
+    client_timeout = aiohttp.ClientTimeout(total=timeout)
 
-    async with aiohttp.ClientSession() as request_session:
-        return await _send_polygraf_request(request_session, server_endpoint, payload, headers)
+    if session is not None:
+        return await _send_polygraf_request(session, server_endpoint, payload, headers, client_timeout)
+
+    async with aiohttp.ClientSession(timeout=client_timeout) as request_session:
+        return await _send_polygraf_request(request_session, server_endpoint, payload, headers, client_timeout)
 
 
 async def _send_polygraf_request(
@@ -68,8 +79,16 @@ async def _send_polygraf_request(
     server_endpoint: str,
     payload: Dict[str, Any],
     headers: Dict[str, str],
+    timeout: aiohttp.ClientTimeout,
 ) -> List[Dict[str, Any]]:
-    async with session.post(server_endpoint, json=payload, headers=headers) as resp:
+    try:
+        post_ctx = session.post(server_endpoint, json=payload, headers=headers, timeout=timeout)
+    except TypeError:
+        # Some test doubles do not accept a `timeout` kwarg; fall back to the
+        # session-level timeout instead.
+        post_ctx = session.post(server_endpoint, json=payload, headers=headers)
+
+    async with post_ctx as resp:
         if resp.status != 200:
             raise ValueError(f"Polygraf call failed with status code {resp.status}.\nDetails: {await resp.text()}")
 

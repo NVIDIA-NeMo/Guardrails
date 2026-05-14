@@ -222,6 +222,48 @@ async def test_polygraf_request_raises_for_non_200_response():
         await polygraf_request("John", "http://polygraf.example/pii", None, session=session)
 
 
+class _FakeSessionWithTimeoutKwarg:
+    def __init__(self, response):
+        self.response = response
+        self.timeouts = []
+
+    def post(self, server_endpoint, json, headers, timeout=None):
+        self.timeouts.append(timeout)
+        return _FakePostContextManager(self.response)
+
+
+@pytest.mark.asyncio
+async def test_polygraf_request_forwards_timeout_to_post():
+    import aiohttp
+
+    session = _FakeSessionWithTimeoutKwarg(_FakeResponse(payload=[]))
+
+    await polygraf_request("hello", "http://polygraf.example/pii", None, session=session, timeout=7)
+
+    assert isinstance(session.timeouts[0], aiohttp.ClientTimeout)
+    assert session.timeouts[0].total == 7
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_skips_malformed_entities(monkeypatch, caplog):
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [
+            {"entity_type": "Person", "start": 0, "end": 4},
+            {"entity_type": "Email"},  # missing offsets
+            {"start": 5, "end": 10},  # missing entity_type
+            "not-a-dict",  # totally malformed entry
+        ]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
+
+    assert result.startswith("<Person>")
+    assert "Skipping Polygraf entity" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_polygraf_actions_warn_when_api_key_missing(monkeypatch, caplog):
     async def mock_request(text, server_endpoint, api_key, session=None):
