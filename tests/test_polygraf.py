@@ -198,6 +198,15 @@ async def test_polygraf_request_accepts_wrapped_entities_response():
 
 
 @pytest.mark.asyncio
+async def test_polygraf_request_accepts_null_entities_as_empty_response():
+    session = _FakeSession(_FakeResponse(payload={"entities": None}))
+
+    entities = await polygraf_request("hello", "http://polygraf.example/pii", None, session=session)
+
+    assert entities == []
+
+
+@pytest.mark.asyncio
 async def test_polygraf_request_raises_for_invalid_response_shape():
     session = _FakeSession(_FakeResponse(payload={"unexpected": []}))
 
@@ -475,7 +484,7 @@ def test_polygraf_pii_masking_on_output():
         config,
         llm_completions=[
             "  express greeting",
-            '  "Hi! I am John.',
+            '  "Hi! I am John."',
         ],
     )
 
@@ -491,7 +500,8 @@ def test_polygraf_pii_masking_on_output():
 
     chat >> "Hi!"
     response = chat.app.generate(messages=[{"role": "user", "content": "Hi!"}])
-    assert "John" not in response["content"] or "<NAME>" in response["content"]
+    assert "John" not in response["content"]
+    assert "<Person>" in response["content"]
 
 
 @pytest.mark.unit
@@ -539,7 +549,8 @@ def test_polygraf_pii_masking_on_input():
     @action()
     def check_user_message(user_message: str):
         """Check if the user message has PII masked."""
-        assert "John" not in user_message or "<NAME>" in user_message
+        assert "John" not in user_message
+        assert "<Person>" in user_message
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
     chat.app.register_action(check_user_message, "check_user_message")
@@ -600,7 +611,8 @@ def test_polygraf_pii_masking_on_retrieval():
     @action()
     def check_relevant_chunks(relevant_chunks: str):
         """Check if the relevant chunks have PII masked."""
-        assert "test@gmail.com" not in relevant_chunks or "<Email>" in relevant_chunks
+        assert "test@gmail.com" not in relevant_chunks
+        assert "<Email>" in relevant_chunks
 
     @action()
     def retrieve_relevant_chunk_for_masking():

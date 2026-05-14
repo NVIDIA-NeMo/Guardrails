@@ -75,18 +75,21 @@ async def _send_polygraf_request(
 
         try:
             data = await resp.json()
-        except aiohttp.ContentTypeError:
+        except aiohttp.ContentTypeError as err:
             raise ValueError(
                 f"Failed to parse Polygraf response as JSON. Status: {resp.status}, Content: {await resp.text()}"
-            )
+            ) from err
 
         # Polygraf may return either a raw list of entities or a wrapper object.
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
-            entities = data.get("entities")
-            if isinstance(entities, list):
-                return entities
+            if "entities" in data:
+                entities = data["entities"]
+                if entities is None:
+                    return []
+                if isinstance(entities, list):
+                    return entities
 
         raise ValueError(
             "Invalid response from Polygraf service: expected a list of entities or an object with an 'entities' list."

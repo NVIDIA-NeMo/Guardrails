@@ -74,18 +74,35 @@ rails:
       - polygraf mask pii on output
 ```
 
+### Retrieval Flows
+
+To detect or mask PII in retrieved documents, configure the `retrieval` entities and enable the retrieval flow variant:
+
+```yaml
+rails:
+  config:
+    polygraf:
+      server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+      retrieval:
+        entities:
+          - Email
+          - Person
+          - Phone
+
+  retrieval:
+    flows:
+      - polygraf detect pii on retrieval
+      # or for masking:
+      # - polygraf mask pii on retrieval
+```
+
 ## Entity Types
 
 You can configure which entities to detect or mask by specifying them in the `entities` list. If you omit the `entities` list for detection, any detected PII will trigger the detection flow. For masking, if you omit the `entities` list, it will mask all detected PII.
 
-Common entities you might want to detect/mask:
+Entity labels should match the labels returned by your Polygraf deployment. Common entities you might want to detect/mask include:
 - `Person`
 - `Email`
 - `Phone`
-- `CREDIT_CARD_NUMBER`
-- `PASSPORT_NUMBER`
-- `SSN`
-- `LOCATION`
-- `ORGANIZATION`
 
-For a complete list of supported entity types, please refer to the Polygraf documentation.
+For a complete list of supported entity types, please refer to the [Polygraf documentation](https://polygraf.ai/api-agents/).
