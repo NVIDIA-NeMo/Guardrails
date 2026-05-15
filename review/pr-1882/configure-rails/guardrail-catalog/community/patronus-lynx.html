@@ -729,7 +729,7 @@ python<span class="w"> </span>-m<span class="w"> </span>vllm.entrypoints.openai.
 <span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
 <span class="s1">  &quot;model&quot;: &quot;PatronusAI/Patronus-Lynx-70B-Instruct&quot;,</span>
 <span class="s1">  &quot;messages&quot;: [</span>
-<span class="s1">   {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;What is a hallucination?&quot;},</span>
+<span class="s1">   {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;What is a hallucination?&quot;}</span>
 <span class="s1">  ]</span>
 <span class="s1">}&#39;</span>
 </pre></div>
@@ -755,6 +755,7 @@ TEMPLATE<span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 <span class="s2">&lt;|im_start|&gt;user</span>
 <span class="s2">{{ .Prompt }}&lt;|im_end|&gt;</span>
 <span class="s2">&lt;|im_start|&gt;assistant</span>
+<span class="s2">&quot;&quot;&quot;</span>
 </pre></div>
 </div>
 <p>Ensure that the <code class="docutils literal notranslate"><span class="pre">FROM</span></code> field correctly points to the <code class="docutils literal notranslate"><span class="pre">patronus-lynx-8b-instruct-q4_k_m.gguf</span></code> file you downloaded in Step 3.</p>

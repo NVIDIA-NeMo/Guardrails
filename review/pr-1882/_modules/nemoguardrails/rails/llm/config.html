@@ -1468,8 +1468,22 @@ window.addEventListener("load", load);</script>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for GLiNER PII detection.&quot;&quot;&quot;</span>
 
     <span class="n">server_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
-        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;http://localhost:1235/v1/extract&quot;</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;The endpoint for the GLiNER detection server.&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;http://localhost:8000/v1/chat/completions&quot;</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;The endpoint for the GLiNER detection server. &quot;</span>
+            <span class="s2">&quot;By default, this is for a locally hosted NIM instance running the GLiNER model. &quot;</span>
+            <span class="s2">&quot;Changed from http://localhost:1235/v1/extract (custom server) to &quot;</span>
+            <span class="s2">&quot;http://localhost:8000/v1/chat/completions (NIM) in this release. &quot;</span>
+            <span class="s2">&quot;If you use the custom gliner_server, set this explicitly to http://localhost:1235/v1/extract.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;nvidia/gliner-pii&quot;</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Model identifier sent in NIM API requests (only used when server_endpoint ends with /v1/chat/completions).&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">api_key_env_var</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Name of the environment variable containing the API key for authenticated endpoints (e.g., NVIDIA_API_KEY).&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>

@@ -744,6 +744,20 @@
 </div>
 </section>
 </section>
+<section id="lifetime-and-performance">
+<h2>Lifetime and Performance<a class="headerlink" href="#lifetime-and-performance" title="Link to this heading">#</a></h2>
+<p>Construct <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> once per process and reuse it across requests. Initialization validates configuration, compiles prompt templates, and loads the embedding model (FastEmbed). On a typical developer machine, this work takes on the order of several hundred milliseconds.</p>
+<p>After construction, individual <code class="docutils literal notranslate"><span class="pre">generate()</span></code> / <code class="docutils literal notranslate"><span class="pre">generate_async()</span></code> calls do not repeat that startup work, so reusing a single <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> instance is significantly faster than building a new one per request.</p>
+<p>For serverless or FaaS handlers, this initialization cost is paid once per cold start, not per request. Cache the <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> instance in module scope (or a singleton) so warm invocations skip the setup:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span><span class="p">,</span> <span class="n">RailsConfig</span>
+
+<span class="n">_rails</span> <span class="o">=</span> <span class="n">LLMRails</span><span class="p">(</span><span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;./config&quot;</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">handler</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">_rails</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">event</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
 <section id="when-to-use-each-api">
 <h2>When to Use Each API<a class="headerlink" href="#when-to-use-each-api" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -853,6 +867,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#run-a-sample-guardrailed-chat-request">Run a Sample Guardrailed Chat Request</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lifetime-and-performance">Lifetime and Performance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-each-api">When to Use Each API</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#synchronous-vs-asynchronous">Synchronous vs Asynchronous</a></li>
 </ul>
