@@ -86,35 +86,38 @@ def test_direct_from_imports_llm_subpackage():
     )
 
 
-REGISTRY_FUNCTION_NAMES = [
-    "get_default_framework",
-    "register_framework",
-    "set_default_framework",
+# Registry functions and the submodule that owns each one.
+REGISTRY_FUNCTIONS = [
+    ("get_default_framework", "nemoguardrails.llm.frameworks"),
+    ("register_framework", "nemoguardrails.llm.frameworks"),
+    ("set_default_framework", "nemoguardrails.llm.frameworks"),
+    ("register_provider", "nemoguardrails.llm.providers"),
 ]
 
 
-@pytest.mark.parametrize("name", REGISTRY_FUNCTION_NAMES)
-def test_registry_function_top_level_export(name):
+@pytest.mark.parametrize("name,canonical_module", REGISTRY_FUNCTIONS)
+def test_registry_function_top_level_export(name, canonical_module):
     import nemoguardrails
 
     assert hasattr(nemoguardrails, name), f"nemoguardrails is missing {name}"
     assert name in nemoguardrails.__all__
 
 
-@pytest.mark.parametrize("name", REGISTRY_FUNCTION_NAMES)
-def test_registry_function_llm_subpackage_export(name):
+@pytest.mark.parametrize("name,canonical_module", REGISTRY_FUNCTIONS)
+def test_registry_function_llm_subpackage_export(name, canonical_module):
     import nemoguardrails.llm as llm
 
     assert hasattr(llm, name), f"nemoguardrails.llm is missing {name}"
     assert name in llm.__all__
 
 
-@pytest.mark.parametrize("name", REGISTRY_FUNCTION_NAMES)
-def test_registry_function_paths_resolve_to_same_object(name):
+@pytest.mark.parametrize("name,canonical_module", REGISTRY_FUNCTIONS)
+def test_registry_function_paths_resolve_to_same_object(name, canonical_module):
+    import importlib
+
     import nemoguardrails
     import nemoguardrails.llm as llm
-    import nemoguardrails.llm.frameworks as frameworks
 
-    canonical = getattr(frameworks, name)
+    canonical = getattr(importlib.import_module(canonical_module), name)
     assert getattr(nemoguardrails, name) is canonical
     assert getattr(llm, name) is canonical

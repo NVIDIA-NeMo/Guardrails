@@ -202,8 +202,8 @@ from nemoguardrails import (
     LLMResponse,
     LLMResponseChunk,
     UsageInfo,
+    register_provider,
 )
-from nemoguardrails.llm.providers import register_provider
 
 
 class EchoLLMModel:

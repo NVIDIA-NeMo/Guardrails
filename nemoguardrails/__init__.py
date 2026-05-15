@@ -53,6 +53,7 @@ from nemoguardrails.llm.frameworks import (  # noqa: E402
     register_framework,
     set_default_framework,
 )
+from nemoguardrails.llm.providers import register_provider  # noqa: E402
 from nemoguardrails.types import (  # noqa: E402
     ChatMessage,
     FinishReason,
@@ -82,5 +83,6 @@ __all__ = [
     "UsageInfo",
     "get_default_framework",
     "register_framework",
+    "register_provider",
     "set_default_framework",
 ]

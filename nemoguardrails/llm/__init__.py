@@ -18,6 +18,7 @@ from nemoguardrails.llm.frameworks import (
     register_framework,
     set_default_framework,
 )
+from nemoguardrails.llm.providers import register_provider
 from nemoguardrails.types import (
     ChatMessage,
     FinishReason,
@@ -44,5 +45,6 @@ __all__ = [
     "UsageInfo",
     "get_default_framework",
     "register_framework",
+    "register_provider",
     "set_default_framework",
 ]
