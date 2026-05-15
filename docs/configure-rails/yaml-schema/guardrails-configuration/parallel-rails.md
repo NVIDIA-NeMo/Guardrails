@@ -27,7 +27,8 @@ The IORails engine supports the following flows:
 
 When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
 Configurations that include custom flows, dialog rails, or other unsupported flows
-raise an error at initialization.
+silently fall back to the LLMRails engine and emit a warning. Pass `require_iorails=True`
+to `Guardrails(...)` to raise a `ValueError` at initialization instead.
 
 ### Enabling IORails
 
@@ -43,7 +44,9 @@ When using the Python API, import the `Guardrails` class directly and pass `use_
 from nemoguardrails import Guardrails, RailsConfig
 
 config = RailsConfig.from_path("./config")
-guardrails = Guardrails(config, use_iorails=True)
+# require_iorails=True ensures the engine is IORails (raises on fallback), so
+# parallel execution is actually in effect — the whole reason for opting in here.
+guardrails = Guardrails(config, use_iorails=True, require_iorails=True)
 ```
 
 ## YAML-Based Parallel Execution

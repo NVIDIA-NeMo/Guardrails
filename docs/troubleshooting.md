@@ -120,8 +120,9 @@ Fix the configuration by choosing one path:
 
 ### No Metrics Appear in Your Backend
 
-Call `set_meter_provider(...)` before constructing `Guardrails(config, use_iorails=True)` (or `LLMRails(config)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
+Call `set_meter_provider(...)` before constructing `Guardrails(config, use_iorails=True, require_iorails=True)` (or `LLMRails(config, require_iorails=True)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
 Then verify that `metrics.enabled: true` is set in the configuration.
+`require_iorails=True` makes the constructor raise if the config is incompatible with IORails, so metrics misconfiguration surfaces immediately rather than silently disabling metrics.
 
 ### Metrics Are Silently Missing
 
@@ -129,7 +130,7 @@ When `metrics.enabled: true` but no `MeterProvider` is configured, the OpenTelem
 The library does not log a warning.
 
 Verify locally with `ConsoleMetricExporter` first.
-Then ensure `set_meter_provider(...)` runs before constructing `Guardrails(config, use_iorails=True)` (or `LLMRails(config)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
+Then ensure `set_meter_provider(...)` runs before constructing `Guardrails(config, use_iorails=True, require_iorails=True)` (or `LLMRails(config, require_iorails=True)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
 
 ### Metrics Dependency Is Missing
 
@@ -154,6 +155,7 @@ Test with `ConsoleMetricExporter` first to confirm IORails engine emission, then
 
 Metrics are emitted only by the IORails engine.
 Enable it either by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` (which redirects `LLMRails(config)` to the IORails engine) or by constructing `Guardrails(config, use_iorails=True)` directly, and use `generate_async` or `stream_async`.
+Pass `require_iorails=True` to make the constructor raise (instead of silently falling back to LLMRails and emitting no metrics) when the config is incompatible with IORails.
 
 ### Synchronous `generate()` Produces No Metrics
 

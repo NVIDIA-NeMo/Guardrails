@@ -92,8 +92,11 @@ Long-running services typically do not need this call.
     config = RailsConfig.from_content(yaml_content=config_yaml)
 
     async def main() -> None:
-        # LLMRails will use IORails due to NEMO_GUARDRAILS_IORAILS_ENGINE=1 being set
-        async with LLMRails(config) as rails:
+        # LLMRails will use IORails due to NEMO_GUARDRAILS_IORAILS_ENGINE=1 being set.
+        # require_iorails=True raises if the config is incompatible with IORails, so
+        # the metrics-setup path fails loudly rather than silently selecting LLMRails
+        # (which emits no metrics).
+        async with LLMRails(config, require_iorails=True) as rails:
             response = await rails.generate_async(
                 messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
             )
