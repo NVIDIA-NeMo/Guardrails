@@ -83,7 +83,7 @@ metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[read
 
 # Configure NeMo Guardrails afterwards.
 from nemoguardrails import RailsConfig
-from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.guardrails import Guardrails
 
 config_yaml = """
 models:
@@ -96,7 +96,7 @@ metrics:
 """
 
 config = RailsConfig.from_content(yaml_content=config_yaml)
-rails = IORails(config)
+rails = Guardrails(config, use_iorails=True)
 ```
 
 ### OTLP Exporter (Production)

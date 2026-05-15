@@ -120,7 +120,7 @@ Fix the configuration by choosing one path:
 
 ### No Metrics Appear in Your Backend
 
-Call `set_meter_provider(...)` before constructing `IORails(config)`.
+Call `set_meter_provider(...)` before constructing `Guardrails(config, use_iorails=True)` (or `LLMRails(config)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
 Then verify that `metrics.enabled: true` is set in the configuration.
 
 ### Metrics Are Silently Missing
@@ -129,7 +129,7 @@ When `metrics.enabled: true` but no `MeterProvider` is configured, the OpenTelem
 The library does not log a warning.
 
 Verify locally with `ConsoleMetricExporter` first.
-Then ensure `set_meter_provider(...)` runs before constructing `IORails(config)`.
+Then ensure `set_meter_provider(...)` runs before constructing `Guardrails(config, use_iorails=True)` (or `LLMRails(config)` when running with `NEMO_GUARDRAILS_IORAILS_ENGINE=1`).
 
 ### Metrics Dependency Is Missing
 
@@ -152,12 +152,12 @@ Test with `ConsoleMetricExporter` first to confirm IORails-side emission, then s
 
 ### `LLMRails` Produces No Metrics
 
-Metrics are emitted only by `IORails`.
-Switch to `IORails` and use `generate_async` or `stream_async`.
+Metrics are emitted only by the IORails engine.
+Enable it either by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1` (which redirects `LLMRails(config)` to the IORails engine) or by constructing `Guardrails(config, use_iorails=True)` directly, and use `generate_async` or `stream_async`.
 
-### Synchronous `IORails.generate()` Produces No Metrics
+### Synchronous `generate()` Produces No Metrics
 
-Telemetry is disabled for the ephemeral `IORails` constructed by the synchronous `generate()` shim.
+Telemetry is disabled for the ephemeral engine constructed by the synchronous `generate()` shim.
 Use `generate_async` or `stream_async` for production paths.
 
 ### `gen_ai.client.token.usage` Is Missing for Streaming Requests
