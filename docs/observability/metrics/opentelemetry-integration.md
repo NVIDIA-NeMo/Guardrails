@@ -97,7 +97,10 @@ metrics:
 """
 
 config = RailsConfig.from_content(yaml_content=config_yaml)
-rails = Guardrails(config, use_iorails=True)
+# require_iorails=True raises if the config is incompatible with the IORails engine,
+# so the metrics setup fails loudly rather than silently falling back to LLMRails
+# (which emits no metrics).
+rails = Guardrails(config, use_iorails=True, require_iorails=True)
 ```
 
 ### OTLP Exporter (Production)

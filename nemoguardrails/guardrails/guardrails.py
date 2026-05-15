@@ -62,8 +62,17 @@ class Guardrails:
         verbose: bool = False,
         *,
         use_iorails: bool = True,  # False -> fall back to LLMRails instead
+        require_iorails: bool = False,
     ):
-        """Initialize a Guardrails instance."""
+        """Initialize a Guardrails instance.
+
+        When ``use_iorails`` is True, the wrapper attempts to use the IORails engine.
+        If the config or arguments are incompatible (an ``llm`` is provided, or the
+        config contains flows IORails does not support), the wrapper falls back to
+        LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
+        ``ValueError`` instead — use this when IORails-only features such as
+        OpenTelemetry metrics are required.
+        """
 
         self.config = config
         self.verbose = verbose
@@ -73,11 +82,25 @@ class Guardrails:
         else:
             configure_logging(logging.INFO)
 
-        # Whether to use IORailsEngine for inference requests
-        use_iorails_engine = use_iorails and llm is None and self._has_only_iorails_flows()
-        self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
-        # Store engine used so pickle restores the correct engine
-        self.use_iorails_engine = use_iorails_engine
+        if use_iorails:
+            fallback_reason = self._iorails_fallback_reason(llm)
+            if fallback_reason is None:
+                self._rails_engine = IORails(config)
+                self.use_iorails_engine = True
+            else:
+                message = (
+                    f"use_iorails=True was requested but IORails cannot be used: {fallback_reason}. "
+                    "Falling back to LLMRails; IORails-only features (such as OpenTelemetry "
+                    "metrics) will not be available."
+                )
+                if require_iorails:
+                    raise ValueError(message)
+                log.warning(message)
+                self._rails_engine = LLMRails(config, llm, verbose)
+                self.use_iorails_engine = False
+        else:
+            self._rails_engine = LLMRails(config, llm, verbose)
+            self.use_iorails_engine = False
 
         # Track whether startup() has been called (supports lazy initialization)
         self._started = False
@@ -125,26 +148,6 @@ class Guardrails:
 
         raise ValueError("Neither prompt nor messages provided for generation")
 
-    def _has_only_iorails_flows(self):
-        """Check if all the flows in the config can be supported by IORails"""
-
-        # If we have any rails outside of `input` and `output` we don't support them
-        rails_set = self.config.rails.model_fields_set
-        if rails_set - IORAILS_RAILS:
-            return False
-
-        for flow in self.config.rails.input.flows:
-            flow_name = _get_flow_name(flow)
-            if flow_name not in IORAILS_INPUT_FLOWS:
-                return False
-
-        for flow in self.config.rails.output.flows:
-            flow_name = _get_flow_name(flow)
-            if flow_name not in IORAILS_OUTPUT_FLOWS:
-                return False
-
-        return True
-
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
         if not self._started:
@@ -159,6 +162,31 @@ class Guardrails:
 
         generate_messages = self._convert_to_messages(prompt, messages)
         return self.rails_engine.generate(messages=generate_messages, **kwargs)
+
+    def _has_only_iorails_flows(self) -> bool:
+        """Return True if every flow in the config can be handled by IORails."""
+        return self._iorails_fallback_reason(llm=None) is None
+
+    def _iorails_fallback_reason(self, llm: Optional[LLMModel]) -> Optional[str]:
+        """Return None if IORails can handle this setup, else a human-readable reason."""
+        if llm is not None:
+            return "an `llm` argument was provided; IORails does not accept a custom LLM"
+
+        unsupported_rails = sorted(self.config.rails.model_fields_set - IORAILS_RAILS)
+        if unsupported_rails:
+            return f"config has rails outside the IORails-supported set: {unsupported_rails}"
+
+        input_names = (_get_flow_name(flow) for flow in self.config.rails.input.flows)
+        unsupported_input = sorted({name for name in input_names if name and name not in IORAILS_INPUT_FLOWS})
+        if unsupported_input:
+            return f"config has unsupported input flows: {unsupported_input}"
+
+        output_names = (_get_flow_name(flow) for flow in self.config.rails.output.flows)
+        unsupported_output = sorted({name for name in output_names if name and name not in IORAILS_OUTPUT_FLOWS})
+        if unsupported_output:
+            return f"config has unsupported output flows: {unsupported_output}"
+
+        return None
 
     @overload
     async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
