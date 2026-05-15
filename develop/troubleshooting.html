@@ -779,7 +779,7 @@ The library detects recognizable shapes at boot and on the first 400/422 respons
 <h2>Guardrails Metrics<a class="headerlink" href="#guardrails-metrics" title="Link to this heading">#</a></h2>
 <section id="no-metrics-appear-in-your-backend">
 <h3>No Metrics Appear in Your Backend<a class="headerlink" href="#no-metrics-appear-in-your-backend" title="Link to this heading">#</a></h3>
-<p>Call <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> before constructing <code class="docutils literal notranslate"><span class="pre">IORails(config)</span></code>.
+<p>Call <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> before constructing <code class="docutils literal notranslate"><span class="pre">Guardrails(config,</span> <span class="pre">use_iorails=True)</span></code> (or <code class="docutils literal notranslate"><span class="pre">LLMRails(config)</span></code> when running with <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>).
 Then verify that <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> is set in the configuration.</p>
 </section>
 <section id="metrics-are-silently-missing">
@@ -787,7 +787,7 @@ Then verify that <code class="docutils literal notranslate"><span class="pre">me
 <p>When <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> but no <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> is configured, the OpenTelemetry API returns a no-op meter and silently discards every emission.
 The library does not log a warning.</p>
 <p>Verify locally with <code class="docutils literal notranslate"><span class="pre">ConsoleMetricExporter</span></code> first.
-Then ensure <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> runs before constructing <code class="docutils literal notranslate"><span class="pre">IORails(config)</span></code>.</p>
+Then ensure <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> runs before constructing <code class="docutils literal notranslate"><span class="pre">Guardrails(config,</span> <span class="pre">use_iorails=True)</span></code> (or <code class="docutils literal notranslate"><span class="pre">LLMRails(config)</span></code> when running with <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>).</p>
 </section>
 <section id="metrics-dependency-is-missing">
 <h3>Metrics Dependency Is Missing<a class="headerlink" href="#metrics-dependency-is-missing" title="Link to this heading">#</a></h3>
@@ -803,16 +803,16 @@ Then ensure <code class="docutils literal notranslate"><span class="pre">set_met
 <section id="metrics-are-emitted-but-never-reach-the-backend">
 <h3>Metrics Are Emitted but Never Reach the Backend<a class="headerlink" href="#metrics-are-emitted-but-never-reach-the-backend" title="Link to this heading">#</a></h3>
 <p>Verify that the exporter target is reachable.
-Test with <code class="docutils literal notranslate"><span class="pre">ConsoleMetricExporter</span></code> first to confirm IORails-side emission, then swap in the production exporter.</p>
+Test with <code class="docutils literal notranslate"><span class="pre">ConsoleMetricExporter</span></code> first to confirm IORails engine emission, then swap in the production exporter.</p>
 </section>
 <section id="llmrails-produces-no-metrics">
 <h3><code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> Produces No Metrics<a class="headerlink" href="#llmrails-produces-no-metrics" title="Link to this heading">#</a></h3>
-<p>Metrics are emitted only by <code class="docutils literal notranslate"><span class="pre">IORails</span></code>.
-Switch to <code class="docutils literal notranslate"><span class="pre">IORails</span></code> and use <code class="docutils literal notranslate"><span class="pre">generate_async</span></code> or <code class="docutils literal notranslate"><span class="pre">stream_async</span></code>.</p>
+<p>Metrics are emitted only by the IORails engine.
+Enable it either by setting <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code> (which redirects <code class="docutils literal notranslate"><span class="pre">LLMRails(config)</span></code> to the IORails engine) or by constructing <code class="docutils literal notranslate"><span class="pre">Guardrails(config,</span> <span class="pre">use_iorails=True)</span></code> directly, and use <code class="docutils literal notranslate"><span class="pre">generate_async</span></code> or <code class="docutils literal notranslate"><span class="pre">stream_async</span></code>.</p>
 </section>
-<section id="synchronous-iorails-generate-produces-no-metrics">
-<h3>Synchronous <code class="docutils literal notranslate"><span class="pre">IORails.generate()</span></code> Produces No Metrics<a class="headerlink" href="#synchronous-iorails-generate-produces-no-metrics" title="Link to this heading">#</a></h3>
-<p>Telemetry is disabled for the ephemeral <code class="docutils literal notranslate"><span class="pre">IORails</span></code> constructed by the synchronous <code class="docutils literal notranslate"><span class="pre">generate()</span></code> shim.
+<section id="synchronous-generate-produces-no-metrics">
+<h3>Synchronous <code class="docutils literal notranslate"><span class="pre">generate()</span></code> Produces No Metrics<a class="headerlink" href="#synchronous-generate-produces-no-metrics" title="Link to this heading">#</a></h3>
+<p>Telemetry is disabled for the ephemeral engine constructed by the synchronous <code class="docutils literal notranslate"><span class="pre">generate()</span></code> shim.
 Use <code class="docutils literal notranslate"><span class="pre">generate_async</span></code> or <code class="docutils literal notranslate"><span class="pre">stream_async</span></code> for production paths.</p>
 </section>
 <section id="gen-ai-client-token-usage-is-missing-for-streaming-requests">
@@ -906,7 +906,7 @@ Use the same <code class="docutils literal notranslate"><span class="pre">Resour
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#metrics-dependency-is-missing">Metrics Dependency Is Missing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#metrics-are-emitted-but-never-reach-the-backend">Metrics Are Emitted but Never Reach the Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llmrails-produces-no-metrics"><code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> Produces No Metrics</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#synchronous-iorails-generate-produces-no-metrics">Synchronous <code class="docutils literal notranslate"><span class="pre">IORails.generate()</span></code> Produces No Metrics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#synchronous-generate-produces-no-metrics">Synchronous <code class="docutils literal notranslate"><span class="pre">generate()</span></code> Produces No Metrics</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gen-ai-client-token-usage-is-missing-for-streaming-requests"><code class="docutils literal notranslate"><span class="pre">gen_ai.client.token.usage</span></code> Is Missing for Streaming Requests</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#histogram-buckets-are-wrong-in-the-backend">Histogram Buckets Are Wrong in the Backend</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#guardrails-requests-active-drifts-from-the-sum-of-saturation-gauges"><code class="docutils literal notranslate"><span class="pre">guardrails.requests.active</span></code> Drifts from the Sum of Saturation Gauges</a></li>

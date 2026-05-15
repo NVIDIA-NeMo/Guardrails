@@ -699,7 +699,7 @@
   <section class="tex2jax_ignore mathjax_ignore" id="opentelemetry-metrics-integration">
 <h1>OpenTelemetry Metrics Integration<a class="headerlink" href="#opentelemetry-metrics-integration" title="Link to this heading">#</a></h1>
 <p>The NeMo Guardrails library follows OpenTelemetry best practices: the library uses only the API, and the host application configures the SDK.
-The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from IORails.</p>
+The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from the Guardrails IORails engine.</p>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
 <p>Choose one of the following options for installing the NeMo Guardrails library, the OpenTelemetry SDK, and an exporter.</p>
@@ -729,8 +729,8 @@ This is independent of <code class="docutils literal notranslate"><span class="p
 <span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
-<p>When <code class="docutils literal notranslate"><span class="pre">metrics.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code> and <code class="docutils literal notranslate"><span class="pre">opentelemetry-api</span></code> is installed, IORails emits metrics through the active <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code>.
-When <code class="docutils literal notranslate"><span class="pre">opentelemetry-api</span></code> is not installed, IORails emits a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> at construction time and runs without metrics.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">metrics.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code> and <code class="docutils literal notranslate"><span class="pre">opentelemetry-api</span></code> is installed, the IORails engine emits metrics through the active <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code>.
+When <code class="docutils literal notranslate"><span class="pre">opentelemetry-api</span></code> is not installed, the IORails engine emits a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> at construction time and runs without metrics.</p>
 </section>
 <section id="configuration-examples">
 <h2>Configuration Examples<a class="headerlink" href="#configuration-examples" title="Link to this heading">#</a></h2>
@@ -754,7 +754,7 @@ When <code class="docutils literal notranslate"><span class="pre">opentelemetry-
 
 <span class="c1"># Configure NeMo Guardrails afterwards.</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.iorails</span><span class="w"> </span><span class="kn">import</span> <span class="n">IORails</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span>
 
 <span class="n">config_yaml</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
 <span class="s2">models:</span>
@@ -767,7 +767,7 @@ When <code class="docutils literal notranslate"><span class="pre">opentelemetry-
 <span class="s2">&quot;&quot;&quot;</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_content</span><span class="p">(</span><span class="n">yaml_content</span><span class="o">=</span><span class="n">config_yaml</span><span class="p">)</span>
-<span class="n">rails</span> <span class="o">=</span> <span class="n">IORails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="n">rails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
