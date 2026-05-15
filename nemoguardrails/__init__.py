@@ -27,8 +27,17 @@ if not os.environ.get("TOKENIZERS_PARALLELISM"):
 import warnings
 
 import nemoguardrails.patch_asyncio
-from nemoguardrails.guardrails.guardrails import Guardrails
+
+# Import order matters: the `nemoguardrails.rails` package must be fully
+# initialized before `nemoguardrails.guardrails.guardrails`. The latter
+# pulls in `actions/llm/utils.py` -> `context.py` -> `rails.llm.options`,
+# which re-enters `rails/__init__.py` and would otherwise circularly import
+# names from a half-loaded `actions/llm/utils.py`.
+# isort: off
 from nemoguardrails.rails import RailsConfig
+from nemoguardrails.guardrails.guardrails import Guardrails
+
+# isort: on
 
 nemoguardrails.patch_asyncio.apply()
 
