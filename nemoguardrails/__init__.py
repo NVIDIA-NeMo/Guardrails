@@ -52,7 +52,7 @@ _use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").l
 )
 
 if _use_guardrails_wrapper:
-    # Backwards-compat alias: LLMRails refers to the Guardrails wrapper
+    # For backwards-compatibility, instantiate Guardrails instead of LLMRails.
     LLMRails = Guardrails
 else:
     # Use the original LLMRails class
