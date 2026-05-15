@@ -27,6 +27,7 @@ if not os.environ.get("TOKENIZERS_PARALLELISM"):
 import warnings
 
 import nemoguardrails.patch_asyncio
+from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails import RailsConfig
 
 nemoguardrails.patch_asyncio.apply()
@@ -42,8 +43,8 @@ _use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").l
 )
 
 if _use_guardrails_wrapper:
-    # Use the Guardrails wrapper class (aliased as LLMRails for compatibility)
-    from nemoguardrails.guardrails.guardrails import Guardrails as LLMRails
+    # Backwards-compat alias: LLMRails refers to the Guardrails wrapper
+    LLMRails = Guardrails
 else:
     # Use the original LLMRails class
     from nemoguardrails.rails import LLMRails
@@ -71,6 +72,7 @@ __version__ = version("nemoguardrails")
 __all__ = [
     "ChatMessage",
     "FinishReason",
+    "Guardrails",
     "LLMFramework",
     "LLMModel",
     "LLMRails",
