@@ -176,15 +176,21 @@ class Guardrails:
         if unsupported_rails:
             return f"config has rails outside the IORails-supported set: {unsupported_rails}"
 
-        input_names = (_get_flow_name(flow) for flow in self.config.rails.input.flows)
-        unsupported_input = sorted({name for name in input_names if name and name not in IORAILS_INPUT_FLOWS})
+        unsupported_input = set()
+        for flow in self.config.rails.input.flows:
+            name = _get_flow_name(flow)
+            if name and name not in IORAILS_INPUT_FLOWS:
+                unsupported_input.add(name)
         if unsupported_input:
-            return f"config has unsupported input flows: {unsupported_input}"
+            return f"config has unsupported input flows: {sorted(unsupported_input)}"
 
-        output_names = (_get_flow_name(flow) for flow in self.config.rails.output.flows)
-        unsupported_output = sorted({name for name in output_names if name and name not in IORAILS_OUTPUT_FLOWS})
+        unsupported_output = set()
+        for flow in self.config.rails.output.flows:
+            name = _get_flow_name(flow)
+            if name and name not in IORAILS_OUTPUT_FLOWS:
+                unsupported_output.add(name)
         if unsupported_output:
-            return f"config has unsupported output flows: {unsupported_output}"
+            return f"config has unsupported output flows: {sorted(unsupported_output)}"
 
         return None
 
