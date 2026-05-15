@@ -84,8 +84,7 @@ reader = PeriodicExportingMetricReader(
 metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
 
 # Configure NeMo Guardrails afterwards.
-from nemoguardrails import RailsConfig
-from nemoguardrails.guardrails.guardrails import Guardrails
+from nemoguardrails import Guardrails, RailsConfig
 
 config_yaml = """
 models:

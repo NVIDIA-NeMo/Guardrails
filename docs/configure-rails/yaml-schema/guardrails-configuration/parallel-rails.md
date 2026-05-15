@@ -40,8 +40,7 @@ NEMO_GUARDRAILS_IORAILS_ENGINE=1 nemoguardrails chat --config examples/configs/c
 When using the Python API, import the `Guardrails` class directly and pass `use_iorails=True`:
 
 ```python
-from nemoguardrails import RailsConfig
-from nemoguardrails.guardrails.guardrails import Guardrails
+from nemoguardrails import Guardrails, RailsConfig
 
 config = RailsConfig.from_path("./config")
 guardrails = Guardrails(config, use_iorails=True)
