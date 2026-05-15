@@ -123,7 +123,7 @@ The telemetry client attempts to write each outgoing event payload to a local au
 cat ~/.config/nemoguardrails/usage_stats.json
 ```
 
-The file uses JSON Lines format with one event per line and automatic rotation at 10 MB. It stores the inner event payload, not the full NVIDIA telemetry envelope. Audit writes are best effort. If local audit writing fails, telemetry transmission still proceeds.
+The file uses JSON Lines format with one event per line. It rotates when the current file exceeds 10 MB, keeping only `usage_stats.json` and one `usage_stats.json.1` backup, so local audit storage is bounded. It stores the inner event payload, not the full NVIDIA telemetry envelope. Audit writes are best effort. If local audit writing fails, telemetry transmission still proceeds.
 
 ## Opt Out
 
