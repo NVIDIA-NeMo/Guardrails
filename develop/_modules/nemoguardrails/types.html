@@ -1140,10 +1140,36 @@ window.addEventListener("load", load);</script>
 <span class="c1"># See the License for the specific language governing permissions and</span>
 <span class="c1"># limitations under the License.</span>
 
+<span class="sd">&quot;&quot;&quot;Public LLM types for NeMo Guardrails.</span>
+
+<span class="sd">This module defines the stable, public dataclasses and Protocols that make</span>
+<span class="sd">up the LLM interop surface for NeMo Guardrails. The types are implemented</span>
+<span class="sd">as plain Python dataclasses (not Pydantic) so they remain lightweight and</span>
+<span class="sd">introduce no additional runtime dependencies for downstream integrators.</span>
+
+<span class="sd">The public surface defined here is stable across minor versions: breaking</span>
+<span class="sd">changes are reserved for major version bumps. Custom ``LLMModel`` and</span>
+<span class="sd">``LLMFramework`` implementations should import the relevant types from</span>
+<span class="sd">this module so they stay aligned with the canonical definitions.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;ChatMessage&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FinishReason&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LLMFramework&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LLMModel&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LLMResponse&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LLMResponseChunk&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;Role&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ToolCall&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ToolCallFunction&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;UsageInfo&quot;</span><span class="p">,</span>
+<span class="p">]</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Role</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>

@@ -739,7 +739,7 @@
 <p>A custom model class must implement two async methods and three properties.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ChatMessage</span><span class="p">,</span>
     <span class="n">LLMResponse</span><span class="p">,</span>
     <span class="n">LLMResponseChunk</span><span class="p">,</span>
@@ -877,12 +877,12 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.llm.providers</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_provider</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">ChatMessage</span><span class="p">,</span>
     <span class="n">LLMResponse</span><span class="p">,</span>
     <span class="n">LLMResponseChunk</span><span class="p">,</span>
     <span class="n">UsageInfo</span><span class="p">,</span>
+    <span class="n">register_provider</span><span class="p">,</span>
 <span class="p">)</span>
 
 
