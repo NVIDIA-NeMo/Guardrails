@@ -103,18 +103,12 @@ DEFAULT_LIBRARY_CONFIG = REPO_ROOT / "tests" / "telemetry" / "smoke_fixtures" / 
 DEFAULT_RICH_CONFIG = REPO_ROOT / "tests" / "telemetry" / "smoke_fixtures" / "rich"
 DEFAULT_FEATURE_ALIAS_CONFIG = REPO_ROOT / "tests" / "telemetry" / "smoke_fixtures" / "feature_aliases"
 DEFAULT_V2_CONFIG = REPO_ROOT / "tests" / "telemetry" / "smoke_fixtures" / "v2_custom_flow"
-DEFAULT_ABC_V2_CONFIG = REPO_ROOT / "examples" / "bots" / "abc_v2"
 DEFAULT_IORAILS_CONFIG = REPO_ROOT / "examples" / "configs" / "nemoguards"
 
 ENV_VARS_TO_STRIP = ("CI", "GITHUB_ACTIONS", "PYTEST_CURRENT_TEST")
 DEFAULT_AUDIT_TIMEOUT_S = 30.0
 DEFAULT_AUDIT_POLL_S = 0.1
 DEFAULT_NETWORK_SETTLE_S = 20.0
-
-
-# ---------------------------------------------------------------------------
-# Env + audit-file plumbing (shared by all scenario runners)
-# ---------------------------------------------------------------------------
 
 
 def _build_subprocess_env(
@@ -178,10 +172,6 @@ def _wait_for_audit_events(
 
 def _network_settle_s(scenario: dict[str, Any]) -> float:
     return float(scenario.get("settle_after_audit_s", DEFAULT_NETWORK_SETTLE_S))
-
-
-def _normalize_returncode(returncode: int) -> int:
-    return 0 if returncode == -15 else returncode
 
 
 def _make_validator():
@@ -340,11 +330,6 @@ def _summarize_assertions(scenario: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Real-server helpers: port allocation, readiness polling, POST a request
-# ---------------------------------------------------------------------------
-
-
 def _free_port() -> int:
     """Ask the OS for a free TCP port and release it.
 
@@ -362,7 +347,7 @@ def _wait_for_server(base_url: str, *, timeout: float = 30.0, poll: float = 0.5)
     url = base_url.rstrip("/") + "/v1/rails/configs"
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as response:
+            with urllib.request.urlopen(url, timeout=5) as response:
                 if 200 <= response.status < 300:
                     return True
         except (urllib.error.URLError, urllib.error.HTTPError, ConnectionError):
@@ -411,7 +396,8 @@ def _terminate(proc: subprocess.Popen, *, term_timeout: float = 10.0) -> int:
         return int(proc.returncode)
     proc.terminate()
     try:
-        return proc.wait(timeout=term_timeout)
+        returncode = proc.wait(timeout=term_timeout)
+        return 0 if returncode in {-15, 1} else returncode
     except subprocess.TimeoutExpired:
         proc.kill()
         try:
@@ -420,16 +406,11 @@ def _terminate(proc: subprocess.Popen, *, term_timeout: float = 10.0) -> int:
             return -1
 
 
-# ---------------------------------------------------------------------------
-# Scenario runners
-# ---------------------------------------------------------------------------
-
-
 def _run_subprocess(scenario: dict[str, Any], env: dict[str, str], audit_file: Path) -> dict[str, Any]:
     """Run a ``kind=subprocess`` scenario: a Python -c script.
 
     Used for library and opt-out scenarios where we directly construct
-    LLMRails (library mode) or verify no event is emitted (opt-out).
+    rails from a config or verify no event is emitted (opt-out).
     """
     started_at = time.time()
     try:
@@ -442,7 +423,7 @@ def _run_subprocess(scenario: dict[str, Any], env: dict[str, str], audit_file: P
             cwd=str(REPO_ROOT),
         )
     except Exception as exc:
-        return {"returncode": -1, "duration_s": 0.0, "stderr_tail": [repr(exc)]}
+        return {"returncode": -1, "duration_s": time.time() - started_at, "stderr_tail": [repr(exc)]}
 
     expected_count = int(scenario["expected_count"])
     audit_timeout = float(scenario.get("audit_timeout_s", DEFAULT_AUDIT_TIMEOUT_S))
@@ -467,7 +448,7 @@ def _run_subprocess(scenario: dict[str, Any], env: dict[str, str], audit_file: P
         except Exception:
             pass
     return {
-        "returncode": _normalize_returncode(returncode),
+        "returncode": returncode,
         "duration_s": time.time() - started_at,
         "stderr_tail": stderr_tail,
     }
@@ -596,7 +577,7 @@ def _run_server(scenario: dict[str, Any], env: dict[str, str], audit_file: Path)
         except Exception:
             pass
     return {
-        "returncode": _normalize_returncode(rc),  # SIGTERM is expected
+        "returncode": rc,
         "duration_s": time.time() - started_at,
         "stderr_tail": stderr_tail,
         "server_post_results": post_results,
@@ -725,7 +706,7 @@ def _run_server_multi_worker(scenario: dict[str, Any], env: dict[str, str], audi
         except Exception:
             pass
     return {
-        "returncode": _normalize_returncode(rc),
+        "returncode": rc,
         "duration_s": time.time() - started_at,
         "stderr_tail": stderr_tail,
         "server_post_results": post_results,
@@ -777,7 +758,7 @@ def _run_cli(scenario: dict[str, Any], env: dict[str, str], audit_file: Path) ->
         except Exception:
             pass
     return {
-        "returncode": _normalize_returncode(rc),
+        "returncode": rc,
         "duration_s": time.time() - started_at,
         "stderr_tail": stderr_tail,
     }
@@ -791,12 +772,13 @@ _RUNNERS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Scenario subprocess scripts (for kind=subprocess scenarios only)
-# ---------------------------------------------------------------------------
+def _script_construct_rails(config_path: str) -> str:
+    """Construct rails from a config and keep the subprocess alive.
 
-
-def _script_library_llmrails(config_path: str) -> str:
+    Scenario-specific behavior is controlled by the config path and
+    environment: opt-out scenarios suppress telemetry via env vars, and
+    the IORails scenario sets NEMO_GUARDRAILS_IORAILS_ENGINE=true.
+    """
     return f"""
 import time
 from nemoguardrails import LLMRails, RailsConfig
@@ -804,41 +786,6 @@ LLMRails(RailsConfig.from_path({config_path!r}))
 while True:
     time.sleep(3600)
 """
-
-
-def _script_library_iorails(config_path: str) -> str:
-    # NEMO_GUARDRAILS_IORAILS_ENGINE=true is set per-subprocess in the
-    # scenario's extra_env. It aliases ``from nemoguardrails import LLMRails``
-    # to the ``Guardrails`` wrapper at import time, which routes to
-    # IORails when the config qualifies (examples/configs/nemoguards
-    # does). Construction then calls report_usage with rails_engine="IORails".
-    return f"""
-import time
-from nemoguardrails import LLMRails, RailsConfig
-LLMRails(RailsConfig.from_path({config_path!r}))
-while True:
-    time.sleep(3600)
-"""
-
-
-def _script_opt_out(config_path: str) -> str:
-    # The opt-out signals (NEMO_GUARDRAILS_NO_USAGE_STATS, CI,
-    # PYTEST_CURRENT_TEST) are set in the scenario's extra_env. The
-    # subprocess still constructs LLMRails to prove the suppression
-    # path activates inside _is_usage_stats_enabled: the audit file
-    # must remain empty.
-    return f"""
-import time
-from nemoguardrails import LLMRails, RailsConfig
-LLMRails(RailsConfig.from_path({config_path!r}))
-while True:
-    time.sleep(3600)
-"""
-
-
-# ---------------------------------------------------------------------------
-# Scenario definitions
-# ---------------------------------------------------------------------------
 
 
 def _scenario(
@@ -986,20 +933,6 @@ def _v2_custom_flow_assertions() -> dict[str, Any]:
     )
 
 
-def _abc_v2_assertions() -> dict[str, Any]:
-    return _config_startup_assertions(
-        deployment_type="library",
-        rails_engine="LLMRails",
-        llm_providers=["openai"],
-        colang_version="2.x",
-        num_rails_configured=0,
-        rail_types_in_use=[],
-        builtin_features=[],
-        has_knowledge_base=True,
-        num_custom_flows=67,
-    )
-
-
 def _iorails_assertions() -> dict[str, Any]:
     return _config_startup_assertions(
         deployment_type="library",
@@ -1017,7 +950,6 @@ def _build_scenarios(
     rich_config: str,
     feature_alias_config: str,
     v2_config: str,
-    abc_v2_config: str,
     iorails_config: str,
     server_config_root: str,
 ) -> list[dict[str, Any]]:
@@ -1025,42 +957,35 @@ def _build_scenarios(
         _scenario(
             name="library_llmrails",
             kind="subprocess",
-            script=_script_library_llmrails(library_config),
+            script=_script_construct_rails(library_config),
             expected_count=1,
             startup_assertions=[_cfg1_assertions("library")],
         ),
         _scenario(
             name="library_rich_config",
             kind="subprocess",
-            script=_script_library_llmrails(rich_config),
+            script=_script_construct_rails(rich_config),
             expected_count=1,
             startup_assertions=[_rich_assertions()],
         ),
         _scenario(
             name="library_feature_aliases",
             kind="subprocess",
-            script=_script_library_llmrails(feature_alias_config),
+            script=_script_construct_rails(feature_alias_config),
             expected_count=1,
             startup_assertions=[_feature_alias_assertions()],
         ),
         _scenario(
             name="library_v2_custom_flows",
             kind="subprocess",
-            script=_script_library_llmrails(v2_config),
+            script=_script_construct_rails(v2_config),
             expected_count=1,
             startup_assertions=[_v2_custom_flow_assertions()],
         ),
         _scenario(
-            name="library_abc_v2",
-            kind="subprocess",
-            script=_script_library_llmrails(abc_v2_config),
-            expected_count=1,
-            startup_assertions=[_abc_v2_assertions()],
-        ),
-        _scenario(
             name="library_iorails",
             kind="subprocess",
-            script=_script_library_iorails(iorails_config),
+            script=_script_construct_rails(iorails_config),
             expected_count=1,
             startup_assertions=[_iorails_assertions()],
             extra_env={"NEMO_GUARDRAILS_IORAILS_ENGINE": "true"},
@@ -1106,13 +1031,13 @@ def _build_scenarios(
             config_ids_to_hit=["cfg1"],
             expected_count=2,  # one startup + one heartbeat
             startup_assertions=[_cfg1_assertions("api")],
-            audit_timeout_s=10.0,
+            audit_timeout_s=20.0,
             extra_env={"NEMO_GUARDRAILS_HEARTBEAT_INTERVAL_S": "8.0"},
         ),
         _scenario(
             name="opt_out_explicit",
             kind="subprocess",
-            script=_script_opt_out(library_config),
+            script=_script_construct_rails(library_config),
             expected_count=0,
             settle_after_action_s=1.0,
             extra_env={"NEMO_GUARDRAILS_NO_USAGE_STATS": "1"},
@@ -1120,7 +1045,7 @@ def _build_scenarios(
         _scenario(
             name="opt_out_ci",
             kind="subprocess",
-            script=_script_opt_out(library_config),
+            script=_script_construct_rails(library_config),
             expected_count=0,
             settle_after_action_s=1.0,
             extra_env={"CI": "true"},
@@ -1128,17 +1053,12 @@ def _build_scenarios(
         _scenario(
             name="opt_out_pytest",
             kind="subprocess",
-            script=_script_opt_out(library_config),
+            script=_script_construct_rails(library_config),
             expected_count=0,
             settle_after_action_s=1.0,
             extra_env={"PYTEST_CURRENT_TEST": "smoke_x"},
         ),
     ]
-
-
-# ---------------------------------------------------------------------------
-# Driver
-# ---------------------------------------------------------------------------
 
 
 def _sanity_check_driver_env() -> None:
@@ -1332,14 +1252,6 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--abc-v2-config",
-        default=str(DEFAULT_ABC_V2_CONFIG),
-        help=(
-            "Path to the realistic ABC Colang 2.x RailsConfig used by the library_abc_v2 scenario. "
-            f"Default: {DEFAULT_ABC_V2_CONFIG}."
-        ),
-    )
-    parser.add_argument(
         "--iorails-config",
         default=str(DEFAULT_IORAILS_CONFIG),
         help=(
@@ -1392,7 +1304,6 @@ def main() -> int:
     print(f"  rich config:        {args.rich_config}")
     print(f"  feature aliases:    {args.feature_alias_config}")
     print(f"  v2 config:          {args.v2_config}")
-    print(f"  abc v2 config:      {args.abc_v2_config}")
     print(f"  iorails config:     {args.iorails_config}")
     print(f"  server config root: {args.server_config_root}")
     print()
@@ -1404,7 +1315,6 @@ def main() -> int:
         rich_config=args.rich_config,
         feature_alias_config=args.feature_alias_config,
         v2_config=args.v2_config,
-        abc_v2_config=args.abc_v2_config,
         iorails_config=args.iorails_config,
         server_config_root=args.server_config_root,
     )

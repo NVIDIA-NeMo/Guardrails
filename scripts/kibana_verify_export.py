@@ -116,8 +116,7 @@ def _scenario_session_ids(scenario: dict[str, Any]) -> list[str]:
 def _verify(manifest: dict[str, Any], docs: list[dict[str, Any]]) -> tuple[int, int]:
     scenarios = manifest.get("results", [])
     if not scenarios:
-        sys.stderr.write("manifest has no results to verify\n")
-        sys.exit(2)
+        raise ValueError("manifest has no results to verify")
 
     all_session_ids = sorted({session_id for scenario in scenarios for session_id in _scenario_session_ids(scenario)})
     buckets = _bucket_docs_by_session_id(docs, all_session_ids)
@@ -176,7 +175,12 @@ def main() -> int:
         f"export:   {args.export} ({len(docs)} docs total, {guardrails_docs} guardrails_usage_event)\n"
     )
 
-    pass_count, fail_count = _verify(manifest, docs)
+    try:
+        pass_count, fail_count = _verify(manifest, docs)
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+
     print()
     print(f"=== summary: {pass_count} PASS, {fail_count} FAIL ===")
     return 0 if fail_count == 0 else 1

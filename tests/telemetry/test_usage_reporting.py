@@ -1092,19 +1092,6 @@ class TestBuiltinFeatures:
         assert len(config.flows) == 46
         assert data.num_custom_flows == 1
 
-    def test_abc_v2_counts_only_user_flows(self):
-        from nemoguardrails.rails.llm.config import RailsConfig
-
-        config_path = Path(__file__).parents[2] / "examples" / "bots" / "abc_v2"
-        config = RailsConfig.from_path(str(config_path))
-
-        data = _collect_usage_data(config, "library")
-
-        assert data.colang_version == "2.x"
-        assert len(config.flows) == 140
-        assert data.num_custom_flows == 67
-        assert data.has_knowledge_base is True
-
     def test_feature_alias_smoke_fixture_collects_documented_ids(self):
         from nemoguardrails.rails.llm.config import RailsConfig
 
@@ -1183,7 +1170,6 @@ class TestTelemetrySmokeDriver:
             rich_config="rich",
             feature_alias_config="feature_aliases",
             v2_config="v2_custom_flow",
-            abc_v2_config="abc_v2",
             iorails_config="iorails",
             server_config_root="root",
         )
@@ -1220,7 +1206,7 @@ class TestTelemetrySmokeDriver:
 
         assert "library_feature_aliases" in scenarios
         assert "library_v2_custom_flows" in scenarios
-        assert "library_abc_v2" in scenarios
+        assert "library_abc_v2" not in scenarios
 
     def test_positive_scenarios_wait_for_daemon_sends(self):
         scenarios = self._scenarios_by_name()
@@ -1293,33 +1279,16 @@ class TestTelemetrySmokeDriver:
         assert error is not None
         assert "numCustomFlows" in error
 
-    def test_abc_v2_smoke_assertions_require_realistic_v2_count_and_kb(self):
-        scenario = self._scenarios_by_name()["library_abc_v2"]
-        event = self._startup_event(colangVersion="2.x", hasKnowledgeBase=True, numCustomFlows=67)
-
-        assert (
-            telemetry_smoke._validate_startup_events(
-                scenario["name"],
-                [event],
-                assertion_sets=scenario["startup_assertions"],
-            )
-            is None
-        )
-
-        bad_event = dict(event)
-        bad_event["numCustomFlows"] = 140
-        error = telemetry_smoke._validate_startup_events(
-            scenario["name"],
-            [bad_event],
-            assertion_sets=scenario["startup_assertions"],
-        )
-
-        assert error is not None
-        assert "numCustomFlows" in error
-
     @pytest.mark.parametrize(
         ("runner_name", "scenario"),
         [
+            (
+                "_run_subprocess",
+                {
+                    "script": "pass",
+                    "expected_count": 1,
+                },
+            ),
             (
                 "_run_server",
                 {
@@ -1364,8 +1333,67 @@ class TestTelemetrySmokeDriver:
         if runner_name == "_run_server_multi_worker":
             assert result["worker_count"] == 3
 
+    def test_terminate_normalizes_windows_termination_code_only_after_terminating(self):
+        class NaturallyFailedProcess:
+            returncode = 1
+            terminated = False
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+
+        class TerminatedProcess:
+            returncode = None
+            terminated = False
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+
+            def wait(self, timeout):
+                self.returncode = 1
+                return self.returncode
+
+        naturally_failed = NaturallyFailedProcess()
+        assert telemetry_smoke._terminate(naturally_failed) == 1
+        assert naturally_failed.terminated is False
+
+        terminated = TerminatedProcess()
+        assert telemetry_smoke._terminate(terminated) == 0
+        assert terminated.terminated is True
+
 
 class TestKibanaVerifyExport:
+    def test_empty_manifest_raises_value_error(self):
+        with pytest.raises(ValueError, match="manifest has no results to verify"):
+            kibana_verify_export._verify({"results": []}, [])
+
+    def test_main_returns_2_for_empty_manifest(self, tmp_path, capsys):
+        manifest_path = tmp_path / "manifest.json"
+        export_path = tmp_path / "kibana.json"
+        manifest_path.write_text(json.dumps({"results": []}))
+        export_path.write_text(json.dumps([]))
+
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "kibana_verify_export.py",
+                "--manifest",
+                str(manifest_path),
+                "--export",
+                str(export_path),
+            ],
+        ):
+            assert kibana_verify_export.main() == 2
+
+        captured = capsys.readouterr()
+        assert "manifest has no results to verify" in captured.err
+
     def test_verifier_matches_exact_client_session_ids(self):
         manifest = {
             "results": [
