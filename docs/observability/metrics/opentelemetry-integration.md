@@ -22,7 +22,7 @@ content:
 # OpenTelemetry Metrics Integration
 
 The NeMo Guardrails library follows OpenTelemetry best practices: the library uses only the API, and the host application configures the SDK.
-The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from IORails.
+The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from the Guardrails IORails engine.
 
 ## Installation
 
@@ -56,8 +56,8 @@ metrics:
   enabled: true
 ```
 
-When `metrics.enabled` is `true` and `opentelemetry-api` is installed, IORails emits metrics through the active `MeterProvider`.
-When `opentelemetry-api` is not installed, IORails emits a `UserWarning` at construction time and runs without metrics.
+When `metrics.enabled` is `true` and `opentelemetry-api` is installed, the IORails engine emits metrics through the active `MeterProvider`.
+When `opentelemetry-api` is not installed, the IORails engine emits a `UserWarning` at construction time and runs without metrics.
 
 ## Configuration Examples
 

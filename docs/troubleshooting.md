@@ -148,7 +148,7 @@ $ pip install "nemoguardrails[tracing]"
 ### Metrics Are Emitted but Never Reach the Backend
 
 Verify that the exporter target is reachable.
-Test with `ConsoleMetricExporter` first to confirm IORails-side emission, then swap in the production exporter.
+Test with `ConsoleMetricExporter` first to confirm IORails engine emission, then swap in the production exporter.
 
 ### `LLMRails` Produces No Metrics
 
