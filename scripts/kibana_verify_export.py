@@ -21,10 +21,11 @@ Discover access but cannot issue an API key. Workflow:
   1. Run ``scripts/telemetry_smoke.py``. Note the manifest path it
      prints.
   2. Open Kibana Discover at the staging telemetry data view
-     (``<staging-telemetry-data-view>``). Filter on the
-     manifest's ``session_prefix_root``:
+     (``<staging-telemetry-data-view>``). Filter on the exact
+     ``kibana_filter`` printed by the smoke driver and saved in the
+     manifest, for example:
 
-         client.sessionId : smoke-<run_id>-*
+         client.sessionId : ("id1" or "id2" or "id3")
 
   3. Share -> get the JSON of the visible documents. Save the file
      locally (e.g. ``kibana.json``).
@@ -41,9 +42,9 @@ sibling event types if the filter is broad).
 Per-scenario logic:
 
   - Positive scenarios: assert the number of documents with a
-    matching session_prefix is >= ``expected_event_count``.
+    matching exact startup session ID is >= ``expected_event_count``.
   - Negative scenarios (``opt_out_*``, expected count 0): assert
-    exactly zero documents under the prefix.
+    exactly zero documents for their recorded session IDs.
   - Scenarios whose local smoke verdict was FAIL: report FAIL. Receiver
     verification cannot make a broken smoke scenario successful.
 
@@ -58,7 +59,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -96,26 +96,21 @@ def _is_guardrails_event(doc: dict[str, Any]) -> bool:
     return bool(event_names) and event_names[0] == EVENT_NAME
 
 
-def _bucket_docs_by_prefix(docs: list[dict[str, Any]], prefixes: list[str]) -> dict[str, list[dict[str, Any]]]:
-    """Group every guardrails doc into the scenario prefix it matches.
-
-    A doc is assigned to the longest matching prefix (so if two prefixes
-    overlap the more specific wins). Docs that match no prefix are
-    silently dropped: those are not part of this smoke run.
-    """
-    sorted_prefixes = sorted(prefixes, key=len, reverse=True)
-    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+def _bucket_docs_by_session_id(docs: list[dict[str, Any]], session_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Group guardrails docs by exact client.sessionId."""
+    session_id_set = set(session_ids)
+    buckets: dict[str, list[dict[str, Any]]] = {session_id: [] for session_id in session_id_set}
     for doc in docs:
         if not _is_guardrails_event(doc):
             continue
         session_id = _extract_session_id(doc)
-        if not session_id:
-            continue
-        for prefix in sorted_prefixes:
-            if session_id.startswith(prefix):
-                buckets[prefix].append(doc)
-                break
+        if session_id in session_id_set:
+            buckets[session_id].append(doc)
     return buckets
+
+
+def _scenario_session_ids(scenario: dict[str, Any]) -> list[str]:
+    return list(scenario.get("startup_session_ids", []))
 
 
 def _verify(manifest: dict[str, Any], docs: list[dict[str, Any]]) -> tuple[int, int]:
@@ -124,23 +119,23 @@ def _verify(manifest: dict[str, Any], docs: list[dict[str, Any]]) -> tuple[int, 
         sys.stderr.write("manifest has no results to verify\n")
         sys.exit(2)
 
-    prefixes = [scenario["session_prefix"] for scenario in scenarios]
-    buckets = _bucket_docs_by_prefix(docs, prefixes)
+    all_session_ids = sorted({session_id for scenario in scenarios for session_id in _scenario_session_ids(scenario)})
+    buckets = _bucket_docs_by_session_id(docs, all_session_ids)
 
     pass_count = 0
     fail_count = 0
 
     for scenario in scenarios:
         name = scenario["name"]
-        prefix = scenario["session_prefix"]
         expected = scenario["expected_event_count"]
+        session_ids = _scenario_session_ids(scenario)
 
         if scenario.get("verdict") == "FAIL":
             print(f"[{name}] FAIL  (smoke verdict was FAIL)")
             fail_count += 1
             continue
 
-        actual = len(buckets.get(prefix, []))
+        actual = sum(len(buckets.get(session_id, [])) for session_id in session_ids)
         if expected == 0:
             ok = actual == 0
             comparator = "=="

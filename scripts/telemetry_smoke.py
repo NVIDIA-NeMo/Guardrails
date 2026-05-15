@@ -43,9 +43,9 @@ exported in the calling shell.
 Pre-flight (do this once, by hand, before driving the script):
 
     unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
-    NEMO_SESSION_PREFIX=preflight-$(date +%s)- \\
     NEMO_GUARDRAILS_USAGE_STATS_SERVER=<staging-events-url>/v1.1/events/json \\
     poetry run python - <<'PY'
+    import json
     import time
     from nemoguardrails import LLMRails, RailsConfig, telemetry
 
@@ -58,12 +58,15 @@ Pre-flight (do this once, by hand, before driving the script):
         time.sleep(0.1)
     else:
         raise SystemExit(f"pre-flight audit event not observed at {audit_file}")
-    time.sleep(6)
+    time.sleep(20)
+    lines = [json.loads(line) for line in audit_file.read_text().splitlines() if line.strip()]
+    startup_ids = sorted({line["sessionId"] for line in lines if line.get("event") == "startup"})
     print(f"pre-flight audit event observed at {audit_file}")
+    print("kibana filter: client.sessionId : (" + " or ".join(f'"{value}"' for value in startup_ids) + ")")
     PY
 
-Then wait briefly for indexing and search Kibana for ``client.sessionId : preflight-*``. If
-nothing lands, defer the full smoke run until SMS has the schema
+Then wait briefly for indexing and search Kibana with the exact printed
+``client.sessionId`` filter. If nothing lands, defer the full smoke run until SMS has the schema
 registered.
 
 Driver invocation:
@@ -106,7 +109,7 @@ DEFAULT_IORAILS_CONFIG = REPO_ROOT / "examples" / "configs" / "nemoguards"
 ENV_VARS_TO_STRIP = ("CI", "GITHUB_ACTIONS", "PYTEST_CURRENT_TEST")
 DEFAULT_AUDIT_TIMEOUT_S = 30.0
 DEFAULT_AUDIT_POLL_S = 0.1
-DEFAULT_NETWORK_SETTLE_S = 6.0
+DEFAULT_NETWORK_SETTLE_S = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -118,20 +121,18 @@ def _build_subprocess_env(
     parent_env: dict[str, str],
     *,
     staging_url: str,
-    session_prefix: str,
     config_dir: Path,
     extra: Optional[dict[str, str]] = None,
 ) -> dict[str, str]:
     """Build the env for a scenario subprocess.
 
     Strips CI / pytest signals so ``_is_usage_stats_enabled`` does not
-    auto-disable the run. Sets the staging endpoint, the session
-    prefix for Kibana grouping, and an isolated XDG_CONFIG_HOME so
-    each scenario's audit file lands in its own directory.
+    auto-disable the run. Sets the staging endpoint and an isolated
+    XDG_CONFIG_HOME so each scenario's audit file lands in its own
+    directory.
     """
     env = {key: value for key, value in parent_env.items() if key not in ENV_VARS_TO_STRIP}
     env["NEMO_GUARDRAILS_USAGE_STATS_SERVER"] = staging_url
-    env["NEMO_SESSION_PREFIX"] = session_prefix
     env["XDG_CONFIG_HOME"] = str(config_dir)
     env["HOME"] = str(config_dir)
     if extra:
@@ -224,13 +225,6 @@ def _expect_positive_number() -> FieldExpectation:
     )
 
 
-def _expect_startswith(prefix: str) -> FieldExpectation:
-    return FieldExpectation(
-        f"a string starting with {prefix!r}",
-        lambda actual: isinstance(actual, str) and actual.startswith(prefix),
-    )
-
-
 def _expect_list_contains(items: list[str]) -> FieldExpectation:
     return FieldExpectation(
         f"a list containing {items!r}",
@@ -242,13 +236,6 @@ def _expect_int_at_least(minimum: int) -> FieldExpectation:
     return FieldExpectation(
         f"an integer >= {minimum}",
         lambda actual: isinstance(actual, int) and not isinstance(actual, bool) and actual >= minimum,
-    )
-
-
-def _expect_all(*expectations: FieldExpectation) -> FieldExpectation:
-    return FieldExpectation(
-        " and ".join(expectation.description for expectation in expectations),
-        lambda actual: all(expectation.predicate(actual) for expectation in expectations),
     )
 
 
@@ -270,11 +257,11 @@ def _validate_field(
     return None
 
 
-def _common_event_assertions(session_prefix: str) -> dict[str, FieldExpectation]:
+def _common_event_assertions() -> dict[str, FieldExpectation]:
     return {
         "nemoSource": _expect_exact("guardrails"),
         "event": _expect_one_of(["startup", "heartbeat"]),
-        "sessionId": _expect_all(_expect_non_empty_string(), _expect_startswith(session_prefix)),
+        "sessionId": _expect_non_empty_string(),
         "nemoguardrailsVersion": _expect_non_empty_string(),
         "pythonVersion": _expect_non_empty_string(),
         "platform": _expect_non_empty_string(),
@@ -286,10 +273,8 @@ def _common_event_assertions(session_prefix: str) -> dict[str, FieldExpectation]
 def _validate_common_event_fields(
     scenario_name: str,
     event: dict[str, Any],
-    *,
-    session_prefix: str,
 ) -> Optional[str]:
-    for field, expectation in _common_event_assertions(session_prefix).items():
+    for field, expectation in _common_event_assertions().items():
         error = _validate_field(scenario_name, field, event.get(field), expectation)
         if error:
             return error
@@ -300,7 +285,6 @@ def _validate_startup_events(
     scenario_name: str,
     startup_events: list[dict[str, Any]],
     *,
-    session_prefix: str,
     assertion_sets: list[dict[str, Any]],
 ) -> Optional[str]:
     """Validate startup events with exact, predicate, and list assertions."""
@@ -308,7 +292,7 @@ def _validate_startup_events(
         return f"{scenario_name}.event: expected {len(assertion_sets)} startup event(s), got {len(startup_events)}"
 
     for event in startup_events:
-        common_error = _validate_common_event_fields(scenario_name, event, session_prefix=session_prefix)
+        common_error = _validate_common_event_fields(scenario_name, event)
         if common_error:
             return common_error
 
@@ -343,11 +327,10 @@ def _summarize_expectation(expected: Any) -> str:
     return _as_expectation(expected).description
 
 
-def _summarize_assertions(scenario: dict[str, Any], *, session_prefix: str) -> dict[str, Any]:
+def _summarize_assertions(scenario: dict[str, Any]) -> dict[str, Any]:
     return {
         "common_event_fields": {
-            field: _summarize_expectation(expectation)
-            for field, expectation in _common_event_assertions(session_prefix).items()
+            field: _summarize_expectation(expectation) for field, expectation in _common_event_assertions().items()
         },
         "startup_events": [
             {field: _summarize_expectation(expected) for field, expected in assertions.items()}
@@ -492,6 +475,13 @@ def _run_subprocess(scenario: dict[str, Any], env: dict[str, str], audit_file: P
 
 def _startup_session_ids(lines: list[dict[str, Any]]) -> set[str]:
     return {line["sessionId"] for line in lines if line.get("event") == "startup" and line.get("sessionId")}
+
+
+def _format_kibana_filter(session_ids: list[str]) -> str:
+    if not session_ids:
+        return "client.sessionId : (no startup session IDs collected)"
+    quoted = [json.dumps(session_id) for session_id in session_ids]
+    return "client.sessionId : (" + " or ".join(quoted) + ")"
 
 
 def _wait_for_distinct_startup_sessions(
@@ -1175,11 +1165,9 @@ def _run_scenario(
     if config_dir.exists():
         shutil.rmtree(config_dir)
     config_dir.mkdir(parents=True, exist_ok=True)
-    session_prefix = f"smoke-{run_id}-{scenario['name']}-"
     env = _build_subprocess_env(
         parent_env=os.environ.copy(),
         staging_url=staging_url,
-        session_prefix=session_prefix,
         config_dir=config_dir,
         extra=scenario["extra_env"],
     )
@@ -1194,11 +1182,12 @@ def _run_scenario(
         audit_error = f"audit file is not valid JSONL: {exc}"
     else:
         audit_error = ""
+    startup_session_ids = sorted(_startup_session_ids(lines))
 
     result: dict[str, Any] = {
         "name": scenario["name"],
         "kind": scenario["kind"],
-        "session_prefix": session_prefix,
+        "startup_session_ids": startup_session_ids,
         "audit_file": str(audit_file),
         "subprocess_returncode": run_outcome["returncode"],
         "subprocess_duration_s": round(run_outcome["duration_s"], 2),
@@ -1206,7 +1195,7 @@ def _run_scenario(
         "server_post_results": run_outcome.get("server_post_results", []),
         "expected_event_count": scenario["expected_count"],
         "actual_event_count": len(lines),
-        "expected_assertions": _summarize_assertions(scenario, session_prefix=session_prefix),
+        "expected_assertions": _summarize_assertions(scenario),
     }
     if "worker_count" in run_outcome:
         result["worker_count"] = run_outcome["worker_count"]
@@ -1250,7 +1239,7 @@ def _run_scenario(
         return result
 
     for line in lines:
-        common_error = _validate_common_event_fields(scenario["name"], line, session_prefix=session_prefix)
+        common_error = _validate_common_event_fields(scenario["name"], line)
         if common_error:
             result["verdict"] = "FAIL"
             result["reason"] = common_error
@@ -1260,7 +1249,6 @@ def _run_scenario(
     startup_error = _validate_startup_events(
         scenario["name"],
         startup_lines,
-        session_prefix=session_prefix,
         assertion_sets=scenario["startup_assertions"],
     )
     if startup_error:
@@ -1446,11 +1434,16 @@ def main() -> int:
         print(f"[{result['name']}] {verdict}{suffix}")
         results.append(result)
 
+    all_startup_session_ids = sorted(
+        {session_id for result in results for session_id in result.get("startup_session_ids", [])}
+    )
+    kibana_filter = _format_kibana_filter(all_startup_session_ids)
     manifest = {
         "run_id": run_id,
         "staging_url": args.staging_url,
         "run_dir": str(run_dir),
-        "session_prefix_root": f"smoke-{run_id}-",
+        "startup_session_ids": all_startup_session_ids,
+        "kibana_filter": kibana_filter,
         "results": results,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
@@ -1461,7 +1454,7 @@ def main() -> int:
         print(f"  {result['name']:24s} {result['verdict']}")
     print()
     print(f"manifest: {manifest_path}")
-    print(f"kibana filter: client.sessionId : smoke-{run_id}-*")
+    print(f"kibana filter: {kibana_filter}")
     print(
         "offline verify: poetry run python scripts/kibana_verify_export.py "
         f"--manifest {manifest_path} --export kibana.json"

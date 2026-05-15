@@ -23,9 +23,9 @@ Before driving the full script, send a single event and verify it lands in Kiban
 ```bash
 unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
 export NEMO_GUARDRAILS_SMOKE_STAGING_URL=<internal-staging-events-url>/v1.1/events/json
-NEMO_SESSION_PREFIX=preflight-$(date +%s)- \
 NEMO_GUARDRAILS_USAGE_STATS_SERVER="$NEMO_GUARDRAILS_SMOKE_STAGING_URL" \
   poetry run python - <<'PY'
+import json
 import time
 from nemoguardrails import LLMRails, RailsConfig, telemetry
 
@@ -39,12 +39,15 @@ while time.monotonic() < deadline:
 else:
     raise SystemExit(f"pre-flight audit event not observed at {audit_file}")
 
-time.sleep(6)
+time.sleep(20)
+lines = [json.loads(line) for line in audit_file.read_text().splitlines() if line.strip()]
+startup_ids = sorted({line["sessionId"] for line in lines if line.get("event") == "startup"})
 print(f"pre-flight audit event observed at {audit_file}")
+print("kibana filter: client.sessionId : (" + " or ".join(f'"{value}"' for value in startup_ids) + ")")
 PY
 ```
 
-The local audit-file poll proves the event was emitted before the process exits; the final short sleep gives the daemon network send a chance to complete. Then wait briefly for indexing and search Kibana for `client.sessionId : preflight-*`. If nothing lands, defer the full smoke run until SMS has confirmed the schema is registered in staging.
+The local audit-file poll proves the event was emitted before the process exits; the final sleep gives the daemon network send a chance to complete before the process is terminated. Then wait briefly for indexing and search Kibana with the exact `client.sessionId` filter printed by the command. If nothing lands, defer the full smoke run until SMS has confirmed the schema is registered in staging.
 Do not commit internal staging endpoint URLs to this repo; keep them in your shell, password manager, or internal runbook.
 
 ## Full run
@@ -91,7 +94,7 @@ poetry run python scripts/telemetry_smoke.py \
 
 The unreachable URL keeps receiver delivery out of scope; telemetry send failures are non-fatal, while the local audit-file schema and field assertions still run. `library_feature_aliases` covers documented built-in feature IDs for config-only rails, `library_v2_custom_flows` covers bundled Colang 2.x library-flow exclusion from custom-flow counts with a minimal fixture, `library_abc_v2` covers the same count on the realistic ABC Colang 2.x bot, `server_multi_config` covers paced server emissions across configs, `server_multi_worker` covers three Uvicorn workers with distinct API sessions, and `heartbeat` covers startup plus heartbeat delivery without a heartbeat burst during network settle.
 
-The driver prints per-scenario PASS/FAIL, the Kibana filter, and the offline verification command. It writes `<run_dir>/manifest.json` containing the run id, session-prefix root, per-scenario verdicts, audit-file paths, event counts, subprocess return codes, stderr tails, server POST results, expected assertion summaries, and the configured staging URL. Treat the manifest as local verification output and do not commit it.
+The driver prints per-scenario PASS/FAIL, the exact Kibana filter, and the offline verification command. It writes `<run_dir>/manifest.json` containing the run id, collected startup session IDs, per-scenario verdicts, audit-file paths, event counts, subprocess return codes, stderr tails, server POST results, expected assertion summaries, and the configured staging URL. Treat the manifest as local verification output and do not commit it.
 
 ## Scenarios covered
 
@@ -119,7 +122,7 @@ For every scenario:
 - Subprocess exit code is zero.
 - Audit-file event count matches expected.
 - Each emitted line validates against `schemas/anonymous_events.snapshot.json` using `jsonschema` Draft-07.
-- Common payload fields are structurally valid: source, event type, session prefix, version, Python version, platform, OS name, and timestamp.
+- Common payload fields are structurally valid: source, event type, non-empty session ID, version, Python version, platform, OS name, and timestamp.
 - Startup payload fields are asserted per fixture: deployment type, rails engine, providers, Colang version, rail counts/types, built-in features, tracing, knowledge base, streaming, and custom-flow count.
 - Distinct sessionId count for `server_multi_worker`.
 - Presence of `event=heartbeat` for `heartbeat`, with heartbeat and startup sharing the same sessionId.
@@ -133,10 +136,10 @@ For accounts that have Kibana Discover access but cannot issue API keys (no Secu
 1. Run the smoke driver; note the manifest path.
 2. Open Kibana Discover at the `<staging-telemetry-data-view>` data view.
 3. Wait roughly a minute for indexing lag to settle.
-4. Paste the filter into the KQL search bar (use the manifest's `session_prefix_root`):
+4. Paste the exact filter printed by the driver and saved as `kibana_filter` in the manifest:
 
    ```
-   client.sessionId : smoke-<run_id>-*
+   client.sessionId : ("id1" or "id2" or "id3")
    ```
 
 5. Click the checkbox in the document-table header to **select all visible rows**.
@@ -150,21 +153,17 @@ For accounts that have Kibana Discover access but cannot issue API keys (no Secu
      --export kibana.json
    ```
 
-The script reads the manifest, ignores any non-`guardrails_usage_event` documents in the export (Discover filters apply to *visible rows*; the Selected list may include sibling event types if the time range covers other products), buckets each remaining doc by which scenario prefix its `client.sessionId` matches, and asserts hit counts. Per-scenario PASS / FAIL summary. Exit code 0 on success, 1 on assertion failure, 2 on missing or malformed input files.
+The script reads the manifest, ignores any non-`guardrails_usage_event` documents in the export (Discover filters apply to *visible rows*; the Selected list may include sibling event types if the time range covers other products), matches each remaining doc by exact `client.sessionId`, and asserts hit counts. Per-scenario PASS / FAIL summary. Exit code 0 on success, 1 on assertion failure, 2 on missing or malformed input files.
 
 ### Last-resort: visual inspection
 
-If you cannot download an export at all, paste this into the Kibana search bar:
+If you cannot download an export at all, paste the driver's exact filter into the Kibana search bar:
 
 ```
-client.sessionId : smoke-<run_id>-*
+client.sessionId : ("id1" or "id2" or "id3")
 ```
 
-Per-scenario filter:
-
-```
-client.sessionId : smoke-<run_id>-<scenario_name>-*
-```
+Use each result's `startup_session_ids` in `manifest.json` for per-scenario inspection.
 
 Negative scenarios (`opt_out_*`) should match nothing.
 
@@ -185,5 +184,5 @@ The driver removes each known per-scenario directory before running that scenari
 ## Out of scope
 
 - Cron-scheduled smoke runs (CI auto-disables telemetry by design).
-- Live Kibana queries from the driver. Verification of events landing remains a manual paste of the session-prefix into Kibana.
+- Live Kibana queries from the driver. Verification of events landing remains a manual paste of the exact session-ID filter into Kibana.
 - Mock LLM. Library, CLI, and heartbeat scenarios construct `LLMRails` only. Server scenarios POST a request that triggers `_get_rails` and then intentionally fails before generation, so no API key is required. Configs that fail to *construct* (bad YAML, missing models field, etc.) are out of scope of the smoke test.

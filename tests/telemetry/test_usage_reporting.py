@@ -1194,7 +1194,7 @@ class TestTelemetrySmokeDriver:
         event = {
             "nemoSource": "guardrails",
             "event": "startup",
-            "sessionId": "smoke-run-scenario-abc",
+            "sessionId": "2b8e9879-80be-42bb-ad3f-81db8ec28e15",
             "nemoguardrailsVersion": "0.21.0",
             "pythonVersion": "3.13.7",
             "platform": "test-platform",
@@ -1222,6 +1222,29 @@ class TestTelemetrySmokeDriver:
         assert "library_v2_custom_flows" in scenarios
         assert "library_abc_v2" in scenarios
 
+    def test_positive_scenarios_wait_for_daemon_sends(self):
+        scenarios = self._scenarios_by_name()
+
+        assert telemetry_smoke.DEFAULT_NETWORK_SETTLE_S == 20.0
+        assert "settle_after_audit_s" not in scenarios["library_llmrails"]
+        assert "settle_after_audit_s" not in scenarios["server_single_config"]
+
+    def test_kibana_filter_uses_exact_session_ids(self):
+        assert telemetry_smoke._format_kibana_filter(["id1", "id2"]) == 'client.sessionId : ("id1" or "id2")'
+
+    def test_common_assertions_require_non_empty_session_id_only(self):
+        scenario = self._scenarios_by_name()["library_feature_aliases"]
+        event = self._startup_event(sessionId="", builtinFeatures=["factchecking", "patronusai", "regex"])
+
+        error = telemetry_smoke._validate_startup_events(
+            scenario["name"],
+            [event],
+            assertion_sets=scenario["startup_assertions"],
+        )
+
+        assert error is not None
+        assert "sessionId" in error
+
     def test_feature_alias_smoke_assertions_require_documented_ids(self):
         scenario = self._scenarios_by_name()["library_feature_aliases"]
         event = self._startup_event(builtinFeatures=["factchecking", "patronusai", "regex"])
@@ -1230,7 +1253,6 @@ class TestTelemetrySmokeDriver:
             telemetry_smoke._validate_startup_events(
                 scenario["name"],
                 [event],
-                session_prefix="smoke-run-scenario-",
                 assertion_sets=scenario["startup_assertions"],
             )
             is None
@@ -1241,7 +1263,6 @@ class TestTelemetrySmokeDriver:
         error = telemetry_smoke._validate_startup_events(
             scenario["name"],
             [bad_event],
-            session_prefix="smoke-run-scenario-",
             assertion_sets=scenario["startup_assertions"],
         )
 
@@ -1256,7 +1277,6 @@ class TestTelemetrySmokeDriver:
             telemetry_smoke._validate_startup_events(
                 scenario["name"],
                 [event],
-                session_prefix="smoke-run-scenario-",
                 assertion_sets=scenario["startup_assertions"],
             )
             is None
@@ -1267,7 +1287,6 @@ class TestTelemetrySmokeDriver:
         error = telemetry_smoke._validate_startup_events(
             scenario["name"],
             [bad_event],
-            session_prefix="smoke-run-scenario-",
             assertion_sets=scenario["startup_assertions"],
         )
 
@@ -1282,7 +1301,6 @@ class TestTelemetrySmokeDriver:
             telemetry_smoke._validate_startup_events(
                 scenario["name"],
                 [event],
-                session_prefix="smoke-run-scenario-",
                 assertion_sets=scenario["startup_assertions"],
             )
             is None
@@ -1293,7 +1311,6 @@ class TestTelemetrySmokeDriver:
         error = telemetry_smoke._validate_startup_events(
             scenario["name"],
             [bad_event],
-            session_prefix="smoke-run-scenario-",
             assertion_sets=scenario["startup_assertions"],
         )
 
@@ -1349,12 +1366,12 @@ class TestTelemetrySmokeDriver:
 
 
 class TestKibanaVerifyExport:
-    def test_verifier_buckets_by_client_session_id(self):
+    def test_verifier_matches_exact_client_session_ids(self):
         manifest = {
             "results": [
                 {
                     "name": "library_llmrails",
-                    "session_prefix": "smoke-run-library_llmrails-",
+                    "startup_session_ids": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
                     "expected_event_count": 1,
                     "verdict": "PASS",
                 }
@@ -1364,7 +1381,7 @@ class TestKibanaVerifyExport:
             {
                 "fields": {
                     "eventName": ["guardrails_usage_event"],
-                    "client.sessionId": ["smoke-run-library_llmrails-abc"],
+                    "client.sessionId": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
                 }
             }
         ]
@@ -1374,12 +1391,12 @@ class TestKibanaVerifyExport:
         assert passed == 1
         assert failed == 0
 
-    def test_verifier_ignores_parameters_session_id(self):
+    def test_verifier_rejects_prefix_only_session_match(self):
         manifest = {
             "results": [
                 {
                     "name": "library_llmrails",
-                    "session_prefix": "smoke-run-library_llmrails-",
+                    "startup_session_ids": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
                     "expected_event_count": 1,
                     "verdict": "PASS",
                 }
@@ -1389,7 +1406,32 @@ class TestKibanaVerifyExport:
             {
                 "fields": {
                     "eventName": ["guardrails_usage_event"],
-                    "parameters.sessionId": ["smoke-run-library_llmrails-abc"],
+                    "client.sessionId": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15-extra"],
+                }
+            }
+        ]
+
+        passed, failed = kibana_verify_export._verify(manifest, docs)
+
+        assert passed == 0
+        assert failed == 1
+
+    def test_verifier_ignores_parameters_session_id(self):
+        manifest = {
+            "results": [
+                {
+                    "name": "library_llmrails",
+                    "startup_session_ids": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
+                    "expected_event_count": 1,
+                    "verdict": "PASS",
+                }
+            ]
+        }
+        docs = [
+            {
+                "fields": {
+                    "eventName": ["guardrails_usage_event"],
+                    "parameters.sessionId": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
                 }
             }
         ]
@@ -1404,7 +1446,7 @@ class TestKibanaVerifyExport:
             "results": [
                 {
                     "name": "library_llmrails",
-                    "session_prefix": "smoke-run-library_llmrails-",
+                    "startup_session_ids": ["2b8e9879-80be-42bb-ad3f-81db8ec28e15"],
                     "expected_event_count": 1,
                     "verdict": "FAIL",
                 }
