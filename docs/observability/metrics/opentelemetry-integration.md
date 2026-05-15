@@ -43,8 +43,10 @@ Choose one of the following options for installing the NeMo Guardrails library, 
 - For Prometheus scraping:
 
   ```bash
-  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-prometheus
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-prometheus prometheus-client
   ```
+
+  `prometheus-client` is required because the example uses `start_http_server` to expose the scrape endpoint.
 
 ## Enabling Metrics in the Configuration
 

@@ -152,7 +152,13 @@ You can integrate the NeMo Guardrails library into your application using the to
 
     The `generate` method accepts the same message format as the OpenAI Chat Completions API.
 
-2. **API Server**: You can solely set up a guardrails server after programming guardrails using the Python SDK. You can then start a local NeMo Guardrails server with the following command.
+2. **API Server**: You can solely set up a guardrails server after programming guardrails using the Python SDK. The server's runtime dependencies (`fastapi`, `uvicorn`, `starlette`, `openai`, `aiofiles`, `watchdog`) are not installed by the base package, so install the `server` extra first.
+
+    ```bash
+    pip install "nemoguardrails[server]"
+    ```
+
+    You can then start a local NeMo Guardrails server with the following command.
 
     ```bash
     nemoguardrails server --config ./config --port 8000
