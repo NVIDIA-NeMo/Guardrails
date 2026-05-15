@@ -1183,10 +1183,6 @@ window.addEventListener("load", load);</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v1_0.runtime.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runtime</span><span class="p">,</span> <span class="n">RuntimeV1_0</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v2_x.runtime.flows</span><span class="w"> </span><span class="kn">import</span> <span class="n">Action</span><span class="p">,</span> <span class="n">State</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v2_x.runtime.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuntimeV2_x</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v2_x.runtime.serialization</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">json_to_state</span><span class="p">,</span>
-    <span class="n">state_to_json</span><span class="p">,</span>
-<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.context</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">explain_info_var</span><span class="p">,</span>
     <span class="n">generation_options_var</span><span class="p">,</span>
@@ -1200,6 +1196,7 @@ window.addEventListener("load", load);</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">InvalidModelConfigurationError</span><span class="p">,</span>
     <span class="n">InvalidRailsConfigurationError</span><span class="p">,</span>
+    <span class="n">InvalidStateError</span><span class="p">,</span>
     <span class="n">StreamingNotSupportedError</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.kb.kb</span><span class="w"> </span><span class="kn">import</span> <span class="n">KnowledgeBase</span>
@@ -1907,6 +1904,32 @@ window.addEventListener("load", load);</script>
 
         <span class="k">return</span> <span class="n">explain_info</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_public_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">State</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate public dict state passed through generate/generate_async.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">state</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">colang_version</span> <span class="o">==</span> <span class="s2">&quot;1.0&quot;</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;version&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">&quot;2.x&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;state&quot;</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidStateError</span><span class="p">(</span>
+                    <span class="s2">&quot;Invalid Colang 1.0 state format: expected transcript state with an &#39;events&#39; list.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;events&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidStateError</span><span class="p">(</span>
+                    <span class="s2">&quot;Invalid Colang 1.0 state format: state must contain an &#39;events&#39; key. &quot;</span>
+                    <span class="s2">&quot;Use an empty dict </span><span class="si">{}</span><span class="s2"> to start a new conversation.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;events&quot;</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">InvalidStateError</span><span class="p">(</span><span class="s2">&quot;Invalid Colang 1.0 state format: &#39;events&#39; must be a list.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">raise</span> <span class="n">InvalidStateError</span><span class="p">(</span>
+            <span class="s2">&quot;Colang 2.0 dict state is not supported by generate/generate_async. &quot;</span>
+            <span class="s2">&quot;Use rails.process_events_async(events, state) with a live State object &quot;</span>
+            <span class="s2">&quot;for trusted in-process multi-turn execution. Public serialized Colang &quot;</span>
+            <span class="s2">&quot;2.0 runtime state is not accepted.&quot;</span>
+        <span class="p">)</span>
+
 <div class="viewcode-block" id="LLMRails.generate_async">
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails.generate_async">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate_async</span><span class="p">(</span>
@@ -1958,9 +1981,7 @@ window.addEventListener("load", load);</script>
         <span class="c1"># This is because we want the output to be a GenerationResponse which will contain</span>
         <span class="c1"># the output state.</span>
         <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># We deserialize the state if needed.</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;version&quot;</span><span class="p">,</span> <span class="s2">&quot;1.0&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;2.x&quot;</span><span class="p">:</span>
-                <span class="n">state</span> <span class="o">=</span> <span class="n">json_to_state</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_public_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">gen_options</span> <span class="o">=</span> <span class="n">GenerationOptions</span><span class="p">()</span>
@@ -2065,11 +2086,13 @@ window.addEventListener("load", load);</script>
             <span class="c1"># Compute the new events.</span>
             <span class="c1"># In generation mode, the processing is always blocking, i.e., it waits for</span>
             <span class="c1"># all local actions (sync and async).</span>
-            <span class="n">new_events</span><span class="p">,</span> <span class="n">output_state</span> <span class="o">=</span> <span class="k">await</span> <span class="n">runtime</span><span class="o">.</span><span class="n">process_events</span><span class="p">(</span>
+            <span class="n">new_events</span><span class="p">,</span> <span class="n">_output_state</span> <span class="o">=</span> <span class="k">await</span> <span class="n">runtime</span><span class="o">.</span><span class="n">process_events</span><span class="p">(</span>
                 <span class="n">events</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="n">state</span><span class="p">,</span> <span class="n">instant_actions</span><span class="o">=</span><span class="n">instant_actions</span><span class="p">,</span> <span class="n">blocking</span><span class="o">=</span><span class="kc">True</span>
             <span class="p">)</span>
-            <span class="c1"># We also encode the output state as a JSON</span>
-            <span class="n">output_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;state&quot;</span><span class="p">:</span> <span class="n">state_to_json</span><span class="p">(</span><span class="n">output_state</span><span class="p">),</span> <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="s2">&quot;2.x&quot;</span><span class="p">}</span>
+            <span class="c1"># The runtime State for 2.x is not publicly exposed through generate_async.</span>
+            <span class="c1"># Callers that need stateful 2.x execution use process_events_async, which</span>
+            <span class="c1"># returns the live State object directly.</span>
+            <span class="n">output_state</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># Extract and join all the messages from StartUtteranceBotAction events as the response.</span>
         <span class="n">responses</span> <span class="o">=</span> <span class="p">[]</span>
@@ -2386,6 +2409,7 @@ window.addEventListener("load", load);</script>
             <span class="n">include_metadata</span> <span class="o">=</span> <span class="n">include_generation_metadata</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_streaming_with_output_rails</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_public_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="c1"># if an external generator is provided, use it directly</span>
         <span class="k">if</span> <span class="n">generator</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">rails</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">streaming</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">rails</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">streaming</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
