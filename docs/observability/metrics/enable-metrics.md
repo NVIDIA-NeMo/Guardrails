@@ -27,7 +27,7 @@ Use this to verify metric emission locally before wiring up a production exporte
 
 :::{admonition} Experimental Feature
 Metrics currently require the opt-in IORails engine.
-To enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
+Enable it either by constructing `Guardrails(config, use_iorails=True)` (the form used in this quickstart) or by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which aliases the top-level `LLMRails` import to `Guardrails`.
 IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.
 :::
 
@@ -56,9 +56,8 @@ Long-running services typically do not need this call.
     )
     from opentelemetry.sdk.resources import Resource
 
-    from nemoguardrails import RailsConfig
-    from nemoguardrails import LLMRails
-    # Configure the OpenTelemetry MeterProvider BEFORE constructing LLMRails so
+    from nemoguardrails import Guardrails, RailsConfig
+    # Configure the OpenTelemetry MeterProvider BEFORE constructing Guardrails so
     # the engine resolves a real meter on first metric emission.  Two readers
     # are attached to the same provider: one writes to stdout for live
     # inspection, the other writes to ``metrics.json``.
@@ -92,11 +91,10 @@ Long-running services typically do not need this call.
     config = RailsConfig.from_content(yaml_content=config_yaml)
 
     async def main() -> None:
-        # LLMRails will use IORails due to NEMO_GUARDRAILS_IORAILS_ENGINE=1 being set.
-        # require_iorails=True raises if the config is incompatible with IORails, so
-        # the metrics-setup path fails loudly rather than silently selecting LLMRails
-        # (which emits no metrics).
-        async with LLMRails(config, require_iorails=True) as rails:
+        # use_iorails=True selects the IORails engine (the only engine that emits
+        # metrics). require_iorails=True raises a ValueError if the config is
+        # incompatible with IORails.
+        async with Guardrails(config, use_iorails=True, require_iorails=True) as rails:
             response = await rails.generate_async(
                 messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
             )
@@ -114,7 +112,7 @@ Long-running services typically do not need this call.
 3. Run the script.
 
     ```bash
-    NEMO_GUARDRAILS_IORAILS_ENGINE=1 python metrics_example.py
+    python metrics_example.py
     ```
 
 4. Post-process the metrics JSON file.
