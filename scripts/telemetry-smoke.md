@@ -67,7 +67,6 @@ poetry run python scripts/telemetry_smoke.py \
   --rich-config tests/telemetry/smoke_fixtures/rich \
   --feature-alias-config tests/telemetry/smoke_fixtures/feature_aliases \
   --v2-config tests/telemetry/smoke_fixtures/v2_custom_flow \
-  --abc-v2-config examples/bots/abc_v2 \
   --iorails-config examples/configs/nemoguards \
   --server-config-root tests/telemetry/smoke_fixtures
 ```
@@ -86,13 +85,12 @@ poetry run python scripts/telemetry_smoke.py \
   --run-dir /tmp/smoke-rewrite-check \
   --scenario library_feature_aliases \
   --scenario library_v2_custom_flows \
-  --scenario library_abc_v2 \
   --scenario server_multi_config \
   --scenario server_multi_worker \
   --scenario heartbeat
 ```
 
-The unreachable URL keeps receiver delivery out of scope; telemetry send failures are non-fatal, while the local audit-file schema and field assertions still run. `library_feature_aliases` covers documented built-in feature IDs for config-only rails, `library_v2_custom_flows` covers bundled Colang 2.x library-flow exclusion from custom-flow counts with a minimal fixture, `library_abc_v2` covers the same count on the realistic ABC Colang 2.x bot, `server_multi_config` covers paced server emissions across configs, `server_multi_worker` covers three Uvicorn workers with distinct API sessions, and `heartbeat` covers startup plus heartbeat delivery without a heartbeat burst during network settle.
+The unreachable URL keeps receiver delivery out of scope; telemetry send failures are non-fatal, while the local audit-file schema and field assertions still run. `library_feature_aliases` covers documented built-in feature IDs for config-only rails, `library_v2_custom_flows` covers bundled Colang 2.x library-flow exclusion from custom-flow counts with a minimal fixture, `server_multi_config` covers paced server emissions across configs, `server_multi_worker` covers three Uvicorn workers with distinct API sessions, and `heartbeat` covers startup plus heartbeat delivery without a heartbeat burst during network settle.
 
 The driver prints per-scenario PASS/FAIL, the exact Kibana filter, and the offline verification command. It writes `<run_dir>/manifest.json` containing the run id, collected startup session IDs, per-scenario verdicts, audit-file paths, event counts, subprocess return codes, stderr tails, server POST results, expected assertion summaries, and the configured staging URL. Treat the manifest as local verification output and do not commit it.
 
@@ -104,7 +102,6 @@ The driver prints per-scenario PASS/FAIL, the exact Kibana filter, and the offli
 | `library_rich_config` | 1 event with tracing, streaming, knowledge base, and custom-flow fields enabled |
 | `library_feature_aliases` | 1 event with config-only `builtinFeatures=["factchecking","patronusai","regex"]` |
 | `library_v2_custom_flows` | 1 event with `colangVersion=2.x` and `numCustomFlows=1` despite bundled `core` flows |
-| `library_abc_v2` | 1 event from `examples/bots/abc_v2`, `colangVersion=2.x`, `hasKnowledgeBase=true`, and `numCustomFlows=67` |
 | `library_iorails` | 1 event, `deploymentType=library`, `railsEngine=IORails` |
 | `server_single_config` | 1 event, `deploymentType=api`, `railsEngine=LLMRails` |
 | `server_multi_config` | 3 events, same sessionId, distinct `railTypesInUse` / `builtinFeatures` |
