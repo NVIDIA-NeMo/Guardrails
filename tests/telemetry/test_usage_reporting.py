@@ -26,6 +26,7 @@ import pytest
 from nemoguardrails import telemetry
 from nemoguardrails.telemetry import (
     GuardrailsUsageEvent,
+    _build_nvidia_payload,
     _collect_usage_data,
     _detect_builtin_features,
     _get_heartbeat_interval_s,
@@ -215,14 +216,10 @@ class TestDataCollection:
         assert data.has_knowledge_base is True
         assert data.streaming_configured is True
 
-    def test_collect_with_config_missing_colang_version_defaults_to_v1(self):
-        class MinimalConfig:
-            models = []
-            rails = None
-            flows = []
-            docs = []
+    def test_collect_with_rails_config_default_colang_version(self):
+        from nemoguardrails.rails.llm.config import RailsConfig
 
-        data = _collect_usage_data(MinimalConfig(), "library")
+        data = _collect_usage_data(RailsConfig(models=[]), "library")
 
         assert data.colang_version == "1.0"
 
@@ -274,12 +271,6 @@ class TestDataCollection:
         data = _collect_usage_data(None, "library")
         assert data.nemo_source == "guardrails"
 
-    def test_session_id_honors_nemo_session_prefix(self):
-        with patch.dict(os.environ, {"NEMO_SESSION_PREFIX": "smoke-x-"}):
-            data = _collect_usage_data(None, "library")
-        assert data.session_id.startswith("smoke-x-")
-        assert len(data.session_id) > len("smoke-x-")
-
     def test_session_id_unprefixed_when_env_unset(self):
         with patch.dict(os.environ, {}, clear=True):
             data = _collect_usage_data(None, "library")
@@ -315,6 +306,36 @@ class TestRailsEngine:
             assert len(send_calls) == 1
             usage_data = send_calls[0].kwargs["args"][0]
             assert usage_data.rails_engine == "IORails"
+
+    def test_direct_iorails_reports_iorails_engine(self):
+        from nemoguardrails.guardrails.iorails import IORails
+        from nemoguardrails.rails.llm.config import RailsConfig
+        from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
+
+        config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
+        with patch("nemoguardrails.telemetry.report_usage") as mock_report:
+            IORails(config)
+
+        mock_report.assert_called_once_with(
+            config,
+            deployment_type="library",
+            rails_engine=telemetry.RailsEngineEnum.IORAILS.value,
+        )
+
+    def test_guardrails_routed_to_iorails_reports_once(self):
+        from nemoguardrails.guardrails.guardrails import Guardrails
+        from nemoguardrails.rails.llm.config import RailsConfig
+        from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
+
+        config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
+        with patch("nemoguardrails.telemetry.report_usage") as mock_report:
+            Guardrails(config)
+
+        mock_report.assert_called_once_with(
+            config,
+            deployment_type="library",
+            rails_engine=telemetry.RailsEngineEnum.IORAILS.value,
+        )
 
 
 class TestAuditFile:
@@ -382,6 +403,14 @@ class TestTransport:
             assert ev["name"] == "guardrails_usage_event"
             assert ev["parameters"]["nemoSource"] == "guardrails"
             assert ev["parameters"]["sessionId"] == "test-uuid"
+
+    def test_build_payload_rejects_mismatched_timestamps(self):
+        events = [
+            GuardrailsUsageEvent(session_id="one"),
+            GuardrailsUsageEvent(session_id="two"),
+        ]
+        with pytest.raises(ValueError, match="timestamps length must match events length"):
+            _build_nvidia_payload(events, "0.21.0", "test-session", timestamps=[1700000000.0])
 
     def test_send_report_failure_silent(self):
         event = GuardrailsUsageEvent(session_id="test")
@@ -578,10 +607,7 @@ class TestIntegration:
         with (
             patch.dict(
                 os.environ,
-                {
-                    "NEMO_SESSION_PREFIX": "pytest-regression-",
-                    "NEMO_GUARDRAILS_USAGE_STATS_SERVER": "https://staging.example/v1.1/events/json",
-                },
+                {"NEMO_GUARDRAILS_USAGE_STATS_SERVER": "https://staging.example/v1.1/events/json"},
                 clear=True,
             ),
             patch.object(telemetry, "_AUDIT_FILE", audit_file),
@@ -592,6 +618,25 @@ class TestIntegration:
 
         mock_thread.assert_not_called()
         assert not audit_file.exists()
+
+    def test_report_swallows_post_collection_errors(self):
+        with (
+            patch.object(telemetry, "_is_usage_stats_enabled", return_value=True),
+            patch.object(telemetry, "_get_usage_stats_server_url", side_effect=RuntimeError("env unavailable")),
+            patch("nemoguardrails.telemetry.threading.Thread") as mock_thread,
+        ):
+            report_usage(None, deployment_type="library")
+
+        mock_thread.assert_not_called()
+
+    def test_report_swallows_usage_stats_enabled_errors(self):
+        with (
+            patch.object(telemetry, "_is_usage_stats_enabled", side_effect=RuntimeError("opt-out check failed")),
+            patch("nemoguardrails.telemetry.threading.Thread") as mock_thread,
+        ):
+            report_usage(None, deployment_type="library")
+
+        mock_thread.assert_not_called()
 
     @pytest.mark.parametrize(
         "env",
@@ -635,7 +680,21 @@ class TestIntegration:
         assert payloads[0]["pythonVersion"] == "3.13.7"
         mock_send.assert_called_once_with(data, "https://example.com", "0.21.0", "test-uuid-123")
 
-    def test_heartbeat_loop_emits_minimal_events(self):
+    def test_heartbeat_loop_reuses_startup_metadata(self):
+        startup_event = GuardrailsUsageEvent(
+            session_id="startup-session",
+            timestamp=111.0,
+            python_version="3.13.7",
+            platform="test-platform",
+            os_name="Darwin",
+            deployment_type=telemetry.DeploymentTypeEnum.API,
+            rails_engine=telemetry.RailsEngineEnum.LLMRAILS,
+            llm_providers=["openai"],
+            num_rails_configured=1,
+            rail_types_in_use=["input"],
+            builtin_features=["self_check"],
+        )
+        startup_payload = startup_event.model_dump(by_alias=True)
         payloads = []
 
         def mock_write(payload):
@@ -648,16 +707,43 @@ class TestIntegration:
         with (
             patch.object(telemetry, "_write_audit_file", side_effect=mock_write),
             patch.object(telemetry, "_send_report"),
+            patch("nemoguardrails.telemetry.time.time", side_effect=[222.0, 333.0]),
             patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
         ):
             with pytest.raises(SystemExit):
-                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
+                telemetry._heartbeat_loop(startup_event, "test-uuid-123", "0.21.0")
 
         assert len(payloads) >= 2
         for payload in payloads:
             assert payload["event"] == "heartbeat"
             assert payload["sessionId"] == "test-uuid-123"
-            assert payload["pythonVersion"] == "unknown"
+            assert payload["pythonVersion"] == "3.13.7"
+            changed_fields = {
+                key for key, startup_value in startup_payload.items() if payload.get(key) != startup_value
+            }
+            assert changed_fields == {"event", "sessionId", "timestamp"}
+
+    def test_heartbeat_loop_sleep_adds_jitter_without_shortening_interval(self):
+        startup_event = GuardrailsUsageEvent(session_id="startup-session", timestamp=111.0)
+        sleeps = []
+
+        def mock_sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) >= 2:
+                raise SystemExit()
+
+        with (
+            patch.object(telemetry, "_HEARTBEAT_INTERVAL_S", 100.0),
+            patch("nemoguardrails.telemetry.random.uniform", return_value=7.5) as mock_uniform,
+            patch.object(telemetry, "_write_audit_file"),
+            patch.object(telemetry, "_send_report"),
+            patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
+        ):
+            with pytest.raises(SystemExit):
+                telemetry._heartbeat_loop(startup_event, "test-uuid-123", "0.21.0")
+
+        assert sleeps == [107.5, 107.5]
+        mock_uniform.assert_called_with(0, 10.0)
 
     def test_heartbeat_loop_uses_current_server_url_each_tick(self):
         sent_urls = []
@@ -682,7 +768,11 @@ class TestIntegration:
             patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
         ):
             with pytest.raises(SystemExit):
-                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
+                telemetry._heartbeat_loop(
+                    GuardrailsUsageEvent(session_id="startup-session"),
+                    "test-uuid-123",
+                    "0.21.0",
+                )
 
         assert sent_urls == ["https://first.example/events", "https://second.example/events"]
 
@@ -704,7 +794,11 @@ class TestIntegration:
             patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
         ):
             with pytest.raises(SystemExit):
-                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
+                telemetry._heartbeat_loop(
+                    GuardrailsUsageEvent(session_id="startup-session"),
+                    "test-uuid-123",
+                    "0.21.0",
+                )
 
         assert iterations[0] >= 2
 

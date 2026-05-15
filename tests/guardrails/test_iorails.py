@@ -665,6 +665,20 @@ class TestGenerate:
 
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, temperature=0.5)
 
+    def test_generate_marks_temp_engine_as_internal(self, iorails):
+        """generate() suppresses usage reporting for its temporary bridge engine."""
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="response"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails) as mock_iorails:
+            iorails.generate(messages)
+
+        mock_iorails.assert_called_once()
+        assert mock_iorails.call_args.kwargs == {"_report_usage": False}
+
     def test_generate_raises_when_called_from_async_loop(self, iorails):
         """generate() raises RuntimeError when called inside a running event loop."""
 

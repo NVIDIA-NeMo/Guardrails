@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import platform
+import random
 import sys
 import tempfile
 import threading
@@ -29,6 +30,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import RailsConfig
@@ -223,12 +226,11 @@ class TelemetryEvent(BaseModel):
 class GuardrailsUsageEvent(TelemetryEvent):
     """Usage event for NeMo Guardrails.
 
-    Emitted at each ``LLMRails`` / ``Guardrails`` instantiation and as
-    periodic heartbeats from a single daemon thread per process. All
-    events from one process share a session ID. Contains no user
-    content, model names, or request-level data. All fields have
-    sensible defaults so partial events (e.g. heartbeats) remain
-    readable in dashboards.
+    Emitted at each ``LLMRails`` or ``IORails`` instantiation and as
+    periodic heartbeats from a single daemon thread per process. The
+    ``Guardrails`` wrapper emits through whichever runtime engine it
+    constructs. All events from one process share a session ID. Contains
+    no user content, model names, or request-level data.
     """
 
     _event_name: ClassVar[str] = "guardrails_usage_event"
@@ -239,14 +241,12 @@ class GuardrailsUsageEvent(TelemetryEvent):
         description="The NeMo product that created the event. Always 'guardrails' for this event type.",
     )
     session_id: str = Field(
-        default_factory=lambda: f"{os.environ.get('NEMO_SESSION_PREFIX', '')}{uuid.uuid4()}",
+        default_factory=lambda: str(uuid.uuid4()),
         alias="sessionId",
         description=(
             "Random UUID4 generated in memory at process start; acts as the session ID. "
-            "Held only for the process lifetime, never persisted to disk. Optionally "
-            "prefixed with the value of NEMO_SESSION_PREFIX (matching the convention of "
-            "the shared nemo-telemetry handler) for grouping events by run in Kibana. "
-            "Not traceable to any user or machine."
+            "Held only for the process lifetime, never persisted to disk. Not traceable "
+            "to any user or machine."
         ),
     )
     nemoguardrails_version: str = Field(
@@ -464,27 +464,6 @@ _CONFIG_BUILTIN_FEATURE_ALIASES = {
 _COLANG_V2_LIBRARY_DIR = Path(__file__).resolve().parent / "colang" / "v2_x" / "library"
 
 
-def _normalize_flow_name(flow_name: str) -> str:
-    """Strip parameter and argument syntax from a Colang flow name.
-
-    Matches the semantics of ``nemoguardrails.colang.v1_0.runtime.flows._normalize_flow_id``.
-    For example, ``"content safety check input $model=main"`` normalizes to
-    ``"content safety check input"``, and ``"flow_id(arg1, arg2)"`` to ``"flow_id"``.
-
-    Args:
-        flow_name: The raw flow name from a rails config, possibly with args.
-
-    Returns:
-        The flow name with parameter/argument suffixes stripped.
-    """
-    flow_name = flow_name.strip()
-    if "(" in flow_name:
-        flow_name = flow_name.split("(")[0]
-    elif "$" in flow_name:
-        flow_name = flow_name.split("$")[0]
-    return flow_name.strip()
-
-
 def _normalize_builtin_feature_id(field_name: str) -> str:
     """Return the documented feature id for a RailsConfigData field."""
     return _CONFIG_BUILTIN_FEATURE_ALIASES.get(field_name, field_name)
@@ -567,7 +546,7 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
             all_flows.extend(getattr(group, "flows", []))
 
     for flow_name in all_flows:
-        normalized = _normalize_flow_name(flow_name)
+        normalized = _normalize_flow_id(flow_name)
         feature = _KNOWN_BUILTIN_FLOWS.get(normalized)
         if feature is not None:
             features.add(feature)
@@ -575,7 +554,10 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
     return sorted(features)
 
 
-def _collect_usage_data(config: Optional["RailsConfig"], deployment_type: str) -> GuardrailsUsageEvent:
+def _collect_usage_data(
+    config: Optional["RailsConfig"],
+    deployment_type: str,
+) -> GuardrailsUsageEvent:
     """Collect anonymous usage data into a ``GuardrailsUsageEvent``.
 
     Always populates system fields (version, platform, Python version).
@@ -598,7 +580,7 @@ def _collect_usage_data(config: Optional["RailsConfig"], deployment_type: str) -
     data.timestamp = time.time()
     try:
         data.deployment_type = DeploymentTypeEnum(deployment_type or DeploymentTypeEnum.UNDEFINED)
-    except ValueError:
+    except (TypeError, ValueError):
         data.deployment_type = DeploymentTypeEnum.UNDEFINED
     data.event = EventTypeEnum.STARTUP
     data.rails_engine = RailsEngineEnum.UNDEFINED
@@ -613,7 +595,7 @@ def _collect_usage_data(config: Optional["RailsConfig"], deployment_type: str) -
     data.os_name = platform.system()
 
     if config is not None:
-        data.colang_version = getattr(config, "colang_version", "1.0")
+        data.colang_version = config.colang_version
 
         engines = set()
         for model in getattr(config, "models", []):
@@ -784,6 +766,8 @@ def _build_nvidia_payload(
     if timestamps is None:
         event_timestamps = [None for _ in events]
     else:
+        if len(timestamps) != len(events):
+            raise ValueError("timestamps length must match events length")
         event_timestamps = timestamps
 
     return {
@@ -866,27 +850,34 @@ def _send_one_event(event: GuardrailsUsageEvent, server_url: str, client_version
     _send_report(event, server_url, client_version, session_id)
 
 
-def _heartbeat_loop(session_id: str, client_version: str) -> None:
+def _heartbeat_loop(
+    startup_event: GuardrailsUsageEvent,
+    session_id: str,
+    client_version: str,
+) -> None:
     """Run the heartbeat loop forever in a daemon thread.
 
     Started exactly once per process (gated by ``_heartbeat_started``).
-    Sleeps ``_HEARTBEAT_INTERVAL_S`` seconds, then emits a minimal
-    heartbeat event tied to the process's session ID. The thread is a
+    Sleeps at least ``_HEARTBEAT_INTERVAL_S`` seconds, then emits a
+    heartbeat event tied to the process's session ID. The heartbeat
+    reuses a copy of the first startup event's metadata and changes
+    only ``event``, ``timestamp``, and ``sessionId``. The thread is a
     daemon so it dies with the main process; no explicit shutdown is
     required.
 
     Args:
+        startup_event: The first startup event emitted by this process.
         session_id: The process-stable session ID, mirrored into the
             heartbeat event's ``session_id`` field and the envelope.
         client_version: Value to set as ``clientVer`` in the envelope.
     """
     while True:
-        time.sleep(_HEARTBEAT_INTERVAL_S)
+        jitter = random.uniform(0, min(60.0, _HEARTBEAT_INTERVAL_S * 0.1))
+        time.sleep(_HEARTBEAT_INTERVAL_S + jitter)
         try:
-            heartbeat = GuardrailsUsageEvent(
-                timestamp=time.time(),
-                event=EventTypeEnum.HEARTBEAT,
-            )
+            heartbeat = startup_event.model_copy(deep=True)
+            heartbeat.timestamp = time.time()
+            heartbeat.event = EventTypeEnum.HEARTBEAT
             heartbeat.session_id = session_id
             _write_audit_file(heartbeat.model_dump(by_alias=True))
             _send_report(heartbeat, _get_usage_stats_server_url(), client_version, session_id)
@@ -962,44 +953,43 @@ def report_usage(
     """
     global _session_uuid, _heartbeat_started
 
-    if not _is_usage_stats_enabled():
-        return
-
-    with _lock:
-        effective_deployment_type = (
-            _deployment_type_override.value if _deployment_type_override is not None else deployment_type
-        )
-
     try:
+        if not _is_usage_stats_enabled():
+            return
+
+        with _lock:
+            effective_deployment_type: str = (
+                _deployment_type_override.value if _deployment_type_override is not None else deployment_type
+            )
+
         usage_data = _collect_usage_data(config, effective_deployment_type)
         if rails_engine:
             usage_data.rails_engine = RailsEngineEnum(rails_engine)
+
+        server_url = _get_usage_stats_server_url()
+
+        with _lock:
+            if _session_uuid is None:
+                _session_uuid = usage_data.session_id
+            else:
+                usage_data.session_id = _session_uuid
+            session_id = _session_uuid
+
+        client_version = usage_data.nemoguardrails_version
+
+        _start_daemon_thread(
+            _send_one_event,
+            (usage_data, server_url, client_version, session_id),
+            "Failed to start usage telemetry send thread",
+        )
+
+        with _lock:
+            if not _heartbeat_started:
+                if _start_daemon_thread(
+                    _heartbeat_loop,
+                    (usage_data.model_copy(deep=True), session_id, client_version),
+                    "Failed to start usage telemetry heartbeat thread",
+                ):
+                    _heartbeat_started = True
     except Exception:
-        log.debug("Failed to collect usage data", exc_info=True)
-        return
-
-    server_url = _get_usage_stats_server_url()
-
-    with _lock:
-        if _session_uuid is None:
-            _session_uuid = usage_data.session_id
-        else:
-            usage_data.session_id = _session_uuid
-        session_id = _session_uuid
-
-    client_version = usage_data.nemoguardrails_version
-
-    _start_daemon_thread(
-        _send_one_event,
-        (usage_data, server_url, client_version, session_id),
-        "Failed to start usage telemetry send thread",
-    )
-
-    with _lock:
-        if not _heartbeat_started:
-            if _start_daemon_thread(
-                _heartbeat_loop,
-                (session_id, client_version),
-                "Failed to start usage telemetry heartbeat thread",
-            ):
-                _heartbeat_started = True
+        log.debug("Usage reporting failed", exc_info=True)

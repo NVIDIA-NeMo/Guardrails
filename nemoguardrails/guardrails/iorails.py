@@ -89,7 +89,7 @@ _GENERATION_ERROR_TYPE = "generation_error"
 class IORails:
     """Workflow engine for accelerated Input/Output rails inference."""
 
-    def __init__(self, config: RailsConfig) -> None:
+    def __init__(self, config: RailsConfig, *, _report_usage: bool = True) -> None:
         """Build the engine registry and rails manager from the given config."""
         self._running = False
         self.config = config
@@ -134,6 +134,11 @@ class IORails:
         # ObservableGauges are created lazily on first ``start()`` because
         # they need a reference to an AsyncWorkQueue which has been started.
         self._gauges_registered = False
+
+        if _report_usage:
+            from nemoguardrails.telemetry import RailsEngineEnum, report_usage
+
+            report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
 
     @property
     def _has_streaming_output_rails(self) -> bool:
@@ -225,7 +230,8 @@ class IORails:
 
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous generate call."""
-            async with IORails(sync_config) as iorails_engine:
+            # Avoid counting this sync-API bridge as a separate user-created IORails instance.
+            async with IORails(sync_config, _report_usage=False) as iorails_engine:
                 return await iorails_engine.generate_async(messages, **kwargs)
 
         return asyncio.run(_run_sync_iorails())
