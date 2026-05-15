@@ -311,19 +311,19 @@ To the best of our knowledge, the NeMo Guardrails library is the only guardrails
 
 ## Telemetry and Privacy
 
-The NVIDIA NeMo Guardrails library collects anonymous telemetry to help NVIDIA understand which deployment patterns and safety features are most used. The library emits one usage event when you instantiate `LLMRails` or `Guardrails`, then emits periodic heartbeats from a single daemon thread per process. This telemetry is separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html). You configure tracing in your guardrails config and send it to your own observability backend. Telemetry is a minimal anonymous ping to NVIDIA.
+The NVIDIA NeMo Guardrails library collects anonymous telemetry to help NVIDIA understand which deployment patterns and safety features are most used. The library emits one usage event when you instantiate `LLMRails`, `IORails`, or `Guardrails`, then emits periodic heartbeats from a single daemon thread per process. This telemetry is separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html). You configure tracing in your guardrails config and send it to your own observability backend. Telemetry is a minimal anonymous ping to NVIDIA.
 
 The telemetry includes:
 
 - Installed library version, Python version, operating system, and platform string
-- Colang language version in use (1.0 or 2.x)
+- Colang configuration language version (1.0 or 2.x)
 - Names of configured LLM engine providers, such as `openai`, `nim`, or `nvidia_ai_endpoints`, never model names or credentials
 - Counts of configured rail flows for input, output, retrieval, and tool rails, plus which rail categories are active
 - Names of built-in library features that are active, such as `jailbreak_detection`, `content_safety`, or `topic_safety`
 - Count of user-defined Colang flows (count only, never flow names or contents)
 - Whether tracing, streaming, or a knowledge base is configured
 - How you deployed guardrails (`library`, `api`, or `cli` server)
-- Which rails engine is in use (`LLMRails` or `IORails`)
+- Which runtime rails engine is in use (`LLMRails` or `IORails`)
 - A random per-process UUID for correlating events from the same instance. The library generates it in memory and does not store it for reuse across restarts, but includes it in audit records and transmitted telemetry events
 
 **No user content is collected in the event payload.** The payload does not include model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. NVIDIA uses the data in aggregate to prioritize engineering work and will share adoption trends with the community.
