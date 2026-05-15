@@ -715,9 +715,10 @@ The following sections explain how to install and configure the OpenTelemetry SD
 </div>
 </li>
 <li><p>For Prometheus scraping:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;nemoguardrails[tracing]&quot;</span><span class="w"> </span>opentelemetry-sdk<span class="w"> </span>opentelemetry-exporter-prometheus
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;nemoguardrails[tracing]&quot;</span><span class="w"> </span>opentelemetry-sdk<span class="w"> </span>opentelemetry-exporter-prometheus<span class="w"> </span>prometheus-client
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">prometheus-client</span></code> is required because the example uses <code class="docutils literal notranslate"><span class="pre">start_http_server</span></code> to expose the scrape endpoint.</p>
 </li>
 </ul>
 </section>
