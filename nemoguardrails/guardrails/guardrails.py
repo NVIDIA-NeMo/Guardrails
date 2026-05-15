@@ -34,18 +34,12 @@ from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
-from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
-
-
-# Set with flows supported by the IORailsEngine
-IORAILS_RAILS = {"input", "output", "config"}
-IORAILS_INPUT_FLOWS = {"content safety check input", "topic safety check input", "jailbreak detection model"}
-IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 
 
 class Guardrails:
@@ -83,7 +77,7 @@ class Guardrails:
             configure_logging(logging.INFO)
 
         if use_iorails:
-            fallback_reason = self._iorails_fallback_reason(llm)
+            fallback_reason = IORails.unsupported_reason(config, llm)
             if fallback_reason is None:
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
@@ -162,37 +156,6 @@ class Guardrails:
 
         generate_messages = self._convert_to_messages(prompt, messages)
         return self.rails_engine.generate(messages=generate_messages, **kwargs)
-
-    def _has_only_iorails_flows(self) -> bool:
-        """Return True if every flow in the config can be handled by IORails."""
-        return self._iorails_fallback_reason(llm=None) is None
-
-    def _iorails_fallback_reason(self, llm: Optional[LLMModel]) -> Optional[str]:
-        """Return None if IORails can handle this setup, else a human-readable reason."""
-        if llm is not None:
-            return "an `llm` argument was provided; IORails does not accept a custom LLM"
-
-        unsupported_rails = sorted(self.config.rails.model_fields_set - IORAILS_RAILS)
-        if unsupported_rails:
-            return f"config has rails outside the IORails-supported set: {unsupported_rails}"
-
-        unsupported_input = set()
-        for flow in self.config.rails.input.flows:
-            name = _get_flow_name(flow)
-            if name and name not in IORAILS_INPUT_FLOWS:
-                unsupported_input.add(name)
-        if unsupported_input:
-            return f"config has unsupported input flows: {sorted(unsupported_input)}"
-
-        unsupported_output = set()
-        for flow in self.config.rails.output.flows:
-            name = _get_flow_name(flow)
-            if name and name not in IORAILS_OUTPUT_FLOWS:
-                unsupported_output.add(name)
-        if unsupported_output:
-            return f"config has unsupported output flows: {sorted(unsupported_output)}"
-
-        return None
 
     @overload
     async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
