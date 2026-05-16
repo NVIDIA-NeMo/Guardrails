@@ -17,6 +17,11 @@ from typing import Tuple
 
 import numpy as np
 
+SNOWFLAKE_EMBED_MODEL = "Snowflake/snowflake-arctic-embed-m-long"
+# Pinned to a specific commit SHA to ensure reproducible builds when trust_remote_code=True.
+# Update this when intentionally upgrading the model.
+SNOWFLAKE_EMBED_REVISION = "92d97331f1f4b6a366c1f161354b9f3390cc219f"
+
 
 class SnowflakeEmbed:
     def __init__(self):
@@ -24,9 +29,13 @@ class SnowflakeEmbed:
         from transformers import AutoModel, AutoTokenizer
 
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained("Snowflake/snowflake-arctic-embed-m-long")
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            SNOWFLAKE_EMBED_MODEL,
+            revision=SNOWFLAKE_EMBED_REVISION,
+        )
         self.model = AutoModel.from_pretrained(
-            "Snowflake/snowflake-arctic-embed-m-long",
+            SNOWFLAKE_EMBED_MODEL,
+            revision=SNOWFLAKE_EMBED_REVISION,
             trust_remote_code=True,
             add_pooling_layer=False,
             safe_serialization=True,
