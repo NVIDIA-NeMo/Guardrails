@@ -47,8 +47,14 @@ To run against the live ATR YAML ruleset, parse the rule files at startup
 and append the `detection.regex_patterns` field of each rule to the
 `patterns` list under `regex_detection.input`.
 
-To surface the matched rule id (rather than only refusing), add a custom
-flow that calls `detect_regex_pattern` directly and emits a custom event:
+To surface a custom signal (rather than only refusing), add a custom
+flow that calls `detect_regex_pattern` directly. Follow the library's
+established `if $config.enable_rails_exceptions` pattern (see
+`examples/configs/guardrails_only/input/config.co`) so the flow emits
+**either** the exception event **or** the bot utterance, not both — in
+Colang 1.0 the rails event loop short-circuits on the exception and
+drops the bot utterance from the response if both fire in the same
+flow.
 
 ```colang
 define bot refuse atr_threat
@@ -57,15 +63,22 @@ define bot refuse atr_threat
 define flow atr report match
   $result = execute detect_regex_pattern(source="input", text=$user_message)
   if $result["is_match"]
-    $matched_rules = $result["detections"]
-    create event AtrRuleMatchedRailException(message="ATR input rail blocked")
-    bot refuse atr_threat
+    if $config.enable_rails_exceptions
+      create event AtrRuleMatchedRailException(message="ATR input rail blocked")
+    else
+      bot refuse atr_threat
     stop
 ```
 
 Then wire `atr report match` instead of `regex check input` under
 `rails.input.flows`. The custom flow uses a non-conflicting bot utterance
-(`bot refuse atr_threat`) so it does not collide with the library default,
-and emits a `AtrRuleMatchedRailException` event that downstream observers
-(audit logging, metrics) can subscribe to without parsing the refusal
-text.
+(`bot refuse atr_threat`) so it does not collide with the library
+default, and emits a `AtrRuleMatchedRailException` event when
+`enable_rails_exceptions` is set so downstream observers (audit logging,
+metrics) can subscribe to it.
+
+If you also want to capture the matched rule list for audit, assign
+`$matched_rules = $result["detections"]` before the if/else and pass it
+through your own action call or to the event message — keep the
+exception/utterance branches single-action to preserve the canonical
+event-loop semantics.
