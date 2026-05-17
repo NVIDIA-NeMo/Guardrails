@@ -67,7 +67,7 @@
     <link rel="icon" href="../_static/favicon.png"/>
 
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Troubleshooting" href="../troubleshooting.html" />
+    <link rel="next" title="NeMo Guardrails Library Troubleshooting Guide" href="../troubleshooting.html" />
     <link rel="prev" title="NeMo Guardrails Library API Server Endpoints Reference" href="../reference/api-server-endpoints/index.html" />
 
 
@@ -410,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -465,6 +466,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -562,6 +565,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/quick-start.html">Quick Start</a></li>
@@ -569,6 +573,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -611,6 +621,14 @@
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
@@ -703,7 +721,7 @@ Use this guide to identify your configuration shape and apply the matching migra
 <td><p>Rewrite the parameters. See <a class="reference internal" href="#mixed-shape-configs">Mixed-shape configs</a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, or <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
-<td><p>Opt into LangChain. See <a class="reference internal" href="#using-langchain">Using LangChain</a>.</p></td>
+<td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> or <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
 <td><p>Use LangChain for the Azure-specific helpers, or configure the default framework manually. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
@@ -755,6 +773,10 @@ If your deployment requires a token, replace <code class="docutils literal notra
 <span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
 </div>
 </section>
 <section id="hosted-openai-compatible-providers">
@@ -813,6 +835,20 @@ The 0.22 default framework forwards <code class="docutils literal notranslate"><
 <p>Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> to <code class="docutils literal notranslate"><span class="pre">base_url</span></code>.
 Remove LangChain runtime flags and provider-prefixed aliases.
 Streaming still uses the <code class="docutils literal notranslate"><span class="pre">stream_async</span></code> API.</p>
+</section>
+<section id="unsupported-engine-on-the-default-framework">
+<h2>Unsupported Engine on the Default Framework<a class="headerlink" href="#unsupported-engine-on-the-default-framework" title="Link to this heading">#</a></h2>
+<p>If a v0.21 config uses an engine whose API is not OpenAI-compatible, configuration load fails on v0.22 unless you opt into LangChain.
+Engines that are not OpenAI-compatible include <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, and <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;. If your endpoint is OpenAI-compatible, set parameters.base_url. Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install the matching langchain-&lt;provider&gt; package (see migration guide).
+</pre></div>
+</div>
+<p>The provider name in the message changes to match your <code class="docutils literal notranslate"><span class="pre">engine:</span></code> value.
+Choose one remediation path based on your migration goal:</p>
+<ul class="simple">
+<li><p>Keep the LangChain provider class. Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package, and then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Refer to <a class="reference internal" href="#using-langchain">Using LangChain</a> for the full procedure.</p></li>
+<li><p>Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. This includes self-hosted gateways, proxies, and hosted providers that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>. Refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
+</ul>
 </section>
 <section id="using-langchain">
 <h2>Using LangChain<a class="headerlink" href="#using-langchain" title="Link to this heading">#</a></h2>
@@ -958,7 +994,7 @@ For the default framework interface, see the <code class="docutils literal notra
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Troubleshooting</p>
+        <p class="prev-next-title">NeMo Guardrails Library Troubleshooting Guide</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -990,6 +1026,7 @@ For the default framework interface, see the <code class="docutils literal notra
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mixed-shape-configs">Mixed-Shape Configs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-langchain">Using LangChain</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-openai">Azure OpenAI</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-path">LangChain Path</a></li>

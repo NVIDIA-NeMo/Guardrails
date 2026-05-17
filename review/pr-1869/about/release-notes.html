@@ -410,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -465,6 +466,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -562,6 +565,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/quick-start.html">Quick Start</a></li>
@@ -569,6 +573,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -611,6 +621,14 @@
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
@@ -725,7 +743,7 @@ For more information, refer to <a class="reference internal" href="../run-rails/
 REST API. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint accepts standard <code class="docutils literal notranslate"><span class="pre">ChatCompletion</span></code> requests with a
 <code class="docutils literal notranslate"><span class="pre">guardrails</span></code> field for config selection. A new <code class="docutils literal notranslate"><span class="pre">/v1/models</span></code> endpoint lists available models from the
 configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now a required component of the optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).
-For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
 LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
 every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
@@ -770,7 +788,7 @@ automatically added to LLM call kwargs. Streaming metadata is now captured throu
 <li><p>Server request and response format changed. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint now uses
 OpenAI-compatible request and response schemas. The previous <code class="docutils literal notranslate"><span class="pre">RequestBody</span></code> and <code class="docutils literal notranslate"><span class="pre">ResponseBody</span></code>
 classes are removed. For the new format, refer to
-<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
 <li><p>ChatNVIDIA streaming patch removed. The custom
 <code class="docutils literal notranslate"><span class="pre">_langchain_nvidia_ai_endpoints_patch.py</span></code> module is removed.
 The standard <code class="docutils literal notranslate"><span class="pre">ChatNVIDIA</span></code> from <code class="docutils literal notranslate"><span class="pre">langchain_nvidia_ai_endpoints</span></code> is used directly.</p></li>
