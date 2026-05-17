@@ -1,9 +1,17 @@
-models: []
-
 # This example wires the built-in regex_detection rail to a small set of
 # ATR-inspired threat patterns covering common AI agent attack categories.
-# The full open detection set lives in Agent Threat Rules (Apache-2.0):
+# The full open detection set lives in Agent Threat Rules (MIT-licensed):
 # https://github.com/Agent-Threat-Rule/agent-threat-rules
+#
+# A main model is configured so `nemoguardrails chat` runs end-to-end against
+# this example. Replace the engine/model with your preferred provider; the
+# input rail blocks threats before the model is invoked, so the model is only
+# called for benign user messages.
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
 rails:
   config:
     regex_detection:

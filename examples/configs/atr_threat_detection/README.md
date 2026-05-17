@@ -2,7 +2,7 @@
 
 This example shows how to use the built-in `regex_detection` input rail
 with a small set of patterns inspired by Agent Threat Rules, an open
-detection standard for AI agent threats published under Apache-2.0:
+detection standard for AI agent threats published under the MIT license:
 
 https://github.com/Agent-Threat-Rule/agent-threat-rules
 
@@ -31,8 +31,15 @@ nemoguardrails chat --config=examples/configs/atr_threat_detection/config
 ```
 
 A user message such as "Ignore all previous instructions" will trigger the
-`regex check input` flow and the bot will respond with the refusal message
-defined in `rails.co`.
+`regex check input` flow and the bot will respond with the library default
+refusal message defined in `nemoguardrails/library/regex/flows.v1.co`
+(`"I'm sorry, I can't respond to that."`). Benign messages are forwarded
+to the configured main model.
+
+The `config.yml` lists `openai`/`gpt-4o-mini` as the main model so that
+chat runs end-to-end. Replace with your preferred provider; the input
+rail blocks threats before the model is invoked, so the model only sees
+benign inputs.
 
 ## Extending
 
@@ -40,18 +47,25 @@ To run against the live ATR YAML ruleset, parse the rule files at startup
 and append the `detection.regex_patterns` field of each rule to the
 `patterns` list under `regex_detection.input`.
 
-To also surface matched detections (so the bot can respond with the rule
-identifier rather than only refusing), enable the optional `atr report
-match` flow shipped in `rails.co` by adding it to your input flows in
-`config/config.yml`:
+To surface the matched rule id (rather than only refusing), add a custom
+flow that calls `detect_regex_pattern` directly and emits a custom event:
 
-```yaml
-rails:
-  input:
-    flows:
-      - atr report match
-      - regex check input
+```colang
+define bot refuse atr_threat
+  "I'm sorry, that request was blocked by an ATR input safety rule."
+
+define flow atr report match
+  $result = execute detect_regex_pattern(source="input", text=$user_message)
+  if $result["is_match"]
+    $matched_rules = $result["detections"]
+    create event AtrRuleMatchedRailException(message="ATR input rail blocked")
+    bot refuse atr_threat
+    stop
 ```
 
-Order matters: `atr report match` runs before `regex check input` so the
-matched rule id is available when the refusal message is generated.
+Then wire `atr report match` instead of `regex check input` under
+`rails.input.flows`. The custom flow uses a non-conflicting bot utterance
+(`bot refuse atr_threat`) so it does not collide with the library default,
+and emits a `AtrRuleMatchedRailException` event that downstream observers
+(audit logging, metrics) can subscribe to without parsing the refusal
+text.
