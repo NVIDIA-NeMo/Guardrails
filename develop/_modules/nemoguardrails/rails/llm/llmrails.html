@@ -1463,7 +1463,11 @@ window.addEventListener("load", load);</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;kb&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kb</span><span class="p">)</span>
 
         <span class="c1"># Reference to the general ExplainInfo object.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="kc">None</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.telemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">report_usage</span>
+
+        <span class="n">report_usage</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">deployment_type</span><span class="o">=</span><span class="s2">&quot;library&quot;</span><span class="p">,</span> <span class="n">rails_engine</span><span class="o">=</span><span class="s2">&quot;LLMRails&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="LLMRails.update_llm">
