@@ -544,6 +544,40 @@ def _build_gliner_config_for_api_key_tests(api_key_env_var: Optional[str] = None
 
 
 @pytest.mark.unit
+def test_gliner_config_rejects_unsupported_engine():
+    with pytest.raises(ValueError, match="rails.config.gliner.engine"):
+        RailsConfig.from_content(
+            yaml_content="""
+                models: []
+                rails:
+                  config:
+                    gliner:
+                      engine: nvcf
+                      input:
+                        entities:
+                          - email
+            """,
+        )
+
+
+@pytest.mark.unit
+def test_gliner_config_rejects_unknown_nested_option():
+    with pytest.raises(ValueError, match="rails.config.gliner.input.unknown_option"):
+        RailsConfig.from_content(
+            yaml_content="""
+                models: []
+                rails:
+                  config:
+                    gliner:
+                      input:
+                        entities:
+                          - email
+                        unknown_option: true
+            """,
+        )
+
+
+@pytest.mark.unit
 def test_resolve_api_key_env_var_not_configured(monkeypatch, caplog):
     """No api_key_env_var set => returns None, no warning logged."""
     from nemoguardrails.library.gliner.actions import _resolve_api_key
