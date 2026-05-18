@@ -49,6 +49,7 @@ _LANGCHAIN_BASE_FLAGS = frozenset(
 )
 
 _PROVIDER_PREFIXED_ALIAS = re.compile(r"^(?P<prefix>[a-zA-Z]\w*?)_(?P<canonical>api_key|base_url|api_base|endpoint)$")
+_AZURE_PROVIDERS = frozenset({"azure", "azure_openai"})
 
 
 def _canonical_name_for(matched_canonical: str) -> str:
@@ -64,7 +65,7 @@ def _detect_provider_alias(name: str) -> Optional[str]:
     return _canonical_name_for(match.group("canonical"))
 
 
-def _violations_for(model_type: str, parameters: dict) -> List[Tuple[str, str]]:
+def _violations_for(model_type: str, engine: str, parameters: dict) -> List[Tuple[str, str]]:
     """Return a list of (model_type, action) tuples for one model."""
     out: List[Tuple[str, str]] = []
     for flag in sorted(_LANGCHAIN_BASE_FLAGS & set(parameters)):
@@ -77,6 +78,8 @@ def _violations_for(model_type: str, parameters: dict) -> List[Tuple[str, str]]:
             continue
         canonical = _detect_provider_alias(name)
         if canonical is None:
+            continue
+        if engine in _AZURE_PROVIDERS and name == "azure_endpoint":
             continue
         out.append((model_type, f"rename `{name}` to `{canonical}`"))
     return out
@@ -94,7 +97,7 @@ def check_langchain_kwargs(models: "Iterable[Model]", active_framework: str) -> 
     for model in models:
         if not model.parameters:
             continue
-        violations.extend(_violations_for(model.type, model.parameters))
+        violations.extend(_violations_for(model.type, model.engine, model.parameters))
     if not violations:
         return
     body = "\n".join(f"  models[{model_type}]: {action}" for model_type, action in violations)
