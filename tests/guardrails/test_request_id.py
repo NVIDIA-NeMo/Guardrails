@@ -30,6 +30,7 @@ import pytest_asyncio
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_HEX_CHARS,
     RailResult,
+    _set_request_id,
     get_request_id,
     reset_request_id,
     set_new_request_id,
@@ -41,6 +42,13 @@ from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 REQUEST_ID_PATTERN = re.compile(rf"^[0-9a-f]{{{REQUEST_ID_HEX_CHARS}}}$")
+
+
+@pytest.fixture(autouse=True)
+def clean_request_id_context():
+    _set_request_id("no-req-id")
+    yield
+    _set_request_id("no-req-id")
 
 
 class SingleUseBarrier:

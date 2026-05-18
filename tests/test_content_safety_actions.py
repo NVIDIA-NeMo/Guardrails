@@ -209,7 +209,7 @@ class TestDetectLanguage:
 
 
 class TestGetRefusalMessage:
-    @pytest.mark.parametrize("lang", list(SUPPORTED_LANGUAGES))
+    @pytest.mark.parametrize("lang", sorted(SUPPORTED_LANGUAGES))
     def test_default_messages(self, lang):
         result = _get_refusal_message(lang, None)
         assert result == DEFAULT_REFUSAL_MESSAGES[lang]
