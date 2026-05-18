@@ -1,16 +1,28 @@
-.PHONY: all test tests test_watch test_coverage test_profile docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
+.PHONY: all test tests warm_fastembed_cache test_parallel test_watch test_coverage test_profile docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
 
 # Default target executed when no specific target is provided to make.
 all: help
 
 # Define a variable for the test file path.
 TEST_FILE ?= tests/
+PYTEST_ARGS ?=
+PYTEST_WORKERS ?= 8
+PYTEST_DIST ?= worksteal
+FASTEMBED_CACHE_PATH ?= .cache/fastembed
+FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
+PYTEST_PARALLEL_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE_PATH)
 
 test:
-	poetry run pytest $(TEST_FILE)
+	poetry run pytest $(PYTEST_ARGS) $(TEST_FILE)
 
 tests:
-	poetry run pytest $(TEST_FILE)
+	poetry run pytest $(PYTEST_ARGS) $(TEST_FILE)
+
+warm_fastembed_cache:
+	$(PYTEST_PARALLEL_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
+
+test_parallel: warm_fastembed_cache
+	$(PYTEST_PARALLEL_ENV) poetry run pytest -n $(PYTEST_WORKERS) --dist $(PYTEST_DIST) $(PYTEST_ARGS) $(TEST_FILE)
 
 test_watch:
 	poetry run ptw --snapshot-update --now . -- -vv $(TEST_FILE)
@@ -54,6 +66,8 @@ help:
 	@echo 'test                         - run unit tests'
 	@echo 'tests                        - run unit tests'
 	@echo 'test TEST_FILE=<test_file>   - run all tests in given file'
+	@echo 'warm_fastembed_cache         - prepare the repo-local FastEmbed cache for parallel tests'
+	@echo 'test_parallel                - run unit tests with pytest-xdist using a warmed FastEmbed cache'
 	@echo 'test_watch                   - run unit tests in watch mode'
 	@echo 'test_coverage                - run unit tests with coverage'
 	@echo 'docs                         - build docs, if you installed the docs dependencies'
