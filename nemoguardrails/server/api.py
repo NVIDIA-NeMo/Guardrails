@@ -96,9 +96,9 @@ datastore: Optional[DataStore] = None
 async def lifespan(app: GuardrailsApp):
     # Startup logic here
     """Register any additional challenges, if available at startup."""
-    from nemoguardrails.telemetry import set_deployment_type
+    from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
 
-    set_deployment_type("api")
+    set_deployment_type(DeploymentTypeEnum.API.value)
 
     challenges_files = os.path.join(app.rails_config_path, "challenges.json")
 
