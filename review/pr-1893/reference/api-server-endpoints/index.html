@@ -787,7 +787,7 @@ with guardrails-specific fields nested under a <code class="docutils literal not
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">messages</span></code></p></td>
 <td><p>array of objects</p></td>
 <td><p>No</p></td>
-<td><p>The list of messages in the current conversation. Each message has <code class="docutils literal notranslate"><span class="pre">role</span></code> and <code class="docutils literal notranslate"><span class="pre">content</span></code> fields. Although the OpenAI API requires this field, the Guardrails server treats it as optional to support stateful continuation via <code class="docutils literal notranslate"><span class="pre">guardrails.state</span></code>. When omitted, defaults to an empty list.</p></td>
+<td><p>The list of messages in the current conversation. Each message has <code class="docutils literal notranslate"><span class="pre">role</span></code> and <code class="docutils literal notranslate"><span class="pre">content</span></code> fields. Although the OpenAI API requires this field, the Guardrails server treats it as optional. When omitted, defaults to an empty list.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">stream</span></code></p></td>
 <td><p>boolean</p></td>
@@ -859,7 +859,7 @@ with guardrails-specific fields nested under a <code class="docutils literal not
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.thread_id</span></code></p></td>
 <td><p>string</p></td>
 <td><p>No</p></td>
-<td><p>ID of an existing thread for conversation persistence. Must be 16-255 characters.</p></td>
+<td><p>ID of an existing thread for Colang 1.0 conversation persistence. Must be 16-255 characters. Colang 2.0 requests with <code class="docutils literal notranslate"><span class="pre">thread_id</span></code> return HTTP 422.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.context</span></code></p></td>
 <td><p>object</p></td>
@@ -874,7 +874,7 @@ with guardrails-specific fields nested under a <code class="docutils literal not
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.state</span></code></p></td>
 <td><p>object</p></td>
 <td><p>No</p></td>
-<td><p>A state object to continue a previous interaction. Must contain an <code class="docutils literal notranslate"><span class="pre">events</span></code> or <code class="docutils literal notranslate"><span class="pre">state</span></code> key, or be an empty dict <code class="docutils literal notranslate"><span class="pre">{}</span></code> to start a new conversation.</p></td>
+<td><p>Colang 1.0 transcript state for continuing a previous interaction. Must be an empty dict <code class="docutils literal notranslate"><span class="pre">{}</span></code> to start a new conversation or contain an <code class="docutils literal notranslate"><span class="pre">events</span></code> list to continue one. Public Colang 2.0 runtime state is not accepted over HTTP; use the trusted in-process Python API with <code class="docutils literal notranslate"><span class="pre">process_events_async</span></code> and a live <code class="docutils literal notranslate"><span class="pre">State</span></code> object for Colang 2.0 stateful continuation.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1110,7 +1110,7 @@ with guardrails-specific fields nested under a <code class="docutils literal not
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.state</span></code></p></td>
 <td><p>object</p></td>
-<td><p>State object for continuing the conversation in future requests.</p></td>
+<td><p>Colang 1.0 transcript state for continuing the conversation in future HTTP requests, when available. Colang 2.0 responses do not return public runtime state.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.llm_output</span></code></p></td>
 <td><p>object</p></td>
@@ -1465,9 +1465,27 @@ This endpoint proxies the request to the provider specified by <code class="docu
 </section>
 <section id="invalid-state-format">
 <h3>Invalid State Format<a class="headerlink" href="#invalid-state-format" title="Link to this heading">#</a></h3>
-<p>When the <code class="docutils literal notranslate"><span class="pre">guardrails.state</span></code> object does not contain an <code class="docutils literal notranslate"><span class="pre">events</span></code> or <code class="docutils literal notranslate"><span class="pre">state</span></code> key, the server returns an HTTP 422 error:</p>
+<p>When the <code class="docutils literal notranslate"><span class="pre">guardrails.state</span></code> object is non-empty and does not contain an <code class="docutils literal notranslate"><span class="pre">events</span></code> list, the server returns an HTTP 422 error:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Invalid state format: state must contain &#39;events&#39; or &#39;state&#39; key. Use an empty dict {} to start a new conversation.&quot;</span>
+<span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Invalid state format: state must contain an &#39;events&#39; key. Use an empty dict {} to start a new conversation.&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Colang 2.0 public runtime state is not accepted over HTTP:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Caller-supplied state is not accepted for Colang 2.0 over HTTP. Full Colang 2.0 flow-state continuation over HTTP is not currently supported.&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>When a Colang 2.0 configuration receives Colang 1.0-style <code class="docutils literal notranslate"><span class="pre">events</span></code> state, the server returns HTTP 422:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Stateful continuation over HTTP is not supported for Colang 2.0.&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>When a Colang 2.0 configuration receives <code class="docutils literal notranslate"><span class="pre">thread_id</span></code>, the server returns HTTP 422:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;thread_id message-history replay is not supported for Colang 2.0.&quot;</span>
 <span class="p">}</span>
 </pre></div>
 </div>
