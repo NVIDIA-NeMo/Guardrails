@@ -754,8 +754,7 @@ When <code class="docutils literal notranslate"><span class="pre">opentelemetry-
 <span class="n">metrics</span><span class="o">.</span><span class="n">set_meter_provider</span><span class="p">(</span><span class="n">MeterProvider</span><span class="p">(</span><span class="n">resource</span><span class="o">=</span><span class="n">resource</span><span class="p">,</span> <span class="n">metric_readers</span><span class="o">=</span><span class="p">[</span><span class="n">reader</span><span class="p">]))</span>
 
 <span class="c1"># Configure NeMo Guardrails afterwards.</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span><span class="p">,</span> <span class="n">RailsConfig</span>
 
 <span class="n">config_yaml</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
 <span class="s2">models:</span>
@@ -768,7 +767,10 @@ When <code class="docutils literal notranslate"><span class="pre">opentelemetry-
 <span class="s2">&quot;&quot;&quot;</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_content</span><span class="p">(</span><span class="n">yaml_content</span><span class="o">=</span><span class="n">config_yaml</span><span class="p">)</span>
-<span class="n">rails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># require_iorails=True raises if the config is incompatible with the IORails engine,</span>
+<span class="c1"># so the metrics setup fails loudly rather than silently falling back to LLMRails</span>
+<span class="c1"># (which emits no metrics).</span>
+<span class="n">rails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">require_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
