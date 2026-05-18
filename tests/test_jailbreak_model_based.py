@@ -17,6 +17,7 @@ import sys
 import types
 from unittest import mock
 
+import numpy as np
 import pytest
 
 # Test 1: Lazy import behavior
@@ -42,15 +43,11 @@ def test_model_based_classifier_imports(monkeypatch):
     """
     # Mock dependencies
     fake_rf = mock.MagicMock()
+    fake_rf.run.return_value = [np.array([1]), [{0: 0.1, 1: 0.9}]]
     fake_embed = mock.MagicMock(return_value=[0.0])
     fake_onnx = types.SimpleNamespace(InferenceSession=mock.MagicMock(return_value=fake_rf))
     fake_snowflake = mock.MagicMock(return_value=fake_embed)
 
-    monkeypatch.setitem(
-        sys.modules,
-        "sklearn.ensemble",
-        types.SimpleNamespace(RandomForestClassifier=mock.MagicMock()),
-    )
     monkeypatch.setitem(sys.modules, "onnxruntime", fake_onnx)
     monkeypatch.setitem(sys.modules, "torch", mock.MagicMock())
     monkeypatch.setitem(sys.modules, "transformers", mock.MagicMock())
@@ -60,15 +57,9 @@ def test_model_based_classifier_imports(monkeypatch):
 
     monkeypatch.setattr(models, "SnowflakeEmbed", fake_snowflake)
 
-    # mocking file operations to avoid Windows permission issues
-    mock_open = mock.mock_open()
-    with mock.patch("builtins.open", mock_open):
-        # Should not raise
-        classifier = models.JailbreakClassifier("fake_model_path.onnx")
-        assert classifier is not None
-        # Should be callable
-        result = classifier("test")
-        assert isinstance(result, tuple)
+    classifier = models.JailbreakClassifier("fake_model_path.onnx")
+    assert classifier is not None
+    assert classifier("test") == (True, 0.9)
 
 
 # Test 3: Error if dependencies missing when instantiating model-based classifier
@@ -227,21 +218,42 @@ def test_check_jailbreak_no_classifier_available(monkeypatch):
 # Test 9: Test initialize_model with valid path
 
 
-def test_initialize_model_with_valid_path(monkeypatch):
+def test_jailbreak_classifier_unpacks_onnx_output(monkeypatch):
+    """
+    JailbreakClassifier should unpack the ONNX session output and pass a batched float32 input.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.models as models
+
+    fake_session = mock.MagicMock()
+    fake_session.run.return_value = [np.array([0]), [{0: 0.8, 1: 0.2}]]
+    fake_onnx = types.SimpleNamespace(InferenceSession=mock.MagicMock(return_value=fake_session))
+    fake_embed = mock.MagicMock(return_value=np.array([1.0, 2.0], dtype=np.float64))
+    fake_snowflake = mock.MagicMock(return_value=fake_embed)
+
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_onnx)
+    monkeypatch.setattr(models, "SnowflakeEmbed", fake_snowflake)
+
+    classifier = models.JailbreakClassifier("fake_model_path.onnx")
+
+    assert classifier("test") == (False, -0.8)
+    fake_session.run.assert_called_once()
+    x = fake_session.run.call_args.args[1]["X"]
+    assert x.shape == (1, 2)
+    assert x.dtype == np.float32
+
+
+def test_initialize_model_with_valid_path(monkeypatch, tmp_path):
     """
     Test initialize_model with a valid classifier path.
     """
-    from pathlib import Path
-
     import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
     checks.initialize_model.cache_clear()
 
-    # mock environment variable
-    test_path = "/fake/path/to/model"
+    (tmp_path / checks.MODEL_FILENAME).write_bytes(b"")
+    test_path = str(tmp_path)
     monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", test_path)
 
-    # mock JailbreakClassifier
     mock_classifier = mock.MagicMock()
     mock_jailbreak_classifier_class = mock.MagicMock(return_value=mock_classifier)
     monkeypatch.setattr(
@@ -253,7 +265,7 @@ def test_initialize_model_with_valid_path(monkeypatch):
 
     assert result == mock_classifier
 
-    expected_path = str(Path(test_path).joinpath("snowflake.onnx"))
+    expected_path = str(tmp_path / checks.MODEL_FILENAME)
     mock_jailbreak_classifier_class.assert_called_once_with(expected_path)
 
 
@@ -302,8 +314,8 @@ def test_initialize_model_calls_hf_hub_download_when_snowflake_onnx_missing(monk
 
     assert result is mock_classifier
     mock_hf_hub_download.assert_called_once_with(
-        repo_id="nvidia/NemoGuard-JailbreakDetect",
-        filename="snowflake.onnx",
+        repo_id=checks.MODEL_REPO_ID,
+        filename=checks.MODEL_FILENAME,
         local_dir=str(tmp_path),
     )
 

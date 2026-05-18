@@ -16,6 +16,10 @@
 import os
 from typing import Tuple
 
+import numpy as np
+
+SNOWFLAKE_MODEL_ID = "Snowflake/snowflake-arctic-embed-m-long"
+
 
 class SnowflakeEmbed:
     def __init__(self):
@@ -28,14 +32,14 @@ class SnowflakeEmbed:
         else:
             self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(
-            "Snowflake/snowflake-arctic-embed-m-long",
+            SNOWFLAKE_MODEL_ID,
             trust_remote_code=True,
         )
         self.model = AutoModel.from_pretrained(
-            "Snowflake/snowflake-arctic-embed-m-long",
+            SNOWFLAKE_MODEL_ID,
             trust_remote_code=True,
             add_pooling_layer=False,
-            safe_serialization=True,
+            use_safetensors=True,
         )
         self.model.to(self.device)
         self.model.eval()
@@ -57,8 +61,8 @@ class JailbreakClassifier:
 
     def __call__(self, text: str) -> Tuple[bool, float]:
         e = self.embed(text)
-        res = self.classifier.run(None, {"X": [e]})
-        # InferenceSession returns a result where the first item is equivalent to argmax over probabilities
+        x = np.asarray([e], dtype=np.float32)
+        res = self.classifier.run(None, {"X": x})
         classification = res[0].item()
         # The second is a list of dicts of probabilities -- the slice res[1][:2] should have only one element.
         # We access the dict entry for the class.
