@@ -15,6 +15,7 @@
 
 """Unit tests for the OTEL metrics API in nemoguardrails.guardrails.telemetry."""
 
+import asyncio
 from typing import cast
 from unittest.mock import patch
 
@@ -310,6 +311,43 @@ class TestLLMOperationDuration:
         error_types = {obs.attributes.get("error.type") for obs in observations}
         assert error_types == {None, "ValueError"}
 
+    def test_records_error_type_on_cancelled_error(self, meter_reader):
+        """Consumer-cancelled streams raise ``asyncio.CancelledError`` —
+        a ``BaseException`` subclass — inside the context manager.  The
+        duration record must still carry ``error.type=CancelledError``
+        so dashboards can distinguish cancelled streams from successful
+        ones (NGUARD-776 plan #6).
+        """
+        with pytest.raises(asyncio.CancelledError):
+            with llm_operation_duration("model-x", "openai", "chat"):
+                raise asyncio.CancelledError()
+        points = collect_metric_points(meter_reader)
+        assert len(points["gen_ai.client.operation.duration"]) == 1
+        attrs = points["gen_ai.client.operation.duration"][0].attributes
+        assert attrs["error.type"] == "CancelledError"
+
+    def test_records_error_type_on_generator_exit(self, meter_reader):
+        """``GeneratorExit`` (raised when an async generator is closed)
+        is a ``BaseException`` subclass and must also tag the duration
+        record with ``error.type=GeneratorExit``.
+        """
+        with pytest.raises(GeneratorExit):
+            with llm_operation_duration("model-x", "openai", "chat"):
+                raise GeneratorExit()
+        points = collect_metric_points(meter_reader)
+        assert len(points["gen_ai.client.operation.duration"]) == 1
+        attrs = points["gen_ai.client.operation.duration"][0].attributes
+        assert attrs["error.type"] == "GeneratorExit"
+
+    def test_cancelled_error_propagates(self, meter_reader):
+        """The context manager must re-raise ``CancelledError`` so the
+        surrounding asyncio task is actually cancelled — swallowing it
+        would break cancel semantics.
+        """
+        with pytest.raises(asyncio.CancelledError):
+            with llm_operation_duration("model-x", "openai", "chat"):
+                raise asyncio.CancelledError()
+
     def test_no_op_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
@@ -427,6 +465,42 @@ class TestRequestMetrics:
                 raise ValueError("boom")
         points = collect_metric_points(meter_reader)
         assert points["guardrails.request.duration"][0].value == 1
+
+    def test_errors_counter_increments_on_cancelled_error(self, meter_reader):
+        """When a consumer cancels a streaming request the surrounding
+        ``request_metrics`` scope exits via ``asyncio.CancelledError``
+        (a ``BaseException`` subclass).  The errors counter must still
+        bump with ``error.type=CancelledError`` so cancellation volume
+        is visible on the dashboard.
+        """
+        with pytest.raises(asyncio.CancelledError):
+            with request_metrics():
+                raise asyncio.CancelledError()
+        points = collect_metric_points(meter_reader)
+        assert len(points["guardrails.requests.errors"]) == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "CancelledError"
+
+    def test_errors_counter_increments_on_generator_exit(self, meter_reader):
+        """A closed async generator surfaces as ``GeneratorExit`` inside
+        the ``request_metrics`` scope.  The errors counter must bump
+        with ``error.type=GeneratorExit``.
+        """
+        with pytest.raises(GeneratorExit):
+            with request_metrics():
+                raise GeneratorExit()
+        points = collect_metric_points(meter_reader)
+        assert len(points["guardrails.requests.errors"]) == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "GeneratorExit"
+
+    def test_cancelled_error_propagates(self, meter_reader):
+        """``request_metrics`` must re-raise ``CancelledError`` — swallowing
+        it would prevent the surrounding asyncio task from being
+        cancelled.
+        """
+        with pytest.raises(asyncio.CancelledError):
+            with request_metrics():
+                raise asyncio.CancelledError()
 
     def test_requests_active_nets_to_zero_after_completed_scope(self, meter_reader):
         """+1 on entry, -1 on exit → net 0 for a completed scope."""

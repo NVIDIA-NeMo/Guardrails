@@ -15,6 +15,7 @@
 
 """Unit tests for nemoguardrails.guardrails.telemetry module."""
 
+import asyncio
 import re
 from unittest.mock import MagicMock, patch
 
@@ -190,6 +191,39 @@ class TestRequestSpan:
         exception_events = [e for e in events if e.name == "exception"]
         assert len(exception_events) == 1
         assert "boom" in exception_events[0].attributes["exception.message"]
+
+    def test_records_error_type_on_cancelled_error(self, otel_provider):
+        """Consumer-cancelled streams raise ``asyncio.CancelledError``
+        inside the SERVER span.  Span must still be marked ERROR with
+        ``error.type=CancelledError`` so traces can be filtered to
+        cancelled requests.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(asyncio.CancelledError):
+            with request_span(tracer) as _:
+                raise asyncio.CancelledError()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "CancelledError"
+
+    def test_records_error_type_on_generator_exit(self, otel_provider):
+        """``GeneratorExit`` (raised when the async generator wrapping
+        the request is closed) must mark the SERVER span ERROR with
+        ``error.type=GeneratorExit``.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(GeneratorExit):
+            with request_span(tracer) as _:
+                raise GeneratorExit()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "GeneratorExit"
 
     def test_span_ended_on_success(self, otel_provider):
         provider, exporter = otel_provider

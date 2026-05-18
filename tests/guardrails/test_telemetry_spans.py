@@ -15,6 +15,8 @@
 
 """Unit tests for telemetry span helpers: rail_span, action_span, llm_call_span, api_call_span."""
 
+import asyncio
+
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -164,6 +166,38 @@ class TestLlmCallSpan:
         span = exporter.get_finished_spans()[0]
         assert span.status.status_code == StatusCode.ERROR
         assert span.attributes["error.type"] == "ConnectionError"
+
+    def test_records_error_type_on_cancelled_error(self, otel_provider):
+        """Consumer-cancelled streams raise ``asyncio.CancelledError``
+        inside the LLM CLIENT span.  Span must still be marked ERROR
+        with ``error.type=CancelledError`` so trace queries can
+        correlate cancelled streams to their LLM-call leg.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(asyncio.CancelledError):
+            with llm_call_span(tracer, "model", "nim"):
+                raise asyncio.CancelledError()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "CancelledError"
+
+    def test_records_error_type_on_generator_exit(self, otel_provider):
+        """``GeneratorExit`` raised inside the LLM CLIENT span must
+        also flip the span to ERROR with ``error.type=GeneratorExit``.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(GeneratorExit):
+            with llm_call_span(tracer, "model", "nim"):
+                raise GeneratorExit()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "GeneratorExit"
 
     def test_noop_when_tracer_none(self):
         with llm_call_span(None, "model", "nim") as span:
