@@ -498,7 +498,7 @@ def llm_operation_duration(
     exc_type: Optional[str] = None
     try:
         yield
-    except Exception as exc:
+    except BaseException as exc:
         exc_type = type(exc).__name__
         raise
     finally:
