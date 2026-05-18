@@ -357,8 +357,9 @@ class TestDefaultFramework:
         finally:
             await fw.reset()
 
+    @pytest.mark.parametrize("header_name", ["api-key", "Api-Key", "API-KEY"])
     @pytest.mark.asyncio
-    async def test_azure_default_headers_api_key_satisfies_auth(self, monkeypatch):
+    async def test_azure_default_headers_api_key_satisfies_auth(self, monkeypatch, header_name):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
@@ -371,10 +372,10 @@ class TestDefaultFramework:
                     "base_url": "https://my-resource.openai.azure.com/",
                     "azure_deployment": "d",
                     "api_version": "2024-02-15-preview",
-                    "default_headers": {"api-key": "header-key"},
+                    "default_headers": {header_name: "header-key"},
                 },
             )
-            assert model._client._custom_headers == {"api-key": "header-key"}
+            assert model._client._custom_headers == {header_name: "header-key"}
         finally:
             await fw.reset()
 

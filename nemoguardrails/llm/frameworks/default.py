@@ -197,7 +197,8 @@ class DefaultFramework:
 
         default_headers = dict(kwargs.pop("default_headers", None) or {})
         api_key = kwargs.pop("api_key", _UNSET)
-        if "api-key" not in default_headers:
+        header_names = {name.lower() for name in default_headers}
+        if "api-key" not in header_names:
             if api_key is _UNSET:
                 api_key = _resolve_api_key(provider_name)
             if not api_key:
