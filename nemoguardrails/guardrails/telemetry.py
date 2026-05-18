@@ -434,7 +434,7 @@ def rail_span(
         span.set_attribute(GuardrailsAttributes.RAIL_NAME, flow)
         try:
             yield span
-        except Exception as exc:
+        except BaseException as exc:
             record_span_error(span, exc)
             raise
 
@@ -457,7 +457,7 @@ def action_span(tracer: Optional["Tracer"], action_name: str) -> Generator[Optio
         span.set_attribute(GuardrailsAttributes.ACTION_NAME, action_name)
         try:
             yield span
-        except Exception as exc:
+        except BaseException as exc:
             record_span_error(span, exc)
             raise
 
@@ -522,7 +522,7 @@ def api_call_span(tracer: Optional["Tracer"], api_name: str) -> Generator[Option
         span.set_attribute(GuardrailsAttributes.API_NAME, api_name)
         try:
             yield span
-        except Exception as exc:
+        except BaseException as exc:
             record_span_error(span, exc)
             raise
 
