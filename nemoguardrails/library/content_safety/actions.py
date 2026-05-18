@@ -246,7 +246,7 @@ def _detect_language(text: str) -> Optional[str]:
     try:
         from fast_langdetect import detect
 
-        result = detect(text, k=1)
+        result = detect(text, model="lite", k=1)
         if result and len(result) > 0:
             return result[0].get("lang")
         return None
