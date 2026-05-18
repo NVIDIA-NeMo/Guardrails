@@ -331,6 +331,8 @@ class PrivateAIDetection(BaseModel):
 class GLiNERDetectionOptions(BaseModel):
     """Configuration options for GLiNER."""
 
+    model_config = ConfigDict(extra="forbid")
+    
     entities: List[str] = Field(
         default_factory=list,
         description="The list of entity labels to detect (e.g., 'email', 'phone_number', 'ssn').",
@@ -340,6 +342,8 @@ class GLiNERDetectionOptions(BaseModel):
 class GLiNERDetection(BaseModel):
     """Configuration for GLiNER PII detection."""
 
+    model_config = ConfigDict(extra="forbid")
+    
     server_endpoint: str = Field(
         default="http://localhost:8000/v1/chat/completions",
         description=(
