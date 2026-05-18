@@ -29,9 +29,9 @@ Ensure Docker is installed on your machine. If not, follow the [official Docker 
 
 ## LLM Framework Selection
 
-By default, NeMo Guardrails uses the lightweight default framework (httpx-based, no LangChain). It serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, and `ollama`, plus any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url` (for example self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp).
+By default, NeMo Guardrails uses the lightweight default framework (httpx-based, no LangChain). It serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, `azure`, and `azure_openai`, plus any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url` (for example self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp).
 
-To use LangChain-only engines whose API is not OpenAI-compatible (`vertexai`, `anthropic`, `cohere`, `azure`, `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, `self_hosted`, and the legacy `vllm_openai` LangChain wrapper), set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` in the container environment and add `langchain` plus the relevant provider packages to your image. For example:
+To use LangChain-only engines whose API is not OpenAI-compatible (`vertexai`, `anthropic`, `cohere`, `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, `self_hosted`, and the legacy `vllm_openai` LangChain wrapper), set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` in the container environment and add `langchain` plus the relevant provider packages to your image. For example:
 
 ```bash
 docker run \
@@ -41,7 +41,7 @@ docker run \
   nemoguardrails
 ```
 
-Replace `ANTHROPIC_API_KEY` with the credential your provider uses (for example, `GOOGLE_APPLICATION_CREDENTIALS` for Vertex AI, `COHERE_API_KEY` for Cohere, `AZURE_OPENAI_API_KEY` for Azure OpenAI).
+Replace `ANTHROPIC_API_KEY` with the credential your provider uses (for example, `GOOGLE_APPLICATION_CREDENTIALS` for Vertex AI or `COHERE_API_KEY` for Cohere).
 
 ## Build the Docker Images
 

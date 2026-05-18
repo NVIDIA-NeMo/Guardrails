@@ -36,7 +36,7 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 | Engine | Framework | Streaming | Tool calls | Reasoning models | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `anthropic` | LangChain (opt-in) | yes | yes | wrapper-dependent | Requires `pip install langchain langchain-anthropic`. |
-| `azure`, `azure_openai` | LangChain (opt-in) | yes | yes | yes | Azure OpenAI is OpenAI-compatible at the wire level. The LangChain path (`langchain-openai`) is the convenient default because it handles the deployment-name URL pattern and `api-version` query string for you. Azure is also reachable through the built-in client by setting `parameters.base_url` to the deployment URL and passing `api-version` via `default_query` and `api-key` via `default_headers`. |
+| `azure`, `azure_openai` | Built-in | yes | yes | yes | Native support for key-based Azure OpenAI authentication. Set `parameters.azure_endpoint` or `parameters.base_url` to the resource endpoint, plus `azure_deployment` and `api_version`; for Azure AD or token-based authentication, use manual `engine: openai` configuration or opt into LangChain. |
 | `cohere` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
 | `google_genai` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-google-genai`. |
 | `huggingface_endpoint` | LangChain (opt-in) | varies | varies | varies | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead. |

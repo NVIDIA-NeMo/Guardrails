@@ -110,6 +110,7 @@ These engines work with `pip install nemoguardrails` and do not require extra pr
 
 | Engine | Description |
 | --- | --- |
+| `azure`, `azure_openai` | Azure OpenAI models with key-based authentication (`azure_endpoint` or `base_url`, `azure_deployment`, and `api_version`) |
 | `nim` | NVIDIA NIM microservices |
 | `nvidia_ai_endpoints` | Alias for `nim` |
 | `ollama` | Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1` |
@@ -124,7 +125,6 @@ To use one of these engines, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and in
 | Engine | Description |
 | --- | --- |
 | `anthropic` | Anthropic Claude models |
-| `azure` | Azure OpenAI models (deployment-name URL plus `api-version`) |
 | `cohere` | Cohere models |
 | `google_genai` | Google Generative AI through LangChain (requires `langchain-google-genai`) |
 | `huggingface_endpoint` | Hugging Face Inference Endpoints (default text-generation schema; if your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead) |
