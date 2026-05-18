@@ -337,12 +337,54 @@ class TestDefaultFramework:
             await fw.reset()
 
     @pytest.mark.asyncio
+    async def test_azure_default_query_api_version_conflict_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"conflicting Azure API versions"):
+                fw.create_model(
+                    "gpt-4o-mini",
+                    "azure",
+                    {
+                        "base_url": "https://my-resource.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "2024-02-15-preview",
+                        "api_key": "k",
+                        "default_query": {"api-version": "2023-05-15"},
+                    },
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_default_headers_api_key_satisfies_auth(self, monkeypatch):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "base_url": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "d",
+                    "api_version": "2024-02-15-preview",
+                    "default_headers": {"api-key": "header-key"},
+                },
+            )
+            assert model._client._custom_headers == {"api-key": "header-key"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
     async def test_azure_missing_endpoint_raises(self):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
-            with pytest.raises(ValueError, match="requires parameters.azure_endpoint"):
+            with pytest.raises(ValueError, match=r"requires parameters\.azure_endpoint"):
                 fw.create_model(
                     "gpt",
                     "azure",
@@ -378,7 +420,7 @@ class TestDefaultFramework:
 
         fw = DefaultFramework()
         try:
-            with pytest.raises(ValueError, match="either parameters.azure_endpoint or parameters.base_url"):
+            with pytest.raises(ValueError, match=r"either parameters\.azure_endpoint or parameters\.base_url"):
                 fw.create_model(
                     "gpt",
                     "azure",
@@ -399,7 +441,7 @@ class TestDefaultFramework:
 
         fw = DefaultFramework()
         try:
-            with pytest.raises(ValueError, match="requires parameters.azure_deployment"):
+            with pytest.raises(ValueError, match=r"requires parameters\.azure_deployment"):
                 fw.create_model(
                     "gpt",
                     "azure",
@@ -414,7 +456,7 @@ class TestDefaultFramework:
 
         fw = DefaultFramework()
         try:
-            with pytest.raises(ValueError, match="requires parameters.api_version"):
+            with pytest.raises(ValueError, match=r"requires parameters\.api_version"):
                 fw.create_model(
                     "gpt",
                     "azure",

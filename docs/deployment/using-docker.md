@@ -41,7 +41,7 @@ docker run \
   nemoguardrails
 ```
 
-Replace `ANTHROPIC_API_KEY` with the credential your provider uses (for example, `GOOGLE_APPLICATION_CREDENTIALS` for Vertex AI or `COHERE_API_KEY` for Cohere).
+Replace `ANTHROPIC_API_KEY` with the credential your provider uses (for example, `GOOGLE_APPLICATION_CREDENTIALS` for Vertex AI or `COHERE_API_KEY` for Cohere). For file-based credentials such as Vertex AI service-account JSON, mount the credential file into the container and set the environment variable to the in-container path; for example, bind-mount host `service-account.json` to `/secrets/service-account.json` and set `GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json`. Secure the host credential file and configure equivalent bind-mount and environment settings in `docker run` or Docker Compose.
 
 ## Build the Docker Images
 

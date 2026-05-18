@@ -31,6 +31,8 @@ the user's signal to clean up.
 import re
 from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple
 
+from nemoguardrails.llm.constants import AZURE_PROVIDERS
+
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import Model
 
@@ -49,7 +51,6 @@ _LANGCHAIN_BASE_FLAGS = frozenset(
 )
 
 _PROVIDER_PREFIXED_ALIAS = re.compile(r"^(?P<prefix>[a-zA-Z]\w*?)_(?P<canonical>api_key|base_url|api_base|endpoint)$")
-_AZURE_PROVIDERS = frozenset({"azure", "azure_openai"})
 
 
 def _canonical_name_for(matched_canonical: str) -> str:
@@ -79,7 +80,7 @@ def _violations_for(model_type: str, engine: str, parameters: dict) -> List[Tupl
         canonical = _detect_provider_alias(name)
         if canonical is None:
             continue
-        if engine in _AZURE_PROVIDERS and name == "azure_endpoint":
+        if engine in AZURE_PROVIDERS and name == "azure_endpoint":
             continue
         out.append((model_type, f"rename `{name}` to `{canonical}`"))
     return out

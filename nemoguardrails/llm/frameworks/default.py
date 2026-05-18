@@ -19,6 +19,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.constants import AZURE_PROVIDERS
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.types import LLMModel
 
@@ -38,8 +39,6 @@ _API_KEY_ENV_VARS: Dict[str, str] = {
     "azure": "AZURE_OPENAI_API_KEY",
     "azure_openai": "AZURE_OPENAI_API_KEY",
 }
-
-_AZURE_PROVIDERS = frozenset({"azure", "azure_openai"})
 
 _UNSET: Any = object()
 
@@ -114,7 +113,7 @@ class DefaultFramework:
         if provider_name in self._providers:
             return self._providers[provider_name](model=model_name, **kwargs)
 
-        if provider_name in _AZURE_PROVIDERS:
+        if provider_name in AZURE_PROVIDERS:
             self._prepare_azure_kwargs(provider_name, kwargs)
 
         base_url = kwargs.pop("base_url", None) or _resolve_base_url(provider_name)
@@ -188,20 +187,26 @@ class DefaultFramework:
                 "(the Azure OpenAI API version, e.g. '2024-02-15-preview')."
             )
 
-        api_key = kwargs.pop("api_key", _UNSET)
-        if api_key is _UNSET:
-            api_key = _resolve_api_key(provider_name)
-        if not api_key:
-            raise ValueError(
-                f"Provider '{provider_name}' requires an API key. "
-                "Set AZURE_OPENAI_API_KEY in the environment, or set "
-                "api_key_env_var (or parameters.api_key) on the model entry."
-            )
-
         default_query = dict(kwargs.pop("default_query", None) or {})
-        default_query.setdefault("api-version", api_version)
+        if "api-version" in default_query and default_query["api-version"] != api_version:
+            raise ValueError(
+                f"Provider '{provider_name}' received conflicting Azure API versions. "
+                "parameters.api_version must match default_query['api-version']."
+            )
+        default_query["api-version"] = api_version
+
         default_headers = dict(kwargs.pop("default_headers", None) or {})
-        default_headers.setdefault("api-key", api_key)
+        api_key = kwargs.pop("api_key", _UNSET)
+        if "api-key" not in default_headers:
+            if api_key is _UNSET:
+                api_key = _resolve_api_key(provider_name)
+            if not api_key:
+                raise ValueError(
+                    f"Provider '{provider_name}' requires an API key. "
+                    "Set AZURE_OPENAI_API_KEY in the environment, or set "
+                    "api_key_env_var (or parameters.api_key) on the model entry."
+                )
+            default_headers["api-key"] = api_key
 
         kwargs["api_key"] = None
         kwargs["base_url"] = f"{resource_endpoint.rstrip('/')}/openai/deployments/{azure_deployment}"
@@ -212,7 +217,7 @@ class DefaultFramework:
         self._providers[name] = provider_cls
 
     def get_provider_names(self) -> List[str]:
-        return sorted({*_DEFAULT_BASE_URLS, *_AZURE_PROVIDERS, *self._providers})
+        return sorted({*_DEFAULT_BASE_URLS, *AZURE_PROVIDERS, *self._providers})
 
     async def aclose(self) -> None:
         """Close all pooled HTTP clients and drop them from the pool.
