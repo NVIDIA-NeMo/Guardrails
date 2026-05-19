@@ -26,7 +26,7 @@ You'll first increase the file descriptor limit to 65,536.
 This is needed because otherwise the Operating System will limit the number of open file descriptors and restrict the concurrency to be benchmarked.
 
 ```shell
-$ set ulimit -n65536
+$ ulimit -n 65536
 ````
 
 Next you'll install the NeMo Guardrails Poetry environment and honcho to run server-side components.
@@ -104,7 +104,7 @@ Overall Status: All endpoints are healthy!
 Now in a second terminal you'll increase the file descriptor limit as above.
 
 ```shell
-$ set ulimit -n65536
+$ ulimit -n 65536
 ````
 
 Next you'll create a virtual environment for AIPerf and install it.
@@ -117,7 +117,7 @@ $ source ~/env/aiperf_env/bin/activate
 (aiperf_env) $ pip install aiperf
 
 ...
-Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-1.2.5 numpy-2.4.0 pydantic-2.12.5 pydantic-core-2.41.5 pydantic-settings-2.12.0 pyyaml-6.0.3 typer-0.21.0 typing-inspection-0.4.2 uuid-utils-0.12.0 uvicorn-0.40.0
+Successfully installed Flask-3.1.3 MarkupSafe-3.0.3 Werkzeug-3.1.8 ..... yarl-1.23.0 zipp-4.1.0 zstandard-0.25.0
 (aiperf_env) $
 ```
 
