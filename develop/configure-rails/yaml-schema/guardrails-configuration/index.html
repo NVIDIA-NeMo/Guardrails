@@ -642,6 +642,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../resources/security/guidelines.html">Security</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../telemetry.html">Telemetry and Privacy</a></li>
 </ul>
 </div>
 </nav></div>
@@ -972,6 +973,8 @@ the IORails engine.</p>
 <p>Input rail mutations can lead to erroneous results during parallel execution because of race conditions arising from the execution order and timing of parallel operations. This can result in output divergence compared to sequential execution. For such cases, use sequential mode.</p>
 </div>
 <p>The following is an example configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). When you use NVCF models, make sure that you export <code class="docutils literal notranslate"><span class="pre">NVIDIA_API_KEY</span></code> to access those models.</p>
+<p>Save the following code snippet to <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>.
+Download <a class="reference external" href="https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/nemoguards/prompts.yaml" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">prompts.yaml</span></code></a> and put this in the same directory as the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>

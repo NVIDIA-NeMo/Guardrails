@@ -642,6 +642,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../resources/security/guidelines.html">Security</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../telemetry.html">Telemetry and Privacy</a></li>
 </ul>
 </div>
 </nav></div>
@@ -804,9 +805,6 @@ TEMPLATE<span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 </pre></div>
 </div>
 </div>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span>
-</pre></div>
-</div>
 </li>
 <li><p>Add the guardrail <code class="docutils literal notranslate"><span class="pre">patronus</span> <span class="pre">lynx</span> <span class="pre">check</span> <span class="pre">output</span> <span class="pre">hallucination</span></code> to your output rails in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
@@ -816,7 +814,7 @@ TEMPLATE<span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 </pre></div>
 </div>
 </li>
-<li><p>Add a prompt for <code class="docutils literal notranslate"><span class="pre">patronus_lynx_check_output_hallucination</span></code> in the <code class="docutils literal notranslate"><span class="pre">prompts.yml</span></code> file:</p>
+<li><p>Add a prompt for <code class="docutils literal notranslate"><span class="pre">patronus_lynx_check_output_hallucination</span></code> in the <code class="docutils literal notranslate"><span class="pre">prompts.yml</span></code> file. We recommend you use the provided <a class="reference external" href="https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/patronusai/prompts.yml" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">prompts.yml</span></code></a>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">prompts</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patronus_lynx_check_output_hallucination</span>
 <span class="w">    </span><span class="nt">content</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
@@ -826,7 +824,6 @@ TEMPLATE<span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 </div>
 </li>
 </ol>
-<p>We recommend you base your Lynx hallucination detection prompt off of the provided example <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/patronusai/prompts.yml" rel="noreferer noopener" target="_blank">here</a>.</p>
 <p>Under the hood, the <code class="docutils literal notranslate"><span class="pre">patronus</span> <span class="pre">lynx</span> <span class="pre">check</span> <span class="pre">output</span> <span class="pre">hallucination</span></code> rail runs the <code class="docutils literal notranslate"><span class="pre">patronus_lynx_check_output_hallucination</span></code> action, which you can find <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/patronusai/actions.py" rel="noreferer noopener" target="_blank">here</a>. It returns whether a hallucination is detected (<code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">False</span></code>) and potentially a reasoning trace explaining the decision. The bot’s response will be blocked if hallucination is <code class="docutils literal notranslate"><span class="pre">True</span></code>. Note: If Lynx’s outputs are misconfigured or a hallucination decision cannot be found, the action default is to return <code class="docutils literal notranslate"><span class="pre">True</span></code> for hallucination.</p>
 <p>Here’s the <code class="docutils literal notranslate"><span class="pre">patronus</span> <span class="pre">lynx</span> <span class="pre">check</span> <span class="pre">output</span> <span class="pre">hallucination</span></code> flow, showing how the action is executed:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>define bot inform answer unknown
