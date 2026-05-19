@@ -197,8 +197,13 @@ class DefaultFramework:
 
         default_headers = dict(kwargs.pop("default_headers", None) or {})
         api_key = kwargs.pop("api_key", _UNSET)
-        header_names = {name.lower() for name in default_headers}
-        if "api-key" not in header_names:
+        api_key_header_name = next((name for name in default_headers if name.lower() == "api-key"), None)
+        if api_key is not _UNSET and api_key_header_name is not None:
+            raise ValueError(
+                f"Provider '{provider_name}' received conflicting Azure API keys. "
+                "Set either parameters.api_key or default_headers['api-key'], not both."
+            )
+        if api_key_header_name is None:
             if api_key is _UNSET:
                 api_key = _resolve_api_key(provider_name)
             if not api_key:

@@ -379,6 +379,28 @@ class TestDefaultFramework:
         finally:
             await fw.reset()
 
+    @pytest.mark.parametrize("header_name", ["api-key", "Api-Key", "API-KEY"])
+    @pytest.mark.asyncio
+    async def test_azure_api_key_and_default_headers_api_key_conflict_raises(self, header_name):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match="conflicting Azure API keys"):
+                fw.create_model(
+                    "gpt-4o-mini",
+                    "azure",
+                    {
+                        "base_url": "https://my-resource.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "2024-02-15-preview",
+                        "api_key": "param-key",
+                        "default_headers": {header_name: "header-key"},
+                    },
+                )
+        finally:
+            await fw.reset()
+
     @pytest.mark.asyncio
     async def test_azure_missing_endpoint_raises(self):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
