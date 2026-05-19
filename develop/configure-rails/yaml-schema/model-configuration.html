@@ -771,13 +771,16 @@
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">azure</span>
 <span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4</span>
 <span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">azure_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://my-resource.openai.azure.com/</span>
 <span class="w">      </span><span class="nt">azure_deployment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-gpt4-deployment</span>
-<span class="w">      </span><span class="nt">azure_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://my-resource.openai.azure.com</span>
+<span class="w">      </span><span class="nt">api_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-02-15-preview&quot;</span>
 </pre></div>
 </div>
+<p>The resource endpoint can be supplied as <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code> (preferred, matches the OpenAI Python SDK) or <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (v0.21-compatibility alias). Both accept the resource URL only; the deployment path is composed by the framework. Setting both raises an error.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> in the environment, or set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> on the model entry, or pass <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> directly. The framework constructs the deployment URL, sets <code class="docutils literal notranslate"><span class="pre">api-version</span></code> as a query parameter, and authenticates with the <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Azure OpenAI is OpenAI-compatible at the wire level, but the LangChain path is the convenient default because <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code> handles the deployment-name URL pattern and <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string for you. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>. Azure is also reachable through the built-in client with manual plumbing; see <a class="reference internal" href="../../migration/0.22.html#azure-openai"><span class="std std-ref">Migrating to 0.22</span></a>.</p>
+<p>Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD / token-based authentication, configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. See <a class="reference internal" href="../../migration/0.22.html#azure-openai"><span class="std std-ref">Migrating to 0.22</span></a> for both alternatives.</p>
 </div>
 </section>
 <section id="anthropic">

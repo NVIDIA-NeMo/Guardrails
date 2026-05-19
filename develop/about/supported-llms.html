@@ -726,11 +726,11 @@
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-anthropic</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
-<td><p>LangChain (opt-in)</p></td>
+<td><p>Built-in</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
-<td><p>Azure OpenAI is OpenAI-compatible at the wire level. The LangChain path (<code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>) is the convenient default because it handles the deployment-name URL pattern and <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string for you. Azure is also reachable through the built-in client by setting <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to the deployment URL and passing <code class="docutils literal notranslate"><span class="pre">api-version</span></code> via <code class="docutils literal notranslate"><span class="pre">default_query</span></code> and <code class="docutils literal notranslate"><span class="pre">api-key</span></code> via <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>.</p></td>
+<td><p>Native support for key-based Azure OpenAI authentication. Set <code class="docutils literal notranslate"><span class="pre">parameters.azure_endpoint</span></code> or <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to the resource endpoint, plus <code class="docutils literal notranslate"><span class="pre">azure_deployment</span></code> and <code class="docutils literal notranslate"><span class="pre">api_version</span></code>; for Azure AD or token-based authentication, use manual <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> configuration or opt into LangChain.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
 <td><p>LangChain (opt-in)</p></td>
