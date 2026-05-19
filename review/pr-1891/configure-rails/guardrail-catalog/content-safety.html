@@ -46,7 +46,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=3bd4d7ce"></script>
+    <script src="../../_static/documentation_options.js?v=9684a702"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -57,7 +57,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc2';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -795,6 +795,20 @@
 </ol>
 <p>The above is an example prompt that you can use with the <em>content safety check input $model=shieldgemma</em>. The prompt has one input variable: <code class="docutils literal notranslate"><span class="pre">{{</span> <span class="pre">user_input</span> <span class="pre">}}</span></code>, which includes user input that should be moderated. The completion must be “yes” if the response is not safe and “no” otherwise. Optionally, some models may return a set of policy violations.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">output</span></code> rails executes the <a class="reference download internal" download="" href="../../_downloads/a471c13ab5d1bc9f07ec87e1615cc6cc/actions.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">content_safety_check_input</span></code></span></a> and <a class="reference download internal" download="" href="../../_downloads/a471c13ab5d1bc9f07ec87e1615cc6cc/actions.py"><span class="xref download myst"><code class="docutils literal notranslate"><span class="pre">content_safety_check_output</span></code></span></a> actions respectively.</p>
+<section id="reasoning-models-as-content-safety-guards">
+<h2>Reasoning Models as Content Safety Guards<a class="headerlink" href="#reasoning-models-as-content-safety-guards" title="Link to this heading">#</a></h2>
+<p>Reasoning guard models such as <a class="reference internal" href="../../getting-started/tutorials/nemotron-content-safety-reasoning-deployment.html"><span class="std std-doc">Nemotron Content Safety Reasoning</span></a>, and OpenAI <code class="docutils literal notranslate"><span class="pre">gpt-oss-safeguard</span></code> spend output tokens on internal reasoning before emitting the safety verdict. If the configured <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> is too small, the budget can be exhausted by the reasoning phase and the model returns empty content with <code class="docutils literal notranslate"><span class="pre">finish_reason=&quot;length&quot;</span></code>. The content safety actions log a warning in that case and continue with empty output, which the parser typically treats as unsafe.</p>
+<p>To use a reasoning guard, set <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> on the corresponding prompt task in <code class="docutils literal notranslate"><span class="pre">prompts.yml</span></code> to a value that fits both the reasoning trace and the verdict:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">prompts</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content_safety_check_input $model=content_safety_reasoning</span>
+<span class="w">    </span><span class="nt">content</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no">...</span>
+<span class="w">    </span><span class="nt">output_parser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nemotron_reasoning_parse_prompt_safety</span>
+<span class="w">    </span><span class="nt">max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2048</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> is not set on the prompt task, the action falls back to a default of <code class="docutils literal notranslate"><span class="pre">1024</span></code> tokens. Adjust this value for the model’s expected reasoning trace length.</p>
+</section>
 <section id="multilingual-refusal-messages">
 <h2>Multilingual Refusal Messages<a class="headerlink" href="#multilingual-refusal-messages" title="Link to this heading">#</a></h2>
 <!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->
@@ -1062,6 +1076,7 @@
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Content Safety</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reasoning-models-as-content-safety-guards">Reasoning Models as Content Safety Guards</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multilingual-refusal-messages">Multilingual Refusal Messages</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-languages">Supported Languages</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>

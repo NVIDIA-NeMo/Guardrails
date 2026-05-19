@@ -46,7 +46,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=3bd4d7ce"></script>
+    <script src="../_static/documentation_options.js?v=9684a702"></script>
     <script src="../_static/doctools.js?v=9a2dae69"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -57,7 +57,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc2';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -725,7 +725,7 @@ Use this guide to identify your configuration shape and apply the matching migra
 <td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> or <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
-<td><p>Use LangChain for the Azure-specific helpers, or configure the default framework manually. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
+<td><p>No action required. Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> and keep the v0.21 config shape. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Custom provider registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code></p></td>
 <td><p>Match the provider class to the active framework. See <a class="reference internal" href="#custom-providers">Custom providers</a>.</p></td>
@@ -877,31 +877,14 @@ Engine names in <code class="docutils literal notranslate"><span class="pre">con
 </section>
 <section id="azure-openai">
 <h2>Azure OpenAI<a class="headerlink" href="#azure-openai" title="Link to this heading">#</a></h2>
-<p>Azure OpenAI is OpenAI-compatible at the wire level, but it uses a deployment-name URL pattern and an <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string.
-You can use either LangChain or the default framework.</p>
-<p>A typical v0.21 Azure config looks like this:</p>
+<p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> and <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure_openai</span></code> are supported natively on the default framework in v0.22.
+A v0.21 Azure config with <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (or the preferred <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code>), <code class="docutils literal notranslate"><span class="pre">azure_deployment</span></code>, and <code class="docutils literal notranslate"><span class="pre">api_version</span></code> loads unchanged.
+The framework constructs the deployment URL, sets <code class="docutils literal notranslate"><span class="pre">api-version</span></code> as a query parameter, and authenticates with the <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">AZURE_OPENAI_API_KEY</span><span class="o">=</span>&lt;your-key&gt;
+</pre></div>
+</div>
 <div class="literal-block-wrapper docutils container" id="id7">
-<div class="code-block-caption"><span class="caption-text">Azure configuration before v0.22</span><a class="headerlink" href="#id7" title="Link to this code">#</a></div>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">azure_openai</span>
-<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
-<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://my-resource.openai.azure.com/&quot;</span>
-<span class="w">    </span><span class="nt">azure_deployment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
-<span class="w">    </span><span class="nt">api_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2024-12-01-preview</span>
-</pre></div>
-</div>
-</div>
-<section id="langchain-path">
-<h3>LangChain Path<a class="headerlink" href="#langchain-path" title="Link to this heading">#</a></h3>
-<p>Use <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code> when you want Azure-specific helpers to build the deployment URL and <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>langchain<span class="w"> </span>langchain-openai
-<span class="nb">export</span><span class="w"> </span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain
-<span class="nb">export</span><span class="w"> </span><span class="nv">AZURE_OPENAI_API_KEY</span><span class="o">=</span>&lt;your-key&gt;
-</pre></div>
-</div>
-<div class="literal-block-wrapper docutils container" id="id8">
-<div class="code-block-caption"><span class="caption-text">Azure configuration with LangChain in v0.22</span><a class="headerlink" href="#id8" title="Link to this code">#</a></div>
+<div class="code-block-caption"><span class="caption-text">Azure configuration in v0.22</span><a class="headerlink" href="#id7" title="Link to this code">#</a></div>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">azure_openai</span>
 <span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
@@ -912,29 +895,14 @@ You can use either LangChain or the default framework.</p>
 </pre></div>
 </div>
 </div>
-<p>For this path, rename <code class="docutils literal notranslate"><span class="pre">base_url</span></code> to <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code>.
-The other Azure fields remain compatible with <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p>
-</section>
-<section id="default-framework-path">
-<h3>Default Framework Path<a class="headerlink" href="#default-framework-path" title="Link to this heading">#</a></h3>
-<p>Use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> when you want to avoid LangChain.
-In this path, include the deployment name in <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, pass <code class="docutils literal notranslate"><span class="pre">api-version</span></code> through <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, and pass the Azure key through <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>.</p>
-<div class="literal-block-wrapper docutils container" id="id9">
-<div class="code-block-caption"><span class="caption-text">Azure configuration with the default framework in v0.22</span><a class="headerlink" href="#id9" title="Link to this code">#</a></div>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
-<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-4.1-mini</span>
-<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://my-resource.openai.azure.com/openai/deployments/gpt-4.1-mini&quot;</span>
-<span class="w">    </span><span class="nt">default_query</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">api-version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-12-01-preview&quot;</span>
-<span class="w">    </span><span class="nt">default_headers</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">api-key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;your-azure-key&gt;&quot;</span>
-</pre></div>
-</div>
-</div>
-<p>Make sure <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> is unset when using this Azure configuration.
-Otherwise, the default framework also adds an <code class="docutils literal notranslate"><span class="pre">Authorization:</span> <span class="pre">Bearer</span></code> header from <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> alongside the Azure <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
+<p>The resource endpoint accepts either <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code> (preferred, matches the OpenAI Python SDK) or <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (v0.21-compatibility alias for the same value).
+Both expect the resource URL only (for example <code class="docutils literal notranslate"><span class="pre">https://my-resource.openai.azure.com/</span></code>); the deployment path is composed by the framework.
+Setting both raises an error.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> in the environment (or set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> or <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> on the model entry). The framework does not read <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> on the Azure path.</p>
+<section id="azure-ad-token-based-authentication">
+<h3>Azure AD / token-based authentication<a class="headerlink" href="#azure-ad-token-based-authentication" title="Link to this heading">#</a></h3>
+<p>The native Azure path uses key-based authentication only.
+For Azure AD or other token-based authentication, either configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually, or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p>
 </section>
 </section>
 <section id="custom-providers">
@@ -1030,8 +998,7 @@ For the default framework interface, see the <code class="docutils literal notra
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-langchain">Using LangChain</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-openai">Azure OpenAI</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-path">LangChain Path</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#default-framework-path">Default Framework Path</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-ad-token-based-authentication">Azure AD / token-based authentication</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-providers">Custom Providers</a></li>
