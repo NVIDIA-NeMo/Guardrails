@@ -87,7 +87,7 @@ The following examples show the startup and heartbeat event payloads:
 
 **Heartbeat event (every 10 minutes):**
 
-Heartbeat events reuse the startup event metadata and change only `event`, `timestamp`, and the shared `sessionId`.
+Heartbeat events reuse the startup event metadata and update only `event` and `timestamp`; `sessionId` remains constant for the lifetime of the process.
 
 ```json
 {

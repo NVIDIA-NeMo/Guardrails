@@ -318,7 +318,7 @@ The telemetry includes:
 - Installed library version, Python version, operating system, and platform string
 - Colang configuration language version (1.0 or 2.x)
 - Names of configured LLM engine providers, such as `openai`, `nim`, or `nvidia_ai_endpoints`, never model names or credentials
-- Counts of configured rail flows for input, output, retrieval, and tool rails, plus which rail categories are active
+- Counts of configured rail flows for input, output, retrieval, tool input, and tool output rails, plus which rail categories are active
 - Names of built-in library features that are active, such as `jailbreak_detection`, `content_safety`, or `topic_safety`
 - Count of user-defined Colang flows (count only, never flow names or contents)
 - Whether tracing, streaming, or a knowledge base is configured
