@@ -703,6 +703,19 @@
 <p class="admonition-title">Important</p>
 <p>You should only use the example self-check prompts as a starting point. For production use cases, you should perform additional evaluations and customizations.</p>
 </div>
+<section id="reasoning-models-as-self-check-llms">
+<h2>Reasoning Models as Self-Check LLMs<a class="headerlink" href="#reasoning-models-as-self-check-llms" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">self_check_input</span></code>, <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>, and <code class="docutils literal notranslate"><span class="pre">self_check_facts</span></code> tasks all log a warning if the LLM hits <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> before producing visible output (<code class="docutils literal notranslate"><span class="pre">finish_reason=&quot;length&quot;</span></code> with empty content). With the default parser, <code class="docutils literal notranslate"><span class="pre">self_check_input</span></code> and <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code> treat empty output as unsafe and block. <code class="docutils literal notranslate"><span class="pre">self_check_facts</span></code> explicitly fail-closes by returning a score of <code class="docutils literal notranslate"><span class="pre">0.0</span></code>, because its scoring logic would otherwise accept empty output.</p>
+<p>If you use a reasoning model (OpenAI o-series, <code class="docutils literal notranslate"><span class="pre">gpt-5</span></code> and similar) for self-check, set an explicit <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> on the prompt task in <code class="docutils literal notranslate"><span class="pre">prompts.yml</span></code> large enough to cover both the reasoning trace and the final yes/no verdict:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">prompts</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">self_check_input</span>
+<span class="w">    </span><span class="nt">content</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|-</span>
+<span class="w">      </span><span class="no">...</span>
+<span class="w">    </span><span class="nt">max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2048</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code> is not set, the action falls back to a default of <code class="docutils literal notranslate"><span class="pre">1024</span></code> tokens. Adjust this value for the model’s expected reasoning trace length.</p>
+</section>
 <section id="self-check-input">
 <h2>Self Check Input<a class="headerlink" href="#self-check-input" title="Link to this heading">#</a></h2>
 <p>The goal of the input self-checking rail is to determine if the input from the user should be allowed for further processing. This rail will prompt the LLM using a custom prompt. Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.</p>
@@ -971,6 +984,7 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reasoning-models-as-self-check-llms">Reasoning Models as Self-Check LLMs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-check-input">Self Check Input</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-prompts">Example prompts</a><ul class="nav section-nav flex-column">

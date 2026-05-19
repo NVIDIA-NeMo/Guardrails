@@ -887,7 +887,7 @@ You can define prompts in the main <code class="docutils literal notranslate"><s
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_tokens</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
 <td><p>—</p></td>
-<td><p>Maximum number of tokens for the completion.</p></td>
+<td><p>Maximum number of tokens for the completion. The self-check (<code class="docutils literal notranslate"><span class="pre">self_check_input</span></code>, <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>, <code class="docutils literal notranslate"><span class="pre">self_check_facts</span></code>) and content safety (<code class="docutils literal notranslate"><span class="pre">content_safety_check_input</span></code>, <code class="docutils literal notranslate"><span class="pre">content_safety_check_output</span></code>) actions fall back to <code class="docutils literal notranslate"><span class="pre">1024</span></code> if unset. Reasoning models that spend output tokens on internal reasoning need this set explicitly to fit both the reasoning trace and the verdict.</p></td>
 </tr>
 </tbody>
 </table>
