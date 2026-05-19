@@ -125,8 +125,7 @@ Here is how to configure your bot to use Patronus Lynx to check for RAG hallucin
           - patronus lynx check output hallucination
     ```
 
-3. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file.
-We recommend you use the provided [`prompts.yml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/patronusai/prompts.yml):
+3. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file. We recommend you use the provided [`prompts.yml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/patronusai/prompts.yml):
 
     ```yaml
     prompts:

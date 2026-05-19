@@ -81,7 +81,7 @@ Input rail mutations can lead to erroneous results during parallel execution bec
 The following is an example configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). When you use NVCF models, make sure that you export `NVIDIA_API_KEY` to access those models.
 
 Save the following code snippet to `config.yml`.
-Download [`prompts.yml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/nemoguards/prompts.yaml) and put this in the same directory as the `config.yml`.
+Download [`prompts.yaml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/nemoguards/prompts.yaml) and put this in the same directory as the `config.yml`.
 
 ```yaml
 models:
