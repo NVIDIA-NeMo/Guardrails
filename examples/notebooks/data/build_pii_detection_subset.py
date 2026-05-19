@@ -288,9 +288,13 @@ def main() -> None:
     # Quick stats
     entity_count = sum(len(json.loads(r["entities"])) for r in rows)
     rows_no_pii = sum(1 for r in rows if json.loads(r["entities"]) == [])
+    rows_with_pii = len(rows) - rows_no_pii
     print(f"Total entities: {entity_count}")
     print(f"Rows with no PII (FP-test rows): {rows_no_pii}")
-    print(f"Avg entities per PII-bearing row: {entity_count / (len(rows) - rows_no_pii):.1f}")
+    if rows_with_pii:
+        print(f"Avg entities per PII-bearing row: {entity_count / rows_with_pii:.1f}")
+    else:
+        print("Avg entities per PII-bearing row: N/A (no PII-bearing rows in subset)")
 
 
 if __name__ == "__main__":
