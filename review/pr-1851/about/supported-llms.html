@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -45,7 +46,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=a8d1d600"></script>
+    <script src="../_static/documentation_options.js?v=9684a702"></script>
     <script src="../_static/doctools.js?v=9a2dae69"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,10 +57,11 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc2';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/about/supported-llms.html" />
     <link rel="icon" href="../_static/favicon.png"/>
@@ -408,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -463,6 +466,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/init-function.html">Init Function</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html">Custom LLM Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html">Custom LLM Framework</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
 </ul>
@@ -560,6 +565,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../observability/index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../observability/logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/quick-start.html">Quick Start</a></li>
@@ -567,6 +573,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../observability/metrics/index.html">Metrics</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/enable-metrics.html">Enable Guardrails Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/opentelemetry-integration.html">OpenTelemetry Metrics Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../observability/metrics/reference.html">Metric Reference</a></li>
 </ul>
 </details></li>
 </ul>
@@ -609,10 +621,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMModel.html">nemoguardrails.types.LLMModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMFramework.html">nemoguardrails.types.LLMFramework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ChatMessage.html">nemoguardrails.types.ChatMessage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponse.html">nemoguardrails.types.LLMResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.LLMResponseChunk.html">nemoguardrails.types.LLMResponseChunk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCall.html">nemoguardrails.types.ToolCall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.ToolCallFunction.html">nemoguardrails.types.ToolCallFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/python-api/generated/nemoguardrails.types.UsageInfo.html">nemoguardrails.types.UsageInfo</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -621,6 +642,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../resources/security/guidelines.html">Security</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../telemetry.html">Telemetry and Privacy</a></li>
 </ul>
 </div>
 </nav></div>
@@ -680,44 +702,169 @@
 <p>Integrating NeMo Guardrails improves safety and security of an Application LLM, which is responsible for generating responses to the end-user. NeMo Guardrails can also use the same Application LLM to run guardrails, simplifying deployments and reducing friction to on-ramp. Two examples of this are self-check rails and dialog rails. Self-check rails use the Application LLM to decide whether a user request or LLM response is safe. Dialog rails use the Application LLM to guide the user through a pre-defined conversational flow.</p>
 <p>NeMo Guardrails can also call models for a specific guardrail on behalf of the client. Having guardrail-specific models allows the use of smaller fine-tuned models, which are specialized on the guardrails task. For example the NVIDIA Nemoguard collection of models includes <a class="reference external" href="https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3" rel="noreferer noopener" target="_blank">content-safety</a>, <a class="reference external" href="https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control" rel="noreferer noopener" target="_blank">topic-control</a>, and <a class="reference external" href="https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect" rel="noreferer noopener" target="_blank">jailbreak-detect</a> models. These models can be accessed on <a class="reference external" href="https://build.nvidia.com/" rel="noreferer noopener" target="_blank">build.nvidia.com</a> for rapid prototyping, or on <a class="reference external" href="https://catalog.ngc.nvidia.com/" rel="noreferer noopener" target="_blank">NGC Catalog</a> for deployment with NIM Docker containers.</p>
 </section>
-<section id="application-llm-providers">
-<h2>Application LLM Providers<a class="headerlink" href="#application-llm-providers" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library supports major LLM providers, including:</p>
-<ul class="simple">
-<li><p>OpenAI</p></li>
-<li><p>Azure OpenAI</p></li>
-<li><p>Anthropic</p></li>
-<li><p>Cohere</p></li>
-<li><p>Google Vertex AI</p></li>
-</ul>
-<section id="self-hosted">
-<h3>Self-Hosted<a class="headerlink" href="#self-hosted" title="Link to this heading">#</a></h3>
-<p>The NeMo Guardrails library supports the following self-hosted LLM providers:</p>
-<ul class="simple">
-<li><p>HuggingFace Hub</p></li>
-<li><p>HuggingFace Endpoints</p></li>
-<li><p>vLLM</p></li>
-<li><p>Generic</p></li>
-</ul>
+<section id="inference-providers">
+<h2>Inference Providers<a class="headerlink" href="#inference-providers" title="Link to this heading">#</a></h2>
+<p>Each engine is served by a framework that manages the underlying HTTP or SDK calls. NeMo Guardrails ships with a built-in framework that talks to OpenAI-compatible endpoints over <code class="docutils literal notranslate"><span class="pre">httpx</span></code> with no LangChain dependency. For engines whose API is not OpenAI-compatible, opt into the LangChain framework by setting <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and installing the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package. To add a custom framework, implement the <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> protocol from <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>.</p>
+<button type="button" class="table-expand-button" data-table-title="Inference Providers">
+  <span aria-hidden="true" class="table-expand-button__icon">&#x26F6;</span>
+  Expand table
+</button><div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Engine</p></th>
+<th class="head"><p>Framework</p></th>
+<th class="head"><p>Streaming</p></th>
+<th class="head"><p>Tool calls</p></th>
+<th class="head"><p>Reasoning models</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>wrapper-dependent</p></td>
+<td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-anthropic</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
+<td><p>Built-in</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>Native support for key-based Azure OpenAI authentication. Set <code class="docutils literal notranslate"><span class="pre">parameters.azure_endpoint</span></code> or <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to the resource endpoint, plus <code class="docutils literal notranslate"><span class="pre">azure_deployment</span></code> and <code class="docutils literal notranslate"><span class="pre">api_version</span></code>; for Azure AD or token-based authentication, use manual <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> configuration or opt into LangChain.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>n/a</p></td>
+<td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-cohere</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>n/a</p></td>
+<td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-google-genai</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>Default text-generation schema. If your endpoint exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> instead.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>In-process pipelines and LangChain wrappers without a native HTTP path.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
+<td><p>Built-in</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>Default base URL <code class="docutils literal notranslate"><span class="pre">https://integrate.api.nvidia.com/v1</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code></p></td>
+<td><p>Built-in</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>Alias for <code class="docutils literal notranslate"><span class="pre">nim</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
+<td><p>Built-in</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes (where supported)</p></td>
+<td><p>Default base URL <code class="docutils literal notranslate"><span class="pre">http://localhost:11434/v1</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
+<td><p>Built-in</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>OpenAI public API or any OpenAI-compatible endpoint using <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. For vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, NVIDIA Nemotron, and similar providers, use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>n/a</p></td>
+<td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-google-vertexai</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code>, <code class="docutils literal notranslate"><span class="pre">deepseek</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> when the wire protocol is OpenAI-compatible.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;provider_name&gt;</span></code></p></td>
+<td><p>LangChain (opt-in)</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>varies</p></td>
+<td><p>Any community provider exposed through LangChain’s chat-model integrations. Use the bare provider name as the engine name.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>For migration recipes between the built-in path and the LangChain path, see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
 </section>
-<section id="providers-from-langchain">
-<h3>Providers from LangChain<a class="headerlink" href="#providers-from-langchain" title="Link to this heading">#</a></h3>
-<p>The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/chat" rel="noreferer noopener" target="_blank">Chat model integrations</a> in the LangChain documentation. You can also use the <a class="reference internal" href="../reference/cli/index.html#find-providers-command"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">find-providers</span></code></span></a> CLI command to discover available providers.</p>
+<section id="langchain-backed-providers">
+<h2>LangChain-Backed Providers<a class="headerlink" href="#langchain-backed-providers" title="Link to this heading">#</a></h2>
+<p>The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to <a class="reference external" href="https://python.langchain.com/docs/integrations/chat/" rel="noreferer noopener" target="_blank">Chat model integrations</a> in the LangChain documentation. You can also use the <a class="reference internal" href="../reference/cli/index.html#find-providers-command"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">find-providers</span></code></span></a> CLI command to discover available providers.</p>
 </section>
-</section>
-<section id="embedding-providers">
-<h2>Embedding Providers<a class="headerlink" href="#embedding-providers" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library supports the following embedding providers:</p>
-<ul class="simple">
-<li><p>NVIDIA NIM</p></li>
-<li><p>NVIDIA AI Endpoints</p></li>
-<li><p>FastEmbed</p></li>
-<li><p>OpenAI</p></li>
-<li><p>Azure OpenAI</p></li>
-<li><p>Cohere</p></li>
-<li><p>SentenceTransformers</p></li>
-<li><p>Google</p></li>
-</ul>
+<section id="embedding-model-providers">
+<h2>Embedding Model Providers<a class="headerlink" href="#embedding-model-providers" title="Link to this heading">#</a></h2>
+<p>The NeMo Guardrails library uses embedding models for vector similarity search in dialog rails, <code class="docutils literal notranslate"><span class="pre">embeddings_only</span></code> intent matching, and knowledge base retrieval. The following table lists the supported embedding model providers and their corresponding engine names.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Provider</p></th>
+<th class="head"><p>Engine</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>NVIDIA NIM</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
+<td><p>NVIDIA NIM microservices</p></td>
+</tr>
+<tr class="row-odd"><td><p>NVIDIA AI Endpoints</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code></p></td>
+<td><p>Alias for <code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>FastEmbed</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">fastembed</span></code></p></td>
+<td><p>FastEmbed embedding model provider</p></td>
+</tr>
+<tr class="row-odd"><td><p>OpenAI</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
+<td><p>OpenAI embedding model provider</p></td>
+</tr>
+<tr class="row-even"><td><p>Azure OpenAI</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code></p></td>
+<td><p>Azure OpenAI embedding model provider</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cohere</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
+<td><p>Cohere embedding model provider</p></td>
+</tr>
+<tr class="row-even"><td><p>SentenceTransformers</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sentence_transformers</span></code></p></td>
+<td><p>SentenceTransformers embedding model provider</p></td>
+</tr>
+<tr class="row-odd"><td><p>Google</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">google</span></code></p></td>
+<td><p>Google embedding model provider</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p>For more information on configuring embedding providers, refer to <a class="reference internal" href="../configure-rails/other-configurations/embedding-search-providers.html"><span class="std std-doc">Embedding Search Providers</span></a>.</p>
 </section>
 </section>
@@ -772,12 +919,9 @@
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-types">LLM Types</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#application-llm-providers">Application LLM Providers</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosted">Self-Hosted</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#providers-from-langchain">Providers from LangChain</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#embedding-providers">Embedding Providers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-providers">Inference Providers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-backed-providers">LangChain-Backed Providers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#embedding-model-providers">Embedding Model Providers</a></li>
 </ul>
   </nav></div>
 
