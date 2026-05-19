@@ -233,7 +233,6 @@ Overview <observability/index.md>
 Logging <observability/logging/index.md>
 Tracing <observability/tracing/index.md>
 Metrics <observability/metrics/index.md>
-Telemetry <telemetry.md>
 ```
 
 ```{toctree}
@@ -281,4 +280,5 @@ Troubleshooting <troubleshooting>
 :hidden:
 
 Security <resources/security/guidelines.md>
+Telemetry and Privacy <telemetry.md>
 ```
