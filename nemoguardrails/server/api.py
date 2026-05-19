@@ -206,13 +206,18 @@ if ENABLE_CORS:
         allow_headers=["*"],
     )
 
-app.default_config_id = None
+# `default_config_id`, `rails_config_path` and `auto_reload` can also be set
+# via environment variables. This is needed for multi-worker deployments
+# (`nemoguardrails server --workers > 1`), where the CLI cannot reach the
+# worker processes via setattr, so config is propagated through env vars
+# inherited by the children.
+app.default_config_id = os.getenv("NEMO_GUARDRAILS_DEFAULT_CONFIG_ID") or None
 
 # By default, we use the rails in the examples folder
-app.rails_config_path = utils.get_examples_data_path("bots")
+app.rails_config_path = os.getenv("NEMO_GUARDRAILS_CONFIG_PATH") or utils.get_examples_data_path("bots")
 
 # auto reload flag
-app.auto_reload = False
+app.auto_reload = os.getenv("NEMO_GUARDRAILS_AUTO_RELOAD", "false").lower() == "true"
 
 # stop signal for observer
 app.stop_signal = False

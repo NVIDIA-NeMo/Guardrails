@@ -279,6 +279,64 @@ class TestServerCommand:
             telemetry._deployment_type_override = None
             telemetry._lock = telemetry.threading.Lock()
 
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    def test_server_default_workers_passes_app_object(self, mock_app, mock_uvicorn):
+        result = runner.invoke(app, ["server"])
+        assert result.exit_code == 0
+        mock_uvicorn.assert_called_once()
+        call_args = mock_uvicorn.call_args
+        # By default (workers == 1) the existing flow hands the app object
+        # to uvicorn and does not pass a workers kwarg.
+        assert not isinstance(call_args[0][0], str)
+        assert "workers" not in call_args[1]
+
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    def test_server_with_workers_uses_import_string(self, mock_app, mock_uvicorn):
+        result = runner.invoke(app, ["server", "--workers=4"])
+        assert result.exit_code == 0
+        mock_uvicorn.assert_called_once_with(
+            "nemoguardrails.server.api:app",
+            port=8000,
+            log_level="info",
+            host="0.0.0.0",
+            workers=4,
+        )
+
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("os.path.exists")
+    @patch("os.path.expanduser")
+    def test_server_with_workers_propagates_config_via_env(self, mock_expanduser, mock_exists, mock_app, mock_uvicorn):
+        mock_expanduser.return_value = "/path/to/config"
+        mock_exists.return_value = True
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("NEMO_GUARDRAILS_CONFIG_PATH", None)
+            os.environ.pop("NEMO_GUARDRAILS_DEFAULT_CONFIG_ID", None)
+            os.environ.pop("NEMO_GUARDRAILS_AUTO_RELOAD", None)
+            result = runner.invoke(
+                app,
+                [
+                    "server",
+                    "--workers=2",
+                    "--config=/path/to/config",
+                    "--default-config-id=test_config",
+                    "--auto-reload",
+                ],
+            )
+            assert result.exit_code == 0
+            assert os.environ.get("NEMO_GUARDRAILS_CONFIG_PATH") == "/path/to/config"
+            assert os.environ.get("NEMO_GUARDRAILS_DEFAULT_CONFIG_ID") == "test_config"
+            assert os.environ.get("NEMO_GUARDRAILS_AUTO_RELOAD") == "true"
+
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    def test_server_with_workers_rejects_prefix(self, mock_app, mock_uvicorn):
+        result = runner.invoke(app, ["server", "--workers=2", "--prefix=/api/v1"])
+        assert result.exit_code != 0
+        mock_uvicorn.assert_not_called()
+
 
 class TestConvertCommand:
     def test_convert_missing_path(self):

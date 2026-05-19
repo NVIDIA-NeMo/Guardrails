@@ -149,6 +149,15 @@ def server(
         default="",
         help="A prefix that should be added to all server paths. Should start with '/'.",
     ),
+    workers: int = typer.Option(
+        default=1,
+        min=1,
+        help=(
+            "Number of uvicorn worker processes. When greater than 1, the "
+            "server is launched via an import string and CLI configuration "
+            "is propagated to workers through environment variables."
+        ),
+    ),
 ):
     """Start a NeMo Guardrails server."""
 
@@ -156,6 +165,32 @@ def server(
     # module-load time, before the chainlit mount happens.
     if disable_chat_ui:
         os.environ["NEMO_GUARDRAILS_DISABLE_CHAT_UI"] = "true"
+
+    # When running with multiple workers, uvicorn spawns child processes that
+    # re-import the app fresh, so any setattr-based config done in this
+    # process is not visible inside the workers. Propagate config through
+    # environment variables (inherited by the child processes) instead, and
+    # let api.py pick them up at module-init time.
+    if workers > 1:
+        if prefix:
+            typer.secho(
+                "The --prefix option is not supported with --workers > 1.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(1)
+
+        if config:
+            os.environ["NEMO_GUARDRAILS_CONFIG_PATH"] = os.path.expanduser(config[0].rstrip(os.path.sep))
+        else:
+            local_configs_path = os.path.join(os.getcwd(), "config")
+            if os.path.exists(local_configs_path):
+                os.environ["NEMO_GUARDRAILS_CONFIG_PATH"] = local_configs_path
+
+        if default_config_id:
+            os.environ["NEMO_GUARDRAILS_DEFAULT_CONFIG_ID"] = default_config_id
+
+        if auto_reload:
+            os.environ["NEMO_GUARDRAILS_AUTO_RELOAD"] = "true"
 
     try:
         import uvicorn
@@ -175,6 +210,21 @@ def server(
     # lifespan may not run before request handling.
     set_deployment_type(DeploymentTypeEnum.API.value)
 
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
+
+    if workers > 1:
+        # Pass the import string (not the app object) so each worker can
+        # re-import the app and read the env vars set above.
+        uvicorn.run(
+            "nemoguardrails.server.api:app",
+            port=port,
+            log_level="info",
+            host="0.0.0.0",
+            workers=workers,
+        )
+        return
+
     if config:
         # We make sure there is no trailing separator, as that might break things in
         # single config mode.
@@ -190,9 +240,6 @@ def server(
 
         if os.path.exists(local_configs_path):
             setattr(api.app, "rails_config_path", local_configs_path)
-
-    if verbose:
-        logging.getLogger().setLevel(logging.INFO)
 
     if disable_chat_ui:
         setattr(api.app, "disable_chat_ui", True)
