@@ -194,7 +194,7 @@ The latency of each response is also controllable, and works as follows:
 
 * Latency is first sampled from a normal distribution with mean `LATENCY_MEAN_SECONDS` and standard deviation `LATENCY_STD_SECONDS`.
 * If the sampled value is less than `LATENCY_MIN_SECONDS`, it is set to `LATENCY_MIN_SECONDS`.
-* If the sampled value is less than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
+* If the sampled value is greater than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
 
 The full list of configuration fields is shown below:
 
