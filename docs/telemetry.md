@@ -17,7 +17,7 @@ In this context, a *session* is the lifetime of a single Python process running 
 | Field | Type | Example | Description |
 | --- | --- | --- | --- |
 | `sessionId` | string | `"2b8e9879-80be-42bb-ad3f-81db8ec28e15"` | Random UUID4 generated in memory when telemetry starts. Shared by all events from the same process and included in audit records and transmitted events, but not stored for reuse across restarts. |
-| `nemoguardrailsVersion` | string | `"0.21.0"` | Installed package version. `"unknown"` if unavailable. |
+| `nemoguardrailsVersion` | string | `"0.22.0"` | Installed package version. `"unknown"` if unavailable. |
 | `pythonVersion` | string | `"3.13.7"` | Python interpreter version. |
 | `platform` | string | `"Linux-5.15.0-x86_64-with-glibc2.35"` | OS and architecture string. |
 | `osName` | string | `"Linux"` | Operating system name (`"Darwin"`, `"Linux"`, `"Windows"`). |
@@ -64,7 +64,7 @@ The following examples show the startup and heartbeat event payloads:
 ```json
 {
   "sessionId": "2b8e9879-80be-42bb-ad3f-81db8ec28e15",
-  "nemoguardrailsVersion": "0.21.0",
+  "nemoguardrailsVersion": "0.22.0",
   "pythonVersion": "3.13.7",
   "platform": "Linux-5.15.0-x86_64-with-glibc2.35",
   "osName": "Linux",
@@ -92,7 +92,7 @@ Heartbeat events reuse the startup event metadata and update only `event` and `t
 ```json
 {
   "sessionId": "2b8e9879-80be-42bb-ad3f-81db8ec28e15",
-  "nemoguardrailsVersion": "0.21.0",
+  "nemoguardrailsVersion": "0.22.0",
   "pythonVersion": "3.13.7",
   "platform": "Linux-5.15.0-x86_64-with-glibc2.35",
   "osName": "Linux",
