@@ -19,7 +19,7 @@ This category of rails relies on prompting the LLM to perform various tasks like
 You should only use the example self-check prompts as a starting point. For production use cases, you should perform additional evaluations and customizations.
 ```
 
-### Reasoning Models as Self-Check LLMs
+## Reasoning Models as Self-Check LLMs
 
 The `self_check_input`, `self_check_output`, and `self_check_facts` tasks all log a warning if the LLM hits `max_tokens` before producing visible output (`finish_reason="length"` with empty content). With the default parser, `self_check_input` and `self_check_output` treat empty output as unsafe and block. `self_check_facts` explicitly fail-closes by returning a score of `0.0`, because its scoring logic would otherwise accept empty output.
 

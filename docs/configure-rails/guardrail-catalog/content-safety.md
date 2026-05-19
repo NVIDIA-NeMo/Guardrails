@@ -114,7 +114,7 @@ The above is an example prompt that you can use with the *content safety check i
 
 The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../../nemoguardrails/library/content_safety/actions.py) actions respectively.
 
-### Reasoning Models as Content Safety Guards
+## Reasoning Models as Content Safety Guards
 
 Reasoning guard models such as [Nemotron Content Safety Reasoning](../../getting-started/tutorials/nemotron-content-safety-reasoning-deployment.md), and OpenAI `gpt-oss-safeguard` spend output tokens on internal reasoning before emitting the safety verdict. If the configured `max_tokens` is too small, the budget can be exhausted by the reasoning phase and the model returns empty content with `finish_reason="length"`. The content safety actions log a warning in that case and continue with empty output, which the parser typically treats as unsafe.
 
