@@ -46,7 +46,7 @@
 
 
 
-    <script src="../../../_static/documentation_options.js?v=a8d1d600"></script>
+    <script src="../../../_static/documentation_options.js?v=3bd4d7ce"></script>
     <script src="../../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -57,7 +57,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.22.0-rc1';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -713,7 +713,8 @@ NeMo Guardrails library uses the LLMRails engine.</p>
 </ul>
 <p>When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
 Configurations that include custom flows, dialog rails, or other unsupported flows
-raise an error at initialization.</p>
+silently fall back to the LLMRails engine and emit a warning. Pass <code class="docutils literal notranslate"><span class="pre">require_iorails=True</span></code>
+to <code class="docutils literal notranslate"><span class="pre">Guardrails(...)</span></code> to raise a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> at initialization instead.</p>
 </section>
 <section id="enabling-iorails">
 <h3>Enabling IORails<a class="headerlink" href="#enabling-iorails" title="Link to this heading">#</a></h3>
@@ -722,11 +723,12 @@ raise an error at initialization.</p>
 </pre></div>
 </div>
 <p>When using the Python API, import the <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> class directly and pass <code class="docutils literal notranslate"><span class="pre">use_iorails=True</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span><span class="p">,</span> <span class="n">RailsConfig</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;./config&quot;</span><span class="p">)</span>
-<span class="n">guardrails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># require_iorails=True ensures the engine is IORails (raises on fallback), so</span>
+<span class="c1"># parallel execution is actually in effect — the whole reason for opting in here.</span>
+<span class="n">guardrails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">require_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
