@@ -326,7 +326,7 @@ The telemetry includes:
 - Which runtime rails engine is in use (`LLMRails` or `IORails`)
 - A random per-process UUID for correlating events from the same instance. The library generates it in memory and does not store it for reuse across restarts, but includes it in audit records and transmitted telemetry events
 
-**No user content is collected in the event payload.** The payload does not include model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. NVIDIA uses the data in aggregate to prioritize engineering work and will share adoption trends with the community.
+No user content is collected in the event payload. The payload does not include model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. NVIDIA uses the data in aggregate to prioritize engineering work and will share adoption trends with the community.
 
 The library also attempts to write each event payload to a local audit file at `~/.config/nemoguardrails/usage_stats.json`. The audit file stores the event JSONL, not the full NVIDIA telemetry envelope. Audit writes are best effort, and telemetry transmission still proceeds if local audit writing fails.
 
