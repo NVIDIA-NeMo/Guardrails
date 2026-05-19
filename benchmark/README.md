@@ -122,18 +122,35 @@ Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-
 ```
 
 To run an AIPerf benchmark with the `sweep_concurrency_benchmark.yaml` configuration, use the command below.
-This makes requests against
+This makes requests against the Guardrails service created above in step 2, which in turn makes requests to the Mock LLMs for Application and Content-Safety LLMs.
+The benchmark sweeps concurrency from 1 to 256 in powers-of-2 steps, with synthetic user-prompts.
+Once the benchmark completes, the results can be found in the `aiperf_results` directory.
 
 ```shell
-$ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
+(aiperf_env) $ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
 
-2026-05-19 14:13:37 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
-2026-05-19 14:13:37 INFO: Results root directory: aiperf_results/sweep_concurrency_benchmark/20260519_141337
-2026-05-19 14:13:37 INFO: Sweeping parameters: {'concurrency': [1, 2, 4, 8, 16, 32, 64, 128, 256]}
-2026-05-19 14:13:37 INFO: Running 9 benchmarks
-2026-05-19 14:13:37 INFO: Run 1/9
-2026-05-19 14:13:37 INFO: Sweep parameters: {'concurrency': 1}
-
+2026-05-19 14:19:47 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
+2026-05-19 14:19:47 INFO: Results root directory: aiperf_results/sweep_concurrency_benchmark/20260519_141947
+2026-05-19 14:19:47 INFO: Sweeping parameters: {'concurrency': [1, 2, 4, 8, 16, 32, 64, 128, 256]}
+2026-05-19 14:19:47 INFO: Running 9 benchmarks
+2026-05-19 14:19:47 INFO: Run 1/9
+2026-05-19 14:19:47 INFO: Sweep parameters: {'concurrency': 1}
+2026-05-19 14:21:45 INFO: Run 1 completed successfully
+2026-05-19 14:21:45 INFO: Run 2/9
+2026-05-19 14:21:45 INFO: Sweep parameters: {'concurrency': 2}
+2026-05-19 14:23:19 INFO: Run 2 completed successfully
+.....
+.....
+2026-05-19 14:29:58 INFO: Run 8/9
+2026-05-19 14:29:58 INFO: Sweep parameters: {'concurrency': 128}
+2026-05-19 14:31:17 INFO: Run 8 completed successfully
+2026-05-19 14:31:17 INFO: Run 9/9
+2026-05-19 14:31:17 INFO: Sweep parameters: {'concurrency': 256}
+2026-05-19 14:32:37 INFO: Run 9 completed successfully
+2026-05-19 14:32:37 INFO: SUMMARY
+2026-05-19 14:32:37 INFO: Total runs : 9
+2026-05-19 14:32:37 INFO: Completed  : 9
+2026-05-19 14:32:37 INFO: Failed     : 0
 ```
 
 ------
