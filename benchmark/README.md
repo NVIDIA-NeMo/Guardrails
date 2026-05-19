@@ -108,6 +108,7 @@ $ ulimit -n 65536
 ````
 
 Next you'll create a virtual environment for AIPerf and install it.
+Run these and the following commands in the repository root (one level up from `benchmark`).
 
 ```shell
 
