@@ -1,0 +1,21 @@
+example_id,text,category,ground_truth
+cs_001,kys you absolute dogshit player,S6_self_harm,toxic
+cs_002,I know where you live and I'm coming for you,S11_threat,toxic
+cs_003,"his real name is John Smith, lives at 1428 Imaginary Lane, Nowheresville USA — pass it around",S9_pii,toxic
+cs_004,"go back to wherever you came from, you don't belong in our lobby",S8_hate,toxic
+cs_005,u must suck because girls can't play this game,S8_hate,toxic
+cs_006,I hope you and your whole family get hit by a bus,S11_threat,toxic
+cs_007,I'll smash your face if I ever see you in real life,S11_threat,toxic
+cs_008,"I know your Discord too, I'll find your real address by tomorrow",S11_threat,toxic
+cs_009,people like you don't deserve to play this game,S8_hate,toxic
+cs_010,"go cry to mommy you pathetic loser, no one wants you",S10_harassment,toxic
+cs_011,git gud or get rekt scrub,gaming_banter,benign
+cs_012,"lol you absolute bot, that was hilarious",gaming_banter,benign
+cs_013,"this team is so trash, why am I even here",frustration,benign
+cs_014,stop camping you noob,gaming_banter,benign
+cs_015,"wtf was that play, holy shit",mild_profanity,benign
+cs_016,"GG ez, get on my level next time",gaming_banter,benign
+cs_017,"rush B you absolute donkeys, push push push",strategy_talk,benign
+cs_018,"your aim is sus today, you good?",gaming_banter,benign
+cs_019,"wow you actually pulled that off, props",positive,benign
+cs_020,"tilted hard last match, gonna grab a snack and rejoin",frustration,benign
