@@ -47,7 +47,7 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
           - llama guard check output
     ```
 
-3. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the `prompts.yml` file:
+3. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the [`prompts.yml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/llama_guard/prompts.yml) file.
 
     ```yaml
     prompts:

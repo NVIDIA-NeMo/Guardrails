@@ -115,7 +115,6 @@ Here is how to configure your bot to use Patronus Lynx to check for RAG hallucin
       parameters:
         base_url: "http://localhost:5000/v1"
     ```
-    ```
 
 2. Add the guardrail `patronus lynx check output hallucination` to your output rails in `config.yml`:
 
@@ -126,7 +125,8 @@ Here is how to configure your bot to use Patronus Lynx to check for RAG hallucin
           - patronus lynx check output hallucination
     ```
 
-3. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file:
+3. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file.
+We recommend you use the provided [`prompts.yml`](https://raw.githubusercontent.com/NVIDIA-NeMo/Guardrails/refs/heads/develop/examples/configs/patronusai/prompts.yml):
 
     ```yaml
     prompts:
@@ -136,7 +136,7 @@ Here is how to configure your bot to use Patronus Lynx to check for RAG hallucin
           ...
     ```
 
-We recommend you base your Lynx hallucination detection prompt off of the provided example [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/patronusai/prompts.yml).
+
 
 Under the hood, the `patronus lynx check output hallucination` rail runs the `patronus_lynx_check_output_hallucination` action, which you can find [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/patronusai/actions.py). It returns whether a hallucination is detected (`True` or `False`) and potentially a reasoning trace explaining the decision. The bot's response will be blocked if hallucination is `True`. Note: If Lynx's outputs are misconfigured or a hallucination decision cannot be found, the action default is to return `True` for hallucination.
 
