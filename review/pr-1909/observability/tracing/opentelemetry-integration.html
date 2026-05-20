@@ -699,10 +699,10 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="opentelemetry-integration">
 <h1>OpenTelemetry Integration<a class="headerlink" href="#opentelemetry-integration" title="Link to this heading">#</a></h1>
-<p>The NeMo Guardrails library follows OpenTelemetry best practices; libraries use only the API while applications configure the SDK. The following sections explain how to install and configure the OpenTelemetry SDK.</p>
+<p>The NVIDIA NeMo Guardrails library follows OpenTelemetry best practices. The library uses only the API, and the host application configures the SDK. The following sections explain how to install and configure the OpenTelemetry SDK.</p>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
-<p>Choose one of the following options for installing the NeMo Guardrails library with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.</p>
+<p>Choose one of the following options for installing the library with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.</p>
 <ul>
 <li><p>For basic tracing support in the NeMo Guardrails library:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemoguardrails<span class="o">[</span>tracing<span class="o">]</span>
@@ -723,7 +723,7 @@
 </section>
 <section id="configuration-examples">
 <h2>Configuration Examples<a class="headerlink" href="#configuration-examples" title="Link to this heading">#</a></h2>
-<p>The following examples show how to configure the NeMo Guardrails library with the OpenTelemetry SDK for development and production use cases.</p>
+<p>The following examples show how to configure the library with the OpenTelemetry SDK for development and production use cases.</p>
 <section id="console-output-development">
 <h3>Console Output (Development)<a class="headerlink" href="#console-output-development" title="Link to this heading">#</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">trace</span>
@@ -782,13 +782,27 @@
 </section>
 <section id="opentelemetry-ecosystem-compatibility">
 <h2>OpenTelemetry Ecosystem Compatibility<a class="headerlink" href="#opentelemetry-ecosystem-compatibility" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library works with the entire OpenTelemetry ecosystem including:</p>
-<ul class="simple">
-<li><p><strong>Exporters</strong>: Jaeger, Zipkin, Prometheus, New Relic, Datadog, AWS X-Ray, Google Cloud Trace</p></li>
-<li><p><strong>Collectors</strong>: OpenTelemetry Collector, vendor-specific collectors</p></li>
-<li><p><strong>Backends</strong>: Any system accepting OpenTelemetry traces</p></li>
-</ul>
-<p>See the <a class="reference external" href="https://opentelemetry.io/ecosystem/registry/" rel="noreferer noopener" target="_blank">OpenTelemetry Registry</a> for the complete list.</p>
+<p>The library works with the entire OpenTelemetry ecosystem, including the following components.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Examples</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Exporters</p></td>
+<td><p>Jaeger, Zipkin, Prometheus, New Relic, Datadog, AWS X-Ray, and Google Cloud Trace.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Collectors</p></td>
+<td><p>OpenTelemetry Collector and vendor-specific collectors.</p></td>
+</tr>
+<tr class="row-even"><td><p>Backends</p></td>
+<td><p>Any system that accepts OpenTelemetry traces.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Refer to the <a class="reference external" href="https://opentelemetry.io/ecosystem/registry/" rel="noreferer noopener" target="_blank">OpenTelemetry Registry</a> for the complete list.</p>
 </section>
 <section id="exporting-logs">
 <h2>Exporting Logs<a class="headerlink" href="#exporting-logs" title="Link to this heading">#</a></h2>

@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Migrating to 0.22 &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Migrating to v0.22.0 &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -677,7 +677,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Migrating to 0.22</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Migrating to v0.22.0</span></li>
   </ul>
 </nav>
 </div>
@@ -694,13 +694,13 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="migrating-to-0-22">
-<h1>Migrating to 0.22<a class="headerlink" href="#migrating-to-0-22" title="Link to this heading">#</a></h1>
-<p>Starting with 0.22, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> no longer installs LangChain or provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages.
+  <section class="tex2jax_ignore mathjax_ignore" id="migrating-to-v0-22-0">
+<h1>Migrating to v0.22.0<a class="headerlink" href="#migrating-to-v0-22-0" title="Link to this heading">#</a></h1>
+<p>Starting with v0.22.0, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> no longer installs LangChain or provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages.
 NeMo Guardrails includes a default LLM framework that calls OpenAI-compatible endpoints directly.
 LangChain remains supported for engines whose APIs are not OpenAI-compatible, but you must opt in.</p>
 <p>Most configurations continue to work without changes.
-Some v0.21 configurations need a YAML update or an explicit LangChain opt-in.
+Some v0.21.0 configurations need a YAML update or an explicit LangChain opt-in.
 Use this guide to identify your configuration shape and apply the matching migration recipe.</p>
 <section id="migration-summary">
 <h2>Migration Summary<a class="headerlink" href="#migration-summary" title="Link to this heading">#</a></h2>
@@ -716,24 +716,24 @@ Use this guide to identify your configuration shape and apply the matching migra
 <td><p>No action required.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">vllm_openai</span></code> or another LangChain wrapper for an OpenAI-compatible provider such as DeepSeek, OpenRouter, Together.ai, Fireworks.ai, Groq, or <code class="docutils literal notranslate"><span class="pre">llama.cpp</span></code></p></td>
-<td><p>Rewrite the model entry. See <a class="reference internal" href="#openai-compatible-providers">OpenAI-compatible providers</a>.</p></td>
+<td><p>Rewrite the model entry. Refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-compatible providers</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with LangChain-only parameters such as <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, or <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code></p></td>
-<td><p>Rewrite the parameters. See <a class="reference internal" href="#mixed-shape-configs">Mixed-shape configs</a>.</p></td>
+<td><p>Rewrite the parameters. Refer to <a class="reference internal" href="#mixed-shape-configs">Mixed-shape configs</a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, or <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
 <td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> or <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
-<td><p>No action required. Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> and keep the v0.21 config shape. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
+<td><p>No action required. Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> and keep the v0.21 config shape. Refer to <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Custom provider registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code></p></td>
-<td><p>Match the provider class to the active framework. See <a class="reference internal" href="#custom-providers">Custom providers</a>.</p></td>
+<td><p>Match the provider class to the active framework. Refer to <a class="reference internal" href="#custom-providers">Custom providers</a>.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>For the engine-by-engine matrix, see <a class="reference internal" href="../about/supported-llms.html"><span class="std std-doc">Supported LLMs</span></a>.</p>
+<p>For the engine-by-engine matrix, refer to <a class="reference internal" href="../about/supported-llms.html"><span class="std std-doc">Supported LLMs</span></a>.</p>
 </section>
 <section id="openai-compatible-providers">
 <h2>OpenAI-Compatible Providers<a class="headerlink" href="#openai-compatible-providers" title="Link to this heading">#</a></h2>
@@ -777,7 +777,7 @@ If your deployment requires a token, replace <code class="docutils literal notra
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
+<p>Set the referenced environment variable before calling <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code>. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. A Pydantic validator on the model schema performs the check eagerly.</p>
 </div>
 </section>
 <section id="hosted-openai-compatible-providers">
@@ -810,7 +810,7 @@ Set <code class="docutils literal notranslate"><span class="pre">parameters.base
 <section id="mixed-shape-configs">
 <h2>Mixed-Shape Configs<a class="headerlink" href="#mixed-shape-configs" title="Link to this heading">#</a></h2>
 <p>Some v0.21 configs already use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> but pass LangChain-only parameters such as <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>, or provider-prefixed aliases such as <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code> and <code class="docutils literal notranslate"><span class="pre">*_base_url</span></code>.
-The 0.22 default framework forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request, so those LangChain-only keys do not apply.</p>
+The v0.22 default framework forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request, so those LangChain-only keys do not apply.</p>
 <div class="literal-block-wrapper docutils container" id="id5">
 <div class="code-block-caption"><span class="caption-text">Configuration before v0.22</span><a class="headerlink" href="#id5" title="Link to this code">#</a></div>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
@@ -848,7 +848,7 @@ Engines that are not OpenAI-compatible include <code class="docutils literal not
 Choose one remediation path based on your migration goal:</p>
 <ul class="simple">
 <li><p>Keep the LangChain provider class. Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package, and then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Refer to <a class="reference internal" href="#using-langchain">Using LangChain</a> for the full procedure.</p></li>
-<li><p>Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. This includes self-hosted gateways, proxies, and hosted providers that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>. Refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
+<li><p>Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. This includes self-hosted gateways, proxies, and hosted providers that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>. For more information, refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
 </ul>
 </section>
 <section id="using-langchain">
@@ -896,13 +896,13 @@ The framework constructs the deployment URL, sets <code class="docutils literal 
 </div>
 </div>
 <p>The resource endpoint accepts either <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code> (preferred, matches the OpenAI Python SDK) or <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (v0.21-compatibility alias for the same value).
-Both expect the resource URL only (for example <code class="docutils literal notranslate"><span class="pre">https://my-resource.openai.azure.com/</span></code>); the deployment path is composed by the framework.
+Both expect the resource URL only, such as <code class="docutils literal notranslate"><span class="pre">https://my-resource.openai.azure.com/</span></code>. The framework composes the deployment path.
 Setting both raises an error.</p>
 <p>Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> in the environment (or set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> or <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> on the model entry). The framework does not read <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> on the Azure path.</p>
-<section id="azure-ad-token-based-authentication">
-<h3>Azure AD / token-based authentication<a class="headerlink" href="#azure-ad-token-based-authentication" title="Link to this heading">#</a></h3>
+<section id="azure-ad-and-token-based-authentication">
+<h3>Azure AD and Token-Based Authentication<a class="headerlink" href="#azure-ad-and-token-based-authentication" title="Link to this heading">#</a></h3>
 <p>The native Azure path uses key-based authentication only.
-For Azure AD or other token-based authentication, either configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually, or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p>
+For Azure AD or other token-based authentication, configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p>
 </section>
 </section>
 <section id="custom-providers">
@@ -915,8 +915,8 @@ For Azure AD or other token-based authentication, either configure <code class="
 </ul>
 <p>The registration call applies to the active framework for the process.
 A LangChain provider class does not become a default-framework provider automatically.</p>
-<p>For LangChain provider examples, see <a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html"><span class="std std-doc">Custom LLM Providers</span></a>.
-For the default framework interface, see the <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code> and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> protocols in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>.</p>
+<p>For LangChain provider examples, refer to <a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-providers.html"><span class="std std-doc">Custom LLM Providers</span></a>.
+For the default framework interface, refer to the <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code> and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> protocols in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>.</p>
 </section>
 <section id="what-did-not-change">
 <h2>What Did Not Change<a class="headerlink" href="#what-did-not-change" title="Link to this heading">#</a></h2>
@@ -998,7 +998,7 @@ For the default framework interface, see the <code class="docutils literal notra
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-langchain">Using LangChain</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-openai">Azure OpenAI</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-ad-token-based-authentication">Azure AD / token-based authentication</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-ad-and-token-based-authentication">Azure AD and Token-Based Authentication</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-providers">Custom Providers</a></li>

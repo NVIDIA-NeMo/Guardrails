@@ -925,7 +925,7 @@ Reasoning and cached tokens are exposed as <strong>span attributes</strong> (<co
 </tbody>
 </table>
 </div>
-<p>For streaming responses, <code class="docutils literal notranslate"><span class="pre">token.usage</span></code> is emitted only when the upstream provider returns a <code class="docutils literal notranslate"><span class="pre">usage</span></code> field — common when <code class="docutils literal notranslate"><span class="pre">stream_options.include_usage=true</span></code> is forwarded.
+<p>For streaming responses, <code class="docutils literal notranslate"><span class="pre">token.usage</span></code> is emitted only when the upstream provider returns a <code class="docutils literal notranslate"><span class="pre">usage</span></code> field. This is common when <code class="docutils literal notranslate"><span class="pre">stream_options.include_usage=true</span></code> is forwarded.
 When usage is absent, no observation is recorded; “no observation” is deliberately distinct from “0 tokens”.</p>
 </section>
 </section>

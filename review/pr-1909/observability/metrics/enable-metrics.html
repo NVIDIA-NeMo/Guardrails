@@ -715,8 +715,8 @@ IORails is an early-release feature, and metric names can change as the OpenTele
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">[tracing]</span></code> extra installs <code class="docutils literal notranslate"><span class="pre">opentelemetry-api</span></code>, which is the only OpenTelemetry dependency the library itself takes.</p>
 </li>
-<li><p>Save the following to <code class="docutils literal notranslate"><span class="pre">metrics_example.py</span></code>.
-The script issues a single request and exports metrics once per second to both stdout and <code class="docutils literal notranslate"><span class="pre">metrics.json</span></code>.
+<li><p>Save the following to <code class="docutils literal notranslate"><span class="pre">metrics_example.py</span></code>.</p>
+<p>The script issues a single request and exports metrics once per second to both stdout and <code class="docutils literal notranslate"><span class="pre">metrics.json</span></code>.
 The <code class="docutils literal notranslate"><span class="pre">provider.shutdown()</span></code> call flushes the metrics to disk.
 Long-running services typically do not need this call.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># metrics_example.py</span>
@@ -813,7 +813,7 @@ The following command reads every interval into an array and returns the final o
 </div>
 <p>Each object is one aggregation of the <code class="docutils literal notranslate"><span class="pre">gen_ai.client.token.usage</span></code> histogram. The fields are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code>: Value of the required <a class="reference external" href="https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">gen_ai.token.type</span></code></a> label. Values are either <code class="docutils literal notranslate"><span class="pre">input</span></code> or <code class="docutils literal notranslate"><span class="pre">output</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code>: Value of the required <a class="reference external" href="https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">gen_ai.token.type</span></code></a> label. Values are <code class="docutils literal notranslate"><span class="pre">input</span></code> or <code class="docutils literal notranslate"><span class="pre">output</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">count</span></code>: Number of observations recorded for this token type. Each LLM call records one <code class="docutils literal notranslate"><span class="pre">input</span></code> observation and one <code class="docutils literal notranslate"><span class="pre">output</span></code> observation, giving <code class="docutils literal notranslate"><span class="pre">count:</span> <span class="pre">1</span></code> per type.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sum</span></code>: Total tokens across those observations.</p></li>
 </ul>
