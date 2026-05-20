@@ -34,148 +34,110 @@ For a complete record of changes in a release, refer to the
 ### Key Features
 
 - LangChain is now optional. `pip install nemoguardrails` no longer pulls
-  LangChain or any provider-specific `langchain-*` packages. The library ships
-  with a built-in client that talks to OpenAI-compatible endpoints directly
-  over `httpx`. Engines whose API isn't OpenAI-compatible (Anthropic, Cohere,
-  Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM,
-  and others) keep working through LangChain when you opt in with
-  `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching provider
-  package. Most 0.21 configurations keep working unchanged; some shapes need
-  a YAML rewrite. For recipes, see [Migrating to 0.22](../migration/0.22.md).
+  LangChain or any provider-specific `langchain-*` packages. The NVIDIA NeMo
+  Guardrails library ships with a built-in client that talks to
+  OpenAI-compatible endpoints directly over `httpx`. Engines whose API isn't
+  OpenAI-compatible (Anthropic, Cohere, Vertex AI, Google Generative AI,
+  in-process Hugging Face, TensorRT-LLM, and others) keep working through
+  LangChain when you opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and
+  install the matching provider package. Most 0.21 configurations keep working
+  unchanged; some shapes need a YAML rewrite. For recipes, see
+  [Migrating to 0.22](../migration/0.22.md), the
+  [Supported LLMs](./supported-llms.md) matrix, and
+  [Model Configuration](../configure-rails/yaml-schema/model-configuration.md)
+  ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/pull/1854),
+  [#1855](https://github.com/NVIDIA-NeMo/Guardrails/pull/1855),
+  [#1856](https://github.com/NVIDIA-NeMo/Guardrails/pull/1856),
+  [#1858](https://github.com/NVIDIA-NeMo/Guardrails/pull/1858),
+  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881)).
+
+- OpenAI-compatible service support is improved in the default framework.
+  The default framework now supports OpenAI-compatible providers directly,
+  includes native Azure OpenAI support through `engine: azure` and
+  `engine: azure_openai`, and documents how to migrate provider-specific
+  LangChain parameters to the new `base_url`-based configuration shape. For
+  more information, refer to
+  [Migrating to 0.22](../migration/0.22.md),
+  [Model Configuration](../configure-rails/yaml-schema/model-configuration.md),
+  [Configuration Reference](../configure-rails/configuration-reference.md), and
+  [Using Docker](../deployment/using-docker.md)
+  ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/pull/1854),
+  [#1855](https://github.com/NVIDIA-NeMo/Guardrails/pull/1855),
+  [#1857](https://github.com/NVIDIA-NeMo/Guardrails/pull/1857),
+  [#1858](https://github.com/NVIDIA-NeMo/Guardrails/pull/1858),
+  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881),
+  [#1896](https://github.com/NVIDIA-NeMo/Guardrails/pull/1896)).
+
+- `IORails` observability is expanded with OpenTelemetry logging, tracing, and
+  metrics guidance. The documentation now covers OTLP setup, Prometheus client
+  installation, request-level and token-level metrics, and the recommended
+  `Guardrails` entry point for the optimized input and output rails engine. For
+  more information, refer to
+  [Observability](../observability/index.md),
+  [OpenTelemetry Logs](../observability/tracing/opentelemetry-logs.md),
+  [OpenTelemetry Tracing](../observability/tracing/opentelemetry-integration.md),
+  [OpenTelemetry Metrics](../observability/metrics/opentelemetry-integration.md),
+  [Enable Metrics](../observability/metrics/enable-metrics.md), and the
+  [Metrics Reference](../observability/metrics/reference.md)
+  ([#1807](https://github.com/NVIDIA-NeMo/Guardrails/pull/1807),
+  [#1864](https://github.com/NVIDIA-NeMo/Guardrails/pull/1864),
+  [#1884](https://github.com/NVIDIA-NeMo/Guardrails/pull/1884),
+  [#1892](https://github.com/NVIDIA-NeMo/Guardrails/pull/1892),
+  [#1893](https://github.com/NVIDIA-NeMo/Guardrails/pull/1893),
+  [#1894](https://github.com/NVIDIA-NeMo/Guardrails/pull/1894)).
+
+- Anonymous usage reporting is documented with clear privacy boundaries and
+  opt-out controls. The telemetry reference explains what fields are collected,
+  what data is excluded, how local audit files work, and how to opt out with
+  `NEMO_GUARDRAILS_NO_USAGE_STATS=1`, `DO_NOT_TRACK=1`, or the
+  `~/.config/nemoguardrails/do_not_track` file. For more information, refer to
+  [Telemetry](../telemetry.md)
+  ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/pull/1891)).
+
+- The GLiNER PII connector documentation and notebook are updated for the new
+  GLiNER PII NIM. The examples cover both remote and local deployment modes
+  and API key configuration for the connector. For more information, refer to
+  [GLiNER](../configure-rails/guardrail-catalog/community/gliner.md) and
+  [PII Detection](../configure-rails/guardrail-catalog/pii-detection.md)
+  ([#1845](https://github.com/NVIDIA-NeMo/Guardrails/pull/1845)).
 
 - Public extension points for LLM integration. Two new protocols, `LLMModel`
   and `LLMFramework` in `nemoguardrails.types`, let you plug in a custom
-  backend or a whole alternative framework without touching internals.
+  backend or a whole alternative framework without touching internals. For more
+  information, refer to
+  [Custom LLM Models](../configure-rails/custom-initialization/custom-llm-model.md)
+  and
+  [Custom LLM Frameworks](../configure-rails/custom-initialization/custom-llm-framework.md)
+  ([#1857](https://github.com/NVIDIA-NeMo/Guardrails/pull/1857),
+  [#1882](https://github.com/NVIDIA-NeMo/Guardrails/pull/1882)).
 
 - Public testing surface. The `nemoguardrails.testing` module exposes
   `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
   guardrails configuration without calling a real model.
 
-(v0-21-0)=
+(v0-22-0-doc-and-behavior-fixes)=
 
-## 0.21.0
+### Documentation and Behavior Fixes
 
-(v0-21-0-features)=
-
-### Key Features
-
-- Added the `IORails` class, a new optimized execution engine that runs NemoGuard input and output rails, such as
-  content-safety, topic-safety, and jailbreak detection, in parallel. The engine is opt-in:
-  set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` to enable it. When enabled, the configuration is
-  validated for compatibility and falls back to LLMRails if unsupported flows are detected.
-  For more information, refer to [](../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.md#iorails-engine).
-
-- Added the `check_async()` and `check()` methods on `LLMRails` to enable validating messages against input and output rails without triggering full LLM generation.
-  Returns a `RailsResult` with `PASSED`, `MODIFIED`, or `BLOCKED` status.
-  For more information, refer to [](../run-rails/using-python-apis/check-messages.md).
-
-- The guardrails server now exposes a fully OpenAI-compatible
-  REST API. The `/v1/chat/completions` endpoint accepts standard `ChatCompletion` requests with a
-  `guardrails` field for config selection. A new `/v1/models` endpoint lists available models from the
-  configured provider. The `openai` package is now a required component of the optional `server` extra ([#1623](https://github.com/NVIDIA-NeMo/Guardrails/pull/1623)).
-  For more information, refer to [](../run-rails/using-fastapi-server/overview.md).
-
-- Added the `GuardrailsMiddleware` class, a new middleware that integrates with
-  LangChain's Agent Middleware protocol, applying input and output rail checks before and after
-  every model call in the agent loop. It includes the `InputRailsMiddleware` and `OutputRailsMiddleware`
-  convenience subclasses (requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`).
-  For more information, refer to [](../integration/langchain/agent-middleware.md).
-
-- Added three new community rails:
-  [PolicyAI](../configure-rails/guardrail-catalog/community/policyai.md) for policy-based content moderation,
-  [CrowdStrike AIDR](../configure-rails/guardrail-catalog/community/crowdstrike-aidr.md) for AI-powered detection and response, and
-  [Regex Detection](../configure-rails/guardrail-catalog/community/regex.md) for pattern-based content filtering on input, output, and retrieval.
-
-- Jailbreak detection configuration is now validated at
-  create-time. Invalid thresholds and malformed URLs raise errors immediately.
-  For more information, refer to [](../configure-rails/guardrail-catalog/jailbreak-protection.md#configuration-validation).
-
-- Embedding indexes are now initialized lazily.
-  FastEmbed models are only downloaded when semantic search is needed, reducing startup time for
-  configurations that use only input and output rails.
-
-(v0-21-0-breaking-changes)=
-
-### Breaking Changes
-
-- Streaming metadata parameter renamed. The `include_generation_metadata` parameter on
-  `LLMRails.stream_async()` and `StreamingHandler` is deprecated in favor of `include_metadata`.
-  The `generation_info` field in streaming chunk dicts is renamed to `metadata`.
-  The deprecated parameter still works and emits a `DeprecationWarning`.
-
-  ```python
-  # Before (deprecated)
-  async for chunk in rails.stream_async(messages=messages, include_generation_metadata=True):
-      info = chunk["generation_info"]
-
-  # After
-  async for chunk in rails.stream_async(messages=messages, include_metadata=True):
-      info = chunk["metadata"]
-  ```
-
-- `StreamingHandler` no longer inherits from LangChain `AsyncCallbackHandler`.
-  Streaming now uses `llm.astream()` with direct `push_chunk()` calls.
-  If your code depends on `StreamingHandler` as a LangChain callback, update it to use the
-  new `push_chunk()` interface.
-
-- Removed the `stream_usage` parameter. The `stream_usage=True` parameter is no longer
-  automatically added to LLM call kwargs. Streaming metadata is now captured through
-  `response_metadata` and `usage_metadata` on final chunks.
-
-- Server request and response format changed. The `/v1/chat/completions` endpoint now uses
-  OpenAI-compatible request and response schemas. The previous `RequestBody` and `ResponseBody`
-  classes are removed. For the new format, refer to
-  [](../run-rails/using-fastapi-server/overview.md).
-
-- ChatNVIDIA streaming patch removed. The custom
-  `_langchain_nvidia_ai_endpoints_patch.py` module is removed.
-  The standard `ChatNVIDIA` from `langchain_nvidia_ai_endpoints` is used directly.
-
-(v0-21-0-bug-fixes)=
-
-### Bug Fixes
-
-- Fixed a naming mismatch where the `generate_next_step` action did not match the
-  `generate_next_steps` task enum value, which prevented task-specific LLM configuration
-  from working correctly ([#1603](https://github.com/NVIDIA-NeMo/Guardrails/pull/1603)).
-- Added the `valid` alias to action results in the GuardrailsAI integration so that
-  Colang flows checking `$result["valid"]` work as expected ([#1611](https://github.com/NVIDIA-NeMo/Guardrails/pull/1611)).
-- Filtered the `stop` parameter for OpenAI reasoning models (such as GPT-5) that do not
-  accept it, preventing `400` errors during dialogue rail execution ([#1653](https://github.com/NVIDIA-NeMo/Guardrails/pull/1653)).
-- Fixed GLiNER PII detection to use "bot refuse to respond" instead of
-  "bot inform answer unknown", which returned a misleading "I don't know" message ([#1671](https://github.com/NVIDIA-NeMo/Guardrails/pull/1671)).
-- Fixed a `TypeError` when `stop=None` is passed to `StreamingHandler` by coercing
-  `None` to an empty list ([#1685](https://github.com/NVIDIA-NeMo/Guardrails/pull/1685)).
-- Fixed a `TypeError` in `RollingBuffer.format_chunks` when `include_metadata=True` is used
-  with output rail streaming enabled. Dict chunks are now normalized to strings at the
-  input boundary ([#1687](https://github.com/NVIDIA-NeMo/Guardrails/pull/1687)).
-- Fixed `GuardrailsMiddleware` silently dropping content when rails return `MODIFIED` status.
-  Input rails now replace the last user message and output rails replace the last AI
-  message with the sanitized content ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/pull/1714)).
-- Cache hit statistics are now visible in the Stats log line. Cache stats are also
-  visible in verbose mode ([#1666](https://github.com/NVIDIA-NeMo/Guardrails/pull/1666), [#1667](https://github.com/NVIDIA-NeMo/Guardrails/pull/1667)).
-
-(v0-21-0-other-changes)=
-
-### Other Changes
-
-- Updated the Fiddler Guardrails API to match the new specification: the `prompt` field is
-  renamed to `input`, faithfulness uses strings instead of lists, and a new `fdl_roleplaying`
-  category is added ([#1619](https://github.com/NVIDIA-NeMo/Guardrails/pull/1619)).
-- Updated the Trend Micro Vision One AI Guard integration from the beta endpoint to the
-  officially released GA endpoint. A required `TMV1-Application-Name` header is added and the
-  request key is changed from `guard` to `prompt` ([#1546](https://github.com/NVIDIA-NeMo/Guardrails/pull/1546)).
-- Added a Locust stress-test benchmark for load testing ([#1629](https://github.com/NVIDIA-NeMo/Guardrails/pull/1629)).
-- Removed the `multi_kb` example ([#1673](https://github.com/NVIDIA-NeMo/Guardrails/pull/1673)).
-- Removed the AI Virtual Assistant Blueprint notebook ([#1682](https://github.com/NVIDIA-NeMo/Guardrails/pull/1682)).
-- Updated the Pangea User-Agent repo URL ([#1610](https://github.com/NVIDIA-NeMo/Guardrails/pull/1610)).
-- Updated dependencies for the jailbreak detection Docker container ([#1596](https://github.com/NVIDIA-NeMo/Guardrails/pull/1596)).
-- Major documentation revamp with improved structure and navigation.
+- Fixed the example query and expected output in the Guardrails Agent
+  Middleware integration guide so the example matches the configured blocked
+  response behavior. For more information, refer to
+  [Guardrails Agent Middleware](../integration/langchain/agent-middleware.md)
+  ([#1784](https://github.com/NVIDIA-NeMo/Guardrails/pull/1784)).
+- A warning about a missing main LLM is now emitted only when generation is
+  actually attempted and the generation path needs the main LLM. Check-only
+  configurations no longer emit the warning during initialization. For more
+  information, refer to
+  [Check Messages](../run-rails/using-python-apis/check-messages.md)
+  ([#1813](https://github.com/NVIDIA-NeMo/Guardrails/pull/1813)).
+- Fixed issues in the [Colang 1.0 Hello World tutorial](../configure-rails/colang/colang-1/tutorials/1-hello-world/README.md) and companion notebook.
+  ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/pull/1834)).
 
 ---
 
 ## Previous Release Notes
 
+- [0.21.0](https://docs.nvidia.com/nemo/guardrails/0.21.0/release-notes.html)
 - [0.20.0](https://docs.nvidia.com/nemo/guardrails/0.20.0/release-notes.html)
 - [0.19.0](https://docs.nvidia.com/nemo/guardrails/0.19.0/release-notes.html)
 - [0.18.0](https://docs.nvidia.com/nemo/guardrails/0.18.0/release-notes.html)
