@@ -40,9 +40,10 @@ IORails is an early-release feature, and metric names can change as the OpenTele
     The `[tracing]` extra installs `opentelemetry-api`, which is the only OpenTelemetry dependency the library itself takes.
 
 2. Save the following to `metrics_example.py`.
-The script issues a single request and exports metrics once per second to both stdout and `metrics.json`.
-The `provider.shutdown()` call flushes the metrics to disk.
-Long-running services typically do not need this call.
+
+    The script issues a single request and exports metrics once per second to both stdout and `metrics.json`.
+    The `provider.shutdown()` call flushes the metrics to disk.
+    Long-running services typically do not need this call.
 
     ```python
     # metrics_example.py
@@ -144,7 +145,7 @@ Long-running services typically do not need this call.
 
     Each object is one aggregation of the `gen_ai.client.token.usage` histogram. The fields are:
 
-    - `type`: Value of the required [`gen_ai.token.type`](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage) label. Values are either `input` or `output`.
+    - `type`: Value of the required [`gen_ai.token.type`](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage) label. Values are `input` or `output`.
     - `count`: Number of observations recorded for this token type. Each LLM call records one `input` observation and one `output` observation, giving `count: 1` per type.
     - `sum`: Total tokens across those observations.
 

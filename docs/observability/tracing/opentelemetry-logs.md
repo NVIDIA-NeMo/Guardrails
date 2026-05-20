@@ -21,18 +21,18 @@ content:
 
 # Exporting Guardrails Logs to OpenTelemetry
 
-The NeMo Guardrails library emits operational logs through Python's standard `logging` module. When you have OpenTelemetry tracing configured, you can forward those log records into the same backend as your traces with a few lines of application code. Records emitted inside an active guardrails span automatically carry the span's `trace_id` and `span_id`, so every log line correlates to the request that produced it.
+The NVIDIA NeMo Guardrails library emits operational logs through Python's standard `logging` module. When you have OpenTelemetry tracing configured, you can forward those log records into the same backend as your traces with a few lines of application code. Records emitted inside an active guardrails span automatically carry the span's `trace_id` and `span_id`, so every log line correlates to the request that produced it.
 
 This page covers the setup. For plain Python logging (verbose mode, explain, generation options), refer to [](../logging/index.md).
 
 ## API and SDK Responsibilities
 
-The NeMo Guardrails library follows the OpenTelemetry library-instrumentation pattern.
+The library follows the OpenTelemetry library-instrumentation pattern.
 
-- The library depends on the OpenTelemetry API only. It creates spans, emits log records, and otherwise participates in whatever OTEL pipeline the host application provides.
+- The library depends on the OpenTelemetry API only. It creates spans, emits log records, and participates in whatever OTEL pipeline the host application provides.
 - The host application owns the SDK. Configuring a `TracerProvider`, a `LoggerProvider`, exporters, and attaching handlers to Python's `logging` tree are all the application's responsibility.
 
-This split is deliberate. It lets the NeMo Guardrails library stay decoupled from SDK-version churn, avoids the library injecting itself into a host's observability stack without opt-in, and gives applications full control over where their telemetry is exported.
+This split is deliberate. It lets the library stay decoupled from SDK version churn, avoids injecting the library into a host's observability stack without opt-in, and gives applications full control over where their telemetry is exported.
 
 The three-line recipe below is therefore a user-side setup, not something the library does for you.
 
@@ -63,7 +63,7 @@ logging.getLogger("nemoguardrails").addHandler(LoggingHandler())
 
 Each line does the following:
 
-- `logging.getLogger("nemoguardrails")` selects the logger namespace that catches most records emitted by the NeMo Guardrails library. Submodules that use `logging.getLogger(__name__)` inherit this handler. Verbose mode (`nemoguardrails.logging.verbose`) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.
+- `logging.getLogger("nemoguardrails")` selects the logger namespace that catches most records emitted by the library. Submodules that use `logging.getLogger(__name__)` inherit this handler. Verbose mode (`nemoguardrails.logging.verbose`) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.
 - `LoggingHandler()` is an OpenTelemetry-provided `logging.Handler` subclass that converts each Python `LogRecord` into an OTEL log record. On first emit it resolves the active `LoggerProvider` through `get_logger_provider()`, caches the resulting logger, and attaches trace context automatically.
 - `.addHandler(...)` attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host's existing handlers (console, files, and so on) and the OpenTelemetry pipeline, provided a `LoggerProvider` was configured before this call.
 
@@ -143,14 +143,14 @@ The OpenTelemetry Collector then forwards the records to any compatible backend,
 Each forwarded `LogRecord` becomes an OTEL log record with the following fields populated automatically.
 
 | Field | Description |
-|-------|-------------|
+| --- | --- |
 | Body | Contains the formatted log message. |
 | Severity | Records `severity_text` (`INFO`, `DEBUG`, `ERROR`, and so on) and `severity_number`. |
 | Timestamp | Records the record's emit time. |
 | Trace context | Carries the `trace_id` and `span_id` of the active span when the record was emitted. The values are zero when no span is active. |
 | Code attributes | Include `code.file.path`, `code.function.name`, and `code.line.number` derived from the Python `LogRecord`. |
 
-Log records emitted outside any guardrails request (startup, engine registration, teardown) still flow through, but their `trace_id` / `span_id` are zero because there is no active span.
+Log records emitted outside any guardrails request, such as startup, engine registration, or teardown, still flow through. Their `trace_id` and `span_id` are zero because there is no active span.
 
 ## Considerations
 

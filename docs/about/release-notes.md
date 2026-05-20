@@ -41,8 +41,8 @@ For a complete record of changes in a release, refer to the
   in-process Hugging Face, TensorRT-LLM, and others) keep working through
   LangChain when you opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and
   install the matching provider package. Most 0.21 configurations keep working
-  unchanged; some shapes need a YAML rewrite. For recipes, see
-  [Migrating to 0.22](../migration/0.22.md), the
+  unchanged; some shapes need a YAML rewrite. For recipes, refer to
+  [Migrating to v0.22.0](../migration/0.22.md), the
   [Supported LLMs](./supported-llms.md) matrix, and
   [Model Configuration](../configure-rails/yaml-schema/model-configuration.md)
   ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/pull/1854),
@@ -57,7 +57,7 @@ For a complete record of changes in a release, refer to the
   `engine: azure_openai`, and documents how to migrate provider-specific
   LangChain parameters to the new `base_url`-based configuration shape. For
   more information, refer to
-  [Migrating to 0.22](../migration/0.22.md),
+  [Migrating to v0.22.0](../migration/0.22.md),
   [Model Configuration](../configure-rails/yaml-schema/model-configuration.md),
   [Configuration Reference](../configure-rails/configuration-reference.md), and
   [Using Docker](../deployment/using-docker.md)

@@ -21,12 +21,12 @@ content:
 
 # OpenTelemetry Metrics Integration
 
-The NeMo Guardrails library follows OpenTelemetry best practices: the library uses only the API, and the host application configures the SDK.
-The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from the Guardrails IORails engine.
+The NVIDIA NeMo Guardrails library follows OpenTelemetry best practices. The library uses only the API, and the host application configures the SDK.
+The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from the NeMo Guardrails IORails engine.
 
 ## Installation
 
-Choose one of the following options for installing the NeMo Guardrails library, the OpenTelemetry SDK, and an exporter.
+Choose one of the following options for installing the library, the OpenTelemetry SDK, and an exporter.
 
 - For development with the OpenTelemetry SDK (console exporter only):
 

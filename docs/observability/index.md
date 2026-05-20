@@ -23,11 +23,11 @@ content:
 
 # Observability Overview
 
-The NeMo Guardrails library exposes three observability signals so you can debug locally during development and monitor behavior in production: logs, traces, and metrics.
+The NVIDIA NeMo Guardrails library exposes three observability signals so you can debug locally during development and monitor behavior in production: logs, traces, and metrics.
 Each signal targets a different question and can be enabled independently of the others.
 
-| Signal | Best for | Page |
-|--------|----------|------|
+| Signal | Best For | Page |
+| --- | --- | --- |
 | **Logging** | Debugging a single request with verbose console output, the `explain()` method, and the `log` generation option for structured per-request data. | [](logging/index.md) |
 | **Tracing** | Following a request through the rails it activated and the LLM calls it issued, with full OpenTelemetry semantic-convention support. | [](tracing/index.md) |
 | **Metrics** | Tracking aggregate behavior, including request volume, latency distributions, error rates, saturation, and per-LLM-call token usage for SLO dashboards and alerting. | [](metrics/index.md) |

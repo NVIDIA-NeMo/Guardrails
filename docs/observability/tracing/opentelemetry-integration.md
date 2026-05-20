@@ -22,11 +22,11 @@ content:
 
 # OpenTelemetry Integration
 
-The NeMo Guardrails library follows OpenTelemetry best practices; libraries use only the API while applications configure the SDK. The following sections explain how to install and configure the OpenTelemetry SDK.
+The NVIDIA NeMo Guardrails library follows OpenTelemetry best practices. The library uses only the API, and the host application configures the SDK. The following sections explain how to install and configure the OpenTelemetry SDK.
 
 ## Installation
 
-Choose one of the following options for installing the NeMo Guardrails library with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.
+Choose one of the following options for installing the library with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.
 
 - For basic tracing support in the NeMo Guardrails library:
 
@@ -48,7 +48,7 @@ Choose one of the following options for installing the NeMo Guardrails library w
 
 ## Configuration Examples
 
-The following examples show how to configure the NeMo Guardrails library with the OpenTelemetry SDK for development and production use cases.
+The following examples show how to configure the library with the OpenTelemetry SDK for development and production use cases.
 
 ### Console Output (Development)
 
@@ -107,13 +107,15 @@ tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
 ## OpenTelemetry Ecosystem Compatibility
 
-The NeMo Guardrails library works with the entire OpenTelemetry ecosystem including:
+The library works with the entire OpenTelemetry ecosystem, including the following components.
 
-- **Exporters**: Jaeger, Zipkin, Prometheus, New Relic, Datadog, AWS X-Ray, Google Cloud Trace
-- **Collectors**: OpenTelemetry Collector, vendor-specific collectors
-- **Backends**: Any system accepting OpenTelemetry traces
+| Component | Examples |
+| --- | --- |
+| Exporters | Jaeger, Zipkin, Prometheus, New Relic, Datadog, AWS X-Ray, and Google Cloud Trace. |
+| Collectors | OpenTelemetry Collector and vendor-specific collectors. |
+| Backends | Any system that accepts OpenTelemetry traces. |
 
-See the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
+Refer to the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
 
 ## Exporting Logs
 

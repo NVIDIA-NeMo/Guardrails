@@ -23,11 +23,11 @@ content:
 
 # Model Configuration
 
-In this section, learn how to configure the models used in your guardrails configuration. For a complete reference of all configuration options, refer to the [](../configuration-reference.md).
+In this page, learn how to configure the `models` section in your Guardrails `config.yml` file. For a complete reference of all configuration options, refer to the [Configuration YAML Schema Reference](../configuration-reference.md).
 
 ## NVIDIA NIM Configuration
 
-The NeMo Guardrails library provides seamless integration with NVIDIA NIM microservices:
+The NVIDIA NeMo Guardrails library integrates with NVIDIA NIM microservices:
 
 ```yaml
 models:
@@ -38,13 +38,13 @@ models:
 
 This provides access to:
 
-- **Locally-deployed NIMs**: Run models on your own infrastructure with optimized inference.
-- **NVIDIA API Catalog**: Access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
-- **Specialized NIMs**: NemoGuard Content Safety, Topic Control, and Jailbreak Detect.
+- Locally deployed NIMs. You can run models on your own infrastructure with optimized inference.
+- NVIDIA API Catalog. You can access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
+- Specialized NIMs. Includes NemoGuard Content Safety, Topic Control, and Jailbreak Detect.
 
 ### Local NIM Deployment
 
-For locally-deployed NIMs, specify the base URL:
+For locally deployed NIMs, specify the base URL:
 
 ```yaml
 models:
@@ -110,12 +110,12 @@ models:
       api_version: "2024-02-15-preview"
 ```
 
-The resource endpoint can be supplied as `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias). Both accept the resource URL only; the deployment path is composed by the framework. Setting both raises an error.
+You can supply the resource endpoint as `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias). Both fields accept only the resource URL. The framework composes the deployment path. Setting both raises an error.
 
-Set `AZURE_OPENAI_API_KEY` in the environment, or set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
+Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
 
 ```{note}
-Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD / token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. See [Migrating to 0.22](../../migration/0.22.md#azure-openai) for both alternatives.
+Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](../../migration/0.22.md#azure-openai) for both alternatives.
 ```
 
 ### Anthropic
@@ -130,7 +130,7 @@ models:
 ```
 
 ```{note}
-Anthropic's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, see [Migrating to 0.22](../../migration/0.22.md#using-langchain).
+Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](../../migration/0.22.md#using-langchain).
 ```
 
 ### vLLM (OpenAI-Compatible)
@@ -159,7 +159,7 @@ models:
       api_key: EMPTY
 ```
 
-When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to any non-empty placeholder such as `EMPTY`. If your deployment requires a real token, replace `parameters.api_key` with the literal token, or omit it and set `api_key_env_var` at the **top level** of the model entry (not inside `parameters:`):
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to a non-empty placeholder such as `EMPTY`. If your deployment requires a real token, replace `parameters.api_key` with the literal token, or omit it and set `api_key_env_var` at the top level of the model entry, not inside `parameters`:
 
 ```yaml
 - type: main
@@ -171,16 +171,16 @@ When self-hosted vLLM does not enforce authentication, set `parameters.api_key` 
 ```
 
 ```{note}
-The referenced environment variable must be set before `RailsConfig.from_content` or `RailsConfig.from_path` is called. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. This is a Pydantic validator on the model schema; the check is eager, not lazy.
+Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
 ```
 
 ```{note}
 The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
 ```
 
-### Other OpenAI-compatible endpoints
+### Other OpenAI-Compatible Endpoints
 
-The same `engine: openai` plus `parameters.base_url` pattern works for any provider whose wire protocol is OpenAI-compatible, including OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek's hosted API at `https://api.deepseek.com/v1`, TGI deployments that expose `/v1/chat/completions`, and `llama.cpp` server with `--api`. Provide `parameters.base_url` and either `parameters.api_key` or a top-level `api_key_env_var`.
+The same `engine: openai` plus `parameters.base_url` pattern works for any provider whose wire protocol is OpenAI-compatible. Examples include OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek's hosted API at `https://api.deepseek.com/v1`, TGI deployments that expose `/v1/chat/completions`, and the `llama.cpp` server with `--api`. Provide `parameters.base_url` and either `parameters.api_key` or a top-level `api_key_env_var`.
 
 ### Google Vertex AI
 
@@ -194,7 +194,7 @@ models:
 ```
 
 ```{note}
-Vertex AI's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, see [Migrating to 0.22](../../migration/0.22.md#using-langchain).
+Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](../../migration/0.22.md#using-langchain).
 ```
 
 ### Complete Example
@@ -231,7 +231,7 @@ models:
 
 ## Model Parameters
 
-Pass additional parameters to the underlying LLM client. For engines served by the built-in client (any OpenAI-compatible endpoint), parameters are forwarded to the OpenAI-compatible HTTP request (for example, `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, `default_headers`). For LangChain engines, parameters follow the conventions of the underlying LangChain class.
+Pass additional parameters to the underlying LLM client. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards parameters to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For LangChain engines, parameters follow the conventions of the underlying LangChain class.
 
 ```yaml
 models:

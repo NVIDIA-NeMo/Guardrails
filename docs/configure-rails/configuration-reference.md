@@ -27,7 +27,7 @@ This reference documents all configuration options for `config.yml`, derived fro
 
 ## Models Configuration
 
-The `models` key defines LLM providers and models used by NeMo Guardrails.
+The `models` key defines LLM providers and models used by the NVIDIA NeMo Guardrails library.
 
 ### Model Schema
 
@@ -55,7 +55,7 @@ models:
 | `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
-| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client (any OpenAI-compatible endpoint), the runtime forwards `parameters` to the OpenAI-compatible HTTP request (for example `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, `default_headers`). For engines served by LangChain (opt-in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`), the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, see [Inference Providers](../about/supported-llms.md#inference-providers). |
+| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards `parameters` to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For engines served by LangChain, opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`; the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, refer to [Inference Providers](../about/supported-llms.md#inference-providers). |
 | `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
 
 ### Model Types
@@ -64,7 +64,7 @@ The `type` field is a free-form string identifier. Certain types have special ha
 
 #### Reserved Types
 
-These types have special handling in the NeMo Guardrails runtime:
+These types have special handling in the runtime:
 
 | Type | Description |
 | --- | --- |
@@ -102,7 +102,7 @@ The runtime validates that any `$model=<type>` reference in flows has a matching
 
 ### Engines
 
-Starting with version 0.22, NeMo Guardrails serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping see [Inference Providers](../about/supported-llms.md#inference-providers); for migration recipes see [Migrating to 0.22](../migration/0.22.md).
+Starting with v0.22, the library serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping, refer to [Inference Providers](../about/supported-llms.md#inference-providers). For migration recipes, refer to [Migrating to 0.22](../migration/0.22.md).
 
 #### Built-in Engines
 
@@ -133,7 +133,7 @@ To use one of these engines, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and in
 | `self_hosted` | Generic self-hosted LangChain wrapper |
 | `trt_llm` | TensorRT-LLM in-process |
 | `vertexai` | Google Vertex AI through LangChain (requires `langchain-google-vertexai`) |
-| `vllm_openai` | Legacy LangChain wrapper for vLLM. For new configs, prefer `engine: openai` with `parameters.base_url` |
+| `vllm_openai` | Legacy LangChain wrapper for vLLM. For new configurations, prefer `engine: openai` with `parameters.base_url` |
 
 #### Embedding Engines
 
@@ -502,7 +502,7 @@ The multilingual feature supports the following languages:
 | Spanish | `es` |
 | Thai | `th` |
 
-If the detected language is not in this list, English is used as the fallback. For more details, refer to [Multilingual Content Safety](./guardrail-catalog/content-safety.md#multilingual-refusal-messages).
+If the detected language is not in this list, English is used as the fallback. For more information, refer to [Multilingual Content Safety](./guardrail-catalog/content-safety.md#multilingual-refusal-messages).
 
 #### Third-Party Integrations
 

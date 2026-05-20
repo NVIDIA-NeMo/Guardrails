@@ -31,7 +31,7 @@ Metrics fall into two families:
 ## Request-Level Metrics
 
 | Metric | Instrument | Unit | Labels | Description |
-|--------|------------|------|--------|-------------|
+| --- | --- | --- | --- | --- |
 | `guardrails.requests` | Counter | `1` | — | Total IORails requests handled, incremented on entry. |
 | `guardrails.requests.errors` | Counter | `1` | `error.type` | Requests that ended in an unhandled error. `error.type` is the exception class name (for example `QueueFull`, `TimeoutError`). |
 | `guardrails.requests.blocked` | Counter | `1` | `rail.type` | Requests blocked by an input or output rail. `rail.type` is `input` or `output`. |
@@ -53,7 +53,7 @@ These metrics expose the internal admission paths so you can detect overload bef
 ### Non-Streaming Path (Admission Queue)
 
 | Metric | Instrument | Unit | Description |
-|--------|------------|------|-------------|
+| --- | --- | --- | --- |
 | `guardrails.nonstream.queued` | ObservableGauge | `1` | Requests buffered in the admission queue, not yet picked up by a worker. |
 | `guardrails.nonstream.active` | ObservableGauge | `1` | Requests currently executing on a worker. |
 | `guardrails.nonstream.rejections` | Counter | `1` | Submissions rejected with `QueueFull` because the admission queue exceeded its depth limit. |
@@ -64,7 +64,7 @@ After `IORails.stop()` is called, both gauges return no observations rather than
 ### Streaming Path (Concurrency Semaphore)
 
 | Metric | Instrument | Unit | Description |
-|--------|------------|------|-------------|
+| --- | --- | --- | --- |
 | `guardrails.stream.active` | UpDownCounter | `1` | In-progress streaming requests holding a semaphore permit. |
 | `guardrails.stream.rejections` | Counter | `1` | Streaming requests rejected because the streaming concurrency semaphore was fully occupied. |
 
@@ -94,7 +94,7 @@ This is intentional: dashboards built around either signal alone still reflect t
 These metrics are recorded once per downstream LLM call, not once per IORails request, and follow the OpenTelemetry GenAI semantic conventions.
 
 | Metric | Instrument | Unit | Labels | Description |
-|--------|------------|------|--------|-------------|
+| --- | --- | --- | --- | --- |
 | `gen_ai.client.token.usage` | Histogram | `{token}` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.token.type` | Number of tokens consumed by an LLM call. Each call records two observations distinguished by the required `gen_ai.token.type` label (`input` or `output`). |
 | `gen_ai.client.operation.duration` | Histogram | `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`, optionally `error.type` | Wall-clock duration of one LLM call. `error.type` is added as a conditional label only when the call raises. |
 | `gen_ai.client.operation.time_to_first_chunk` | Histogram | `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model` | Streaming-only. Time from request issue to the first content-bearing chunk. |
@@ -124,19 +124,19 @@ Both match the spec exactly so backends auto-render the distributions correctly.
 ### Streaming vs. Non-Streaming Emission
 
 | Metric | Non-streaming | Streaming |
-|--------|:---:|:---:|
+| --- | :---: | :---: |
 | `gen_ai.client.token.usage` | ✓ | ✓ (when the upstream provider returns usage) |
 | `gen_ai.client.operation.duration` | ✓ | ✓ |
 | `gen_ai.client.operation.time_to_first_chunk` | — | ✓ |
 | `gen_ai.client.operation.time_per_output_chunk` | — | ✓ |
 
-For streaming responses, `token.usage` is emitted only when the upstream provider returns a `usage` field — common when `stream_options.include_usage=true` is forwarded.
+For streaming responses, `token.usage` is emitted only when the upstream provider returns a `usage` field. This is common when `stream_options.include_usage=true` is forwarded.
 When usage is absent, no observation is recorded; "no observation" is deliberately distinct from "0 tokens".
 
 ## Common Label Reference
 
 | Label | Used On | Values | Notes |
-|-------|---------|--------|-------|
+| --- | --- | --- | --- |
 | `error.type` | `guardrails.requests.errors`, `gen_ai.client.operation.duration` (on error) | Exception class name | For example `QueueFull`, `TimeoutError`, `ValueError`. |
 | `rail.type` | `guardrails.requests.blocked` | `input`, `output` | Identifies whether an input or output rail blocked the request. |
 | `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OpenTelemetry GenAI operation name. |

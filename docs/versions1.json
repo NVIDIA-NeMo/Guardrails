@@ -1,6 +1,10 @@
 [
     {
         "preferred": true,
+        "version": "0.22.0",
+        "url": "https://docs.nvidia.com/nemo/guardrails/0.22.0/"
+    },
+    {
         "version": "0.21.0",
         "url": "https://docs.nvidia.com/nemo/guardrails/0.21.0/"
     },
