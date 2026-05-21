@@ -727,12 +727,7 @@ install the matching provider package. Most 0.21 configurations keep working
 unchanged; some shapes need a YAML rewrite. For recipes, refer to
 <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to v0.22.0</span></a>, the
 <a class="reference internal" href="supported-llms.html"><span class="std std-doc">Supported LLMs</span></a> matrix, and
-<a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html"><span class="std std-doc">Model Configuration</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1854" rel="noreferer noopener" target="_blank">#1854</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1855" rel="noreferer noopener" target="_blank">#1855</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1856" rel="noreferer noopener" target="_blank">#1856</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1858" rel="noreferer noopener" target="_blank">#1858</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1881" rel="noreferer noopener" target="_blank">#1881</a>).</p></li>
+<a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html"><span class="std std-doc">Model Configuration</span></a>.</p></li>
 <li><p>OpenAI-compatible service support is improved in the default framework.
 The default framework now supports OpenAI-compatible providers directly,
 includes native Azure OpenAI support through <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> and
@@ -742,12 +737,16 @@ more information, refer to
 <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to v0.22.0</span></a>,
 <a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html"><span class="std std-doc">Model Configuration</span></a>,
 <a class="reference internal" href="../configure-rails/configuration-reference.html"><span class="std std-doc">Configuration Reference</span></a>, and
-<a class="reference internal" href="../deployment/using-docker.html"><span class="std std-doc">Using Docker</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1854" rel="noreferer noopener" target="_blank">#1854</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1855" rel="noreferer noopener" target="_blank">#1855</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1857" rel="noreferer noopener" target="_blank">#1857</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1858" rel="noreferer noopener" target="_blank">#1858</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1881" rel="noreferer noopener" target="_blank">#1881</a>).</p></li>
+<a class="reference internal" href="../deployment/using-docker.html"><span class="std std-doc">Using Docker</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> adds streaming support, reasoning-model support, and speculative
+generation support. The optimized input and output rails engine now supports
+streaming output rails, <code class="docutils literal notranslate"><span class="pre">stream_async()</span></code> integration in chat and server flows,
+non-streaming and streaming reasoning-model responses, and speculative
+generation for non-streaming <code class="docutils literal notranslate"><span class="pre">generate_async()</span></code> calls. For more information,
+refer to
+<a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.html"><span class="std std-doc">Parallel Rails</span></a>,
+<a class="reference internal" href="../run-rails/using-python-apis/streaming.html"><span class="std std-doc">Streaming</span></a>, and
+<a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/speculative-generation.html"><span class="std std-doc">Speculative Generation</span></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> adds OpenTelemetry observability with logging, tracing, and
 metrics support. The documentation covers OTLP setup, Prometheus client
 installation, request-level and token-level metrics, and the recommended
@@ -758,20 +757,13 @@ more information, refer to
 <a class="reference internal" href="../observability/tracing/opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Tracing</span></a>,
 <a class="reference internal" href="../observability/metrics/opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Metrics</span></a>,
 <a class="reference internal" href="../observability/metrics/enable-metrics.html"><span class="std std-doc">Enable Metrics</span></a>, and the
-<a class="reference internal" href="../observability/metrics/reference.html"><span class="std std-doc">Metrics Reference</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1807" rel="noreferer noopener" target="_blank">#1807</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1864" rel="noreferer noopener" target="_blank">#1864</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1884" rel="noreferer noopener" target="_blank">#1884</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1892" rel="noreferer noopener" target="_blank">#1892</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1893" rel="noreferer noopener" target="_blank">#1893</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1894" rel="noreferer noopener" target="_blank">#1894</a>).</p></li>
+<a class="reference internal" href="../observability/metrics/reference.html"><span class="std std-doc">Metrics Reference</span></a>.</p></li>
 <li><p>Anonymous usage reporting is documented with clear privacy boundaries and
 opt-out controls. The telemetry reference explains what fields are collected,
 what data is excluded, how local audit files work, and how to opt out with
 <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_NO_USAGE_STATS=1</span></code>, <code class="docutils literal notranslate"><span class="pre">DO_NOT_TRACK=1</span></code>, or the
 <code class="docutils literal notranslate"><span class="pre">~/.config/nemoguardrails/do_not_track</span></code> file. For more information, refer to
-<a class="reference internal" href="../telemetry.html"><span class="std std-doc">Telemetry</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1891" rel="noreferer noopener" target="_blank">#1891</a>).</p></li>
+<a class="reference internal" href="../telemetry.html"><span class="std std-doc">Telemetry</span></a>.</p></li>
 </ul>
 </section>
 <section id="breaking-changes">
@@ -790,17 +782,14 @@ set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS
 GLiNER PII NIM. The examples cover both remote and local deployment modes
 and API key configuration for the connector. For more information, refer to
 <a class="reference internal" href="../configure-rails/guardrail-catalog/community/gliner.html"><span class="std std-doc">GLiNER</span></a> and
-<a class="reference internal" href="../configure-rails/guardrail-catalog/pii-detection.html"><span class="std std-doc">PII Detection</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1845" rel="noreferer noopener" target="_blank">#1845</a>).</p></li>
+<a class="reference internal" href="../configure-rails/guardrail-catalog/pii-detection.html"><span class="std std-doc">PII Detection</span></a>.</p></li>
 <li><p>Public extension points for LLM integration. Two new protocols, <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code>
 and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>, let you plug in a custom
 backend or a whole alternative framework without touching internals. For more
 information, refer to
 <a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html"><span class="std std-doc">Custom LLM Models</span></a>
 and
-<a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html"><span class="std std-doc">Custom LLM Frameworks</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1857" rel="noreferer noopener" target="_blank">#1857</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1882" rel="noreferer noopener" target="_blank">#1882</a>).</p></li>
+<a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html"><span class="std std-doc">Custom LLM Frameworks</span></a>.</p></li>
 <li><p>Public testing surface. The <code class="docutils literal notranslate"><span class="pre">nemoguardrails.testing</span></code> module exposes
 <code class="docutils literal notranslate"><span class="pre">FakeLLMModel</span></code>, <code class="docutils literal notranslate"><span class="pre">TestChat</span></code>, and pytest fixtures for writing tests against a
 guardrails configuration without calling a real model.</p></li>
@@ -812,16 +801,13 @@ guardrails configuration without calling a real model.</p></li>
 <li><p>Fixed the example query and expected output in the Guardrails Agent
 Middleware integration guide so the example matches the configured blocked
 response behavior. For more information, refer to
-<a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Guardrails Agent Middleware</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1784" rel="noreferer noopener" target="_blank">#1784</a>).</p></li>
+<a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Guardrails Agent Middleware</span></a>.</p></li>
 <li><p>A warning about a missing main LLM is now emitted only when generation is
 actually attempted and the generation path needs the main LLM. Check-only
 configurations no longer emit the warning during initialization. For more
 information, refer to
-<a class="reference internal" href="../run-rails/using-python-apis/check-messages.html"><span class="std std-doc">Check Messages</span></a>
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1813" rel="noreferer noopener" target="_blank">#1813</a>).</p></li>
-<li><p>Fixed issues in the <a class="reference internal" href="../configure-rails/colang/colang-1/tutorials/1-hello-world/README.html"><span class="std std-doc">Colang 1.0 Hello World tutorial</span></a> and companion notebook
-(<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1834" rel="noreferer noopener" target="_blank">#1834</a>).</p></li>
+<a class="reference internal" href="../run-rails/using-python-apis/check-messages.html"><span class="std std-doc">Check Messages</span></a>.</p></li>
+<li><p>Fixed issues in the <a class="reference internal" href="../configure-rails/colang/colang-1/tutorials/1-hello-world/README.html"><span class="std std-doc">Colang 1.0 Hello World tutorial</span></a> and companion notebook.</p></li>
 </ul>
 </section>
 </section>
