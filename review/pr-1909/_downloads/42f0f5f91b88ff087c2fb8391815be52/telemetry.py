@@ -208,14 +208,14 @@ class TelemetryEvent(BaseModel):
 
     Attributes:
         _event_name: Unique name for this event type (e.g. "guardrails_usage_event").
-        _schema_version: Schema version string, defaults to "1.0".
+        _schema_version: Schema version string used for ``eventSchemaVer`` in the telemetry envelope.
 
     Raises:
         TypeError: If a subclass fails to define ``_event_name``.
     """
 
     _event_name: ClassVar[str]
-    _schema_version: ClassVar[str] = "1.6"
+    _schema_version: ClassVar[str] = "1.7"
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
