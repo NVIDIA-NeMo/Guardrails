@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.22.0] - 2026-05-21
+
+### 📚 Documentation
+
+- *(guardrails)* Document max_tokens fallback and reasoning model guidance ([#1833](https://github.com/NVIDIA-NeMo/Guardrails/issues/1833)) 
+- *(colang-1)* Fix Hello World tutorial issues (NGUARD-666) ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/issues/1834)) 
+- *(telemetry)* Document anonymous usage reporting ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/issues/1891)) 
+- Add prompts.yml to code snippets ([#1904](https://github.com/NVIDIA-NeMo/Guardrails/issues/1904)) 
+- Update Benchmark README with updated configs ([#1905](https://github.com/NVIDIA-NeMo/Guardrails/issues/1905)) 
+
+### ⚙️ Miscellaneous Tasks
+
+- Include scripts in docker image ([#1902](https://github.com/NVIDIA-NeMo/Guardrails/issues/1902)) 
+
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features
