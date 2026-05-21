@@ -215,7 +215,7 @@ class TelemetryEvent(BaseModel):
     """
 
     _event_name: ClassVar[str]
-    _schema_version: ClassVar[str] = "1.8"
+    _schema_version: ClassVar[str] = "1.7"
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
