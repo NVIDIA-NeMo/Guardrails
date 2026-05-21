@@ -706,16 +706,16 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="exporting-guardrails-logs-to-opentelemetry">
 <h1>Exporting Guardrails Logs to OpenTelemetry<a class="headerlink" href="#exporting-guardrails-logs-to-opentelemetry" title="Link to this heading">#</a></h1>
-<p>The NeMo Guardrails library emits operational logs through Python’s standard <code class="docutils literal notranslate"><span class="pre">logging</span></code> module. When you have OpenTelemetry tracing configured, you can forward those log records into the same backend as your traces with a few lines of application code. Records emitted inside an active guardrails span automatically carry the span’s <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code>, so every log line correlates to the request that produced it.</p>
+<p>The NVIDIA NeMo Guardrails library emits operational logs through Python’s standard <code class="docutils literal notranslate"><span class="pre">logging</span></code> module. When you have OpenTelemetry tracing configured, you can forward those log records into the same backend as your traces with a few lines of application code. Records emitted inside an active guardrails span automatically carry the span’s <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code>, so every log line correlates to the request that produced it.</p>
 <p>This page covers the setup. For plain Python logging (verbose mode, explain, generation options), refer to <a class="reference internal" href="../logging/index.html"><span class="std std-doc">Logging and Debugging Guardrails Generated Responses</span></a>.</p>
 <section id="api-and-sdk-responsibilities">
 <h2>API and SDK Responsibilities<a class="headerlink" href="#api-and-sdk-responsibilities" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library follows the OpenTelemetry library-instrumentation pattern.</p>
+<p>The library follows the OpenTelemetry library-instrumentation pattern.</p>
 <ul class="simple">
-<li><p>The library depends on the OpenTelemetry API only. It creates spans, emits log records, and otherwise participates in whatever OTEL pipeline the host application provides.</p></li>
+<li><p>The library depends on the OpenTelemetry API only. It creates spans, emits log records, and participates in whatever OTEL pipeline the host application provides.</p></li>
 <li><p>The host application owns the SDK. Configuring a <code class="docutils literal notranslate"><span class="pre">TracerProvider</span></code>, a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code>, exporters, and attaching handlers to Python’s <code class="docutils literal notranslate"><span class="pre">logging</span></code> tree are all the application’s responsibility.</p></li>
 </ul>
-<p>This split is deliberate. It lets the NeMo Guardrails library stay decoupled from SDK-version churn, avoids the library injecting itself into a host’s observability stack without opt-in, and gives applications full control over where their telemetry is exported.</p>
+<p>This split is deliberate. It lets the library stay decoupled from SDK version churn, avoids injecting the library into a host’s observability stack without opt-in, and gives applications full control over where their telemetry is exported.</p>
 <p>The three-line recipe below is therefore a user-side setup, not something the library does for you.</p>
 </section>
 <section id="prerequisites">
@@ -741,7 +741,7 @@
 </div>
 <p>Each line does the following:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">logging.getLogger(&quot;nemoguardrails&quot;)</span></code> selects the logger namespace that catches most records emitted by the NeMo Guardrails library. Submodules that use <code class="docutils literal notranslate"><span class="pre">logging.getLogger(__name__)</span></code> inherit this handler. Verbose mode (<code class="docutils literal notranslate"><span class="pre">nemoguardrails.logging.verbose</span></code>) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">logging.getLogger(&quot;nemoguardrails&quot;)</span></code> selects the logger namespace that catches most records emitted by the library. Submodules that use <code class="docutils literal notranslate"><span class="pre">logging.getLogger(__name__)</span></code> inherit this handler. Verbose mode (<code class="docutils literal notranslate"><span class="pre">nemoguardrails.logging.verbose</span></code>) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">LoggingHandler()</span></code> is an OpenTelemetry-provided <code class="docutils literal notranslate"><span class="pre">logging.Handler</span></code> subclass that converts each Python <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code> into an OTEL log record. On first emit it resolves the active <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> through <code class="docutils literal notranslate"><span class="pre">get_logger_provider()</span></code>, caches the resulting logger, and attaches trace context automatically.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">.addHandler(...)</span></code> attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host’s existing handlers (console, files, and so on) and the OpenTelemetry pipeline, provided a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> was configured before this call.</p></li>
 </ul>
@@ -840,7 +840,7 @@
 </tbody>
 </table>
 </div>
-<p>Log records emitted outside any guardrails request (startup, engine registration, teardown) still flow through, but their <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> / <code class="docutils literal notranslate"><span class="pre">span_id</span></code> are zero because there is no active span.</p>
+<p>Log records emitted outside any guardrails request, such as startup, engine registration, or teardown, still flow through. Their <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code> are zero because there is no active span.</p>
 </section>
 <section id="considerations">
 <h2>Considerations<a class="headerlink" href="#considerations" title="Link to this heading">#</a></h2>

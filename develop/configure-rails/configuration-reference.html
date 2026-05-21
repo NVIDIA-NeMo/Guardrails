@@ -713,7 +713,7 @@
 <hr class="docutils" />
 <section id="models-configuration">
 <h2>Models Configuration<a class="headerlink" href="#models-configuration" title="Link to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">models</span></code> key defines LLM providers and models used by NeMo Guardrails.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">models</span></code> key defines LLM providers and models used by the NVIDIA NeMo Guardrails library.</p>
 <section id="model-schema">
 <h3>Model Schema<a class="headerlink" href="#model-schema" title="Link to this heading">#</a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
@@ -770,7 +770,7 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.parameters</span></code></p></td>
 <td><p>object</p></td>
 <td><p></p></td>
-<td><p>Provider-specific parameters. For engines served by the built-in client (any OpenAI-compatible endpoint), the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request (for example <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>, <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>). For engines served by LangChain (opt-in with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>), the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the underlying LangChain class. For the engine-by-engine matrix, see <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>.</p></td>
+<td><p>Provider-specific parameters. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request. Examples include <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>, <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, and <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>. For engines served by LangChain, opt in with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>; the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the underlying LangChain class. For the engine-by-engine matrix, refer to <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.type</span></code></p></td>
 <td><p>string</p></td>
@@ -786,7 +786,7 @@
 <p>The <code class="docutils literal notranslate"><span class="pre">type</span></code> field is a free-form string identifier. Certain types have special handling in the runtime, while custom types can be defined and referenced in flows via <code class="docutils literal notranslate"><span class="pre">$model=&lt;type&gt;</span></code>.</p>
 <section id="reserved-types">
 <h4>Reserved Types<a class="headerlink" href="#reserved-types" title="Link to this heading">#</a></h4>
-<p>These types have special handling in the NeMo Guardrails runtime:</p>
+<p>These types have special handling in the runtime:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Type</p></th>
@@ -853,7 +853,7 @@
 </section>
 <section id="engines">
 <h3>Engines<a class="headerlink" href="#engines" title="Link to this heading">#</a></h3>
-<p>Starting with version 0.22, NeMo Guardrails serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping see <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>; for migration recipes see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
+<p>Starting with v0.22, the library serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping, refer to <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>. For migration recipes, refer to <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
 <section id="built-in-engines">
 <h4>Built-in Engines<a class="headerlink" href="#built-in-engines" title="Link to this heading">#</a></h4>
 <p>These engines work with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> and do not require extra provider packages. Pass <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to point at a self-hosted or alternative endpoint.</p>
@@ -922,7 +922,7 @@
 <td><p>Google Vertex AI through LangChain (requires <code class="docutils literal notranslate"><span class="pre">langchain-google-vertexai</span></code>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code></p></td>
-<td><p>Legacy LangChain wrapper for vLLM. For new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
+<td><p>Legacy LangChain wrapper for vLLM. For new configurations, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -1586,7 +1586,7 @@
 </tbody>
 </table>
 </div>
-<p>If the detected language is not in this list, English is used as the fallback. For more details, refer to <a class="reference internal" href="guardrail-catalog/content-safety.html#multilingual-refusal-messages"><span class="std std-ref">Multilingual Content Safety</span></a>.</p>
+<p>If the detected language is not in this list, English is used as the fallback. For more information, refer to <a class="reference internal" href="guardrail-catalog/content-safety.html#multilingual-refusal-messages"><span class="std std-ref">Multilingual Content Safety</span></a>.</p>
 </section>
 <section id="third-party-integrations">
 <h4>Third-Party Integrations<a class="headerlink" href="#third-party-integrations" title="Link to this heading">#</a></h4>

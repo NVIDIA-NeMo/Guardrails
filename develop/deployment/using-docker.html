@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Deploy NeMo Guardrails Library with Docker &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Deploy the NeMo Guardrails Library with Docker &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -684,7 +684,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Deploy NeMo Guardrails Library with Docker</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Deploy the NeMo Guardrails Library with Docker</span></li>
   </ul>
 </nav>
 </div>
@@ -701,17 +701,17 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="deploy-nemo-guardrails-library-with-docker">
-<h1>Deploy NeMo Guardrails Library with Docker<a class="headerlink" href="#deploy-nemo-guardrails-library-with-docker" title="Link to this heading">#</a></h1>
-<p>This guide provides step-by-step instructions for running the NeMo Guardrails library using Docker. Docker offers a seamless and rapid deployment method for getting started with the NeMo Guardrails library.</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="deploy-the-nemo-guardrails-library-with-docker">
+<h1>Deploy the NeMo Guardrails Library with Docker<a class="headerlink" href="#deploy-the-nemo-guardrails-library-with-docker" title="Link to this heading">#</a></h1>
+<p>This guide shows how to run the NVIDIA NeMo Guardrails library using Docker. Docker provides a direct deployment method for getting started with the library.</p>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<p>Ensure Docker is installed on your machine. If not, follow the <a class="reference external" href="https://docs.docker.com/get-docker/" rel="noreferer noopener" target="_blank">official Docker installation guide</a> for your respective platform.</p>
+<p>Ensure Docker is installed on your machine. If Docker is not installed, follow the <a class="reference external" href="https://docs.docker.com/get-docker/" rel="noreferer noopener" target="_blank">official Docker installation guide</a> for your platform.</p>
 </section>
 <section id="llm-framework-selection">
 <h2>LLM Framework Selection<a class="headerlink" href="#llm-framework-selection" title="Link to this heading">#</a></h2>
-<p>By default, NeMo Guardrails uses the lightweight default framework (httpx-based, no LangChain). It serves engines such as <code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">azure</span></code>, and <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code>, plus any other OpenAI-compatible provider configured with <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> (for example self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp).</p>
-<p>To use LangChain-only engines whose API is not OpenAI-compatible (<code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code> with the default text-generation schema, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>, and the legacy <code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code> LangChain wrapper), set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> in the container environment and add <code class="docutils literal notranslate"><span class="pre">langchain</span></code> plus the relevant provider packages to your image. For example:</p>
+<p>By default, the library uses the lightweight default framework, which is based on <code class="docutils literal notranslate"><span class="pre">httpx</span></code> and does not require LangChain. It serves engines such as <code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">azure</span></code>, and <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code>. It also serves any other OpenAI-compatible provider configured with <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>, such as self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, or <code class="docutils literal notranslate"><span class="pre">llama.cpp</span></code>.</p>
+<p>To use LangChain-only engines whose API is not OpenAI-compatible, set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> in the container environment and add <code class="docutils literal notranslate"><span class="pre">langchain</span></code> plus the relevant provider packages to your image. These engines include <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code> with the default text-generation schema, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>, and the legacy <code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code> LangChain wrapper. For example:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain<span class="w"> </span><span class="se">\</span>
@@ -719,55 +719,59 @@
 <span class="w">  </span>nemoguardrails
 </pre></div>
 </div>
-<p>Replace <code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code> with the credential your provider uses (for example, <code class="docutils literal notranslate"><span class="pre">GOOGLE_APPLICATION_CREDENTIALS</span></code> for Vertex AI or <code class="docutils literal notranslate"><span class="pre">COHERE_API_KEY</span></code> for Cohere). For file-based credentials such as Vertex AI service-account JSON, mount the credential file into the container and set the environment variable to the in-container path; for example, bind-mount host <code class="docutils literal notranslate"><span class="pre">service-account.json</span></code> to <code class="docutils literal notranslate"><span class="pre">/secrets/service-account.json</span></code> and set <code class="docutils literal notranslate"><span class="pre">GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json</span></code>. Secure the host credential file and configure equivalent bind-mount and environment settings in <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span></code> or Docker Compose.</p>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code> with the credential your provider uses, such as <code class="docutils literal notranslate"><span class="pre">GOOGLE_APPLICATION_CREDENTIALS</span></code> for Vertex AI or <code class="docutils literal notranslate"><span class="pre">COHERE_API_KEY</span></code> for Cohere. For file-based credentials such as Vertex AI service-account JSON, mount the credential file into the container and set the environment variable to the in-container path. For example, bind-mount host <code class="docutils literal notranslate"><span class="pre">service-account.json</span></code> to <code class="docutils literal notranslate"><span class="pre">/secrets/service-account.json</span></code> and set <code class="docutils literal notranslate"><span class="pre">GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json</span></code>. Secure the host credential file and configure equivalent bind-mount and environment settings in <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span></code> or Docker Compose.</p>
 </section>
 <section id="build-the-docker-images">
 <h2>Build the Docker Images<a class="headerlink" href="#build-the-docker-images" title="Link to this heading">#</a></h2>
-<section id="clone-the-repository">
-<h3>1. Clone the repository<a class="headerlink" href="#clone-the-repository" title="Link to this heading">#</a></h3>
-<p>Start by cloning the NeMo Guardrails repository:</p>
+<p>To build the Docker images, complete the following steps:</p>
+<ol class="arabic">
+<li><p>Clone the repository.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA-NeMo/Guardrails.git<span class="w"> </span>nemoguardrails
 </pre></div>
 </div>
-<p>And change directory into the repository:</p>
+</li>
+<li><p>Change directory into the repository.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>nemoguardrails
 </pre></div>
 </div>
-</section>
-<section id="build-the-docker-image">
-<h3>2. Build the Docker image<a class="headerlink" href="#build-the-docker-image" title="Link to this heading">#</a></h3>
-<p>Build the <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code> Docker image:</p>
+</li>
+<li><p>Build the <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code> Docker image.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>nemoguardrails<span class="w"> </span>.
 </pre></div>
 </div>
-</section>
-<section id="optional-build-the-alignscore-server-image">
-<h3>3. [Optional] Build the AlignScore Server Image<a class="headerlink" href="#optional-build-the-alignscore-server-image" title="Link to this heading">#</a></h3>
+</li>
+<li><p>Optional: Build the AlignScore server image.</p>
 <p>If you want to use AlignScore-based fact-checking, you can also build a Docker image using the provided <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/factchecking/align_score/Dockerfile" rel="noreferer noopener" target="_blank">Dockerfile</a>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>nemoguardrails/library/factchecking/align_score
 docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>alignscore-server<span class="w"> </span>.
 </pre></div>
 </div>
-<p>NOTE: the provided Dockerfile downloads only the <code class="docutils literal notranslate"><span class="pre">base</span></code> AlignScore image. If you want support for the large model, uncomment the corresponding line in the Dockerfile.</p>
-</section>
-<section id="optional-build-the-jailbreak-detection-heuristics-server-image">
-<h3>4. [Optional] Build the Jailbreak Detection Heuristics Server Image<a class="headerlink" href="#optional-build-the-jailbreak-detection-heuristics-server-image" title="Link to this heading">#</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The provided Dockerfile downloads only the <code class="docutils literal notranslate"><span class="pre">base</span></code> AlignScore image. For large model support, uncomment the corresponding line in the Dockerfile.</p>
+</div>
+</li>
+<li><p>Optional: Build the jailbreak detection heuristics server image.</p>
 <p>If you want to use the jailbreak detection heuristics server, you can also build a Docker image using the provided <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/jailbreak_detection/Dockerfile" rel="noreferer noopener" target="_blank">Dockerfile</a>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>nemoguardrails/library/jailbreak_detection
 docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>jailbreak_detection_heuristics<span class="w"> </span>.
 </pre></div>
 </div>
+</li>
+</ol>
 </section>
-</section>
-<section id="running-using-docker">
-<h2>Running using Docker<a class="headerlink" href="#running-using-docker" title="Link to this heading">#</a></h2>
-<p>To run the NeMo Guardrails library server using the Docker image, run the following command:</p>
+<section id="run-using-docker">
+<h2>Run Using Docker<a class="headerlink" href="#run-using-docker" title="Link to this heading">#</a></h2>
+<p>To run the library server using the Docker image, run the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span>-e<span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span><span class="nv">$OPENAI_API_KEY</span><span class="w"> </span>nemoguardrails
 </pre></div>
 </div>
-<p>This will start the NeMo Guardrails library server with the example configurations. The Chat UI will be accessible at <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code>.</p>
-<p>NOTE: Since the example configurations use OpenAI models (such as <code class="docutils literal notranslate"><span class="pre">gpt-3.5-turbo-instruct</span></code> and <code class="docutils literal notranslate"><span class="pre">gpt-4</span></code>), you need to provide an <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code>.</p>
-<p>To specify your own config folder for the server, you have to mount your local configuration into the <code class="docutils literal notranslate"><span class="pre">/config</span></code> path into the container:</p>
+<p>This command starts the library server with the example configurations. The Chat UI is accessible at <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because the example configurations use OpenAI models such as <code class="docutils literal notranslate"><span class="pre">gpt-3.5-turbo-instruct</span></code> and <code class="docutils literal notranslate"><span class="pre">gpt-4</span></code>, you must provide an <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code>.</p>
+</div>
+<p>To specify your own config folder for the server, mount your local configuration into the <code class="docutils literal notranslate"><span class="pre">/config</span></code> path in the container:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span><span class="nv">$OPENAI_API_KEY</span><span class="w"> </span><span class="se">\</span>
@@ -784,12 +788,12 @@ docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </
 </div>
 </section>
 <section id="alignscore-fact-checking">
-<h2>AlignScore Fact-checking<a class="headerlink" href="#alignscore-fact-checking" title="Link to this heading">#</a></h2>
-<p>If one of your configurations uses the AlignScore fact-checking model, you can run the AlignScore server in a separate container:</p>
+<h2>AlignScore Fact-Checking<a class="headerlink" href="#alignscore-fact-checking" title="Link to this heading">#</a></h2>
+<p>If one of your configurations uses the AlignScore fact-checking model, run the AlignScore server in a separate container:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">5000</span>:5000<span class="w"> </span>alignscore-server
 </pre></div>
 </div>
-<p>This will start the AlignScore server on port <code class="docutils literal notranslate"><span class="pre">5000</span></code>. You can then specify the AlignScore server URL in your configuration file:</p>
+<p>This command starts the AlignScore server on port <code class="docutils literal notranslate"><span class="pre">5000</span></code>. You can then specify the AlignScore server URL in your configuration file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">config</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">fact_checking</span><span class="p">:</span>
@@ -854,15 +858,9 @@ docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-framework-selection">LLM Framework Selection</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-the-docker-images">Build the Docker Images</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#clone-the-repository">1. Clone the repository</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-the-docker-image">2. Build the Docker image</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-build-the-alignscore-server-image">3. [Optional] Build the AlignScore Server Image</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-build-the-jailbreak-detection-heuristics-server-image">4. [Optional] Build the Jailbreak Detection Heuristics Server Image</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-using-docker">Running using Docker</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alignscore-fact-checking">AlignScore Fact-checking</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-the-docker-images">Build the Docker Images</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-using-docker">Run Using Docker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alignscore-fact-checking">AlignScore Fact-Checking</a></li>
 </ul>
   </nav></div>
 

@@ -706,10 +706,10 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="model-configuration">
 <h1>Model Configuration<a class="headerlink" href="#model-configuration" title="Link to this heading">#</a></h1>
-<p>In this section, learn how to configure the models used in your guardrails configuration. For a complete reference of all configuration options, refer to the <a class="reference internal" href="../configuration-reference.html"><span class="std std-doc">Configuration YAML Schema Reference</span></a>.</p>
+<p>In this page, learn how to configure the <code class="docutils literal notranslate"><span class="pre">models</span></code> section in your Guardrails <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. For a complete reference of all configuration options, refer to the <a class="reference internal" href="../configuration-reference.html"><span class="std std-doc">Configuration YAML Schema Reference</span></a>.</p>
 <section id="nvidia-nim-configuration">
 <h2>NVIDIA NIM Configuration<a class="headerlink" href="#nvidia-nim-configuration" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library provides seamless integration with NVIDIA NIM microservices:</p>
+<p>The NVIDIA NeMo Guardrails library integrates with NVIDIA NIM microservices:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -718,13 +718,13 @@
 </div>
 <p>This provides access to:</p>
 <ul class="simple">
-<li><p><strong>Locally-deployed NIMs</strong>: Run models on your own infrastructure with optimized inference.</p></li>
-<li><p><strong>NVIDIA API Catalog</strong>: Access hosted models on <a class="reference external" href="https://build.nvidia.com/models" rel="noreferer noopener" target="_blank">build.nvidia.com</a>.</p></li>
-<li><p><strong>Specialized NIMs</strong>: NemoGuard Content Safety, Topic Control, and Jailbreak Detect.</p></li>
+<li><p>Locally deployed NIMs. You can run models on your own infrastructure with optimized inference.</p></li>
+<li><p>NVIDIA API Catalog. You can access hosted models on <a class="reference external" href="https://build.nvidia.com/models" rel="noreferer noopener" target="_blank">build.nvidia.com</a>.</p></li>
+<li><p>Specialized NIMs. Includes NemoGuard Content Safety, Topic Control, and Jailbreak Detect.</p></li>
 </ul>
 <section id="local-nim-deployment">
 <h3>Local NIM Deployment<a class="headerlink" href="#local-nim-deployment" title="Link to this heading">#</a></h3>
-<p>For locally-deployed NIMs, specify the base URL:</p>
+<p>For locally deployed NIMs, specify the base URL:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -784,11 +784,11 @@
 <span class="w">      </span><span class="nt">api_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-02-15-preview&quot;</span>
 </pre></div>
 </div>
-<p>The resource endpoint can be supplied as <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code> (preferred, matches the OpenAI Python SDK) or <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (v0.21-compatibility alias). Both accept the resource URL only; the deployment path is composed by the framework. Setting both raises an error.</p>
-<p>Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> in the environment, or set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> on the model entry, or pass <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> directly. The framework constructs the deployment URL, sets <code class="docutils literal notranslate"><span class="pre">api-version</span></code> as a query parameter, and authenticates with the <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
+<p>You can supply the resource endpoint as <code class="docutils literal notranslate"><span class="pre">azure_endpoint</span></code> (preferred, matches the OpenAI Python SDK) or <code class="docutils literal notranslate"><span class="pre">base_url</span></code> (v0.21-compatibility alias). Both fields accept only the resource URL. The framework composes the deployment path. Setting both raises an error.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">AZURE_OPENAI_API_KEY</span></code> in the environment, set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> on the model entry, or pass <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> directly. The framework constructs the deployment URL, sets <code class="docutils literal notranslate"><span class="pre">api-version</span></code> as a query parameter, and authenticates with the <code class="docutils literal notranslate"><span class="pre">api-key</span></code> header.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD / token-based authentication, configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. See <a class="reference internal" href="../../migration/0.22.html#azure-openai"><span class="std std-ref">Migrating to 0.22</span></a> for both alternatives.</p>
+<p>Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> manually or use LangChain with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Refer to <a class="reference internal" href="../../migration/0.22.html#azure-openai"><span class="std std-ref">Migrating to 0.22</span></a> for both alternatives.</p>
 </div>
 </section>
 <section id="anthropic">
@@ -802,7 +802,7 @@
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Anthropic’s API isn’t OpenAI-compatible, so this engine is opt-in: set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-anthropic</span></code>. For background, see <a class="reference internal" href="../../migration/0.22.html#using-langchain"><span class="std std-ref">Migrating to 0.22</span></a>.</p>
+<p>Anthropic’s API is not OpenAI-compatible, so this engine is opt-in. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-anthropic</span></code>. For background, refer to <a class="reference internal" href="../../migration/0.22.html#using-langchain"><span class="std std-ref">Migrating to 0.22</span></a>.</p>
 </div>
 </section>
 <section id="vllm-openai-compatible">
@@ -827,7 +827,7 @@
 <span class="w">      </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EMPTY</span>
 </pre></div>
 </div>
-<p>When self-hosted vLLM does not enforce authentication, set <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> to any non-empty placeholder such as <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code>. If your deployment requires a real token, replace <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> with the literal token, or omit it and set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> at the <strong>top level</strong> of the model entry (not inside <code class="docutils literal notranslate"><span class="pre">parameters:</span></code>):</p>
+<p>When self-hosted vLLM does not enforce authentication, set <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> to a non-empty placeholder such as <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code>. If your deployment requires a real token, replace <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> with the literal token, or omit it and set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> at the top level of the model entry, not inside <code class="docutils literal notranslate"><span class="pre">parameters</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
 <span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/Llama-3.1-8B-Instruct</span>
@@ -838,7 +838,7 @@
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
+<p>Set the referenced environment variable before calling <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code>. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. A Pydantic validator on the model schema performs the check eagerly.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -846,8 +846,8 @@
 </div>
 </section>
 <section id="other-openai-compatible-endpoints">
-<h3>Other OpenAI-compatible endpoints<a class="headerlink" href="#other-openai-compatible-endpoints" title="Link to this heading">#</a></h3>
-<p>The same <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> pattern works for any provider whose wire protocol is OpenAI-compatible, including OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek’s hosted API at <code class="docutils literal notranslate"><span class="pre">https://api.deepseek.com/v1</span></code>, TGI deployments that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, and <code class="docutils literal notranslate"><span class="pre">llama.cpp</span></code> server with <code class="docutils literal notranslate"><span class="pre">--api</span></code>. Provide <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and either <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> or a top-level <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code>.</p>
+<h3>Other OpenAI-Compatible Endpoints<a class="headerlink" href="#other-openai-compatible-endpoints" title="Link to this heading">#</a></h3>
+<p>The same <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> pattern works for any provider whose wire protocol is OpenAI-compatible. Examples include OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek’s hosted API at <code class="docutils literal notranslate"><span class="pre">https://api.deepseek.com/v1</span></code>, TGI deployments that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, and the <code class="docutils literal notranslate"><span class="pre">llama.cpp</span></code> server with <code class="docutils literal notranslate"><span class="pre">--api</span></code>. Provide <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and either <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> or a top-level <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code>.</p>
 </section>
 <section id="google-vertex-ai">
 <h3>Google Vertex AI<a class="headerlink" href="#google-vertex-ai" title="Link to this heading">#</a></h3>
@@ -860,7 +860,7 @@
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Vertex AI’s API isn’t OpenAI-compatible, so this engine is opt-in: set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-google-vertexai</span></code>. For background, see <a class="reference internal" href="../../migration/0.22.html#using-langchain"><span class="std std-ref">Migrating to 0.22</span></a>.</p>
+<p>Vertex AI’s API is not OpenAI-compatible, so this engine is opt-in. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-google-vertexai</span></code>. For background, refer to <a class="reference internal" href="../../migration/0.22.html#using-langchain"><span class="std std-ref">Migrating to 0.22</span></a>.</p>
 </div>
 </section>
 <section id="complete-example">
@@ -896,7 +896,7 @@
 <hr class="docutils" />
 <section id="model-parameters">
 <h2>Model Parameters<a class="headerlink" href="#model-parameters" title="Link to this heading">#</a></h2>
-<p>Pass additional parameters to the underlying LLM client. For engines served by the built-in client (any OpenAI-compatible endpoint), parameters are forwarded to the OpenAI-compatible HTTP request (for example, <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>, <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>). For LangChain engines, parameters follow the conventions of the underlying LangChain class.</p>
+<p>Pass additional parameters to the underlying LLM client. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards parameters to the OpenAI-compatible HTTP request. Examples include <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>, <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, and <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>. For LangChain engines, parameters follow the conventions of the underlying LangChain class.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
@@ -970,7 +970,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#azure-openai">Azure OpenAI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#anthropic">Anthropic</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vllm-openai-compatible">vLLM (OpenAI-Compatible)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#other-openai-compatible-endpoints">Other OpenAI-compatible endpoints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#other-openai-compatible-endpoints">Other OpenAI-Compatible Endpoints</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#google-vertex-ai">Google Vertex AI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-example">Complete Example</a></li>
 </ul>

@@ -717,130 +717,97 @@ For a complete record of changes in a release, refer to the
 <span id="v0-22-0-features"></span><h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>LangChain is now optional. <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> no longer pulls
-LangChain or any provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages. The library ships
-with a built-in client that talks to OpenAI-compatible endpoints directly
-over <code class="docutils literal notranslate"><span class="pre">httpx</span></code>. Engines whose API isn’t OpenAI-compatible (Anthropic, Cohere,
-Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM,
-and others) keep working through LangChain when you opt in with
-<code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install the matching provider
-package. Most 0.21 configurations keep working unchanged; some shapes need
-a YAML rewrite. For recipes, see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p></li>
+LangChain or any provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages. The NVIDIA NeMo
+Guardrails library ships with a built-in client that talks to
+OpenAI-compatible endpoints directly over <code class="docutils literal notranslate"><span class="pre">httpx</span></code>. Engines whose API isn’t
+OpenAI-compatible (Anthropic, Cohere, Vertex AI, Google Generative AI,
+in-process Hugging Face, TensorRT-LLM, and others) keep working through
+LangChain when you opt in with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and
+install the matching provider package. Most 0.21 configurations keep working
+unchanged; some shapes need a YAML rewrite. For recipes, refer to
+<a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to v0.22.0</span></a>, the
+<a class="reference internal" href="supported-llms.html"><span class="std std-doc">Supported LLMs</span></a> matrix, and
+<a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html"><span class="std std-doc">Model Configuration</span></a>.</p></li>
+<li><p>OpenAI-compatible service support is improved in the default framework.
+The default framework now supports OpenAI-compatible providers directly,
+includes native Azure OpenAI support through <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> and
+<code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure_openai</span></code>, and documents how to migrate provider-specific
+LangChain parameters to the new <code class="docutils literal notranslate"><span class="pre">base_url</span></code>-based configuration shape. For
+more information, refer to
+<a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to v0.22.0</span></a>,
+<a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html"><span class="std std-doc">Model Configuration</span></a>,
+<a class="reference internal" href="../configure-rails/configuration-reference.html"><span class="std std-doc">Configuration Reference</span></a>, and
+<a class="reference internal" href="../deployment/using-docker.html"><span class="std std-doc">Using Docker</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> adds streaming support, reasoning-model support, and speculative
+generation support. The optimized input and output rails engine now supports
+streaming output rails, <code class="docutils literal notranslate"><span class="pre">stream_async()</span></code> integration in chat and server flows,
+non-streaming and streaming reasoning-model responses, and speculative
+generation for non-streaming <code class="docutils literal notranslate"><span class="pre">generate_async()</span></code> calls. For more information,
+refer to
+<a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.html"><span class="std std-doc">Parallel Rails</span></a>,
+<a class="reference internal" href="../run-rails/using-python-apis/streaming.html"><span class="std std-doc">Streaming</span></a>, and
+<a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/speculative-generation.html"><span class="std std-doc">Speculative Generation</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> adds OpenTelemetry observability with logging, tracing, and
+metrics support. The documentation covers OTLP setup, Prometheus client
+installation, request-level and token-level metrics, and the recommended
+<code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> entry point for the optimized input and output rails engine. For
+more information, refer to
+<a class="reference internal" href="../observability/index.html"><span class="std std-doc">Observability</span></a>,
+<a class="reference internal" href="../observability/tracing/opentelemetry-logs.html"><span class="std std-doc">OpenTelemetry Logs</span></a>,
+<a class="reference internal" href="../observability/tracing/opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Tracing</span></a>,
+<a class="reference internal" href="../observability/metrics/opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Metrics</span></a>,
+<a class="reference internal" href="../observability/metrics/enable-metrics.html"><span class="std std-doc">Enable Metrics</span></a>, and the
+<a class="reference internal" href="../observability/metrics/reference.html"><span class="std std-doc">Metrics Reference</span></a>.</p></li>
+<li><p>Anonymous usage reporting is documented with clear privacy boundaries and
+opt-out controls. The telemetry reference explains what fields are collected,
+what data is excluded, how local audit files work, and how to opt out with
+<code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_NO_USAGE_STATS=1</span></code>, <code class="docutils literal notranslate"><span class="pre">DO_NOT_TRACK=1</span></code>, or the
+<code class="docutils literal notranslate"><span class="pre">~/.config/nemoguardrails/do_not_track</span></code> file. For more information, refer to
+<a class="reference internal" href="../telemetry.html"><span class="std std-doc">Telemetry</span></a>.</p></li>
+</ul>
+</section>
+<section id="breaking-changes">
+<span id="v0-22-0-breaking-changes"></span><h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Moved <code class="docutils literal notranslate"><span class="pre">AsyncWorkQueue</span></code> from the top-level <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> object to
+<code class="docutils literal notranslate"><span class="pre">IORails</span></code>. This removes buffering for non-streaming <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> requests when
+you use the top-level <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> object. This change only affects existing implementations that
+set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code> or instantiate <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> directly.</p></li>
+</ul>
+</section>
+<section id="enhancements">
+<span id="v0-22-0-enhancements"></span><h3>Enhancements<a class="headerlink" href="#enhancements" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The GLiNER PII connector documentation and notebook are updated for the new
+GLiNER PII NIM. The examples cover both remote and local deployment modes
+and API key configuration for the connector. For more information, refer to
+<a class="reference internal" href="../configure-rails/guardrail-catalog/community/gliner.html"><span class="std std-doc">GLiNER</span></a> and
+<a class="reference internal" href="../configure-rails/guardrail-catalog/pii-detection.html"><span class="std std-doc">PII Detection</span></a>.</p></li>
 <li><p>Public extension points for LLM integration. Two new protocols, <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code>
 and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>, let you plug in a custom
-backend or a whole alternative framework without touching internals.</p></li>
+backend or a whole alternative framework without touching internals. For more
+information, refer to
+<a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-model.html"><span class="std std-doc">Custom LLM Models</span></a>
+and
+<a class="reference internal" href="../configure-rails/custom-initialization/custom-llm-framework.html"><span class="std std-doc">Custom LLM Frameworks</span></a>.</p></li>
 <li><p>Public testing surface. The <code class="docutils literal notranslate"><span class="pre">nemoguardrails.testing</span></code> module exposes
 <code class="docutils literal notranslate"><span class="pre">FakeLLMModel</span></code>, <code class="docutils literal notranslate"><span class="pre">TestChat</span></code>, and pytest fixtures for writing tests against a
 guardrails configuration without calling a real model.</p></li>
 </ul>
 </section>
-</section>
-<section id="v0-21-0">
-<span id="id2"></span><h2>0.21.0<a class="headerlink" href="#v0-21-0" title="Link to this heading">#</a></h2>
-<section id="v0-21-0-features">
-<span id="id3"></span><h3>Key Features<a class="headerlink" href="#v0-21-0-features" title="Link to this heading">#</a></h3>
+<section id="documentation-and-behavior-fixes">
+<span id="v0-22-0-doc-and-behavior-fixes"></span><h3>Documentation and Behavior Fixes<a class="headerlink" href="#documentation-and-behavior-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Added the <code class="docutils literal notranslate"><span class="pre">IORails</span></code> class, a new optimized execution engine that runs NemoGuard input and output rails, such as
-content-safety, topic-safety, and jailbreak detection, in parallel. The engine is opt-in:
-set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code> to enable it. When enabled, the configuration is
-validated for compatibility and falls back to LLMRails if unsupported flows are detected.
-For more information, refer to <a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.html#iorails-engine"><span class="std std-ref">IORails Engine</span></a>.</p></li>
-<li><p>Added the <code class="docutils literal notranslate"><span class="pre">check_async()</span></code> and <code class="docutils literal notranslate"><span class="pre">check()</span></code> methods on <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> to enable validating messages against input and output rails without triggering full LLM generation.
-Returns a <code class="docutils literal notranslate"><span class="pre">RailsResult</span></code> with <code class="docutils literal notranslate"><span class="pre">PASSED</span></code>, <code class="docutils literal notranslate"><span class="pre">MODIFIED</span></code>, or <code class="docutils literal notranslate"><span class="pre">BLOCKED</span></code> status.
-For more information, refer to <a class="reference internal" href="../run-rails/using-python-apis/check-messages.html"><span class="std std-doc">Checking Messages Against Rails</span></a>.</p></li>
-<li><p>The guardrails server now exposes a fully OpenAI-compatible
-REST API. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint accepts standard <code class="docutils literal notranslate"><span class="pre">ChatCompletion</span></code> requests with a
-<code class="docutils literal notranslate"><span class="pre">guardrails</span></code> field for config selection. A new <code class="docutils literal notranslate"><span class="pre">/v1/models</span></code> endpoint lists available models from the
-configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now a required component of the optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).
-For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
-<li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
-LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
-every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
-convenience subclasses (requires <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>).
-For more information, refer to <a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Agent Middleware</span></a>.</p></li>
-<li><p>Added three new community rails:
-<a class="reference internal" href="../configure-rails/guardrail-catalog/community/policyai.html"><span class="std std-doc">PolicyAI</span></a> for policy-based content moderation,
-<a class="reference internal" href="../configure-rails/guardrail-catalog/community/crowdstrike-aidr.html"><span class="std std-doc">CrowdStrike AIDR</span></a> for AI-powered detection and response, and
-<a class="reference internal" href="../configure-rails/guardrail-catalog/community/regex.html"><span class="std std-doc">Regex Detection</span></a> for pattern-based content filtering on input, output, and retrieval.</p></li>
-<li><p>Jailbreak detection configuration is now validated at
-create-time. Invalid thresholds and malformed URLs raise errors immediately.
-For more information, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/jailbreak-protection.html#configuration-validation"><span class="std std-ref">Configuration Validation</span></a>.</p></li>
-<li><p>Embedding indexes are now initialized lazily.
-FastEmbed models are only downloaded when semantic search is needed, reducing startup time for
-configurations that use only input and output rails.</p></li>
-</ul>
-</section>
-<section id="breaking-changes">
-<span id="v0-21-0-breaking-changes"></span><h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Link to this heading">#</a></h3>
-<ul>
-<li><p>Streaming metadata parameter renamed. The <code class="docutils literal notranslate"><span class="pre">include_generation_metadata</span></code> parameter on
-<code class="docutils literal notranslate"><span class="pre">LLMRails.stream_async()</span></code> and <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> is deprecated in favor of <code class="docutils literal notranslate"><span class="pre">include_metadata</span></code>.
-The <code class="docutils literal notranslate"><span class="pre">generation_info</span></code> field in streaming chunk dicts is renamed to <code class="docutils literal notranslate"><span class="pre">metadata</span></code>.
-The deprecated parameter still works and emits a <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Before (deprecated)</span>
-<span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">rails</span><span class="o">.</span><span class="n">stream_async</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">,</span> <span class="n">include_generation_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="n">info</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="s2">&quot;generation_info&quot;</span><span class="p">]</span>
-
-<span class="c1"># After</span>
-<span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">rails</span><span class="o">.</span><span class="n">stream_async</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">,</span> <span class="n">include_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="n">info</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span>
-</pre></div>
-</div>
-</li>
-<li><p><code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> no longer inherits from LangChain <code class="docutils literal notranslate"><span class="pre">AsyncCallbackHandler</span></code>.
-Streaming now uses <code class="docutils literal notranslate"><span class="pre">llm.astream()</span></code> with direct <code class="docutils literal notranslate"><span class="pre">push_chunk()</span></code> calls.
-If your code depends on <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> as a LangChain callback, update it to use the
-new <code class="docutils literal notranslate"><span class="pre">push_chunk()</span></code> interface.</p></li>
-<li><p>Removed the <code class="docutils literal notranslate"><span class="pre">stream_usage</span></code> parameter. The <code class="docutils literal notranslate"><span class="pre">stream_usage=True</span></code> parameter is no longer
-automatically added to LLM call kwargs. Streaming metadata is now captured through
-<code class="docutils literal notranslate"><span class="pre">response_metadata</span></code> and <code class="docutils literal notranslate"><span class="pre">usage_metadata</span></code> on final chunks.</p></li>
-<li><p>Server request and response format changed. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint now uses
-OpenAI-compatible request and response schemas. The previous <code class="docutils literal notranslate"><span class="pre">RequestBody</span></code> and <code class="docutils literal notranslate"><span class="pre">ResponseBody</span></code>
-classes are removed. For the new format, refer to
-<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
-<li><p>ChatNVIDIA streaming patch removed. The custom
-<code class="docutils literal notranslate"><span class="pre">_langchain_nvidia_ai_endpoints_patch.py</span></code> module is removed.
-The standard <code class="docutils literal notranslate"><span class="pre">ChatNVIDIA</span></code> from <code class="docutils literal notranslate"><span class="pre">langchain_nvidia_ai_endpoints</span></code> is used directly.</p></li>
-</ul>
-</section>
-<section id="bug-fixes">
-<span id="v0-21-0-bug-fixes"></span><h3>Bug Fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p>Fixed a naming mismatch where the <code class="docutils literal notranslate"><span class="pre">generate_next_step</span></code> action did not match the
-<code class="docutils literal notranslate"><span class="pre">generate_next_steps</span></code> task enum value, which prevented task-specific LLM configuration
-from working correctly (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1603" rel="noreferer noopener" target="_blank">#1603</a>).</p></li>
-<li><p>Added the <code class="docutils literal notranslate"><span class="pre">valid</span></code> alias to action results in the GuardrailsAI integration so that
-Colang flows checking <code class="docutils literal notranslate"><span class="pre">$result[&quot;valid&quot;]</span></code> work as expected (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1611" rel="noreferer noopener" target="_blank">#1611</a>).</p></li>
-<li><p>Filtered the <code class="docutils literal notranslate"><span class="pre">stop</span></code> parameter for OpenAI reasoning models (such as GPT-5) that do not
-accept it, preventing <code class="docutils literal notranslate"><span class="pre">400</span></code> errors during dialogue rail execution (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1653" rel="noreferer noopener" target="_blank">#1653</a>).</p></li>
-<li><p>Fixed GLiNER PII detection to use “bot refuse to respond” instead of
-“bot inform answer unknown”, which returned a misleading “I don’t know” message (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1671" rel="noreferer noopener" target="_blank">#1671</a>).</p></li>
-<li><p>Fixed a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> when <code class="docutils literal notranslate"><span class="pre">stop=None</span></code> is passed to <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> by coercing
-<code class="docutils literal notranslate"><span class="pre">None</span></code> to an empty list (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1685" rel="noreferer noopener" target="_blank">#1685</a>).</p></li>
-<li><p>Fixed a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> in <code class="docutils literal notranslate"><span class="pre">RollingBuffer.format_chunks</span></code> when <code class="docutils literal notranslate"><span class="pre">include_metadata=True</span></code> is used
-with output rail streaming enabled. Dict chunks are now normalized to strings at the
-input boundary (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1687" rel="noreferer noopener" target="_blank">#1687</a>).</p></li>
-<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> silently dropping content when rails return <code class="docutils literal notranslate"><span class="pre">MODIFIED</span></code> status.
-Input rails now replace the last user message and output rails replace the last AI
-message with the sanitized content (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1714" rel="noreferer noopener" target="_blank">#1714</a>).</p></li>
-<li><p>Cache hit statistics are now visible in the Stats log line. Cache stats are also
-visible in verbose mode (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1666" rel="noreferer noopener" target="_blank">#1666</a>, <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1667" rel="noreferer noopener" target="_blank">#1667</a>).</p></li>
-</ul>
-</section>
-<section id="other-changes">
-<span id="v0-21-0-other-changes"></span><h3>Other Changes<a class="headerlink" href="#other-changes" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p>Updated the Fiddler Guardrails API to match the new specification: the <code class="docutils literal notranslate"><span class="pre">prompt</span></code> field is
-renamed to <code class="docutils literal notranslate"><span class="pre">input</span></code>, faithfulness uses strings instead of lists, and a new <code class="docutils literal notranslate"><span class="pre">fdl_roleplaying</span></code>
-category is added (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1619" rel="noreferer noopener" target="_blank">#1619</a>).</p></li>
-<li><p>Updated the Trend Micro Vision One AI Guard integration from the beta endpoint to the
-officially released GA endpoint. A required <code class="docutils literal notranslate"><span class="pre">TMV1-Application-Name</span></code> header is added and the
-request key is changed from <code class="docutils literal notranslate"><span class="pre">guard</span></code> to <code class="docutils literal notranslate"><span class="pre">prompt</span></code> (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1546" rel="noreferer noopener" target="_blank">#1546</a>).</p></li>
-<li><p>Added a Locust stress-test benchmark for load testing (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1629" rel="noreferer noopener" target="_blank">#1629</a>).</p></li>
-<li><p>Removed the <code class="docutils literal notranslate"><span class="pre">multi_kb</span></code> example (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1673" rel="noreferer noopener" target="_blank">#1673</a>).</p></li>
-<li><p>Removed the AI Virtual Assistant Blueprint notebook (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1682" rel="noreferer noopener" target="_blank">#1682</a>).</p></li>
-<li><p>Updated the Pangea User-Agent repo URL (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1610" rel="noreferer noopener" target="_blank">#1610</a>).</p></li>
-<li><p>Updated dependencies for the jailbreak detection Docker container (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1596" rel="noreferer noopener" target="_blank">#1596</a>).</p></li>
-<li><p>Major documentation revamp with improved structure and navigation.</p></li>
+<li><p>Fixed the example query and expected output in the Guardrails Agent
+Middleware integration guide so the example matches the configured blocked
+response behavior. For more information, refer to
+<a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Guardrails Agent Middleware</span></a>.</p></li>
+<li><p>A warning about a missing main LLM is now emitted only when generation is
+actually attempted and the generation path needs the main LLM. Check-only
+configurations no longer emit the warning during initialization. For more
+information, refer to
+<a class="reference internal" href="../run-rails/using-python-apis/check-messages.html"><span class="std std-doc">Check Messages</span></a>.</p></li>
+<li><p>Fixed issues in the <a class="reference internal" href="../configure-rails/colang/colang-1/tutorials/1-hello-world/README.html"><span class="std std-doc">Colang 1.0 Hello World tutorial</span></a> and companion notebook.</p></li>
 </ul>
 </section>
 </section>
@@ -848,6 +815,7 @@ request key is changed from <code class="docutils literal notranslate"><span cla
 <section id="previous-release-notes">
 <h2>Previous Release Notes<a class="headerlink" href="#previous-release-notes" title="Link to this heading">#</a></h2>
 <ul class="simple">
+<li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.21.0/release-notes.html" rel="noreferer noopener" target="_blank">0.21.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.20.0/release-notes.html" rel="noreferer noopener" target="_blank">0.20.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.19.0/release-notes.html" rel="noreferer noopener" target="_blank">0.19.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.18.0/release-notes.html" rel="noreferer noopener" target="_blank">0.18.0</a></p></li>
@@ -910,7 +878,6 @@ request key is changed from <code class="docutils literal notranslate"><span cla
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-22-0">0.22.0</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-21-0">0.21.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#previous-release-notes">Previous Release Notes</a></li>
 </ul>
   </nav></div>
