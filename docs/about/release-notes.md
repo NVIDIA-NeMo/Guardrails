@@ -44,12 +44,7 @@ For a complete record of changes in a release, refer to the
   unchanged; some shapes need a YAML rewrite. For recipes, refer to
   [Migrating to v0.22.0](../migration/0.22.md), the
   [Supported LLMs](./supported-llms.md) matrix, and
-  [Model Configuration](../configure-rails/yaml-schema/model-configuration.md)
-  ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/pull/1854),
-  [#1855](https://github.com/NVIDIA-NeMo/Guardrails/pull/1855),
-  [#1856](https://github.com/NVIDIA-NeMo/Guardrails/pull/1856),
-  [#1858](https://github.com/NVIDIA-NeMo/Guardrails/pull/1858),
-  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881)).
+  [Model Configuration](../configure-rails/yaml-schema/model-configuration.md).
 
 - OpenAI-compatible service support is improved in the default framework.
   The default framework now supports OpenAI-compatible providers directly,
@@ -60,12 +55,17 @@ For a complete record of changes in a release, refer to the
   [Migrating to v0.22.0](../migration/0.22.md),
   [Model Configuration](../configure-rails/yaml-schema/model-configuration.md),
   [Configuration Reference](../configure-rails/configuration-reference.md), and
-  [Using Docker](../deployment/using-docker.md)
-  ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/pull/1854),
-  [#1855](https://github.com/NVIDIA-NeMo/Guardrails/pull/1855),
-  [#1857](https://github.com/NVIDIA-NeMo/Guardrails/pull/1857),
-  [#1858](https://github.com/NVIDIA-NeMo/Guardrails/pull/1858),
-  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881)).
+  [Using Docker](../deployment/using-docker.md).
+
+- `IORails` adds streaming support, reasoning-model support, and speculative
+  generation support. The optimized input and output rails engine now supports
+  streaming output rails, `stream_async()` integration in chat and server flows,
+  non-streaming and streaming reasoning-model responses, and speculative
+  generation for non-streaming `generate_async()` calls. For more information,
+  refer to
+  [Parallel Rails](../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.md),
+  [Streaming](../run-rails/using-python-apis/streaming.md), and
+  [Speculative Generation](../configure-rails/yaml-schema/guardrails-configuration/speculative-generation.md).
 
 - `IORails` adds OpenTelemetry observability with logging, tracing, and
   metrics support. The documentation covers OTLP setup, Prometheus client
@@ -77,21 +77,14 @@ For a complete record of changes in a release, refer to the
   [OpenTelemetry Tracing](../observability/tracing/opentelemetry-integration.md),
   [OpenTelemetry Metrics](../observability/metrics/opentelemetry-integration.md),
   [Enable Metrics](../observability/metrics/enable-metrics.md), and the
-  [Metrics Reference](../observability/metrics/reference.md)
-  ([#1807](https://github.com/NVIDIA-NeMo/Guardrails/pull/1807),
-  [#1864](https://github.com/NVIDIA-NeMo/Guardrails/pull/1864),
-  [#1884](https://github.com/NVIDIA-NeMo/Guardrails/pull/1884),
-  [#1892](https://github.com/NVIDIA-NeMo/Guardrails/pull/1892),
-  [#1893](https://github.com/NVIDIA-NeMo/Guardrails/pull/1893),
-  [#1894](https://github.com/NVIDIA-NeMo/Guardrails/pull/1894)).
+  [Metrics Reference](../observability/metrics/reference.md).
 
 - Anonymous usage reporting is documented with clear privacy boundaries and
   opt-out controls. The telemetry reference explains what fields are collected,
   what data is excluded, how local audit files work, and how to opt out with
   `NEMO_GUARDRAILS_NO_USAGE_STATS=1`, `DO_NOT_TRACK=1`, or the
   `~/.config/nemoguardrails/do_not_track` file. For more information, refer to
-  [Telemetry](../telemetry.md)
-  ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/pull/1891)).
+  [Telemetry](../telemetry.md).
 
 (v0-22-0-breaking-changes)=
 
@@ -110,8 +103,7 @@ For a complete record of changes in a release, refer to the
   GLiNER PII NIM. The examples cover both remote and local deployment modes
   and API key configuration for the connector. For more information, refer to
   [GLiNER](../configure-rails/guardrail-catalog/community/gliner.md) and
-  [PII Detection](../configure-rails/guardrail-catalog/pii-detection.md)
-  ([#1845](https://github.com/NVIDIA-NeMo/Guardrails/pull/1845)).
+  [PII Detection](../configure-rails/guardrail-catalog/pii-detection.md).
 
 - Public extension points for LLM integration. Two new protocols, `LLMModel`
   and `LLMFramework` in `nemoguardrails.types`, let you plug in a custom
@@ -119,9 +111,7 @@ For a complete record of changes in a release, refer to the
   information, refer to
   [Custom LLM Models](../configure-rails/custom-initialization/custom-llm-model.md)
   and
-  [Custom LLM Frameworks](../configure-rails/custom-initialization/custom-llm-framework.md)
-  ([#1857](https://github.com/NVIDIA-NeMo/Guardrails/pull/1857),
-  [#1882](https://github.com/NVIDIA-NeMo/Guardrails/pull/1882)).
+  [Custom LLM Frameworks](../configure-rails/custom-initialization/custom-llm-framework.md).
 
 - Public testing surface. The `nemoguardrails.testing` module exposes
   `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
@@ -134,16 +124,13 @@ For a complete record of changes in a release, refer to the
 - Fixed the example query and expected output in the Guardrails Agent
   Middleware integration guide so the example matches the configured blocked
   response behavior. For more information, refer to
-  [Guardrails Agent Middleware](../integration/langchain/agent-middleware.md)
-  ([#1784](https://github.com/NVIDIA-NeMo/Guardrails/pull/1784)).
+  [Guardrails Agent Middleware](../integration/langchain/agent-middleware.md).
 - A warning about a missing main LLM is now emitted only when generation is
   actually attempted and the generation path needs the main LLM. Check-only
   configurations no longer emit the warning during initialization. For more
   information, refer to
-  [Check Messages](../run-rails/using-python-apis/check-messages.md)
-  ([#1813](https://github.com/NVIDIA-NeMo/Guardrails/pull/1813)).
-- Fixed issues in the [Colang 1.0 Hello World tutorial](../configure-rails/colang/colang-1/tutorials/1-hello-world/README.md) and companion notebook
-  ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/pull/1834)).
+  [Check Messages](../run-rails/using-python-apis/check-messages.md).
+- Fixed issues in the [Colang 1.0 Hello World tutorial](../configure-rails/colang/colang-1/tutorials/1-hello-world/README.md) and companion notebook.
 
 ---
 
