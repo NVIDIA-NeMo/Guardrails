@@ -9,6 +9,119 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.22.0] - 2026-05-21
+
+### 🚀 Features
+
+- *(iorails)* IORails support for streaming output rails ([#1765](https://github.com/NVIDIA-NeMo/Guardrails/issues/1765)) 
+- *(types)* Add framework-agnostic LLM type system ([#1745](https://github.com/NVIDIA-NeMo/Guardrails/issues/1745)) 
+- *(llm)* Add LangChain adapter and framework registry ([#1759](https://github.com/NVIDIA-NeMo/Guardrails/issues/1759)) 
+- *(iorails)* IORails stream_async() integration into chat and server ([#1766](https://github.com/NVIDIA-NeMo/Guardrails/issues/1766)) 
+- *(llm)* Add streaming tool call accumulation and LLMResponse parity ([#1789](https://github.com/NVIDIA-NeMo/Guardrails/issues/1789)) 
+- *(iorails)* Telemetry - minimal non-streaming trace ([#1793](https://github.com/NVIDIA-NeMo/Guardrails/issues/1793)) 
+- *(iorails)* Telemetry - full non-streaming trace ([#1794](https://github.com/NVIDIA-NeMo/Guardrails/issues/1794)) 
+- *(iorails)* Telemetry - streaming trace ([#1798](https://github.com/NVIDIA-NeMo/Guardrails/issues/1798)) 
+- *(iorails)* Telemetry - request-level metrics ([#1812](https://github.com/NVIDIA-NeMo/Guardrails/issues/1812)) 
+- *(llm)* Add default framework with OpenAI-compatible client ([#1797](https://github.com/NVIDIA-NeMo/Guardrails/issues/1797)) 
+- *(iorails)* Support non-streaming reasoning-model responses ([#1842](https://github.com/NVIDIA-NeMo/Guardrails/issues/1842)) 
+- *(iorails)* Support streaming model reasoning responses ([#1843](https://github.com/NVIDIA-NeMo/Guardrails/issues/1843)) 
+- *(iorails)* Telemetry - token-level metrics ([#1846](https://github.com/NVIDIA-NeMo/Guardrails/issues/1846)) 
+- *(compat)* Transitional compat layer to migrate from 0.21 to 0.22+ ([#1841](https://github.com/NVIDIA-NeMo/Guardrails/issues/1841)) 
+- *(llm/frameworks)* Validate framework on registration ([#1863](https://github.com/NVIDIA-NeMo/Guardrails/issues/1863)) 
+- *(testing)* Add public testing surface under nemoguardrails.testing ([#1860](https://github.com/NVIDIA-NeMo/Guardrails/issues/1860)) 
+- *(api)* Canonical top-level imports for LLM types and registry functions ([#1882](https://github.com/NVIDIA-NeMo/Guardrails/issues/1882)) 
+- *(config)* Forbade extra fields in GLiNER rails configs ([#1898](https://github.com/NVIDIA-NeMo/Guardrails/issues/1898)) 
+- *(framework)* Support Azure as a first-class default framework preset ([#1896](https://github.com/NVIDIA-NeMo/Guardrails/issues/1896)) 
+
+### 🐛 Bug Fixes
+
+- *(server)* Prioritize env var API key over forwarded client header ([#1688](https://github.com/NVIDIA-NeMo/Guardrails/issues/1688)) 
+- *(utils)* Removing extra space from UtteranceBotActionScriptUpdated ([#1708](https://github.com/NVIDIA-NeMo/Guardrails/issues/1708)) 
+- *(actions)* Remove redundant embedding search in generate_user_intent ([#1754](https://github.com/NVIDIA-NeMo/Guardrails/issues/1754)) 
+- *(llmrails)* Backfill embedding model params into search provider config (fixes stale KB cache) ([#1753](https://github.com/NVIDIA-NeMo/Guardrails/issues/1753)) 
+- *(embeddings)* Persist in-memory embedding cache instance across calls ([#1755](https://github.com/NVIDIA-NeMo/Guardrails/issues/1755)) 
+- *(iorails)* Fix failing tests due to ModelManager refactor ([#1791](https://github.com/NVIDIA-NeMo/Guardrails/issues/1791)) 
+- *(ci)* Pin baseline x86-64 compiler target to prevent SIGILL on cached venvs ([#1785](https://github.com/NVIDIA-NeMo/Guardrails/issues/1785)) 
+- *(tests)* Use asyncio.run instead of get_event_loop in middleware tests ([#1804](https://github.com/NVIDIA-NeMo/Guardrails/issues/1804)) 
+- *(actions)* Guard bot message extraction against composite specs ([#1810](https://github.com/NVIDIA-NeMo/Guardrails/issues/1810)) 
+- *(llm)* Drop stop param for OpenAI reasoning models ([#1811](https://github.com/NVIDIA-NeMo/Guardrails/issues/1811)) 
+- *(llmrails)* Scope no main LLM warning to generation path ([#1813](https://github.com/NVIDIA-NeMo/Guardrails/issues/1813)) 
+- *(chat-ui)* Replace Chatbot UI with Chainlit ([#1734](https://github.com/NVIDIA-NeMo/Guardrails/issues/1734)) 
+- *(library)* Unblock reasoning models in self-check and content-safety actions ([#1816](https://github.com/NVIDIA-NeMo/Guardrails/issues/1816)) 
+- *(llm)* Drop temperature/stop and rename max_tokens for OpenAI reasoning models ([#1837](https://github.com/NVIDIA-NeMo/Guardrails/issues/1837)) 
+- *(build)* Remove chat-ui references from wheel build script ([#1835](https://github.com/NVIDIA-NeMo/Guardrails/issues/1835)) 
+- *(ci)* Override annoy's -march=native to actually enforce baseline x86-64 ([#1839](https://github.com/NVIDIA-NeMo/Guardrails/issues/1839)) 
+- *(iorails)* Route to LLMRails if Guardrails inits with provided LLM ([#1844](https://github.com/NVIDIA-NeMo/Guardrails/issues/1844)) 
+- *(llm/clients)* Retry on stale event loop binding ([#1840](https://github.com/NVIDIA-NeMo/Guardrails/issues/1840)) 
+- *(llm/frameworks)* Point users to LangChain when DefaultFramework has no base_url ([#1865](https://github.com/NVIDIA-NeMo/Guardrails/issues/1865)) 
+- *(taskmanager)* Preserve multimodal list content in vision safety prompts ([#1815](https://github.com/NVIDIA-NeMo/Guardrails/issues/1815)) 
+- *(actions)* Extract text from multimodal events in colang history ([#1636](https://github.com/NVIDIA-NeMo/Guardrails/issues/1636)) 
+- *(iorails)* Strip trailing /v1 from base_url to avoid doubled path ([#1862](https://github.com/NVIDIA-NeMo/Guardrails/issues/1862)) 
+- [**breaking**] Reject Colang 2.0 public runtime state ([#1885](https://github.com/NVIDIA-NeMo/Guardrails/issues/1885)) 
+- *(iorails)* Add all LLMRails methods to Guardrails facade ([#1886](https://github.com/NVIDIA-NeMo/Guardrails/issues/1886)) 
+- *(iorails)* Add LLMRails `llm` and `runtime` getters ([#1889](https://github.com/NVIDIA-NeMo/Guardrails/issues/1889)) 
+- *(iorails)* Annotate cancelled OTEL spans with error ([#1897](https://github.com/NVIDIA-NeMo/Guardrails/issues/1897)) 
+
+### 🚜 Refactor
+
+- *(logging)* Remove LangChain LoggingCallbackHandler dependency ([#1616](https://github.com/NVIDIA-NeMo/Guardrails/issues/1616)) 
+- *(iorails)* Refactor ModelManager ([#1778](https://github.com/NVIDIA-NeMo/Guardrails/issues/1778)) 
+- *(llm)* [**breaking**] Atomic switch to LLMModel protocol ([#1760](https://github.com/NVIDIA-NeMo/Guardrails/issues/1760)) 
+- *(llm)* Rename generate/stream to generate_async/stream_async ([#1769](https://github.com/NVIDIA-NeMo/Guardrails/issues/1769)) 
+- *(llm)* Remove LangChain imports from core modules ([#1770](https://github.com/NVIDIA-NeMo/Guardrails/issues/1770)) 
+- *(llm)* Move LangChain implementations into integrations/langchain/ ([#1772](https://github.com/NVIDIA-NeMo/Guardrails/issues/1772)) 
+- *(llm)* Framework-owned provider registry ([#1773](https://github.com/NVIDIA-NeMo/Guardrails/issues/1773)) 
+- *(tests)* Framework-agnostic test infrastructure ([#1790](https://github.com/NVIDIA-NeMo/Guardrails/issues/1790)) 
+- *(deps)* Make server-only dependencies optional ([#1689](https://github.com/NVIDIA-NeMo/Guardrails/issues/1689)) 
+- *(iorails)* [**breaking**] Move AsyncWorkQueue from Guardrails to IORails ([#1817](https://github.com/NVIDIA-NeMo/Guardrails/issues/1817)) 
+- *(iorails)* Return LLMResponse(Chunk) from ModelEngine ([#1827](https://github.com/NVIDIA-NeMo/Guardrails/issues/1827)) 
+- *(llm/clients)* Return HTTPResponse(body, headers, status_code) from _apost ([#1830](https://github.com/NVIDIA-NeMo/Guardrails/issues/1830)) 
+- *(llm/default_framework)* Split reset() into aclose() + clear_providers() ([#1829](https://github.com/NVIDIA-NeMo/Guardrails/issues/1829)) 
+- *(llm)* Share OpenAI reasoning-model classifier across adapters ([#1836](https://github.com/NVIDIA-NeMo/Guardrails/issues/1836)) 
+- *(llm)* Reorganize llm package into clients/models/frameworks ([#1801](https://github.com/NVIDIA-NeMo/Guardrails/issues/1801)) 
+- *(deps)* [**breaking**] Demote LangChain and LangChain-providers from core to dev ([#1806](https://github.com/NVIDIA-NeMo/Guardrails/issues/1806)) 
+- *(jailbreak)* Use onnx instead of pickle to load model ([#1715](https://github.com/NVIDIA-NeMo/Guardrails/issues/1715)) 
+- *(iorails)* Refactor Guardrails and IORails for top-level import and clean separation ([#1893](https://github.com/NVIDIA-NeMo/Guardrails/issues/1893)) 
+
+### 📚 Documentation
+
+- Document release notes for 0.21 and additional details ([#1726](https://github.com/NVIDIA-NeMo/Guardrails/issues/1726)) 
+- *(middleware)* Fix incorrect example query and expected output in agent-middleware guide ([#1784](https://github.com/NVIDIA-NeMo/Guardrails/issues/1784)) 
+- *(iorails)* OTEL Logging page ([#1807](https://github.com/NVIDIA-NeMo/Guardrails/issues/1807)) 
+- Fix jira 407 ([#1809](https://github.com/NVIDIA-NeMo/Guardrails/issues/1809)) 
+- Update README ([#1820](https://github.com/NVIDIA-NeMo/Guardrails/issues/1820)) 
+- Mark LangChain integration as opt-in in 0.22 entry-point docs ([#1856](https://github.com/NVIDIA-NeMo/Guardrails/issues/1856)) 
+- Documentation for langchain decoupling ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/issues/1854)) 
+- *(configure-rails)* Align with 0.22 DefaultFramework / LangChain split ([#1855](https://github.com/NVIDIA-NeMo/Guardrails/issues/1855)) 
+- *(custom-initialization)* Add customLLM and customFramework guides ([#1857](https://github.com/NVIDIA-NeMo/Guardrails/issues/1857)) 
+- *(examples)* Align example configs and deployment docs with 0.22 DefaultFramework / LangChain split ([#1858](https://github.com/NVIDIA-NeMo/Guardrails/issues/1858)) 
+- OTEL Metrics ([#1864](https://github.com/NVIDIA-NeMo/Guardrails/issues/1864)) 
+- Speculative Generation ([#1876](https://github.com/NVIDIA-NeMo/Guardrails/issues/1876)) 
+- Misc VDR cleanup fixes ([#1884](https://github.com/NVIDIA-NeMo/Guardrails/issues/1884)) 
+- *(migration)* Explain the "No default base_url" config-load error ([#1881](https://github.com/NVIDIA-NeMo/Guardrails/issues/1881)) 
+- *(iorails)* Use Guardrails entry-point not IORails ([#1892](https://github.com/NVIDIA-NeMo/Guardrails/issues/1892)) 
+- Prometheus client install instructions ([#1894](https://github.com/NVIDIA-NeMo/Guardrails/issues/1894)) 
+- *(guardrails)* Document max_tokens fallback and reasoning model guidance ([#1833](https://github.com/NVIDIA-NeMo/Guardrails/issues/1833)) 
+- *(colang-1)* Fix Hello World tutorial issues (NGUARD-666) ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/issues/1834)) 
+- *(telemetry)* Document anonymous usage reporting ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/issues/1891)) 
+- Add prompts.yml to code snippets ([#1904](https://github.com/NVIDIA-NeMo/Guardrails/issues/1904)) 
+- Update Benchmark README with updated configs ([#1905](https://github.com/NVIDIA-NeMo/Guardrails/issues/1905)) 
+
+### 🧪 Testing
+
+- *(llm)* Probe OpenAI API to validate _is_openai_reasoning_model ([#1814](https://github.com/NVIDIA-NeMo/Guardrails/issues/1814)) 
+- *(llm)* Expand reasoning-model param probe + regenerate baseline ([#1838](https://github.com/NVIDIA-NeMo/Guardrails/issues/1838)) 
+- *(telemetry)* Add smoke driver and fixtures  ([#1879](https://github.com/NVIDIA-NeMo/Guardrails/issues/1879)) 
+
+### ⚙️ Miscellaneous Tasks
+
+- *(iorails)* Refactor RailsManager and Nemoguard Actions ([#1762](https://github.com/NVIDIA-NeMo/Guardrails/issues/1762)) 
+- Restore original 2023-2026 copyright dates on moved files ([#1831](https://github.com/NVIDIA-NeMo/Guardrails/issues/1831)) 
+- Bump nemoguardrails to 0.22.0-rc1 ([#1899](https://github.com/NVIDIA-NeMo/Guardrails/issues/1899)) 
+- Bump to 0.22.0-rc2 ([#1901](https://github.com/NVIDIA-NeMo/Guardrails/issues/1901)) 
+- Include scripts in docker image ([#1902](https://github.com/NVIDIA-NeMo/Guardrails/issues/1902)) 
+
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features
