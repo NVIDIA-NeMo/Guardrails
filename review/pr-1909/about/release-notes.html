@@ -747,10 +747,9 @@ more information, refer to
 <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1855" rel="noreferer noopener" target="_blank">#1855</a>,
 <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1857" rel="noreferer noopener" target="_blank">#1857</a>,
 <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1858" rel="noreferer noopener" target="_blank">#1858</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1881" rel="noreferer noopener" target="_blank">#1881</a>,
-<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1896" rel="noreferer noopener" target="_blank">#1896</a>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> observability is expanded with OpenTelemetry logging, tracing, and
-metrics guidance. The documentation now covers OTLP setup, Prometheus client
+<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1881" rel="noreferer noopener" target="_blank">#1881</a>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IORails</span></code> adds OpenTelemetry observability with logging, tracing, and
+metrics support. The documentation covers OTLP setup, Prometheus client
 installation, request-level and token-level metrics, and the recommended
 <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> entry point for the optimized input and output rails engine. For
 more information, refer to
@@ -773,6 +772,20 @@ what data is excluded, how local audit files work, and how to opt out with
 <code class="docutils literal notranslate"><span class="pre">~/.config/nemoguardrails/do_not_track</span></code> file. For more information, refer to
 <a class="reference internal" href="../telemetry.html"><span class="std std-doc">Telemetry</span></a>
 (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1891" rel="noreferer noopener" target="_blank">#1891</a>).</p></li>
+</ul>
+</section>
+<section id="breaking-changes">
+<span id="v0-22-0-breaking-changes"></span><h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Moved <code class="docutils literal notranslate"><span class="pre">AsyncWorkQueue</span></code> from the top-level <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> object to
+<code class="docutils literal notranslate"><span class="pre">IORails</span></code>. This removes buffering for non-streaming <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> requests when
+you use the top-level <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> object. This change only affects existing implementations that
+set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code> or instantiate <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> directly.</p></li>
+</ul>
+</section>
+<section id="enhancements">
+<span id="v0-22-0-enhancements"></span><h3>Enhancements<a class="headerlink" href="#enhancements" title="Link to this heading">#</a></h3>
+<ul class="simple">
 <li><p>The GLiNER PII connector documentation and notebook are updated for the new
 GLiNER PII NIM. The examples cover both remote and local deployment modes
 and API key configuration for the connector. For more information, refer to
