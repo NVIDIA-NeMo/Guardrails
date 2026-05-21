@@ -398,7 +398,7 @@ class TestTransport:
             assert envelope["clientVer"] == "0.21.0"
             assert envelope["sessionId"] == "test-session"
             assert envelope["eventProtocol"] == "1.6"
-            assert envelope["eventSchemaVer"] == "1.6"
+            assert envelope["eventSchemaVer"] == "1.7"
             assert len(envelope["events"]) == 1
             ev = envelope["events"][0]
             assert ev["name"] == "guardrails_usage_event"
