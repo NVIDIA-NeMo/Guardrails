@@ -113,7 +113,7 @@ Heartbeat events reuse the startup event metadata and update only `event` and `t
 }
 ```
 
-Before transmission, the telemetry client wraps each event in the shared NVIDIA telemetry envelope (protocol v1.6) with `nemoSource: "guardrails"`.
+Before transmission, the telemetry client wraps each event in the shared NVIDIA telemetry envelope (schema v1.7, protocol v1.6) with `nemoSource: "guardrails"`.
 
 ## Inspect What Is Sent
 
