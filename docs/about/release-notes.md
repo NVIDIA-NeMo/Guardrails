@@ -65,11 +65,10 @@ For a complete record of changes in a release, refer to the
   [#1855](https://github.com/NVIDIA-NeMo/Guardrails/pull/1855),
   [#1857](https://github.com/NVIDIA-NeMo/Guardrails/pull/1857),
   [#1858](https://github.com/NVIDIA-NeMo/Guardrails/pull/1858),
-  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881),
-  [#1896](https://github.com/NVIDIA-NeMo/Guardrails/pull/1896)).
+  [#1881](https://github.com/NVIDIA-NeMo/Guardrails/pull/1881)).
 
-- `IORails` observability is expanded with OpenTelemetry logging, tracing, and
-  metrics guidance. The documentation now covers OTLP setup, Prometheus client
+- `IORails` adds OpenTelemetry observability with logging, tracing, and
+  metrics support. The documentation covers OTLP setup, Prometheus client
   installation, request-level and token-level metrics, and the recommended
   `Guardrails` entry point for the optimized input and output rails engine. For
   more information, refer to
@@ -93,6 +92,19 @@ For a complete record of changes in a release, refer to the
   `~/.config/nemoguardrails/do_not_track` file. For more information, refer to
   [Telemetry](../telemetry.md)
   ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/pull/1891)).
+
+(v0-22-0-breaking-changes)=
+
+### Breaking Changes
+
+- Moved `AsyncWorkQueue` from the top-level `Guardrails` object to
+  `IORails`. This removes buffering for non-streaming `LLMRails` requests when
+  you use the top-level `Guardrails` object. This change only affects existing implementations that
+  set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` or instantiate `Guardrails` directly.
+
+(v0-22-0-enhancements)=
+
+### Enhancements
 
 - The GLiNER PII connector documentation and notebook are updated for the new
   GLiNER PII NIM. The examples cover both remote and local deployment modes
