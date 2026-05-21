@@ -130,7 +130,7 @@ For a complete record of changes in a release, refer to the
   information, refer to
   [Check Messages](../run-rails/using-python-apis/check-messages.md)
   ([#1813](https://github.com/NVIDIA-NeMo/Guardrails/pull/1813)).
-- Fixed issues in the [Colang 1.0 Hello World tutorial](../configure-rails/colang/colang-1/tutorials/1-hello-world/README.md) and companion notebook.
+- Fixed issues in the [Colang 1.0 Hello World tutorial](../configure-rails/colang/colang-1/tutorials/1-hello-world/README.md) and companion notebook
   ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/pull/1834)).
 
 ---
