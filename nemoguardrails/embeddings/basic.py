@@ -90,6 +90,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._req_idx: int = 0
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
+        self._current_batch_task: Optional[asyncio.Task] = None
         self._current_batch_submitted: asyncio.Event = asyncio.Event()
         self._batch_lock: asyncio.Lock = asyncio.Lock()
 
@@ -241,7 +242,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
                         self._current_batch_finished_event = asyncio.Event()
                         self._current_batch_full_event = asyncio.Event()
                         self._current_batch_submitted.clear()
-                        asyncio.get_event_loop().create_task(
+                        self._current_batch_task = asyncio.create_task(
                             self._run_batch(
                                 self._current_batch_full_event,
                                 self._current_batch_finished_event,
