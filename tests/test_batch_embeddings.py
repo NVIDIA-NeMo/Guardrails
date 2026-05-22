@@ -37,6 +37,32 @@ class FailingEmbeddingModel:
         raise RuntimeError("embedding model failure")
 
 
+class ShortEmbeddingModel:
+    """Returns one fewer embedding than requested."""
+
+    async def encode_async(self, texts):
+        return [[float(i)] for i in range(len(texts) - 1)]
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_short_result():
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=4,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = ShortEmbeddingModel()
+
+    with pytest.raises(RuntimeError, match="fewer embeddings"):
+        await asyncio.wait_for(
+            asyncio.gather(
+                embeddings_index._batch_get_embeddings("text 0"),
+                embeddings_index._batch_get_embeddings("text 1"),
+            ),
+            timeout=1,
+        )
+
+
 @pytest.mark.asyncio
 async def test_batch_get_embeddings_propagates_model_error():
     embeddings_index = BasicEmbeddingsIndex(
