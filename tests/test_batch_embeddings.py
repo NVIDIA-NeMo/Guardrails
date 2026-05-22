@@ -32,6 +32,27 @@ class MockEmbeddingModel:
         return [[float(text.split()[-1])] for text in texts]
 
 
+class FailingEmbeddingModel:
+    async def encode_async(self, texts):
+        raise RuntimeError("embedding model failure")
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_model_error():
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=2,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = FailingEmbeddingModel()
+
+    with pytest.raises(RuntimeError, match="embedding model failure"):
+        await asyncio.wait_for(
+            embeddings_index._batch_get_embeddings("text 0"),
+            timeout=1,
+        )
+
+
 @pytest.mark.asyncio
 async def test_batch_get_embeddings_handles_concurrent_batches():
     mock_model = MockEmbeddingModel()
