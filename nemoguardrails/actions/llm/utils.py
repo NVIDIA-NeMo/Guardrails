@@ -132,30 +132,11 @@ async def _stream_llm_call(
 
             await handler.push_chunk(content, chunk_metadata)
 
-        llm_response_metadata_var.set(accumulated_provider_metadata or None)
-
         await handler.finish()
 
-        llm_call_info = llm_call_info_var.get()
-        if llm_call_info:
-            llm_call_info.completion = handler.completion
-
-        if usage:
-            fake_chunk = LLMResponseChunk(usage=usage)
-            _update_token_stats_from_chunk(fake_chunk)
-
-        if tool_calls:
-            tool_calls_var.set([tc.to_dict() for tc in tool_calls])
-        else:
-            tool_calls_var.set(None)
-
         reasoning_content = "".join(accumulated_reasoning) if accumulated_reasoning else None
-        # TODO: call _extract_and_remove_think_tags on the completed response
-        # to handle models that stream reasoning via <think> tags in content
-        # rather than via delta_reasoning. Pre-existing gap, not introduced here.
-        reasoning_trace_var.set(reasoning_content)
 
-        return LLMResponse(
+        response = LLMResponse(
             content=handler.completion,
             reasoning=reasoning_content,
             tool_calls=tool_calls,
@@ -165,6 +146,18 @@ async def _stream_llm_call(
             usage=usage,
             provider_metadata=accumulated_provider_metadata or None,
         )
+
+        # Apply the same post-processing helpers as the non-streaming path so the
+        # two paths populate context vars, logs, and llm_call_info consistently.
+        # _store_reasoning_traces runs first so any <think>...</think> tags in
+        # response.content are stripped before the completion is logged or stored.
+        _store_reasoning_traces(response)
+        _log_completion(response)
+        _update_token_stats(response)
+        _store_tool_calls(response)
+        _store_response_metadata(response)
+
+        return response
 
     except Exception as e:
         _raise_llm_call_exception(e, model)

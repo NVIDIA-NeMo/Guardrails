@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 import pytest
 
 from nemoguardrails.actions.llm.utils import _stream_llm_call
-from nemoguardrails.context import llm_response_metadata_var, reasoning_trace_var, tool_calls_var
+from nemoguardrails.context import (
+    llm_call_info_var,
+    llm_response_metadata_var,
+    llm_stats_var,
+    reasoning_trace_var,
+    tool_calls_var,
+)
+from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -177,3 +187,95 @@ class TestStreamLlmCallAccumulation:
         await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
 
         assert llm_response_metadata_var.get() is None
+
+
+class TestStreamLlmCallSharedPostProcessing:
+    """Verify the streaming path invokes the same post-processing helpers as the
+    non-streaming path so llm_call_info, completion logging, token stats, and
+    context vars stay consistent across both code paths.
+    """
+
+    @pytest.mark.asyncio
+    async def test_extracts_reasoning_from_think_tags_when_no_delta_reasoning(self):
+        # Models that stream reasoning via <think>...</think> tags in content
+        # (rather than via delta_reasoning) should still have their reasoning
+        # extracted and the visible content cleaned up, matching the
+        # non-streaming behaviour.
+        model = _make_chunk_model(
+            [
+                LLMResponseChunk(delta_content="<think>let me ", model="gpt-4o"),
+                LLMResponseChunk(delta_content="ponder</think>"),
+                LLMResponseChunk(delta_content="42", finish_reason="stop"),
+            ]
+        )
+
+        result = await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+        assert result.content == "42"
+        assert reasoning_trace_var.get() == "let me ponder"
+
+    @pytest.mark.asyncio
+    async def test_log_completion_populates_llm_call_info_and_logs(self, caplog):
+        info = LLMCallInfo(task="test_task")
+        token = llm_call_info_var.set(info)
+        try:
+            model = _make_chunk_model(
+                [
+                    LLMResponseChunk(delta_content="hello world", finish_reason="stop"),
+                ]
+            )
+
+            with caplog.at_level(logging.INFO, logger="nemoguardrails.actions.llm.utils"):
+                await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+            assert info.completion == "hello world"
+            assert any("Completion" in record.message and "hello world" in record.message for record in caplog.records)
+        finally:
+            llm_call_info_var.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_completion_in_llm_call_info_is_stripped_of_think_tags(self):
+        # llm_call_info.completion should reflect the cleaned content, not the
+        # raw streamed text that still contains <think> tags.
+        info = LLMCallInfo(task="test_task")
+        token = llm_call_info_var.set(info)
+        try:
+            model = _make_chunk_model(
+                [
+                    LLMResponseChunk(delta_content="<think>scratch</think>final", finish_reason="stop"),
+                ]
+            )
+
+            await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+            assert info.completion == "final"
+            assert reasoning_trace_var.get() == "scratch"
+        finally:
+            llm_call_info_var.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_update_token_stats_increments_global_stats(self):
+        info = LLMCallInfo(task="test_task")
+        info_token = llm_call_info_var.set(info)
+        stats = LLMStats()
+        stats_token = llm_stats_var.set(stats)
+        try:
+            model = _make_chunk_model(
+                [
+                    LLMResponseChunk(delta_content="hi", finish_reason="stop"),
+                    LLMResponseChunk(usage=UsageInfo(input_tokens=7, output_tokens=3, total_tokens=10)),
+                ]
+            )
+
+            await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+            assert info.total_tokens == 10
+            assert info.prompt_tokens == 7
+            assert info.completion_tokens == 3
+            stats_dict = stats.get_stats()
+            assert stats_dict["total_tokens"] == 10
+            assert stats_dict["total_prompt_tokens"] == 7
+            assert stats_dict["total_completion_tokens"] == 3
+        finally:
+            llm_call_info_var.reset(info_token)
+            llm_stats_var.reset(stats_token)
