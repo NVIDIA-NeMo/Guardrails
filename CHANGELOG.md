@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- *(embeddings)* Synchronize batched embedding requests to avoid deadlocks ([#1476](https://github.com/NVIDIA-NeMo/Guardrails/issues/1476))
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features

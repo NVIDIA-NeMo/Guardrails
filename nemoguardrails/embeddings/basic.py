@@ -90,6 +90,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
         self._current_batch_submitted: asyncio.Event = asyncio.Event()
+        self._batch_lock: asyncio.Lock = asyncio.Lock()
 
         # Initialize the batching configuration
         self.use_batching = use_batching
@@ -175,7 +176,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         # If the index is already built, we skip this
         if self._index is None:
-            self._embeddings.extend(await self._get_embeddings([item.text for item in items]))
+            self._embeddings.extend(
+                await self._get_embeddings([item.text for item in items])
+            )
 
             # Update the embedding if it was not computed up to this point
             self._embedding_size = len(self._embeddings[0])
@@ -187,38 +190,37 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._index.add_item(i, self._embeddings[i])
         self._index.build(10)
 
-    async def _run_batch(self):
+    async def _run_batch(
+        self, batch_full_event: asyncio.Event, batch_finished_event: asyncio.Event
+    ):
         """Runs the current batch of embeddings."""
 
         # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
-        if self._current_batch_full_event is None or self._current_batch_finished_event is None:
-            raise RuntimeError("Batch events not initialized. This should not happen.")
-
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
-                asyncio.create_task(self._current_batch_full_event.wait()),
+                asyncio.create_task(batch_full_event.wait()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
         for task in pending:
             task.cancel()
 
-        # Reset the batch event
-        batch_event: asyncio.Event = self._current_batch_finished_event
-        self._current_batch_finished_event = None
+        async with self._batch_lock:
+            # Reset the active batch only if it has not already rolled over.
+            if self._current_batch_finished_event is batch_finished_event:
+                self._current_batch_finished_event = None
+                self._current_batch_full_event = None
 
-        # Create the actual batch to be send for computing
-        batch = []
-        batch_ids = list(self._req_queue.keys())
-        for req_id in batch_ids:
-            batch.append(self._req_queue[req_id])
+            # Create the actual batch to be sent for computing.
+            batch_ids = list(self._req_queue.keys())
+            batch = [self._req_queue[req_id] for req_id in batch_ids]
 
-        # Empty the queue up to this point
-        self._req_queue = {}
+            # Empty the queue up to this point.
+            self._req_queue = {}
 
-        # We allow other batches to start
-        self._current_batch_submitted.set()
+            # We allow other batches to start.
+            self._current_batch_submitted.set()
 
         # print(f"Running batch of length {len(batch)}")
 
@@ -228,29 +230,49 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._req_results[batch_ids[i]] = embeddings[i]
 
         # Signal that the batch has finished processing
-        batch_event.set()
+        batch_finished_event.set()
 
     async def _batch_get_embeddings(self, text: str) -> List[float]:
-        # As long as the queue is full, we wait for the next batch
-        while len(self._req_queue) >= self.max_batch_size:
-            await self._current_batch_submitted.wait()
+        while True:
+            async with self._batch_lock:
+                if len(self._req_queue) < self.max_batch_size:
+                    req_id = self._req_idx
+                    self._req_idx += 1
+                    self._req_queue[req_id] = text
 
-        req_id = self._req_idx
-        self._req_idx += 1
-        self._req_queue[req_id] = text
+                    if (
+                        self._current_batch_finished_event is None
+                        or self._current_batch_full_event is None
+                    ):
+                        self._current_batch_finished_event = asyncio.Event()
+                        self._current_batch_full_event = asyncio.Event()
+                        self._current_batch_submitted.clear()
+                        asyncio.ensure_future(
+                            self._run_batch(
+                                self._current_batch_full_event,
+                                self._current_batch_finished_event,
+                            )
+                        )
 
-        if self._current_batch_finished_event is None or self._current_batch_full_event is None:
-            self._current_batch_finished_event = asyncio.Event()
-            self._current_batch_full_event = asyncio.Event()
-            self._current_batch_submitted.clear()
-            asyncio.ensure_future(self._run_batch())
+                    batch_finished_event = self._current_batch_finished_event
+                    batch_full_event = self._current_batch_full_event
+                    if batch_finished_event is None or batch_full_event is None:
+                        raise RuntimeError(
+                            "Batch events not initialized. This should not happen."
+                        )
 
-        # We check if we reached the max batch size
-        if len(self._req_queue) >= self.max_batch_size:
-            self._current_batch_full_event.set()
+                    # We check if we reached the max batch size
+                    if len(self._req_queue) >= self.max_batch_size:
+                        batch_full_event.set()
+
+                    break
+
+                batch_submitted_event = self._current_batch_submitted
+
+            await batch_submitted_event.wait()
 
         # Wait for the batch to finish
-        await self._current_batch_finished_event.wait()
+        await batch_finished_event.wait()
 
         # Remove the result and return it
         result = self._req_results[req_id]
@@ -258,7 +280,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         return result
 
-    async def search(self, text: str, max_results: int = 20, threshold: Optional[float] = None) -> List[IndexItem]:
+    async def search(
+        self, text: str, max_results: int = 20, threshold: Optional[float] = None
+    ) -> List[IndexItem]:
         """Search the closest `max_results` items.
 
         Args:
@@ -277,7 +301,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             _embedding = (await self._get_embeddings([text]))[0]
 
         if self._index is None:
-            raise ValueError("Index is not built yet. Ensure to call `build` before searching.")
+            raise ValueError(
+                "Index is not built yet. Ensure to call `build` before searching."
+            )
 
         results = self._index.get_nns_by_vector(
             _embedding,
@@ -298,8 +324,14 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         return [self._items[i] for i in filtered_results]
 
     @staticmethod
-    def _filter_results(indices: List[int], distances: List[float], threshold: float) -> List[int]:
+    def _filter_results(
+        indices: List[int], distances: List[float], threshold: float
+    ) -> List[int]:
         if threshold == float("inf"):
             return indices
         else:
-            return [index for index, distance in zip(indices, distances) if (1 - distance / 2) >= threshold]
+            return [
+                index
+                for index, distance in zip(indices, distances)
+                if (1 - distance / 2) >= threshold
+            ]

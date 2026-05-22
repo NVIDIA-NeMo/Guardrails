@@ -22,10 +22,37 @@ from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 from nemoguardrails.embeddings.index import IndexItem
 
 
+class MockEmbeddingModel:
+    async def encode_async(self, texts):
+        await asyncio.sleep(0.01)
+        return [[float(text.split()[-1])] for text in texts]
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_handles_concurrent_batches():
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=2,
+        max_batch_hold=0.01,
+    )
+    embeddings_index._model = MockEmbeddingModel()
+
+    results = await asyncio.wait_for(
+        asyncio.gather(
+            *(embeddings_index._batch_get_embeddings(f"text {i}") for i in range(5))
+        ),
+        timeout=1,
+    )
+
+    assert sorted(result[0] for result in results) == [0, 1, 2, 3, 4]
+
+
 @pytest.mark.skip(reason="Run manually.")
 @pytest.mark.asyncio
 async def test_search_speed():
-    embeddings_index = BasicEmbeddingsIndex(embedding_model="all-MiniLM-L6-v2", embedding_engine="SentenceTransformers")
+    embeddings_index = BasicEmbeddingsIndex(
+        embedding_model="all-MiniLM-L6-v2", embedding_engine="SentenceTransformers"
+    )
 
     # We compute an initial embedding, to warm up the model.
     await embeddings_index._get_embeddings(["warm up"])
@@ -74,7 +101,9 @@ async def test_search_speed():
     t0 = time()
     semaphore = asyncio.Semaphore(concurrency)
     for i in range(requests):
-        task = asyncio.ensure_future(_search(f"This is a long sentence meant to mimic a user request {i}." * 5))
+        task = asyncio.ensure_future(
+            _search(f"This is a long sentence meant to mimic a user request {i}." * 5)
+        )
         tasks.append(task)
 
     await asyncio.gather(*tasks)
@@ -83,5 +112,7 @@ async def test_search_speed():
     print(f"Processing {completed_requests} took {took:0.2f}.")
 
     print(f"Completed {completed_requests} requests in {total_time:.2f} seconds.")
-    print(f"Average latency: {total_time / completed_requests if completed_requests else 0:.2f} seconds.")
+    print(
+        f"Average latency: {total_time / completed_requests if completed_requests else 0:.2f} seconds."
+    )
     print(f"Maximum concurrency: {concurrency}")
