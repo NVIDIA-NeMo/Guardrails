@@ -86,6 +86,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         # Data structures for batching embedding requests
         self._req_queue: Dict[int, str] = {}
         self._req_results: Dict[int, List[float]] = {}
+        self._req_errors: Dict[int, BaseException] = {}
         self._req_idx: int = 0
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
@@ -176,9 +177,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         # If the index is already built, we skip this
         if self._index is None:
-            self._embeddings.extend(
-                await self._get_embeddings([item.text for item in items])
-            )
+            self._embeddings.extend(await self._get_embeddings([item.text for item in items]))
 
             # Update the embedding if it was not computed up to this point
             self._embedding_size = len(self._embeddings[0])
@@ -190,9 +189,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._index.add_item(i, self._embeddings[i])
         self._index.build(10)
 
-    async def _run_batch(
-        self, batch_full_event: asyncio.Event, batch_finished_event: asyncio.Event
-    ):
+    async def _run_batch(self, batch_full_event: asyncio.Event, batch_finished_event: asyncio.Event):
         """Runs the current batch of embeddings."""
 
         # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
@@ -222,15 +219,15 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             # We allow other batches to start.
             self._current_batch_submitted.set()
 
-        # print(f"Running batch of length {len(batch)}")
-
-        # Compute the embeddings
-        embeddings = await self._get_embeddings(batch)
-        for i in range(len(embeddings)):
-            self._req_results[batch_ids[i]] = embeddings[i]
-
-        # Signal that the batch has finished processing
-        batch_finished_event.set()
+        try:
+            embeddings = await self._get_embeddings(batch)
+            for i in range(len(embeddings)):
+                self._req_results[batch_ids[i]] = embeddings[i]
+        except BaseException as exc:
+            for req_id in batch_ids:
+                self._req_errors[req_id] = exc
+        finally:
+            batch_finished_event.set()
 
     async def _batch_get_embeddings(self, text: str) -> List[float]:
         while True:
@@ -240,14 +237,11 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
                     self._req_idx += 1
                     self._req_queue[req_id] = text
 
-                    if (
-                        self._current_batch_finished_event is None
-                        or self._current_batch_full_event is None
-                    ):
+                    if self._current_batch_finished_event is None or self._current_batch_full_event is None:
                         self._current_batch_finished_event = asyncio.Event()
                         self._current_batch_full_event = asyncio.Event()
                         self._current_batch_submitted.clear()
-                        asyncio.ensure_future(
+                        asyncio.get_event_loop().create_task(
                             self._run_batch(
                                 self._current_batch_full_event,
                                 self._current_batch_finished_event,
@@ -257,9 +251,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
                     batch_finished_event = self._current_batch_finished_event
                     batch_full_event = self._current_batch_full_event
                     if batch_finished_event is None or batch_full_event is None:
-                        raise RuntimeError(
-                            "Batch events not initialized. This should not happen."
-                        )
+                        raise RuntimeError("Batch events not initialized. This should not happen.")
 
                     # We check if we reached the max batch size
                     if len(self._req_queue) >= self.max_batch_size:
@@ -274,15 +266,16 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         # Wait for the batch to finish
         await batch_finished_event.wait()
 
+        if req_id in self._req_errors:
+            raise self._req_errors.pop(req_id)
+
         # Remove the result and return it
         result = self._req_results[req_id]
         del self._req_results[req_id]
 
         return result
 
-    async def search(
-        self, text: str, max_results: int = 20, threshold: Optional[float] = None
-    ) -> List[IndexItem]:
+    async def search(self, text: str, max_results: int = 20, threshold: Optional[float] = None) -> List[IndexItem]:
         """Search the closest `max_results` items.
 
         Args:
@@ -301,9 +294,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             _embedding = (await self._get_embeddings([text]))[0]
 
         if self._index is None:
-            raise ValueError(
-                "Index is not built yet. Ensure to call `build` before searching."
-            )
+            raise ValueError("Index is not built yet. Ensure to call `build` before searching.")
 
         results = self._index.get_nns_by_vector(
             _embedding,
@@ -324,14 +315,8 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         return [self._items[i] for i in filtered_results]
 
     @staticmethod
-    def _filter_results(
-        indices: List[int], distances: List[float], threshold: float
-    ) -> List[int]:
+    def _filter_results(indices: List[int], distances: List[float], threshold: float) -> List[int]:
         if threshold == float("inf"):
             return indices
         else:
-            return [
-                index
-                for index, distance in zip(indices, distances)
-                if (1 - distance / 2) >= threshold
-            ]
+            return [index for index, distance in zip(indices, distances) if (1 - distance / 2) >= threshold]
