@@ -230,7 +230,12 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
                     self._req_errors[req_id] = shortage_exc
             for i in range(len(embeddings)):
                 self._req_results[batch_ids[i]] = embeddings[i]
-        except BaseException as exc:
+        except asyncio.CancelledError as exc:
+            for req_id in batch_ids:
+                if req_id not in self._req_results and req_id not in self._req_errors:
+                    self._req_errors[req_id] = exc
+            raise
+        except Exception as exc:
             for req_id in batch_ids:
                 if req_id not in self._req_results and req_id not in self._req_errors:
                     self._req_errors[req_id] = exc
@@ -271,15 +276,17 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
             await batch_submitted_event.wait()
 
-        # Wait for the batch to finish
-        await batch_finished_event.wait()
+        # Wait for the batch to finish; clean up our slot regardless of how we exit.
+        try:
+            await batch_finished_event.wait()
 
-        if req_id in self._req_errors:
-            raise self._req_errors.pop(req_id)
+            if req_id in self._req_errors:
+                raise self._req_errors.pop(req_id)
 
-        # Remove the result and return it
-        result = self._req_results[req_id]
-        del self._req_results[req_id]
+            result = self._req_results.pop(req_id)
+        finally:
+            self._req_results.pop(req_id, None)
+            self._req_errors.pop(req_id, None)
 
         return result
 
