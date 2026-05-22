@@ -194,7 +194,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Runs the current batch of embeddings."""
 
         # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
-        done, pending = await asyncio.wait(
+        _, pending = await asyncio.wait(
             [
                 asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
                 asyncio.create_task(batch_full_event.wait()),
@@ -222,11 +222,18 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         try:
             embeddings = await self._get_embeddings(batch)
+            if len(embeddings) < len(batch_ids):
+                shortage_exc = RuntimeError(
+                    f"Embedding model returned {len(embeddings)} embeddings for {len(batch_ids)} inputs."
+                )
+                for req_id in batch_ids[len(embeddings) :]:
+                    self._req_errors[req_id] = shortage_exc
             for i in range(len(embeddings)):
                 self._req_results[batch_ids[i]] = embeddings[i]
         except BaseException as exc:
             for req_id in batch_ids:
-                self._req_errors[req_id] = exc
+                if req_id not in self._req_results and req_id not in self._req_errors:
+                    self._req_errors[req_id] = exc
         finally:
             batch_finished_event.set()
 
