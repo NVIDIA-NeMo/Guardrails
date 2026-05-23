@@ -144,9 +144,7 @@ class TestSuccessScenarios:
     def test_community_chat_success(self, registry):
         """A community chat provider initializes successfully."""
         registry.register_chat("_test_community", MockProvider("success").create_class())
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None
-        ):
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             result = init_langchain_model("test-model", "_test_community", {})
             assert result is not None
 
@@ -166,12 +164,8 @@ class TestSingleErrorScenarios:
 
     def test_community_error_preserved(self, registry):
         """When the community initializer fails, the error is preserved."""
-        registry.register_chat(
-            "_test_err", MockProvider("error", ValueError, "Rate limit exceeded").create_class()
-        )
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None
-        ):
+        registry.register_chat("_test_err", MockProvider("error", ValueError, "Rate limit exceeded").create_class())
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             with pytest.raises(ModelInitializationError) as exc_info:
                 init_langchain_model("test-model", "_test_err", {})
             assert "Rate limit exceeded" in str(exc_info.value)
@@ -193,9 +187,7 @@ class TestMultipleErrorPriority:
     def test_exception_priority(self, registry, chat_exc, community_exc, expected_winner):
         """Verify exception priority rules are correctly applied."""
         provider = "_test_priority"
-        registry.register_chat(
-            provider, MockProvider("error", community_exc[0], community_exc[1]).create_class()
-        )
+        registry.register_chat(provider, MockProvider("error", community_exc[0], community_exc[1]).create_class())
 
         with patch(
             "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model",
@@ -276,17 +268,13 @@ class TestE2EIntegration:
         from nemoguardrails import LLMRails, RailsConfig
 
         provider = "_e2e_test"
-        registry.register_chat(
-            provider, MockProvider("error", ValueError, "Invalid API key: sk-xxx").create_class()
-        )
+        registry.register_chat(provider, MockProvider("error", ValueError, "Invalid API key: sk-xxx").create_class())
 
         config = RailsConfig.from_content(
             config={"models": [{"type": "main", "engine": provider, "model": "test-model"}]}
         )
 
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None
-        ):
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             with pytest.raises(ModelInitializationError) as exc_info:
                 LLMRails(config=config)
 
@@ -303,8 +291,6 @@ class TestE2EIntegration:
             config={"models": [{"type": "main", "engine": provider, "model": "test-model"}]}
         )
 
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None
-        ):
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             rails = LLMRails(config=config)
         assert rails.llm is not None

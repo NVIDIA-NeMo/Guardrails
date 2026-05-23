@@ -18,7 +18,7 @@
 import logging
 import warnings
 from importlib.metadata import version
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 from langchain.chat_models import init_chat_model
 
@@ -266,9 +266,7 @@ _PROVIDER_INITIALIZERS: Dict[str, Any] = {
 }
 
 
-def _handle_model_special_cases(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> Optional[BaseChatModel]:
+def _handle_model_special_cases(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> Optional[BaseChatModel]:
     """Handle model initialization for special cases that need custom logic.
 
     This function handles edge cases where standard initialization methods

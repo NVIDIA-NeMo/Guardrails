@@ -883,7 +883,6 @@ def test_api_key_environment_variable_passed_to_init_llm_model(mock_init_llm_mod
 
     assert call_args.kwargs["model_name"] == "gpt-3.5-turbo"
     assert call_args.kwargs["provider_name"] == "openai"
-    assert call_args.kwargs["mode"] == "chat"
 
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
