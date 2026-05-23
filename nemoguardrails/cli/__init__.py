@@ -24,7 +24,7 @@ import typer
 from nemoguardrails import __version__
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
-from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
+from nemoguardrails.cli.providers import _list_providers, select_provider
 from nemoguardrails.eval import cli as eval_cli
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.utils import init_random_seed
@@ -279,19 +279,12 @@ def action_server(
 def find_providers(
     list_only: bool = typer.Option(False, "--list", "-l", help="Just list all available providers"),
 ):
-    """List and select LLM providers interactively.
+    """List and select chat-completion LLM providers interactively.
 
-    This command provides an interactive interface to explore and select LLM providers.
-    It supports both text completion and chat completion model providers.
+    This command provides an interactive interface to explore and select
+    chat-completion LLM providers.
 
     When run without options:
-    1. First, you'll be prompted to select a provider type:
-    - Type to filter between "text completion" and "chat completion"
-    - Use arrow keys to navigate through matches
-    - Press Tab to autocomplete
-    - Press Enter to select
-
-    2. Then, you'll be prompted to select a specific provider:
     - Type to filter through available providers
     - Use arrow keys to navigate through matches
     - Press Tab to autocomplete
@@ -305,10 +298,9 @@ def find_providers(
         _list_providers()
         return
 
-    result = select_provider_with_type()
-    if result:
-        provider_type, provider = result
-        typer.echo(f"\nSelected {provider_type} provider: {provider}")
+    provider = select_provider()
+    if provider:
+        typer.echo(f"\nSelected chat completion provider: {provider}")
     else:
         typer.echo("No provider selected.")
 

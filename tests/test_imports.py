@@ -213,9 +213,9 @@ class TestMovedModuleStubs:
         assert TritonClient is not None
 
     def test_providers_shim_works(self):
-        from nemoguardrails.llm.providers import register_llm_provider
+        from nemoguardrails.llm.providers import register_chat_provider
 
-        assert callable(register_llm_provider)
+        assert callable(register_chat_provider)
 
 
 class TestGetOptionalDependency:

@@ -581,7 +581,6 @@ class LLMRails(BaseGuardrails):
                 self.llm = init_llm_model(
                     model_name=main_model.model,
                     provider_name=main_model.engine,
-                    mode="chat",
                     kwargs=kwargs,
                 )
                 self.runtime.register_action_param("llm", self.llm)
@@ -608,12 +607,10 @@ class LLMRails(BaseGuardrails):
 
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)
-                mode = llm_config.mode
 
                 llm_model = init_llm_model(
                     model_name=model_name,
                     provider_name=provider_name,
-                    mode=mode,
                     kwargs=kwargs,
                 )
 

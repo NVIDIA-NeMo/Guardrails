@@ -19,7 +19,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
 from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
-from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers import register_chat_provider
 
 
 @lru_cache
@@ -120,4 +120,4 @@ def get_vicuna_13b_llm_from_path(model_path: str = "/workspace/ckpt/"):
 # On the next line, change the Vicuna LLM instance depending on your needs
 HFPipelineVicuna = get_llm_instance_wrapper(llm_instance=get_vicuna_7b_llm(), llm_type="hf_pipeline_vicuna")
 
-register_llm_provider("hf_pipeline_vicuna", HFPipelineVicuna)
+register_chat_provider("hf_pipeline_vicuna", HFPipelineVicuna)

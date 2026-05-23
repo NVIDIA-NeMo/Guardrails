@@ -16,19 +16,9 @@
 import os
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.integrations.langchain.providers import get_llm_provider_names
 from nemoguardrails.integrations.langchain.providers.providers import get_community_chat_provider_names
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
-
-
-def test_custom_llm_registration():
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_custom_llm"))
-
-    _ = LLMRails(config)
-    supported_llms = get_llm_provider_names()
-
-    assert "custom_llm" in supported_llms
 
 
 def test_custom_chat_model_registration():

@@ -361,14 +361,14 @@ class TestFindProvidersCommand:
         assert result.exit_code == 0
         mock_list_providers.assert_called_once()
 
-    @patch("nemoguardrails.cli.select_provider_with_type")
+    @patch("nemoguardrails.cli.select_provider")
     def test_find_providers_interactive(self, mock_select):
-        mock_select.return_value = ("chat completion", "openai")
+        mock_select.return_value = "openai"
         result = runner.invoke(app, ["find-providers"])
         assert result.exit_code == 0
         assert "Selected chat completion provider: openai" in result.stdout
 
-    @patch("nemoguardrails.cli.select_provider_with_type")
+    @patch("nemoguardrails.cli.select_provider")
     def test_find_providers_no_selection(self, mock_select):
         mock_select.return_value = None
         result = runner.invoke(app, ["find-providers"])

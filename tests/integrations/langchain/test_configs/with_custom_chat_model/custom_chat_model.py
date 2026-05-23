@@ -13,32 +13,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 class CustomChatModel(BaseChatModel):
-    def _call(
+    def _generate(
         self,
-        prompt: str,
+        messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
+        **kwargs: Any,
+    ) -> ChatResult:
+        message = AIMessage(content="Custom chat model response")
+        return ChatResult(generations=[ChatGeneration(message=message)])
 
-    async def _acall(
+    async def _agenerate(
         self,
-        prompt: str,
+        messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
+        **kwargs: Any,
+    ) -> ChatResult:
+        message = AIMessage(content="Custom chat model response")
+        return ChatResult(generations=[ChatGeneration(message=message)])
 
     @property
     def _llm_type(self) -> str:
-        return "custom_llm"
+        return "custom_chat_model"

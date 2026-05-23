@@ -17,7 +17,7 @@
 Tests for the initialization methods for different model types.
 
 This module contains tests for the initialization methods that are used to initialize
-different types of models (chat completion, community chat, text completion).
+chat completion and community chat models.
 """
 
 from unittest.mock import MagicMock, patch
@@ -27,7 +27,6 @@ import pytest
 from nemoguardrails.integrations.langchain.langchain_initializer import (
     _init_chat_completion_model,
     _init_community_chat_models,
-    _init_text_completion_model,
     _update_model_kwargs,
 )
 
@@ -117,45 +116,6 @@ class TestCommunityChatInitializer:
         ) as mock_get_provider:
             mock_get_provider.return_value = None
             assert _init_community_chat_models("community-model", "provider", {}) is None
-
-
-class TestTextCompletionInitializer:
-    """Tests for the text completion initializer."""
-
-    def test_init_text_completion_model_success(self):
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
-        ) as mock_get_provider:
-            mock_provider_cls = MagicMock()
-            mock_provider_cls.model_fields = {"model": None}
-            mock_provider_cls.return_value = "text_model"
-            mock_get_provider.return_value = mock_provider_cls
-            result = _init_text_completion_model("text-model", "provider", {})
-            assert result == "text_model"
-            mock_get_provider.assert_called_once_with("provider")
-            mock_provider_cls.assert_called_once_with(model="text-model")
-
-    def test_init_text_completion_model_with_api_key_success(self):
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
-        ) as mock_get_provider:
-            mock_provider_cls = MagicMock()
-            mock_provider_cls.model_fields = {"model": None}
-            mock_provider_cls.return_value = "text_model"
-            mock_get_provider.return_value = mock_provider_cls
-            # Pass in an API Key for use in client creation
-            api_key = "abcdef12345"
-            result = _init_text_completion_model("text-model", "provider", {"api_key": api_key})
-            assert result == "text_model"
-            mock_get_provider.assert_called_once_with("provider")
-            mock_provider_cls.assert_called_once_with(model="text-model", api_key=api_key)
-
-    def test_init_text_completion_model_no_provider(self):
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
-        ) as mock_get_provider:
-            mock_get_provider.return_value = None
-            assert _init_text_completion_model("text-model", "provider", {}) is None
 
 
 class TestUpdateModelKwargs:

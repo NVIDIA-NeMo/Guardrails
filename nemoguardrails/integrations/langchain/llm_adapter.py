@@ -228,15 +228,8 @@ class LangChainFramework:
 
         _register_chat(name, provider_cls)
 
-    def register_llm_provider(self, name: str, provider_cls: Any) -> None:
-        from nemoguardrails.integrations.langchain.providers.providers import (
-            register_llm_provider as _register_llm,
-        )
-
-        _register_llm(name, provider_cls)
-
     def get_provider_names(self) -> List[str]:
-        return sorted(set(self.get_chat_provider_names() + self.get_llm_provider_names()))
+        return self.get_chat_provider_names()
 
     def get_chat_provider_names(self) -> List[str]:
         from nemoguardrails.integrations.langchain.providers.providers import (
@@ -244,13 +237,6 @@ class LangChainFramework:
         )
 
         return _get_chat()
-
-    def get_llm_provider_names(self) -> List[str]:
-        from nemoguardrails.integrations.langchain.providers.providers import (
-            get_llm_provider_names as _get_llm,
-        )
-
-        return _get_llm()
 
     async def reset(self) -> None:
         return
@@ -266,12 +252,14 @@ class LangChainFramework:
         )
 
         kwargs = dict(model_kwargs) if model_kwargs else {}
-        mode = kwargs.pop("mode", "chat")
+        # The "mode" field is still accepted in user configs for back-compat,
+        # but text completion providers were removed in 0.23.0 so it is now
+        # ignored at this layer.
+        kwargs.pop("mode", None)
 
         raw_llm = init_langchain_model(
             model_name=model_name,
             provider_name=provider_name,
-            mode=mode,
             kwargs=kwargs,
         )
         return LangChainLLMAdapter(raw_llm)

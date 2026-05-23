@@ -17,21 +17,15 @@
 Tests for the special case handlers in the LangChain model initializer.
 
 This module contains tests for the special case handlers that are used to initialize
-specific models or providers that require custom logic.
+provider-specific chat models that require custom logic.
 """
 
-import os
-from unittest.mock import patch
-
 import pytest
-from langchain_core.language_models import BaseChatModel, BaseLLM
+from langchain_core.language_models import BaseChatModel
 
 from nemoguardrails.integrations.langchain.langchain_initializer import (
     _PROVIDER_INITIALIZERS,
-    _SPECIAL_MODEL_INITIALIZERS,
-    ModelInitializationError,
     _handle_model_special_cases,
-    _init_gpt35_turbo_instruct,
     _init_nvidia_model,
 )
 
@@ -54,29 +48,10 @@ class TestSpecialCaseHandlers:
     """Tests for the special case handlers."""
 
     def test_handle_model_special_cases_no_match(self):
-        """Test that _handle_model_special_cases returns None when no special case matche."""
+        """Test that _handle_model_special_cases returns None when no special case matches."""
 
         result = _handle_model_special_cases("unknown-model", "unknown-provider", {})
         assert result is None
-
-    @pytest.mark.skipif(not has_openai(), reason="langchain-openai package not installed")
-    def test_handle_model_special_cases_model_match(self):
-        """Test that model-specific initializers are called correctly."""
-
-        # skip if OpenAI API key is not set
-        if not os.environ.get("OPENAI_API_KEY"):
-            pytest.skip("OpenAI API key not set")
-        model_name = "gpt-3.5-turbo-instruct"
-        provider_name = "openai"
-        kwargs = {"temperature": 0.7}
-
-        result = _handle_model_special_cases(model_name, provider_name, kwargs)
-
-        # ensure the result is a text completion model
-        assert result is not None
-        assert hasattr(result, "invoke")
-        assert hasattr(result, "generate")
-        assert isinstance(result, BaseLLM)
 
     @pytest.mark.skipif(
         not has_nvidia_ai_endpoints(),
@@ -91,17 +66,11 @@ class TestSpecialCaseHandlers:
 
         result = _handle_model_special_cases(model_name, provider_name, kwargs)
 
-        # enure the result is a chat model
+        # ensure the result is a chat model
         assert result is not None
         assert isinstance(result, BaseChatModel)
         assert hasattr(result, "invoke")
         assert hasattr(result, "generate")
-
-    def test_special_model_initializers_registry(self):
-        """Test that the _SPECIAL_MODEL_INITIALIZERS registry contains the expected entries."""
-
-        assert "gpt-3.5-turbo-instruct" in _SPECIAL_MODEL_INITIALIZERS
-        assert _SPECIAL_MODEL_INITIALIZERS["gpt-3.5-turbo-instruct"] == _init_gpt35_turbo_instruct
 
     def test_provider_initializers_registry(self):
         """Test that the _PROVIDER_INITIALIZERS registry contains the expected entries."""
@@ -109,33 +78,6 @@ class TestSpecialCaseHandlers:
         assert "nim" in _PROVIDER_INITIALIZERS
         assert _PROVIDER_INITIALIZERS["nvidia_ai_endpoints"] == _init_nvidia_model
         assert _PROVIDER_INITIALIZERS["nim"] == _init_nvidia_model
-
-
-class TestGPT35TurboInstructInitializer:
-    """Tests for the GPT-3.5 Turbo Instruct initializer."""
-
-    def test_init_gpt35_turbo_instruct(self):
-        """Test that _init_gpt35_turbo_instruct calls _init_text_completion_model."""
-
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer._init_text_completion_model"
-        ) as mock_init:
-            mock_init.return_value = "text_model"
-            result = _init_gpt35_turbo_instruct("gpt-3.5-turbo-instruct", "openai", {})
-            assert result == "text_model"
-            mock_init.assert_called_once_with(model_name="gpt-3.5-turbo-instruct", provider_name="openai", kwargs={})
-
-    def test_init_gpt35_turbo_instruct_error(self):
-        """Test that _init_gpt35_turbo_instruct raises ModelInitializationError on failure."""
-        with patch(
-            "nemoguardrails.integrations.langchain.langchain_initializer._init_text_completion_model"
-        ) as mock_init:
-            mock_init.side_effect = ValueError("Text model failed")
-            with pytest.raises(
-                ModelInitializationError,
-                match="Failed to initialize text completion model gpt-3.5-turbo-instruct",
-            ):
-                _init_gpt35_turbo_instruct("gpt-3.5-turbo-instruct", "openai", {})
 
 
 class TestNVIDIAModelInitializer:

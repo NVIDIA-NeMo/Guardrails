@@ -1,7 +1,0 @@
-define user express greeting
-  "hi"
-  "hello"
-
-define flow
-  user express greeting
-  bot express greeting

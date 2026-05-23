@@ -279,10 +279,10 @@ class TestLangChainFramework:
 
         assert isinstance(model, LangChainLLMAdapter)
         assert model.raw_llm is mock_raw_llm
+        # The legacy "mode" kwarg is now dropped before reaching init_langchain_model.
         mock_init.assert_called_once_with(
             model_name="gpt-4",
             provider_name="openai",
-            mode="chat",
             kwargs={"temperature": 0.5},
         )
 

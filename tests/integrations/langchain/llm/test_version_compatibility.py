@@ -21,12 +21,9 @@ import pytest
 from nemoguardrails.integrations.langchain.providers.providers import (
     _chat_providers,
     _discover_langchain_community_chat_providers,
-    _discover_langchain_community_llm_providers,
     _discover_langchain_partner_chat_providers,
-    _llm_providers,
     get_chat_provider_names,
     get_community_chat_provider_names,
-    get_llm_provider_names,
 )
 
 # valid for 0.3.13 till 0.3.21
@@ -36,102 +33,6 @@ from nemoguardrails.integrations.langchain.providers.providers import (
 # version      : 0.3.16
 # description  : Community contributed LangChain integrations.
 
-_LLM_PROVIDERS_NAMES = [
-    "ai21",
-    "aleph_alpha",
-    "amazon_api_gateway",
-    "amazon_bedrock",
-    "anthropic",
-    "anyscale",
-    "arcee",
-    "aviary",
-    "azure",
-    "azureml_endpoint",
-    "baichuan",
-    "bananadev",
-    "baseten",
-    "beam",
-    "cerebriumai",
-    "chat_glm",
-    "clarifai",
-    "cohere",
-    "ctransformers",
-    "ctranslate2",
-    "databricks",
-    "deepinfra",
-    "deepsparse",
-    "edenai",
-    "fake-list",
-    "forefrontai",
-    "friendli",
-    "giga-chat-model",
-    "google_palm",
-    "gooseai",
-    "gradient",
-    "gpt4all",
-    "huggingface_endpoint",
-    "huggingface_hub",
-    "huggingface_pipeline",
-    "huggingface_textgen_inference",
-    "human-input",
-    "koboldai",
-    "konko",
-    "llamacpp",
-    "llamafile",
-    "textgen",
-    "minimax",
-    "mlflow",
-    "mlflow-ai-gateway",
-    "mlx_pipeline",
-    "modal",
-    "mosaic",
-    "nebula",
-    "nibittensor",
-    "nlpcloud",
-    "oci_model_deployment_tgi_endpoint",
-    "oci_model_deployment_vllm_endpoint",
-    "oci_model_deployment_endpoint",
-    "oci_generative_ai",
-    "octoai_endpoint",
-    "ollama",
-    "openai",
-    "openlm",
-    "pai_eas_endpoint",
-    "petals",
-    "pipelineai",
-    "predibase",
-    "opaqueprompts",
-    "replicate",
-    "rwkv",
-    "sagemaker_endpoint",
-    "sambanovacloud",
-    "sambastudio",
-    "self_hosted",
-    "self_hosted_hugging_face",
-    "stochasticai",
-    "together",
-    "tongyi",
-    "titan_takeoff",
-    "titan_takeoff_pro",
-    "vertexai",
-    "vertexai_model_garden",
-    "openllm",
-    "outlines",
-    "vllm",
-    "vllm_openai",
-    "watsonxllm",
-    "weight_only_quantization",
-    "writer",
-    "xinference",
-    "javelin-ai-gateway",
-    "qianfan_endpoint",
-    "yandex_gpt",
-    "yuan2",
-    "VolcEngineMaasLLM",
-    "SparkLLM",
-    "yi",
-    "you",
-]
 _COMMUNITY_CHAT_PROVIDERS_NAMES = [
     "azure_openai",
     "bedrock",
@@ -214,11 +115,6 @@ _PARTNER_CHAT_PROVIDERS_NAMES = {
     "openai",
     "together",
 }
-# at some point we might care about certain providers
-CRITICAL_LLM_PROVIDERS = [
-    "openai",
-    "anthropic",
-]
 
 # at some point we might care about certain providers
 CRITICAL_CHAT_PROVIDERS = [
@@ -244,19 +140,6 @@ def get_langchain_version():
             return "unknown"
 
 
-def test_critical_llm_providers_available():
-    """Test that critical LLM providers are available."""
-    provider_names = get_llm_provider_names()
-
-    # ensure we have critical providers
-    for provider in CRITICAL_LLM_PROVIDERS:
-        if provider not in provider_names:
-            warnings.warn(
-                f"Critical LLM provider '{provider}' is not available. "
-                f"This might cause compatibility issues with LangChain version {get_langchain_version()}."
-            )
-
-
 def test_critical_chat_providers_available():
     """Test that critical chat providers are available."""
     provider_names = get_community_chat_provider_names()
@@ -271,11 +154,10 @@ def test_critical_chat_providers_available():
 
 def test_renamed_providers():
     """Test for providers that have been renamed or moved."""
-    llm_provider_names = get_llm_provider_names()
     chat_provider_names = get_community_chat_provider_names()
 
     for old_name, new_name in RENAMED_PROVIDERS.items():
-        if old_name in llm_provider_names or old_name in chat_provider_names:
+        if old_name in chat_provider_names:
             warnings.warn(
                 f"Provider '{old_name}' has been renamed to '{new_name}' in newer versions of LangChain. "
                 f"Consider updating your code to use the new name."
@@ -284,18 +166,8 @@ def test_renamed_providers():
 
 def test_provider_registry_stability():
     """Test that the provider registry is stable and doesn't change unexpectedly."""
-    # Get the current providers
-    current_llm_providers = set(get_llm_provider_names())
     current_chat_providers = set(get_community_chat_provider_names())
-
-    # This test will fail if the registry changes unexpectedly
-    expected_llm_providers = set(_llm_providers.keys())
     expected_chat_providers = set(_chat_providers.keys())
-
-    assert current_llm_providers == expected_llm_providers, (
-        f"LLM provider registry has changed unexpectedly. "
-        f"Expected: {expected_llm_providers}, Got: {current_llm_providers}"
-    )
 
     assert current_chat_providers == expected_chat_providers, (
         f"Chat provider registry has changed unexpectedly. "
@@ -304,26 +176,11 @@ def test_provider_registry_stability():
 
 
 def test_provider_imports():
-    """Test that all providers can be imported without errors."""
-    # This test ensures that all providers can be imported without errors
-    # It's useful for catching import errors early
-
-    # get all provider names
-    llm_provider_names = get_llm_provider_names()
+    """Test that all chat providers can be imported without errors."""
     chat_provider_names = get_community_chat_provider_names()
-
-    # try to import each provider
-    for provider_name in llm_provider_names:
-        try:
-            provider_cls = _llm_providers[provider_name]
-            assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
-        except Exception as e:
-            pytest.fail(f"Failed to import LLM provider '{provider_name}': {str(e)}")
 
     for provider_name in chat_provider_names:
         try:
-            # This is a simplified example - you might need to adjust this
-            # based on how your providers are actually imported
             provider_cls = _chat_providers[provider_name]
             assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
         except Exception as e:
@@ -422,35 +279,9 @@ def test_dicsover_partner_chat_providers():
         )
 
 
-def test_discover_langchain_community_llm_providers():
-    providers = _discover_langchain_community_llm_providers()
-    llm_provider_names = get_llm_provider_names()
-
-    custom_registered_providers = {"trt_llm"}
-    assert set(llm_provider_names) - custom_registered_providers == set(providers.keys()), (
-        "it seems that we are registering a provider that is not in the LC community llm provider"
-    )
-    assert _LLM_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain LLM community providers may have changed. Please investigate and update the test if necessary."
-    )
-
-
 def test_langchain_provider_compatibility():
     """Test compatibility with different LangChain versions."""
-    # This test checks for compatibility with different LangChain versions
-    # It's useful for catching compatibility issues early
-
-    # check for common providers that should be available
-    common_llm_providers = ["openai", "anthropic"]
     common_chat_providers = ["openai", "anthropic", "huggingface"]
-
-    # check for LLM providers
-    for provider in common_llm_providers:
-        if provider not in _llm_providers:
-            raise RuntimeError(
-                f"Common LLM provider '{provider}' is not available. "
-                "This might be due to a version mismatch with LangChain."
-            )
 
     # check for chat providers
     for provider in common_chat_providers:
@@ -459,21 +290,3 @@ def test_langchain_provider_compatibility():
                 f"Common chat provider '{provider}' is not available. "
                 "This might be due to a version mismatch with LangChain."
             )
-
-
-# TODO: we might need this
-# def test_provider_version_compatibility():
-#     """Test compatibility with different LangChain versions."""
-#     langchain_version = get_langchain_version()
-#
-#     if langchain_version != "unknown":
-#         version_tuple = _parse_version(langchain_version)
-#
-#         # we can check for version-specific compatibility issues
-#         if version_tuple >= (0, 1, 0):
-#             #  we can check for changes introduced in version 0.1.0 for example
-#             pass
-#
-#         if version_tuple >= (0, 2, 0):
-#             #  we can check for changes introduced in version 0.2.0 for example
-#             pass

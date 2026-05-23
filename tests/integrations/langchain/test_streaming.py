@@ -599,13 +599,10 @@ async def test_streaming_error_handling():
 
 @pytest.fixture
 def custom_streaming_providers():
-    """Fixture that registers both custom chat and LLM providers for testing."""
-    from langchain_core.language_models import BaseChatModel, BaseLLM
+    """Fixture that registers custom chat providers for testing."""
+    from langchain_core.language_models import BaseChatModel
 
-    from nemoguardrails.integrations.langchain.providers import (
-        register_chat_provider,
-        register_llm_provider,
-    )
+    from nemoguardrails.integrations.langchain.providers import register_chat_provider
 
     class CustomStreamingChatModel(BaseChatModel):
         """Custom chat model that supports streaming for testing."""
@@ -635,57 +632,13 @@ def custom_streaming_providers():
         def _llm_type(self) -> str:
             return "custom_none_streaming"
 
-    class CustomStreamingLLM(BaseLLM):
-        """Custom LLM that supports streaming for testing."""
-
-        streaming: bool = True
-
-        def _call(self, prompt, stop=None, run_manager=None, **kwargs):
-            pass
-
-        async def _acall(self, prompt, stop=None, run_manager=None, **kwargs):
-            pass
-
-        def _generate(self, prompts, stop=None, run_manager=None, **kwargs):
-            pass
-
-        async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
-            pass
-
-        @property
-        def _llm_type(self) -> str:
-            return "custom_streaming_llm"
-
-    class CustomNoneStreamingLLM(BaseLLM):
-        """Custom LLM that does not support streaming for testing."""
-
-        def _call(self, prompt, stop=None, run_manager=None, **kwargs):
-            pass
-
-        async def _acall(self, prompt, stop=None, run_manager=None, **kwargs):
-            pass
-
-        def _generate(self, prompts, stop=None, run_manager=None, **kwargs):
-            pass
-
-        async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
-            pass
-
-        @property
-        def _llm_type(self) -> str:
-            return "custom_none_streaming_llm"
-
     register_chat_provider("custom_streaming", CustomStreamingChatModel)
     register_chat_provider("custom_none_streaming", CustomNoneStreamingChatModel)
-    register_llm_provider("custom_streaming_llm", CustomStreamingLLM)
-    register_llm_provider("custom_none_streaming_llm", CustomNoneStreamingLLM)
 
     yield
 
     # clean up
-    from nemoguardrails.integrations.langchain.providers.providers import _chat_providers, _llm_providers
+    from nemoguardrails.integrations.langchain.providers.providers import _chat_providers
 
     _chat_providers.pop("custom_streaming", None)
     _chat_providers.pop("custom_none_streaming", None)
-    _llm_providers.pop("custom_streaming_llm", None)
-    _llm_providers.pop("custom_none_streaming_llm", None)
