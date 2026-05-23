@@ -298,6 +298,8 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             if req_id in self._req_errors:
                 raise self._req_errors.pop(req_id)
 
+            if req_id not in self._req_results:
+                raise RuntimeError(f"Batch completed without a result for request {req_id}.")
             result = self._req_results.pop(req_id)
         finally:
             self._req_results.pop(req_id, None)
