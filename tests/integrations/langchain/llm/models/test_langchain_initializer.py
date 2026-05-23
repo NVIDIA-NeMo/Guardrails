@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from nemoguardrails.integrations.langchain.langchain_initializer import (
     ModelInitializationError,
+    _verify_model_has_usable_client,
     init_langchain_model,
 )
 
@@ -224,3 +225,51 @@ def test_import_error_prioritized_over_other_exceptions(mock_initializers):
 
     with pytest.raises(ModelInitializationError, match="Missing langchain_community package"):
         init_langchain_model("model", "provider", "chat", {})
+
+
+def test_verify_model_has_usable_client_passes_when_client_present():
+    """A wrapper that exposes a real client should not trip the post-init check."""
+    model = MagicMock(spec=["client"])
+    model.client = MagicMock()
+    _verify_model_has_usable_client(model, "m", "azure", {"api_key": "k"})
+
+
+def test_verify_model_has_usable_client_passes_when_no_client_attribute():
+    """Wrappers that legitimately do not expose `client` (lazy transports) are unaffected."""
+    model = MagicMock(spec=[])
+    _verify_model_has_usable_client(model, "m", "openai", {"api_key": "k"})
+
+
+def test_verify_model_has_usable_client_passes_when_async_client_present():
+    """Some wrappers only expose async_client; that still counts as usable."""
+    model = MagicMock(spec=["client", "async_client"])
+    model.client = None
+    model.async_client = MagicMock()
+    _verify_model_has_usable_client(model, "m", "azure", {"api_key": "k"})
+
+
+def test_verify_model_has_usable_client_flags_none_client_with_empty_api_key():
+    """Regression for #1338: half-built Azure wrapper with empty api_key surfaces clearly."""
+    model = MagicMock(spec=["client", "async_client"])
+    model.client = None
+    model.async_client = None
+    with pytest.raises(ModelInitializationError) as excinfo:
+        _verify_model_has_usable_client(
+            model,
+            "gpt-4.1-nano",
+            "azure",
+            {"api_key": "", "deployment_name": "", "azure_endpoint": "https://x", "api_version": "v"},
+        )
+    msg = str(excinfo.value)
+    assert "azure" in msg
+    assert "gpt-4.1-nano" in msg
+    assert "api_key" in msg
+
+
+def test_verify_model_has_usable_client_flags_none_client_without_missing_kwargs():
+    """If the wrapper is half-built but no missing kwarg is identifiable, still raise."""
+    model = MagicMock(spec=["client", "async_client"])
+    model.client = None
+    model.async_client = None
+    with pytest.raises(ModelInitializationError):
+        _verify_model_has_usable_client(model, "m", "openai", {})

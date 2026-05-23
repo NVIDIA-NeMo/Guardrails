@@ -129,13 +129,52 @@ async def test_content_safety_check_input_model_not_found():
     llms = {}
     mock_task_manager = MagicMock()
 
-    with pytest.raises(ValueError, match="Model test_model not found"):
+    with pytest.raises(ValueError, match="'test_model' is not available for the content safety check"):
         await content_safety_check_input(
             llms=llms,
             llm_task_manager=mock_task_manager,
             model_name="test_model",
             context={},
         )
+
+
+@pytest.mark.asyncio
+async def test_content_safety_check_input_missing_model_hints_at_init_failure():
+    """Regression for #1338: the missing-model error should hint at credential failure.
+
+    When the content_safety model fails to initialize because of an empty Azure api_key, the
+    rail call should surface a configuration-shaped error pointing at the likely cause,
+    rather than the opaque ``'NoneType' object has no attribute 'create'`` symptom that
+    used to bubble up.
+    """
+    mock_task_manager = MagicMock()
+    with pytest.raises(ValueError) as excinfo:
+        await content_safety_check_input(
+            llms={},
+            llm_task_manager=mock_task_manager,
+            model_name="content_safety",
+            context={},
+        )
+    msg = str(excinfo.value)
+    assert "content_safety" in msg
+    assert "api_key" in msg
+    assert "azure_endpoint" in msg
+
+
+@pytest.mark.asyncio
+async def test_content_safety_check_output_missing_model_hints_at_init_failure():
+    """Regression for #1338 on the output check path."""
+    mock_task_manager = MagicMock()
+    with pytest.raises(ValueError) as excinfo:
+        await content_safety_check_output(
+            llms={},
+            llm_task_manager=mock_task_manager,
+            model_name="content_safety",
+            context={"user_message": "x", "bot_message": "y"},
+        )
+    msg = str(excinfo.value)
+    assert "content_safety" in msg
+    assert "api_key" in msg
 
 
 def test_content_safety_check_output_mapping_allowed():

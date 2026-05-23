@@ -311,6 +311,28 @@ def _update_token_stats_from_chunk(chunk: LLMResponseChunk) -> None:
             llm_stats.inc("total_completion_tokens", chunk.usage.output_tokens)
 
 
+_NONE_CLIENT_PATTERNS = (
+    "'NoneType' object has no attribute 'create'",
+    "'NoneType' object has no attribute 'chat'",
+    "'NoneType' object has no attribute 'completions'",
+)
+
+
+def _is_none_client_attribute_error(exception: Exception) -> bool:
+    """Return True when ``exception`` looks like a call on a None SDK client.
+
+    These ``AttributeError`` messages surface when the LLM wrapper was constructed
+    without a usable underlying client (typically because a required credential
+    such as ``api_key``, ``azure_endpoint``, or ``azure_deployment`` was empty at
+    init time). The downstream symptom is a cryptic ``NoneType`` access deep in
+    the rail; recognizing it lets us emit a configuration-shaped hint.
+    """
+    if not isinstance(exception, AttributeError):
+        return False
+    message = str(exception)
+    return any(pattern in message for pattern in _NONE_CLIENT_PATTERNS)
+
+
 def _raise_llm_call_exception(
     exception: Exception,
     model: LLMModel,
@@ -327,6 +349,18 @@ def _raise_llm_call_exception(
         context_parts.append(f"provider={provider_name}")
     if endpoint_url:
         context_parts.append(f"endpoint={endpoint_url}")
+
+    if _is_none_client_attribute_error(exception):
+        hint = (
+            "Underlying SDK client is None; the model wrapper was constructed without a usable client. "
+            "Check that required credentials are set on the model entry (for example api_key, azure_endpoint, "
+            "azure_deployment, api_version) or in the corresponding environment variables."
+        )
+        if context_parts:
+            detail = f"Error invoking LLM ({', '.join(context_parts)}); {hint}"
+        else:
+            detail = f"Error invoking LLM; {hint}"
+        raise LLMCallException(exception, detail=detail) from exception
 
     if context_parts:
         detail = f"Error invoking LLM ({', '.join(context_parts)})"

@@ -206,6 +206,12 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
 
     Raises:
         ValueError: If the model cannot be initialized as a chat model
+        ModelInitializationError: If ``init_chat_model`` returns an object with no usable
+            underlying client. Some older provider integrations swallow credential errors at
+            construction time and hand back a partially constructed wrapper whose client
+            attribute is ``None``; that pattern surfaces deep in a rail as
+            ``AttributeError: 'NoneType' object has no attribute 'create'``. Catching it here
+            yields a clearer message that points at the missing credential.
     """
 
     # just to document the expected behavior
@@ -219,13 +225,62 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
             " Please upgrade it with `pip install langchain-core --upgrade`."
         )
     try:
-        return init_chat_model(
+        model = init_chat_model(
             model=model_name,
             model_provider=provider_name,
             **kwargs,
         )
     except ValueError:
         raise
+
+    _verify_model_has_usable_client(model, model_name, provider_name, kwargs)
+    return model
+
+
+def _verify_model_has_usable_client(
+    model: Any,
+    model_name: str,
+    provider_name: str,
+    kwargs: Dict[str, Any],
+) -> None:
+    """Sanity check that ``init_chat_model`` returned a usable wrapper.
+
+    Some legacy provider integrations construct the wrapper object even when a required
+    credential is missing, leaving the underlying SDK client as ``None``. The first symptom
+    is then an ``AttributeError`` raised from inside a rail's ``llm_call``, which obscures
+    the real failure (a missing api_key, deployment name, or endpoint). When we can clearly
+    see that the wrapper carries a ``client`` slot but it is ``None`` while no opt-in flag
+    was set, treat that as a model initialization failure and surface a clearer error.
+
+    This check is intentionally narrow: it only fires when ``client`` is explicitly ``None``
+    while the corresponding kwarg was either omitted or set to a falsy value, so wrappers
+    that legitimately do not expose a ``client`` attribute (e.g. providers that lazily
+    construct their transport) are not affected.
+    """
+    if not hasattr(model, "client"):
+        return
+
+    client = getattr(model, "client", None)
+    async_client = getattr(model, "async_client", None) if hasattr(model, "async_client") else None
+    if client is not None or async_client is not None:
+        return
+
+    missing_credentials: list[str] = []
+    for key in ("api_key", "openai_api_key", "azure_ad_token", "azure_ad_token_provider"):
+        if key in kwargs and not kwargs.get(key):
+            missing_credentials.append(key)
+
+    if provider_name in {"azure", "azure_openai"}:
+        for key in ("azure_endpoint", "azure_deployment", "deployment_name", "api_version"):
+            if key in kwargs and not kwargs.get(key):
+                missing_credentials.append(key)
+
+    detail = f": missing or empty parameters {sorted(set(missing_credentials))}" if missing_credentials else ""
+    raise ModelInitializationError(
+        f"Provider {provider_name!r} returned a model wrapper for {model_name!r} with no usable client{detail}. "
+        "Set the required credentials (for example api_key, azure_endpoint, azure_deployment, api_version) "
+        "in the model parameters or in the corresponding environment variables, then retry."
+    )
 
 
 def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM | None:
