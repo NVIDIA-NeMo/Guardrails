@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List, NamedTuple
 
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
+from nemoguardrails.stream_errors import parse_stream_error_chunk
 
 __all__ = ["ChunkBatch", "BufferStrategy", "RollingBuffer", "get_buffer_strategy"]
 
@@ -292,7 +293,40 @@ class RollingBuffer(BufferStrategy):
         total_chunks = 0
 
         async for chunk in streaming_handler:
-            buffer.append(chunk["text"] if isinstance(chunk, dict) else chunk)
+            chunk_text = chunk["text"] if isinstance(chunk, dict) else chunk
+
+            # Typed StreamError chunks bypass the rolling buffer entirely:
+            # they are not LLM text and would otherwise pollute the
+            # processing_context fed to output rails (where the error JSON
+            # would either trip the rail or get echoed back to the user).
+            # Yield them in their own batch with an empty processing_context
+            # so the consumer keeps seeing them while the rail check skips.
+            if parse_stream_error_chunk(chunk_text) is not None:
+                # Flush any pending buffered content first so prior text is not
+                # silently dropped when the error arrives mid-stream.
+                if buffer:
+                    remaining = total_chunks - self.total_yielded
+                    pending = buffer[-remaining:] if remaining > 0 else []
+                    if pending:
+                        self.total_yielded += len(pending)
+                        yield ChunkBatch(
+                            processing_context=list(buffer),
+                            user_output_chunks=pending,
+                        )
+                        # Trim the buffer to context size so any post-error
+                        # content (rare) is still scored with prior context.
+                        buffer = buffer[-self.buffer_context_size :]
+
+                # Emit the error chunk on its own with no processing_context;
+                # downstream code uses parse_stream_error_chunk to detect it
+                # and route around the output rail.
+                yield ChunkBatch(
+                    processing_context=[],
+                    user_output_chunks=[chunk_text],
+                )
+                continue
+
+            buffer.append(chunk_text)
             total_chunks += 1
 
             if len(buffer) >= self.buffer_chunk_size:
