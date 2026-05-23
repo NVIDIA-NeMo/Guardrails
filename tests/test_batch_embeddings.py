@@ -53,7 +53,7 @@ async def test_batch_get_embeddings_propagates_short_result():
     )
     embeddings_index._model = ShortEmbeddingModel()
 
-    with pytest.raises(RuntimeError, match="fewer embeddings"):
+    with pytest.raises(RuntimeError, match="Embedding model returned"):
         await asyncio.wait_for(
             asyncio.gather(
                 embeddings_index._batch_get_embeddings("text 0"),
@@ -61,6 +61,32 @@ async def test_batch_get_embeddings_propagates_short_result():
             ),
             timeout=1,
         )
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_cancelled_batch_task():
+    """Cancelling the active _run_batch task must wake callers with CancelledError."""
+    encoding_started = asyncio.Event()
+
+    class HangingModel:
+        async def encode_async(self, texts):
+            encoding_started.set()
+            await asyncio.sleep(10)
+
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=10,
+        max_batch_hold=0.001,
+    )
+    embeddings_index._model = HangingModel()
+
+    caller = asyncio.create_task(embeddings_index._batch_get_embeddings("text 0"))
+    # Wait until _get_embeddings has been entered so cancellation hits that await.
+    await asyncio.wait_for(encoding_started.wait(), timeout=1)
+    embeddings_index._current_batch_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await caller
 
 
 @pytest.mark.asyncio

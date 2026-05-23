@@ -90,6 +90,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._req_idx: int = 0
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
+        # Stored so callers can cancel or inspect the active batch task (e.g. shutdown).
         self._current_batch_task: Optional[asyncio.Task] = None
         self._current_batch_submitted: asyncio.Event = asyncio.Event()
         self._batch_lock: asyncio.Lock = asyncio.Lock()
@@ -192,35 +193,37 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
     async def _run_batch(self, batch_full_event: asyncio.Event, batch_finished_event: asyncio.Event):
         """Runs the current batch of embeddings."""
-
-        # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
-        _, pending = await asyncio.wait(
-            [
-                asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
-                asyncio.create_task(batch_full_event.wait()),
-            ],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for task in pending:
-            task.cancel()
-
-        async with self._batch_lock:
-            # Reset the active batch only if it has not already rolled over.
-            if self._current_batch_finished_event is batch_finished_event:
-                self._current_batch_finished_event = None
-                self._current_batch_full_event = None
-
-            # Create the actual batch to be sent for computing.
-            batch_ids = list(self._req_queue.keys())
-            batch = [self._req_queue[req_id] for req_id in batch_ids]
-
-            # Empty the queue up to this point.
-            self._req_queue = {}
-
-            # We allow other batches to start.
-            self._current_batch_submitted.set()
-
+        # Initialised here so the except handlers can safely iterate even if
+        # cancellation fires before the lock section populates batch_ids.
+        batch_ids: List[int] = []
         try:
+            # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
+            _, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
+                    asyncio.create_task(batch_full_event.wait()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+
+            async with self._batch_lock:
+                # Reset the active batch only if it has not already rolled over.
+                if self._current_batch_finished_event is batch_finished_event:
+                    self._current_batch_finished_event = None
+                    self._current_batch_full_event = None
+
+                # Create the actual batch to be sent for computing.
+                batch_ids = list(self._req_queue.keys())
+                batch = [self._req_queue[req_id] for req_id in batch_ids]
+
+                # Empty the queue up to this point.
+                self._req_queue = {}
+
+                # We allow other batches to start.
+                self._current_batch_submitted.set()
+
             embeddings = await self._get_embeddings(batch)
             if len(embeddings) < len(batch_ids):
                 shortage_exc = RuntimeError(
