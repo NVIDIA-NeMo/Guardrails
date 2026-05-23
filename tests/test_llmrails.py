@@ -1004,6 +1004,80 @@ def test_api_key_environment_variable_logic_without_rails_init():
     assert kwargs["temperature"] == 0.3
 
 
+def test_prepare_model_kwargs_strips_stream_flag(caplog):
+    """Regression test for #1325.
+
+    Setting ``stream: true`` directly on a model's parameters causes the
+    provider client to return an ``AsyncStream`` on every call, which the
+    non-streaming completion path then crashes on with
+    ``'AsyncStream' object has no attribute 'model_dump'``. The helper must
+    strip the flag and log a clear warning instead of forwarding it.
+    """
+    config = RailsConfig(models=[Model(type="main", engine="fake", model="fake")])
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
+
+    class ModelWithStream:
+        def __init__(self):
+            self.api_key_env_var = None
+            self.model = "gpt-4.1-2025-04-14"
+            self.engine = "openai"
+            self.parameters = {"temperature": 0.2, "stream": True}
+
+    model = ModelWithStream()
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.rails.llm.llmrails"):
+        kwargs = rails._prepare_model_kwargs(model)
+
+    assert "stream" not in kwargs
+    assert kwargs["temperature"] == 0.2
+    assert any("stream" in record.message.lower() for record in caplog.records), (
+        "Expected a warning that the `stream` parameter was stripped."
+    )
+
+    # Confirm the original config dict was not mutated.
+    assert model.parameters == {"temperature": 0.2, "stream": True}
+
+
+def test_prepare_model_kwargs_preserves_stream_options():
+    """The strip is narrow: only the literal ``stream`` flag is removed.
+
+    Provider-specific knobs like ``stream_options`` (used to opt into usage
+    accounting on OpenAI streaming responses) must pass through untouched.
+    """
+    config = RailsConfig(models=[Model(type="main", engine="fake", model="fake")])
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
+
+    class ModelWithStreamOptions:
+        def __init__(self):
+            self.api_key_env_var = None
+            self.model = "gpt-4"
+            self.engine = "openai"
+            self.parameters = {"stream_options": {"include_usage": True}}
+
+    kwargs = rails._prepare_model_kwargs(ModelWithStreamOptions())
+    assert kwargs == {"stream_options": {"include_usage": True}}
+
+
+def test_prepare_model_kwargs_does_not_warn_on_falsy_stream(caplog):
+    """An explicit ``stream: false`` is a no-op and should not warn."""
+    config = RailsConfig(models=[Model(type="main", engine="fake", model="fake")])
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
+
+    class ModelWithFalseStream:
+        def __init__(self):
+            self.api_key_env_var = None
+            self.model = "gpt-4"
+            self.engine = "openai"
+            self.parameters = {"stream": False, "temperature": 0.1}
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.rails.llm.llmrails"):
+        kwargs = rails._prepare_model_kwargs(ModelWithFalseStream())
+
+    # ``stream: false`` is harmless, so we silently drop it without a warning.
+    assert "stream" not in kwargs
+    assert kwargs["temperature"] == 0.1
+    assert not any("stream" in record.message.lower() for record in caplog.records)
+
+
 def test_register_methods_return_self():
     """Test that all register_* methods return self for method chaining."""
     config = RailsConfig.from_content(config={"models": []})
