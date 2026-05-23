@@ -234,6 +234,15 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             for i in range(len(embeddings)):
                 self._req_results[batch_ids[i]] = embeddings[i]
         except asyncio.CancelledError as exc:
+            # If cancelled before the lock section, batch_ids is still [].
+            # Snapshot and drain the queue without the lock — safe because asyncio
+            # is single-threaded and no await occurs between here and `raise`.
+            if not batch_ids:
+                batch_ids = list(self._req_queue.keys())
+                self._req_queue = {}
+                if self._current_batch_finished_event is batch_finished_event:
+                    self._current_batch_finished_event = None
+                    self._current_batch_full_event = None
             for req_id in batch_ids:
                 if req_id not in self._req_results and req_id not in self._req_errors:
                     self._req_errors[req_id] = exc
@@ -243,6 +252,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
                 if req_id not in self._req_results and req_id not in self._req_errors:
                     self._req_errors[req_id] = exc
         finally:
+            # Unconditionally unblock full-queue waiters in case the lock section
+            # was never reached (early cancellation).
+            self._current_batch_submitted.set()
             batch_finished_event.set()
 
     async def _batch_get_embeddings(self, text: str) -> List[float]:

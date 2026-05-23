@@ -90,6 +90,28 @@ async def test_batch_get_embeddings_propagates_cancelled_batch_task():
 
 
 @pytest.mark.asyncio
+async def test_batch_get_embeddings_propagates_early_cancellation():
+    """Cancelling _run_batch before batch_ids is populated must still wake callers."""
+    embeddings_index = BasicEmbeddingsIndex(
+        use_batching=True,
+        max_batch_size=10,
+        max_batch_hold=10,  # Long hold so cancellation fires during asyncio.wait
+    )
+    embeddings_index._model = MockEmbeddingModel()
+
+    caller = asyncio.create_task(embeddings_index._batch_get_embeddings("text 0"))
+    # Yield to let _batch_get_embeddings register the request and start _run_batch,
+    # then cancel before max_batch_hold elapses (i.e. before the lock section runs).
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert embeddings_index._current_batch_task is not None
+    embeddings_index._current_batch_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(caller, timeout=1)
+
+
+@pytest.mark.asyncio
 async def test_batch_get_embeddings_propagates_model_error():
     embeddings_index = BasicEmbeddingsIndex(
         use_batching=True,
