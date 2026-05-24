@@ -327,7 +327,11 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
         # Preserve fields from the existing entry that the override does not
         # set, so a request-side model swap inherits credential resolution
         # (api_key_env_var) and other model-level settings from config.yml.
-        api_key_env_var = main_model.api_key_env_var or existing.api_key_env_var
+        api_key_env_var = (
+            main_model.api_key_env_var
+            if main_model.api_key_env_var is not None
+            else existing.api_key_env_var
+        )
         models[main_model_index] = main_model
         models[main_model_index].parameters = parameters
         models[main_model_index].api_key_env_var = api_key_env_var
