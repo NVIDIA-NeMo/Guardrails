@@ -1148,3 +1148,93 @@ class TestBedrockEmbeddingModelMocked:
                 model = BedrockEmbeddingModel(model_name)
                 assert model.embedding_size == expected_size
                 assert model.model == model_name
+
+    def test_init_with_unsupported_vendor_raises(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            with pytest.raises(ValueError, match="Unsupported Bedrock vendor"):
+                BedrockEmbeddingModel("foo.embed-x")
+
+            mock_client.invoke_model.assert_not_called()
+            mock_boto3.client.assert_not_called()
+
+    def test_profile_name_uses_session(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_session = Mock()
+        mock_session.client.return_value = mock_client
+        mock_boto3.Session.return_value = mock_session
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            model = BedrockEmbeddingModel("amazon.titan-embed-text-v1", profile_name="prod")
+
+            mock_boto3.Session.assert_called_once_with(profile_name="prod")
+            mock_session.client.assert_called_once_with("bedrock-runtime")
+            mock_boto3.client.assert_not_called()
+            assert model.client is mock_client
+
+    def test_profile_name_with_region_uses_session(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_session = Mock()
+        mock_session.client.return_value = mock_client
+        mock_boto3.Session.return_value = mock_session
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            BedrockEmbeddingModel(
+                "amazon.titan-embed-text-v1",
+                profile_name="prod",
+                region_name="eu-central-1",
+            )
+
+            mock_session.client.assert_called_once_with("bedrock-runtime", region_name="eu-central-1")
+
+    def test_dimensions_on_titan_v1_warns(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            with pytest.warns(UserWarning, match="'dimensions' is only supported by amazon.titan-embed-text-v2"):
+                model = BedrockEmbeddingModel("amazon.titan-embed-text-v1", dimensions=256)
+
+            assert model.dimensions is None
+            assert model.embedding_size == 1536
+
+    def test_normalize_on_titan_v1_warns(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            with pytest.warns(UserWarning, match="'normalize' is only supported by amazon.titan-embed-text-v2"):
+                model = BedrockEmbeddingModel("amazon.titan-embed-text-v1", normalize=True)
+
+            assert model.normalize is None
+
+    def test_dimensions_on_cohere_warns(self):
+        mock_boto3 = MagicMock()
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        with patch.dict("sys.modules", {"boto3": mock_boto3}):
+            BedrockEmbeddingModel = self._fresh_import()
+
+            with pytest.warns(UserWarning, match="'dimensions' is only supported"):
+                model = BedrockEmbeddingModel("cohere.embed-english-v3", dimensions=256)
+
+            assert model.dimensions is None
+            assert model.embedding_size == 1024
