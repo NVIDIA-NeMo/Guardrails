@@ -28,6 +28,7 @@ except ImportError:
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST")
+BEDROCK_AVAILABLE = BedrockEmbeddingModel is not None
 
 
 @pytest.fixture
@@ -38,12 +39,12 @@ def app():
     return LLMRails(config)
 
 
-@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
+@pytest.mark.skipif(not LIVE_TEST_MODE or not BEDROCK_AVAILABLE, reason="Not in live mode or boto3 not installed.")
 def test_custom_llm_registration(app):
     assert isinstance(app.llm_generation_actions.flows_index._model, BedrockEmbeddingModel)
 
 
-@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
+@pytest.mark.skipif(not LIVE_TEST_MODE or not BEDROCK_AVAILABLE, reason="Not in live mode or boto3 not installed.")
 def test_sync_embeddings():
     model = BedrockEmbeddingModel("amazon.titan-embed-text-v2:0")
 
@@ -53,7 +54,7 @@ def test_sync_embeddings():
     assert len(result[0]) == 1024
 
 
-@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
+@pytest.mark.skipif(not LIVE_TEST_MODE or not BEDROCK_AVAILABLE, reason="Not in live mode or boto3 not installed.")
 @pytest.mark.asyncio
 async def test_async_embeddings():
     model = BedrockEmbeddingModel("amazon.titan-embed-text-v2:0")
@@ -64,7 +65,7 @@ async def test_async_embeddings():
     assert len(result[0]) == 1024
 
 
-@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
+@pytest.mark.skipif(not LIVE_TEST_MODE or not BEDROCK_AVAILABLE, reason="Not in live mode or boto3 not installed.")
 def test_sync_embeddings_cohere_batched():
     model = BedrockEmbeddingModel("cohere.embed-english-v3")
 

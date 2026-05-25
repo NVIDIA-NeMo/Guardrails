@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+import warnings
 from typing import List, Optional
 
 from .base import EmbeddingModel
@@ -43,21 +44,29 @@ class BedrockEmbeddingModel(EmbeddingModel):
     Args:
         embedding_model (str): The Bedrock model id (e.g.
             ``amazon.titan-embed-text-v2:0`` or ``cohere.embed-english-v3``).
+            Must start with a supported vendor prefix (``amazon`` or
+            ``cohere``); other prefixes raise ``ValueError``.
         region_name (str, optional): AWS region to target. If omitted,
             ``boto3`` resolves the region from its standard configuration
-            chain (``AWS_REGION``, ``AWS_DEFAULT_REGION``, profile, etc.).
+            chain (``AWS_REGION``, ``AWS_DEFAULT_REGION``, ``~/.aws/config``).
+        profile_name (str, optional): AWS profile name from
+            ``~/.aws/credentials``. When set, a ``boto3.Session`` is
+            created with that profile and used to construct the client
+            (``boto3.client`` itself does not accept ``profile_name``).
         dimensions (int, optional): Output dimensionality. Only forwarded
             to Titan v2 models (``amazon.titan-embed-text-v2:*``) which
-            support 256, 512, or 1024.
+            support 256, 512, or 1024. Passing it for other models emits
+            a ``UserWarning`` and has no effect.
         normalize (bool, optional): Whether Titan v2 should return
             normalized vectors. Only forwarded to Titan v2 models.
+            Passing it for other models emits a ``UserWarning``.
         input_type (str): Input type for Cohere on Bedrock, one of
             ``search_document``, ``search_query``, ``classification``,
             ``clustering``. Defaults to ``search_document``.
         **kwargs: Additional keyword arguments forwarded to
             ``boto3.client("bedrock-runtime", ...)`` (for example
             ``aws_access_key_id``, ``aws_secret_access_key``,
-            ``aws_session_token``, ``profile_name``, ``endpoint_url``).
+            ``aws_session_token``, ``endpoint_url``).
 
     Attributes:
         model (str): The Bedrock model id.
@@ -65,6 +74,8 @@ class BedrockEmbeddingModel(EmbeddingModel):
     """
 
     engine_name = "bedrock"
+
+    _SUPPORTED_VENDORS = ("amazon", "cohere")
 
     _embedding_size_dict = {
         "amazon.titan-embed-text-v1": 1536,
@@ -79,6 +90,7 @@ class BedrockEmbeddingModel(EmbeddingModel):
         self,
         embedding_model: str,
         region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
         dimensions: Optional[int] = None,
         normalize: Optional[bool] = None,
         input_type: str = "search_document",
@@ -90,17 +102,45 @@ class BedrockEmbeddingModel(EmbeddingModel):
             raise ImportError("Could not import boto3, please install it with `pip install nemoguardrails[bedrock]`.")
 
         self.model = embedding_model
+        self._vendor = embedding_model.split(".", 1)[0]
+        if self._vendor not in self._SUPPORTED_VENDORS:
+            raise ValueError(
+                f"Unsupported Bedrock vendor '{self._vendor}' for model "
+                f"'{embedding_model}'. Supported vendors: {self._SUPPORTED_VENDORS}."
+            )
+
+        is_titan_v2 = embedding_model.startswith("amazon.titan-embed-text-v2")
+        if dimensions is not None and not is_titan_v2:
+            warnings.warn(
+                f"'dimensions' is only supported by amazon.titan-embed-text-v2 models; "
+                f"ignoring for '{embedding_model}'.",
+                UserWarning,
+                stacklevel=2,
+            )
+            dimensions = None
+        if normalize is not None and not is_titan_v2:
+            warnings.warn(
+                f"'normalize' is only supported by amazon.titan-embed-text-v2 models; "
+                f"ignoring for '{embedding_model}'.",
+                UserWarning,
+                stacklevel=2,
+            )
+            normalize = None
+
         self.dimensions = dimensions
         self.normalize = normalize
         self.input_type = input_type
-        self._vendor = embedding_model.split(".", 1)[0]
 
         client_kwargs = dict(kwargs)
         if region_name is not None:
             client_kwargs["region_name"] = region_name
-        self.client = boto3.client("bedrock-runtime", **client_kwargs)
+        if profile_name is not None:
+            session = boto3.Session(profile_name=profile_name)
+            self.client = session.client("bedrock-runtime", **client_kwargs)
+        else:
+            self.client = boto3.client("bedrock-runtime", **client_kwargs)
 
-        if self.dimensions is not None and self.model.startswith("amazon.titan-embed-text-v2"):
+        if self.dimensions is not None and is_titan_v2:
             self._embedding_size: Optional[int] = self.dimensions
         elif self.model in self._embedding_size_dict:
             self._embedding_size = self._embedding_size_dict[self.model]
@@ -141,9 +181,9 @@ class BedrockEmbeddingModel(EmbeddingModel):
             return []
 
         try:
-            if self._vendor == "cohere":
-                return self._encode_cohere(documents)
-            return self._encode_titan(documents)
+            if self._vendor == "amazon":
+                return self._encode_titan(documents)
+            return self._encode_cohere(documents)
         except Exception as e:
             raise RuntimeError(f"Failed to retrieve embeddings: {e}") from e
 

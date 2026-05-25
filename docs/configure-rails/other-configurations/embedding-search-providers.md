@@ -91,7 +91,17 @@ core:
     parameters:
       embedding_engine: bedrock
       embedding_model: amazon.titan-embed-text-v2:0
+      # Optional. If omitted, boto3 resolves the region from AWS_REGION,
+      # AWS_DEFAULT_REGION, or ~/.aws/config.
       region_name: us-east-1
+      # Optional AWS profile from ~/.aws/credentials.
+      # profile_name: my-profile
+      # Optional, only for amazon.titan-embed-text-v2:* (256, 512, or 1024).
+      # dimensions: 1024
+      # normalize: true
+      # Optional, only for cohere.* models
+      # (search_document, search_query, classification, clustering).
+      # input_type: search_document
     cache:
       enabled: False
       key_generator: sha256
@@ -107,7 +117,7 @@ knowledge_base:
       region_name: us-east-1
 ```
 
-Supported models include `amazon.titan-embed-text-v1`, `amazon.titan-embed-text-v2:0`, and the Cohere Embed v3 family on Bedrock (`cohere.embed-english-v3`, `cohere.embed-multilingual-v3`, `cohere.embed-english-light-v3`, `cohere.embed-multilingual-light-v3`). The target model must be enabled in your AWS account and region. Authentication uses the standard `boto3` credential chain (environment variables, `~/.aws/credentials`, IAM role).
+Supported models include `amazon.titan-embed-text-v1`, `amazon.titan-embed-text-v2:0`, and the Cohere Embed v3 family on Bedrock (`cohere.embed-english-v3`, `cohere.embed-multilingual-v3`, `cohere.embed-english-light-v3`, `cohere.embed-multilingual-light-v3`). Models from other vendors raise `ValueError` at configuration time. The target model must be enabled in your AWS account and region. Authentication uses the standard `boto3` credential chain (environment variables, `~/.aws/credentials`, IAM role); `region_name` is optional when the region is already set via that chain.
 
 The default implementation is also designed to support asynchronous execution of the embedding computation process, thereby enhancing the efficiency of the search functionality.
 
