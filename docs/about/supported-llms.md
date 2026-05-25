@@ -69,5 +69,6 @@ The library uses embedding models for vector similarity search in dialog rails, 
 | Cohere | `cohere` | Cohere embedding model provider |
 | SentenceTransformers | `sentence_transformers` | SentenceTransformers embedding model provider |
 | Google | `google` | Google embedding model provider |
+| AWS Bedrock | `bedrock` | AWS Bedrock embedding model provider (Amazon Titan, Cohere on Bedrock) |
 
 For more information about configuring embedding providers, refer to [Embedding Search Providers](../configure-rails/other-configurations/embedding-search-providers.md).
