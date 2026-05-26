@@ -51,6 +51,7 @@ from nemoguardrails.actions.llm.utils import (
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
@@ -132,7 +133,7 @@ def _wrap_legacy_llm(llm):
     return LangChainLLMAdapter(llm)
 
 
-class LLMRails:
+class LLMRails(BaseGuardrails):
     """Rails based on a given configuration."""
 
     config: RailsConfig

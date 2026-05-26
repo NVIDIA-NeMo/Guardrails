@@ -26,6 +26,7 @@ from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Un
 
 from typing_extensions import Self
 
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -42,7 +43,7 @@ from nemoguardrails.types import LLMModel
 log = logging.getLogger(__name__)
 
 
-class Guardrails:
+class Guardrails(BaseGuardrails):
     """Top-level interface for NeMo Guardrails functionality."""
 
     config: RailsConfig

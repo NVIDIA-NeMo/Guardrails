@@ -30,6 +30,7 @@ from contextlib import nullcontext, suppress
 from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -86,7 +87,7 @@ STREAM_MAX_CONCURRENCY = 256
 _GENERATION_ERROR_TYPE = "generation_error"
 
 
-class IORails:
+class IORails(BaseGuardrails):
     """Workflow engine for accelerated Input/Output rails inference."""
 
     # Rail sections and flows that this engine can handle. Configs using anything
