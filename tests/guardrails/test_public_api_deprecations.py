@@ -66,11 +66,12 @@ def iorails_guardrails(_content_safety_config):
         yield Guardrails(config=_content_safety_config, use_iorails=True)
 
 
-class TestLLMRailsDeprecatedReadOnlyAliases:
-    """Read-only deprecated property aliases on LLMRails.
+class TestLLMRailsDeprecatedAliases:
+    """Deprecated property aliases on LLMRails.
 
-    Each public name is a thin getter that warns and returns the underlying
-    underscored attribute. Tests verify both the warning and the forwarded value.
+    Each public name is a thin getter (and, for default_embedding_*, also a
+    setter) that warns and forwards to the underscored attribute. Tests
+    verify both the warning and the forwarded value/assignment.
     """
 
     @pytest.mark.parametrize(
@@ -94,6 +95,28 @@ class TestLLMRailsDeprecatedReadOnlyAliases:
         with pytest.warns(DeprecationWarning, match=rf"LLMRails\.{public_name}.*deprecated"):
             value = getattr(rails, public_name)
         assert value is sentinel
+
+    @pytest.mark.parametrize(
+        "public_name, private_name",
+        [
+            ("default_embedding_model", "_default_embedding_model"),
+            ("default_embedding_engine", "_default_embedding_engine"),
+            ("default_embedding_params", "_default_embedding_params"),
+        ],
+    )
+    def test_write_emits_deprecation_warning(self, public_name, private_name):
+        """Writing a deprecated default_embedding_* alias warns and forwards to the underscored attribute.
+
+        These have setters (unlike kb / embedding_search_providers / llm_generation_actions)
+        because they were previously plain instance attributes that downstream code may have
+        written to. The setter preserves that write path during deprecation.
+        """
+        # Bypass __init__: testing only the @setter descriptor.
+        rails = LLMRails.__new__(LLMRails)
+        sentinel = object()
+        with pytest.warns(DeprecationWarning, match=rf"Setting LLMRails\.{public_name}.*deprecated"):
+            setattr(rails, public_name, sentinel)
+        assert getattr(rails, private_name) is sentinel
 
 
 class TestLLMRailsExplainInfoDeprecation:

@@ -147,7 +147,7 @@ class Guardrails(BaseGuardrails):
 
     @explain_info.setter
     def explain_info(self, value: Optional[ExplainInfo]) -> None:
-        """Deprecated. ``explain_info`` is an internal attribute and read-only"""
+        """Deprecated. Setting ``explain_info`` is no longer supported; use ``explain()`` to read it."""
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support explain_info attribute access")
 

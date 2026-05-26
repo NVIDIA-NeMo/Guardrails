@@ -168,6 +168,15 @@ class LLMRails(BaseGuardrails):
         )
         return self._default_embedding_model
 
+    @default_embedding_model.setter
+    def default_embedding_model(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_model = value
+
     @property
     def default_embedding_engine(self):
         warnings.warn(
@@ -177,6 +186,15 @@ class LLMRails(BaseGuardrails):
         )
         return self._default_embedding_engine
 
+    @default_embedding_engine.setter
+    def default_embedding_engine(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_engine = value
+
     @property
     def default_embedding_params(self):
         warnings.warn(
@@ -185,6 +203,15 @@ class LLMRails(BaseGuardrails):
             stacklevel=2,
         )
         return self._default_embedding_params
+
+    @default_embedding_params.setter
+    def default_embedding_params(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_params = value
 
     @property
     def explain_info(self):
@@ -199,8 +226,8 @@ class LLMRails(BaseGuardrails):
     @explain_info.setter
     def explain_info(self, value):
         warnings.warn(
-            "LLMRails.explain_info is read-only and will be removed in the next release. "
-            "Use LLMRails.explain() instead.",
+            "Setting LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use LLMRails.explain() to read it.",
             DeprecationWarning,
             stacklevel=2,
         )
