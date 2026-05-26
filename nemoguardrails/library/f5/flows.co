@@ -1,0 +1,15 @@
+flow f5 guardrails scan input
+  """Check the user input for any violations."""
+  $result = await f5_guardrails_scan(text=$user_message)
+
+  if $result.result.outcome != "cleared"
+    bot refuse to respond
+    abort
+
+flow f5 guardrails scan output
+  """Check the bot output for any violations."""
+  $result = await f5_guardrails_scan(text=$bot_message)
+
+  if $result.result.outcome != "cleared"
+    bot refuse to respond
+    abort
