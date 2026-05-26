@@ -14,7 +14,10 @@
 # limitations under the License.
 
 
+import asyncio
+
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.actions.core import create_event
 
 
 def test_action_decorator():
@@ -40,6 +43,29 @@ def test_action_decorator_with_output_mapping():
     assert sample_action.action_meta["output_mapping"] is not None
     assert sample_action.action_meta["output_mapping"]("blocked") is True
     assert sample_action.action_meta["output_mapping"]("not_blocked") is False
+
+
+def test_create_event_accepts_empty_string_values():
+    # #1700: the `$variable` reference check used `v[0] == "$"`, which raised
+    # IndexError on empty string values. Using `startswith("$")` handles them.
+    result = asyncio.run(
+        create_event(event={"_type": "SomeEvent", "param": ""})
+    )
+    assert len(result.events) == 1
+    assert result.events[0]["type"] == "SomeEvent"
+    assert result.events[0]["param"] == ""
+
+
+def test_create_event_still_resolves_dollar_prefixed_references():
+    result = asyncio.run(
+        create_event(
+            event={"_type": "SomeEvent", "param": "$user_name"},
+            context={"user_name": "John"},
+        )
+    )
+    assert len(result.events) == 1
+    assert result.events[0]["type"] == "SomeEvent"
+    assert result.events[0]["param"] == "John"
 
 
 def test_action_result():
