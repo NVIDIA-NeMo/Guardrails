@@ -34,7 +34,7 @@ def app():
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 def test_custom_llm_registration(app):
-    assert isinstance(app.llm_generation_actions.flows_index._model, FastEmbedEmbeddingModel)
+    assert isinstance(app._llm_generation_actions.flows_index._model, FastEmbedEmbeddingModel)
 
     assert app._kb.index.embedding_engine == "openai"
     assert app._kb.index.embedding_model == "text-embedding-ada-002"

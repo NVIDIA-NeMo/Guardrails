@@ -160,6 +160,27 @@ class Guardrails(BaseGuardrails):
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails._explain_info = value
 
+    @property
+    def passthrough_fn(self) -> Optional[Callable]:
+        """The optional passthrough function that bypasses LLM generation.
+
+        Only supported for LLMRails. When set, the rails pipeline calls this
+        function instead of the main LLM for generating responses.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn: Optional[Callable]) -> None:
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.passthrough_fn = fn
+
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
         """Return messages in standard format, converting a prompt string if needed.

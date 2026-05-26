@@ -263,7 +263,7 @@ def test_user_message_index_searched_once_when_embeddings_only_disabled():
             '  "Hello! How can I help you?"',
         ],
     )
-    actions = chat.app.llm_generation_actions
+    actions = chat.app._llm_generation_actions
 
     chat.app.generate(messages=[{"role": "user", "content": "hello"}])
 

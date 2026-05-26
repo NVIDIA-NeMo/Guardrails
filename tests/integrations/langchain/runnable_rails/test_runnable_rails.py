@@ -329,7 +329,7 @@ def test_string_passthrough_mode_on_with_fn_and_without_dialog_rails():
     async def passthrough_fn(context: dict, events: List[dict]):
         return "PARIS."
 
-    model_with_rails.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+    model_with_rails.rails.passthrough_fn = passthrough_fn
 
     prompt = PromptTemplate.from_template("The capital of France is ")
     chain = prompt | model_with_rails
@@ -360,7 +360,7 @@ def test_string_passthrough_mode_on_with_fn_and_with_dialog_rails():
     async def passthrough_fn(context: dict, events: List[dict]):
         return "PARIS."
 
-    model_with_rails.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+    model_with_rails.rails.passthrough_fn = passthrough_fn
 
     prompt = PromptTemplate.from_template("The capital of France is ")
     chain = prompt | model_with_rails

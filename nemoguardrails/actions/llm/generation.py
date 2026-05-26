@@ -110,7 +110,7 @@ class LLMGenerationActions:
 
         # If set, in passthrough mode, this function will be used instead of
         # calling the LLM with the user input.
-        self.passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
+        self._passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
 
     def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
@@ -478,8 +478,8 @@ class LLMGenerationActions:
                     else:
                         raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
 
-                if self.passthrough_fn:
-                    raw_output = await self.passthrough_fn(context=context, events=events)
+                if self._passthrough_fn:
+                    raw_output = await self._passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output
@@ -860,9 +860,9 @@ class LLMGenerationActions:
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
                 # If we have a passthrough function, we use that.
-                if self.passthrough_fn:
+                if self._passthrough_fn:
                     prompt = None
-                    raw_output = await self.passthrough_fn(context=context, events=events)
+                    raw_output = await self._passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output

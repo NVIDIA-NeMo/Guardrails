@@ -206,6 +206,32 @@ class LLMRails(BaseGuardrails):
         )
         self._explain_info = value
 
+    @property
+    def llm_generation_actions(self):
+        warnings.warn(
+            "LLMRails.llm_generation_actions is deprecated and will be removed in a future release. "
+            "It is an internal attribute; use the first-class LLMRails.passthrough_fn API if you "
+            "previously set passthrough_fn through it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._llm_generation_actions
+
+    @property
+    def passthrough_fn(self):
+        """The optional passthrough function that bypasses LLM generation.
+
+        When set, the rails pipeline calls this function instead of the main LLM
+        for generating responses. LLMGenerationActions is private, expose only
+        `passthrough_fn` as a public API
+        """
+        return self._llm_generation_actions._passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn):
+        """LLMGenerationActions is private, set passthrough_fn directly"""
+        self._llm_generation_actions._passthrough_fn = fn
+
     def __init__(
         self,
         config: RailsConfig,
@@ -373,7 +399,7 @@ class LLMRails(BaseGuardrails):
         llm_generation_actions_class = (
             LLMGenerationActions if config.colang_version == "1.0" else LLMGenerationActionsV2dotx
         )
-        self.llm_generation_actions = llm_generation_actions_class(
+        self._llm_generation_actions = llm_generation_actions_class(
             config=config,
             llm=self.llm,
             llm_task_manager=self.runtime.llm_task_manager,
@@ -382,7 +408,7 @@ class LLMRails(BaseGuardrails):
         )
 
         # If there's already an action registered, we don't override.
-        self.runtime.register_actions(self.llm_generation_actions, override=False)
+        self.runtime.register_actions(self._llm_generation_actions, override=False)
 
         # Next, we initialize the Knowledge Base
         # There are still some edge cases not covered by nest_asyncio.
@@ -414,7 +440,7 @@ class LLMRails(BaseGuardrails):
         if not isinstance(llm, LLMModel):
             llm = _wrap_legacy_llm(llm)
         self.llm = llm
-        self.llm_generation_actions.llm = llm
+        self._llm_generation_actions.llm = llm
         self.runtime.register_action_param("llm", llm)
 
     def _validate_config(self):

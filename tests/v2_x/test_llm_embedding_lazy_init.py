@@ -83,7 +83,7 @@ def _create_test_chat(yaml_content: str, colang_content: str = "", llm_completio
 class TestEmbeddingIndexesNotCreatedAtInit:
     def test_main_model_only(self):
         chat = _create_test_chat(BASE_CONFIG, MINIMAL_COLANG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -92,7 +92,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_passthrough(self):
         chat = _create_test_chat(PASSTHROUGH_CONFIG, PASSTHROUGH_COLANG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -101,7 +101,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_minimal_colang(self):
         chat = _create_test_chat(BASE_CONFIG, MINIMAL_COLANG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -110,7 +110,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_dialog_colang(self):
         chat = _create_test_chat(BASE_CONFIG, DIALOG_COLANG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -154,7 +154,7 @@ class TestIndexInitializedAfterGenerate:
             config,
             llm_completions=["user expressed greeting"],
         )
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None, "Index should be None before generate"
 

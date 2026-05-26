@@ -128,7 +128,7 @@ def _create_test_chat(yaml_content: str, colang_content: str = "", llm_completio
 class TestEmbeddingIndexesNotCreatedAtInit:
     def test_main_model_only(self):
         chat = _create_test_chat(BASE_CONFIG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -136,7 +136,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_input_rails_only(self):
         chat = _create_test_chat(BASE_CONFIG + INPUT_RAILS_CONFIG, llm_completions=["yes", "Hello!"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -144,7 +144,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_output_rails_only(self):
         chat = _create_test_chat(BASE_CONFIG + OUTPUT_RAILS_CONFIG, llm_completions=["Hello!", "yes"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -152,7 +152,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_input_output_rails(self):
         chat = _create_test_chat(BASE_CONFIG + INPUT_OUTPUT_RAILS_CONFIG, llm_completions=["yes", "Hello!", "yes"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -160,7 +160,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_passthrough(self):
         chat = _create_test_chat(PASSTHROUGH_CONFIG)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -168,7 +168,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_user_definitions_only(self):
         chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -176,7 +176,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_bot_definitions_only(self):
         chat = _create_test_chat(BASE_CONFIG, BOT_DEFINITIONS)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -184,7 +184,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_user_and_bot_definitions(self):
         chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -192,7 +192,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_flow_definitions_only(self):
         chat = _create_test_chat(BASE_CONFIG, FLOW_DEFINITIONS)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -200,7 +200,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_full_dialog_rails(self):
         chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS)
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -208,7 +208,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
     def test_input_rails_with_user_definitions(self):
         chat = _create_test_chat(BASE_CONFIG + INPUT_RAILS_CONFIG, USER_DEFINITIONS, llm_completions=["yes", "Hello!"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -306,7 +306,7 @@ class TestIndexInitializedAfterGenerate:
             config,
             llm_completions=["express greeting", "Hello! How can I help you?"],
         )
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         assert actions.user_message_index is None, "Index should be None before generate"
 
@@ -325,7 +325,7 @@ class TestConcurrentInitialization:
             colang_content=USER_DEFINITIONS,
         )
         chat = TestChat(config, llm_completions=["Hello!"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         init_call_count = 0
 
@@ -351,7 +351,7 @@ class TestConcurrentInitialization:
             colang_content=USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS,
         )
         chat = TestChat(config, llm_completions=["Hello!"])
-        actions = chat.app.llm_generation_actions
+        actions = chat.app._llm_generation_actions
 
         init_call_count = 0
 
