@@ -153,7 +153,8 @@ class LLMRails(BaseGuardrails):
     def embedding_search_providers(self):
         warnings.warn(
             "LLMRails.embedding_search_providers is deprecated and will be removed in a future release. "
-            "Use register_embedding_search_provider() to add providers.",
+            "It is an internal attribute with no replacement read API; "
+            "use register_embedding_search_provider() to add providers.",
             DeprecationWarning,
             stacklevel=2,
         )

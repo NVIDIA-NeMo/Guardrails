@@ -33,7 +33,13 @@ from nemoguardrails.rails.llm.config import RailsConfig
 
 
 class BaseGuardrails(ABC):
-    """Minimum public surface shared by all guardrails engines."""
+    """Minimum public surface shared by all guardrails engines.
+
+    Subclasses must set ``self.config`` (a :class:`RailsConfig` instance) in
+    their ``__init__``. The bare annotation below is informational only — it
+    is not enforced by the ABC machinery, so a subclass that forgets to assign
+    ``self.config`` will instantiate fine and only fail on first access.
+    """
 
     config: RailsConfig
 
