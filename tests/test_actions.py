@@ -48,9 +48,7 @@ def test_action_decorator_with_output_mapping():
 def test_create_event_accepts_empty_string_values():
     # #1700: the `$variable` reference check used `v[0] == "$"`, which raised
     # IndexError on empty string values. Using `startswith("$")` handles them.
-    result = asyncio.run(
-        create_event(event={"_type": "SomeEvent", "param": ""})
-    )
+    result = asyncio.run(create_event(event={"_type": "SomeEvent", "param": ""}))
     assert len(result.events) == 1
     assert result.events[0]["type"] == "SomeEvent"
     assert result.events[0]["param"] == ""
