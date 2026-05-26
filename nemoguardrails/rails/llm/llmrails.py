@@ -140,6 +140,52 @@ class LLMRails(BaseGuardrails):
     llm: Optional[LLMModel]
     runtime: Runtime
 
+    @property
+    def kb(self):
+        warnings.warn(
+            "LLMRails.kb is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._kb
+
+    @property
+    def embedding_search_providers(self):
+        warnings.warn(
+            "LLMRails.embedding_search_providers is deprecated and will be removed in a future release. "
+            "Use register_embedding_search_provider() to add providers.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._embedding_search_providers
+
+    @property
+    def default_embedding_model(self):
+        warnings.warn(
+            "LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_model
+
+    @property
+    def default_embedding_engine(self):
+        warnings.warn(
+            "LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_engine
+
+    @property
+    def default_embedding_params(self):
+        warnings.warn(
+            "LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_params
+
     def __init__(
         self,
         config: RailsConfig,
@@ -166,12 +212,12 @@ class LLMRails(BaseGuardrails):
 
         # We allow the user to register additional embedding search providers, so we keep
         # an index of them.
-        self.embedding_search_providers = {}
+        self._embedding_search_providers = {}
 
         # The default embeddings model is using FastEmbed
-        self.default_embedding_model = "all-MiniLM-L6-v2"
-        self.default_embedding_engine = "FastEmbed"
-        self.default_embedding_params = {}
+        self._default_embedding_model = "all-MiniLM-L6-v2"
+        self._default_embedding_engine = "FastEmbed"
+        self._default_embedding_params = {}
 
         # We keep a cache of the events history associated with a sequence of user messages.
         # TODO: when we update the interface to allow to return a "state object", this
@@ -271,9 +317,9 @@ class LLMRails(BaseGuardrails):
         # If we have a customized embedding model, we'll use it.
         for model in self.config.models:
             if model.type == "embeddings":
-                self.default_embedding_model = model.model
-                self.default_embedding_engine = model.engine
-                self.default_embedding_params = model.parameters or {}
+                self._default_embedding_model = model.model
+                self._default_embedding_engine = model.engine
+                self._default_embedding_params = model.parameters or {}
 
                 for esp in [
                     self.config.core.embedding_search_provider,
@@ -330,7 +376,7 @@ class LLMRails(BaseGuardrails):
             loop.run_until_complete(self._init_kb())
 
         # We also register the kb as a parameter that can be passed to actions.
-        self.runtime.register_action_param("kb", self.kb)
+        self.runtime.register_action_param("kb", self._kb)
 
         # Reference to the general ExplainInfo object.
         self.explain_info = None
@@ -383,19 +429,19 @@ class LLMRails(BaseGuardrails):
 
     async def _init_kb(self):
         """Initializes the knowledge base."""
-        self.kb = None
+        self._kb = None
 
         if not self.config.docs:
             return
 
         documents = [doc.content for doc in self.config.docs]
-        self.kb = KnowledgeBase(
+        self._kb = KnowledgeBase(
             documents=documents,
             config=self.config.knowledge_base,
             get_embedding_search_provider_instance=self._get_embeddings_search_provider_instance,
         )
-        self.kb.init()
-        await self.kb.build()
+        self._kb.init()
+        await self._kb.build()
 
     def _prepare_model_kwargs(self, model_config):
         """
@@ -583,9 +629,9 @@ class LLMRails(BaseGuardrails):
             from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 
             return BasicEmbeddingsIndex(
-                embedding_model=esp_config.parameters.get("embedding_model", self.default_embedding_model),
-                embedding_engine=esp_config.parameters.get("embedding_engine", self.default_embedding_engine),
-                embedding_params=esp_config.parameters.get("embedding_parameters", self.default_embedding_params),
+                embedding_model=esp_config.parameters.get("embedding_model", self._default_embedding_model),
+                embedding_engine=esp_config.parameters.get("embedding_engine", self._default_embedding_engine),
+                embedding_params=esp_config.parameters.get("embedding_parameters", self._default_embedding_params),
                 cache_config=esp_config.cache,
                 # We make sure we also pass additional relevant params.
                 **{
@@ -602,11 +648,11 @@ class LLMRails(BaseGuardrails):
                 },
             )
         else:
-            if esp_config.name not in self.embedding_search_providers:
+            if esp_config.name not in self._embedding_search_providers:
                 raise Exception(f"Unknown embedding search provider: {esp_config.name}")
             else:
                 kwargs = esp_config.parameters
-                return self.embedding_search_providers[esp_config.name](**kwargs)
+                return self._embedding_search_providers[esp_config.name](**kwargs)
 
     def _get_events_for_messages(self, messages: List[dict], state: Any):
         """Return the list of events corresponding to the provided messages.
@@ -1627,7 +1673,7 @@ class LLMRails(BaseGuardrails):
             cls: The class that will be used to generate and search embedding
         """
 
-        self.embedding_search_providers[name] = cls
+        self._embedding_search_providers[name] = cls
         return self
 
     def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> Self:
