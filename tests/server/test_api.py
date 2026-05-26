@@ -1027,6 +1027,45 @@ def test_update_models_in_config_override_takes_precedence_for_api_key_env_var(m
     assert updated.models[0].api_key_env_var == "NEW_KEY"
 
 
+def test_update_models_in_config_preserves_mode_and_cache(monkeypatch):
+    """A request-side model override must not drop other config.yml model
+    settings it leaves unset, such as ``mode`` and ``cache``.
+
+    Follow-up to #1895: the override now starts from the existing entry and
+    applies only the fields it explicitly sets, so any field added to ``Model``
+    later is preserved without per-field carry-over.
+    """
+    from nemoguardrails import RailsConfig
+    from nemoguardrails.rails.llm.config import Model, ModelCacheConfig
+    from nemoguardrails.server.api import _update_models_in_config
+
+    monkeypatch.setenv("MY_CUSTOM_KEY", "sk-test-preserved")
+
+    existing = Model(
+        type="main",
+        engine="openai",
+        model="gpt-3.5-turbo-instruct",
+        api_key_env_var="MY_CUSTOM_KEY",
+        mode="text",
+        cache=ModelCacheConfig(enabled=True),
+        parameters={"temperature": 0.7},
+    )
+    config = RailsConfig(models=[existing], colang_version="1.0")
+
+    # The override only swaps the model name, leaving mode, cache, credentials,
+    # and existing parameters unset.
+    override = Model(type="main", engine="openai", model="gpt-4")
+
+    updated = _update_models_in_config(config, override)
+
+    main = updated.models[0]
+    assert main.model == "gpt-4"
+    assert main.mode == "text"
+    assert main.cache is not None and main.cache.enabled is True
+    assert main.api_key_env_var == "MY_CUSTOM_KEY"
+    assert main.parameters == {"temperature": 0.7}
+
+
 def test_get_rails_with_model_override_resolves_env_credentials(monkeypatch, tmp_path):
     """Regression test for #1895.
 
