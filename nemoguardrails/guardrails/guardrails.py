@@ -294,6 +294,28 @@ class Guardrails(BaseGuardrails):
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.update_llm(llm)
 
+    @property
+    def events_history_cache(self) -> dict:
+        """Per-session events history cache. Only supported for LLMRails.
+
+        Used by the server to persist conversation state across requests.
+        Stored by reference; assigning replaces the dict object, not its
+        contents.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support events_history_cache attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.events_history_cache
+
+    @events_history_cache.setter
+    def events_history_cache(self, value: dict) -> None:
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support events_history_cache attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.events_history_cache = value
+
     async def generate_events_async(self, events: List[dict]) -> List[dict]:
         """Generate the next events based on the provided history.
         Only supported for LLMRails.
