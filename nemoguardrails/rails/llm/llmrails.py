@@ -186,6 +186,26 @@ class LLMRails(BaseGuardrails):
         )
         return self._default_embedding_params
 
+    @property
+    def explain_info(self):
+        warnings.warn(
+            "LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "Use LLMRails.explain() instead, which guarantees a non-None ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._explain_info
+
+    @explain_info.setter
+    def explain_info(self, value):
+        warnings.warn(
+            "LLMRails.explain_info is read-only and will be removed in the next release. "
+            "Use LLMRails.explain() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._explain_info = value
+
     def __init__(
         self,
         config: RailsConfig,
@@ -379,7 +399,7 @@ class LLMRails(BaseGuardrails):
         self.runtime.register_action_param("kb", self._kb)
 
         # Reference to the general ExplainInfo object.
-        self.explain_info = None
+        self._explain_info = None
 
         from nemoguardrails.telemetry import report_usage
 
@@ -928,7 +948,7 @@ class LLMRails(BaseGuardrails):
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
         # requests are made.
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         raw_llm_request.set(messages)
 
@@ -1083,9 +1103,9 @@ class LLMRails(BaseGuardrails):
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
-        self.explain_info.colang_history = get_colang_history(events)
+        self._explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
+            log.info(f"Conversation history so far: \n{self._explain_info.colang_history}")
 
         total_time = time.time() - t0
         log.info("--- :: Total processing took %.2f seconds. LLM Stats: %s" % (total_time, llm_stats))
@@ -1333,7 +1353,7 @@ class LLMRails(BaseGuardrails):
             else:
                 return generator
 
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
@@ -1692,9 +1712,9 @@ class LLMRails(BaseGuardrails):
 
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
-        if self.explain_info is None:
-            self.explain_info = self._ensure_explain_info()
-        return self.explain_info
+        if self._explain_info is None:
+            self._explain_info = self._ensure_explain_info()
+        return self._explain_info
 
     def __getstate__(self):
         return {"config": self.config}
@@ -1911,7 +1931,7 @@ class LLMRails(BaseGuardrails):
                     pass
 
                 # update explain info for parallel mode
-                self.explain_info = self._ensure_explain_info()
+                self._explain_info = self._ensure_explain_info()
 
             else:
                 for flow_id in output_rails_flows_id:
@@ -1927,7 +1947,7 @@ class LLMRails(BaseGuardrails):
                     )
 
                     result = await self.runtime.action_dispatcher.execute_action(action_name, params)
-                    self.explain_info = self._ensure_explain_info()
+                    self._explain_info = self._ensure_explain_info()
 
                     action_func = self.runtime.action_dispatcher.get_action(action_name)
 

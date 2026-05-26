@@ -22,6 +22,7 @@ LLM responses with programmable guardrails.
 """
 
 import logging
+import warnings
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
 
 from typing_extensions import Self
@@ -124,6 +125,40 @@ class Guardrails(BaseGuardrails):
 
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.runtime
+
+    @property
+    def explain_info(self) -> Optional[ExplainInfo]:
+        """Deprecated. Use ``explain()`` instead.
+
+        Direct access can return ``None`` for an uninitialized accumulator;
+        ``explain()`` guarantees a non-None ExplainInfo. Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
+
+        warnings.warn(
+            "Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "Use Guardrails.explain() instead, which guarantees a valid ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails._explain_info
+
+    @explain_info.setter
+    def explain_info(self, value: Optional[ExplainInfo]) -> None:
+        """Deprecated. ``explain_info`` is an internal attribute and read-only"""
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
+
+        warnings.warn(
+            "Setting Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use Guardrails.explain() to read it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails._explain_info = value
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:

@@ -229,7 +229,7 @@ def test_no_llm_calls_embedding_only(colang_2_config):
 
     assert new_message["content"] == "Hello!"
 
-    assert rails.explain_info.llm_calls == []
+    assert rails._explain_info.llm_calls == []
 
 
 def test_user_message_index_searched_once_when_embeddings_only_disabled():
