@@ -43,6 +43,8 @@ tests/recorded/rails/<suite>/cassettes/<test_module>/<test_name>.yaml
 
 Parameterized tests include the parameter id in the cassette filename. Do not add `default_cassette` markers to normal rails tests.
 
+Client adapter tests use flat cassette names under `tests/recorded/clients/cassettes/` and may declare them with `@pytest.mark.default_cassette(...)`. Keep that exception limited to client-level tests.
+
 JSON request and response bodies are stored as `parsed_body` and rehydrated by `ReadableYamlSerializer` during replay. SSE responses also use parseable `parsed_body` events.
 
 Inspect a cassette:
