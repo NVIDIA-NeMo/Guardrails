@@ -1,0 +1,37 @@
+
+# EXECUTION RAILS
+
+flow context bloat detection on tool output
+  """Detect oversized or padded tool responses before they reach the LLM."""
+  $bloat_result = await ContextBloatDetectionAction(text=$action_output)
+  if $bloat_result.is_bloat
+    bot inform tool output bloated
+    abort
+
+flow bot inform tool output bloated
+  bot say "The tool response appeared oversized or padded with repetitive content. I'm not using it to avoid context manipulation."
+
+# RETRIEVAL RAILS
+
+flow context bloat detection on retrieval
+  """Detect bloated or padded content in retrieved RAG chunks."""
+  $chunks_text = join($relevant_chunks, "\n\n")
+  $bloat_result = await ContextBloatDetectionAction(text=$chunks_text)
+  if $bloat_result.is_bloat
+    bot inform retrieval bloated
+    abort
+
+flow bot inform retrieval bloated
+  bot say "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation."
+
+# INPUT RAILS
+
+flow context bloat detection on input
+  """Detect bloated or padded user-supplied content."""
+  $bloat_result = await ContextBloatDetectionAction(text=$user_message)
+  if $bloat_result.is_bloat
+    bot refuse bloated input
+    abort
+
+flow bot refuse bloated input
+  bot say "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
