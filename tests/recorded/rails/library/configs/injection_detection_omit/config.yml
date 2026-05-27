@@ -1,0 +1,11 @@
+models: []
+
+rails:
+  config:
+    injection_detection:
+      injections:
+        - sqli
+      action: omit
+  output:
+    flows:
+      - injection detection
