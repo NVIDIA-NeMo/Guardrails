@@ -1,0 +1,112 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Host:
+      - integrate.api.nvidia.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: Say hello in one short sentence.
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Server:
+      - uvicorn
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+        id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          message:
+            role: assistant
+            content: Hello!
+            refusal: null
+            annotations: null
+            audio: null
+            function_call: null
+            tool_calls: []
+            reasoning: "Okay, user just said \"Say hello in one short sentence.\" Hmm, seems like a simple greeting task but\
+              \ let's unpack it. \n\nFirst, they want a *short* sentence - so no fluff. \"Hello\" itself is already short\
+              \ but maybe too bare? Wait, they said \"in one short sentence\" so the response should be a greeting, not just\
+              \ the word \"hello\". \n\nNoticing they used \"Say hello\" which is a command, so they're probably expecting\
+              \ me to actually say something like \"Hi!\" or \"Hello!\" but... wait, the instruction says \"in one short sentence\"\
+              \ meaning the whole response must be one sentence. \n\n*checks own capabilities* \nCan't do \"Hi.\" because\
+              \ that's just a word. Needs to be a full sentence. \"Hello!\" is technically a sentence fragment but... wait,\
+              \ in English we often say \"Hello!\" as a greeting. But the user said \"one short sentence\" so maybe they want\
+              \ something grammatically complete? \n\n*thinks of options* \n- \"Hello!\" (too short, not a full sentence)\
+              \ \n- \"Hi there!\" (better but still fragment) \n- \"Hello! How are you?\" (too long) \n\nAh! The most natural\
+              \ short sentence is just \"Hello!\" but technically it's an interjection. Wait, no - in common usage, we say\
+              \ \"Hello\" as a greeting and it's considered a sentence. Like \"Hello!\" as a standalone utterance. \n\n*double-checks\
+              \ user request* \n\"Say hello in one short sentence\" - so the response should be a sentence that says hello.\
+              \ The simplest answer is literally \"Hello!\" but to make it a sentence... wait, maybe they just want the greeting\
+              \ word. \n\n*considers user's possible intent* \nThey might be testing if I follow instructions precisely. Or\
+              \ maybe non-native speaker wanting to practice English greetings. \n\n*decides* \nThe safest, most direct answer\
+              \ is \"Hello!\" - it's the standard greeting, exactly one short sentence (as a greeting phrase), and meets \"\
+              one short sentence\" requirement. No extra words. \n\n*verifies length* \n\"Hello!\" is 6 characters, one word,\
+              \ one sentence. Perfect. \n\n*confirms no other interpretation* \nThey didn't ask for creative greeting or anything\
+              \ else. Just \"say hello\" as instruction. So no need to overthink. \n\nFinal decision: Respond with \"Hello!\"\
+              \ as the greeting.\n"
+            reasoning_content: "Okay, user just said \"Say hello in one short sentence.\" Hmm, seems like a simple greeting\
+              \ task but let's unpack it. \n\nFirst, they want a *short* sentence - so no fluff. \"Hello\" itself is already\
+              \ short but maybe too bare? Wait, they said \"in one short sentence\" so the response should be a greeting,\
+              \ not just the word \"hello\". \n\nNoticing they used \"Say hello\" which is a command, so they're probably\
+              \ expecting me to actually say something like \"Hi!\" or \"Hello!\" but... wait, the instruction says \"in one\
+              \ short sentence\" meaning the whole response must be one sentence. \n\n*checks own capabilities* \nCan't do\
+              \ \"Hi.\" because that's just a word. Needs to be a full sentence. \"Hello!\" is technically a sentence fragment\
+              \ but... wait, in English we often say \"Hello!\" as a greeting. But the user said \"one short sentence\" so\
+              \ maybe they want something grammatically complete? \n\n*thinks of options* \n- \"Hello!\" (too short, not a\
+              \ full sentence) \n- \"Hi there!\" (better but still fragment) \n- \"Hello! How are you?\" (too long) \n\nAh!\
+              \ The most natural short sentence is just \"Hello!\" but technically it's an interjection. Wait, no - in common\
+              \ usage, we say \"Hello\" as a greeting and it's considered a sentence. Like \"Hello!\" as a standalone utterance.\
+              \ \n\n*double-checks user request* \n\"Say hello in one short sentence\" - so the response should be a sentence\
+              \ that says hello. The simplest answer is literally \"Hello!\" but to make it a sentence... wait, maybe they\
+              \ just want the greeting word. \n\n*considers user's possible intent* \nThey might be testing if I follow instructions\
+              \ precisely. Or maybe non-native speaker wanting to practice English greetings. \n\n*decides* \nThe safest,\
+              \ most direct answer is \"Hello!\" - it's the standard greeting, exactly one short sentence (as a greeting phrase),\
+              \ and meets \"one short sentence\" requirement. No extra words. \n\n*verifies length* \n\"Hello!\" is 6 characters,\
+              \ one word, one sentence. Perfect. \n\n*confirms no other interpretation* \nThey didn't ask for creative greeting\
+              \ or anything else. Just \"say hello\" as instruction. So no need to overthink. \n\nFinal decision: Respond\
+              \ with \"Hello!\" as the greeting.\n"
+          logprobs: null
+          finish_reason: stop
+          stop_reason: null
+          token_ids: null
+        service_tier: null
+        system_fingerprint: null
+        usage:
+          prompt_tokens: 23
+          total_tokens: 556
+          completion_tokens: 533
+          prompt_tokens_details: null
+        prompt_logprobs: null
+        prompt_token_ids: null
+        kv_transfer_params: null
