@@ -1,0 +1,42 @@
+# Example config.yml for context_bloat_detection wiring.
+# Drop this into your config.yml under the existing models/rails keys.
+
+rails:
+  retrieval:
+    flows:
+      - context bloat detection on retrieval
+
+  execution:
+    flows:
+      - context bloat detection on tool output
+
+  input:
+    flows:
+      - context bloat detection on input
+
+  config:
+    context_bloat_detection:
+      # Size cap (characters). Tune per use case.
+      # Typically <5k for well-scoped agents.
+      max_chars: 5000
+
+      # Shannon entropy floor (bits per char). English prose ~ 4.0-4.5;
+      # heavily padded/repetitive text drops below ~3.5.
+      min_entropy: 3.5
+
+      # Max ratio of repeated n-grams (0.0 - 1.0).
+      # > 0.4 indicates padding-style repetition.
+      max_repetition_ratio: 0.4
+
+      # Size of n-grams used for repetition detection.
+      ngram_size: 3
+
+      # Max ratio of longest single-char/token run vs total length.
+      # Catches "AAAAAA..." or whitespace padding.
+      max_run_ratio: 0.1
+
+      # Action on detection:
+      #   reject   -- stop the flow, return a user-facing message (recommended)
+      #   truncate -- truncate to max_chars at size cap, reject on remaining checks
+      #   warn     -- log only, do not modify
+      action: reject

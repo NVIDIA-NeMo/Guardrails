@@ -1204,6 +1204,35 @@ class ReasoningConfig(BaseModel):
     )
 
 
+class ContextBloatDetectionConfig(BaseModel):
+    """Configuration for context bloat / context manipulation detection."""
+
+    max_chars: int = Field(
+        default=5000,
+        description="Size cap in characters. Inputs exceeding this are flagged.",
+    )
+    min_entropy: float = Field(
+        default=3.5,
+        description="Shannon entropy floor (bits/char). English prose is ~4.0-4.5.",
+    )
+    max_repetition_ratio: float = Field(
+        default=0.4,
+        description="Max fraction of repeated n-grams (0.0-1.0).",
+    )
+    ngram_size: int = Field(
+        default=3,
+        description="Size of n-grams used for repetition detection.",
+    )
+    max_run_ratio: float = Field(
+        default=0.1,
+        description="Max fraction of text that is the longest single-char run.",
+    )
+    action: Literal["reject", "truncate", "warn"] = Field(
+        default="reject",
+        description="Action on detection: 'reject', 'truncate', or 'warn'.",
+    )
+
+
 class ContentSafetyConfig(BaseModel):
     """Configuration data for content safety rails."""
 
@@ -1309,6 +1338,11 @@ class RailsConfigData(BaseModel):
     hf_classifier: Optional[Dict[str, HFClassifierConfig]] = Field(
         default=None,
         description="Named HF classifier configurations. Keys are classifier names referenced by flows.",
+    )
+
+    context_bloat_detection: Optional[ContextBloatDetectionConfig] = Field(
+        default_factory=ContextBloatDetectionConfig,
+        description="Configuration for context bloat / context manipulation detection.",
     )
 
 
