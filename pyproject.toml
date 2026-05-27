@@ -153,6 +153,7 @@ pytest = ">=7.2.2,<9.0.0"
 pytest-asyncio = ">=0.21.0, <1.0.0"
 pytest-cov = ">=4.1.0"
 pytest-httpx = ">=0.22.0"
+pytest-recording = "^0.13.4"
 streamlit = ">=1.37.0"
 tox = "^4.23.2"
 pytest-profiling = "^1.7.0"
@@ -177,6 +178,8 @@ langchain-core = ">=0.2.14,<2.0.0"
 langchain-community = ">=0.2.5,<2.0.0"
 langchain-openai = ">=0.1.0"
 langchain-nvidia-ai-endpoints = ">=0.2.0"
+inline-snapshot = "^0.33.0"
+dirty-equals = "^0.11"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]
@@ -224,6 +227,9 @@ log-level = "DEBUG"
 # There are some race conditions with how the logging streams are closed in the teardown
 # phase, which will cause tests to fail or "magically" ignored.
 log_cli = "False"
+
+[tool.inline-snapshot]
+format-command = "ruff format --stdin-filename {filename} -"
 
 [build-system]
 requires = ["poetry-core>=1.0.0,<2.0.0"]
