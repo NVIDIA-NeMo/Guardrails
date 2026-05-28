@@ -17,13 +17,12 @@ define bot inform tool output bloated
 
 define subflow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
-  $chunks_text = join($relevant_chunks, "\n\n")
-  $bloat_result = execute context_bloat_detection(text=$chunks_text)
+  $bloat_result = execute context_bloat_detection(text=$relevant_chunks)
   if $bloat_result.is_bloat and $bloat_result.action == "reject"
     bot inform retrieval bloated
     stop
   if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $relevant_chunks = [$bloat_result.text]
+    $relevant_chunks = $bloat_result.text
 
 define bot inform retrieval bloated
   "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation."
