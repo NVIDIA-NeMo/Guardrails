@@ -106,14 +106,14 @@ def _scrub_json(value: Any, *, normalize_response_metadata: bool = False) -> Any
             else:
                 scrubbed[key] = _scrub_json(
                     nested,
-                    normalize_response_metadata=normalize_response_metadata,
+                    normalize_response_metadata=False,
                 )
         return scrubbed
     if isinstance(value, list):
         return [
             _scrub_json(
                 item,
-                normalize_response_metadata=normalize_response_metadata,
+                normalize_response_metadata=False,
             )
             for item in value
         ]
@@ -195,13 +195,13 @@ def _scrub_request_json(data: Any) -> Any:
 
 
 def _scrub_response_json(data: Any) -> Any:
-    if isinstance(data, dict) and set(data) == {"jailbreak", "score"}:
-        return {**data, "score": 0.0}
-
-    return _scrub_json(
+    scrubbed = _scrub_json(
         data,
         normalize_response_metadata=True,
     )
+    if isinstance(scrubbed, dict) and {"jailbreak", "score"} <= set(scrubbed):
+        scrubbed["score"] = 0.0
+    return scrubbed
 
 
 def _scrub_sse_body(body: Any) -> Any:
@@ -322,9 +322,18 @@ def service_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> Callab
 _PROVIDER_KEY_FIXTURES = {"openai": "openai_api_key", "nim": "nvidia_api_key"}
 
 
+def _provider_key_fixture_name(provider: str) -> str:
+    fixture_name = _PROVIDER_KEY_FIXTURES.get(provider)
+    if fixture_name is not None:
+        return fixture_name
+
+    supported = ", ".join(sorted(_PROVIDER_KEY_FIXTURES))
+    raise ValueError(f"Unknown recorded provider {provider!r}; expected one of: {supported}")
+
+
 def provider_key(request: pytest.FixtureRequest, provider: str) -> None:
     """Activate the API-key fixture for one LLM provider (``openai`` or ``nim``)."""
-    request.getfixturevalue(_PROVIDER_KEY_FIXTURES[provider])
+    request.getfixturevalue(_provider_key_fixture_name(provider))
 
 
 def recording_credentials(
@@ -338,7 +347,7 @@ def recording_credentials(
     the real environment variables and skip the test if any are missing.
     """
     for provider in required_llm_providers:
-        request.getfixturevalue(_PROVIDER_KEY_FIXTURES[provider])
+        request.getfixturevalue(_provider_key_fixture_name(provider))
     service_api_key = request.getfixturevalue("service_api_key")
     for env_name in required_env_vars:
         service_api_key(env_name)

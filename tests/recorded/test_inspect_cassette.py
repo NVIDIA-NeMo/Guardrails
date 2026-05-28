@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.recorded.cassette import recorded_chat_response
 from tests.recorded.inspect_cassette import cassette_summary
 
 
@@ -102,3 +103,91 @@ interactions:
             "stream_events": 0,
         }
     ]
+
+
+@pytest.mark.recorded
+def test_recorded_chat_response_normalizes_zero_and_nullable_usage(tmp_path):
+    cassette = tmp_path / "example.yaml"
+    cassette.write_text(
+        """
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    parsed_body:
+      model: gpt-5.4-nano
+  response:
+    body:
+      parsed_body:
+        id: chatcmpl-zero
+        choices:
+        - message:
+            content: ""
+          finish_reason: stop
+        usage:
+          prompt_tokens: 0
+          completion_tokens: 0
+          total_tokens: 0
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    parsed_body:
+      model: gpt-5.4-nano-null
+  response:
+    body:
+      parsed_body:
+        id: chatcmpl-null
+        choices:
+        - message:
+            content: ""
+          finish_reason: stop
+        usage:
+          prompt_tokens:
+          completion_tokens:
+          total_tokens:
+""",
+        encoding="utf-8",
+    )
+
+    zero_usage = recorded_chat_response(cassette, request_model="gpt-5.4-nano").usage
+    nullable_usage = recorded_chat_response(cassette, request_model="gpt-5.4-nano-null").usage
+
+    assert zero_usage["total_tokens"] == 0
+    assert nullable_usage == {"input_tokens": None, "output_tokens": None, "total_tokens": None}
+
+
+@pytest.mark.recorded
+def test_recorded_chat_response_skips_non_dict_response_payloads(tmp_path):
+    cassette = tmp_path / "example.yaml"
+    cassette.write_text(
+        """
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    parsed_body:
+      model: gpt-5.4-nano
+  response:
+    body:
+      parsed_body:
+      - not-a-chat-response
+- request:
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+    parsed_body:
+      model: gpt-5.4-nano
+  response:
+    body:
+      parsed_body:
+        id: chatcmpl-valid
+        choices:
+        - message:
+            content: valid
+          finish_reason: stop
+""",
+        encoding="utf-8",
+    )
+
+    assert recorded_chat_response(cassette, request_model="gpt-5.4-nano").content == "valid"

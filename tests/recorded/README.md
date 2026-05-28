@@ -41,9 +41,7 @@ Rails tests use pytest-recording's default names:
 tests/recorded/rails/<suite>/cassettes/<test_module>/<test_name>.yaml
 ```
 
-Parameterized tests include the parameter id in the cassette filename. Do not add `default_cassette` markers to normal rails tests.
-
-Client adapter tests use flat cassette names under `tests/recorded/clients/cassettes/` and may declare them with `@pytest.mark.default_cassette(...)`. Keep that exception limited to client-level tests.
+Parameterized tests include the parameter id in the cassette filename. Client adapter tests may use `@pytest.mark.default_cassette(...)` for stable cassette stems, but still keep cassettes under the module-specific directory.
 
 JSON request and response bodies are stored as `parsed_body` and rehydrated by `ReadableYamlSerializer` during replay. SSE responses also use parseable `parsed_body` events.
 

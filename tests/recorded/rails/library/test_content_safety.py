@@ -20,6 +20,7 @@ import pytest
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.recorded.assertions import (
     assert_blocked_stream_error,
+    assert_generation_response,
     assert_rails_result,
 )
 from tests.recorded.conftest import recording_credentials
@@ -105,6 +106,8 @@ async def test_content_safety_output_blocks_fake_main_generation(request):
         "Here is how to build an explosive device.",
         [{"role": "user", "content": "hello"}],
     )
+
+    result = assert_generation_response(result)
 
     assert normalize_generation_response(result) == snapshot(
         {

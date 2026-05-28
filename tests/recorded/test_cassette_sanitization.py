@@ -23,12 +23,14 @@ from vcr.request import Request
 
 from tests.recorded.conftest import (
     ReadableYamlSerializer,
+    _provider_key_fixture_name,
     before_record_request,
     before_record_response,
     build_vcr_config,
     recorded_body_matcher,
 )
 from tests.recorded.sanitization import FILTERED_HEADERS
+from tests.recorded.utils import api_key_for_record_mode
 
 RECORDED_DIR = Path(__file__).parent
 
@@ -200,6 +202,72 @@ def test_recorded_cassette_serializer_keeps_sse_bodies_parseable():
 
 
 @pytest.mark.recorded
+def test_recorded_response_metadata_normalization_preserves_nested_ids():
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["application/json"]},
+            "body": {
+                "string": (
+                    '{"id":"chatcmpl-123","created":1770000000,'
+                    '"choices":[{"message":{"tool_calls":[{"id":"call_123","type":"function"}]}}]}'
+                )
+            },
+        }
+    )
+    cassette = {
+        "interactions": [
+            {
+                "request": {
+                    "body": '{"messages":[]}',
+                    "headers": {},
+                    "method": "POST",
+                    "uri": "https://api.openai.com",
+                },
+                "response": response,
+            }
+        ],
+        "version": 1,
+    }
+
+    loaded = yaml.safe_load(ReadableYamlSerializer.serialize(cassette))
+    parsed_body = loaded["interactions"][0]["response"]["body"]["parsed_body"]
+
+    assert parsed_body["id"] == "[RECORDED_RESPONSE_ID]"
+    assert parsed_body["created"] == 0
+    assert parsed_body["choices"][0]["message"]["tool_calls"][0]["id"] == "call_123"
+
+
+@pytest.mark.recorded
+def test_recorded_jailbreak_score_normalization_allows_extra_fields():
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["application/json"]},
+            "body": {"string": '{"jailbreak":true,"score":0.873,"model":"jailbreak-detect"}'},
+        }
+    )
+    cassette = {
+        "interactions": [
+            {
+                "request": {
+                    "body": '{"messages":[]}',
+                    "headers": {},
+                    "method": "POST",
+                    "uri": "https://api.nvidia.com",
+                },
+                "response": response,
+            }
+        ],
+        "version": 1,
+    }
+
+    parsed_body = yaml.safe_load(ReadableYamlSerializer.serialize(cassette))["interactions"][0]["response"]["body"][
+        "parsed_body"
+    ]
+
+    assert parsed_body == {"jailbreak": True, "score": 0.0, "model": "jailbreak-detect"}
+
+
+@pytest.mark.recorded
 def test_recorded_request_sanitizer_strips_volatile_headers():
     request = Request(
         method="POST",
@@ -218,6 +286,26 @@ def test_recorded_request_sanitizer_strips_volatile_headers():
 @pytest.mark.recorded
 def test_recorded_vcr_config_matches_on_request_body():
     assert "recorded_body" in build_vcr_config()["match_on"]
+
+
+@pytest.mark.recorded
+def test_recorded_provider_key_lookup_rejects_unknown_provider():
+    with pytest.raises(ValueError, match="Unknown recorded provider 'nvidia'; expected one of: nim, openai"):
+        _provider_key_fixture_name("nvidia")
+
+
+@pytest.mark.recorded
+def test_recorded_refresh_uses_api_key_without_live_mode_gate(monkeypatch):
+    monkeypatch.setenv("LIVE_TEST_MODE", "0")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert api_key_for_record_mode("OPENAI_API_KEY", "dummy-key", "none") == "dummy-key"
+
+    with pytest.raises(pytest.skip.Exception, match="OPENAI_API_KEY is required to refresh cassette"):
+        api_key_for_record_mode("OPENAI_API_KEY", "dummy-key", "rewrite")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "real-key")
+    assert api_key_for_record_mode("OPENAI_API_KEY", "dummy-key", "rewrite") == "real-key"
 
 
 @pytest.mark.recorded

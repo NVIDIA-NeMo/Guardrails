@@ -190,9 +190,11 @@ def cassette_request_jsons(cassette_path: Path) -> list[dict[str, Any]]:
 def _normalize_usage(raw_usage: dict[str, Any] | None) -> dict[str, int | None]:
     if raw_usage is None:
         return {}
-    input_tokens = raw_usage.get("input_tokens", raw_usage.get("prompt_tokens", 0))
-    output_tokens = raw_usage.get("output_tokens", raw_usage.get("completion_tokens", 0))
-    total_tokens = raw_usage.get("total_tokens") or input_tokens + output_tokens
+    input_tokens = raw_usage.get("input_tokens", raw_usage.get("prompt_tokens"))
+    output_tokens = raw_usage.get("output_tokens", raw_usage.get("completion_tokens"))
+    total_tokens = raw_usage.get("total_tokens")
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
     usage: dict[str, int | None] = {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
@@ -228,10 +230,11 @@ def _stream_payloads_from_body(body: Any) -> list[dict[str, Any]]:
     return _stream_payloads(_decode_body_text(body))
 
 
-def _non_streaming_chat_response(interaction: dict[str, Any]) -> RecordedChatResponse:
+def _non_streaming_chat_response(interaction: dict[str, Any]) -> RecordedChatResponse | None:
     body = interaction.get("response", {}).get("body")
     payload = _decode_body_json(body)
-    assert isinstance(payload, dict)
+    if not isinstance(payload, dict):
+        return None
     choices = payload.get("choices") or []
     choice = choices[0] if choices else {}
     message = choice.get("message") or {}
@@ -295,6 +298,8 @@ def recorded_chat_response(
         if (request_payload.get("stream") is True) != stream:
             continue
         parser = _streaming_chat_response if stream else _non_streaming_chat_response
-        matches.append(parser(interaction))
+        response = parser(interaction)
+        if response is not None:
+            matches.append(response)
     assert matches, f"{cassette_path} does not contain a {'streaming' if stream else 'non-streaming'} chat response"
     return matches[-1]

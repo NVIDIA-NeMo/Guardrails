@@ -277,7 +277,9 @@ async def test_nim_generate_async_log_matches_recorded_usage(request, record_mod
 
     assert isinstance(result, GenerationResponse)
     assert result.response
-    assert_generated_message(result.response[-1])
+    assert isinstance(result.response, list)
+    response = result.response
+    assert_generated_message(response[-1])
     assert result.log is not None
     assert result.log.llm_calls is not None
     assert len(result.log.llm_calls) == 1
@@ -290,7 +292,7 @@ async def test_nim_generate_async_log_matches_recorded_usage(request, record_mod
         assert expected.raw_usage is not None
         assert expected.finish_reason == "stop"
         assert expected.request_id
-        assert result.response[-1]["content"] == expected.content
+        assert response[-1]["content"] == expected.content
         assert llm_call.completion == expected.content
         assert_llm_call_usage(llm_call, expected)
         assert_runtime_model_matches(llm_call, configured_model=NIM_MODEL, recorded_model=expected.model)

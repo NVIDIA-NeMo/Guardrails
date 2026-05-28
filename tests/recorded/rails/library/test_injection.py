@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 
 from nemoguardrails.rails.llm.options import RailStatus, RailType
-from tests.recorded.assertions import assert_rails_result
+from tests.recorded.assertions import assert_generation_response, assert_rails_result
 from tests.recorded.normalization import normalize_generation_response, normalize_rails_result
 from tests.recorded.rails.library.configs import INJECTION_CONFIG, INJECTION_OMIT_CONFIG
 from tests.recorded.rails.library.helpers import check_rails, generate_with_fake_main
@@ -77,6 +77,8 @@ async def test_injection_detection_omits_fake_main_generation():
         "This is a SELECT * FROM users; -- malicious comment in text",
         [{"role": "user", "content": "hello"}],
     )
+
+    result = assert_generation_response(result)
 
     assert normalize_generation_response(result) == snapshot(
         {

@@ -85,6 +85,8 @@ def assert_stream_contract(chunks: list[Any], *, expect_multiple: bool = True) -
         assert isinstance(chunk, (str, dict))
         if isinstance(chunk, str):
             content_parts.append(chunk)
+        elif "text" in chunk and isinstance(chunk["text"], str):
+            content_parts.append(chunk["text"])
         elif "content" in chunk and isinstance(chunk["content"], str):
             content_parts.append(chunk["content"])
 

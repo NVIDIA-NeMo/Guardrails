@@ -21,16 +21,9 @@ DUMMY_OPENAI_API_KEY = "sk-recorded-replay"
 DUMMY_NVIDIA_API_KEY = "nvapi-recorded-replay"
 
 
-def _live_mode_enabled() -> bool:
-    return bool(os.environ.get("LIVE_TEST_MODE"))
-
-
 def api_key_for_record_mode(env_name: str, dummy_value: str, record_mode: str) -> str:
     if record_mode == "none":
         return dummy_value
-
-    if not _live_mode_enabled():
-        pytest.skip(f"LIVE_TEST_MODE=1 is required to refresh {env_name} cassette")
 
     value = os.environ.get(env_name)
     if not value:

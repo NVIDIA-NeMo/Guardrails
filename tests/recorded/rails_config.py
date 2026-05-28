@@ -47,14 +47,18 @@ class RailsConfigSource:
 
 
 @lru_cache(maxsize=None)
-def load_config(source: RailsConfigSource) -> RailsConfig:
-    """Load a ``RailsConfig`` from a ``RailsConfigSource``, caching by source identity."""
+def _cached_config(source: RailsConfigSource) -> RailsConfig:
     if source.path is not None:
         return RailsConfig.from_path(str(source.path))
     return RailsConfig.from_content(
         colang_content=dedent(source.colang_content).strip(),
         yaml_content=dedent(source.yaml_content).strip(),
     )
+
+
+def load_config(source: RailsConfigSource) -> RailsConfig:
+    """Load a ``RailsConfig`` from a ``RailsConfigSource``."""
+    return _cached_config(source).model_copy(deep=True)
 
 
 def enable_streaming(
