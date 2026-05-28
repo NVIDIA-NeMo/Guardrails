@@ -1212,6 +1212,11 @@ class ContextBloatDetectionConfig(BaseModel):
         gt=0,
         description="Size cap in characters. Inputs exceeding this are flagged.",
     )
+    min_chars: int = Field(
+        default=50,
+        ge=0,
+        description="Minimum characters before entropy/run/repetition checks apply. Shorter texts are only checked against size cap.",
+    )
     min_entropy: float = Field(
         default=3.5,
         ge=0.0,
