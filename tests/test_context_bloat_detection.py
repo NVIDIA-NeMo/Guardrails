@@ -246,7 +246,7 @@ class TestTruncateMode:
         config = _make_config(max_chars=50, action="truncate")
         result = await context_bloat_detection("x" * 200, config)
         assert result["is_bloat"] is True
-        assert result["should_block"] is True
+        assert result["action"] == "truncate"
         assert len(result["text"]) == 50
 
     @pytest.mark.asyncio
@@ -254,7 +254,7 @@ class TestTruncateMode:
         config = _make_config(max_chars=50000, min_entropy=5.0, action="truncate")
         result = await context_bloat_detection("ab" * 500, config)
         assert result["is_bloat"] is True
-        assert result["should_block"] is True
+        assert result["action"] == "truncate"
         assert "low_entropy" in result["detections"]
         assert "longest_run_ratio" not in result["metrics"]
 
@@ -266,7 +266,7 @@ class TestWarnMode:
         with caplog.at_level(logging.INFO):
             result = await context_bloat_detection("x" * 200, config)
         assert result["is_bloat"] is True
-        assert result["should_block"] is False
+        assert result["action"] == "warn"
         assert result["text"] == "x" * 200
         assert any("context bloat detected" in r.message for r in caplog.records)
 
@@ -282,7 +282,7 @@ class TestWarnMode:
         repeated = " ".join(["foo bar baz"] * 50)
         result = await context_bloat_detection(repeated, config)
         assert result["is_bloat"] is True
-        assert result["should_block"] is False
+        assert result["action"] == "warn"
         assert len(result["detections"]) > 1
 
 
@@ -299,6 +299,13 @@ class TestNormalTextPasses:
         assert result["is_bloat"] is False
         assert result["reason"] is None
         assert result["detections"] == []
+
+    @pytest.mark.asyncio
+    async def test_short_messages_not_flagged(self):
+        config = _make_config()
+        for msg in ["Hi", "Hello", "Yes", "Yes please", "No thanks"]:
+            result = await context_bloat_detection(msg, config)
+            assert result["is_bloat"] is False, f"'{msg}' should not be flagged"
 
     @pytest.mark.asyncio
     async def test_moderate_text_not_flagged(self):
