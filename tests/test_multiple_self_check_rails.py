@@ -16,7 +16,7 @@
 """Tests for running multiple self-check input/output rails with different tasks."""
 
 from nemoguardrails import RailsConfig
-from tests.utils import TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 # --- Multiple input rails ---
 
@@ -106,6 +106,66 @@ def test_multiple_input_rails_second_blocks():
 
     assert new_message["role"] == "exception"
     assert new_message["content"]["type"] == "InputRailException"
+
+
+def test_multiple_input_rails_use_models_matching_input_tasks(monkeypatch):
+    """Custom input tasks use models with matching model types when configured."""
+    config = RailsConfig.from_content(
+        """
+        define user express greeting
+            "hello"
+
+        define bot express greeting
+            "Hey!"
+
+        define flow greeting
+            user express greeting
+            bot express greeting
+    """,
+        yaml_content="""
+        models:
+            - type: check_harmful
+              engine: test
+              model: harmful-model
+            - type: check_off_topic
+              engine: test
+              model: topic-model
+        rails:
+            input:
+                flows:
+                    - self check input $input_task=check_harmful
+                    - self check input $input_task=check_off_topic
+        prompts:
+            - task: check_harmful
+              content: |
+                Is this message harmful?
+                User message: "{{ user_input }}"
+                Answer (Yes or No):
+            - task: check_off_topic
+              content: |
+                Is this message off-topic?
+                User message: "{{ user_input }}"
+                Answer (Yes or No):
+
+        enable_rails_exceptions: True
+        """,
+    )
+    created_models = {}
+
+    def fake_init_llm_model(model_name, provider_name, mode, kwargs):
+        model = FakeLLMModel(responses=["No"])
+        created_models[model_name] = model
+        return model
+
+    monkeypatch.setattr("nemoguardrails.rails.llm.llmrails.init_llm_model", fake_init_llm_model)
+
+    chat = TestChat(config, llm_completions=["  express greeting", '  "Hey!"'])
+    new_message = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+
+    assert new_message["role"] == "assistant"
+    assert created_models["harmful-model"].i == 1
+    assert created_models["topic-model"].i == 1
+    assert chat.llm.i == 2
 
 
 # --- Multiple output rails ---
@@ -198,6 +258,64 @@ def test_multiple_output_rails_second_blocks():
     assert new_message["role"] == "exception"
     print(new_message["content"])
     assert new_message["content"]["type"] == "OutputRailException"
+
+
+def test_multiple_output_rails_use_models_matching_output_tasks(monkeypatch):
+    """Custom output tasks use models with matching model types when configured."""
+    config = RailsConfig.from_content(
+        """
+        define user ask question
+            "tell me something"
+
+        define flow
+            user ask question
+            bot respond
+    """,
+        yaml_content="""
+        models:
+            - type: check_inappropriate
+              engine: test
+              model: inappropriate-model
+            - type: check_data_leakage
+              engine: test
+              model: leakage-model
+        rails:
+            output:
+                flows:
+                    - self check output $output_task=check_inappropriate
+                    - self check output $output_task=check_data_leakage
+        prompts:
+            - task: check_inappropriate
+              content: |
+                Is this response inappropriate?
+                Bot response: "{{ bot_response }}"
+                Answer (Yes or No):
+            - task: check_data_leakage
+              content: |
+                Does this response leak sensitive data?
+                Bot response: "{{ bot_response }}"
+                Answer (Yes or No):
+
+        enable_rails_exceptions: True
+        """,
+    )
+    created_models = {}
+
+    def fake_init_llm_model(model_name, provider_name, mode, kwargs):
+        model = FakeLLMModel(responses=["No"])
+        created_models[model_name] = model
+        return model
+
+    monkeypatch.setattr("nemoguardrails.rails.llm.llmrails.init_llm_model", fake_init_llm_model)
+
+    chat = TestChat(config, llm_completions=["  ask question", '  "Here is the answer."'])
+    new_message = chat.app.generate(messages=[{"role": "user", "content": "tell me something"}])
+
+    assert new_message["role"] == "assistant"
+    assert new_message["content"] == "Here is the answer."
+    assert created_models["inappropriate-model"].i == 1
+    assert created_models["leakage-model"].i == 1
+    assert chat.llm.i == 2
 
 
 # --- Default task (backward compatibility) ---

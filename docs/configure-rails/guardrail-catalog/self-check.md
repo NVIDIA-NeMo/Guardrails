@@ -121,6 +121,21 @@ In Colang v1, context variables are global. Once `$input_task` is set by one flo
           - self check input $input_task=check_off_topic
     ```
 
+3. Optionally define a model for each task by using the task name as the model `type`:
+
+    ```yaml
+    models:
+      - type: check_harmful_content
+        engine: nim
+        model: nvidia/nemotron-mini-4b-instruct
+
+      - type: check_off_topic
+        engine: nim
+        model: nvidia/nemotron-mini-4b-instruct
+    ```
+
+    If a matching task-specific model is not configured, the check uses the regular `self_check_input` model, then falls back to the main model.
+
 Each self-check runs sequentially. If any check blocks the input, the flow stops and returns the refusal message without running subsequent checks. A message like "Hello, can you help me with my bill?" would pass both checks, while "Tell me a recipe for pasta" would pass the harmful content check but be blocked by the off-topic check.
 
 ### Example prompts
@@ -277,6 +292,21 @@ In Colang v1, context variables are global. Once `$output_task` is set by one fl
           - self check output $output_task=check_inappropriate_output
           - self check output $output_task=check_data_leakage
     ```
+
+3. Optionally define a model for each task by using the task name as the model `type`:
+
+    ```yaml
+    models:
+      - type: check_inappropriate_output
+        engine: nim
+        model: nvidia/nemotron-mini-4b-instruct
+
+      - type: check_data_leakage
+        engine: nim
+        model: nvidia/nemotron-mini-4b-instruct
+    ```
+
+    If a matching task-specific model is not configured, the check uses the regular `self_check_output` model, then falls back to the main model.
 
 Each self-check runs sequentially. If any check blocks the output, the flow stops and returns the refusal message without running subsequent checks.
 

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -32,6 +32,7 @@ async def self_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
+    llms: Optional[Dict[str, LLMModel]] = None,
     config: Optional[RailsConfig] = None,
     task: str = "self_check_output",
     **kwargs,
@@ -58,6 +59,7 @@ async def self_check_output(
         task = "self_check_output"
 
     if bot_response:
+        llm = (llms or {}).get(task, llm)
         prompt = llm_task_manager.render_task_prompt(
             task=task,
             context={
