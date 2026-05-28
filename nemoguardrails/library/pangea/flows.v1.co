@@ -1,6 +1,7 @@
 # INPUT RAILS
 
 define subflow pangea ai guard input
+  """Guard user input using Pangea AI Guard, optionally transforming unsafe content."""
   $result = execute pangea_ai_guard(mode="input")
 
   if $result.blocked
@@ -17,6 +18,7 @@ define subflow pangea ai guard input
 # OUTPUT RAILS
 
 define subflow pangea ai guard output
+  """Guard bot output using Pangea AI Guard, optionally transforming unsafe content."""
   $result = execute pangea_ai_guard(mode="output")
 
   if $result.blocked

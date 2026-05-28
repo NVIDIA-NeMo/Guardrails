@@ -1,6 +1,7 @@
 # INPUT RAILS
 
 define subflow crowdstrike aidr guard input
+  """Guard user input using CrowdStrike AIDR, optionally transforming unsafe content."""
   $result = execute crowdstrike_aidr_guard(mode="input")
 
   if $result.blocked
@@ -17,6 +18,7 @@ define subflow crowdstrike aidr guard input
 # OUTPUT RAILS
 
 define subflow crowdstrike aidr guard output
+  """Guard bot output using CrowdStrike AIDR, optionally transforming unsafe content."""
   $result = execute crowdstrike_aidr_guard(mode="output")
 
   if $result.blocked

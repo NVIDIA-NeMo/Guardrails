@@ -4,6 +4,7 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
 define flow topic safety check input
+  """Check if user input is on-topic using the specified topic safety model."""
   $response = execute topic_safety_check_input
 
   $on_topic = $response["on_topic"]

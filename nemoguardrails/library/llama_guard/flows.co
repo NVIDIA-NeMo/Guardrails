@@ -1,5 +1,6 @@
 
 flow llama guard check input
+  """Check if input is safe using Llama Guard model for policy violation detection."""
   $llama_guard_response = await LlamaGuardCheckInputAction
   global $allowed
   $allowed = $llama_guard_response["allowed"]
@@ -15,6 +16,7 @@ flow llama guard check input
     abort
 
 flow llama guard check output
+  """Check if output is safe using Llama Guard model for policy violation detection."""
   $llama_guard_response = await LlamaGuardCheckOutputAction
   global $allowed
   $allowed = $llama_guard_response["allowed"]

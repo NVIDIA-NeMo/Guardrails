@@ -2,6 +2,7 @@ define bot inform answer unknown
   "I don't know the answer to that."
 
 define flow patronus lynx check output hallucination
+  """Detect hallucinations in bot output using Patronus Lynx with reasoning traces."""
   $patronus_lynx_response = execute patronus_lynx_check_output_hallucination
   $hallucination = $patronus_lynx_response["hallucination"]
   # The Reasoning trace is currently unused, but can be used to modify the bot output
@@ -15,6 +16,7 @@ define flow patronus lynx check output hallucination
     stop
 
 define flow patronus api check output
+  """Evaluate bot output quality using Patronus API evaluator."""
   $patronus_response = execute PatronusApiCheckOutputAction
   $evaluation_passed = $patronus_response["pass"]
 

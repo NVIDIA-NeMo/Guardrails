@@ -1,5 +1,6 @@
 
 flow self check input
+  """Check if user input is allowed using LLM-based self-check guardrail."""
   $allowed = await SelfCheckInputAction
 
   if not $allowed

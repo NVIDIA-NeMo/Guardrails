@@ -1,5 +1,6 @@
 # INPUT RAIL
 define subflow trend ai guard input
+    """Guard input text using Trend Micro AI Guard for threat detection."""
     $result = execute trend_ai_guard(text=$user_message)
 
     if $result.blocked # Fails open if AI Guard service has an error
@@ -12,6 +13,7 @@ define subflow trend ai guard input
 
 # OUTPUT RAIL
 define subflow trend ai guard output
+    """Guard output text using Trend Micro AI Guard for threat detection."""
     $result = execute trend_ai_guard(text=$bot_message)
 
     if $result.blocked # Fails open if AI Guard service has an error

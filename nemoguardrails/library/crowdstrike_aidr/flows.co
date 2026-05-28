@@ -1,6 +1,7 @@
 # INPUT RAILS
 
 flow crowdstrike aidr guard input
+  """Guard user input using CrowdStrike AIDR, optionally transforming unsafe content."""
   $result = await CrowdstrikeAidrGuardAction(mode="input")
 
   if $result.blocked
@@ -17,6 +18,7 @@ flow crowdstrike aidr guard input
 # OUTPUT RAILS
 
 flow crowdstrike aidr guard output
+  """Guard bot output using CrowdStrike AIDR, optionally transforming unsafe content."""
   $result = await CrowdstrikeAidrGuardAction(mode="output")
 
   if $result.blocked

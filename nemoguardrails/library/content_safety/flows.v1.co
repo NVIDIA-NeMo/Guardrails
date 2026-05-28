@@ -2,6 +2,7 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
 define flow content safety check input
+  """Check if input is safe according to content safety policy using the specified model."""
   $response = execute content_safety_check_input
 
   $allowed = $response["allowed"]
@@ -20,6 +21,7 @@ define flow content safety check input
     stop
 
 define flow content safety check output
+  """Check if output is safe according to content safety policy using the specified model."""
   $response = execute content_safety_check_output
   $allowed = $response["allowed"]
   $policy_violations = $response["policy_violations"]

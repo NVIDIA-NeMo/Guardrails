@@ -2,6 +2,7 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
 define flow self check output
+  """Check if bot output is allowed using LLM-based self-check guardrail."""
   $allowed = execute self_check_output
 
   if not $allowed

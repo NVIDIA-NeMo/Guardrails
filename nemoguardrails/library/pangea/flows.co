@@ -1,6 +1,7 @@
 # INPUT RAILS
 
 flow pangea ai guard input
+  """Guard user input using Pangea AI Guard, optionally transforming unsafe content."""
   $result = await PangeaAiGuardAction(mode="input")
 
   if $result.blocked
@@ -17,6 +18,7 @@ flow pangea ai guard input
 # OUTPUT RAILS
 
 flow pangea ai guard output
+  """Guard bot output using Pangea AI Guard, optionally transforming unsafe content."""
   $result = await PangeaAiGuardAction(mode="output")
 
   if $result.blocked

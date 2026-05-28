@@ -1,4 +1,5 @@
 flow autoalign check input
+  """Check input using AutoAlign API for guardrails and PII detection/masking."""
   $input_result = await AutoalignInputApiAction(show_autoalign_message=True)
   if $input_result["guardrails_triggered"]
     global $autoalign_input_response
@@ -13,6 +14,7 @@ flow autoalign check input
     $user_message = $input_result["pii"]["response"]
 
 flow autoalign check output
+  """Check output using AutoAlign API for guardrails and PII detection/masking."""
   $output_result = await AutoalignOutputApiAction(show_autoalign_message=True)
   if $output_result["guardrails_triggered"]
     if $system.config.enable_rails_exceptions
@@ -28,6 +30,7 @@ flow autoalign check output
       $bot_message = $pii_message_output
 
 flow autoalign groundedness output
+  """Check output groundedness and factuality using AutoAlign fact-checking."""
   if $check_facts == True
     global $check_facts
     $check_facts = False
@@ -37,5 +40,6 @@ flow autoalign groundedness output
     bot provide response
 
 flow autoalign factcheck output
+  """Fact-check output using AutoAlign API with configurable threshold."""
   $threshold = 0.5
   $output_result = await autoalign_factcheck_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)

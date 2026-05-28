@@ -1,4 +1,5 @@
 flow topic safety check input $model
+  """Check if user input is on-topic using the specified topic safety model."""
   $response = await TopicSafetyCheckInputAction(model_name=$model)
 
   global $on_topic
