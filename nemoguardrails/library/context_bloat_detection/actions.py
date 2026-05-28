@@ -48,6 +48,7 @@ ENTROPY_SAMPLE_SIZE = 8000
 
 class ContextBloatResult(TypedDict):
     is_bloat: bool
+    should_block: bool
     text: str
     reason: Optional[str]
     detections: List[str]
@@ -134,6 +135,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
         if cfg.action == "reject":
             return ContextBloatResult(
                 is_bloat=True,
+                should_block=True,
                 text=text,
                 reason="size_cap_exceeded",
                 detections=detections,
@@ -145,12 +147,13 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
     # ---- 2. Entropy ----
     entropy = _shannon_entropy(text)
     metrics["entropy"] = round(entropy, 3)
-    if entropy and entropy < cfg.min_entropy:
+    if entropy < cfg.min_entropy:
         detections.append("low_entropy")
         if cfg.action in ("reject", "truncate"):
             log.info(f"context bloat detected: low_entropy | entropy={entropy:.3f}")
             return ContextBloatResult(
                 is_bloat=True,
+                should_block=True,
                 text=text,
                 reason="low_entropy",
                 detections=detections,
@@ -166,6 +169,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
             log.info(f"context bloat detected: long_run | run_ratio={run_ratio:.3f}")
             return ContextBloatResult(
                 is_bloat=True,
+                should_block=True,
                 text=text,
                 reason="long_run",
                 detections=detections,
@@ -177,6 +181,16 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
     metrics["repetition_ratio"] = round(rep_ratio, 3)
     if rep_ratio > cfg.max_repetition_ratio:
         detections.append("high_repetition")
+        if cfg.action in ("reject", "truncate"):
+            log.info(f"context bloat detected: high_repetition | rep_ratio={rep_ratio:.3f}")
+            return ContextBloatResult(
+                is_bloat=True,
+                should_block=True,
+                text=text,
+                reason="high_repetition",
+                detections=detections,
+                metrics=metrics,
+            )
 
     # ---- Aggregate result ----
     is_bloat = bool(detections)
@@ -187,6 +201,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
 
     return ContextBloatResult(
         is_bloat=is_bloat,
+        should_block=False,
         text=text,
         reason=reason,
         detections=detections,

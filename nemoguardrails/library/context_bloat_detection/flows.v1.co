@@ -4,7 +4,7 @@
 define subflow context bloat detection on tool output
   """Detect oversized or padded tool responses before they reach the LLM."""
   $bloat_result = execute context_bloat_detection(text=$action_output)
-  if $bloat_result.is_bloat
+  if $bloat_result.is_bloat and $bloat_result.should_block
     bot inform tool output bloated
     stop
 
@@ -17,7 +17,7 @@ define subflow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
   $chunks_text = join($relevant_chunks, "\n\n")
   $bloat_result = execute context_bloat_detection(text=$chunks_text)
-  if $bloat_result.is_bloat
+  if $bloat_result.is_bloat and $bloat_result.should_block
     bot inform retrieval bloated
     stop
 
@@ -29,7 +29,7 @@ define bot inform retrieval bloated
 define subflow context bloat detection on input
   """Detect bloated or padded user-supplied content."""
   $bloat_result = execute context_bloat_detection(text=$user_message)
-  if $bloat_result.is_bloat
+  if $bloat_result.is_bloat and $bloat_result.should_block
     bot refuse bloated input
     stop
 

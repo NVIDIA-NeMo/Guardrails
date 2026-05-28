@@ -246,6 +246,7 @@ class TestTruncateMode:
         config = _make_config(max_chars=50, action="truncate")
         result = await context_bloat_detection("x" * 200, config)
         assert result["is_bloat"] is True
+        assert result["should_block"] is True
         assert len(result["text"]) == 50
 
     @pytest.mark.asyncio
@@ -253,6 +254,7 @@ class TestTruncateMode:
         config = _make_config(max_chars=50000, min_entropy=5.0, action="truncate")
         result = await context_bloat_detection("ab" * 500, config)
         assert result["is_bloat"] is True
+        assert result["should_block"] is True
         assert "low_entropy" in result["detections"]
         assert "longest_run_ratio" not in result["metrics"]
 
@@ -264,6 +266,7 @@ class TestWarnMode:
         with caplog.at_level(logging.INFO):
             result = await context_bloat_detection("x" * 200, config)
         assert result["is_bloat"] is True
+        assert result["should_block"] is False
         assert result["text"] == "x" * 200
         assert any("context bloat detected" in r.message for r in caplog.records)
 
@@ -279,6 +282,7 @@ class TestWarnMode:
         repeated = " ".join(["foo bar baz"] * 50)
         result = await context_bloat_detection(repeated, config)
         assert result["is_bloat"] is True
+        assert result["should_block"] is False
         assert len(result["detections"]) > 1
 
 

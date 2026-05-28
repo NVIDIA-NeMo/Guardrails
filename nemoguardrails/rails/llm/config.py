@@ -1092,22 +1092,30 @@ class ContextBloatDetectionConfig(BaseModel):
 
     max_chars: int = Field(
         default=5000,
+        gt=0,
         description="Size cap in characters. Inputs exceeding this are flagged.",
     )
     min_entropy: float = Field(
         default=3.5,
+        ge=0.0,
+        le=8.0,
         description="Shannon entropy floor (bits/char). English prose is ~4.0-4.5.",
     )
     max_repetition_ratio: float = Field(
         default=0.4,
+        ge=0.0,
+        le=1.0,
         description="Max fraction of repeated n-grams (0.0-1.0).",
     )
     ngram_size: int = Field(
         default=3,
+        ge=1,
         description="Size of n-grams used for repetition detection.",
     )
     max_run_ratio: float = Field(
         default=0.1,
+        ge=0.0,
+        le=1.0,
         description="Max fraction of text that is the longest single-char run.",
     )
     action: Literal["reject", "truncate", "warn"] = Field(
