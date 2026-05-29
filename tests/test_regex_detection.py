@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
-from nemoguardrails.library.regex.actions import detect_regex_pattern
+from nemoguardrails.library.regex.actions import detect_regex_pattern, redact_regex_pattern
 from tests.utils import TestChat
 
 
@@ -704,3 +704,308 @@ def test_regex_output_mapping_is_registered():
         "detect_regex_pattern is missing output_mapping — streaming output rails "
         "will silently pass matched content through (see #1936 follow-up)"
     )
+
+
+# ── Redaction tests ──────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_replaces_matches():
+    """redact_regex_pattern replaces matched spans with <REDACTED>."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="input",
+        text="My SSN is 123-45-6789 and yours is 987-65-4321.",
+        config=config,
+    )
+    assert result == "My SSN is <REDACTED> and yours is <REDACTED>."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_custom_mask_token():
+    """Per-pattern mask_token overrides the default replacement string."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  output:
+                    patterns:
+                      - pattern: "\\\\bsecret\\\\b"
+                        mask_token: "[MASKED]"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="output",
+        text="This is a secret message with secret data.",
+        config=config,
+    )
+    assert result == "This is a [MASKED] message with [MASKED] data."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_mixed_plain_and_object_patterns():
+    """Plain string patterns use default <REDACTED>, object patterns use their mask_token."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+                      - pattern: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}"
+                        mask_token: "<EMAIL>"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="input",
+        text="SSN: 123-45-6789, email: test@example.com",
+        config=config,
+    )
+    assert result == "SSN: <REDACTED>, email: <EMAIL>"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_no_match_passes_through():
+    """Text without matches is returned unchanged."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="input",
+        text="Hello, no sensitive data here.",
+        config=config,
+    )
+    assert result == "Hello, no sensitive data here."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_multiple_patterns():
+    """Multiple patterns are all redacted in a single pass."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+                      - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="input",
+        text="SSN: 123-45-6789, email: test@example.com",
+        config=config,
+    )
+    assert result == "SSN: <REDACTED>, email: <REDACTED>"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_empty_text():
+    """Empty text is returned as-is."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\bsecret\\\\b"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(source="input", text="", config=config)
+    assert result == ""
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_redact_regex_accepts_extra_kwargs():
+    """redact_regex_pattern must accept extra kwargs from the action dispatcher."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  output:
+                    patterns:
+                      - "\\\\bconfidential\\\\b"
+        """,
+        colang_content="",
+    )
+
+    result = await redact_regex_pattern(
+        source="output",
+        text="This is confidential information.",
+        config=config,
+        context={"user_message": "hi"},
+        llm_task_manager=object(),
+    )
+    assert result == "This is <REDACTED> information."
+
+
+@pytest.mark.unit
+def test_regex_redact_input_e2e():
+    """End-to-end: regex redact input flow replaces matched content."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+              input:
+                flows:
+                  - regex redact input
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=["  express greeting", '  "Got it, your SSN is on file."'],
+    )
+
+    chat >> "My SSN is 123-45-6789"
+    chat << "Got it, your SSN is on file."
+
+
+@pytest.mark.unit
+def test_regex_redact_output_e2e():
+    """End-to-end: regex redact output flow replaces matched content in bot reply."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  output:
+                    patterns:
+                      - pattern: "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+                        mask_token: "<SSN>"
+              output:
+                flows:
+                  - regex redact output
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=["  express greeting", '  "Your SSN is 123-45-6789."'],
+    )
+
+    chat >> "Hi!"
+    chat << "Your SSN is <SSN>."
+
+
+@pytest.mark.unit
+def test_regex_redact_retrieval_e2e():
+    """End-to-end: regex redact retrieval flow replaces matched content in chunks."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  retrieval:
+                    patterns:
+                      - "\\\\d{3}-\\\\d{2}-\\\\d{4}"
+              retrieval:
+                flows:
+                  - regex redact retrieval
+                  - check relevant chunks
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define flow check relevant chunks
+              execute check_relevant_chunks(relevant_chunks=$relevant_chunks)
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=["  express greeting", '  "Here is what I found."'],
+    )
+
+    @action()
+    def retrieve_relevant_chunks():
+        context_updates = {"relevant_chunks": "Employee SSN: 123-45-6789 in record."}
+        return ActionResult(
+            return_value=context_updates["relevant_chunks"],
+            context_updates=context_updates,
+        )
+
+    @action()
+    def check_relevant_chunks(relevant_chunks: str):
+        assert relevant_chunks == "Employee SSN: <REDACTED> in record."
+
+    chat.app.register_action(retrieve_relevant_chunks)
+    chat.app.register_action(check_relevant_chunks)
+
+    chat >> "Hi!"
+    chat << "Here is what I found."

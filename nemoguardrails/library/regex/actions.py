@@ -33,6 +33,28 @@ def _regex_blocked_mapping(result: RegexDetectionResult) -> bool:
     return result.get("is_match", False)
 
 
+def _get_regex_options(source: str, config: RailsConfig):
+    """Return the RegexDetectionOptions for *source*, or None with a warning."""
+    if source not in ("input", "output", "retrieval"):
+        raise ValueError("source must be one of 'input', 'output', or 'retrieval'")
+
+    regex_config = config.rails.config.regex_detection
+    if regex_config is None:
+        log.warning("No regex_detection configuration found.")
+        return None
+
+    options = getattr(regex_config, source, None)
+    if options is None:
+        log.warning("No regex rails configuration found for source: %s", source)
+        return None
+
+    if not options.compiled_patterns:
+        log.debug("No regex patterns specified for source: %s", source)
+        return None
+
+    return options
+
+
 @action(is_system_action=True, output_mapping=_regex_blocked_mapping)
 async def detect_regex_pattern(
     source: str,
@@ -53,37 +75,53 @@ async def detect_regex_pattern(
             - text (str): The original text that was checked.
             - detections (List[str]): List of pattern strings that matched.
     """
-    if source not in ("input", "output", "retrieval"):
-        raise ValueError("source must be one of 'input', 'output', or 'retrieval'")
-
-    regex_config = config.rails.config.regex_detection
-    if regex_config is None:
-        log.warning("No regex_detection configuration found.")
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
-
-    options = getattr(regex_config, source, None)
-
-    if options is None:
-        log.warning("No regex rails configuration found for source: %s", source)
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
-
-    compiled_patterns = options.compiled_patterns
-    if not compiled_patterns:
-        log.debug("No regex patterns specified for source: %s", source)
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
-
-    if not text:
-        log.debug("Empty text provided, skipping regex check.")
+    options = _get_regex_options(source, config)
+    if options is None or not text:
+        if not text:
+            log.debug("Empty text provided, skipping regex check.")
         return RegexDetectionResult(is_match=False, text=text, detections=[])
 
     # Match against pre-compiled patterns and collect all matches.
     matched: List[str] = []
-    for compiled, raw_pattern in zip(compiled_patterns, options.patterns):
+    for compiled, pcfg in zip(options.compiled_patterns, options.normalized_patterns):
         if compiled.search(text):
-            log.info("Regex pattern matched: %s", raw_pattern)
-            matched.append(raw_pattern)
+            log.info("Regex pattern matched: %s", pcfg.pattern)
+            matched.append(pcfg.pattern)
 
     if matched:
         return RegexDetectionResult(is_match=True, text=text, detections=matched)
 
     return RegexDetectionResult(is_match=False, text=text, detections=[])
+
+
+@action(is_system_action=True)
+async def redact_regex_pattern(
+    source: str,
+    text: str,
+    config: RailsConfig,
+    **kwargs,
+) -> str:
+    """Replace all regex-matched spans with the configured mask token.
+
+    Args:
+        source: The source for the text, i.e. "input", "output", "retrieval".
+        text: The text to redact.
+        config: The rails configuration object.
+
+    Returns:
+        The text with every match of every configured pattern replaced by
+        the mask_token (default ``<REDACTED>``).
+    """
+    options = _get_regex_options(source, config)
+    if options is None or not text:
+        if not text:
+            log.debug("Empty text provided, skipping regex redaction.")
+        return text
+
+    redacted = text
+    for compiled, pcfg in zip(options.compiled_patterns, options.normalized_patterns):
+        if compiled.search(redacted):
+            log.info("Regex pattern redacted: %s", pcfg.pattern)
+            redacted = compiled.sub(pcfg.mask_token, redacted)
+
+    return redacted

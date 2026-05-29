@@ -12,6 +12,11 @@ define subflow regex check input
     stop
 
 
+define subflow regex redact input
+  """Redact any regex-matched content in the user input."""
+  $user_message = execute redact_regex_pattern(source="input", text=$user_message)
+
+
 # OUTPUT RAILS
 
 
@@ -24,6 +29,11 @@ define subflow regex check output
     stop
 
 
+define subflow regex redact output
+  """Redact any regex-matched content in the bot output."""
+  $bot_message = execute redact_regex_pattern(source="output", text=$bot_message)
+
+
 # RETRIEVAL RAILS
 
 
@@ -33,3 +43,8 @@ define subflow regex check retrieval
 
   if $result["is_match"]
     $relevant_chunks = ""
+
+
+define subflow regex redact retrieval
+  """Redact any regex-matched content in the retrieved knowledge base chunks."""
+  $relevant_chunks = execute redact_regex_pattern(source="retrieval", text=$relevant_chunks)

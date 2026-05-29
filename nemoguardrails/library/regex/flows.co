@@ -9,6 +9,12 @@ flow regex check input
     abort
 
 
+flow regex redact input
+  """Redact any regex-matched content in the user input."""
+  global $user_message
+  $user_message = await RedactRegexPatternAction(source="input", text=$user_message)
+
+
 # OUTPUT RAILS
 
 
@@ -21,6 +27,12 @@ flow regex check output
     abort
 
 
+flow regex redact output
+  """Redact any regex-matched content in the bot output."""
+  global $bot_message
+  $bot_message = await RedactRegexPatternAction(source="output", text=$bot_message)
+
+
 # RETRIEVAL RAILS
 
 
@@ -31,3 +43,9 @@ flow regex check retrieval
 
   if $result["is_match"]
     $relevant_chunks = ""
+
+
+flow regex redact retrieval
+  """Redact any regex-matched content in the retrieved knowledge base chunks."""
+  global $relevant_chunks
+  $relevant_chunks = await RedactRegexPatternAction(source="retrieval", text=$relevant_chunks)

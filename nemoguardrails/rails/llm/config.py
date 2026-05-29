@@ -248,30 +248,55 @@ class SensitiveDataDetection(BaseModel):
     )
 
 
-class RegexDetectionOptions(BaseModel):
-    """Configuration options for regex pattern detection on a specific source."""
+class RegexPatternConfig(BaseModel):
+    """A single regex pattern with an optional per-pattern mask token."""
 
-    patterns: List[str] = Field(
+    pattern: str = Field(description="The regex pattern string.")
+    mask_token: str = Field(
+        default="<REDACTED>",
+        description="Replacement token used when redacting this pattern's matches.",
+    )
+
+
+class RegexDetectionOptions(BaseModel):
+    """Configuration options for regex pattern detection on a specific source.
+
+    Each entry in ``patterns`` may be a plain string (uses the default
+    ``<REDACTED>`` mask token) or an object with ``pattern`` and ``mask_token``
+    keys.
+    """
+
+    patterns: List[Union[str, RegexPatternConfig]] = Field(
         default_factory=list,
-        description="List of regex patterns to match against the text.",
+        description="List of regex patterns (strings or objects with pattern/mask_token).",
     )
     case_insensitive: bool = Field(
         default=False,
         description="Whether to perform case-insensitive matching.",
     )
 
+    _normalized_patterns: List[RegexPatternConfig] = PrivateAttr(default_factory=list)
     _compiled_patterns: List["re.Pattern[str]"] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def compile_patterns(self) -> "RegexDetectionOptions":
-        """Pre-compile regex patterns at config load time."""
+        """Normalize plain strings to RegexPatternConfig and pre-compile."""
+        normalized: List[RegexPatternConfig] = []
+        for entry in self.patterns:
+            if isinstance(entry, str):
+                normalized.append(RegexPatternConfig(pattern=entry))
+            else:
+                normalized.append(entry)
+
         flags = re.IGNORECASE if self.case_insensitive else 0
         compiled = []
-        for i, pattern in enumerate(self.patterns):
+        for i, cfg in enumerate(normalized):
             try:
-                compiled.append(re.compile(pattern, flags))
+                compiled.append(re.compile(cfg.pattern, flags))
             except re.error as e:
-                raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
+                raise ValueError(f"Invalid regex pattern at index {i} ({cfg.pattern!r}): {e}") from e
+
+        object.__setattr__(self, "_normalized_patterns", normalized)
         object.__setattr__(self, "_compiled_patterns", compiled)
         return self
 
@@ -279,6 +304,11 @@ class RegexDetectionOptions(BaseModel):
     def compiled_patterns(self) -> List["re.Pattern[str]"]:
         """Return the pre-compiled regex patterns."""
         return self._compiled_patterns
+
+    @property
+    def normalized_patterns(self) -> List[RegexPatternConfig]:
+        """Return the normalized pattern configs."""
+        return self._normalized_patterns
 
 
 class RegexDetection(BaseModel):
