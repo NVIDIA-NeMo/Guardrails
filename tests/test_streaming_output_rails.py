@@ -450,3 +450,60 @@ async def test_external_generator_single_chunk():
         tokens.append(token)
 
     assert "".join(tokens) == "This is a complete response in a single chunk."
+
+
+@pytest.mark.asyncio
+async def test_streaming_output_rails_no_stale_substituted_param():
+    """Output rails that take the bot message as a substituted kwarg
+    (text=$bot_message, as privateai / prompt_security / regex rails do) see
+    each streamed chunk's own text, not a stale value from an earlier chunk.
+    """
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["capture output"],
+                    "streaming": {"enabled": True, "chunk_size": 4, "context_size": 2},
+                }
+            },
+            "streaming": False,
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+
+        define flow
+          user express greeting
+          bot tell joke
+
+        define subflow capture output
+          execute capture_output(text=$bot_message)
+        """,
+    )
+
+    seen = []
+
+    @action(name="capture_output", output_mapping=lambda result: not result)
+    async def capture_output(**params):
+        # the substituted `text` kwarg must match this chunk's bot_message
+        seen.append((params.get("text"), params["context"]["bot_message"]))
+        return True
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            '  express greeting\nbot express greeting\n  "hi"',
+            '  "one two three four five six"',
+        ],
+        streaming=True,
+    )
+    chat.app.register_action(capture_output, name="capture_output")
+
+    async for _ in chat.app.stream_async(messages=[{"role": "user", "content": "hi"}]):
+        pass
+
+    assert len(seen) >= 2  # response spans multiple chunks
+    assert all(text == bot_message for text, bot_message in seen)
+
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})

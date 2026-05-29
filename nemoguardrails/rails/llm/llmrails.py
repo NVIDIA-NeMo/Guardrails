@@ -1741,14 +1741,15 @@ class LLMRails:
 
             model_name = flow_id.split("$")[-1].split("=")[-1].strip('"')
 
-            # we pass action params that are defined in the flow
-            # caveate, e.g. prmpt_security uses bot_response=$bot_message
-            # to resolve replace placeholders in action_params
-            for key, value in action_params.items():
+            # Resolve $bot_message / $user_message into a new dict. action_params
+            # is the shared flow config (reused across chunks and requests) and
+            # must not be mutated in place.
+            resolved_params = dict(action_params or {})
+            for key, value in resolved_params.items():
                 if value == "$bot_message":
-                    action_params[key] = bot_response_chunk
+                    resolved_params[key] = bot_response_chunk
                 elif value == "$user_message":
-                    action_params[key] = user_message
+                    resolved_params[key] = user_message
 
             return {
                 # TODO:: are there other context variables that need to be passed?
@@ -1760,7 +1761,7 @@ class LLMRails:
                 "model_name": model_name,
                 "llms": self.runtime.registered_action_params.get("llms", {}),
                 "llm": self.runtime.registered_action_params.get(f"{action_name}_llm", self.llm),
-                **action_params,
+                **resolved_params,
             }
 
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)

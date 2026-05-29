@@ -94,6 +94,8 @@ def get_action_details_from_flow_id(
             and "execute" in element["_source_mapping"]["line_text"]
             and "action_name" in element
         ):
-            return element["action_name"], element["action_params"]
+            # Return a copy: action_params belongs to the shared flow config and
+            # callers may resolve $bot_message / $user_message placeholders into it.
+            return element["action_name"], dict(element["action_params"] or {})
 
     raise ValueError(f"No run_action element found for flow_id: {flow_id}")
