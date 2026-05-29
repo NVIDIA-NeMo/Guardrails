@@ -175,9 +175,16 @@ Export your NGC Personal API key as `NGC_API_KEY`:
 export NGC_API_KEY="<your-ngc-key>"
 ```
 
-> **Important:** The key must start with `nvapi-`. You can generate one at [org.ngc.nvidia.com/setup/api-keys](https://org.ngc.nvidia.com/setup/api-keys) (select at least the **NGC Catalog** service) or at [build.nvidia.com](https://build.nvidia.com) — both portals issue interchangeable `nvapi-` keys. **Legacy NGC keys (older format, not starting with `nvapi-`) will cause the GLiNER container to fail during model-artifact download.** If you already have an `NVIDIA_API_KEY` starting with `nvapi-`, you can reuse it:
+> **Important:** The key must start with `nvapi-`. You can generate one at [org.ngc.nvidia.com/setup/api-keys](https://org.ngc.nvidia.com/setup/api-keys) (select at least the **NGC Catalog** service) or at [build.nvidia.com](https://build.nvidia.com) — both portals issue interchangeable `nvapi-` keys. **Legacy NGC keys (older format, not starting with `nvapi-`) will cause the GLiNER container to fail during model-artifact download.**
+>
+> If you already have an `NVIDIA_API_KEY` starting with `nvapi-`, you can reuse it:
 > ```bash
 > export NGC_API_KEY="$NVIDIA_API_KEY"
+> ```
+>
+> Alternatively, you can skip the `export` and pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
+> ```bash
+> docker run ... -e NGC_API_KEY=$NVIDIA_API_KEY ...
 > ```
 
 On a multi-GPU host, pin each container to a distinct GPU with `--gpus '"device=N"'` instead of `--gpus all`. Without an explicit device, both NIMs default to GPU 0 and compete for memory. The examples below assign GLiNER to GPU 0 and Llama to GPU 1; adjust the indices to match your host.

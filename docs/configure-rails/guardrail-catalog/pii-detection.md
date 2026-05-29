@@ -103,7 +103,19 @@ rails:
 
 To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No `api_key_env_var` is needed for local inference.
 
-> **Note:** You still need an `NGC_API_KEY` (starting with `nvapi-`) to pull the Docker images and download model artifacts. You can generate one at [org.ngc.nvidia.com/setup/api-keys](https://org.ngc.nvidia.com/setup/api-keys) or [build.nvidia.com](https://build.nvidia.com). Legacy NGC keys (older format) will cause the container to fail during artifact download. See the [GLiNER Integration — Deploy NIMs Locally](community/gliner.md#start-the-containers) section for full `docker run` instructions.
+> **Important:** You still need an `NGC_API_KEY` (starting with `nvapi-`) to pull the Docker images and download model artifacts. You can generate one at [org.ngc.nvidia.com/setup/api-keys](https://org.ngc.nvidia.com/setup/api-keys) or [build.nvidia.com](https://build.nvidia.com). **Legacy NGC keys (older format, not starting with `nvapi-`) will cause the container to fail during artifact download.**
+>
+> If you already have an `NVIDIA_API_KEY` starting with `nvapi-`, you can reuse it:
+> ```bash
+> export NGC_API_KEY="$NVIDIA_API_KEY"
+> ```
+>
+> Alternatively, you can skip the `export` and pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
+> ```bash
+> docker run ... -e NGC_API_KEY=$NVIDIA_API_KEY ...
+> ```
+>
+> See the [GLiNER Integration — Deploy NIMs Locally](community/gliner.md#start-the-containers) section for full `docker run` instructions.
 
 **PII detection** (update `config/pii_detection/config.yml`):
 
