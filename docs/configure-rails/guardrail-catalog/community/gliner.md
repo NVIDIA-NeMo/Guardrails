@@ -182,9 +182,9 @@ export NGC_API_KEY="<your-ngc-key>"
 > export NGC_API_KEY="$NVIDIA_API_KEY"
 > ```
 >
-> Alternatively, you can skip the `export` and pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
+> Alternatively, you can pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
 > ```bash
-> docker run ... -e NGC_API_KEY=$NVIDIA_API_KEY ...
+> docker run ... -e NGC_API_KEY="$NVIDIA_API_KEY" ...
 > ```
 
 On a multi-GPU host, pin each container to a distinct GPU with `--gpus '"device=N"'` instead of `--gpus all`. Without an explicit device, both NIMs default to GPU 0 and compete for memory. The examples below assign GLiNER to GPU 0 and Llama to GPU 1; adjust the indices to match your host.

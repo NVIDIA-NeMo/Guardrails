@@ -110,9 +110,9 @@ To run both NIMs locally, pull the Docker containers and point each endpoint to 
 > export NGC_API_KEY="$NVIDIA_API_KEY"
 > ```
 >
-> Alternatively, you can skip the `export` and pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
+> Alternatively, you can pass the key directly at container runtime — this avoids overwriting any existing `NGC_API_KEY` in your environment:
 > ```bash
-> docker run ... -e NGC_API_KEY=$NVIDIA_API_KEY ...
+> docker run ... -e NGC_API_KEY="$NVIDIA_API_KEY" ...
 > ```
 >
 > See the [GLiNER Integration — Deploy NIMs Locally](community/gliner.md#start-the-containers) section for full `docker run` instructions.
