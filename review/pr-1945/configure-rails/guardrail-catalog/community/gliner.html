@@ -891,8 +891,8 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NVIDIA_API_KEY</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-<p>Alternatively, you can skip the <code class="docutils literal notranslate"><span class="pre">export</span></code> and pass the key directly at container runtime — this avoids overwriting any existing <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> in your environment:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-e<span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="nv">$NVIDIA_API_KEY</span><span class="w"> </span>...
+<p>Alternatively, you can pass the key directly at container runtime — this avoids overwriting any existing <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> in your environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-e<span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NVIDIA_API_KEY</span><span class="s2">&quot;</span><span class="w"> </span>...
 </pre></div>
 </div>
 </div></blockquote>
