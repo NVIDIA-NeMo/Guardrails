@@ -507,3 +507,62 @@ async def test_streaming_output_rails_no_stale_substituted_param():
     assert all(text == bot_message for text, bot_message in seen)
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+async def test_streaming_output_rails_substitutes_user_message_param():
+    """Output rails that take the user message as a substituted kwarg
+    (text=$user_message) receive the resolved user message on every streamed
+    chunk, not the literal "$user_message" placeholder.
+    """
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["capture output"],
+                    "streaming": {"enabled": True, "chunk_size": 4, "context_size": 2},
+                }
+            },
+            "streaming": False,
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+
+        define flow
+          user express greeting
+          bot tell joke
+
+        define subflow capture output
+          execute capture_output(text=$user_message)
+        """,
+    )
+
+    seen = []
+
+    @action(name="capture_output", output_mapping=lambda result: not result)
+    async def capture_output(**params):
+        # the substituted `text` kwarg must be the resolved user message
+        seen.append((params.get("text"), params["context"]["user_message"]))
+        return True
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            '  express greeting\nbot express greeting\n  "hi"',
+            '  "one two three four five six"',
+        ],
+        streaming=True,
+    )
+    chat.app.register_action(capture_output, name="capture_output")
+
+    async for _ in chat.app.stream_async(messages=[{"role": "user", "content": "hi"}]):
+        pass
+
+    assert seen  # the output rail ran on at least one chunk
+    # $user_message was resolved, not passed through as the literal placeholder
+    assert all(text != "$user_message" for text, _ in seen)
+    assert all(text == user_message for text, user_message in seen)
+
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
