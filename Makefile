@@ -42,7 +42,8 @@ FAST_TEST_FILE ?= \
 	tests/_compat/test_langchain_kwargs.py
 FASTEMBED_CACHE_PATH ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
-PYTEST_PARALLEL_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE_PATH)
+PYTEST_PARALLEL_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY
+FASTEMBED_WARMUP_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE_PATH)
 
 test:
 	poetry run pytest $(PYTEST_ARGS) $(TEST_FILE)
@@ -51,9 +52,9 @@ tests:
 	poetry run pytest $(PYTEST_ARGS) $(TEST_FILE)
 
 warm_fastembed_cache:
-	$(PYTEST_PARALLEL_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
+	$(FASTEMBED_WARMUP_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
-test_parallel: warm_fastembed_cache
+test_parallel:
 	$(PYTEST_PARALLEL_ENV) poetry run pytest -n $(PYTEST_WORKERS) --dist $(PYTEST_DIST) $(PYTEST_ARGS) $(TEST_FILE)
 
 test_fast:
@@ -101,8 +102,8 @@ help:
 	@echo 'test                         - run unit tests'
 	@echo 'tests                        - run unit tests'
 	@echo 'test TEST_FILE=<test_file>   - run all tests in given file'
-	@echo 'warm_fastembed_cache         - prepare the repo-local FastEmbed cache for parallel tests'
-	@echo 'test_parallel                - run unit tests with pytest-xdist using a warmed FastEmbed cache'
+	@echo 'warm_fastembed_cache         - prepare the repo-local FastEmbed cache for explicit real embedding runs'
+	@echo 'test_parallel                - run unit tests with pytest-xdist'
 	@echo 'test_fast                    - run curated fast parallel test subset'
 	@echo 'test_watch                   - run unit tests in watch mode'
 	@echo 'test_coverage                - run unit tests with coverage'

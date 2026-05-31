@@ -230,6 +230,7 @@ class TestConfigDataPresent:
         assert len(non_system) == 2
 
 
+@pytest.mark.real_embeddings
 class TestFastEmbedNotDownloadedForSimpleRails:
     def test_input_rails_no_cache_created(self, tmp_path):
         import os

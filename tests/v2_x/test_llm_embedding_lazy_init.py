@@ -15,6 +15,8 @@
 
 import textwrap
 
+import pytest
+
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
 
@@ -118,6 +120,7 @@ class TestEmbeddingIndexesNotCreatedAtInit:
         assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
 
 
+@pytest.mark.real_embeddings
 class TestFastEmbedNotDownloadedForSimpleRails:
     def test_passthrough_no_cache_created(self, tmp_path):
         import os
