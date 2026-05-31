@@ -44,4 +44,3 @@ def test_get_numbered_lines_or_continuation_merges():
     # A valid " or" continuation still merges onto the next line.
     lines = get_numbered_lines("define flow test\n  a or\n  b")
     assert [line["text"] for line in lines] == ["define flow test", "a or b"]
-
