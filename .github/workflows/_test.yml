@@ -28,12 +28,24 @@ on:
         required: false
         default: false
         type: boolean
+      pytest-workers:
+        description: "Worker count passed to pytest-xdist for non-coverage tests"
+        required: false
+        default: "auto"
+        type: string
+      pytest-dist:
+        description: "Distribution strategy passed to pytest-xdist for non-coverage tests"
+        required: false
+        default: "worksteal"
+        type: string
 
 defaults:
   run:
     shell: bash
 env:
   POETRY_VERSION: 1.8.2
+  FASTEMBED_CACHE_PATH: .cache/fastembed
+  FASTEMBED_MODEL: sentence-transformers/all-MiniLM-L6-v2
 
 jobs:
   tests:
@@ -105,9 +117,15 @@ jobs:
         if: inputs.with-coverage
         run: poetry run pytest --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
 
+      - name: Warm FastEmbed cache
+        if: inputs.with-coverage == false
+        run: |
+          env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH}" poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("'"${FASTEMBED_MODEL}"'"); next(model.embed(["warmup"]))'
+
       - name: Run pytest without coverage
         if: inputs.with-coverage == false
-        run: poetry run pytest -v
+        run: |
+          env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH}" poetry run pytest -n "${{ inputs.pytest-workers }}" --dist "${{ inputs.pytest-dist }}" -v tests/
 
       - name: Upload coverage to Codecov
         if: inputs.with-coverage
