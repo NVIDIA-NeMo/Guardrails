@@ -21,6 +21,8 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.utils import TestChat
 
+pytestmark = pytest.mark.slow
+
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 OPTIONS = GenerationOptions(

@@ -23,6 +23,8 @@ from nemoguardrails.imports import check_optional_dependency
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.utils import TestChat
 
+pytestmark = pytest.mark.slow
+
 _has_langchain_openai = check_optional_dependency("langchain_openai")
 
 _has_openai_key = bool(os.getenv("OPENAI_API_KEY"))

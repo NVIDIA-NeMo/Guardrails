@@ -33,6 +33,8 @@ import pytest
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from tests.guardrails.async_helpers import wait_for_queue_state
 
+pytestmark = pytest.mark.slow
+
 
 class TestBasicFunctionality:
     """Tests for basic AsyncWorkQueue functionality."""

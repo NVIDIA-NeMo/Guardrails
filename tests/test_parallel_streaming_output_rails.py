@@ -27,6 +27,8 @@ from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from tests.utils import TestChat
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def parallel_output_rails_streaming_config():

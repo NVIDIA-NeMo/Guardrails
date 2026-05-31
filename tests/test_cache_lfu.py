@@ -27,6 +27,8 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
+import pytest
+
 from nemoguardrails.llm.cache.lfu import LFUCache
 
 
@@ -361,6 +363,7 @@ class TestLFUCacheInterface(unittest.TestCase):
         self.assertEqual(cache.maxsize, 5)
 
 
+@pytest.mark.slow
 class TestLFUCacheStatsLogging(unittest.TestCase):
     """Test cases for LFU Cache statistics logging functionality."""
 
@@ -717,6 +720,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         self.assertEqual(stats3.log_interval, 60.0)
 
 
+@pytest.mark.slow
 class TestLFUCacheThreadSafety(unittest.TestCase):
     """Test thread safety of LFU Cache implementation."""
 
