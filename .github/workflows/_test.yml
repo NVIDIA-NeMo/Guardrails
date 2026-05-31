@@ -113,14 +113,14 @@ jobs:
             poetry install --with dev
           fi
 
-      - name: Run pytest with coverage
-        if: inputs.with-coverage
-        run: poetry run pytest --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
-
       - name: Warm FastEmbed cache
-        if: inputs.with-coverage == false
         run: |
           env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH}" poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("'"${FASTEMBED_MODEL}"'"); next(model.embed(["warmup"]))'
+
+      - name: Run pytest with coverage
+        if: inputs.with-coverage
+        run: |
+          env -u OPENAI_API_KEY -u NVIDIA_API_KEY FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH}" poetry run pytest -n "${{ inputs.pytest-workers }}" --dist "${{ inputs.pytest-dist }}" --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
 
       - name: Run pytest without coverage
         if: inputs.with-coverage == false
