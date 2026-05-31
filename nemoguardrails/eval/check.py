@@ -287,7 +287,7 @@ class LLMJudgeComplianceChecker:
                     self.print_prompt(prompt)
                     self.print_completion(result)
 
-                self.progress.print("[{progress_idx}] [red]Invalid LLM response. Ignoring.[/]")
+                self.progress.print(f"[{progress_idx}] [red]Invalid LLM response. Ignoring.[/]")
             else:
                 reason = match.group(1)
                 compliance = match.group(2)
