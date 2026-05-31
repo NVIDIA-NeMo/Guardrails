@@ -58,17 +58,14 @@ async def test_parallel_rails_success():
 
     # Check that all rails were executed
     assert result.log.activated_rails[0].name == "self check input"
-    assert result.log.activated_rails[1].name == "check blocked input terms $duration=1.0"
-    assert result.log.activated_rails[2].name == "check blocked input terms $duration=1.0"
+    assert result.log.activated_rails[1].name == "check blocked input terms $duration=0.2"
+    assert result.log.activated_rails[2].name == "check blocked input terms $duration=0.2"
     assert result.log.activated_rails[3].name == "generate user intent"
     assert result.log.activated_rails[4].name == "self check output"
-    assert result.log.activated_rails[5].name == "check blocked output terms $duration=1.0"
-    assert result.log.activated_rails[6].name == "check blocked output terms $duration=1.0"
+    assert result.log.activated_rails[5].name == "check blocked output terms $duration=0.2"
+    assert result.log.activated_rails[6].name == "check blocked output terms $duration=0.2"
 
-    # Time should be close to 2 seconds due to parallel processing:
-    # check blocked input terms: 1s
-    # check blocked output terms: 1s
-    assert result.log.stats.input_rails_duration < 1.5 and result.log.stats.output_rails_duration < 1.5, (
+    assert result.log.stats.input_rails_duration < 0.5 and result.log.stats.output_rails_duration < 0.5, (
         "Rails processing took too long, parallelization seems to be not working."
     )
 
@@ -205,7 +202,7 @@ async def test_parallel_rails_client_code_pattern():
 
     rails_to_check = [
         "self check output",
-        "check blocked output terms $duration=1.0",
+        "check blocked output terms $duration=0.2",
     ]
     rails_set = set(rails_to_check)
 
@@ -221,12 +218,12 @@ async def test_parallel_rails_client_code_pattern():
     assert len(blocked_rails) == 1, (
         f"Expected exactly one blocked rail from our check list, got {len(blocked_rails)}: {blocked_rails}"
     )
-    assert "check blocked output terms $duration=1.0" in blocked_rails, (
-        f"Expected 'check blocked output terms $duration=1.0' to be blocked, got {blocked_rails}"
+    assert "check blocked output terms $duration=0.2" in blocked_rails, (
+        f"Expected 'check blocked output terms $duration=0.2' to be blocked, got {blocked_rails}"
     )
 
     for rail in activated_rails:
-        if rail.name in rails_set and rail.name != "check blocked output terms $duration=1.0":
+        if rail.name in rails_set and rail.name != "check blocked output terms $duration=0.2":
             assert not rail.stop, f"Non-blocked rail {rail.name} should not have stop=True"
 
 

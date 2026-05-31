@@ -204,21 +204,21 @@ def self_check_output(context=None, **params):
 @action(is_system_action=True, output_mapping=lambda result: not result)
 async def slow_self_check_output_safety(**params):
     """Slow safety check for timing tests."""
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.075)
     return self_check_output_safety(**params)
 
 
 @action(is_system_action=True, output_mapping=lambda result: not result)
 async def slow_self_check_output_compliance(**params):
     """Slow compliance check for timing tests."""
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.075)
     return self_check_output_compliance(**params)
 
 
 @action(is_system_action=True, output_mapping=lambda result: not result)
 async def slow_self_check_output_quality(**params):
     """Slow quality check for timing tests."""
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.075)
     return self_check_output_quality(**params)
 
 
@@ -562,7 +562,7 @@ async def test_parallel_streaming_output_rails_performance_benefits():
     # Parallel should be faster than sequential (allowing some margin for test variability)
     print(f"Parallel time: {parallel_time:.2f}s, Sequential time: {sequential_time:.2f}s")
 
-    # with 3 rails each taking ~0.1 s sequential should take ~0.3 s per chunk, parallel should be closer to 0.1s
+    # with 3 rails each taking ~0.075 s sequential should take ~0.225 s per chunk, parallel should be closer to 0.075s
     # we allow some margin for test execution overhead
     assert parallel_time < sequential_time * 0.8, (
         f"Parallel execution ({parallel_time:.2f}s) should be significantly faster than "
@@ -1025,8 +1025,8 @@ async def test_parallel_vs_sequential_with_slow_actions():
     @action(is_system_action=True, output_mapping=lambda result: not result)
     async def slow_safety_check(context=None, **params):
         """Slow safety check that simulates real processing time."""
-        # simulate 100ms of processing
-        await asyncio.sleep(0.1)
+        # simulate 75ms of processing
+        await asyncio.sleep(0.075)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "UNSAFE" in bot_message_chunk:
@@ -1036,7 +1036,7 @@ async def test_parallel_vs_sequential_with_slow_actions():
     @action(is_system_action=True, output_mapping=lambda result: not result)
     async def slow_compliance_check(context=None, **params):
         """Slow compliance check that simulates real processing time."""
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.075)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "VIOLATION" in bot_message_chunk:
@@ -1046,7 +1046,7 @@ async def test_parallel_vs_sequential_with_slow_actions():
     @action(is_system_action=True, output_mapping=lambda result: not result)
     async def slow_quality_check(context=None, **params):
         """Slow quality check that simulates real processing time."""
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.075)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "LOWQUALITY" in bot_message_chunk:
@@ -1128,8 +1128,8 @@ async def test_parallel_vs_sequential_with_slow_actions():
     parallel_chat.app.register_action(slow_quality_check)
 
     print("\n=== SLOW ACTIONS PERFORMANCE TEST ===")
-    print("Each action takes 100ms, 3 actions total")
-    print("Expected: Sequential ~300ms per chunk, Parallel ~100ms per chunk")
+    print("Each action takes 75ms, 3 actions total")
+    print("Expected: Sequential ~225ms per chunk, Parallel ~75ms per chunk")
 
     start_time = time.time()
     sequential_chunks = []

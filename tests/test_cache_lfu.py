@@ -413,19 +413,23 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.5)
 
-        # Add some data
-        cache.put("key1", "value1")
-        cache.put("key2", "value2")
+        with (
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+            patch("time.time") as mock_time,
+        ):
+            current_time = [0.0]
+            mock_time.side_effect = lambda: current_time[0]
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
+            # Add some data
+            cache.put("key1", "value1")
+            cache.put("key2", "value2")
+
             # Initial operations shouldn't trigger logging
             cache.get("key1")
             self.assertEqual(mock_log.call_count, 0)
 
-            # Wait for interval to pass
-            time.sleep(0.6)
-
             # Next operation should trigger logging
+            current_time[0] = 0.6
             cache.get("key1")
             self.assertEqual(mock_log.call_count, 1)
 
@@ -433,8 +437,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             cache.get("key2")
             self.assertEqual(mock_log.call_count, 1)
 
-            # Wait again
-            time.sleep(0.6)
+            current_time[0] = 1.2
             cache.put("key3", "value3")
             self.assertEqual(mock_log.call_count, 2)
 
@@ -444,14 +447,17 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 
-        # Generate a miss first
-        cache.get("nonexistent")
+        with (
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+            patch("time.time") as mock_time,
+        ):
+            current_time = [0.0]
+            mock_time.side_effect = lambda: current_time[0]
 
-        # Wait for interval to pass
-        time.sleep(0.2)
+            cache.get("nonexistent")
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
             # This will trigger stats logging with the previous miss already counted
+            current_time[0] = 0.2
             cache.get("another_nonexistent")  # Trigger check
 
             self.assertEqual(mock_log.call_count, 1)
@@ -468,16 +474,22 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
         cache = LFUCache(3, track_stats=True, stats_logging_interval=0.1)
 
-        # Fill cache
-        cache.put("key1", "value1")
-        cache.put("key2", "value2")
-        cache.put("key3", "value3")
+        with (
+            patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log,
+            patch("time.time") as mock_time,
+        ):
+            current_time = [0.0]
+            mock_time.side_effect = lambda: current_time[0]
 
-        # Cause eviction
-        cache.put("key4", "value4")
+            # Fill cache
+            cache.put("key1", "value1")
+            cache.put("key2", "value2")
+            cache.put("key3", "value3")
 
-        with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
-            time.sleep(0.2)
+            # Cause eviction
+            cache.put("key4", "value4")
+
+            current_time[0] = 0.2
             cache.get("key4")  # Trigger check
 
             log_message = mock_log.call_args[0][1]

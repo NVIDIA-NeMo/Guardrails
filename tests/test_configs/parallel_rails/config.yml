@@ -26,15 +26,15 @@ rails:
     parallel: True
     flows:
       - self check input
-      - check blocked input terms $duration=1.0
-      - check blocked input terms $duration=1.0
+      - check blocked input terms $duration=0.2
+      - check blocked input terms $duration=0.2
 
   output:
     parallel: True
     flows:
       - self check output
-      - check blocked output terms $duration=1.0
-      - check blocked output terms $duration=1.0
+      - check blocked output terms $duration=0.2
+      - check blocked output terms $duration=0.2
 
   dialog:
     single_call:

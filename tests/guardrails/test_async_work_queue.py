@@ -176,9 +176,12 @@ class TestQueueFull:
     @pytest.mark.asyncio
     async def test_reject_on_full_raises_exception(self):
         """Test that reject_on_full=True raises QueueFull when queue is full."""
+        started = asyncio.Event()
+        can_finish = asyncio.Event()
 
         async def slow_task():
-            await asyncio.sleep(1)
+            started.set()
+            await can_finish.wait()
             return "done"
 
         async with AsyncWorkQueue[str](
@@ -186,19 +189,18 @@ class TestQueueFull:
         ) as queue:
             # Fill the queue
             task1 = asyncio.create_task(queue.submit(slow_task))
-            await asyncio.sleep(0.01)  # Let it get picked up by worker
+            await started.wait()
             task2 = asyncio.create_task(queue.submit(slow_task))
             task3 = asyncio.create_task(queue.submit(slow_task))
-            await asyncio.sleep(0.01)
+            await wait_for_queue_state(queue, busy=1, pending=2)
 
-            # Try to submit one more - should raise QueueFull
-            with pytest.raises(asyncio.QueueFull):
-                await queue.submit(slow_task)
-
-            # Cancel pending tasks to clean up
-            for task in [task1, task2, task3]:
-                task.cancel()
-            await asyncio.gather(task1, task2, task3, return_exceptions=True)
+            try:
+                # Try to submit one more - should raise QueueFull
+                with pytest.raises(asyncio.QueueFull):
+                    await queue.submit(slow_task)
+            finally:
+                can_finish.set()
+                await asyncio.gather(task1, task2, task3, return_exceptions=True)
 
     @pytest.mark.asyncio
     async def test_reject_on_full_false_blocks_until_space(self):
@@ -284,24 +286,28 @@ class TestCancellation:
     @pytest.mark.asyncio
     async def test_cancel_pending_task(self):
         """Test cancelling a task that hasn't started execution yet."""
+        started = asyncio.Event()
+        can_finish = asyncio.Event()
 
         async def slow_task(value):
-            await asyncio.sleep(1)
+            started.set()
+            await can_finish.wait()
             return value
 
         async with AsyncWorkQueue[int](name="test_queue", max_queue_size=10, max_concurrency=1) as queue:
             # Submit first task to occupy the worker
             task1 = asyncio.create_task(queue.submit(slow_task, 1))
-            await asyncio.sleep(0.01)  # Let it start
+            await started.wait()
 
             # Submit second task (will be queued)
             task2 = asyncio.create_task(queue.submit(slow_task, 2))
-            await asyncio.sleep(0.01)
+            await wait_for_queue_state(queue, busy=1, pending=1)
 
             # Cancel the second task before it starts
             task2.cancel()
 
             # Wait for first task
+            can_finish.set()
             result1 = await task1
             assert result1 == 1
 
