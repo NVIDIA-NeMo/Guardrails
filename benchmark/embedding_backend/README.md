@@ -71,10 +71,11 @@ poetry run python benchmark/embedding_backend/bench_embedding_backend.py --sizes
 ### Reproducing the Annoy baseline comparison
 
 Annoy is no longer installed by default. To reproduce the head-to-head numbers below,
-install it into the environment first (needs the compiler/headers noted above):
+install the previous dependency version into the environment first (needs the
+compiler/headers noted above):
 
 ```bash
-poetry run python -m pip install annoy
+ANNOY_COMPILER_ARGS="-DANNOYLIB_MULTITHREADED_BUILD" poetry run python -m pip install --no-cache-dir --no-binary=:all: "annoy==1.17.3"
 poetry run python benchmark/embedding_backend/bench_embedding_backend.py
 ```
 
@@ -83,37 +84,39 @@ prints a note.
 
 ## Results
 
-Captured with `dim=384, k=20, queries=200, seed=1234`; Annoy `metric=angular, n_trees=10`
-(matching `nemoguardrails/embeddings/basic.py` before the change). Hardware: aarch64
-macOS.
+Representative run captured with `dim=384, k=20, queries=200, seed=1234`; Annoy
+`metric=angular, n_trees=10` (matching `nemoguardrails/embeddings/basic.py` before
+the change).
 
 | N | backend | build (ms) | search p50 (ms) | search p95 (ms) | recall@1 | recall@20 | mem (MB) |
 |---|---|---|---|---|---|---|---|
-| 100 | annoy | 8.6811 | 0.0575 | 0.1071 | 1.000 | 1.000 | 0.1 |
-| 100 | **numpy** | 0.1234 | 0.0076 | 0.0405 | **1.000** | **1.000** | 0.0 |
-| 1 000 | annoy | 70.0227 | 0.1042 | 0.2154 | 0.540 | 0.576 | 0.1 |
-| 1 000 | **numpy** | 0.0040 | 0.0398 | 0.0654 | **1.000** | **1.000** | 0.0 |
-| 10 000 | annoy | 447.7411 | 0.1492 | 0.2289 | 0.440 | 0.425 | 0.9 |
-| 10 000 | **numpy** | 0.0045 | 0.3406 | 1.2310 | **1.000** | **1.000** | 0.0 |
-| 100 000 | annoy | 4398.0658 | 0.1594 | 0.2320 | 0.090 | 0.083 | 58.7 |
-| 100 000 | **numpy** | 0.0037 | 2.9445 | 8.0138 | **1.000** | **1.000** | 0.0 |
+| 100 | annoy | 1.8980 | 0.0381 | 0.0434 | 1.000 | 1.000 | 0.0 |
+| 100 | **numpy** | 0.0033 | 0.0069 | 0.0076 | **1.000** | **1.000** | 0.0 |
+| 1 000 | annoy | 18.7925 | 0.0699 | 0.0824 | 0.480 | 0.526 | 0.0 |
+| 1 000 | **numpy** | 0.0028 | 0.0215 | 0.0257 | **1.000** | **1.000** | 0.0 |
+| 10 000 | annoy | 197.1430 | 0.0787 | 0.1308 | 0.510 | 0.445 | 0.0 |
+| 10 000 | **numpy** | 0.0022 | 0.1466 | 0.1962 | **1.000** | **1.000** | 0.0 |
+| 100 000 | annoy | 2206.5025 | 0.1196 | 0.1886 | 0.060 | 0.066 | 0.0 |
+| 100 000 | **numpy** | 0.0021 | 2.2650 | 2.7545 | **1.000** | **1.000** | 0.0 |
 
-(`build` for NumPy is sub-microsecond because the embedding matrix is already a
-contiguous float32 array, so `build()` is effectively a no-op copy; the 0.12 ms at N=100 is
-first-call warm-up. `mem` is a best-effort RSS delta and under-reports the NumPy matrix,
-which is analytically `N · dim · 4` bytes ≈ 146 MB at N=100k , still well within budget and
-freed when the index is dropped.)
+(`build` for NumPy measures the index-construction step after embeddings are already
+available and normalized. In this harness that is a contiguous float32 matrix handoff;
+the production `BasicEmbeddingsIndex.build()` also converts and normalizes the embeddings
+before storing the matrix. `mem` is a best-effort Linux RSS delta; on platforms without
+`/proc`, including macOS, the script reports `0.0`. The NumPy matrix size is analytically
+`N · dim · 4` bytes ≈ 146 MB at N=100k and is freed when the index is dropped.)
 
 ### Conclusion
 
 - **Accuracy.** With the previous `n_trees=10`, Annoy's `recall@1` falls from 1.0 (N=100) to
-  **0.09 at N=100k** — it returns the true nearest neighbor only ~9% of the time at scale.
+  **0.06 at N=100k** — it returns the true nearest neighbor only ~6% of the time at scale.
   Exact NumPy is 1.0 everywhere. For a component that decides *which guardrail fires*, exact
   retrieval is the safer default.
 - **Latency.** NumPy is faster at N ≤ 1 000, sub-millisecond and competitive at 10k, and only
   slower at 100k — where Annoy's "win" is hollow because its answers are mostly wrong at that
   recall.
-- **Build.** NumPy build is effectively free; Annoy grows to ~4.5 s at 100k.
+- **Build.** NumPy index construction over precomputed vectors is effectively free; Annoy
+  grows past 2 s at 100k in this run.
 - **Crossover.** Exact search wins up to roughly the 10k-100k range; NeMo Guardrails'
   default indexes sit well below that. For genuinely large indexes, a dedicated opt-in ANN
   provider would be the right path instead of adding Annoy back to the default install.
