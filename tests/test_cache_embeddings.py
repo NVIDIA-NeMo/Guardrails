@@ -324,7 +324,7 @@ async def test_in_memory_cache_stores_multiple_texts():
     )
 
 
-def test_from_config_roundtrips_store_config():
+def test_from_config_roundtrips_store_config(tmp_path):
     """from_config -> get_config must preserve a non-empty store_config.
 
     Regression test: EmbeddingsCache.from_dict built the cache store from
@@ -333,11 +333,11 @@ def test_from_config_roundtrips_store_config():
     location (e.g. a custom filesystem cache_dir) was silently dropped on a
     config round-trip.
     """
+    cache_dir = str(tmp_path / "myembcache")
     cfg = EmbeddingsCacheConfig(
-        enabled=True,
         key_generator="md5",
         store="filesystem",
-        store_config={"cache_dir": "/tmp/myembcache"},
+        store_config={"cache_dir": cache_dir},
     )
 
     cache = EmbeddingsCache.from_config(cfg)
