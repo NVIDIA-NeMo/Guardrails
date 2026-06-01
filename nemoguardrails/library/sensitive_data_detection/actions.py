@@ -155,10 +155,6 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
     if len(options.entities) == 0:
         return text
 
-    # Honor the configured score_threshold, mirroring detect_sensitive_data;
-    # otherwise the masking analyzer is built (and lru_cached) at the default
-    # 0.4 regardless of what the user set, so values between the configured
-    # threshold and 0.4 are masked even though detect reports them as safe.
     analyzer = _get_analyzer(score_threshold=default_score_threshold)
     operators = {}
     for entity in options.entities:
