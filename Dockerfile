@@ -17,7 +17,7 @@
 
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y --no-install-recommends git gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Set POETRY_VERSION environment variable

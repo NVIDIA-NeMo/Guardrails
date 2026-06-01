@@ -17,7 +17,7 @@
 
 FROM python:3.10
 
-RUN apt-get update && apt-get install -y git
+RUN apt-get update && apt-get install -y git gcc g++
 
 # Set POETRY_VERSION environment variable
 ENV POETRY_VERSION=1.8.2
