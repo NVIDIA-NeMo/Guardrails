@@ -149,12 +149,17 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
     sdd_config = config.rails.config.sensitive_data_detection
     assert source in ["input", "output", "retrieval"]
     options: SensitiveDataDetectionOptions = getattr(sdd_config, source)
+    default_score_threshold = getattr(options, "score_threshold")
 
     # If we don't have any entities specified, we stop
     if len(options.entities) == 0:
         return text
 
-    analyzer = _get_analyzer()
+    # Honor the configured score_threshold, mirroring detect_sensitive_data;
+    # otherwise the masking analyzer is built (and lru_cached) at the default
+    # 0.4 regardless of what the user set, so values between the configured
+    # threshold and 0.4 are masked even though detect reports them as safe.
+    analyzer = _get_analyzer(score_threshold=default_score_threshold)
     operators = {}
     for entity in options.entities:
         operators[entity] = OperatorConfig("replace")
