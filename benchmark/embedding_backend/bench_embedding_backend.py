@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Benchmark harness: Annoy (current default) vs. exact NumPy cosine search.
+"""Benchmark harness: Annoy (previous default) vs. exact NumPy cosine search.
 
 This measures the *index* layer in isolation (build / search / recall), feeding
 both backends identical pre-computed, L2-normalized vectors so the embedding
@@ -47,7 +47,7 @@ import numpy as np
 SearchFn = Callable[[np.ndarray, int], List[int]]
 BuildResult = Tuple[float, SearchFn, float]
 
-# Parameters matching the current default in nemoguardrails/embeddings/basic.py
+# Parameters matching the previous default in nemoguardrails/embeddings/basic.py
 ANNOY_METRIC = "angular"
 ANNOY_N_TREES = 10
 DEFAULT_DIM = 384  # all-MiniLM-L6-v2
@@ -89,6 +89,8 @@ def exact_topk(matrix: np.ndarray, queries: np.ndarray, k: int) -> np.ndarray:
 
 def recall_at_k(approx: List[List[int]], truth: np.ndarray, k: int) -> float:
     """Mean fraction of the exact top-k recovered by the approximate backend."""
+    if not approx:
+        return 0.0
     total = 0.0
     for i, got in enumerate(approx):
         gold = set(truth[i, :k].tolist())
@@ -123,7 +125,7 @@ def build_annoy(matrix: np.ndarray) -> BuildResult:
     mem_delta = _rss_mb() - mem_before
 
     def search(q: np.ndarray, k: int) -> List[int]:
-        idxs, _dists = index.get_nns_by_vector(q, k, include_distances=True)
+        idxs, _dists = index.get_nns_by_vector(q, n=k, include_distances=True)
         return idxs
 
     return build_s, search, mem_delta
@@ -184,7 +186,6 @@ def run(sizes: List[int], dim: int, k: int, n_queries: int, seed: int) -> List[d
             search_fn(queries[0], k)
             results, p50, p95, mean = time_searches(search_fn, queries, k)
             rec1 = recall_at_k(results, truth, 1)
-            rec5 = recall_at_k(results, truth, 5)
             reck = recall_at_k(results, truth, k)
             rows.append(
                 dict(
@@ -195,7 +196,6 @@ def run(sizes: List[int], dim: int, k: int, n_queries: int, seed: int) -> List[d
                     p95_ms=p95,
                     mean_ms=mean,
                     recall_1=rec1,
-                    recall_5=rec5,
                     recall_k=reck,
                     mem_mb=mem_mb,
                 )
@@ -208,8 +208,8 @@ def run(sizes: List[int], dim: int, k: int, n_queries: int, seed: int) -> List[d
     return rows
 
 
-def print_markdown(rows: List[dict], k: int) -> None:
-    print("\n### Results (dim={}, k={})\n".format(DEFAULT_DIM, k))
+def print_markdown(rows: List[dict], k: int, dim: int = DEFAULT_DIM) -> None:
+    print("\n### Results (dim={}, k={})\n".format(dim, k))
     print(f"| N | backend | build (ms) | search p50 (ms) | search p95 (ms) | recall@1 | recall@{k} | mem (MB) |")
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
@@ -238,7 +238,7 @@ def main() -> None:
         )
     )
     rows = run(args.sizes, args.dim, args.k, args.queries, args.seed)
-    print_markdown(rows, args.k)
+    print_markdown(rows, args.k, args.dim)
 
 
 if __name__ == "__main__":
