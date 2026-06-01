@@ -34,6 +34,17 @@ def get_record(name: str = ""):
     }
 
 
+@validate_response(validators=["ip_filter"])
+def get_mixed_record(name: str = ""):
+    """return a dict response with non-string values (ints, bools, nested dicts)"""
+    return {
+        "host": "server at 10.40.139.92",
+        "port": 8080,
+        "active": True,
+        "meta": {"region": "us"},
+    }
+
+
 @validate_input("name", validators=["length"], max_len=100)
 @validate_response(validators=["ip_filter", "is_default_resp"])
 class SayQuery:
@@ -73,6 +84,22 @@ def test_ip_filter_on_dict_response():
     assert result == {
         "host": "server at ",
         "note": "no ip here",
+    }
+
+
+def test_ip_filter_on_dict_with_non_string_values():
+    """ip_filter must skip non-string dict values instead of crashing.
+
+    filter_ip runs re.sub on its argument, which raises TypeError on a
+    non-str. Only string values should be filtered; ints, bools and nested
+    dicts are left untouched.
+    """
+    result = get_mixed_record()
+    assert result == {
+        "host": "server at ",
+        "port": 8080,
+        "active": True,
+        "meta": {"region": "us"},
     }
 
 

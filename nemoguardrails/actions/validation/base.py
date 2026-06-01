@@ -100,7 +100,8 @@ def validate_response(validators: List[str] = [], **validation_args):
                     response_value = filter_ip(response_value)
                 elif isinstance(response_value, dict):
                     for key, value in response_value.items():
-                        response_value[key] = filter_ip(value)
+                        if isinstance(value, str):
+                            response_value[key] = filter_ip(value)
 
             if "is_default_resp" in validators:
                 if _is_default_resp(response_value):
