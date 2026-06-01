@@ -375,3 +375,30 @@ def test_get_action_details_no_match(dummy_flows):
     with pytest.raises(ValueError) as exc_info:
         get_action_details_from_flow_id("non_existing_flow", dummy_flows)
     assert "No action found for flow_id" in str(exc_info.value)
+
+
+def test_get_action_details_returns_isolated_copy(dummy_flows):
+    """Regression test for #1935.
+
+    The returned ``action_params`` dict must not be the same object as the
+    one stored on the parsed flow config. Otherwise output-rail callers
+    that mutate ``action_params`` in place (e.g. to substitute
+    ``$bot_message`` with the current chunk text) will leak that chunk's
+    value into subsequent chunks and subsequent requests on the same
+    ``LLMRails`` instance.
+    """
+    # First call: simulate the substitution that the streaming output-rail
+    # path performs on the returned dict.
+    _, first_params = get_action_details_from_flow_id("test_flow", dummy_flows)
+    first_params["param1"] = "first chunk text"
+
+    # Second call: should return the original placeholder, NOT the mutation
+    # the first caller performed.
+    _, second_params = get_action_details_from_flow_id("test_flow", dummy_flows)
+    assert second_params == {"param1": "value1"}, (
+        "get_action_details_from_flow_id must return a fresh copy so callers "
+        "cannot mutate the shared flow config (#1935)"
+    )
+
+    # And the two return values must be distinct objects.
+    assert first_params is not second_params

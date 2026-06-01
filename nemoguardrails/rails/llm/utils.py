@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import json
 from typing import Any, Dict, List, Tuple, Union
 
@@ -69,6 +70,13 @@ def get_action_details_from_flow_id(
     First, try to find an exact match.
     If not found, then if the provided flow_id starts with one of the special prefixes,
     return the first flow whose id starts with that same prefix.
+
+    Returns a shallow copy of the ``action_params`` dict so callers may
+    safely substitute placeholders in-place (e.g. ``$bot_message`` →
+    actual chunk text) without mutating the parsed flow config, which is
+    shared across streaming chunks and across requests on the same
+    ``LLMRails`` instance. See issue #1935 for the regression this guards
+    against.
     """
 
     candidate_flow = None
@@ -94,6 +102,6 @@ def get_action_details_from_flow_id(
             and "execute" in element["_source_mapping"]["line_text"]
             and "action_name" in element
         ):
-            return element["action_name"], element["action_params"]
+            return element["action_name"], copy.copy(element["action_params"])
 
     raise ValueError(f"No run_action element found for flow_id: {flow_id}")
