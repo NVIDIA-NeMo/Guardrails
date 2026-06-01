@@ -284,17 +284,6 @@ files = [
 ]
 
 [[package]]
-name = "annoy"
-version = "1.17.3"
-description = "Approximate Nearest Neighbors in C++/Python optimized for memory usage and loading/saving to disk."
-optional = false
-python-versions = "*"
-files = [
-    {file = "annoy-1.17.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:c33a5d4d344c136c84976bfb2825760142a8bb25335165e24e11c9afbfa8c2e9"},
-    {file = "annoy-1.17.3.tar.gz", hash = "sha256:9cbfebefe0a5f843eba29c6be4c84d601f4f41ad4ded0486f1b88c3b07739c15"},
-]
-
-[[package]]
 name = "anyio"
 version = "4.12.1"
 description = "High-level concurrency and networking framework on top of asyncio or Trio"
@@ -9227,4 +9216,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "eed2c0ee49785412411ef38f9123578500f60f4384c7d4107b5f6a1dc66756b9"
+content-hash = "ca51925ef5093acd635f2f1e0a7e934fcb3e301b92c6490ef4deda292d9f93cf"
