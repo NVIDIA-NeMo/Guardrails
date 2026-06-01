@@ -31,7 +31,7 @@ WORKDIR /nemoguardrails
 COPY pyproject.toml poetry.lock /nemoguardrails/
 # Copy the rest of the project files
 COPY . /nemoguardrails
-RUN poetry config virtualenvs.create false && poetry install --all-extras --no-interaction --no-ansi && poetry install --with dev --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false && poetry install --extras server --no-interaction --no-ansi
 
 
 # Make port 8000 available to the world outside this container
@@ -48,8 +48,6 @@ WORKDIR /nemoguardrails
 RUN python -c "from fastembed.embedding import FlagEmbedding; FlagEmbedding('sentence-transformers/all-MiniLM-L6-v2');"
 
 RUN nemoguardrails --help
-# Ensure the entry point is installed as a script
-RUN poetry install --all-extras --no-interaction --no-ansi
 
 ENTRYPOINT ["poetry", "run", "nemoguardrails"]
 CMD ["server", "--verbose", "--config=/config"]
