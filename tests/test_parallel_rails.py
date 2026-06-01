@@ -65,12 +65,36 @@ async def test_parallel_rails_success():
     assert result.log.activated_rails[5].name == "check blocked output terms $duration=1.0"
     assert result.log.activated_rails[6].name == "check blocked output terms $duration=1.0"
 
-    # Time should be close to 2 seconds due to parallel processing:
-    # check blocked input terms: 1s
-    # check blocked output terms: 1s
-    assert result.log.stats.input_rails_duration < 1.5 and result.log.stats.output_rails_duration < 1.5, (
-        "Rails processing took too long, parallelization seems to be not working."
-    )
+    # Verify parallelism structurally instead of via a wall-clock threshold.
+    # Each paired `check blocked input/output terms $duration=1.0` rail sleeps
+    # for ~1s; if the two siblings run in parallel, the second one starts
+    # before the first one finishes. This is true regardless of how slow the
+    # CI runner is — the previous `duration < 1.5s` assertion was flaky on
+    # slow runners because event-loop scheduling overhead could push the
+    # parallel bucket above 1.5s even when parallelism worked correctly.
+    # See issue #1953.
+    for rail_type in ("input", "output"):
+        paired_rails = [
+            rail
+            for rail in result.log.activated_rails
+            if f"check blocked {rail_type} terms" in rail.name
+        ]
+        assert len(paired_rails) == 2, (
+            f"expected 2 paired `check blocked {rail_type} terms` rails, "
+            f"got {len(paired_rails)}"
+        )
+        first, second = sorted(paired_rails, key=lambda r: r.started_at or 0)
+        assert first.started_at is not None and first.finished_at is not None, (
+            f"{rail_type} rail timing fields not populated: {first}"
+        )
+        assert second.started_at is not None, (
+            f"{rail_type} rail timing fields not populated: {second}"
+        )
+        assert second.started_at < first.finished_at, (
+            f"{rail_type} rails did not run in parallel: "
+            f"first  [{first.started_at:.3f}, {first.finished_at:.3f}], "
+            f"second started at {second.started_at:.3f}"
+        )
 
 
 @pytest.mark.asyncio
