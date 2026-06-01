@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "description": "Seed knowledge base for domain hallucination detection",
+  "trusted_domains": [
+    {
+      "domain": "github.com",
+      "description": "Official GitHub hosting platform",
+      "category": "vcs"
+    },
+    {
+      "domain": "pytorch.org",
+      "description": "PyTorch official website",
+      "category": "ml_framework"
+    },
+    {
+      "domain": "tensorflow.org",
+      "description": "TensorFlow official website",
+      "category": "ml_framework"
+    },
+    {
+      "domain": "numpy.org",
+      "description": "NumPy official website",
+      "category": "python_library"
+    },
+    {
+      "domain": "python.org",
+      "description": "Python official website",
+      "category": "programming_language"
+    },
+    {
+      "domain": "readthedocs.io",
+      "description": "ReadTheDocs documentation hosting",
+      "category": "documentation"
+    },
+    {
+      "domain": "pypi.org",
+      "description": "Python Package Index",
+      "category": "package_repository"
+    },
+    {
+      "domain": "npmjs.com",
+      "description": "NPM JavaScript package registry",
+      "category": "package_repository"
+    },
+    {
+      "domain": "docker.com",
+      "description": "Docker official website",
+      "category": "containerization"
+    },
+    {
+      "domain": "kubernetes.io",
+      "description": "Kubernetes official website",
+      "category": "container_orchestration"
+    }
+  ],
+  "trusted_github_repos": [
+    {
+      "owner": "pytorch",
+      "repo": "pytorch",
+      "description": "PyTorch main repository"
+    },
+    {
+      "owner": "tensorflow",
+      "repo": "tensorflow",
+      "description": "TensorFlow main repository"
+    },
+    {
+      "owner": "numpy",
+      "repo": "numpy",
+      "description": "NumPy main repository"
+    },
+    {
+      "owner": "pandas-dev",
+      "repo": "pandas",
+      "description": "pandas main repository"
+    },
+    {
+      "owner": "scikit-learn",
+      "repo": "scikit-learn",
+      "description": "scikit-learn repository"
+    },
+    {
+      "owner": "NVIDIA",
+      "repo": "Megatron-LM",
+      "description": "NVIDIA Megatron-LM repository"
+    },
+    {
+      "owner": "NVIDIA",
+      "repo": "NeMo",
+      "description": "NVIDIA NeMo framework repository"
+    },
+    {
+      "owner": "openai",
+      "repo": "gpt-2",
+      "description": "OpenAI GPT-2 repository"
+    },
+    {
+      "owner": "google",
+      "repo": "jax",
+      "description": "Google JAX repository"
+    },
+    {
+      "owner": "huggingface",
+      "repo": "transformers",
+      "description": "Hugging Face Transformers library"
+    }
+  ],
+  "blacklisted_domains": [
+    {
+      "domain": "phishing-example.com",
+      "reason": "Known phishing domain"
+    },
+    {
+      "domain": "malware-site.net",
+      "reason": "Hosts malware"
+    },
+    {
+      "domain": "spam-domain.io",
+      "reason": "Spam distribution site"
+    }
+  ],
+  "categories": {
+    "vcs": "Version Control System",
+    "ml_framework": "Machine Learning Framework",
+    "python_library": "Python Library",
+    "programming_language": "Programming Language",
+    "documentation": "Documentation Hosting",
+    "package_repository": "Package Repository",
+    "containerization": "Containerization Platform",
+    "container_orchestration": "Container Orchestration"
+  }
+}

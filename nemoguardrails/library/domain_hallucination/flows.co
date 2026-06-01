@@ -1,0 +1,16 @@
+flow self check domain hallucination
+  """Output rail for detecting hallucinated domains, URLs, and GitHub repositories."""
+  bot said something
+
+  $domain_hallucination = await SelfCheckDomainHallucinationAction()
+
+  if $domain_hallucination["decision"]["action"] == "block"
+    bot say $domain_hallucination["enforced_answer"]["modified_answer"]
+    abort
+
+  if $domain_hallucination["decision"]["action"] == "refine"
+    bot say $domain_hallucination["enforced_answer"]["modified_answer"]
+    abort
+
+  if $domain_hallucination["decision"]["action"] == "warn"
+    bot say $domain_hallucination["enforced_answer"]["modified_answer"]
