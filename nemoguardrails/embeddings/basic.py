@@ -336,11 +336,13 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Persist the built index to disk as a NumPy ``.npy`` file."""
         if self._index is None:
             raise ValueError("Index is not built yet. Ensure to call `build` before saving.")
-        np.save(path, self._index)
+        index_path = path if path.endswith(".npy") else f"{path}.npy"
+        np.save(index_path, self._index)
 
     def load(self, path: str) -> None:
         """Restore a previously persisted index from disk."""
-        index = np.load(path).astype(np.float32, copy=False)
+        index_path = path if path.endswith(".npy") else f"{path}.npy"
+        index = np.load(index_path).astype(np.float32, copy=False)
         if index.ndim != 2 or index.shape[1] <= 0:
             raise ValueError(f"{path} is not a valid embeddings index. Expected a 2D array with at least one column.")
         self._index = index

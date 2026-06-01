@@ -31,7 +31,7 @@ WORKDIR /nemoguardrails
 COPY pyproject.toml poetry.lock /nemoguardrails/
 # Copy the rest of the project files
 COPY . /nemoguardrails
-RUN poetry config virtualenvs.create false && poetry install --extras server --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false && poetry install --all-extras --no-interaction --no-ansi
 
 
 # Make port 8000 available to the world outside this container

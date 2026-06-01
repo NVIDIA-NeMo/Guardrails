@@ -135,6 +135,19 @@ async def test_save_load_roundtrip(tmp_path):
     assert got == expected
 
 
+def test_save_load_without_npy_suffix(tmp_path):
+    idx = BasicEmbeddingsIndex(index=np.zeros((2, 3), dtype=np.float32))
+    path = tmp_path / "index"
+
+    idx.save(str(path))
+    assert not path.exists()
+    assert path.with_suffix(".npy").exists()
+
+    reloaded = BasicEmbeddingsIndex()
+    reloaded.load(str(path))
+    assert reloaded.embedding_size == 3
+
+
 def test_embeddings_index_setter_updates_embedding_size():
     idx = BasicEmbeddingsIndex()
     idx.embeddings_index = np.zeros((2, 4), dtype=np.float32)
