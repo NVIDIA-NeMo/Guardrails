@@ -11,9 +11,6 @@ on:
 env:
   POETRY_VERSION: 1.8.2
   PYTHON_VERSION: "3.11"
-  CFLAGS: "-march=x86-64"
-  CXXFLAGS: "-march=x86-64"
-  ANNOY_COMPILER_ARGS: "-fpermissive,-march=x86-64,-O3,-ffast-math,-fno-associative-math,-DANNOYLIB_MULTITHREADED_BUILD,-std=c++14"
 
 jobs:
   lint:
@@ -48,7 +45,7 @@ jobs:
         id: cache
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}-annoy-baseline
+          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Ensure cache is healthy
         if: steps.cache.outputs.cache-hit == 'true'

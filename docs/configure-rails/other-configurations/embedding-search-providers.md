@@ -18,7 +18,7 @@ NeMo Guardrails utilizes embedding search, also known as vector databases, for i
 
 To enhance the efficiency of the embedding search process, NeMo Guardrails can employ a caching mechanism for embeddings. This mechanism stores computed embeddings, thereby reducing the need for repeated computations and accelerating the search process. By default, the caching mechanism is disabled.
 
-The default embedding search uses FastEmbed for computing the embeddings (the `all-MiniLM-L6-v2` model) and Annoy for performing the search. The default configuration is as follows:
+The default embedding search uses FastEmbed for computing embeddings (the `all-MiniLM-L6-v2` model) and an exact NumPy index for similarity search. The default configuration is as follows:
 
 ```yaml
 core:

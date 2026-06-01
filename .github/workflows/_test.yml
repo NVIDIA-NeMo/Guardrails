@@ -76,7 +76,7 @@ jobs:
         id: cache
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}-annoy-baseline
+          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Ensure cache is healthy
         if: steps.cache.outputs.cache-hit == 'true'
@@ -84,13 +84,6 @@ jobs:
 
       - name: Check Poetry .lock
         run: poetry check --lock
-
-      - name: Set baseline x86-64 compiler flags
-        if: runner.os == 'Linux' && steps.runner-arch.outputs.arch == 'x86_64'
-        run: |
-          echo "CFLAGS=-march=x86-64" >> $GITHUB_ENV
-          echo "CXXFLAGS=-march=x86-64" >> $GITHUB_ENV
-          echo "ANNOY_COMPILER_ARGS=-fpermissive,-march=x86-64,-O3,-ffast-math,-fno-associative-math,-DANNOYLIB_MULTITHREADED_BUILD,-std=c++14" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |

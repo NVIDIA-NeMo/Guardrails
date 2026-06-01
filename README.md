@@ -29,8 +29,6 @@ NVIDIA NeMo Guardrails library is an open-source toolkit for easily adding *prog
 
 Python 3.10, 3.11, 3.12 or 3.13.
 
-The NeMo Guardrails library uses [annoy](https://github.com/spotify/annoy) which is a C++ library with Python bindings. To install the NeMo Guardrails library you will need to have the C++ compiler and dev tools installed. Check out the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/getting-started/installation-guide.html#prerequisites) for platform-specific instructions.
-
 ## Installation
 
 To install using pip:

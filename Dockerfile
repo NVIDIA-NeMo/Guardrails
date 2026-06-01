@@ -17,15 +17,11 @@
 
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git gcc g++ \
+RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set POETRY_VERSION environment variable
 ENV POETRY_VERSION=1.8.2
-
-RUN if [ "$(uname -m)" = "x86_64" ]; then \
-  export ANNOY_COMPILER_ARGS="-D_CRT_SECURE_NO_WARNINGS,-DANNOYLIB_MULTITHREADED_BUILD,-march=x86-64"; \
-  fi
 
 # Install Poetry
 RUN pip install --no-cache-dir poetry==$POETRY_VERSION
