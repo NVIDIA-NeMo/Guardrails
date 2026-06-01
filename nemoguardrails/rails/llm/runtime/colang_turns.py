@@ -25,7 +25,6 @@ from typing import Any, List, Optional, Protocol, Tuple, Union, cast
 from nemoguardrails.actions.llm.utils import get_colang_history
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
-from nemoguardrails.colang.v2_x.runtime.serialization import state_to_json
 from nemoguardrails.context import llm_stats_var, streaming_handler_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.streaming import END_OF_STREAM
@@ -131,7 +130,7 @@ async def _run_colang_2_turn(
 
     return ColangTurnResult(
         new_events=new_events,
-        output_state={"state": state_to_json(output_state), "version": "2.x"},
+        output_state=None,
     )
 
 

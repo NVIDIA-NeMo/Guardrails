@@ -20,6 +20,7 @@ from typing import Any, List, Optional, Union
 
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.serialization import json_to_state
+from nemoguardrails.exceptions import InvalidStateError
 from nemoguardrails.rails.llm.options import GenerationOptions
 
 __all__ = [
@@ -127,6 +128,27 @@ def _normalize_generation_state(
     if isinstance(state, dict) and state.get("version", "1.0") == "2.x":
         return json_to_state(state["state"])
     return state
+
+
+def validate_public_state(config: Any, state: Optional[Union[dict, State]]) -> None:
+    if not isinstance(state, dict) or not state:
+        return
+
+    if config.colang_version == "1.0" and state.get("version") != "2.x":
+        if "state" in state:
+            raise InvalidStateError("Invalid Colang 1.0 state format: expected transcript state with an 'events' list.")
+        if "events" not in state:
+            raise InvalidStateError("Invalid Colang 1.0 state format: missing required 'events' list.")
+        if not isinstance(state["events"], list):
+            raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
+        return
+
+    raise InvalidStateError(
+        "Colang 2.0 dict state is not supported by generate/generate_async. "
+        "Use rails.process_events_async(events, state) with a live State object "
+        "for trusted in-process multi-turn execution. Public serialized Colang "
+        "2.0 runtime state is not accepted."
+    )
 
 
 def _normalize_generation_options(

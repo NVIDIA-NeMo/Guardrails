@@ -24,7 +24,6 @@ from nemoguardrails.context import llm_stats_var, streaming_handler_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.rails.llm import llmrails as llmrails_module
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.runtime import colang_turns
 from nemoguardrails.rails.llm.runtime.colang_turns import (
     generate_colang_events,
     process_colang_events,
@@ -214,7 +213,7 @@ async def test_run_colang_turn_v1_streams_error_chunk_before_reraising():
 
 
 @pytest.mark.asyncio
-async def test_run_colang_turn_v2_processes_events_with_default_instant_actions(monkeypatch):
+async def test_run_colang_turn_v2_processes_events_with_default_instant_actions():
     output_state = object()
 
     class Runtime:
@@ -231,12 +230,6 @@ async def test_run_colang_turn_v2_processes_events_with_default_instant_actions(
                 }
             )
             return [{"type": "StartUtteranceBotAction", "script": "Hi"}], output_state
-
-    monkeypatch.setattr(
-        colang_turns,
-        "state_to_json",
-        lambda state: {"serialized": state is output_state},
-    )
 
     runtime = Runtime()
     turn_result = await run_colang_turn(
@@ -255,14 +248,11 @@ async def test_run_colang_turn_v2_processes_events_with_default_instant_actions(
         }
     ]
     assert turn_result.new_events == [{"type": "StartUtteranceBotAction", "script": "Hi"}]
-    assert turn_result.output_state == {
-        "state": {"serialized": True},
-        "version": "2.x",
-    }
+    assert turn_result.output_state is None
 
 
 @pytest.mark.asyncio
-async def test_run_colang_turn_v2_honors_configured_instant_actions(monkeypatch):
+async def test_run_colang_turn_v2_honors_configured_instant_actions():
     class Runtime:
         def __init__(self):
             self.instant_actions = None
@@ -270,8 +260,6 @@ async def test_run_colang_turn_v2_honors_configured_instant_actions(monkeypatch)
         async def process_events(self, events, state, instant_actions, blocking):
             self.instant_actions = instant_actions
             return [], object()
-
-    monkeypatch.setattr(colang_turns, "state_to_json", lambda state: {})
 
     runtime = Runtime()
     await run_colang_turn(

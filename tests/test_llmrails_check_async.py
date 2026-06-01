@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.rails.llm.llmrails import (
+from nemoguardrails.rails.llm.checks.rails_check import (
     _determine_rails_from_messages,
     _get_blocking_rail,
     _get_last_content_by_role,
@@ -535,6 +535,130 @@ class TestCheckAsyncExplicitRails:
         ]
         result = mock_rails.check(messages, rail_types=None)
         assert result.status == RailStatus.BLOCKED
+
+
+@pytest.fixture
+def colang_2_check_rails():
+    config = RailsConfig.from_content(
+        colang_content="""
+        import core
+        import guardrails
+
+        flow input rails $input_text
+          global $user_message
+          if $input_text == "block input"
+            bot refuse to respond
+            abort
+          if $input_text == "modify input"
+            $user_message = "modified input"
+
+        flow output rails $output_text
+          global $bot_message
+          if $output_text == "block output"
+            bot refuse to respond
+            abort
+          if $output_text == "modify output"
+            $bot_message = "modified output"
+
+        flow main
+          bot say "main flow should not run during check"
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        models: []
+        """,
+    )
+    return LLMRails(config)
+
+
+class TestColang2CheckAsync:
+    @pytest.mark.asyncio
+    async def test_input_only_passes_without_log_options(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "user", "content": "hello"}],
+            rail_types=[RailType.INPUT],
+        )
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"
+        assert result.rail is None
+
+    @pytest.mark.asyncio
+    async def test_input_only_modified(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "user", "content": "modify input"}],
+            rail_types=[RailType.INPUT],
+        )
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == "modified input"
+        assert result.rail is None
+
+    @pytest.mark.asyncio
+    async def test_input_only_blocked_reports_rail_category(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "user", "content": "block input"}],
+            rail_types=[RailType.INPUT],
+        )
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == "I'm sorry, I can't respond to that."
+        assert result.rail == "input rails"
+
+    @pytest.mark.asyncio
+    async def test_output_only_passes_without_log_options(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "assistant", "content": "hello"}],
+            rail_types=[RailType.OUTPUT],
+        )
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"
+        assert result.rail is None
+
+    @pytest.mark.asyncio
+    async def test_output_only_modified(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "assistant", "content": "modify output"}],
+            rail_types=[RailType.OUTPUT],
+        )
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == "modified output"
+        assert result.rail is None
+
+    @pytest.mark.asyncio
+    async def test_output_only_blocked_reports_rail_category(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "assistant", "content": "block output"}],
+            rail_types=[RailType.OUTPUT],
+        )
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == "I'm sorry, I can't respond to that."
+        assert result.rail == "output rails"
+
+    @pytest.mark.asyncio
+    async def test_auto_detects_input_and_output(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "safe output"},
+            ],
+        )
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == "safe output"
+        assert result.rail is None
+
+    @pytest.mark.asyncio
+    async def test_does_not_run_main_flow(self, colang_2_check_rails):
+        result = await colang_2_check_rails.check_async(
+            [{"role": "user", "content": "hello"}],
+            rail_types=[RailType.INPUT],
+        )
+
+        assert result.content != "main flow should not run during check"
 
 
 @pytest.fixture

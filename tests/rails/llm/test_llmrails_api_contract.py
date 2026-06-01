@@ -18,6 +18,8 @@ import pickle
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.context import explain_info_var
+from nemoguardrails.logging.explain import ExplainInfo
 from tests.utils import FakeLLMModel
 
 
@@ -25,7 +27,7 @@ def _config() -> RailsConfig:
     return RailsConfig.from_content(config={"models": []})
 
 
-def test_constructor_keeps_public_state_visible():
+def test_constructor_keeps_public_compatibility_state_visible():
     config = _config()
     llm = FakeLLMModel(responses=[])
 
@@ -35,6 +37,7 @@ def test_constructor_keeps_public_state_visible():
     assert rails.llm is llm
     assert rails.runtime is not None
     assert rails.llm_generation_actions is not None
+    assert rails.embedding_search.providers == {}
     assert rails.events_history_cache == {}
     assert rails.explain_info is None
 
@@ -70,11 +73,25 @@ async def test_sync_wrappers_raise_when_called_from_async_loop():
 def test_getstate_serializes_config_only():
     rails = LLMRails(config=_config(), llm=FakeLLMModel(responses=[]))
     rails.events_history_cache["cached"] = [{"type": "CachedEvent"}]
+    rails.explain_info = ExplainInfo()
     rails.register_action_param("custom_param", object())
 
     state = rails.__getstate__()
 
     assert state == {"config": rails.config}
+
+
+def test_explain_prefers_active_request_context_over_latest_instance_info():
+    rails = LLMRails(config=_config(), llm=FakeLLMModel(responses=[]))
+    latest_explain_info = ExplainInfo()
+    request_explain_info = ExplainInfo()
+    rails.explain_info = latest_explain_info
+    token = explain_info_var.set(request_explain_info)
+    try:
+        assert rails.explain() is request_explain_info
+        assert rails.explain_info is request_explain_info
+    finally:
+        explain_info_var.reset(token)
 
 
 def test_pickle_round_trip_reinitializes_from_config_without_runtime_state():

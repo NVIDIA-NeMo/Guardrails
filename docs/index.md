@@ -263,6 +263,7 @@ Use Case Diagrams <reference/use-case-diagrams.md>
 Python API <reference/python-api/index>
 CLI <reference/cli/index>
 Guardrails API Server Endpoints <reference/api-server-endpoints/index>
+Migrating to 0.23 <migration/0.23>
 Migrating to 0.22 <migration/0.22>
 ```
 
