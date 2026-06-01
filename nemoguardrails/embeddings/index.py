@@ -65,3 +65,16 @@ class EmbeddingsIndex:
     async def search(self, text: str, max_results: int, threshold: Optional[float]) -> List[IndexItem]:
         """Searches the index for the closest matches to the provided text."""
         raise NotImplementedError()
+
+    def save(self, path: str) -> None:
+        """Persist the built index to disk.
+
+        Optional. Implemented by backends that support caching the index so it
+        does not have to be rebuilt on every run."""
+        raise NotImplementedError()
+
+    def load(self, path: str) -> None:
+        """Restore a previously persisted index from disk.
+
+        Optional. Counterpart of :meth:`save`."""
+        raise NotImplementedError()
