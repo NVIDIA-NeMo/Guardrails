@@ -15,12 +15,17 @@
 
 import pytest
 
+from nemoguardrails.rails.llm import generation as generation_package
 from nemoguardrails.rails.llm.generation import generation_request
 from nemoguardrails.rails.llm.generation.generation_request import (
     normalize_generation_request,
     prepare_generation_request_for_runtime,
 )
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationRailsOptions
+
+
+def test_generation_package_exports():
+    assert generation_package.__all__ == ["generate_standard_async"]
 
 
 def test_generation_request_exports():
