@@ -74,22 +74,15 @@ async def test_parallel_rails_success():
     # parallel bucket above 1.5s even when parallelism worked correctly.
     # See issue #1953.
     for rail_type in ("input", "output"):
-        paired_rails = [
-            rail
-            for rail in result.log.activated_rails
-            if f"check blocked {rail_type} terms" in rail.name
-        ]
+        paired_rails = [rail for rail in result.log.activated_rails if f"check blocked {rail_type} terms" in rail.name]
         assert len(paired_rails) == 2, (
-            f"expected 2 paired `check blocked {rail_type} terms` rails, "
-            f"got {len(paired_rails)}"
+            f"expected 2 paired `check blocked {rail_type} terms` rails, got {len(paired_rails)}"
         )
         first, second = sorted(paired_rails, key=lambda r: r.started_at or 0)
         assert first.started_at is not None and first.finished_at is not None, (
             f"{rail_type} rail timing fields not populated: {first}"
         )
-        assert second.started_at is not None, (
-            f"{rail_type} rail timing fields not populated: {second}"
-        )
+        assert second.started_at is not None, f"{rail_type} rail timing fields not populated: {second}"
         assert second.started_at < first.finished_at, (
             f"{rail_type} rails did not run in parallel: "
             f"first  [{first.started_at:.3f}, {first.finished_at:.3f}], "
