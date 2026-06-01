@@ -110,6 +110,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
     def embeddings_index(self, index: Optional[EmbeddingMatrix]):
         """Setter to allow replacing the index dynamically."""
         self._index = index
+        self._embedding_size = int(index.shape[1]) if index is not None else 0
 
     @property
     def cache_config(self):
@@ -340,5 +341,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
     def load(self, path: str) -> None:
         """Restore a previously persisted index from disk."""
         index = np.load(path).astype(np.float32, copy=False)
+        if index.ndim != 2 or index.shape[1] <= 0:
+            raise ValueError(f"{path} is not a valid embeddings index. Expected a 2D array with at least one column.")
         self._index = index
         self._embedding_size = int(index.shape[1])

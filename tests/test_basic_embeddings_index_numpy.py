@@ -20,6 +20,8 @@ model), covering: exact cosine ranking, threshold filtering, and save/load
 round-trips.
 """
 
+import re
+
 import numpy as np
 import pytest
 
@@ -131,6 +133,31 @@ async def test_save_load_roundtrip(tmp_path):
     assert reloaded.embedding_size == 3
     got = [r.text for r in await reloaded.search("q", max_results=3)]
     assert got == expected
+
+
+def test_embeddings_index_setter_updates_embedding_size():
+    idx = BasicEmbeddingsIndex()
+    idx.embeddings_index = np.zeros((2, 4), dtype=np.float32)
+    assert idx.embedding_size == 4
+
+    idx.embeddings_index = None
+    assert idx.embedding_size == 0
+
+
+@pytest.mark.parametrize(
+    "bad_index",
+    [
+        np.zeros((4,), dtype=np.float32),
+        np.zeros((2, 0), dtype=np.float32),
+    ],
+)
+def test_load_rejects_invalid_index_shape(tmp_path, bad_index):
+    path = tmp_path / "index.npy"
+    np.save(path, bad_index)
+
+    idx = BasicEmbeddingsIndex()
+    with pytest.raises(ValueError, match=f"{re.escape(str(path))} is not a valid embeddings index"):
+        idx.load(str(path))
 
 
 @pytest.mark.asyncio
