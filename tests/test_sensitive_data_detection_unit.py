@@ -42,17 +42,25 @@ async def test_mask_sensitive_data_honors_configured_score_threshold(monkeypatch
     captured: dict = {}
 
     class _StubAnalyzer:
+        """Stand-in for ``presidio_analyzer.AnalyzerEngine`` that records no matches."""
+
         def analyze(self, text, language, entities, ad_hoc_recognizers):
+            """Return an empty match list, simulating ``AnalyzerEngine.analyze``."""
             return []
 
     def _fake_get_analyzer(score_threshold: float = 0.4):
+        """Replacement for ``_get_analyzer`` that captures the threshold it was given."""
         captured["score_threshold"] = score_threshold
         return _StubAnalyzer()
 
     class _StubAnonymizer:
+        """Stand-in for ``presidio_anonymizer.AnonymizerEngine`` that returns text unchanged."""
+
         def anonymize(self, text, analyzer_results, operators):
+            """Return a result object with the original text, simulating no-op masking."""
+
             class _R:
-                pass
+                """Minimal result container exposing the ``.text`` attribute the caller reads."""
 
             r = _R()
             r.text = text
