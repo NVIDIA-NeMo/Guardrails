@@ -1,0 +1,241 @@
+name: PR Merge Guidance
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: number
+      dry_run:
+        description: Log the comment instead of writing it
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-merge-guidance-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.ref_name || 'unknown' }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.PR_MERGE_GUIDANCE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post PR merge guidance
+        uses: actions/github-script@v9
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
+          BASE_BRANCH: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' || 'false' }}
+          MIN_CREATED_AT: ${{ vars.PR_MERGE_GUIDANCE_MIN_CREATED_AT || '2026-04-01T00:00:00Z' }}
+          COMMENT_MARKER: "### PR merge guidance"
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = process.env.COMMENT_MARKER;
+            const requestedPullNumber = Number(process.env.PR_NUMBER);
+            const baseBranch = process.env.BASE_BRANCH;
+            const dryRun = process.env.DRY_RUN === "true";
+            const minCreatedAt = new Date(process.env.MIN_CREATED_AT);
+
+            if (requestedPullNumber) {
+              await processPullRequest(requestedPullNumber);
+            } else if (baseBranch) {
+              const openPullRequests = await github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: "open",
+                base: baseBranch,
+                per_page: 100,
+              });
+
+              for (const openPullRequest of openPullRequests) {
+                await processPullRequest(openPullRequest.number);
+              }
+            } else {
+              core.setFailed("Pull request number was not provided.");
+              return;
+            }
+
+            async function processPullRequest(pull_number) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+              });
+
+              const existingComment = await findExistingComment(pull_number);
+
+              if (new Date(pr.created_at) < minCreatedAt) {
+                if (dryRun) {
+                  core.info(`Would skip PR #${pull_number}: created at ${pr.created_at}, before cutoff ${process.env.MIN_CREATED_AT}.`);
+                }
+                return;
+              }
+
+              if (pr.draft) {
+                if (dryRun) {
+                  core.info(`Would delete existing guidance comment for draft PR #${pull_number}: ${Boolean(existingComment)}`);
+                  return;
+                }
+
+                await deleteExistingComment(existingComment);
+                return;
+              }
+
+              const prState = await getPullRequestState(pull_number);
+              const commits = await github.paginate(github.rest.pulls.listCommits, {
+                owner,
+                repo,
+                pull_number,
+                per_page: 100,
+              });
+
+              const unverifiedCommits = commits.filter((commit) => {
+                return !commit.commit?.verification?.verified;
+              });
+
+              const items = [];
+              const author = prState.author?.login || pr.user?.login;
+              const authorMention = author ? `@${author} ` : "";
+              const baseRef = prState.baseRefName || pr.base.ref;
+
+              if (prState.mergeable === "CONFLICTING") {
+                items.push(
+                  `- This branch has merge conflicts with \`${baseRef}\`. Please rebase your branch on the latest \`${baseRef}\`, resolve the conflicts locally, and force-push the updated branch.`
+                );
+              }
+
+              if (unverifiedCommits.length > 0) {
+                const exampleShas = unverifiedCommits
+                  .slice(0, 5)
+                  .map((commit) => `\`${commit.sha.slice(0, 7)}\``)
+                  .join(", ");
+                const extraCount = unverifiedCommits.length > 5 ? ` and ${unverifiedCommits.length - 5} more` : "";
+                items.push(
+                  `- ${unverifiedCommits.length} commit${unverifiedCommits.length === 1 ? " does" : "s do"} not have a verified signature (${exampleShas}${extraCount}). Please sign the commits and force-push the updated branch.`
+                );
+              }
+
+              if (items.length === 0) {
+                if (dryRun) {
+                  core.info(`Would delete existing guidance comment for PR #${pull_number}: ${Boolean(existingComment)}`);
+                  return;
+                }
+
+                await deleteExistingComment(existingComment);
+                return;
+              }
+
+              const body = [
+                marker,
+                "",
+                `${authorMention}thanks for the PR. GitHub is currently blocking merge for one or more repository requirements:`,
+                "",
+                ...items,
+                "",
+                "Relevant guide:",
+                "- Signed commits: https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CONTRIBUTING.md#setting-up-git-for-signed-commits",
+                "- Contribution workflow: https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CONTRIBUTING.md#contribution-workflow",
+              ].join("\n");
+
+              if (existingComment) {
+                if (existingComment.body !== body) {
+                  if (dryRun) {
+                    core.info(`Would update guidance comment for PR #${pull_number}:\n${body}`);
+                    return;
+                  }
+
+                  await github.rest.issues.updateComment({
+                    owner,
+                    repo,
+                    comment_id: existingComment.id,
+                    body,
+                  });
+                }
+              } else {
+                if (dryRun) {
+                  core.info(`Would create guidance comment for PR #${pull_number}:\n${body}`);
+                  return;
+                }
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body,
+                });
+              }
+            }
+
+            async function getPullRequestState(pull_number) {
+              const query = `
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      author {
+                        login
+                      }
+                      baseRefName
+                      mergeable
+                    }
+                  }
+                }
+              `;
+
+              let result = null;
+
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                result = await github.graphql(query, {
+                  owner,
+                  repo,
+                  number: pull_number,
+                });
+
+                if (result.repository.pullRequest.mergeable !== "UNKNOWN") {
+                  break;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+
+              return result.repository.pullRequest;
+            }
+
+            async function findExistingComment(pull_number) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: pull_number,
+                per_page: 100,
+              });
+
+              return comments.find((comment) => {
+                return comment.user?.type === "Bot" && comment.body?.startsWith(marker);
+              });
+            }
+
+            async function deleteExistingComment(comment) {
+              if (!comment) {
+                return;
+              }
+
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: comment.id,
+              });
+            }
