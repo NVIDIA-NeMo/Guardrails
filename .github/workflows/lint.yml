@@ -55,4 +55,4 @@ jobs:
         run: poetry install --with dev
 
       - name: Run pre-commit hooks
-        run: poetry run make pre_commit
+        run: poetry run make pre-commit
