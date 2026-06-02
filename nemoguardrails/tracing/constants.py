@@ -87,6 +87,26 @@ class SystemConstants:
     UNKNOWN = "unknown"
 
 
+class OtelContentCapture:
+    """OTEL environment-variable names and tokens for content-capture gating.
+
+    Two independent OTEL-standard env vars control content capture:
+
+    * ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` — fallback
+      enable switch when ``config.tracing.enable_content_capture`` is
+      unset/False.  Truthy values (``"true"``, ``"1"``) turn capture on.
+    * ``OTEL_SEMCONV_STABILITY_OPT_IN`` — comma-separated stability
+      opt-in list.  When ``"gen_ai_latest_experimental"`` is present,
+      content is emitted as new-form span attributes
+      (``gen_ai.input.messages`` etc.); otherwise as legacy span events
+      (``gen_ai.user.message`` etc.).
+    """
+
+    CAPTURE_CONTENT_ENV = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
+    STABILITY_OPT_IN_ENV = "OTEL_SEMCONV_STABILITY_OPT_IN"
+    STABILITY_OPT_IN_LATEST = "gen_ai_latest_experimental"
+
+
 class GenAIAttributes:
     """GenAI semantic convention attributes following the draft specification.
 
@@ -124,6 +144,14 @@ class GenAIAttributes:
     # metric label values.
     GEN_AI_TOKEN_TYPE = "gen_ai.token.type"
 
+    # New-form content-capture span attributes (opt-in, gated by
+    # OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental).  Values
+    # are JSON-encoded strings.  Default emission uses the legacy event
+    # form (EventNames.GEN_AI_*_MESSAGE / GEN_AI_CHOICE) instead.
+    GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+    GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+    GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
+
 
 class CommonAttributes:
     """Common OpenTelemetry attributes used across spans."""
@@ -139,6 +167,14 @@ class GuardrailsAttributes:
     RAIL_NAME = "rail.name"
     RAIL_STOP = "rail.stop"
     RAIL_DECISIONS = "rail.decisions"
+
+    # rail content-capture attributes (opt-in alongside the GenAI
+    # content-capture knob).  No GenAI semconv exists for rail spans,
+    # so these live under the guardrails.* namespace.  RAIL_INPUT is
+    # a JSON-encoded snapshot of the rail's inputs; RAIL_REASON is set
+    # only when the rail blocks.
+    RAIL_INPUT = "guardrails.rail.input"
+    RAIL_REASON = "guardrails.rail.reason"
 
     # action attributes
     ACTION_NAME = "action.name"
