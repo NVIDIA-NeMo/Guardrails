@@ -1,0 +1,10 @@
+rails:
+  output:
+    flows:
+      - streaming output rail
+    streaming:
+      enabled: true
+      chunk_size: 1
+      context_size: 1
+      stream_first: false
+streaming: true

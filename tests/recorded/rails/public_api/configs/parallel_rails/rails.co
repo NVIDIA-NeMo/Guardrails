@@ -1,0 +1,15 @@
+define bot inform about blocked parallel input
+  "Parallel input blocked."
+
+define subflow parallel input rail
+  $is_blocked = execute check_parallel_blocked
+
+  if $is_blocked
+    bot inform about blocked parallel input
+    stop
+
+define subflow parallel input pass rail
+  $is_modified = execute check_parallel_modified
+
+  if $is_modified
+    $user_message = "parallel modified"
