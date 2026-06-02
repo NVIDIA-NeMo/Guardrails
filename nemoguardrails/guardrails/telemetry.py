@@ -25,7 +25,9 @@ passthrough respectively).  Lower-level helpers like ``request_span`` and
 reachable through ``traced_request`` when a non-``None`` tracer is provided.
 """
 
+import json
 import logging
+import os
 import secrets
 import time
 import warnings
@@ -33,6 +35,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Iterable,
@@ -44,6 +47,7 @@ from typing import (
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
     REQUEST_ID_HEX_CHARS,
+    LLMMessages,
     RailDirection,
     _set_request_id,
     get_request_id,
@@ -51,10 +55,12 @@ from nemoguardrails.guardrails.guardrails_types import (
     set_new_request_id,
 )
 from nemoguardrails.tracing.constants import (
+    EventNames,
     GenAIAttributes,
     GuardrailsAttributes,
     MetricNames,
     OperationNames,
+    OtelContentCapture,
     SpanNames,
     SystemConstants,
 )
@@ -386,6 +392,193 @@ def set_speculative_span_attrs(
     # span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
 
 
+# Maps an OpenAI-style ``role`` to the OTEL GenAI legacy event name used
+# when content capture emits per-message span events (i.e. when the
+# stability opt-in does NOT select the new structured attribute form).
+# Roles outside this set (``tool`` etc.) are not yet supported and will
+# be skipped silently rather than crashing the capture path.
+_LEGACY_EVENT_BY_ROLE = {
+    "system": EventNames.GEN_AI_SYSTEM_MESSAGE,
+    "user": EventNames.GEN_AI_USER_MESSAGE,
+    "assistant": EventNames.GEN_AI_ASSISTANT_MESSAGE,
+}
+
+
+def _use_json_span_format() -> bool:
+    """Return True iff OTEL_SEMCONV_STABILITY_OPT_IN selects JSON span attrs.
+
+    The env var holds a comma-separated list of opt-in tokens.  When
+    ``gen_ai_latest_experimental`` is present, content is emitted as
+    JSON-encoded span attributes, otherwise as legacy per-message span events.
+    """
+    raw_env_value = os.environ.get(OtelContentCapture.STABILITY_OPT_IN_ENV, "")
+    tokens = {tok.strip() for tok in raw_env_value.split(",")}
+    return OtelContentCapture.STABILITY_OPT_IN_LATEST in tokens
+
+
+def _get_parts_by_role(messages: LLMMessages, role: str, include: bool) -> list[dict]:
+    """Return role-wrapped OTEL GenAI message entries filtered by *role*.
+
+    When *include* is True, returns only messages whose ``role`` field
+    equals *role*; when False, returns only those whose ``role`` differs.
+    Each result is ``{"role": <msg_role>, "parts": [{"type": "text",
+    "content": <content>}]}``.  Entries missing ``role`` or ``content``
+    are skipped silently.
+    """
+    out: list[dict] = []
+    for msg in messages:
+        msg_role = msg.get("role")
+        content = msg.get("content")
+        if msg_role is None or content is None:
+            continue
+        role_matches = msg_role == role
+        if include and not role_matches:
+            continue
+        if not include and role_matches:
+            continue
+        out.append({"role": msg_role, "parts": [{"type": "text", "content": content}]})
+    return out
+
+
+def _system_parts_from_messages(messages: LLMMessages) -> list[dict]:
+    """Return the OTEL GenAI ``parts`` entries for system messages only.
+
+    ``gen_ai.system_instructions`` is a flat list of parts (no role
+    wrapping), so this unwraps the role-wrapped form returned by
+    :func:`_get_parts_by_role` down to the bare ``{"type": "text",
+    "content": ...}`` items.
+    """
+    return [m["parts"][0] for m in _get_parts_by_role(messages, "system", include=True)]
+
+
+def _non_system_messages_to_parts(messages: LLMMessages) -> list[dict]:
+    """Return the OTEL GenAI structured form for non-system messages.
+
+    Each non-system message becomes ``{"role": role, "parts": [{"type":
+    "text", "content": content}]}`` to populate ``gen_ai.input.messages``.
+    """
+    return _get_parts_by_role(messages, "system", include=False)
+
+
+def _set_llm_call_content_json(
+    span: "Span",
+    input_messages: LLMMessages,
+    output_text: Optional[str],
+) -> None:
+    """JSON-attribute branch of :func:`set_llm_call_content`.
+
+    Sets ``gen_ai.input.messages``, ``gen_ai.output.messages``, and
+    ``gen_ai.system_instructions`` as JSON-encoded span attributes per
+    the latest experimental OTEL GenAI semantic conventions.  Attributes
+    are only set when non-empty so backends can distinguish "no system
+    instructions" from "system instructions == ''".
+    """
+    system_parts = _system_parts_from_messages(input_messages)
+    if system_parts:
+        span.set_attribute(GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS, json.dumps(system_parts))
+
+    non_system = _non_system_messages_to_parts(input_messages)
+    if non_system:
+        span.set_attribute(GenAIAttributes.GEN_AI_INPUT_MESSAGES, json.dumps(non_system))
+
+    if output_text is not None:
+        output_messages = [{"role": "assistant", "parts": [{"type": "text", "content": output_text}]}]
+        span.set_attribute(GenAIAttributes.GEN_AI_OUTPUT_MESSAGES, json.dumps(output_messages))
+
+
+def _set_llm_call_content_events(
+    span: "Span",
+    input_messages: LLMMessages,
+    output_text: Optional[str],
+) -> None:
+    """Legacy-event branch of :func:`set_llm_call_content`.
+
+    Adds one span event per input message (``gen_ai.system.message`` /
+    ``gen_ai.user.message`` / ``gen_ai.assistant.message``) plus a
+    ``gen_ai.choice`` event for the assistant output.  Roles not in
+    :data:`_LEGACY_EVENT_BY_ROLE` (e.g. ``tool``) are skipped — adding
+    tool/function-call events is deferred until IORails supports them.
+    """
+    for msg in input_messages:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role is None or content is None:
+            continue
+        event_name = _LEGACY_EVENT_BY_ROLE.get(role)
+        if event_name is None:
+            continue
+        span.add_event(event_name, attributes={"role": role, "content": content})
+
+    if output_text is not None:
+        span.add_event(
+            EventNames.GEN_AI_CHOICE,
+            attributes={"index": 0, "message.role": "assistant", "message.content": output_text},
+        )
+
+
+def set_llm_call_content(
+    span: Optional["Span"],
+    input_messages: LLMMessages,
+    output_text: Optional[str] = None,
+) -> None:
+    """Capture input/output messages on a span representing a model interaction.
+
+    Used for both ``gen_ai.*`` CLIENT spans (LLM calls) and the
+    ``guardrails.request`` SERVER span — the OTEL GenAI semconv
+    attribute names apply to any span that represents a model
+    interaction, so reusing the names lets backends correlate the outer
+    guardrails request with the inner LLM call by attribute name alone.
+
+    Dispatches on :func:`_use_json_span_format`:
+
+    * **JSON attrs** (``OTEL_SEMCONV_STABILITY_OPT_IN`` includes
+      ``gen_ai_latest_experimental``): :func:`_set_llm_call_content_json`
+      sets the JSON-encoded ``gen_ai.input.messages``,
+      ``gen_ai.output.messages``, and ``gen_ai.system_instructions``
+      span attributes per the latest experimental OTEL GenAI semantic
+      conventions.
+    * **Legacy events** (default): :func:`_set_llm_call_content_events`
+      adds one span event per input message plus a ``gen_ai.choice``
+      event for the assistant output.
+
+    Safe to call with ``span=None`` (no-op) so callers don't have to
+    branch on whether tracing is enabled.  Caller is responsible for
+    checking the content-capture flag — this helper does NOT re-check
+    :func:`is_content_capture_enabled` so it stays cheap on hot paths.
+    """
+    if span is None:
+        return
+    if _use_json_span_format():
+        _set_llm_call_content_json(span, input_messages, output_text)
+    else:
+        _set_llm_call_content_events(span, input_messages, output_text)
+
+
+def set_rail_content(
+    span: Optional["Span"],
+    rail_input: dict[str, Any],
+    reason: Optional[str] = None,
+) -> None:
+    """Capture rail input + (optionally) block reason on a ``guardrails.rail`` span.
+
+    Sets ``guardrails.rail.input`` to the JSON-encoded *rail_input* dict
+    (typically ``{"messages": [...], "bot_response": ...}``).  When
+    *reason* is non-None, also sets ``guardrails.rail.reason`` — caller
+    passes the human-readable block reason from the failing rail (or
+    ``None`` when the rail passed, in which case only the input
+    attribute is recorded).
+
+    Safe to call with ``span=None`` (no-op).  No GenAI semconv covers
+    rail spans, so these attributes live under the guardrails.* namespace
+    alongside ``rail.type`` / ``rail.name`` / ``rail.stop``.
+    """
+    if span is None:
+        return
+    span.set_attribute(GuardrailsAttributes.RAIL_INPUT, json.dumps(rail_input))
+    if reason is not None:
+        span.set_attribute(GuardrailsAttributes.RAIL_REASON, reason)
+
+
 @contextmanager
 def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.
@@ -546,6 +739,31 @@ def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
         )
         return False
     return True
+
+
+def is_content_capture_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
+    """Return True when message content should be captured onto spans.
+
+    Resolves in priority order:
+
+    1. ``config.tracing.enable_content_capture`` — when True, capture is on.
+    2. ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` env var —
+       truthy values (``true``, ``1``, case-insensitive) turn capture on.
+       Matches the de-facto standard used by upstream Python GenAI
+       instrumentations, so operators can flip capture across services
+       via one env var without per-service config edits.
+    3. Otherwise False.
+
+    Callers should ALSO require :func:`is_tracing_enabled` before
+    treating capture as active — there is no point capturing content
+    onto spans that won't be exported.  This helper deliberately does
+    not perform that check itself so it stays orthogonal to the
+    tracing-enabled signal (and so tests can exercise each independently).
+    """
+    if config_tracing is not None and getattr(config_tracing, "enable_content_capture", False):
+        return True
+    env_value = os.environ.get(OtelContentCapture.CAPTURE_CONTENT_ENV, "").strip().lower()
+    return env_value in ("true", "1")
 
 
 def are_metrics_enabled(config_metrics: Optional["MetricsConfig"]) -> bool:
