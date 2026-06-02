@@ -179,11 +179,13 @@ def test_examples_included_in_prompts(colang_1_config):
         {"role": "user", "content": "Hi!"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     rails.generate(messages=messages)
 
     info = rails.explain()
-    assert len(info.llm_calls) == 1
-    assert 'user "hi"' in info.llm_calls[0].prompt
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert len(llm_calls) == 1
+    assert 'user "hi"' in llm_calls[0].prompt
 
 
 def test_examples_included_in_prompts_2(colang_2_config):
@@ -202,11 +204,13 @@ def test_examples_included_in_prompts_2(colang_2_config):
         {"role": "user", "content": "Hi"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     rails.generate(messages=messages)
 
     info = rails.explain()
-    assert len(info.llm_calls) == 2
-    assert 'user said "Hi"' in info.llm_calls[0].prompt
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert len(llm_calls) == 2
+    assert 'user said "Hi"' in llm_calls[0].prompt
 
 
 def test_no_llm_calls_embedding_only(colang_2_config):
@@ -225,11 +229,12 @@ def test_no_llm_calls_embedding_only(colang_2_config):
         {"role": "user", "content": "hi"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     new_message = rails.generate(messages=messages)
 
     assert new_message["content"] == "Hello!"
 
-    assert rails._explain_info.llm_calls == []
+    assert rails.explain().llm_calls[before_llm_calls:] == []
 
 
 def test_user_message_index_searched_once_when_embeddings_only_disabled():

@@ -39,30 +39,33 @@ def rails_config():
 
 @pytest.fixture
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails(rails_config):
-    # Sync fixture kept for the class-init and sync-generate tests in this
-    # file.  Async tests that invoke ``iorails.generate_async()`` will
-    # start the internal queue's worker pool lazily; those workers may
-    # leave pending asyncio tasks at test teardown (harmless warnings).
-    # The IORails-queue-aware async tests live in ``test_iorails_telemetry.py``
-    # where fixtures use ``@pytest_asyncio.fixture`` + ``await iorails.stop()``.
+def iorails_sync(rails_config):
     return IORails(rails_config)
+
+
+@pytest_asyncio.fixture
+async def iorails(rails_config):
+    iorails = IORails(rails_config)
+    try:
+        yield iorails
+    finally:
+        await iorails.stop()
 
 
 class TestIORailsInit:
     """Test IORails wires up EngineRegistry and RailsManager from config."""
 
-    def test_creates_engine_registry(self, iorails):
+    def test_creates_engine_registry(self, iorails_sync):
         """EngineRegistry is created during init."""
-        assert iorails.engine_registry is not None
+        assert iorails_sync.engine_registry is not None
 
-    def test_creates_rails_manager(self, iorails):
+    def test_creates_rails_manager(self, iorails_sync):
         """RailsManager is created during init."""
-        assert iorails.rails_manager is not None
+        assert iorails_sync.rails_manager is not None
 
-    def test_rails_manager_uses_engine_registry(self, iorails):
+    def test_rails_manager_uses_engine_registry(self, iorails_sync):
         """RailsManager receives the same EngineRegistry instance."""
-        assert iorails.rails_manager.engine_registry is iorails.engine_registry
+        assert iorails_sync.rails_manager.engine_registry is iorails_sync.engine_registry
 
 
 class TestGenerateAsync:
@@ -636,8 +639,9 @@ class TestAutoStart:
 class TestGenerate:
     """Test the synchronous generate() method."""
 
-    def test_generate_delegates_to_generate_async(self, iorails):
+    def test_generate_delegates_to_generate_async(self, iorails_sync):
         """generate() creates a temp IORails, starts it, calls generate_async, and stops it."""
+        iorails = iorails_sync
         messages = [{"role": "user", "content": "hi"}]
         expected = {"role": "assistant", "content": "Hello from LLM"}
 
@@ -651,8 +655,9 @@ class TestGenerate:
 
         assert result == expected
 
-    def test_generate_passes_kwargs(self, iorails):
+    def test_generate_passes_kwargs(self, iorails_sync):
         """generate() forwards kwargs to generate_async."""
+        iorails = iorails_sync
         messages = [{"role": "user", "content": "hi"}]
         options = GenerationOptions(llm_params={"temperature": 0.5})
 
@@ -665,8 +670,9 @@ class TestGenerate:
 
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, temperature=0.5)
 
-    def test_generate_marks_temp_engine_as_internal(self, iorails):
+    def test_generate_marks_temp_engine_as_internal(self, iorails_sync):
         """generate() suppresses usage reporting for its temporary bridge engine."""
+        iorails = iorails_sync
         messages = [{"role": "user", "content": "hi"}]
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
@@ -679,11 +685,11 @@ class TestGenerate:
         mock_iorails.assert_called_once()
         assert mock_iorails.call_args.kwargs == {"_report_usage": False}
 
-    def test_generate_raises_when_called_from_async_loop(self, iorails):
+    def test_generate_raises_when_called_from_async_loop(self, iorails_sync):
         """generate() raises RuntimeError when called inside a running event loop."""
 
         async def call_generate():
-            iorails.generate([{"role": "user", "content": "hi"}])
+            iorails_sync.generate([{"role": "user", "content": "hi"}])
 
         with pytest.raises(RuntimeError):
             asyncio.run(call_generate())

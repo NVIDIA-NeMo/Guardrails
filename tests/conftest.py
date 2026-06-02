@@ -35,6 +35,24 @@ def reset_reasoning_trace_var():
     reasoning_trace_var.set(None)
 
 
+@pytest.fixture(autouse=True)
+def reset_tool_calls_var():
+    from nemoguardrails.context import tool_calls_var
+
+    tool_calls_var.set(None)
+    yield
+    tool_calls_var.set(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_explain_info_var():
+    from nemoguardrails.context import explain_info_var
+
+    explain_info_var.set(None)
+    yield
+    explain_info_var.set(None)
+
+
 @pytest.fixture
 def langchain_framework():
     from nemoguardrails.llm.frameworks import _reset_frameworks, set_default_framework
