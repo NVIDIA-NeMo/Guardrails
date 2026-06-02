@@ -1,0 +1,28 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5.4-nano
+    parameters:
+      max_retries: 0
+
+passthrough: true
+
+rails:
+  config:
+    regex_detection:
+      input:
+        patterns:
+          - "SECRET-[0-9]+"
+  input:
+    flows:
+      - regex check input
+      - self check input
+
+prompts:
+  - task: self_check_input
+    content: |
+      Return "unsafe" only if the user input contains blocked_self_check_input.
+      Otherwise return "safe".
+      User input: {{ user_input }}
+    output_parser: is_content_safe
+    max_tokens: 32

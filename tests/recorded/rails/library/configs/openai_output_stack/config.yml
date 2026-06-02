@@ -1,0 +1,28 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5.4-nano
+    parameters:
+      max_retries: 0
+
+passthrough: true
+
+rails:
+  config:
+    regex_detection:
+      output:
+        patterns:
+          - "INTERNAL-[A-Z]+"
+  output:
+    flows:
+      - regex check output
+      - self check output
+
+prompts:
+  - task: self_check_output
+    content: |
+      Return "unsafe" only if the bot response contains blocked_self_check_output.
+      Otherwise return "safe".
+      Bot response: {{ bot_response }}
+    output_parser: is_content_safe
+    max_tokens: 32
