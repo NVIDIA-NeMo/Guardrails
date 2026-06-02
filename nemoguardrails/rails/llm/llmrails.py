@@ -318,9 +318,13 @@ class LLMRails(BaseGuardrails):
             self.config.flows.extend(default_flows)
 
             # We also need to load the content from the components library.
+            # Sort entries so the traversal order is filesystem-independent;
+            # otherwise the order in which library bot_messages are inserted
+            # (and which definition wins on collisions) varies between platforms.
             library_path = os.path.join(os.path.dirname(__file__), "../../library")
             for root, dirs, files in os.walk(library_path):
-                for file in files:
+                dirs.sort()
+                for file in sorted(files):
                     # Extract the full path for the file
                     full_path = os.path.join(root, file)
                     if file.endswith(".co"):
