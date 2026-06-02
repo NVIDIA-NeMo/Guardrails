@@ -25,6 +25,13 @@ TEST_EMBEDDING_SEARCH_PROVIDER = "__test_hash_embedding_search_provider__"
 
 
 class DeterministicEmbeddingSearchProvider(EmbeddingsIndex):
+    """Deterministic test provider that ranks results without default score filtering.
+
+    The default ``search_threshold=float("inf")`` mirrors ``BasicEmbeddingsIndex``:
+    results are sorted by similarity and capped by ``max_results``, but low-scoring
+    items are not dropped unless a finite threshold is passed explicitly.
+    """
+
     def __init__(self, search_threshold: float = float("inf"), **kwargs):
         self.items: List[IndexItem] = []
         self.embeddings: List[List[float]] = []
