@@ -1,25 +1,42 @@
-.PHONY: all test tests test_watch test_coverage test_profile docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
+.PHONY: help
+.PHONY: test test-parallel test-serial test-watch test-coverage test-profile warm-fastembed-cache
+.PHONY: docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards docs-check-redirects
+.PHONY: pre-commit
 
-# Default target executed when no specific target is provided to make.
-all: help
+.DEFAULT_GOAL := help
 
-# Define a variable for the test file path.
-TEST_FILE ?= tests/
+TEST ?= tests/
+ARGS ?=
+WORKERS ?= auto
+DIST ?= worksteal
+
+PYTEST ?= poetry run pytest
+UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
+	-u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE
+
+FASTEMBED_CACHE ?= .cache/fastembed
+FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
+FASTEMBED_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE)
 
 test:
-	poetry run pytest $(TEST_FILE)
+	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST)
 
-tests:
-	poetry run pytest $(TEST_FILE)
+test-parallel: test
 
-test_watch:
-	poetry run ptw --snapshot-update --now . -- -vv $(TEST_FILE)
+test-serial:
+	$(PYTEST) $(ARGS) $(TEST)
 
-test_coverage:
-	poetry run pytest --cov=$(TEST_FILE) --cov-report=term-missing
+test-watch:
+	poetry run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
 
-test_profile:
-	poetry run pytest -vv tests/ --profile-svg
+test-coverage:
+	$(PYTEST) --cov=$(TEST) --cov-report=term-missing $(ARGS) $(TEST)
+
+test-profile:
+	$(PYTEST) -vv --profile-svg $(ARGS) $(TEST)
+
+warm-fastembed-cache:
+	$(FASTEMBED_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
 docs:
 	poetry run sphinx-build -b html docs _build/docs
@@ -42,25 +59,36 @@ docs-watch-cards:
 docs-check-redirects:
 	cd docs && poetry run python scripts/validate_redirects.py
 
-pre_commit:
-	pre-commit install
-	pre-commit run --all-files
-
-
-# HELP
+pre-commit:
+	poetry run pre-commit install
+	poetry run pre-commit run --all-files
 
 help:
-	@echo '----'
-	@echo 'test                         - run unit tests'
-	@echo 'tests                        - run unit tests'
-	@echo 'test TEST_FILE=<test_file>   - run all tests in given file'
-	@echo 'test_watch                   - run unit tests in watch mode'
-	@echo 'test_coverage                - run unit tests with coverage'
-	@echo 'docs                         - build docs, if you installed the docs dependencies'
-	@echo 'docs-strict                  - build docs with warnings as errors (used in CI)'
-	@echo 'docs-serve                   - serve docs locally with auto-rebuild on changes'
-	@echo 'docs-update-cards            - update grid cards in index files from linked pages'
-	@echo 'docs-check-cards             - check if grid cards are up to date (dry run)'
-	@echo 'docs-watch-cards             - watch for file changes and auto-update cards'
-	@echo 'docs-check-redirects         - validate that all redirect targets exist'
-	@echo 'pre_commit                   - run pre-commit hooks'
+	@printf '%s\n' \
+		'' \
+		'Usage:' \
+		'  make test [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
+		'  make test-serial [TEST=path] [ARGS="-q"]' \
+		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
+		'  make test-watch [TEST=path]' \
+		'' \
+		'Tests:' \
+		'  test                  Run non-live pytest with pytest-xdist' \
+		'  test-parallel         Alias for test' \
+		'  test-serial           Run pytest without xdist or env filtering' \
+		'  test-watch            Run pytest in watch mode' \
+		'  test-coverage         Run pytest with coverage' \
+		'  test-profile          Run pytest with profiling' \
+		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
+		'' \
+		'Docs:' \
+		'  docs                  Build docs' \
+		'  docs-strict           Build docs with warnings as errors' \
+		'  docs-serve            Serve docs locally' \
+		'  docs-update-cards     Update generated docs cards' \
+		'  docs-check-cards      Check generated docs cards' \
+		'  docs-watch-cards      Watch and update generated docs cards' \
+		'  docs-check-redirects  Validate docs redirects' \
+		'' \
+		'Maintenance:' \
+		'  pre-commit            Install and run pre-commit hooks'
