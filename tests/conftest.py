@@ -13,9 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from unittest.mock import patch
 
 import pytest
+
+from tests.testing.embeddings import (
+    TEST_EMBEDDING_SEARCH_PROVIDER,
+    DeterministicEmbeddingSearchProvider,
+)
 
 try:
     import langchain_core  # noqa: F401
@@ -23,6 +29,13 @@ except ImportError:
     collect_ignore_glob = ["integrations/langchain/*.py", "integrations/langchain/**/*.py"]
 
 REASONING_TRACE_MOCK_PATH = "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+_FASTEMBED_ENGINES = {"FastEmbed"}
+_FASTEMBED_MODELS = {"all-MiniLM-L6-v2", "sentence-transformers/all-MiniLM-L6-v2"}
+_REAL_EMBEDDING_ENV_VARS = (
+    "LIVE_TEST",
+    "LIVE_TEST_MODE",
+    "TEST_LIVE_MODE",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -53,6 +66,37 @@ def reset_explain_info_var():
     explain_info_var.set(None)
 
 
+@pytest.fixture(autouse=True)
+def use_deterministic_embeddings_for_default_fastembed(monkeypatch, request):
+    if request.node.get_closest_marker("real_embeddings") or any(
+        os.environ.get(name) for name in _REAL_EMBEDDING_ENV_VARS
+    ):
+        return
+
+    from nemoguardrails.rails.llm.llmrails import LLMRails
+
+    original_init = LLMRails.__init__
+    original_get_embedding_search_provider = LLMRails._get_embeddings_search_provider_instance
+
+    def patched_init(self, config, *args, **kwargs):
+        _replace_default_fastembed_provider(config)
+        original_init(self, config, *args, **kwargs)
+
+    def patched_get_embedding_search_provider(self, esp_config=None):
+        if esp_config is None or esp_config.name == TEST_EMBEDDING_SEARCH_PROVIDER:
+            parameters = getattr(esp_config, "parameters", {}) if esp_config is not None else {}
+            return DeterministicEmbeddingSearchProvider(**parameters)
+
+        return original_get_embedding_search_provider(self, esp_config)
+
+    monkeypatch.setattr(LLMRails, "__init__", patched_init)
+    monkeypatch.setattr(
+        LLMRails,
+        "_get_embeddings_search_provider_instance",
+        patched_get_embedding_search_provider,
+    )
+
+
 @pytest.fixture
 def langchain_framework():
     from nemoguardrails.llm.frameworks import _reset_frameworks, set_default_framework
@@ -65,3 +109,26 @@ def langchain_framework():
 
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()
+
+
+def _replace_default_fastembed_provider(config):
+    embeddings_model = next((model for model in config.models if model.type == "embeddings"), None)
+    default_engine = embeddings_model.engine if embeddings_model else "FastEmbed"
+    default_model = embeddings_model.model if embeddings_model else "all-MiniLM-L6-v2"
+
+    for provider_config in [
+        config.core.embedding_search_provider,
+        config.knowledge_base.embedding_search_provider,
+    ]:
+        if _uses_default_fastembed(provider_config, default_engine, default_model):
+            provider_config.name = TEST_EMBEDDING_SEARCH_PROVIDER
+
+
+def _uses_default_fastembed(provider_config, default_engine, default_model):
+    if provider_config.name != "default":
+        return False
+
+    parameters = provider_config.parameters
+    engine = parameters.get("embedding_engine", default_engine)
+    model = parameters.get("embedding_model", default_model)
+    return engine in _FASTEMBED_ENGINES and model in _FASTEMBED_MODELS
