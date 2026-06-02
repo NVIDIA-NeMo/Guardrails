@@ -1,5 +1,5 @@
 .PHONY: help
-.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile warm-fastembed-cache
+.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-tests warm-fastembed-cache
 .PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-redirects docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit
 
@@ -13,6 +13,7 @@ WORKERS ?= auto
 DIST ?= worksteal
 
 PYTEST ?= poetry run pytest
+RECORDED_TESTS ?= tests/recorded
 # These targets assume a Unix-like shell for env -u; use bash, Git Bash, or WSL on Windows.
 UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
 	-u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE
@@ -42,6 +43,11 @@ test-coverage:
 
 test-profile:
 	$(PYTEST) -vv --profile-svg $(ARGS) $(TEST)
+
+record-tests:
+	$(PYTEST) $(RECORDED_TESTS) --record-mode=all -m "not fake_cassette"
+	$(PYTEST) $(RECORDED_TESTS) --block-network --inline-snapshot=create
+	$(PYTEST) $(RECORDED_TESTS) --block-network
 
 warm-fastembed-cache:
 	$(FASTEMBED_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
@@ -86,6 +92,7 @@ help:
 		'  make test-benchmark [ARGS="-q"]' \
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
+		'  make record-tests [RECORDED_TESTS=tests/recorded]' \
 		'' \
 		'Tests:' \
 		'  test                  Run pytest.ini testpaths with pytest-xdist' \
@@ -95,6 +102,7 @@ help:
 		'  test-watch            Run pytest in watch mode' \
 		'  test-coverage         Run pytest with coverage' \
 		'  test-profile          Run pytest with profiling' \
+		'  record-tests          Refresh recorded cassettes, fill snapshots, and verify replay' \
 		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
 		'' \
 		'Docs:' \
