@@ -19,7 +19,6 @@ from unittest.mock import patch
 import pytest
 
 from tests.testing.embeddings import (
-    TEST_EMBEDDING_SEARCH_PROVIDER,
     DeterministicEmbeddingSearchProvider,
 )
 
@@ -75,21 +74,19 @@ def use_deterministic_embeddings_for_default_fastembed(monkeypatch, request):
 
     from nemoguardrails.rails.llm.llmrails import LLMRails
 
-    original_init = LLMRails.__init__
     original_get_embedding_search_provider = LLMRails._get_embeddings_search_provider_instance
 
-    def patched_init(self, config, *args, **kwargs):
-        _replace_default_fastembed_provider(config)
-        original_init(self, config, *args, **kwargs)
-
     def patched_get_embedding_search_provider(self, esp_config=None):
-        if esp_config is None or esp_config.name == TEST_EMBEDDING_SEARCH_PROVIDER:
+        if esp_config is None or _uses_default_fastembed(
+            esp_config,
+            self.default_embedding_engine,
+            self.default_embedding_model,
+        ):
             parameters = getattr(esp_config, "parameters", {}) if esp_config is not None else {}
             return DeterministicEmbeddingSearchProvider(**parameters)
 
         return original_get_embedding_search_provider(self, esp_config)
 
-    monkeypatch.setattr(LLMRails, "__init__", patched_init)
     monkeypatch.setattr(
         LLMRails,
         "_get_embeddings_search_provider_instance",
@@ -109,19 +106,6 @@ def langchain_framework():
 
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()
-
-
-def _replace_default_fastembed_provider(config):
-    embeddings_model = next((model for model in config.models if model.type == "embeddings"), None)
-    default_engine = embeddings_model.engine if embeddings_model else "FastEmbed"
-    default_model = embeddings_model.model if embeddings_model else "all-MiniLM-L6-v2"
-
-    for provider_config in [
-        config.core.embedding_search_provider,
-        config.knowledge_base.embedding_search_provider,
-    ]:
-        if _uses_default_fastembed(provider_config, default_engine, default_model):
-            provider_config.name = TEST_EMBEDDING_SEARCH_PROVIDER
 
 
 def _uses_default_fastembed(provider_config, default_engine, default_model):

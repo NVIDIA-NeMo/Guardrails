@@ -321,5 +321,5 @@ class TestSupportedLanguagesAndDefaults:
 
 def _fast_langdetect_module(detect):
     module = ModuleType("fast_langdetect")
-    setattr(module, "detect", detect)
+    module.__dict__["detect"] = detect
     return module

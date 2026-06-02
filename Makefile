@@ -8,9 +8,12 @@
 TEST ?= tests/
 ARGS ?=
 WORKERS ?= auto
+# pytest-xdist --dist strategy for $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST).
+# worksteal dynamically rebalances queued tests; override DIST when debugging or grouping matters.
 DIST ?= worksteal
 
 PYTEST ?= poetry run pytest
+# These targets assume a Unix-like shell for env -u; use bash, Git Bash, or WSL on Windows.
 UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
 	-u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE
 

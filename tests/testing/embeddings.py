@@ -79,7 +79,7 @@ def _similarity(text: str, item_text: str, text_embedding: List[float], item_emb
     ):
         return 1.0
 
-    return sum(a * b for a, b in zip(text_embedding, item_embedding))
+    return sum(a * b for a, b in zip(text_embedding, item_embedding, strict=True))
 
 
 def _exact_match(text: str, item_text: str) -> bool:
