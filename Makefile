@@ -1,4 +1,4 @@
-.PHONY: all test tests test_watch test_coverage test_profile docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
+.PHONY: all test tests test_watch test_coverage test_profile record-tests docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
 
 # Default target executed when no specific target is provided to make.
 all: help
@@ -20,6 +20,15 @@ test_coverage:
 
 test_profile:
 	poetry run pytest -vv tests/ --profile-svg
+
+# Refresh recorded-test cassettes against live providers, fill snapshots, then verify
+# the offline replay. Requires real provider credentials in the environment
+# (e.g. OPENAI_API_KEY, NVIDIA_API_KEY). Fake cassettes are excluded from recording.
+RECORDED_TESTS ?= tests/recorded
+record-tests:
+	poetry run pytest $(RECORDED_TESTS) --record-mode=all -m "not fake_cassette"
+	poetry run pytest $(RECORDED_TESTS) --block-network --inline-snapshot=create
+	poetry run pytest $(RECORDED_TESTS) --block-network
 
 docs:
 	poetry run sphinx-build -b html docs _build/docs
