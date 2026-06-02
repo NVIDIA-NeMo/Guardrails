@@ -28,8 +28,8 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
-<link href="../../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
@@ -39,10 +39,10 @@
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
-<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
 
 
 
@@ -55,13 +55,12 @@
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'configure-rails/guardrail-catalog/pii-detection';</script>
     <script>
-        DOCUMENTATION_OPTIONS.theme_version = '0.17.1';
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
         DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.23.0.dev0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
-    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../../_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/guardrail-catalog/pii-detection.html" />
@@ -76,33 +75,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
-  
-    
-    <script src="../../_static/searchtools.js"></script>
-    <script src="../../_static/language_data.js"></script>
-    <script src="../../searchindex.js"></script>
-  
 
 
 <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
 
   </head>
 
-  <body data-default-mode="">
-
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
 
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
 
   
   <div id="pst-scroll-pixel-helper"></div>
   
   <button type="button" class="btn rounded-pill" id="pst-back-to-top">
     <i class="fa-solid fa-arrow-up"></i>Back to top</button>
-  
-  
-  
+
   
   <dialog id="pst-search-dialog">
     
@@ -128,7 +121,7 @@
 </div>
 
   
-    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
 <div class="bd-header__inner bd-page-width">
   <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
     <span class="fa-solid fa-bars"></span>
@@ -788,7 +781,16 @@
 <h3>Locally Hosted NIMs<a class="headerlink" href="#locally-hosted-nims" title="Link to this heading">#</a></h3>
 <p>To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> is needed for local inference.</p>
 <blockquote>
-<div><p><strong>Note:</strong> You still need an <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> (starting with <code class="docutils literal notranslate"><span class="pre">nvapi-</span></code>) to pull the Docker images and download model artifacts. You can generate one at <a class="reference external" href="https://org.ngc.nvidia.com/setup/api-keys" rel="noreferer noopener" target="_blank">org.ngc.nvidia.com/setup/api-keys</a> or <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. Legacy NGC keys (older format) will cause the container to fail during artifact download. See the <a class="reference internal" href="community/gliner.html#start-the-containers"><span class="std std-ref">GLiNER Integration — Deploy NIMs Locally</span></a> section for full <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span></code> instructions.</p>
+<div><p><strong>Important:</strong> You still need an <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> (starting with <code class="docutils literal notranslate"><span class="pre">nvapi-</span></code>) to pull the Docker images and download model artifacts. You can generate one at <a class="reference external" href="https://org.ngc.nvidia.com/setup/api-keys" rel="noreferer noopener" target="_blank">org.ngc.nvidia.com/setup/api-keys</a> or <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. <strong>Legacy NGC keys (older format, not starting with <code class="docutils literal notranslate"><span class="pre">nvapi-</span></code>) will cause the container to fail during artifact download.</strong></p>
+<p>If you already have an <code class="docutils literal notranslate"><span class="pre">NVIDIA_API_KEY</span></code> starting with <code class="docutils literal notranslate"><span class="pre">nvapi-</span></code>, you can reuse it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NVIDIA_API_KEY</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Alternatively, you can pass the key directly at container runtime — this avoids overwriting any existing <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> in your environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-e<span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NVIDIA_API_KEY</span><span class="s2">&quot;</span><span class="w"> </span>...
+</pre></div>
+</div>
+<p>See the <a class="reference internal" href="community/gliner.html#start-the-containers"><span class="std std-ref">GLiNER Integration — Deploy NIMs Locally</span></a> section for full <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span></code> instructions.</p>
 </div></blockquote>
 <p><strong>PII detection</strong> (update <code class="docutils literal notranslate"><span class="pre">config/pii_detection/config.yml</span></code>):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
@@ -974,8 +976,8 @@
     class="page-toc tocsection onthispage">
     <i class="fa-solid fa-list"></i> On this page
   </div>
-  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
-    <ul class="pst-show_toc_level nav section-nav flex-column">
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gliner-based-pii-detection">GLiNER-based PII Detection</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-hosted-endpoint">NVIDIA-Hosted Endpoint</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#locally-hosted-nims">Locally Hosted NIMs</a></li>
@@ -1007,8 +1009,8 @@
   
 
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
-<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
 
 
 
