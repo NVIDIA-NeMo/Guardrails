@@ -100,7 +100,7 @@ jobs:
 
       - name: Run pytest without coverage
         if: inputs.with-coverage == false
-        run: poetry run pytest -v
+        run: make test
 
       - name: Upload coverage to Codecov
         if: inputs.with-coverage
