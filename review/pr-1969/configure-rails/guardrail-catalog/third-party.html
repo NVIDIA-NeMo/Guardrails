@@ -955,7 +955,7 @@ interactions with LLMs within AI-powered applications.</p>
 <p>The NeMo Guardrails library supports using HuggingFace text classification models for fast, prompt-free content moderation on input, output, and retrieval flows. Classifiers can run locally via <code class="docutils literal notranslate"><span class="pre">transformers</span></code> or connect to remote inference servers (vLLM, KServe, FMS).</p>
 <section id="id13">
 <h3>Example usage<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
-<p>To set up a single local HuggingFace classifier rail for toxicity detection on input and output flows, you can use the following configuration:</p>
+<p>To set up a local HuggingFace classifier rail for named entity recognition on input and output flows:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">config</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">hf_classifier</span><span class="p">:</span>
@@ -973,7 +973,7 @@ interactions with LLMs within AI-powered applications.</p>
 
 <span class="w">  </span><span class="nt">input</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf classifier check output $classifier=named_entity_recognition</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf classifier check input $classifier=named_entity_recognition</span>
 <span class="w">  </span><span class="nt">output</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf classifier check output $classifier=named_entity_recognition</span>
