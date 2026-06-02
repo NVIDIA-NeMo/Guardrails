@@ -96,7 +96,7 @@ jobs:
 
       - name: Run pytest with coverage
         if: inputs.with-coverage
-        run: poetry run pytest --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
+        run: make test-coverage
 
       - name: Run pytest without coverage
         if: inputs.with-coverage == false

@@ -30,7 +30,7 @@ test-watch:
 	poetry run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
 
 test-coverage:
-	$(PYTEST) --cov=$(TEST) --cov-report=term-missing $(ARGS) $(TEST)
+	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) --cov=nemoguardrails --cov-report=xml:coverage.xml $(ARGS) $(TEST)
 
 test-profile:
 	$(PYTEST) -vv --profile-svg $(ARGS) $(TEST)
