@@ -1,0 +1,4 @@
+models:
+  - type: embeddings
+    engine: openai
+    model: text-embedding-3-small
