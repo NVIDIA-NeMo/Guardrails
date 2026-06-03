@@ -19,12 +19,48 @@ from . import checkers, decision, expert_review, extractors, kb, scoring, semant
 logger = logging.getLogger(__name__)
 
 
+_VERIFICATION_CACHE: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "dns": {},
+    "http": {},
+    "tls": {},
+    "whois": {},
+    "github": {},
+}
+
+
+def _cache_get(source: str, key: str) -> Optional[Dict[str, Any]]:
+    cached = _VERIFICATION_CACHE.get(source, {}).get(key)
+    if cached is None:
+        return None
+    result = dict(cached)
+    result["cache_hit"] = True
+    return result
+
+
+def _cache_set(source: str, key: str, value: Dict[str, Any]) -> Dict[str, Any]:
+    stored = dict(value)
+    stored["cache_hit"] = False
+    _VERIFICATION_CACHE.setdefault(source, {})[key] = stored
+    return dict(stored)
+
+
+def _cached_verification(source: str, key: str, fn, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    normalized_key = str(key or "").strip().lower()
+    cached = _cache_get(source, normalized_key)
+    if cached is not None:
+        return cached
+    return _cache_set(source, normalized_key, fn(*args, **kwargs))
+
+
 async def analyze_answer(
     answer: str = "",
     user_query: str = "",
     verification_level: str = "dns",
     enable_semantic_check: bool = False,
     enable_advanced_verification: bool = False,
+    skip_secondary_checks_on_dns_failure: bool = False,
+    enable_tls_verification: bool = True,
+    enable_whois_verification: bool = True,
     kb_instance: Optional[kb.KnowledgeBase] = None,
     github_token: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -32,7 +68,7 @@ async def analyze_answer(
 
     This action:
     1. Extracts URLs, domains, and GitHub repos
-    2. Performs verification (DNS/HTTP/GitHub)
+    2. Performs verification (DNS/HTTP/TLS/WHOIS/GitHub)
     3. Aggregates detection issues
     4. Calculates risk score
     5. Makes enforcement decision
@@ -43,7 +79,10 @@ async def analyze_answer(
         user_query: Original user query (for semantic checks)
         verification_level: One of "none", "dns", "http", "full"
         enable_semantic_check: Enable semantic relevance checking
-        enable_advanced_verification: Enable typosquatting and SSL checks
+        enable_advanced_verification: Enable typosquatting and protocol checks
+        skip_secondary_checks_on_dns_failure: Skip HTTP/TLS/WHOIS when DNS already fails
+        enable_tls_verification: Enable TLS checks in full mode
+        enable_whois_verification: Enable WHOIS/RDAP checks in full mode
         kb_instance: Custom KB instance (uses global if None)
         github_token: GitHub API token for rate limit increase
 
@@ -70,6 +109,7 @@ async def analyze_answer(
 
     # Step 2: Perform verification
     verification_results: Dict[str, Any] = {}
+    dns_status_by_domain: Dict[str, str] = {}
 
     if verification_level in {"dns", "http", "full"}:
         # DNS verification
@@ -77,8 +117,9 @@ async def analyze_answer(
         for domain_item in extracted.get("domains", []):
             domain = domain_item.get("host", "")
             if domain:
-                result = verification.resolve_domain(domain)
+                result = _cached_verification("dns", domain, verification.resolve_domain, domain)
                 dns_results.append(result)
+                dns_status_by_domain[str(domain).strip().lower()] = str(result.get("status") or "")
         verification_results["dns"] = dns_results
 
     if verification_level in {"http", "full"}:
@@ -86,15 +127,49 @@ async def analyze_answer(
         http_results = []
         for url_item in extracted.get("urls", []):
             url = url_item.get("normalized", "")
+            host = str(url_item.get("host") or "").strip().lower()
+            if (
+                skip_secondary_checks_on_dns_failure
+                and host
+                and dns_status_by_domain.get(host) == "nxdomain_or_no_data"
+            ):
+                continue
             if url:
-                result = verification.check_http_domain(url)
+                result = _cached_verification("http", url, verification.check_http_domain, url)
                 http_results.append(result)
         verification_results["http"] = http_results
+
+    if verification_level == "full":
+        # TLS and WHOIS verification
+        tls_results = []
+        whois_results = []
+        for domain_item in extracted.get("domains", []):
+            domain = domain_item.get("host", "")
+            if domain:
+                normalized_domain = str(domain).strip().lower()
+                if (
+                    skip_secondary_checks_on_dns_failure
+                    and dns_status_by_domain.get(normalized_domain) == "nxdomain_or_no_data"
+                ):
+                    continue
+                if enable_tls_verification:
+                    tls_results.append(_cached_verification("tls", domain, verification.check_tls, domain))
+                if enable_whois_verification:
+                    whois_results.append(_cached_verification("whois", domain, verification.check_whois, domain))
+        verification_results["tls"] = tls_results
+        verification_results["whois"] = whois_results
 
     # GitHub API verification (always enabled)
     github_results = []
     for repo_item in extracted.get("github_repos", []):
-        result = verification.check_github_repo(repo_item, token=github_token)
+        repo_key = f"{repo_item.get('owner', '')}/{repo_item.get('repo', '')}"
+        result = _cached_verification(
+            "github",
+            repo_key,
+            verification.check_github_repo,
+            repo_item,
+            token=github_token,
+        )
         github_results.append(result)
     verification_results["github"] = github_results
 
@@ -222,6 +297,9 @@ async def self_check_domain_hallucination(
     verification_level: str = "dns",
     enable_semantic_check: bool = False,
     enable_advanced_verification: bool = False,
+    skip_secondary_checks_on_dns_failure: bool = False,
+    enable_tls_verification: bool = True,
+    enable_whois_verification: bool = True,
     enable_expert_review: bool = False,
     expert_review_min_level: str = "L2",
     github_token: Optional[str] = None,
@@ -248,6 +326,9 @@ async def self_check_domain_hallucination(
         verification_level=verification_level,
         enable_semantic_check=enable_semantic_check,
         enable_advanced_verification=enable_advanced_verification,
+        skip_secondary_checks_on_dns_failure=skip_secondary_checks_on_dns_failure,
+        enable_tls_verification=enable_tls_verification,
+        enable_whois_verification=enable_whois_verification,
         github_token=github_token,
     )
 
