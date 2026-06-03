@@ -118,7 +118,7 @@ When capture is active, content lands on the following spans.
 | `gen_ai.*` | CLIENT | The input messages and output of every LLM call — both the main LLM and the per-rail-action LLM calls (for example, content-safety models). |
 | `guardrails.rail` | INTERNAL | `guardrails.rail.input` — the JSON-encoded rail input (`{"messages": [...], "bot_response": ...}`). On a rail that blocks, `guardrails.rail.reason` also carries the human-readable block reason. |
 
-Because the request span and the LLM spans share the same `gen_ai.*` attribute and event names, a backend can correlate the outer guardrails request with the inner model calls by name alone.
+Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the `trace_id` and parent-child `span_id` relationships). The shared `gen_ai.*` attribute and event names do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.
 
 ## Streaming
 
