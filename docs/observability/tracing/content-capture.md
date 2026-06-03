@@ -57,6 +57,8 @@ Content is only captured when tracing is also enabled — there is no point reco
 
 ### Environment Variable Override
 
+*Applies to the IORails engine only — see [Engine Support](#engine-support) below.*
+
 The `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` environment variable overrides the config field in **both** directions.
 This gives operators a single OpenTelemetry-standard switch to flip capture across all services, regardless of what each deployed `config.yml` says.
 
@@ -69,6 +71,8 @@ This gives operators a single OpenTelemetry-standard switch to flip capture acro
 Values are case-insensitive, and surrounding whitespace is ignored.
 
 ## Output Format
+
+*Applies to the IORails engine only — see [Engine Support](#engine-support) below.*
 
 Captured content is emitted in one of two forms, selected by the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable.
 This variable holds a comma-separated list of opt-in tokens.

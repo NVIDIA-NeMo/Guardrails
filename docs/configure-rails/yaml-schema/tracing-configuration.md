@@ -49,7 +49,7 @@ tracing:
 | `enabled` | Enable or disable tracing | `false` |
 | `adapters` | List of tracing adapters | `[]` |
 | `span_format` | Span structure used by the LLMRails adapter: `opentelemetry` or `legacy` | `opentelemetry` |
-| `enable_content_capture` | Record prompts, responses, and rail inputs on spans. Captures potentially sensitive data (PII); see [](../../observability/tracing/content-capture.md) | `false` |
+| `enable_content_capture` | Record prompts and responses on spans. Captures potentially sensitive data (PII); see [](../../observability/tracing/content-capture.md) for full behavior and engine-specific differences | `false` |
 
 ## Tracing Adapters
 
