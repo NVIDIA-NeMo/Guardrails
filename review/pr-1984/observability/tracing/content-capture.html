@@ -858,7 +858,7 @@ This variable holds a comma-separated list of opt-in tokens.</p>
 </tbody>
 </table>
 </div>
-<p>Because the request span and the LLM spans share the same <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> attribute and event names, a backend can correlate the outer guardrails request with the inner model calls by name alone.</p>
+<p>Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and parent-child <code class="docutils literal notranslate"><span class="pre">span_id</span></code> relationships). The shared <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> attribute and event names do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.</p>
 </section>
 <section id="streaming">
 <h2>Streaming<a class="headerlink" href="#streaming" title="Link to this heading">#</a></h2>
