@@ -761,8 +761,10 @@ tracing:
   adapters:
     - name: FileSystem
   span_format: opentelemetry
-  enable_content_capture: false
+  enable_content_capture: false  # records prompts/responses on spans; may include PII
 ```
+
+For the environment-variable overrides, output formats, and privacy guidance that apply to `enable_content_capture`, see [](../observability/tracing/content-capture.md).
 
 ### Streaming
 

@@ -84,7 +84,7 @@ The following are the key differences between the supported span formats.
 **Development Status**: The [OpenTelemetry semantic conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) are currently in development and may undergo changes. Consider the following risks:
 
 - **Evolving Standards**: Conventions may change as they mature, potentially affecting existing implementations
-- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
+- **Data Privacy**: The `enable_content_capture` option records user inputs and model outputs onto spans, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [](content-capture.md) for the full behavior, environment-variable controls, and privacy guidance
 - **Performance Impact**: Extensive telemetry collection may impact system performance, especially with large inputs/outputs
 
 ### Migration Path
@@ -100,6 +100,7 @@ Existing configurations will continue to work. However, it is strongly recommend
 
 - [](quick-start.md) - Minimal setup to enable tracing using the OpenTelemetry SDK
 - [](adapter-configurations.md) - Detailed configuration for FileSystem, OpenTelemetry, and Custom adapters
+- [](content-capture.md) - Capture prompts, responses, and rail inputs on spans, with privacy controls and output formats
 - [](opentelemetry-integration.md) - Production-ready OpenTelemetry setup and ecosystem compatibility
 - [](opentelemetry-logs.md) - Forward guardrails Python logs to OpenTelemetry with trace correlation
 - [](troubleshooting.md) - Common issues and solutions
@@ -114,6 +115,7 @@ Existing configurations will continue to work. However, it is strongly recommend
 
 Quick Start <quick-start>
 Adapters <adapter-configurations>
+Content Capture <content-capture>
 OpenTelemetry <opentelemetry-integration>
 OpenTelemetry Logs <opentelemetry-logs>
 Troubleshooting <troubleshooting>

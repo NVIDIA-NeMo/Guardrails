@@ -48,6 +48,8 @@ tracing:
 |--------|-------------|---------|
 | `enabled` | Enable or disable tracing | `false` |
 | `adapters` | List of tracing adapters | `[]` |
+| `span_format` | Span structure used by the LLMRails adapter: `opentelemetry` or `legacy` | `opentelemetry` |
+| `enable_content_capture` | Record prompts, responses, and rail inputs on spans. Captures potentially sensitive data (PII); see [](../../observability/tracing/content-capture.md) | `false` |
 
 ## Tracing Adapters
 
@@ -120,6 +122,9 @@ Traces capture the following information:
 | **Actions** | Custom action invocations and results |
 | **Errors** | Error conditions and debugging information |
 | **Timing** | Duration of each operation |
+
+By default, traces capture only metadata such as timing and token counts.
+Prompt and response content is recorded only when content capture is enabled; see [](../../observability/tracing/content-capture.md).
 
 ## Example Configurations
 
