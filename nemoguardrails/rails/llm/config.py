@@ -594,7 +594,7 @@ class TracingConfig(BaseModel):
             "Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. "
             "Honored by both LLMRails and IORails. "
             "Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. "
-            "On IORails, the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable "
+            "On IORails, the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable. "
             "overrides this field in both directions: 'true' / '1' force capture on, 'false' / '0' force "
             "it off, unrecognized values fall through to this field. "
             "Output format on IORails is selected by OTEL_SEMCONV_STABILITY_OPT_IN: when it contains "
