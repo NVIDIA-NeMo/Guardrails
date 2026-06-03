@@ -1179,6 +1179,7 @@ window.addEventListener("load", load);</script>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions.output_mapping</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_output_blocked</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions.v2_x.generation</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMGenerationActionsV2dotx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.base_guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseGuardrails</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_colang_file</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v1_0.runtime.flows</span><span class="w"> </span><span class="kn">import</span> <span class="n">_normalize_flow_id</span><span class="p">,</span> <span class="n">compute_context</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.colang.v1_0.runtime.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runtime</span><span class="p">,</span> <span class="n">RuntimeV1_0</span>
@@ -1262,12 +1263,132 @@ window.addEventListener("load", load);</script>
 
 <div class="viewcode-block" id="LLMRails">
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">LLMRails</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LLMRails</span><span class="p">(</span><span class="n">BaseGuardrails</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rails based on a given configuration.&quot;&quot;&quot;</span>
 
     <span class="n">config</span><span class="p">:</span> <span class="n">RailsConfig</span>
     <span class="n">llm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LLMModel</span><span class="p">]</span>
     <span class="n">runtime</span><span class="p">:</span> <span class="n">Runtime</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">kb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.kb is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">embedding_search_providers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.embedding_search_providers is deprecated and will be removed in a future release. &quot;</span>
+            <span class="s2">&quot;It is an internal attribute with no replacement read API; &quot;</span>
+            <span class="s2">&quot;use register_embedding_search_provider() to add providers.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_embedding_search_providers</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.default_embedding_model is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_model</span>
+
+    <span class="nd">@default_embedding_model</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;Setting LLMRails.default_embedding_model is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_model</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_engine</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.default_embedding_engine is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_engine</span>
+
+    <span class="nd">@default_embedding_engine</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_engine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;Setting LLMRails.default_embedding_engine is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_engine</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.default_embedding_params is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_params</span>
+
+    <span class="nd">@default_embedding_params</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_embedding_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;Setting LLMRails.default_embedding_params is deprecated and will be removed in a future release.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_params</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">explain_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.explain_info is deprecated and will be removed in the next release. &quot;</span>
+            <span class="s2">&quot;Use LLMRails.explain() instead, which guarantees a non-None ExplainInfo.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span>
+
+    <span class="nd">@explain_info</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">explain_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;Setting LLMRails.explain_info is deprecated and will be removed in the next release. &quot;</span>
+            <span class="s2">&quot;explain_info is an internal accumulator; use LLMRails.explain() to read it.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">llm_generation_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;LLMRails.llm_generation_actions is deprecated and will be removed in a future release. &quot;</span>
+            <span class="s2">&quot;It is an internal attribute; use the first-class LLMRails.passthrough_fn API if you &quot;</span>
+            <span class="s2">&quot;previously set passthrough_fn through it.&quot;</span><span class="p">,</span>
+            <span class="ne">DeprecationWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">passthrough_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The optional passthrough function that bypasses LLM generation.</span>
+
+<span class="sd">        When set, the rails pipeline calls this function instead of the main LLM</span>
+<span class="sd">        for generating responses. LLMGenerationActions is private, expose only</span>
+<span class="sd">        `passthrough_fn` as a public API</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span><span class="o">.</span><span class="n">_passthrough_fn</span>
+
+    <span class="nd">@passthrough_fn</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">passthrough_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;LLMGenerationActions is private, set passthrough_fn directly&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span><span class="o">.</span><span class="n">_passthrough_fn</span> <span class="o">=</span> <span class="n">fn</span>
 
 <div class="viewcode-block" id="LLMRails.__init__">
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails.__init__">[docs]</a>
@@ -1297,12 +1418,12 @@ window.addEventListener("load", load);</script>
 
         <span class="c1"># We allow the user to register additional embedding search providers, so we keep</span>
         <span class="c1"># an index of them.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">embedding_search_providers</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_embedding_search_providers</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="c1"># The default embeddings model is using FastEmbed</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="o">=</span> <span class="s2">&quot;all-MiniLM-L6-v2&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_engine</span> <span class="o">=</span> <span class="s2">&quot;FastEmbed&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_params</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_model</span> <span class="o">=</span> <span class="s2">&quot;all-MiniLM-L6-v2&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_engine</span> <span class="o">=</span> <span class="s2">&quot;FastEmbed&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_params</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="c1"># We keep a cache of the events history associated with a sequence of user messages.</span>
         <span class="c1"># TODO: when we update the interface to allow to return a &quot;state object&quot;, this</span>
@@ -1402,9 +1523,9 @@ window.addEventListener("load", load);</script>
         <span class="c1"># If we have a customized embedding model, we&#39;ll use it.</span>
         <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">models</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;embeddings&quot;</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">model</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_engine</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">engine</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_params</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">or</span> <span class="p">{}</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">model</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_engine</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">engine</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_params</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">or</span> <span class="p">{}</span>
 
                 <span class="k">for</span> <span class="n">esp</span> <span class="ow">in</span> <span class="p">[</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">embedding_search_provider</span><span class="p">,</span>
@@ -1438,7 +1559,7 @@ window.addEventListener("load", load);</script>
         <span class="n">llm_generation_actions_class</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">LLMGenerationActions</span> <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">colang_version</span> <span class="o">==</span> <span class="s2">&quot;1.0&quot;</span> <span class="k">else</span> <span class="n">LLMGenerationActionsV2dotx</span>
         <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">llm_generation_actions</span> <span class="o">=</span> <span class="n">llm_generation_actions_class</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span> <span class="o">=</span> <span class="n">llm_generation_actions_class</span><span class="p">(</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
             <span class="n">llm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">llm</span><span class="p">,</span>
             <span class="n">llm_task_manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">llm_task_manager</span><span class="p">,</span>
@@ -1447,7 +1568,7 @@ window.addEventListener("load", load);</script>
         <span class="p">)</span>
 
         <span class="c1"># If there&#39;s already an action registered, we don&#39;t override.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_actions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">llm_generation_actions</span><span class="p">,</span> <span class="n">override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_actions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span><span class="p">,</span> <span class="n">override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
         <span class="c1"># Next, we initialize the Knowledge Base</span>
         <span class="c1"># There are still some edge cases not covered by nest_asyncio.</span>
@@ -1461,10 +1582,10 @@ window.addEventListener("load", load);</script>
             <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_init_kb</span><span class="p">())</span>
 
         <span class="c1"># We also register the kb as a parameter that can be passed to actions.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;kb&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kb</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;kb&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span><span class="p">)</span>
 
         <span class="c1"># Reference to the general ExplainInfo object.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.telemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">report_usage</span>
 
@@ -1482,7 +1603,7 @@ window.addEventListener("load", load);</script>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">LLMModel</span><span class="p">):</span>
             <span class="n">llm</span> <span class="o">=</span> <span class="n">_wrap_legacy_llm</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">llm_generation_actions</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_llm_generation_actions</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;llm&quot;</span><span class="p">,</span> <span class="n">llm</span><span class="p">)</span></div>
 
 
@@ -1518,19 +1639,19 @@ window.addEventListener("load", load);</script>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_init_kb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the knowledge base.&quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">kb</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">docs</span><span class="p">:</span>
             <span class="k">return</span>
 
         <span class="n">documents</span> <span class="o">=</span> <span class="p">[</span><span class="n">doc</span><span class="o">.</span><span class="n">content</span> <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">docs</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">kb</span> <span class="o">=</span> <span class="n">KnowledgeBase</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span> <span class="o">=</span> <span class="n">KnowledgeBase</span><span class="p">(</span>
             <span class="n">documents</span><span class="o">=</span><span class="n">documents</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">knowledge_base</span><span class="p">,</span>
             <span class="n">get_embedding_search_provider_instance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_embeddings_search_provider_instance</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">kb</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
-        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">kb</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kb</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_model_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_config</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1718,9 +1839,9 @@ window.addEventListener("load", load);</script>
             <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.embeddings.basic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BasicEmbeddingsIndex</span>
 
             <span class="k">return</span> <span class="n">BasicEmbeddingsIndex</span><span class="p">(</span>
-                <span class="n">embedding_model</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_model&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span><span class="p">),</span>
-                <span class="n">embedding_engine</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_engine&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_engine</span><span class="p">),</span>
-                <span class="n">embedding_params</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_parameters&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_params</span><span class="p">),</span>
+                <span class="n">embedding_model</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_model&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_model</span><span class="p">),</span>
+                <span class="n">embedding_engine</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_engine&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_engine</span><span class="p">),</span>
+                <span class="n">embedding_params</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_parameters&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_embedding_params</span><span class="p">),</span>
                 <span class="n">cache_config</span><span class="o">=</span><span class="n">esp_config</span><span class="o">.</span><span class="n">cache</span><span class="p">,</span>
                 <span class="c1"># We make sure we also pass additional relevant params.</span>
                 <span class="o">**</span><span class="p">{</span>
@@ -1737,11 +1858,11 @@ window.addEventListener("load", load);</script>
                 <span class="p">},</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">esp_config</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_search_providers</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">esp_config</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_embedding_search_providers</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown embedding search provider: </span><span class="si">{</span><span class="n">esp_config</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">kwargs</span> <span class="o">=</span> <span class="n">esp_config</span><span class="o">.</span><span class="n">parameters</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_search_providers</span><span class="p">[</span><span class="n">esp_config</span><span class="o">.</span><span class="n">name</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_embedding_search_providers</span><span class="p">[</span><span class="n">esp_config</span><span class="o">.</span><span class="n">name</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_events_for_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messages</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">state</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the list of events corresponding to the provided messages.</span>
@@ -2019,7 +2140,7 @@ window.addEventListener("load", load);</script>
         <span class="c1"># Initialize the object with additional explanation information.</span>
         <span class="c1"># We allow this to also be set externally. This is useful when multiple parallel</span>
         <span class="c1"># requests are made.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
 
         <span class="n">raw_llm_request</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span>
 
@@ -2174,9 +2295,9 @@ window.addEventListener("load", load);</script>
 
         <span class="c1"># If logging is enabled, we log the conversation</span>
         <span class="c1"># TODO: add support for logging flag</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span><span class="o">.</span><span class="n">colang_history</span> <span class="o">=</span> <span class="n">get_colang_history</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span><span class="o">.</span><span class="n">colang_history</span> <span class="o">=</span> <span class="n">get_colang_history</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
-            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Conversation history so far: </span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span><span class="o">.</span><span class="n">colang_history</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Conversation history so far: </span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span><span class="o">.</span><span class="n">colang_history</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="n">total_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
         <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;--- :: Total processing took </span><span class="si">%.2f</span><span class="s2"> seconds. LLM Stats: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">total_time</span><span class="p">,</span> <span class="n">llm_stats</span><span class="p">))</span>
@@ -2427,7 +2548,7 @@ window.addEventListener("load", load);</script>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">generator</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
 
         <span class="n">streaming_handler</span> <span class="o">=</span> <span class="n">StreamingHandler</span><span class="p">(</span><span class="n">include_metadata</span><span class="o">=</span><span class="n">include_metadata</span><span class="p">)</span>
 
@@ -2806,7 +2927,7 @@ window.addEventListener("load", load);</script>
 <span class="sd">            cls: The class that will be used to generate and search embedding</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">embedding_search_providers</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_embedding_search_providers</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
         <span class="k">return</span> <span class="bp">self</span></div>
 
 
@@ -2831,9 +2952,9 @@ window.addEventListener("load", load);</script>
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails.explain">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">explain</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExplainInfo</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper function to return the latest ExplainInfo object.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span></div>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -3051,7 +3172,7 @@ window.addEventListener("load", load);</script>
                     <span class="k">pass</span>
 
                 <span class="c1"># update explain info for parallel mode</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
 
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">flow_id</span> <span class="ow">in</span> <span class="n">output_rails_flows_id</span><span class="p">:</span>
@@ -3067,7 +3188,7 @@ window.addEventListener("load", load);</script>
                     <span class="p">)</span>
 
                     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">action_dispatcher</span><span class="o">.</span><span class="n">execute_action</span><span class="p">(</span><span class="n">action_name</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_explain_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_explain_info</span><span class="p">()</span>
 
                     <span class="n">action_func</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">action_dispatcher</span><span class="o">.</span><span class="n">get_action</span><span class="p">(</span><span class="n">action_name</span><span class="p">)</span>
 

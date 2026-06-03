@@ -702,8 +702,52 @@
 <dl class="py class">
 <dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemoguardrails.rails.llm.llmrails.</span></span><span class="sig-name descname"><span class="pre">LLMRails</span></span><a class="reference internal" href="../../../_modules/nemoguardrails/rails/llm/llmrails.html#LLMRails"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseGuardrails</span></code></p>
 <p>Rails based on a given configuration.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.kb">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">kb</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.kb" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.embedding_search_providers">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">embedding_search_providers</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.embedding_search_providers" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_model">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_embedding_model</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_model" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_engine">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_embedding_engine</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_engine" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_params">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_embedding_params</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_params" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.explain_info">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">explain_info</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.explain_info" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.llm_generation_actions">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">llm_generation_actions</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm_generation_actions" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.passthrough_fn">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">passthrough_fn</span></span><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.passthrough_fn" title="Link to this definition">#</a></dt>
+<dd><p>The optional passthrough function that bypasses LLM generation.</p>
+<p>When set, the rails pipeline calls this function instead of the main LLM
+for generating responses. LLMGenerationActions is private, expose only
+<cite>passthrough_fn</cite> as a public API</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">llm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/nemoguardrails/rails/llm/llmrails.html#LLMRails.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.__init__" title="Link to this definition">#</a></dt>
@@ -1209,6 +1253,14 @@ When provided, overrides automatic detection.</p></li>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails"><code class="docutils literal notranslate"><span class="pre">LLMRails</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.kb"><code class="docutils literal notranslate"><span class="pre">kb</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.embedding_search_providers"><code class="docutils literal notranslate"><span class="pre">embedding_search_providers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_model"><code class="docutils literal notranslate"><span class="pre">default_embedding_model</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_engine"><code class="docutils literal notranslate"><span class="pre">default_embedding_engine</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.default_embedding_params"><code class="docutils literal notranslate"><span class="pre">default_embedding_params</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.explain_info"><code class="docutils literal notranslate"><span class="pre">explain_info</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm_generation_actions"><code class="docutils literal notranslate"><span class="pre">llm_generation_actions</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.passthrough_fn"><code class="docutils literal notranslate"><span class="pre">passthrough_fn</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.__init__"><code class="docutils literal notranslate"><span class="pre">__init__()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.config"><code class="docutils literal notranslate"><span class="pre">config</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm"><code class="docutils literal notranslate"><span class="pre">llm</span></code></a></li>
