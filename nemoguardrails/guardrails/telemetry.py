@@ -33,6 +33,7 @@ import time
 import warnings
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
+from functools import cache
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -404,12 +405,18 @@ _LEGACY_EVENT_BY_ROLE = {
 }
 
 
+@cache
 def _use_json_span_format() -> bool:
     """Return True iff OTEL_SEMCONV_STABILITY_OPT_IN selects JSON span attrs.
 
     The env var holds a comma-separated list of opt-in tokens.  When
     ``gen_ai_latest_experimental`` is present, content is emitted as
     JSON-encoded span attributes, otherwise as legacy per-message span events.
+
+    Cached after first call (``functools.cache``) since the env var is
+    process-global and normally set at startup, and this runs on every
+    captured-content span emission.  Tests that mutate the env var must
+    call ``_use_json_span_format.cache_clear()`` to re-read.
     """
     raw_env_value = os.environ.get(OtelContentCapture.STABILITY_OPT_IN_ENV, "")
     tokens = {tok.strip() for tok in raw_env_value.split(",")}
@@ -744,15 +751,16 @@ def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
 def is_content_capture_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
     """Return True when message content should be captured onto spans.
 
-    Resolves in priority order:
+    ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` is the
+    primary control — when set, it overrides any config-file value so
+    operators have a single OTEL-standard env var that flips capture
+    across all services regardless of what the deployed config says.
+    Recognized values (case-insensitive, surrounding whitespace
+    stripped): ``true`` / ``1`` enable; ``false`` / ``0`` disable; any
+    other value falls through to the config field.
 
-    1. ``config.tracing.enable_content_capture`` — when True, capture is on.
-    2. ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` env var —
-       truthy values (``true``, ``1``, case-insensitive) turn capture on.
-       Matches the de-facto standard used by upstream Python GenAI
-       instrumentations, so operators can flip capture across services
-       via one env var without per-service config edits.
-    3. Otherwise False.
+    When the env var is absent or unrecognized, capture is on iff
+    ``config.tracing.enable_content_capture`` is True.
 
     Callers should ALSO require :func:`is_tracing_enabled` before
     treating capture as active — there is no point capturing content
@@ -760,10 +768,14 @@ def is_content_capture_enabled(config_tracing: Optional["TracingConfig"]) -> boo
     not perform that check itself so it stays orthogonal to the
     tracing-enabled signal (and so tests can exercise each independently).
     """
-    if config_tracing is not None and getattr(config_tracing, "enable_content_capture", False):
-        return True
     env_value = os.environ.get(OtelContentCapture.CAPTURE_CONTENT_ENV, "").strip().lower()
-    return env_value in ("true", "1")
+    if env_value in ("true", "1"):
+        return True
+    if env_value in ("false", "0"):
+        return False
+    if config_tracing is None:
+        return False
+    return getattr(config_tracing, "enable_content_capture", False)
 
 
 def are_metrics_enabled(config_metrics: Optional["MetricsConfig"]) -> bool:

@@ -57,9 +57,13 @@ def _clear_otel_envvars(monkeypatch):
     The CI/dev shell may have ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT``
     or ``OTEL_SEMCONV_STABILITY_OPT_IN`` set; without this, tests asserting
     "False" / "events branch" would be flaky depending on the runner's env.
+    Also clears the ``_use_json_span_format`` cache so each test re-reads
+    the stability opt-in env var fresh — without this, the first test's
+    value would stick across the whole module.
     """
     monkeypatch.delenv(OtelContentCapture.CAPTURE_CONTENT_ENV, raising=False)
     monkeypatch.delenv(OtelContentCapture.STABILITY_OPT_IN_ENV, raising=False)
+    _use_json_span_format.cache_clear()
 
 
 @pytest.fixture
@@ -126,7 +130,7 @@ class TestIsContentCaptureEnabled:
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
         assert is_content_capture_enabled(None) is False
 
-    def test_env_var_takes_effect_when_config_unset(self, monkeypatch):
+    def test_env_var_takes_effect_when_config_is_false(self, monkeypatch):
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "true")
         assert is_content_capture_enabled(_config_with_capture(False)) is True
 
@@ -137,6 +141,27 @@ class TestIsContentCaptureEnabled:
         # Leading/trailing whitespace gets stripped (.strip() in the helper)
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "  true  ")
         assert is_content_capture_enabled(None) is True
+
+    @pytest.mark.parametrize("env_value", ["false", "False", "FALSE", "0"])
+    def test_env_var_falsy_disables_capture_even_when_config_true(self, monkeypatch, env_value):
+        # Env-var-wins semantic: explicit env=false/0 overrides config=True.
+        # Operators can disable content capture across services via the
+        # OTEL-standard env var even if the deployed config has it enabled.
+        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
+        assert is_content_capture_enabled(_config_with_capture(True)) is False
+
+    def test_env_var_falsy_with_whitespace_disables_capture(self, monkeypatch):
+        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "  FALSE  ")
+        assert is_content_capture_enabled(_config_with_capture(True)) is False
+
+    @pytest.mark.parametrize("env_value", ["yes", "no", "maybe"])
+    def test_unrecognized_env_value_falls_through_to_config(self, monkeypatch, env_value):
+        # Unrecognized env values are neither enable nor disable signals —
+        # they fall through to the config field.  Avoids accidentally
+        # disabling capture if someone types "off" / "yes" / etc.
+        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
+        assert is_content_capture_enabled(_config_with_capture(True)) is True
+        assert is_content_capture_enabled(_config_with_capture(False)) is False
 
 
 class TestUseJsonSpanFormat:
