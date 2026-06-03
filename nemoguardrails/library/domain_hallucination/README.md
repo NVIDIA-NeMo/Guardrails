@@ -5,7 +5,7 @@ A comprehensive library for detecting and preventing domain hallucinations in LL
 ## Features
 
 - **Entity Extraction**: Automatically extracts URLs, domains, and GitHub repositories from text
-- **Multi-level Verification**: DNS, HTTP, and GitHub API verification
+- **Multi-level Verification**: DNS, HTTP, TLS, WHOIS/RDAP, and GitHub API verification
 - **Knowledge Base Integration**: Local seed KB + external KB support
 - **Risk Scoring**: Sophisticated risk scoring with issue aggregation and recalibration
 - **Semantic Analysis**: Optional semantic relevance checking
@@ -158,11 +158,13 @@ Extracts URLs, domains, and GitHub repositories from text with robust parsing an
 - `extract_all(text)` - Extract all entity types
 
 ### verification.py
-Performs DNS, HTTP, and GitHub API verification.
+Performs DNS, HTTP, TLS certificate, WHOIS/RDAP, and GitHub API verification.
 
 **Key Functions:**
 - `resolve_domain(domain)` - DNS resolution
 - `check_http_domain(url)` - HTTP accessibility check
+- `check_tls(domain)` - TLS certificate verification
+- `check_whois(domain)` - WHOIS/RDAP registration metadata lookup
 - `check_github_repo(repo_item)` - GitHub API verification
 
 ### checkers.py
@@ -171,6 +173,7 @@ Aggregates verification results into normalized issue types.
 **Key Functions:**
 - `check_domain_hallucination(extracted, verification, rag)` - Main checking logic
 - `_check_dns_failures()` - Detect non-existent domains
+- `_check_tls_failures()` - Detect TLS certificate problems
 - `_check_github_repos()` - Detect fake GitHub repos
 - `_check_phishing_domains()` - Detect suspicious domains
 
@@ -223,7 +226,7 @@ Configuration management with JSON serialization.
 - **none**: No verification (fast, but no checking)
 - **dns**: DNS resolution only (default, good balance)
 - **http**: DNS + HTTP accessibility check
-- **full**: DNS + HTTP + all advanced checks
+- **full**: DNS + HTTP + TLS + WHOIS/RDAP + GitHub checks
 
 ## Risk Scoring
 

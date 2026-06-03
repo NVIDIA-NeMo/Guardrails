@@ -22,6 +22,10 @@ def check_domain_hallucination(
     dns_result = _check_dns_failures(extracted_items, verification_result)
     issues.extend(dns_result)
 
+    # Check for TLS certificate failures
+    tls_result = _check_tls_failures(extracted_items, verification_result)
+    issues.extend(tls_result)
+
     # Check for GitHub issues
     github_result = _check_github_repos(extracted_items, verification_result, rag_result)
     issues.extend(github_result)
@@ -96,6 +100,87 @@ def _check_dns_failures(
                     "evidence": dns,
                     "message": "Domain exists but has no address record.",
                 })
+
+    return issues
+
+
+def _check_tls_failures(
+    extracted_items: Dict[str, Any],
+    verification_result: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Check for TLS certificate verification failures."""
+    issues: List[Dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    tls_map = {}
+    for item in verification_result.get("tls", []) or []:
+        if isinstance(item, dict):
+            domain = str(item.get("domain") or "").strip().lower()
+            if domain:
+                tls_map[domain] = item
+
+    status_issue_map = {
+        "tls_expired": {
+            "type": "tls_certificate_expired",
+            "severity": "high",
+            "confidence": "medium",
+            "message": "TLS certificate is expired.",
+        },
+        "tls_hostname_mismatch": {
+            "type": "tls_hostname_mismatch",
+            "severity": "high",
+            "confidence": "medium",
+            "message": "TLS certificate hostname does not match the domain.",
+        },
+        "tls_untrusted_chain": {
+            "type": "tls_untrusted_chain",
+            "severity": "medium",
+            "confidence": "medium",
+            "message": "TLS certificate chain is not trusted.",
+        },
+        "tls_verification_failed": {
+            "type": "tls_verification_failed",
+            "severity": "medium",
+            "confidence": "medium",
+            "message": "TLS certificate verification failed.",
+        },
+        "tls_expiring_soon": {
+            "type": "tls_certificate_expiring_soon",
+            "severity": "low",
+            "confidence": "low",
+            "message": "TLS certificate expires soon.",
+        },
+    }
+
+    for domain_item in extracted_items.get("domains", []) or []:
+        if not isinstance(domain_item, dict):
+            continue
+        domain = str(domain_item.get("host") or "").strip().lower()
+        if not domain:
+            continue
+
+        tls = tls_map.get(domain, {})
+        status = str(tls.get("status", "unchecked")).strip().lower()
+        issue_template = status_issue_map.get(status)
+        if not issue_template:
+            continue
+
+        issue_type = issue_template["type"]
+        key = (issue_type, domain)
+        if key in seen:
+            continue
+
+        seen.add(key)
+        issues.append({
+            "type": issue_type,
+            "target_type": "domain",
+            "target": domain,
+            "severity": issue_template["severity"],
+            "confidence": issue_template["confidence"],
+            "evidence_source": "tls",
+            "evidence": tls,
+            "message": issue_template["message"],
+        })
 
     return issues
 

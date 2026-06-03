@@ -15,6 +15,8 @@ class VerificationConfig:
     level: str = "dns"  # none, dns, http, full
     dns_timeout: float = 4.0
     http_timeout: float = 6.0
+    tls_timeout: float = 5.0
+    whois_timeout: float = 6.0
     github_timeout: float = 6.0
     github_token: Optional[str] = None
 
@@ -38,6 +40,11 @@ class ScoringConfig:
         "non_existent_domain": 80.0,
         "delegated_no_address_record": 50.0,
         "blacklisted_domain": 95.0,
+        "tls_certificate_expired": 70.0,
+        "tls_hostname_mismatch": 70.0,
+        "tls_untrusted_chain": 55.0,
+        "tls_verification_failed": 50.0,
+        "tls_certificate_expiring_soon": 15.0,
         "recent_domain": 20.0,
         "no_local_kb_evidence": 15.0,
         "semantic_mismatch": 30.0,
@@ -140,6 +147,12 @@ class DomainHallucinationGuardConfig:
             config.verification.level = os.environ[f"{prefix}VERIFICATION_LEVEL"]
         if f"{prefix}DNS_TIMEOUT" in os.environ:
             config.verification.dns_timeout = float(os.environ[f"{prefix}DNS_TIMEOUT"])
+        if f"{prefix}HTTP_TIMEOUT" in os.environ:
+            config.verification.http_timeout = float(os.environ[f"{prefix}HTTP_TIMEOUT"])
+        if f"{prefix}TLS_TIMEOUT" in os.environ:
+            config.verification.tls_timeout = float(os.environ[f"{prefix}TLS_TIMEOUT"])
+        if f"{prefix}WHOIS_TIMEOUT" in os.environ:
+            config.verification.whois_timeout = float(os.environ[f"{prefix}WHOIS_TIMEOUT"])
         if f"{prefix}GITHUB_TOKEN" in os.environ:
             config.verification.github_token = os.environ[f"{prefix}GITHUB_TOKEN"]
 
