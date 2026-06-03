@@ -284,6 +284,17 @@ class TestSystemPartsFromMessages:
         result = _system_parts_from_messages(messages)
         assert [p["content"] for p in result] == ["first", "second"]
 
+    def test_skips_entries_missing_role_or_content(self):
+        """Malformed entries missing role or content are skipped without crashing."""
+        messages = [
+            {"content": "no role"},
+            {"role": "system"},
+            {"role": "system", "content": "valid"},
+        ]
+        result = _system_parts_from_messages(messages)
+        # Only the well-formed system message survives
+        assert result == [{"type": "text", "content": "valid"}]
+
 
 class TestNonSystemInputMessages:
     """Role-wrapped extraction of non-system messages for gen_ai.input.messages."""
