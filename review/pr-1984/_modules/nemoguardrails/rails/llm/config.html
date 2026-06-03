@@ -1721,7 +1721,16 @@ window.addEventListener("load", load);</script>
         <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">description</span><span class="o">=</span><span class="p">(</span>
             <span class="s2">&quot;Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. &quot;</span>
+            <span class="s2">&quot;Honored by both LLMRails and IORails. &quot;</span>
             <span class="s2">&quot;Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. &quot;</span>
+            <span class="s2">&quot;On IORails, the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable. &quot;</span>
+            <span class="s2">&quot;overrides this field in both directions: &#39;true&#39; / &#39;1&#39; force capture on, &#39;false&#39; / &#39;0&#39; force &quot;</span>
+            <span class="s2">&quot;it off, unrecognized values fall through to this field. &quot;</span>
+            <span class="s2">&quot;Output format on IORails is selected by OTEL_SEMCONV_STABILITY_OPT_IN: when it contains &quot;</span>
+            <span class="s2">&quot;&#39;gen_ai_latest_experimental&#39;, content is emitted as JSON-encoded span attributes &quot;</span>
+            <span class="s2">&quot;(gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions); &quot;</span>
+            <span class="s2">&quot;otherwise as legacy per-message span events &quot;</span>
+            <span class="s2">&quot;(gen_ai.user.message, gen_ai.assistant.message, gen_ai.system.message, gen_ai.choice). &quot;</span>
             <span class="s2">&quot;WARNING: Enabling this may include PII and sensitive data in your telemetry backend.&quot;</span>
         <span class="p">),</span>
     <span class="p">)</span>
