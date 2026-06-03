@@ -448,21 +448,48 @@ def _get_parts_by_role(messages: LLMMessages, role: str, include: bool) -> list[
 
 
 def _system_parts_from_messages(messages: LLMMessages) -> list[dict]:
-    """Return the OTEL GenAI ``parts`` entries for system messages only.
+    """Return the bare OTEL GenAI ``parts`` for system messages only.
 
-    ``gen_ai.system_instructions`` is a flat list of parts (no role
-    wrapping), so this unwraps the role-wrapped form returned by
-    :func:`_get_parts_by_role` down to the bare ``{"type": "text",
-    "content": ...}`` items.
+    Feeds ``gen_ai.system_instructions``, which the spec defines as a flat
+    list of parts with no role wrapper (every entry is implicitly system).
+    Asymmetric with :func:`_non_system_input_messages`, which keeps the role
+    wrapper — the two attributes have different shapes by spec.  Entries
+    missing ``role`` or ``content`` are skipped silently.
+
+    Example::
+
+        >>> _system_parts_from_messages([
+        ...     {"role": "system", "content": "be helpful"},
+        ...     {"role": "user", "content": "hi"},
+        ... ])
+        [{"type": "text", "content": "be helpful"}]
     """
-    return [m["parts"][0] for m in _get_parts_by_role(messages, "system", include=True)]
+    out: list[dict] = []
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role is None or content is None:
+            continue
+        if role == "system":
+            out.append({"type": "text", "content": content})
+    return out
 
 
-def _non_system_messages_to_parts(messages: LLMMessages) -> list[dict]:
-    """Return the OTEL GenAI structured form for non-system messages.
+def _non_system_input_messages(messages: LLMMessages) -> list[dict]:
+    """Return the OTEL GenAI ``gen_ai.input.messages`` form for non-system messages.
 
-    Each non-system message becomes ``{"role": role, "parts": [{"type":
-    "text", "content": content}]}`` to populate ``gen_ai.input.messages``.
+    Each non-system message is role-wrapped as ``{"role": role, "parts":
+    [{"type": "text", "content": content}]}``.  Named for the attribute it
+    populates rather than "parts" because — unlike
+    :func:`_system_parts_from_messages` — it keeps the role wrapper.
+
+    Example::
+
+        >>> _non_system_input_messages([
+        ...     {"role": "system", "content": "be helpful"},
+        ...     {"role": "user", "content": "hi"},
+        ... ])
+        [{"role": "user", "parts": [{"type": "text", "content": "hi"}]}]
     """
     return _get_parts_by_role(messages, "system", include=False)
 
@@ -484,7 +511,7 @@ def _set_llm_call_content_json(
     if system_parts:
         span.set_attribute(GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS, json.dumps(system_parts))
 
-    non_system = _non_system_messages_to_parts(input_messages)
+    non_system = _non_system_input_messages(input_messages)
     if non_system:
         span.set_attribute(GenAIAttributes.GEN_AI_INPUT_MESSAGES, json.dumps(non_system))
 
