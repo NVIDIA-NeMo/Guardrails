@@ -15,6 +15,8 @@
 
 from typing import Any, Tuple
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
 
 def default_output_mapping(result: Any) -> bool:
     """A fallback output mapping if an action does not provide one.
@@ -49,3 +51,14 @@ def is_output_blocked(result: Any, action_func: Any) -> bool:
         result = (result,)
 
     return mapping(result[0])
+
+
+def outcome_from_output_mapping(result: Any, action_func: Any) -> RailOutcome:
+    """Bridge the legacy output mapping to a RailOutcome.
+
+    Mirrors is_output_blocked exactly, including its tuple unwrapping, so the
+    streaming output-rail bypass paths can read RailOutcome.is_blocked with no
+    change in behavior. The richer per-vendor interpretation that supersedes
+    output_mapping is introduced when the engines converge.
+    """
+    return RailOutcome.block() if is_output_blocked(result, action_func) else RailOutcome.allow()

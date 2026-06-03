@@ -25,7 +25,7 @@ import aiohttp
 
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.core import create_event
-from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.output_mapping import outcome_from_output_mapping
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v1_0.runtime.flows import (
@@ -492,7 +492,7 @@ class RuntimeV1_0(Runtime):
 
                 # use the mapping to decide if the result indicates blocked content.
                 # True means blocked, False means allowed
-                result = is_output_blocked(result, action_func)
+                result = outcome_from_output_mapping(result, action_func).is_blocked
 
                 return flow_id, result, None
 
