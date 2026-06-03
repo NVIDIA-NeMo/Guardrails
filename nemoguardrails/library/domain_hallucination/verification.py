@@ -1,4 +1,4 @@
-"""Verification module for DNS, HTTP, and GitHub checks."""
+"""Verification module for DNS, HTTP, TLS, WHOIS/RDAP, and GitHub checks."""
 
 from __future__ import annotations
 
@@ -6,9 +6,12 @@ import ipaddress
 import json
 import re
 import socket
+import ssl
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict
+import urllib.error
+import urllib.request
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -214,6 +217,321 @@ def check_http_domain(target: str, timeout: float = 6.0) -> Dict[str, Any]:
             }
 
     return last
+
+
+def check_tls(domain: str, timeout: float = 5.0) -> Dict[str, Any]:
+    """
+    Verify TLS certificate status for a domain.
+
+    Returns status values such as:
+    - tls_ok
+    - tls_expired
+    - tls_expiring_soon
+    - tls_hostname_mismatch
+    - tls_untrusted_chain
+    - tls_verification_failed
+    - tls_timeout
+    - tls_error
+    - tls_unchecked
+    """
+    domain = (domain or "").strip().lower()
+    started = time.perf_counter()
+
+    if not domain or "." not in domain:
+        return {
+            "source": "tls",
+            "domain": domain,
+            "status": "tls_unchecked",
+            "confidence": "low",
+            "use_in_scoring": False,
+            "error": "invalid domain",
+            "checked_at_utc": utc_now(),
+            "latency_ms": 0,
+        }
+
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as secure_sock:
+                cert = secure_sock.getpeercert()
+                not_after = cert.get("notAfter", "")
+                expiry_ts = ssl.cert_time_to_seconds(not_after) if not_after else None
+                days_until_expiry = None
+                status = "tls_ok"
+                if expiry_ts is not None:
+                    days_until_expiry = int((expiry_ts - time.time()) / 86400)
+                    if days_until_expiry < 0:
+                        status = "tls_expired"
+                    elif days_until_expiry <= 30:
+                        status = "tls_expiring_soon"
+
+                return {
+                    "source": "tls",
+                    "domain": domain,
+                    "status": status,
+                    "days_until_expiry": days_until_expiry,
+                    "not_after": not_after,
+                    "confidence": "medium",
+                    "use_in_scoring": True,
+                    "checked_at_utc": utc_now(),
+                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                }
+    except ssl.SSLCertVerificationError as exc:
+        message = str(exc).lower()
+        if "hostname" in message or "not valid for" in message:
+            status = "tls_hostname_mismatch"
+        elif "self-signed" in message or "verify failed" in message or "unable to get local issuer" in message:
+            status = "tls_untrusted_chain"
+        else:
+            status = "tls_verification_failed"
+        return {
+            "source": "tls",
+            "domain": domain,
+            "status": status,
+            "confidence": "medium",
+            "use_in_scoring": True,
+            "error": str(exc),
+            "checked_at_utc": utc_now(),
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        }
+    except (TimeoutError, socket.timeout) as exc:
+        return {
+            "source": "tls",
+            "domain": domain,
+            "status": "tls_timeout",
+            "confidence": "low",
+            "use_in_scoring": False,
+            "error": str(exc),
+            "checked_at_utc": utc_now(),
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        }
+    except Exception as exc:
+        return {
+            "source": "tls",
+            "domain": domain,
+            "status": "tls_error",
+            "confidence": "low",
+            "use_in_scoring": False,
+            "error": str(exc),
+            "checked_at_utc": utc_now(),
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        }
+
+
+def _parse_whois_date(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, list) and value:
+        return _parse_whois_date(value[0])
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except Exception:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _calculate_age_days(created: datetime | None) -> int | None:
+    if created is None:
+        return None
+    return (datetime.now(timezone.utc) - created).days
+
+
+def _calculate_days_until(expires: datetime | None) -> int | None:
+    if expires is None:
+        return None
+    return (expires - datetime.now(timezone.utc)).days
+
+
+def _build_whois_payload(
+    *,
+    domain: str,
+    status: str,
+    enabled: bool,
+    registrar: Any = None,
+    created: datetime | None = None,
+    expires: datetime | None = None,
+    source_method: str,
+    started: float,
+    error: str | None = None,
+    confidence: str = "low",
+    use_in_scoring: bool = True,
+) -> Dict[str, Any]:
+    age_days = _calculate_age_days(created)
+    is_recent = age_days is not None and age_days < 30
+    payload: Dict[str, Any] = {
+        "source": "whois",
+        "domain": domain,
+        "status": status,
+        "enabled": enabled,
+        "source_method": source_method,
+        "registrar": registrar,
+        "created_at": created.isoformat() if created else None,
+        "expires_at": expires.isoformat() if expires else None,
+        "age_days": age_days,
+        "days_until_expiration": _calculate_days_until(expires),
+        "is_recent_domain": is_recent if age_days is not None else None,
+        "risk_hint": "recent_domain" if is_recent else None,
+        "confidence": confidence,
+        "use_in_scoring": use_in_scoring and age_days is not None,
+        "checked_at_utc": utc_now(),
+        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
+def _extract_rdap_event_date(data: Dict[str, Any], actions: set[str]) -> datetime | None:
+    events = data.get("events")
+    if not isinstance(events, list):
+        return None
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        action = str(event.get("eventAction") or "").strip().lower()
+        if action in actions:
+            parsed = _parse_whois_date(event.get("eventDate"))
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _extract_rdap_registrar(data: Dict[str, Any]) -> str | None:
+    entities = data.get("entities")
+    if not isinstance(entities, list):
+        return None
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        roles = [str(role).lower() for role in entity.get("roles", []) if isinstance(role, str)]
+        if "registrar" not in roles:
+            continue
+        vcard = entity.get("vcardArray")
+        if not (isinstance(vcard, list) and len(vcard) >= 2 and isinstance(vcard[1], list)):
+            continue
+        for item in vcard[1]:
+            if isinstance(item, list) and item and item[0] == "fn" and len(item) >= 4:
+                return str(item[3])
+    return None
+
+
+def _registered_domain_candidates(domain: str) -> list[str]:
+    parts = [part for part in domain.split(".") if part]
+    candidates = [domain]
+    if len(parts) >= 3 and parts[-2] in {"com", "net", "org", "gov", "edu", "ac", "co"} and len(parts[-1]) == 2:
+        candidates.append(".".join(parts[-3:]))
+    elif len(parts) >= 2:
+        candidates.append(".".join(parts[-2:]))
+    return list(dict.fromkeys(candidates))
+
+
+def _check_rdap(domain: str, timeout: float, started: float) -> Dict[str, Any]:
+    last_error: Exception | None = None
+    queried_domain = domain
+    data: Dict[str, Any] | None = None
+
+    for candidate in _registered_domain_candidates(domain):
+        queried_domain = candidate
+        url = f"https://rdap.org/domain/{candidate}"
+        request = urllib.request.Request(
+            url,
+            method="GET",
+            headers={"User-Agent": "DomainGuard/0.1"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read(256_000).decode("utf-8", errors="replace")
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError("RDAP response is not a JSON object")
+            data = parsed
+            break
+        except Exception as exc:
+            last_error = exc
+
+    if data is None:
+        if last_error is not None:
+            raise last_error
+        raise ValueError("RDAP lookup failed")
+
+    created = _extract_rdap_event_date(data, {"registration", "registered"})
+    expires = _extract_rdap_event_date(data, {"expiration", "expiry"})
+    registrar = _extract_rdap_registrar(data)
+    return _build_whois_payload(
+        domain=domain,
+        status="ok" if created or expires or registrar else "rdap_no_registration_dates",
+        enabled=True,
+        registrar=registrar,
+        created=created,
+        expires=expires,
+        source_method="rdap",
+        started=started,
+        confidence="medium" if created else "low",
+        use_in_scoring=True,
+    ) | {"queried_domain": queried_domain}
+
+
+def check_whois(domain: str, timeout: float = 6.0) -> Dict[str, Any]:
+    """Check basic WHOIS metadata and flag very recent registrations.
+
+    RDAP is used for batch experiments because it uses HTTPS. Traditional
+    WHOIS libraries often open raw port-43 sockets, which are slow or blocked
+    in proxied network environments and can stall large experiment runs.
+    """
+    domain = (domain or "").strip().lower()
+    started = time.perf_counter()
+    if not domain:
+        return _build_whois_payload(
+            domain=domain,
+            status="invalid_domain",
+            enabled=False,
+            source_method="none",
+            started=started,
+            error="invalid domain",
+            use_in_scoring=False,
+        )
+
+    try:
+        return _check_rdap(domain=domain, timeout=timeout, started=started)
+    except (TimeoutError, socket.timeout) as rdap_exc:
+        return _build_whois_payload(
+            domain=domain,
+            status="whois_timeout",
+            enabled=False,
+            source_method="rdap",
+            started=started,
+            error=f"rdap timed out: {rdap_exc}",
+            use_in_scoring=False,
+        )
+    except (urllib.error.URLError, json.JSONDecodeError, ValueError) as rdap_exc:
+        return _build_whois_payload(
+            domain=domain,
+            status="whois_error",
+            enabled=False,
+            source_method="rdap",
+            started=started,
+            error=f"rdap failed: {rdap_exc}",
+            use_in_scoring=False,
+        )
+    except Exception as rdap_exc:
+        return _build_whois_payload(
+            domain=domain,
+            status="whois_error",
+            enabled=False,
+            source_method="rdap",
+            started=started,
+            error=f"rdap failed: {type(rdap_exc).__name__}: {rdap_exc}",
+            use_in_scoring=False,
+        )
 
 
 OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
