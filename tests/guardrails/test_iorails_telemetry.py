@@ -2113,6 +2113,29 @@ class TestContentCaptureLegacyFormat:
         assert len(choice_events) == 1
         assert dict(choice_events[0].attributes)["message.content"] == REFUSAL_MESSAGE
 
+    @pytest.mark.asyncio
+    async def test_refusal_message_captured_on_blocked_output(self, iorails_content_capture, exporter):
+        """A blocked OUTPUT records REFUSAL_MESSAGE as the assistant output too.
+
+        Exercises the second of three return sites in _do_generate (output-rail
+        block path) — distinct from the input-rail block above.  Mocks at the
+        rails_manager level since _stub_deep_pipeline only varies input safety.
+        """
+        iorails = iorails_content_capture
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="bad response"))
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        result = await iorails.generate_async([{"role": "user", "content": "hi"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        span = _request_span(exporter.get_finished_spans())
+        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
+        assert len(choice_events) == 1
+        assert dict(choice_events[0].attributes)["message.content"] == REFUSAL_MESSAGE
+
 
 class TestContentCaptureJsonFormat:
     """Capture on + OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental: JSON attrs."""
@@ -2291,8 +2314,77 @@ class TestStreamingContentCapture:
 
         [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
-        span = _request_span(exporter.get_finished_spans())
+        spans = exporter.get_finished_spans()
+        request_span = _request_span(spans)
         # No choice event because output_text was None (empty delivered list)
-        assert all(e.name != "gen_ai.choice" for e in span.events)
+        assert all(e.name != "gen_ai.choice" for e in request_span.events)
         # Input events still fire (input messages were captured)
-        assert any(e.name == "gen_ai.user.message" for e in span.events)
+        assert any(e.name == "gen_ai.user.message" for e in request_span.events)
+
+        # LLM streaming span behaves consistently: empty content_parts ->
+        # output_text=None -> no choice event (matches request span).
+        llm_span = _main_llm_span(spans)
+        assert all(e.name != "gen_ai.choice" for e in llm_span.events)
+
+    @pytest.mark.asyncio
+    async def test_dict_chunks_with_include_metadata_get_captured(self, iorails_streaming_content_capture, exporter):
+        """include_metadata=True streams dict chunks; capture extracts text fields.
+
+        Covers the isinstance(chunk, dict) branch in _wrapped_iterator's
+        accumulator — without this test, that path is unreachable from the
+        rest of the suite (which all use plain-string streaming).
+        """
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}], include_metadata=True)]
+        # Sanity: with include_metadata=True chunks are dicts, not strings
+        assert all(isinstance(c, dict) for c in chunks)
+        expected = "".join(c.get("text", "") for c in chunks if isinstance(c.get("text"), str))
+
+        span = _request_span(exporter.get_finished_spans())
+        choice = next(e for e in span.events if e.name == "gen_ai.choice")
+        assert dict(choice.attributes)["message.content"] == expected
+
+
+class TestStreamingContentCaptureJsonFormat:
+    """Streaming + capture on + OTEL_SEMCONV_STABILITY_OPT_IN: JSON attrs on both spans."""
+
+    @pytest.fixture(autouse=True)
+    def _set_stability_opt_in(self, monkeypatch, _clear_otel_content_envvars):
+        # Same dependency-ordering trick as TestContentCaptureJsonFormat:
+        # force the module-level cleanup BEFORE the class-level setenv so the
+        # cleanup's cache_clear doesn't wipe our opt-in.
+        monkeypatch.setenv(
+            OtelContentCapture.STABILITY_OPT_IN_ENV,
+            OtelContentCapture.STABILITY_OPT_IN_LATEST,
+        )
+        telemetry._use_json_span_format.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_json_attrs_on_request_span(self, iorails_streaming_content_capture, exporter):
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+
+        span = _request_span(exporter.get_finished_spans())
+        inputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
+        outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
+        assert inputs == [{"role": "user", "parts": [{"type": "text", "content": "hi"}]}]
+        assert outputs == [{"role": "assistant", "parts": [{"type": "text", "content": delivered}]}]
+        # No legacy events leaking onto the JSON path
+        assert all(not e.name.startswith("gen_ai.") for e in span.events)
+
+    @pytest.mark.asyncio
+    async def test_json_attrs_on_streaming_llm_span(self, iorails_streaming_content_capture, exporter):
+        iorails = iorails_streaming_content_capture
+        _stub_deep_streaming_pipeline(iorails)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        delivered = "".join(c for c in chunks if isinstance(c, str))
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
+        assert outputs[0]["parts"][0]["content"] == delivered

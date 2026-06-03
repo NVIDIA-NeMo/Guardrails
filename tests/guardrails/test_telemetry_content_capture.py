@@ -376,6 +376,20 @@ class TestSetLlmCallContentEventsBranch:
         # No event was raised for the tool role
         assert len(span.events) == 2
 
+    def test_skips_messages_missing_role_or_content(self, finished_span):
+        # Defensive guard for malformed input — LLMMessage is typed dict[str,
+        # str], so missing fields are not normal but the helper must not crash.
+        messages = [
+            {"content": "no role"},
+            {"role": "user"},
+            {"role": "user", "content": "valid"},
+        ]
+        span = finished_span(lambda s: _set_llm_call_content_events(s, messages, None))
+        # Only the valid message produces an event
+        assert len(span.events) == 1
+        assert span.events[0].name == EventNames.GEN_AI_USER_MESSAGE
+        assert dict(span.events[0].attributes)["content"] == "valid"
+
     def test_sets_no_json_attributes(self, finished_span):
         # Cross-branch hygiene: events path must never set the JSON attrs
         span = finished_span(lambda s: _set_llm_call_content_events(s, _MIXED_MESSAGES, "out"))

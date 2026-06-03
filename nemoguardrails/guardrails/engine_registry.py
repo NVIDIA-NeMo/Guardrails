@@ -255,9 +255,10 @@ class EngineRegistry:
         # chunk when ``stream_options.include_usage=true``.
         captured_usage: Optional["UsageInfo"] = None
         # Accumulate streamed delta_content here when content capture is on;
-        # joined and recorded onto the LLM span at stream end.  Gated on the
-        # flag so the disabled path doesn't pay the list-allocation cost or
-        # carry chunk strings in memory.
+        # joined and recorded onto the LLM span at stream end.  The list is
+        # allocated unconditionally (cost: one empty list per stream); the
+        # per-chunk appends are gated on the flag so the disabled path
+        # doesn't carry chunk strings in memory.
         content_parts: list[str] = []
         duration_ctx = (
             llm_operation_duration(engine.model_name, provider_name, operation_name)
@@ -299,8 +300,12 @@ class EngineRegistry:
             # Reached only on natural exhaustion — consumer cancellation or
             # provider error raises out of the ``with`` blocks above, in
             # which case partial content is intentionally not recorded.
+            # Empty ``content_parts`` -> output_text=None so we don't claim
+            # an empty assistant response (matches iorails.py's request-span
+            # streaming path).
             if self._content_capture_enabled:
-                set_llm_call_content(span, messages, "".join(content_parts))
+                output_text = "".join(content_parts) if content_parts else None
+                set_llm_call_content(span, messages, output_text)
 
         # Reached only on natural exhaustion (not on consumer cancellation
         # or provider error — those raise out of the ``with`` blocks above).
