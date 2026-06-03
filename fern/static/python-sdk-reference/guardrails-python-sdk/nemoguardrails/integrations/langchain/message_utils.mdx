@@ -1,0 +1,531 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/message_utils
+title: nemoguardrails.integrations.langchain.message_utils
+---
+
+Utilities for converting between LangChain messages and dictionary format.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`all_base_messages`](#nemoguardrails-integrations-langchain-message_utils-all_base_messages) | Check if all items in a list are BaseMessage instances. |
+| [`chatmessage_to_langchain_message`](#nemoguardrails-integrations-langchain-message_utils-chatmessage_to_langchain_message) | - |
+| [`chatmessages_to_langchain_messages`](#nemoguardrails-integrations-langchain-message_utils-chatmessages_to_langchain_messages) | - |
+| [`create_ai_message`](#nemoguardrails-integrations-langchain-message_utils-create_ai_message) | Create an AIMessage with optional fields. |
+| [`create_ai_message_chunk`](#nemoguardrails-integrations-langchain-message_utils-create_ai_message_chunk) | Create an AIMessageChunk with optional metadata. |
+| [`create_human_message`](#nemoguardrails-integrations-langchain-message_utils-create_human_message) | Create a HumanMessage with optional fields. |
+| [`create_system_message`](#nemoguardrails-integrations-langchain-message_utils-create_system_message) | Create a SystemMessage with optional fields. |
+| [`create_tool_message`](#nemoguardrails-integrations-langchain-message_utils-create_tool_message) | Create a ToolMessage with optional fields. |
+| [`dict_to_message`](#nemoguardrails-integrations-langchain-message_utils-dict_to_message) | Convert a dictionary to the appropriate BaseMessage type. |
+| [`dicts_to_messages`](#nemoguardrails-integrations-langchain-message_utils-dicts_to_messages) | Convert a list of dictionaries to BaseMessage objects. |
+| [`get_message_class`](#nemoguardrails-integrations-langchain-message_utils-get_message_class) | Get the appropriate message class for a given type/role. |
+| [`get_message_role`](#nemoguardrails-integrations-langchain-message_utils-get_message_role) | Get the role string for a BaseMessage. |
+| [`is_ai_message`](#nemoguardrails-integrations-langchain-message_utils-is_ai_message) | Check if an object is an AIMessage. |
+| [`is_base_message`](#nemoguardrails-integrations-langchain-message_utils-is_base_message) | Check if an object is any type of BaseMessage. |
+| [`is_human_message`](#nemoguardrails-integrations-langchain-message_utils-is_human_message) | Check if an object is a HumanMessage. |
+| [`is_message_type`](#nemoguardrails-integrations-langchain-message_utils-is_message_type) | Check if an object is an instance of a specific message type. |
+| [`is_system_message`](#nemoguardrails-integrations-langchain-message_utils-is_system_message) | Check if an object is a SystemMessage. |
+| [`is_tool_message`](#nemoguardrails-integrations-langchain-message_utils-is_tool_message) | Check if an object is a ToolMessage. |
+| [`message_to_dict`](#nemoguardrails-integrations-langchain-message_utils-message_to_dict) | Convert a BaseMessage to dictionary format, preserving all model fields. |
+| [`messages_to_dicts`](#nemoguardrails-integrations-langchain-message_utils-messages_to_dicts) | Convert a list of BaseMessage objects to dictionary format. |
+| [`tool_calls_to_langchain_format`](#nemoguardrails-integrations-langchain-message_utils-tool_calls_to_langchain_format) | - |
+
+### Data
+
+[`_ROLE_TO_LANGCHAIN`](#nemoguardrails-integrations-langchain-message_utils-_ROLE_TO_LANGCHAIN)
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-all_base_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.all_base_messages(
+    items: typing.List[typing.Any]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if all items in a list are BaseMessage instances.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-chatmessage_to_langchain_message">
+
+<CodeBlock links={{"nemoguardrails.types.ChatMessage":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ChatMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.chatmessage_to_langchain_message(
+    msg: nemoguardrails.types.ChatMessage
+) -> langchain_core.messages.BaseMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-chatmessages_to_langchain_messages">
+
+<CodeBlock links={{"nemoguardrails.types.ChatMessage":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ChatMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.chatmessages_to_langchain_messages(
+    msgs: typing.List[nemoguardrails.types.ChatMessage]
+) -> typing.List[langchain_core.messages.BaseMessage]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-create_ai_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.create_ai_message(
+    content: str,
+    tool_calls: typing.Optional[list] = None,
+    additional_kwargs: typing.Optional[dict] = None,
+    response_metadata: typing.Optional[dict] = None,
+    id: typing.Optional[str] = None,
+    name: typing.Optional[str] = None,
+    usage_metadata: typing.Optional[dict] = None,
+    extra_kwargs = {}
+) -> langchain_core.messages.AIMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create an AIMessage with optional fields.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-create_ai_message_chunk">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.create_ai_message_chunk(
+    content: str,
+    metadata = {}
+) -> langchain_core.messages.AIMessageChunk
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create an AIMessageChunk with optional metadata.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-create_human_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.create_human_message(
+    content: str,
+    additional_kwargs: typing.Optional[dict] = None,
+    response_metadata: typing.Optional[dict] = None,
+    id: typing.Optional[str] = None,
+    name: typing.Optional[str] = None
+) -> langchain_core.messages.HumanMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a HumanMessage with optional fields.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-create_system_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.create_system_message(
+    content: str,
+    additional_kwargs: typing.Optional[dict] = None,
+    response_metadata: typing.Optional[dict] = None,
+    id: typing.Optional[str] = None,
+    name: typing.Optional[str] = None
+) -> langchain_core.messages.SystemMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a SystemMessage with optional fields.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-create_tool_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.create_tool_message(
+    content: str,
+    tool_call_id: str,
+    name: typing.Optional[str] = None,
+    additional_kwargs: typing.Optional[dict] = None,
+    response_metadata: typing.Optional[dict] = None,
+    id: typing.Optional[str] = None,
+    artifact: typing.Optional[typing.Any] = None,
+    status: typing.Optional[str] = None
+) -> langchain_core.messages.ToolMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a ToolMessage with optional fields.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-dict_to_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.dict_to_message(
+    msg_dict: typing.Dict[str, typing.Any]
+) -> langchain_core.messages.BaseMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a dictionary to the appropriate BaseMessage type.
+
+**Parameters:**
+
+<ParamField path="msg_dict" type="Dict[str, Any]">
+Dictionary with role/type, content, and optional fields
+</ParamField>
+
+**Returns:** `BaseMessage`
+
+The appropriate BaseMessage instance
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-dicts_to_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.dicts_to_messages(
+    msg_dicts: typing.List[typing.Dict[str, typing.Any]]
+) -> typing.List[langchain_core.messages.BaseMessage]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a list of dictionaries to BaseMessage objects.
+
+**Parameters:**
+
+<ParamField path="msg_dicts" type="List[Dict[str, Any]]">
+List of message dictionaries
+</ParamField>
+
+**Returns:** `List[BaseMessage]`
+
+List of appropriate BaseMessage instances
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-get_message_class">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.get_message_class(
+    msg_type: str
+) -> typing.Type[langchain_core.messages.BaseMessage]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the appropriate message class for a given type/role.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-get_message_role">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.get_message_role(
+    msg: langchain_core.messages.BaseMessage
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the role string for a BaseMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_ai_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_ai_message(
+    obj: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is an AIMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_base_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_base_message(
+    obj: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is any type of BaseMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_human_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_human_message(
+    obj: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is a HumanMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_message_type">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_message_type(
+    obj: typing.Any,
+    message_type: typing.Type[langchain_core.messages.BaseMessage]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is an instance of a specific message type.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_system_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_system_message(
+    obj: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is a SystemMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-is_tool_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.is_tool_message(
+    obj: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if an object is a ToolMessage.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-message_to_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.message_to_dict(
+    msg: langchain_core.messages.BaseMessage
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a BaseMessage to dictionary format, preserving all model fields.
+
+**Parameters:**
+
+<ParamField path="msg" type="BaseMessage">
+The BaseMessage to convert
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dictionary representation with role, content, and all other fields
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-messages_to_dicts">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.messages_to_dicts(
+    messages: typing.List[langchain_core.messages.BaseMessage]
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a list of BaseMessage objects to dictionary format.
+
+**Parameters:**
+
+<ParamField path="messages" type="List[BaseMessage]">
+List of BaseMessage objects
+</ParamField>
+
+**Returns:** `List[Dict[str, Any]]`
+
+List of dictionary representations
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-tool_calls_to_langchain_format">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils.tool_calls_to_langchain_format(
+    tool_calls: typing.List[typing.Dict[str, typing.Any]]
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-message_utils-_ROLE_TO_LANGCHAIN">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.message_utils._ROLE_TO_LANGCHAIN = {Role.USER: HumanMessage, Role.ASSISTANT: AIMessage, Role.SYSTEM: SystemMessage,...
+```
+
+</CodeBlock>
+</Anchor>
+

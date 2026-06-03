@@ -1,0 +1,417 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/exceptions
+title: nemoguardrails.exceptions
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ConfigurationError`](#nemoguardrails-exceptions-ConfigurationError) | Base class for Guardrails Configuration validation errors. |
+| [`InvalidModelConfigurationError`](#nemoguardrails-exceptions-InvalidModelConfigurationError) | Raised when a guardrail configuration's model is invalid. |
+| [`InvalidRailsConfigurationError`](#nemoguardrails-exceptions-InvalidRailsConfigurationError) | Raised when rails configuration is invalid. |
+| [`InvalidStateError`](#nemoguardrails-exceptions-InvalidStateError) | Raised when a caller-supplied `state` argument is not valid public input. |
+| [`LLMAuthenticationError`](#nemoguardrails-exceptions-LLMAuthenticationError) | - |
+| [`LLMBadRequestError`](#nemoguardrails-exceptions-LLMBadRequestError) | - |
+| [`LLMCallException`](#nemoguardrails-exceptions-LLMCallException) | A wrapper around the LLM call invocation exception. |
+| [`LLMClientError`](#nemoguardrails-exceptions-LLMClientError) | Base class for LLM client errors. |
+| [`LLMConnectionError`](#nemoguardrails-exceptions-LLMConnectionError) | - |
+| [`LLMContextWindowError`](#nemoguardrails-exceptions-LLMContextWindowError) | - |
+| [`LLMRateLimitError`](#nemoguardrails-exceptions-LLMRateLimitError) | - |
+| [`LLMResponseValidationError`](#nemoguardrails-exceptions-LLMResponseValidationError) | - |
+| [`LLMServerError`](#nemoguardrails-exceptions-LLMServerError) | - |
+| [`LLMTimeoutError`](#nemoguardrails-exceptions-LLMTimeoutError) | - |
+| [`LLMUnsupportedParamsError`](#nemoguardrails-exceptions-LLMUnsupportedParamsError) | - |
+| [`StreamingNotSupportedError`](#nemoguardrails-exceptions-StreamingNotSupportedError) | Raised when streaming is requested but not supported by the configuration. |
+
+### Data
+
+[`__all__`](#nemoguardrails-exceptions-__all__)
+
+### API
+
+<Anchor id="nemoguardrails-exceptions-ConfigurationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.ConfigurationError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `ValueError`
+
+Base class for Guardrails Configuration validation errors.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-InvalidModelConfigurationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.InvalidModelConfigurationError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [ConfigurationError](#nemoguardrails-exceptions-ConfigurationError)
+
+Raised when a guardrail configuration's model is invalid.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-InvalidRailsConfigurationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.InvalidRailsConfigurationError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [ConfigurationError](#nemoguardrails-exceptions-ConfigurationError)
+
+Raised when rails configuration is invalid.
+
+**Examples:**
+
+<CodeBlock showLineNumbers={false}>
+
+```python
+- Input/output rail references a model that doesn't exist in config
+- Rail references a flow that doesn't exist
+- Missing required prompt template
+- Invalid rail parameters
+```
+
+</CodeBlock>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-InvalidStateError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.InvalidStateError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `ValueError`
+
+Raised when a caller-supplied `state` argument is not valid public input.
+
+The serialized Colang 2.0 runtime State carries trusted control-plane fields
+(`flow_configs`, `rails_config`, in-flight flow execution) and must not come
+from an untrusted caller. Stateful 2.x execution uses `process_events_async`,
+which keeps a live `State` object in the trusted Python process.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMAuthenticationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMAuthenticationError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMBadRequestError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMBadRequestError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMCallException">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMCallException(
+    inner_exception: typing.Union[BaseException, str],
+    detail: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+A wrapper around the LLM call invocation exception.
+
+This is used to propagate the exception out of the `generate_async` call. The default behavior is to
+catch it and return an "Internal server error." message.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMClientError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMClientError(
+    status_code: int,
+    error_message: str,
+    error_type: typing.Optional[str] = None,
+    error_code: typing.Optional[str] = None,
+    param: typing.Optional[str] = None,
+    body: typing.Optional[dict] = None,
+    response_headers: typing.Optional[dict] = None,
+    model_name: typing.Optional[str] = None,
+    provider_name: typing.Optional[str] = None,
+    base_url: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+Base class for LLM client errors.
+
+``status_code`` holds the HTTP response status when one was received,
+or ``0`` when no response arrived (client-side timeout or network
+error). Callers should branch on exception class rather than
+``status_code`` to distinguish HTTP vs network failures, the type
+hierarchy is the authoritative discriminator.
+
+
+<Anchor id="nemoguardrails-exceptions-LLMClientError-__str__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.exceptions.LLMClientError.__str__() -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMConnectionError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMConnectionError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMContextWindowError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMContextWindowError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMBadRequestError](#nemoguardrails-exceptions-LLMBadRequestError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMRateLimitError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMRateLimitError(
+    status_code: int,
+    error_message: str,
+    error_type: typing.Optional[str] = None,
+    error_code: typing.Optional[str] = None,
+    param: typing.Optional[str] = None,
+    body: typing.Optional[dict] = None,
+    response_headers: typing.Optional[dict] = None,
+    model_name: typing.Optional[str] = None,
+    provider_name: typing.Optional[str] = None,
+    base_url: typing.Optional[str] = None,
+    retry_after_seconds: typing.Optional[float] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMResponseValidationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMResponseValidationError(
+    message: str,
+    response_data: typing.Optional[dict] = None,
+    model_name: typing.Optional[str] = None,
+    provider_name: typing.Optional[str] = None,
+    base_url: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMServerError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMServerError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMTimeoutError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMTimeoutError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMClientError](#nemoguardrails-exceptions-LLMClientError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-LLMUnsupportedParamsError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.LLMUnsupportedParamsError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMBadRequestError](#nemoguardrails-exceptions-LLMBadRequestError)
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-StreamingNotSupportedError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.exceptions.StreamingNotSupportedError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [InvalidRailsConfigurationError](#nemoguardrails-exceptions-InvalidRailsConfigurationError)
+
+Raised when streaming is requested but not supported by the configuration.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-exceptions-__all__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.exceptions.__all__ = ['ConfigurationError', 'InvalidModelConfigurationError', 'InvalidRailsConfigurat...
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,109 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/clients/constants
+title: nemoguardrails.llm.clients.constants
+---
+
+## Module Contents
+
+### Data
+
+[`DEFAULT_CONNECTION_LIMITS`](#nemoguardrails-llm-clients-constants-DEFAULT_CONNECTION_LIMITS)
+
+[`DEFAULT_MAX_RETRIES`](#nemoguardrails-llm-clients-constants-DEFAULT_MAX_RETRIES)
+
+[`DEFAULT_TIMEOUT`](#nemoguardrails-llm-clients-constants-DEFAULT_TIMEOUT)
+
+[`INITIAL_RETRY_DELAY`](#nemoguardrails-llm-clients-constants-INITIAL_RETRY_DELAY)
+
+[`MAX_RETRY_AFTER`](#nemoguardrails-llm-clients-constants-MAX_RETRY_AFTER)
+
+[`MAX_RETRY_DELAY`](#nemoguardrails-llm-clients-constants-MAX_RETRY_DELAY)
+
+[`RETRYABLE_STATUS_CODES`](#nemoguardrails-llm-clients-constants-RETRYABLE_STATUS_CODES)
+
+### API
+
+<Anchor id="nemoguardrails-llm-clients-constants-DEFAULT_CONNECTION_LIMITS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.DEFAULT_CONNECTION_LIMITS = httpx.Limits(max_connections=1000, max_keepalive_connections=100)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-DEFAULT_MAX_RETRIES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.DEFAULT_MAX_RETRIES = 2
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-DEFAULT_TIMEOUT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.DEFAULT_TIMEOUT = httpx.Timeout(timeout=600.0, connect=5.0)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-INITIAL_RETRY_DELAY">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.INITIAL_RETRY_DELAY = 0.5
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-MAX_RETRY_AFTER">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.MAX_RETRY_AFTER = 60.0
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-MAX_RETRY_DELAY">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.MAX_RETRY_DELAY = 8.0
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-constants-RETRYABLE_STATUS_CODES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients.constants.RETRYABLE_STATUS_CODES = frozenset({408, 409, 429, 500, 502, 503, 504})
+```
+
+</CodeBlock>
+</Anchor>
+

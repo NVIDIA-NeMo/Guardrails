@@ -1,0 +1,133 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/api_engine
+title: nemoguardrails.guardrails.api_engine
+---
+
+Generic API engine for IORails, calling arbitrary REST endpoints via aiohttp with retry.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`APIEngine`](#nemoguardrails-guardrails-api_engine-APIEngine) | Wraps a single API endpoint and makes HTTP calls with retry support. |
+| [`APIEngineError`](#nemoguardrails-guardrails-api_engine-APIEngineError) | Raised when an API engine call fails. |
+
+### Data
+
+[`log`](#nemoguardrails-guardrails-api_engine-log)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-api_engine-APIEngine">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.api_engine.APIEngine(
+    base_url: str,
+    endpoint: str,
+    api_key: typing.Optional[str] = None,
+    timeout_total: float = DEFAULT_TIMEOUT_TOTAL,
+    timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [BaseEngine](/guardrails-python-sdk/nemoguardrails/guardrails/base_engine#nemoguardrails-guardrails-base_engine-BaseEngine)
+
+Wraps a single API endpoint and makes HTTP calls with retry support.
+
+
+<ParamField path="url" type="str">
+Full URL for the API endpoint.
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-api_engine-APIEngine-call">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.api_engine.APIEngine.call(
+    body: dict[str, typing.Any],
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+POST the JSON body to the configured endpoint and return the parsed response.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-api_engine-APIEngine-from_jailbreak_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.JailbreakDetectionConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-JailbreakDetectionConfig","nemoguardrails.guardrails.api_engine.APIEngine":"#nemoguardrails-guardrails-api_engine-APIEngine"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.api_engine.APIEngine.from_jailbreak_config(
+    jailbreak_config: nemoguardrails.rails.llm.config.JailbreakDetectionConfig
+) -> nemoguardrails.guardrails.api_engine.APIEngine
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Create an APIEngine from a JailbreakDetectionConfig.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-api_engine-APIEngineError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.api_engine.APIEngineError(
+    message: str,
+    endpoint: str,
+    status: int | None = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+Raised when an API engine call fails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-api_engine-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.api_engine.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,161 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/sensitive_data_detection/actions
+title: nemoguardrails.library.sensitive_data_detection.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_get_ad_hoc_recognizers`](#nemoguardrails-library-sensitive_data_detection-actions-_get_ad_hoc_recognizers) | Helper to compute the ad hoc recognizers for a config. |
+| [`_get_analyzer`](#nemoguardrails-library-sensitive_data_detection-actions-_get_analyzer) | - |
+| [`detect_sensitive_data`](#nemoguardrails-library-sensitive_data_detection-actions-detect_sensitive_data) | Checks whether the provided text contains any sensitive data. |
+| [`detect_sensitive_data_mapping`](#nemoguardrails-library-sensitive_data_detection-actions-detect_sensitive_data_mapping) | Mapping for detect_sensitive_data. |
+| [`mask_sensitive_data`](#nemoguardrails-library-sensitive_data_detection-actions-mask_sensitive_data) | Checks whether the provided text contains any sensitive data. |
+
+### Data
+
+[`log`](#nemoguardrails-library-sensitive_data_detection-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-_get_ad_hoc_recognizers">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.SensitiveDataDetection":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-SensitiveDataDetection"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions._get_ad_hoc_recognizers(
+    sdd_config: nemoguardrails.rails.llm.config.SensitiveDataDetection
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to compute the ad hoc recognizers for a config.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-_get_analyzer">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions._get_analyzer(
+    score_threshold: float = 0.4
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-detect_sensitive_data">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions.detect_sensitive_data(
+    source: str,
+    text: str,
+    config: nemoguardrails.RailsConfig,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks whether the provided text contains any sensitive data.
+
+Args
+    source: The source for the text, i.e. "input", "output", "retrieval".
+    text: The text to check.
+    config: The rails configuration object.
+
+Returns
+    True if any sensitive data has been detected, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-detect_sensitive_data_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions.detect_sensitive_data_mapping(
+    result: bool
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for detect_sensitive_data.
+
+Since the function returns True when sensitive data is detected,
+we block if result is True.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-mask_sensitive_data">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions.mask_sensitive_data(
+    source: str,
+    text: str,
+    config: nemoguardrails.RailsConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks whether the provided text contains any sensitive data.
+
+Args
+    source: The source for the text, i.e. "input", "output", "retrieval".
+    text: The text to check.
+    config: The rails configuration object.
+
+Returns
+    The altered text, if applicable.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-sensitive_data_detection-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.sensitive_data_detection.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

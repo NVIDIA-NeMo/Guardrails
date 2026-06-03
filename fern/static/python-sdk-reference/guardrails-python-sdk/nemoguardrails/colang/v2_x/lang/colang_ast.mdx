@@ -1,0 +1,1395 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast
+title: nemoguardrails.colang.v2_x.lang.colang_ast
+---
+
+The data types that are used when constructing the Abstract Syntax Tree after parsing.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`Abort`](#nemoguardrails-colang-v2_x-lang-colang_ast-Abort) | - |
+| [`Assignment`](#nemoguardrails-colang-v2_x-lang-colang_ast-Assignment) | - |
+| [`BeginScope`](#nemoguardrails-colang-v2_x-lang-colang_ast-BeginScope) | Defines the start of a new scope in a flow to keep track of all started actions/flows. |
+| [`Break`](#nemoguardrails-colang-v2_x-lang-colang_ast-Break) | - |
+| [`CatchPatternFailure`](#nemoguardrails-colang-v2_x-lang-colang_ast-CatchPatternFailure) | Set the pattern failure catcher to catch a failing pattern and forward it to the specified label. |
+| [`Continue`](#nemoguardrails-colang-v2_x-lang-colang_ast-Continue) | - |
+| [`Decorator`](#nemoguardrails-colang-v2_x-lang-colang_ast-Decorator) | The definition for a flow decorator. |
+| [`Element`](#nemoguardrails-colang-v2_x-lang-colang_ast-Element) | Base class for all elements in the AST. |
+| [`Elements`](#nemoguardrails-colang-v2_x-lang-colang_ast-Elements) | Element that encapsulates multiple sub-elements. |
+| [`EndScope`](#nemoguardrails-colang-v2_x-lang-colang_ast-EndScope) | Defines the end of a scope in a flow that will stop all active actions/flows that have been started |
+| [`Flow`](#nemoguardrails-colang-v2_x-lang-colang_ast-Flow) | Element that represents a flow. |
+| [`FlowParamDef`](#nemoguardrails-colang-v2_x-lang-colang_ast-FlowParamDef) | The definition for a flow parameter. |
+| [`FlowReturnMemberDef`](#nemoguardrails-colang-v2_x-lang-colang_ast-FlowReturnMemberDef) | The definition for a flow return member. |
+| [`ForkHead`](#nemoguardrails-colang-v2_x-lang-colang_ast-ForkHead) | Element to fork the current head into multiple heads. |
+| [`Global`](#nemoguardrails-colang-v2_x-lang-colang_ast-Global) | Declare a global variable. |
+| [`Goto`](#nemoguardrails-colang-v2_x-lang-colang_ast-Goto) | Element for navigating to a label. |
+| [`If`](#nemoguardrails-colang-v2_x-lang-colang_ast-If) | - |
+| [`Import`](#nemoguardrails-colang-v2_x-lang-colang_ast-Import) | The definition for an import statement. |
+| [`Label`](#nemoguardrails-colang-v2_x-lang-colang_ast-Label) | - |
+| [`Log`](#nemoguardrails-colang-v2_x-lang-colang_ast-Log) | Log a message. |
+| [`MergeHeads`](#nemoguardrails-colang-v2_x-lang-colang_ast-MergeHeads) | Merge heads based on uid from same flow. |
+| [`Meta`](#nemoguardrails-colang-v2_x-lang-colang_ast-Meta) | - |
+| [`Print`](#nemoguardrails-colang-v2_x-lang-colang_ast-Print) | Print a message. |
+| [`Priority`](#nemoguardrails-colang-v2_x-lang-colang_ast-Priority) | Set the priority of the flow in terms of action resolution. |
+| [`Return`](#nemoguardrails-colang-v2_x-lang-colang_ast-Return) | - |
+| [`Source`](#nemoguardrails-colang-v2_x-lang-colang_ast-Source) | Information about the source of an element. |
+| [`Spec`](#nemoguardrails-colang-v2_x-lang-colang_ast-Spec) | Element that represents a spec. |
+| [`SpecAnd`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecAnd) | A conjunction of specs. |
+| [`SpecOp`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp) | An operation performed on a spec. |
+| [`SpecOpType`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOpType) | All internal event types. |
+| [`SpecOr`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOr) | A disjunction of spects. |
+| [`SpecType`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecType) | The type of a spec. |
+| [`Value`](#nemoguardrails-colang-v2_x-lang-colang_ast-Value) | Element that contains a value. |
+| [`WaitForHeads`](#nemoguardrails-colang-v2_x-lang-colang_ast-WaitForHeads) | Wait for a number of heads. |
+| [`When`](#nemoguardrails-colang-v2_x-lang-colang_ast-When) | - |
+| [`While`](#nemoguardrails-colang-v2_x-lang-colang_ast-While) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_make_hashable`](#nemoguardrails-colang-v2_x-lang-colang_ast-_make_hashable) | Make all subtypes of Element hashable. |
+
+### Data
+
+[`ElementType`](#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType)
+
+[`SpecElementType`](#nemoguardrails-colang-v2_x-lang-colang_ast-SpecElementType)
+
+### API
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Abort">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Abort(
+    _type: str = 'abort',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'abort'">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Assignment">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Assignment(
+    _type: str = 'assignment',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    key: str = '',
+    expression: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'assignment'">
+</ParamField>
+
+<ParamField path="expression" type="str = ''">
+</ParamField>
+
+<ParamField path="key" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-BeginScope">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.BeginScope(
+    _type: str = '_begin_scope',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Defines the start of a new scope in a flow to keep track of all started actions/flows.
+
+
+<ParamField path="_type" type="str = '_begin_scope'">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Break">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Break(
+    _type: str = 'break',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    label: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'break'">
+</ParamField>
+
+<ParamField path="label" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-CatchPatternFailure">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.CatchPatternFailure(
+    _type: str = '_catch_pattern_failure',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    label: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Set the pattern failure catcher to catch a failing pattern and forward it to the specified label.
+If the label is not set the failure will be propagated to the parent flow.
+
+
+<ParamField path="_type" type="str = '_catch_pattern_failure'">
+</ParamField>
+
+<ParamField path="label" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Continue">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Continue(
+    _type: str = 'continue',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    label: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'continue'">
+</ParamField>
+
+<ParamField path="label" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Decorator">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Decorator(
+    _type: str = 'decorator',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = '',
+    parameters: dict = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+The definition for a flow decorator.
+
+Explicit typing is not yet supported.
+
+
+<ParamField path="_type" type="str = 'decorator'">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+
+<ParamField path="parameters" type="dict = field(default_factory=dict)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Element(
+    _type: str,
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+Base class for all elements in the AST.
+
+
+<ParamField path="_source" type="Optional[Source] = None">
+</ParamField>
+
+<ParamField path="_type" type="str">
+</ParamField>
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Element-__eq__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.Element.__eq__(
+    other
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Element-__getitem__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.Element.__getitem__(
+    key
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Element-get">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.Element.get(
+    key,
+    default_value = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Getter for backward compatibility with dict elements.
+
+TODO: to remove at some point.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Element-hash">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.Element.hash()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the hash for the current object.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Elements">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.Element":"#nemoguardrails-colang-v2_x-lang-colang_ast-Element"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Elements(
+    _type: str = 'value',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    elements: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Element] = list()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element that encapsulates multiple sub-elements.
+
+
+<ParamField path="_type" type="str = 'value'">
+</ParamField>
+
+<ParamField path="elements" type="List[Element] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-EndScope">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.EndScope(
+    _type: str = '_end_scope',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Defines the end of a scope in a flow that will stop all active actions/flows that have been started
+within that scope.
+
+
+<ParamField path="_type" type="str = '_end_scope'">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.Decorator":"#nemoguardrails-colang-v2_x-lang-colang_ast-Decorator","nemoguardrails.colang.v2_x.lang.colang_ast.FlowParamDef":"#nemoguardrails-colang-v2_x-lang-colang_ast-FlowParamDef","nemoguardrails.colang.v2_x.lang.colang_ast.FlowReturnMemberDef":"#nemoguardrails-colang-v2_x-lang-colang_ast-FlowReturnMemberDef","nemoguardrails.colang.v2_x.lang.colang_ast.Element":"#nemoguardrails-colang-v2_x-lang-colang_ast-Element"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Flow(
+    _type: str = 'flow',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = '',
+    decorators: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Decorator] = list(),
+    parameters: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.FlowParamDef] = list(),
+    return_members: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.FlowReturnMemberDef] = list(),
+    elements: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Element] = list(),
+    source_code: typing.Optional[str] = None,
+    file_info: typing.Dict[str, typing.Any] = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element that represents a flow.
+
+
+<ParamField path="_type" type="str = 'flow'">
+</ParamField>
+
+<ParamField path="decorators" type="List[Decorator] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="elements" type="List[Element] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="file_info" type="Dict[str, Any] = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+
+<ParamField path="parameters" type="List[FlowParamDef] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="return_members" type="List[FlowReturnMemberDef] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="source_code" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-FlowParamDef">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.FlowParamDef(
+    name: str,
+    default_value_expr: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+The definition for a flow parameter.
+
+Explicit typing is not yet supported.
+
+
+<ParamField path="default_value_expr" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="name" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-FlowReturnMemberDef">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.FlowReturnMemberDef(
+    name: str,
+    default_value_expr: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+The definition for a flow return member.
+
+Explicit typing is not yet supported.
+
+
+<ParamField path="default_value_expr" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="name" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-ForkHead">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.ForkHead(
+    _type: str = '_fork',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    fork_uid: str = '',
+    labels: typing.List[str] = list()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element to fork the current head into multiple heads.
+
+For each label a new head.
+
+
+<ParamField path="_type" type="str = '_fork'">
+</ParamField>
+
+<ParamField path="fork_uid" type="str = ''">
+</ParamField>
+
+<ParamField path="labels" type="List[str] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Global">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Global(
+    _type: str = '_global',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Declare a global variable.
+
+
+<ParamField path="_type" type="str = '_global'">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Goto">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Goto(
+    _type: str = 'goto',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    label: str = '',
+    expression: str = 'True'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element for navigating to a label.
+
+If the expression is not True, just skips to the next element.
+
+
+<ParamField path="_type" type="str = 'goto'">
+</ParamField>
+
+<ParamField path="expression" type="str = 'True'">
+</ParamField>
+
+<ParamField path="label" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-If">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.If(
+    _type: str = 'if',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    expression: str = '',
+    then_elements: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType] = list(),
+    else_elements: typing.Optional[typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType]] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'if'">
+</ParamField>
+
+<ParamField path="else_elements" type="Optional[List[ElementType]] = None">
+</ParamField>
+
+<ParamField path="expression" type="str = ''">
+</ParamField>
+
+<ParamField path="then_elements" type="List[ElementType] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Import">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Import(
+    _type: str = 'import',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    path: typing.Optional[str] = None,
+    package: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+The definition for an import statement.
+
+We support both "path mode" and "package" mode.
+
+    import core
+    import rag.advanced
+    import "some-spec/some-sub-package"
+
+
+<ParamField path="_type" type="str = 'import'">
+</ParamField>
+
+<ParamField path="package" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="path" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Label">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Label(
+    _type: str = 'label',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'label'">
+</ParamField>
+
+<ParamField path="name" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Log">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Log(
+    _type: str = '_log',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    info: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Log a message.
+
+
+<ParamField path="_type" type="str = '_log'">
+</ParamField>
+
+<ParamField path="info" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-MergeHeads">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.MergeHeads(
+    _type: str = '_merge',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    fork_uid: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Merge heads based on uid from same flow.
+
+Only one head will advance from this element.
+
+
+<ParamField path="_type" type="str = '_merge'">
+</ParamField>
+
+<ParamField path="fork_uid" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Meta">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Meta(
+    _type: str = 'meta',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    meta: dict = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'meta'">
+</ParamField>
+
+<ParamField path="meta" type="dict = field(default_factory=dict)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Print">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Print(
+    _type: str = '_print',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    info: str = ''
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Print a message.
+
+
+<ParamField path="_type" type="str = '_print'">
+</ParamField>
+
+<ParamField path="info" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Priority">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Priority(
+    _type: str = '_priority',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    priority_expr: str = '1.0'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Set the priority of the flow in terms of action resolution.
+
+
+<ParamField path="_type" type="str = '_priority'">
+</ParamField>
+
+<ParamField path="priority_expr" type="str = '1.0'">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Return">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Return(
+    _type: str = 'return',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    expression: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'return'">
+</ParamField>
+
+<ParamField path="expression" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Source">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Source(
+    line: int,
+    column: int,
+    start_pos: int,
+    end_pos: int
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+Information about the source of an element.
+
+
+<ParamField path="column" type="int">
+</ParamField>
+
+<ParamField path="end_pos" type="int">
+</ParamField>
+
+<ParamField path="line" type="int">
+</ParamField>
+
+<ParamField path="start_pos" type="int">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Spec">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.SpecType":"#nemoguardrails-colang-v2_x-lang-colang_ast-SpecType","nemoguardrails.colang.v2_x.lang.colang_ast.Spec":"#nemoguardrails-colang-v2_x-lang-colang_ast-Spec"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Spec(
+    _type: str = 'spec',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    name: typing.Optional[str] = None,
+    spec_type: nemoguardrails.colang.v2_x.lang.colang_ast.SpecType = SpecType.EVENT,
+    arguments: typing.Dict[str, typing.Any] = dict(),
+    members: typing.Optional[typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Spec]] = None,
+    var_name: typing.Optional[str] = None,
+    ref: typing.Optional[typing.Union[str, dict]] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element that represents a spec.
+
+A spec can represent a flow, an action or an event. Currently, we will determine
+at runtime what the spec is.
+
+A spec is either specified directly through a name and arguments, or through a
+variable. In both cases, additional members can be accessed, e.g., .Finished().
+
+
+<ParamField path="_type" type="str = 'spec'">
+</ParamField>
+
+<ParamField path="arguments" type="Dict[str, Any] = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="members" type="Optional[List[Spec]] = None">
+</ParamField>
+
+<ParamField path="name" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="ref" type="Optional[Union[str, dict]] = field(default=None)">
+</ParamField>
+
+<ParamField path="spec_type" type="SpecType = SpecType.EVENT">
+</ParamField>
+
+<ParamField path="var_name" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecAnd">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.Spec":"#nemoguardrails-colang-v2_x-lang-colang_ast-Spec"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.SpecAnd(
+    _type: str = 'spec_and',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    specs: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Spec] = list()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+A conjunction of specs.
+
+
+<ParamField path="_type" type="str = 'spec_and'">
+</ParamField>
+
+<ParamField path="specs" type="List[Spec] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.Spec":"#nemoguardrails-colang-v2_x-lang-colang_ast-Spec"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp(
+    _type: str = 'spec_op',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    op: str = '',
+    spec: typing.Union[nemoguardrails.colang.v2_x.lang.colang_ast.Spec, dict] = Spec(),
+    return_var_name: typing.Optional[str] = None,
+    info: dict = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+An operation performed on a spec.
+
+Valid operations are: send, match, start, stop, await, activate, deactivate.
+
+
+<ParamField path="_type" type="str = 'spec_op'">
+</ParamField>
+
+<ParamField path="info" type="dict = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="op" type="str = ''">
+</ParamField>
+
+<ParamField path="return_var_name" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="spec" type="Union[Spec, dict] = field(default_factory=Spec)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecOpType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.SpecOpType
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+All internal event types.
+
+<ParamField path="ACTIVATE" type="= 'activate'">
+</ParamField>
+
+<ParamField path="AWAIT" type="= 'await'">
+</ParamField>
+
+<ParamField path="DEACTIVATE" type="= 'deactivate'">
+</ParamField>
+
+<ParamField path="MATCH" type="= 'match'">
+</ParamField>
+
+<ParamField path="NONE" type="= 'none'">
+</ParamField>
+
+<ParamField path="SEND" type="= 'send'">
+</ParamField>
+
+<ParamField path="START" type="= 'start'">
+</ParamField>
+
+<ParamField path="STOP" type="= 'stop'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecOr">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.Spec":"#nemoguardrails-colang-v2_x-lang-colang_ast-Spec"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.SpecOr(
+    _type: str = 'spec_or',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    specs: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.Spec] = list()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+A disjunction of spects.
+
+
+<ParamField path="_type" type="str = 'spec_or'">
+</ParamField>
+
+<ParamField path="specs" type="List[Spec] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.SpecType
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+The type of a spec.
+
+<ParamField path="ACTION" type="= 'action'">
+</ParamField>
+
+<ParamField path="EVENT" type="= 'event'">
+</ParamField>
+
+<ParamField path="FLOW" type="= 'flow'">
+</ParamField>
+
+<ParamField path="REFERENCE" type="= 'reference'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-Value">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.Value(
+    _type: str = 'value',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    value: typing.Any = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Element that contains a value.
+
+
+<ParamField path="_type" type="str = 'value'">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-WaitForHeads">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.WaitForHeads(
+    _type: str = '_wait_for_heads',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    number: int = 1
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+Wait for a number of heads.
+
+Once enough heads have reached this element they will be merged
+and only one head will advance.
+
+
+<ParamField path="_type" type="str = '_wait_for_heads'">
+</ParamField>
+
+<ParamField path="number" type="int = 1">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-When">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.SpecElementType":"#nemoguardrails-colang-v2_x-lang-colang_ast-SpecElementType","nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.When(
+    _type: str = 'when',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    when_specs: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.SpecElementType] = list(),
+    then_elements: typing.List[typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType]] = list(),
+    else_elements: typing.Optional[typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType]] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'when'">
+</ParamField>
+
+<ParamField path="else_elements" type="Optional[List[ElementType]] = None">
+</ParamField>
+
+<ParamField path="then_elements" type="List[List[ElementType]] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="when_specs" type="List[SpecElementType] = field(default_factory=list)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-While">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Source":"#nemoguardrails-colang-v2_x-lang-colang_ast-Source","nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.colang_ast.While(
+    _type: str = 'while',
+    _source: typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.Source] = None,
+    expression: str = '',
+    elements: typing.List[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType] = list()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** [Element](#nemoguardrails-colang-v2_x-lang-colang_ast-Element)
+
+<ParamField path="_type" type="str = 'while'">
+</ParamField>
+
+<ParamField path="elements" type="List[ElementType] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="expression" type="str = ''">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-_make_hashable">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast._make_hashable(
+    obj: typing.Any
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Make all subtypes of Element hashable.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-ElementType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.ElementType = Union[Element, dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-colang_ast-SpecElementType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.colang_ast.SpecElementType = Union[Spec, SpecAnd, SpecOr]
+```
+
+</CodeBlock>
+</Anchor>
+

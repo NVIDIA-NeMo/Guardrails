@@ -1,0 +1,423 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/clavata/request
+title: nemoguardrails.library.clavata.request
+---
+
+Module for handling Clavata requests.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`AuthHeader`](#nemoguardrails-library-clavata-request-AuthHeader) | Represents the authorization header structure for Clavata API requests. |
+| [`ClavataClient`](#nemoguardrails-library-clavata-request-ClavataClient) | A client for the Clavata API. |
+| [`ContentData`](#nemoguardrails-library-clavata-request-ContentData) | Represents the content data structure for Clavata API requests. |
+| [`CreateJobResponse`](#nemoguardrails-library-clavata-request-CreateJobResponse) | Response from the Clavata Create Job API |
+| [`Job`](#nemoguardrails-library-clavata-request-Job) | A job in Clavata |
+| [`JobRequest`](#nemoguardrails-library-clavata-request-JobRequest) | Represents the job request structure for Clavata API requests. |
+| [`Report`](#nemoguardrails-library-clavata-request-Report) | A report for a job result |
+| [`Result`](#nemoguardrails-library-clavata-request-Result) | A JobResult. One will be created for each content item submitted. |
+| [`SectionReport`](#nemoguardrails-library-clavata-request-SectionReport) | A section report for a job result |
+
+### Data
+
+[`JobStatus`](#nemoguardrails-library-clavata-request-JobStatus)
+
+[`Outcome`](#nemoguardrails-library-clavata-request-Outcome)
+
+[`ResponseModelT`](#nemoguardrails-library-clavata-request-ResponseModelT)
+
+[`_CLAVATA_API_KEY`](#nemoguardrails-library-clavata-request-_CLAVATA_API_KEY)
+
+[`log`](#nemoguardrails-library-clavata-request-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-clavata-request-AuthHeader">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.AuthHeader(
+    api_key: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+Represents the authorization header structure for Clavata API requests.
+
+
+<ParamField path="api_key" type="Optional[str] = None">
+</ParamField>
+<Anchor id="nemoguardrails-library-clavata-request-AuthHeader-to_headers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.AuthHeader.to_headers() -> typing.Dict[str, str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts the auth token into a dictionary that can be used with aiohttp
+to supply headers for the request.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-ClavataClient">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.ClavataClient(
+    base_endpoint: str,
+    api_key: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+A client for the Clavata API.
+
+
+<ParamField path="api_key" type="Optional[str] = api_key or os.environ.get('CLAVATA_API_KEY')">
+</ParamField>
+<Anchor id="nemoguardrails-library-clavata-request-ClavataClient-_get_full_endpoint">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.ClavataClient._get_full_endpoint(
+    endpoint: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-clavata-request-ClavataClient-_get_headers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.ClavataClient._get_headers() -> typing.Dict[str, str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-clavata-request-ClavataClient-_make_request">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.request.ResponseModelT":"#nemoguardrails-library-clavata-request-ResponseModelT"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.ClavataClient._make_request(
+    endpoint: str,
+    payload: pydantic.BaseModel,
+    response_model: typing.Type[nemoguardrails.library.clavata.request.ResponseModelT]
+) -> nemoguardrails.library.clavata.request.ResponseModelT
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-clavata-request-ClavataClient-create_job">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.request.Job":"#nemoguardrails-library-clavata-request-Job"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.ClavataClient.create_job(
+    text: str,
+    policy_id: str
+) -> nemoguardrails.library.clavata.request.Job
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Create a job in Clavata.
+
+**Parameters:**
+
+<ParamField path="text" type="str">
+The text to send to the Clavata API.
+</ParamField>
+
+<ParamField path="policy_id" type="str">
+The policy ID to use for the request.
+</ParamField>
+
+**Returns:** `Job`
+
+The job that was created.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-ContentData">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.ContentData()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Represents the content data structure for Clavata API requests.
+
+
+<ParamField path="text" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-CreateJobResponse">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.CreateJobResponse()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Response from the Clavata Create Job API
+
+
+<ParamField path="job" type="Job = Field(description='The job that was created')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-Job">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.Job()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+A job in Clavata
+
+
+<ParamField path="results" type="List[Result] = Field(description='The results of the job')">
+</ParamField>
+
+<ParamField path="status" type="JobStatus = Field(description='The status of the job')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-JobRequest">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.JobRequest()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Represents the job request structure for Clavata API requests.
+
+
+<ParamField path="content_data" type="List[ContentData]">
+</ParamField>
+
+<ParamField path="policy_id" type="str">
+</ParamField>
+
+<ParamField path="wait_for_completion" type="bool = Field(default=True)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-Report">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.Report()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+A report for a job result
+
+
+<ParamField path="result" type="Outcome = Field(description='The result of the report')">
+</ParamField>
+
+<ParamField path="sectionEvaluationReports" type="List[SectionReport]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-Result">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.Result()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+A JobResult. One will be created for each content item submitted.
+
+
+<ParamField path="report" type="Report = Field(description='The report for the job result')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-SectionReport">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.request.SectionReport()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+A section report for a job result
+
+
+<ParamField path="message" type="str">
+</ParamField>
+
+<ParamField path="name" type="str = Field(description='The name of the section')">
+</ParamField>
+
+<ParamField path="result" type="Outcome = Field(description='The result of the section')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-request-JobStatus">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.JobStatus = Literal['JOB_STATUS_UNSPECIFIED', 'JOB_STATUS_PENDING', 'JOB_STATUS_RUNNING', 'J...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-request-Outcome">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.Outcome = Literal['OUTCOME_UNSPECIFIED', 'OUTCOME_TRUE', 'OUTCOME_FALSE', 'OUTCOME_FAILED'...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-request-ResponseModelT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.ResponseModelT = TypeVar('ResponseModelT', bound=BaseModel)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-request-_CLAVATA_API_KEY">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request._CLAVATA_API_KEY = os.environ.get('CLAVATA_API_KEY')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-request-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.request.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

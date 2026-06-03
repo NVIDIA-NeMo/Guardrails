@@ -1,0 +1,111 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/gliner/request
+title: nemoguardrails.library.gliner.request
+---
+
+Module for handling GLiNER detection requests.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`gliner_request`](#nemoguardrails-library-gliner-request-gliner_request) | Send a PII detection request to the GLiNER API. |
+
+### Data
+
+[`log`](#nemoguardrails-library-gliner-request-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-gliner-request-gliner_request">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.gliner.request.gliner_request(
+    text: str,
+    server_endpoint: str,
+    enabled_entities: typing.Optional[typing.List[str]] = None,
+    threshold: typing.Optional[float] = None,
+    chunk_length: typing.Optional[int] = None,
+    overlap: typing.Optional[int] = None,
+    flat_ner: typing.Optional[bool] = None,
+    api_key: typing.Optional[str] = None,
+    model: str = 'nvidia/gliner-pii'
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Send a PII detection request to the GLiNER API.
+
+Supports two server formats:
+- Custom server (/v1/extract): plain JSON request, no auth required.
+- NIM API (/v1/chat/completions): OpenAI-compatible chat completions format,
+  used by both the locally-run NIM container and the NVIDIA-hosted endpoint.
+  Requires an API key for the hosted endpoint.
+
+**Parameters:**
+
+<ParamField path="text" type="str">
+The text to analyze.
+</ParamField>
+
+<ParamField path="server_endpoint" type="str">
+The API endpoint URL.
+</ParamField>
+
+<ParamField path="enabled_entities" type="Optional[List[str]]" default="None">
+List of entity types to detect. If None, uses server defaults.
+</ParamField>
+
+<ParamField path="threshold" type="Optional[float]" default="None">
+Confidence threshold for entity detection (0.0 to 1.0).
+</ParamField>
+
+<ParamField path="chunk_length" type="Optional[int]" default="None">
+Length of text chunks for processing.
+</ParamField>
+
+<ParamField path="overlap" type="Optional[int]" default="None">
+Overlap between chunks.
+</ParamField>
+
+<ParamField path="flat_ner" type="Optional[bool]" default="None">
+Whether to use flat NER mode.
+</ParamField>
+
+<ParamField path="api_key" type="Optional[str]" default="None">
+Optional Bearer token for authenticated endpoints.
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Normalized response dict with keys:
+
+**Raises:**
+
+- `ValueError`: If the API call fails or the response cannot be parsed.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-gliner-request-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.gliner.request.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

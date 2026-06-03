@@ -1,0 +1,100 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions/validation/base
+title: nemoguardrails.actions.validation.base
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_is_default_resp`](#nemoguardrails-actions-validation-base-_is_default_resp) | Helper for detecting a default response from LangChain tools. |
+| [`validate_input`](#nemoguardrails-actions-validation-base-validate_input) | A generic decorator that can be used by any action (class method or function) for input validation. |
+| [`validate_response`](#nemoguardrails-actions-validation-base-validate_response) | A generic decorator that can be used by any action (class method or function) for response validation. |
+
+### Data
+
+[`MAX_LEN`](#nemoguardrails-actions-validation-base-MAX_LEN)
+
+### API
+
+<Anchor id="nemoguardrails-actions-validation-base-_is_default_resp">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.validation.base._is_default_resp(
+    resp
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper for detecting a default response from LangChain tools.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-validation-base-validate_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.validation.base.validate_input(
+    attribute: str,
+    validators: typing.Sequence[str] = (),
+    validation_args = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+A generic decorator that can be used by any action (class method or function) for input validation.
+
+Supported validation choices are: length and quote.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-validation-base-validate_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.validation.base.validate_response(
+    validators: typing.List[str] = [],
+    validation_args = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+A generic decorator that can be used by any action (class method or function) for response validation.
+
+Supported validation choices are: length, ip_filter, is_default_resp
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-validation-base-MAX_LEN">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.validation.base.MAX_LEN = 50
+```
+
+</CodeBlock>
+</Anchor>
+

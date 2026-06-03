@@ -1,0 +1,944 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/runnable_rails
+title: nemoguardrails.integrations.langchain.runnable_rails
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`RunnableRails`](#nemoguardrails-integrations-langchain-runnable_rails-RunnableRails) | A runnable that wraps a rails configuration. |
+
+### Data
+
+[`logger`](#nemoguardrails-integrations-langchain-runnable_rails-logger)
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.runnable_rails.RunnableRails(
+    config: nemoguardrails.RailsConfig,
+    llm: typing.Optional[langchain_core.language_models.BaseLanguageModel] = None,
+    tools: typing.Optional[typing.List[langchain_core.tools.Tool]] = None,
+    passthrough: bool = True,
+    runnable: typing.Optional[langchain_core.runnables.Runnable] = None,
+    input_key: str = 'input',
+    output_key: str = 'output',
+    verbose: bool = False,
+    input_blocked_message: str = 'I cannot process this requ...,
+    output_blocked_message: str = 'I cannot provide this resp...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `Runnable[Input, Output]`
+
+A runnable that wraps a rails configuration.
+
+This class implements the LangChain Runnable protocol to provide a way
+to add guardrails to LangChain components. It can wrap LLM models or
+entire chains and add input/output rails and dialog rails.
+
+**Parameters:**
+
+<ParamField path="config" type="RailsConfig">
+The rails configuration to use.
+</ParamField>
+
+<ParamField path="llm" type="Optional[BaseLanguageModel]" default="None">
+Optional LLM to use with the rails.
+</ParamField>
+
+<ParamField path="tools" type="Optional[List[Tool]]" default="None">
+Optional list of tools to register with the rails.
+</ParamField>
+
+<ParamField path="passthrough" type="bool" default="True">
+Whether to pass through the original prompt or let
+rails modify it. Defaults to True.
+</ParamField>
+
+<ParamField path="runnable" type="Optional[Runnable]" default="None">
+Optional runnable to wrap with the rails.
+</ParamField>
+
+<ParamField path="input_key" type="str" default="'input'">
+The key to use for the input when dealing with dict input.
+</ParamField>
+
+<ParamField path="output_key" type="str" default="'output'">
+The key to use for the output when dealing with dict output.
+</ParamField>
+
+<ParamField path="verbose" type="bool" default="False">
+Whether to print verbose logs.
+</ParamField>
+
+<ParamField path="input_blocked_message" type="str" default="'I cannot process this request.'">
+Message to return when input is blocked by rails.
+</ParamField>
+
+<ParamField path="output_blocked_message" type="str" default="'I cannot provide this response.'">
+Message to return when output is blocked by rails.
+</ParamField>
+
+
+<ParamField path="OutputType" type="Any">
+The type of the output of this runnable as a type annotation.
+</ParamField>
+
+<ParamField path="config" type="Optional[RunnableConfig] = None">
+</ParamField>
+
+<ParamField path="kwargs" type="Dict[str, Any] = &#123;&#125;">
+</ParamField>
+
+<ParamField path="rails" type="= LLMRails(config=config, llm=llm, verbose=verbose)">
+</ParamField>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-__or__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.__or__(
+    other: typing.Union[langchain_core.language_models.BaseLanguageModel, langchain_core.runnables.Runnable[typing.Any, typing.Any]]
+) -> typing.Union['RunnableRails', langchain_core.runnables.Runnable[typing.Any, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Chain this runnable with another, returning a new runnable.
+
+This method handles two different cases:
+1. If other is a BaseLanguageModel, set it as the LLM for this RunnableRails
+2. If other is a Runnable, either:
+   a. Set it as the passthrough_runnable if this RunnableRails has no passthrough_runnable yet
+   b. Otherwise, delegate to the standard Runnable.__or__ to create a proper chain
+
+This ensures associativity in complex chains.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_convert_messages_to_rails_format">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._convert_messages_to_rails_format(
+    messages
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert LangChain messages to rails message format.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_create_passthrough_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._create_passthrough_messages(
+    _input
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create messages for passthrough mode.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_extract_content_from_result">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._extract_content_from_result(
+    result: typing.Any
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract text content from result, handling both dict and direct formats.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_extract_output_content">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._extract_output_content(
+    output: langchain_core.runnables.utils.Output
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract content from output for rails checking.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_extract_text_from_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._extract_text_from_input(
+    _input
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract text content from various input types for passthrough mode.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_extract_user_input_from_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._extract_user_input_from_dict(
+    _input: dict
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract user input from dictionary, checking configured key first.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_chat_prompt_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_chat_prompt_output(
+    result: typing.Any,
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> AIMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format output for ChatPromptValue input.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_dict_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_dict_output(
+    input_dict: dict,
+    result: typing.Any,
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format output for dictionary input.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_dict_output_for_base_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_dict_output_for_base_message(
+    result: typing.Any,
+    output_key: str,
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format dict output when user input was a BaseMessage.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_dict_output_for_base_message_list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_dict_output_for_base_message_list(
+    result: typing.Any,
+    output_key: str,
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format dict output when user input was a list of BaseMessage objects.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_dict_output_for_dict_message_list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_dict_output_for_dict_message_list(
+    result: typing.Any,
+    output_key: str
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format dict output when user input was a list of dict messages.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_dict_output_for_string_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_dict_output_for_string_input(
+    result: typing.Any,
+    output_key: str
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format dict output when the user input was a string.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_message_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_message_output(
+    result: typing.Any,
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> AIMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format output for BaseMessage input types.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_output(
+    input: typing.Any,
+    result: typing.Any,
+    context: typing.Dict[str, typing.Any],
+    tool_calls: typing.Optional[list] = None,
+    metadata: typing.Optional[dict] = None
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format the output based on the input type and rails result.
+
+**Parameters:**
+
+<ParamField path="input" type="Any">
+The original input.
+</ParamField>
+
+<ParamField path="result" type="Any">
+The result from the rails.
+</ParamField>
+
+<ParamField path="context" type="Dict[str, Any]">
+The context returned by the rails.
+</ParamField>
+
+**Returns:** `Any`
+
+The formatted output.
+
+**Raises:**
+
+- `ValueError`: If the input type cannot be handled.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_passthrough_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_passthrough_output(
+    result: typing.Any,
+    context: typing.Dict[str, typing.Any]
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format output for passthrough mode.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_streaming_chunk">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_streaming_chunk(
+    input: typing.Any,
+    chunk
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format a streaming chunk based on the input type.
+
+**Parameters:**
+
+<ParamField path="input" type="Any">
+The original input
+</ParamField>
+
+<ParamField path="chunk">
+The current chunk (string or dict with text and metadata)
+</ParamField>
+
+**Returns:** `Any`
+
+The formatted streaming chunk (using AIMessageChunk for LangChain compatibility)
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_format_string_prompt_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._format_string_prompt_output(
+    result: typing.Any
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format output for StringPromptValue input.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_full_rails_ainvoke">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._full_rails_ainvoke(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Full rails mode async: existing LLMRails processing.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_full_rails_invoke">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._full_rails_invoke(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Full rails mode: existing LLMRails processing.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_get_bot_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._get_bot_message(
+    result: typing.Any,
+    context: typing.Dict[str, typing.Any]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract the bot message from context or result.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_init_passthrough_fn">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._init_passthrough_fn()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize the passthrough function for the LLM rails instance.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_input_to_rails_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._input_to_rails_messages(
+    input: langchain_core.runnables.utils.Input
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert various input formats to rails message format.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_transform_chat_prompt_value">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._transform_chat_prompt_value(
+    _input: langchain_core.prompt_values.ChatPromptValue
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform ChatPromptValue to messages list.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_transform_dict_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._transform_dict_input(
+    _input: dict
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform dictionary input to messages list.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_transform_dict_message_list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._transform_dict_message_list(
+    user_input: list
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform list from dictionary input to messages.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_transform_dict_user_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._transform_dict_user_input(
+    user_input
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform user input value from dictionary.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-_transform_input_to_rails_format">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails._transform_input_to_rails_format(
+    _input
+) -> typing.List[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform input to the format expected by the rails.
+
+**Parameters:**
+
+<ParamField path="_input">
+The input to transform.
+</ParamField>
+
+**Returns:** `List[Dict[str, Any]]`
+
+A list of messages in the format expected by the rails.
+
+**Raises:**
+
+- `ValueError`: If the input format cannot be handled.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-abatch">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.abatch(
+    inputs: typing.List[langchain_core.runnables.utils.Input],
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> typing.List[langchain_core.runnables.utils.Output]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Batch inputs and process them asynchronously.
+
+Concurrency is controlled via config['max_concurrency'] following LangChain best practices.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-ainvoke">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.ainvoke(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Invoke this runnable asynchronously.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-astream">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.astream(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> typing.AsyncIterator[langchain_core.runnables.utils.Output]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Stream the output of this runnable asynchronously.
+
+Provides token-by-token streaming of the LLM response with guardrails applied.
+Uses LLMRails.stream_async() directly for efficient streaming.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-atransform">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.atransform(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Transform the input asynchronously.
+
+This is just an alias for ainvoke.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-batch">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.batch(
+    inputs: typing.List[langchain_core.runnables.utils.Input],
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> typing.List[langchain_core.runnables.utils.Output]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Batch inputs and process them synchronously.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-get_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.get_name(
+    suffix: str = ''
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the name of this runnable.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-invoke">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.invoke(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Invoke this runnable synchronously.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-stream">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.stream(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> typing.Iterator[langchain_core.runnables.utils.Output]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Stream the output of this runnable synchronously.
+
+Provides token-by-token streaming of the LLM response with guardrails applied.
+Handles async context properly by running astream in a separate event loop.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-RunnableRails-transform">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.RunnableRails.transform(
+    input: langchain_core.runnables.utils.Input,
+    config: typing.Optional[langchain_core.runnables.RunnableConfig] = None,
+    kwargs: typing.Optional[typing.Any] = {}
+) -> langchain_core.runnables.utils.Output
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transform the input.
+
+This is just an alias for invoke.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-runnable_rails-logger">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.runnable_rails.logger = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

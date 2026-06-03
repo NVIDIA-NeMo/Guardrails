@@ -1,0 +1,39 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/helpers
+title: nemoguardrails.integrations.langchain.helpers
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`get_llm_instance_wrapper`](#nemoguardrails-integrations-langchain-helpers-get_llm_instance_wrapper) | Wraps an LLM instance in a class that can be registered with LLMRails. |
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-helpers-get_llm_instance_wrapper">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.helpers.get_llm_instance_wrapper(
+    llm_instance: langchain_core.language_models.LLM,
+    llm_type: str
+) -> typing.Type[langchain_core.language_models.LLM]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Wraps an LLM instance in a class that can be registered with LLMRails.
+
+This is useful to create specific types of LLMs using a generic LLM provider
+from HuggingFace, e.g., HuggingFacePipelineCompatible or HuggingFaceEndpoint.
+
+
+</Indent>

@@ -1,0 +1,111 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/jailbreak_detection/model_based/models
+title: nemoguardrails.library.jailbreak_detection.model_based.models
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`JailbreakClassifier`](#nemoguardrails-library-jailbreak_detection-model_based-models-JailbreakClassifier) | - |
+| [`SnowflakeEmbed`](#nemoguardrails-library-jailbreak_detection-model_based-models-SnowflakeEmbed) | - |
+
+### Data
+
+[`SNOWFLAKE_MODEL_ID`](#nemoguardrails-library-jailbreak_detection-model_based-models-SNOWFLAKE_MODEL_ID)
+
+### API
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-model_based-models-JailbreakClassifier">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.jailbreak_detection.model_based.models.JailbreakClassifier(
+    random_forest_path: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<ParamField path="classifier">
+</ParamField>
+
+<ParamField path="embed" type="= SnowflakeEmbed()">
+</ParamField>
+<Anchor id="nemoguardrails-library-jailbreak_detection-model_based-models-JailbreakClassifier-__call__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.model_based.models.JailbreakClassifier.__call__(
+    text: str
+) -> typing.Tuple[bool, float]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-model_based-models-SnowflakeEmbed">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.jailbreak_detection.model_based.models.SnowflakeEmbed()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<ParamField path="device" type="= 'cuda' if torch.cuda.is_available() else 'cpu'">
+</ParamField>
+
+<ParamField path="model">
+</ParamField>
+
+<ParamField path="tokenizer">
+</ParamField>
+<Anchor id="nemoguardrails-library-jailbreak_detection-model_based-models-SnowflakeEmbed-__call__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.model_based.models.SnowflakeEmbed.__call__(
+    text: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-model_based-models-SNOWFLAKE_MODEL_ID">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.model_based.models.SNOWFLAKE_MODEL_ID = 'Snowflake/snowflake-arctic-embed-m-long'
+```
+
+</CodeBlock>
+</Anchor>
+

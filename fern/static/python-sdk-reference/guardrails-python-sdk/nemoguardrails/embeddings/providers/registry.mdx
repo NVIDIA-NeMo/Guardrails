@@ -1,0 +1,57 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/embeddings/providers/registry
+title: nemoguardrails.embeddings.providers.registry
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`EmbeddingProviderRegistry`](#nemoguardrails-embeddings-providers-registry-EmbeddingProviderRegistry) | - |
+
+### API
+
+<Anchor id="nemoguardrails-embeddings-providers-registry-EmbeddingProviderRegistry">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.embeddings.providers.registry.EmbeddingProviderRegistry()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [Registry](/guardrails-python-sdk/nemoguardrails/registry#nemoguardrails-registry-Registry)
+
+<Anchor id="nemoguardrails-embeddings-providers-registry-EmbeddingProviderRegistry-validate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.registry.EmbeddingProviderRegistry.validate(
+    name: str,
+    item: typing.Any
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate the item to be registered.
+
+**Raises:**
+
+- `TypeError`: If an item is not an instance of EmbeddingModel.
+- `ValueError`: If an item does not have 'encode' or 'encode_async' methods.
+
+
+</Indent>
+</Indent>

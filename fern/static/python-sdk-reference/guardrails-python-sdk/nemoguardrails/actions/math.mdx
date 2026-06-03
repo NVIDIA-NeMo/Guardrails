@@ -1,0 +1,100 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions/math
+title: nemoguardrails.actions.math
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`wolfram_alpha_request`](#nemoguardrails-actions-math-wolfram_alpha_request) | Makes a request to the Wolfram Alpha API. |
+
+### Data
+
+[`API_URL_BASE`](#nemoguardrails-actions-math-API_URL_BASE)
+
+[`APP_ID`](#nemoguardrails-actions-math-APP_ID)
+
+[`log`](#nemoguardrails-actions-math-log)
+
+### API
+
+<Anchor id="nemoguardrails-actions-math-wolfram_alpha_request">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.math.wolfram_alpha_request(
+    query: typing.Optional[str] = None,
+    context: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Makes a request to the Wolfram Alpha API.
+
+**Parameters:**
+
+<ParamField path="query" type="Optional[str]" default="None">
+The query for Wolfram Alpha. Defaults to None.
+</ParamField>
+
+<ParamField path="context" type="Optional[dict]" default="None">
+The context for the execution of the action. Defaults to None.
+</ParamField>
+
+**Returns:**
+
+ActionResult or str: The result of the Wolfram Alpha request.
+
+**Raises:**
+
+- `Exception`: If no query is provided to Wolfram Alpha.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-math-API_URL_BASE">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.math.API_URL_BASE = f'https://api.wolframalpha.com/v2/result?appid={APP_ID}'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-actions-math-APP_ID">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.math.APP_ID = os.environ.get('WOLFRAM_ALPHA_APP_ID')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-actions-math-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.math.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

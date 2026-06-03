@@ -1,0 +1,238 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v1_0/lang/coyml_parser
+title: nemoguardrails.colang.v1_0.lang.coyml_parser
+---
+
+Module for converting CoYML to the CIL.
+
+Converts the Conversations YAML format to the Common Intermediate Language that is used
+by the coflows engine.
+
+This also transpiles correctly to JS to be used on the client side.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_dict_to_element`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_dict_to_element) | Helper to turn a short-hand dictionary into an event structure. |
+| [`_extract_elements`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_extract_elements) | Helper to convert a list of items data to flow elements |
+| [`_extract_inline_params`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_extract_inline_params) | Helper to extract inline parameters |
+| [`_process_ellipsis`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_process_ellipsis) | Helper to process the "..." element. |
+| [`_resolve_gotos`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_resolve_gotos) | Transforms all `goto` into simple jumps. |
+| [`_to_value`](#nemoguardrails-colang-v1_0-lang-coyml_parser-_to_value) | Helper that converts a str/dict to another value. |
+| [`get_events`](#nemoguardrails-colang-v1_0-lang-coyml_parser-get_events) | Helper to convert a list of events data to 'full events' |
+| [`parse_flow_elements`](#nemoguardrails-colang-v1_0-lang-coyml_parser-parse_flow_elements) | Parses the flow elements from CoYML format to CIL format. |
+
+### Data
+
+[`__all__`](#nemoguardrails-colang-v1_0-lang-coyml_parser-__all__)
+
+### API
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_dict_to_element">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._dict_to_element(
+    d
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to turn a short-hand dictionary into an event structure.
+
+:param d: A dictionary in one of the supported formats
+:return:
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_extract_elements">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._extract_elements(
+    items: typing.List
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to convert a list of items data to flow elements
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_extract_inline_params">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._extract_inline_params(
+    d_value,
+    d_params
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to extract inline parameters
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_process_ellipsis">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._process_ellipsis(
+    elements
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to process the "..." element.
+
+The "..." syntax is used as a syntactic sugar, to create more readable colang code.
+There will be multiple use cases for "...". The first one is for `generate_value` action.
+
+1. Generate Value
+
+When the value of a variable is assigned to "...", we use the comment right above
+as instructions to generate the value.
+
+   ```python
+   # Extract the math query from the user's input.
+   $math_query = ...
+   ```
+
+   will be replaced with
+
+   ```python
+   $math_query = generate_value("Extract the math query from the user's input")
+   ```
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_resolve_gotos">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._resolve_gotos(
+    elements: typing.List[dict]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Transforms all `goto` into simple jumps.
+
+It does two things:
+- all goto are converted to relative `jump` elements
+- all checkpoint elements are converted to `jump` elements to the next
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-_to_value">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser._to_value(
+    s,
+    remove_quotes: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper that converts a str/dict to another value.
+
+It does the following:
+- if the value is "None" it is converted to None
+
+TODO: other useful value shorthands
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-get_events">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser.get_events(
+    events_data: typing.List
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to convert a list of events data to 'full events'
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-parse_flow_elements">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser.parse_flow_elements(
+    items
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the flow elements from CoYML format to CIL format.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-lang-coyml_parser-__all__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.lang.coyml_parser.__all__ = ['parse_flow_elements', 'get_events']
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,100 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/server/datastore/memory_store
+title: nemoguardrails.server.datastore.memory_store
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`MemoryStore`](#nemoguardrails-server-datastore-memory_store-MemoryStore) | A datastore implementation using a simple dict. |
+
+### API
+
+<Anchor id="nemoguardrails-server-datastore-memory_store-MemoryStore">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.server.datastore.memory_store.MemoryStore()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [DataStore](/guardrails-python-sdk/nemoguardrails/server/datastore/datastore#nemoguardrails-server-datastore-datastore-DataStore)
+
+A datastore implementation using a simple dict.
+
+
+<ParamField path="data" type="= &#123;&#125;">
+</ParamField>
+<Anchor id="nemoguardrails-server-datastore-memory_store-MemoryStore-get">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.datastore.memory_store.MemoryStore.get(
+    key: str
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Return the value for the specified key.
+Args:
+    key: The key to lookup.
+
+**Returns:** `Optional[str]`
+
+None if the key does not exist.
+
+
+</Indent>
+<Anchor id="nemoguardrails-server-datastore-memory_store-MemoryStore-set">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.datastore.memory_store.MemoryStore.set(
+    key: str,
+    value: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Save data into the datastore.
+
+**Parameters:**
+
+<ParamField path="key" type="str">
+The key to use.
+</ParamField>
+
+<ParamField path="value" type="str">
+The value associated with the key.
+</ParamField>
+
+**Returns:**
+
+None
+
+
+</Indent>
+</Indent>

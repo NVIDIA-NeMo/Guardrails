@@ -1,0 +1,175 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/serialization
+title: nemoguardrails.colang.v2_x.runtime.serialization
+---
+
+Utilities for serializing and deserializing state objects to and from JSON.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`decode_from_dict`](#nemoguardrails-colang-v2_x-runtime-serialization-decode_from_dict) | Helper to decode a hierarchy of objects to a dict. |
+| [`encode_to_dict`](#nemoguardrails-colang-v2_x-runtime-serialization-encode_to_dict) | Helper to encode a hierarchy of objects to a dict. |
+| [`json_to_state`](#nemoguardrails-colang-v2_x-runtime-serialization-json_to_state) | Helper to decode a State object from a JSON string. |
+| [`state_to_json`](#nemoguardrails-colang-v2_x-runtime-serialization-state_to_json) | Helper to encode a State object to a JSON string. |
+
+### Data
+
+[`attribute`](#nemoguardrails-colang-v2_x-runtime-serialization-attribute)
+
+[`name_to_class`](#nemoguardrails-colang-v2_x-runtime-serialization-name_to_class)
+
+### API
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-decode_from_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.decode_from_dict(
+    d: typing.Any,
+    refs: typing.Dict[int, typing.Any]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to decode a hierarchy of objects to a dict.
+
+The decoding is able to correctly restore references to the same object, using
+the markers with the form:
+
+    &#123;"__type": "ref", "__id": obj_id&#125;
+
+**Parameters:**
+
+<ParamField path="d" type="Any">
+The dictionary that must be decoded.
+</ParamField>
+
+<ParamField path="refs" type="Dict[int, Any]">
+An index with all the objects with references that have been decoded so far.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-encode_to_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.encode_to_dict(
+    obj: typing.Any,
+    refs: typing.Dict[int, typing.Any]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to encode a hierarchy of objects to a dict.
+
+The encoding is able to mark correctly references to the same object. When an
+object is encountered a second time, only a reference marker will be added:
+
+    &#123;"__type": "ref", "__id": obj_id&#125;
+
+**Parameters:**
+
+<ParamField path="obj" type="Any">
+The object that must be encoded.
+</ParamField>
+
+<ParamField path="refs" type="Dict[int, Any]">
+An index with all the objects that have been encoded so far.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-json_to_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.json_to_state(
+    s: str
+) -> nemoguardrails.colang.v2_x.runtime.flows.State
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to decode a State object from a JSON string.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-state_to_json">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.state_to_json(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    indent: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to encode a State object to a JSON string.
+
+TODO: to make the size of the JSON even smaller, we can try to minify it.
+
+**Parameters:**
+
+<ParamField path="state" type="State">
+The state that must be encoded.
+</ParamField>
+
+<ParamField path="indent" type="bool" default="False">
+Whether the JSON should be nicely indented.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-attribute">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.attribute = getattr(module, attribute_name)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-serialization-name_to_class">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.serialization.name_to_class = {}
+```
+
+</CodeBlock>
+</Anchor>
+

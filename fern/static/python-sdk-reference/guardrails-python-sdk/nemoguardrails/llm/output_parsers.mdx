@@ -1,0 +1,387 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/output_parsers
+title: nemoguardrails.llm.output_parsers
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_extract_harm_value`](#nemoguardrails-llm-output_parsers-_extract_harm_value) | Helper function to extract harmful/unharmful value for a given field. |
+| [`_parse_unsafe_violations`](#nemoguardrails-llm-output_parsers-_parse_unsafe_violations) | Helper function to parse violations from unsafe response. |
+| [`_replace_prefix`](#nemoguardrails-llm-output_parsers-_replace_prefix) | Helper function to replace a prefix from a string. |
+| [`_strip_think_tags`](#nemoguardrails-llm-output_parsers-_strip_think_tags) | Helper function to strip &lt;think&gt;...&lt;/think&gt; tags from model response. |
+| [`bot_intent_parser`](#nemoguardrails-llm-output_parsers-bot_intent_parser) | Parses the bot intent. |
+| [`bot_message_parser`](#nemoguardrails-llm-output_parsers-bot_message_parser) | Parses the bot messages. |
+| [`is_content_safe`](#nemoguardrails-llm-output_parsers-is_content_safe) | Analyzes a given response from a guardrails check (e.g., content safety check or input check) and determines if the content is safe or not. |
+| [`nemoguard_parse_prompt_safety`](#nemoguardrails-llm-output_parsers-nemoguard_parse_prompt_safety) | Analyzes a given model response from a Guardrails check (e.g., content safety check or input check) and determines if the content is safe or not. |
+| [`nemoguard_parse_response_safety`](#nemoguardrails-llm-output_parsers-nemoguard_parse_response_safety) | Analyzes a given model response from a Guardrails check (e.g., content safety check or output check) and determines if the content is safe or not. |
+| [`nemotron_reasoning_parse_prompt_safety`](#nemoguardrails-llm-output_parsers-nemotron_reasoning_parse_prompt_safety) | Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for prompt safety. |
+| [`nemotron_reasoning_parse_response_safety`](#nemoguardrails-llm-output_parsers-nemotron_reasoning_parse_response_safety) | Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for response safety. |
+| [`user_intent_parser`](#nemoguardrails-llm-output_parsers-user_intent_parser) | Parses the user intent. |
+| [`verbose_v1_parser`](#nemoguardrails-llm-output_parsers-verbose_v1_parser) | Parses completions generated using the `verbose_v1` formatter. |
+
+### API
+
+<Anchor id="nemoguardrails-llm-output_parsers-_extract_harm_value">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers._extract_harm_value(
+    response: str,
+    field_name: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to extract harmful/unharmful value for a given field.
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The model response text (with think tags already stripped).
+</ParamField>
+
+<ParamField path="field_name" type="str">
+The field to look for (e.g., "Prompt harm" or "Response Harm").
+</ParamField>
+
+**Returns:** `str`
+
+The extracted value ("harmful" or "unharmful"), or "harmful" if parsing fails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-_parse_unsafe_violations">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers._parse_unsafe_violations(
+    response_text
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to parse violations from unsafe response.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-_replace_prefix">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers._replace_prefix(
+    s: str,
+    prefix: str,
+    repl: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to replace a prefix from a string.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-_strip_think_tags">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers._strip_think_tags(
+    response: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to strip &lt;think&gt;...&lt;/think&gt; tags from model response.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-bot_intent_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.bot_intent_parser(
+    s: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the bot intent.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-bot_message_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.bot_message_parser(
+    s: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the bot messages.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-is_content_safe">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.is_content_safe(
+    response: str
+) -> typing.Sequence[typing.Union[bool, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Analyzes a given response from a guardrails check (e.g., content safety check or input check) and determines if the content is safe or not.
+
+The function operates based on the presence of certain keywords in the response:
+- If the response contains "safe", the content is deemed safe.
+- If the response contains "unsafe" or "yes", the content is deemed unsafe.
+- If the response contains "no", the content is deemed safe.
+
+Note: If you are using this function for a different task with a custom prompt, ensure to update the logic to match the new context.
+Here, "yes" implies the content should be blocked, is unsafe, or violates a policy, while "no" implies the content is safe or does not violate any policy.
+
+
+For example, in the `self_check_facts` action, we have a different interpretation.
+Here, "yes" indicates the content is safe. This is against the default logic of the `is_content_safe` function.
+Therefore, we invert the result of `is_content_safe` to align with this interpretation.
+If `is_content_safe` returns `False` (content is safe), `result` will be `0.0`. If `is_content_safe` returns `True` (content is unsafe), `result` will be `1.0`.
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The response string to analyze.
+</ParamField>
+
+**Returns:** `Sequence[Union[bool, str]]`
+
+Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-nemoguard_parse_prompt_safety">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.nemoguard_parse_prompt_safety(
+    response: str
+) -> typing.Sequence[typing.Union[bool, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Analyzes a given model response from a Guardrails check (e.g., content safety check or input check) and determines if the content is safe or not.
+
+The function operates based on the following expected structured JSON output from the NemoGuard ContentSafety model.
+
+&#123;
+    "User Safety": "unsafe",
+    "Violated Categories": "category1, category2"
+&#125;
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The response string to analyze.
+</ParamField>
+
+**Returns:** `Sequence[Union[bool, str]]`
+
+Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-nemoguard_parse_response_safety">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.nemoguard_parse_response_safety(
+    response: str
+) -> typing.Sequence[typing.Union[bool, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Analyzes a given model response from a Guardrails check (e.g., content safety check or output check) and determines if the content is safe or not.
+
+The function operates based on the following expected structured JSON output from the NemoGuard ContentSafety model.
+
+&#123;
+    "User Safety": "unsafe",
+    "Response Safety": "unsafe",
+    "Violated Categories": "category1, category2"
+&#125;
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The response string to analyze.
+</ParamField>
+
+**Returns:** `Sequence[Union[bool, str]]`
+
+Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-nemotron_reasoning_parse_prompt_safety">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.nemotron_reasoning_parse_prompt_safety(
+    response: str
+) -> typing.Sequence[typing.Union[bool, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for prompt safety.
+
+The function parses the following expected output format:
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The response string to analyze.
+</ParamField>
+
+**Returns:** `Sequence[Union[bool, str]]`
+
+Sequence[Union[bool, str]]: A sequence where the first element is a boolean
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-nemotron_reasoning_parse_response_safety">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.nemotron_reasoning_parse_response_safety(
+    response: str
+) -> typing.Sequence[typing.Union[bool, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for response safety.
+
+The function parses the following expected output format:
+
+**Parameters:**
+
+<ParamField path="response" type="str">
+The response string to analyze.
+</ParamField>
+
+**Returns:** `Sequence[Union[bool, str]]`
+
+Sequence[Union[bool, str]]: A sequence where the first element is a boolean
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-user_intent_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.user_intent_parser(
+    s: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the user intent.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-output_parsers-verbose_v1_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.output_parsers.verbose_v1_parser(
+    s: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses completions generated using the `verbose_v1` formatter.
+
+
+</Indent>

@@ -1,0 +1,151 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/clavata/utils
+title: nemoguardrails.library.clavata.utils
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`AttemptsExceededError`](#nemoguardrails-library-clavata-utils-AttemptsExceededError) | Exception raised when the maximum number of retries is exceeded. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`calculate_exp_delay`](#nemoguardrails-library-clavata-utils-calculate_exp_delay) | Handles calculation of the delay for a specific attempt. Note that we specifically |
+| [`exponential_backoff`](#nemoguardrails-library-clavata-utils-exponential_backoff) | Exponential backoff retry mechanism. |
+
+### Data
+
+[`P`](#nemoguardrails-library-clavata-utils-P)
+
+[`ReturnT`](#nemoguardrails-library-clavata-utils-ReturnT)
+
+### API
+
+<Anchor id="nemoguardrails-library-clavata-utils-AttemptsExceededError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.utils.AttemptsExceededError(
+    attempts: int,
+    max_attempts: int,
+    last_exception: typing.Optional[Exception]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+Exception raised when the maximum number of retries is exceeded.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-utils-calculate_exp_delay">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.utils.calculate_exp_delay(
+    retries: int,
+    initial_delay: float,
+    max_delay: float,
+    jitter: bool
+) -> float
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Handles calculation of the delay for a specific attempt. Note that we specifically
+ask for the number of retries, not the number of attempts, because the first attempt
+is the initial call and we want the first delay to be raised to the power of 0.
+
+Using "retries" instead of "attempts" makes it clearer what the input is, even
+though a value called "attempts" is being passed in below.
+
+Because this is an exponential backoff, the factor of increase is always 2.
+
+**Parameters:**
+
+<ParamField path="retries" type="int">
+The number of retries made so far.
+</ParamField>
+
+<ParamField path="initial_delay" type="float">
+The initial delay.
+</ParamField>
+
+<ParamField path="max_delay" type="float">
+The maximum delay.
+</ParamField>
+
+<ParamField path="jitter" type="bool">
+Whether to apply jitter to the delay. We use a full-jitter approach.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-utils-exponential_backoff">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.utils.exponential_backoff(
+    max_attempts: int = 3,
+    initial_delay: float = 1.0,
+    max_delay: float = 10.0,
+    jitter: bool = True,
+    retry_exceptions: typing.Union[type[Exception], collections.abc.Iterable[type[Exception]]] = Exception,
+    on_permanent_failure: typing.Optional[collections.abc.Callable[[int, Exception], collections.abc.Awaitable[typing.Any]]] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Exponential backoff retry mechanism.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-utils-P">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.utils.P = ParamSpec('P')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-utils-ReturnT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.utils.ReturnT = TypeVar('ReturnT')
+```
+
+</CodeBlock>
+</Anchor>
+

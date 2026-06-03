@@ -1,0 +1,155 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/eval/ui/common
+title: nemoguardrails.eval.ui.common
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_get_compliance_df`](#nemoguardrails-eval-ui-common-_get_compliance_df) | Computes a DataFrame with information about compliance. |
+| [`_get_resource_usage_and_latencies_df`](#nemoguardrails-eval-ui-common-_get_resource_usage_and_latencies_df) | Computes a DataFrame with information about resource usage and latencies. |
+| [`_render_compliance_data`](#nemoguardrails-eval-ui-common-_render_compliance_data) | - |
+| [`_render_resource_usage_and_latencies`](#nemoguardrails-eval-ui-common-_render_resource_usage_and_latencies) | Render the resource usage part. |
+| [`_render_sidebar`](#nemoguardrails-eval-ui-common-_render_sidebar) | - |
+| [`render_summary`](#nemoguardrails-eval-ui-common-render_summary) | Show a summary of the evaluation results. |
+
+### API
+
+<Anchor id="nemoguardrails-eval-ui-common-_get_compliance_df">
+
+<CodeBlock links={{"nemoguardrails.eval.ui.utils.EvalData":"/guardrails-python-sdk/nemoguardrails/eval/ui/utils#nemoguardrails-eval-ui-utils-EvalData"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common._get_compliance_df(
+    output_names: typing.List[str],
+    policy_options: typing.List[str],
+    eval_data: nemoguardrails.eval.ui.utils.EvalData
+) -> pandas.DataFrame
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Computes a DataFrame with information about compliance.
+
+Returns
+    DataFrame: ["Guardrail Config", "Policy", "Compliance Rate", "Violations Count", "Interaction Count"]
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-ui-common-_get_resource_usage_and_latencies_df">
+
+<CodeBlock links={{"nemoguardrails.eval.ui.utils.EvalData":"/guardrails-python-sdk/nemoguardrails/eval/ui/utils#nemoguardrails-eval-ui-utils-EvalData","nemoguardrails.eval.models.EvalConfig":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-EvalConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common._get_resource_usage_and_latencies_df(
+    output_names: typing.List[str],
+    eval_data: nemoguardrails.eval.ui.utils.EvalData,
+    eval_config: nemoguardrails.eval.models.EvalConfig,
+    use_expected_latencies: bool = False
+) -> typing.Tuple[pandas.DataFrame, pandas.DataFrame]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Computes a DataFrame with information about resource usage and latencies.
+
+Returns
+    DataFrame: ["Metric", *output_names]
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-ui-common-_render_compliance_data">
+
+<CodeBlock links={{"nemoguardrails.eval.ui.utils.EvalData":"/guardrails-python-sdk/nemoguardrails/eval/ui/utils#nemoguardrails-eval-ui-utils-EvalData"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common._render_compliance_data(
+    output_names: typing.List[str],
+    policy_options: typing.List[str],
+    eval_data: nemoguardrails.eval.ui.utils.EvalData,
+    short: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-ui-common-_render_resource_usage_and_latencies">
+
+<CodeBlock links={{"nemoguardrails.eval.ui.utils.EvalData":"/guardrails-python-sdk/nemoguardrails/eval/ui/utils#nemoguardrails-eval-ui-utils-EvalData","nemoguardrails.eval.models.EvalConfig":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-EvalConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common._render_resource_usage_and_latencies(
+    output_names: typing.List[str],
+    eval_data: nemoguardrails.eval.ui.utils.EvalData,
+    eval_config: nemoguardrails.eval.models.EvalConfig,
+    short: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Render the resource usage part.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-ui-common-_render_sidebar">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common._render_sidebar(
+    output_names: typing.List[str],
+    policy_options: typing.List[str],
+    tags: typing.List[str]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-ui-common-render_summary">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.ui.common.render_summary(
+    short: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Show a summary of the evaluation results.
+
+
+</Indent>

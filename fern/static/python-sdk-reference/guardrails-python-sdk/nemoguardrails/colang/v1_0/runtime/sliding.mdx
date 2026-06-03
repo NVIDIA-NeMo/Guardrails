@@ -1,0 +1,74 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v1_0/runtime/sliding
+title: nemoguardrails.colang.v1_0.runtime.sliding
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`slide`](#nemoguardrails-colang-v1_0-runtime-sliding-slide) | Try to slide a flow with the provided head. |
+
+### Data
+
+[`log`](#nemoguardrails-colang-v1_0-runtime-sliding-log)
+
+### API
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-sliding-slide">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.sliding.slide(
+    state: State,
+    flow_config: FlowConfig,
+    head: int
+) -> typing.Optional[int]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Try to slide a flow with the provided head.
+
+Sliding is the operation of moving through "non-matching" elements e.g., check,
+if, jump, expect, etc. It also includes calling sub-flows.
+
+**Parameters:**
+
+<ParamField path="state" type="State">
+The current state of the dialog.
+</ParamField>
+
+<ParamField path="flow_config" type="FlowConfig">
+The config of the flow that should be advanced.
+</ParamField>
+
+<ParamField path="head" type="int">
+The current head.
+</ParamField>
+
+**Returns:** `Optional[int]`
+
+Optional[int]: The updated head after sliding. If the flow finishes, returns a negative value.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-sliding-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.sliding.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

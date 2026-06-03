@@ -1,0 +1,121 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/gliner/models
+title: nemoguardrails.library.gliner.models
+---
+
+Pydantic models for GLiNER requests and responses.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`EntitySpan`](#nemoguardrails-library-gliner-models-EntitySpan) | Represents a detected entity with its position and metadata. |
+| [`GLiNERRequest`](#nemoguardrails-library-gliner-models-GLiNERRequest) | Request model for GLiNER entity extraction. |
+| [`GLiNERResponse`](#nemoguardrails-library-gliner-models-GLiNERResponse) | Response model for GLiNER entity extraction. |
+
+### API
+
+<Anchor id="nemoguardrails-library-gliner-models-EntitySpan">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.gliner.models.EntitySpan()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Represents a detected entity with its position and metadata.
+
+
+<ParamField path="end_position" type="int">
+</ParamField>
+
+<ParamField path="score" type="float = Field(description='Confidence score.')">
+</ParamField>
+
+<ParamField path="start_position" type="int">
+</ParamField>
+
+<ParamField path="suggested_label" type="str = Field(description='The entity label/type.')">
+</ParamField>
+
+<ParamField path="value" type="str = Field(description='The detected entity text.')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-gliner-models-GLiNERRequest">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.gliner.models.GLiNERRequest()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Request model for GLiNER entity extraction.
+
+This model defines the parameters for making requests to a GLiNER server.
+Default values are centralized here to avoid duplication.
+
+
+<ParamField path="chunk_length" type="int">
+</ParamField>
+
+<ParamField path="flat_ner" type="bool">
+</ParamField>
+
+<ParamField path="labels" type="Optional[List[str]]">
+</ParamField>
+
+<ParamField path="overlap" type="int">
+</ParamField>
+
+<ParamField path="text" type="str">
+</ParamField>
+
+<ParamField path="threshold" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-gliner-models-GLiNERResponse">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.gliner.models.GLiNERResponse()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Response model for GLiNER entity extraction.
+
+
+<ParamField path="entities" type="List[EntitySpan] = Field(description='List of detected entities.')">
+</ParamField>
+
+<ParamField path="tagged_text" type="str">
+</ParamField>
+
+<ParamField path="total_entities" type="int">
+</ParamField>
+</Indent>

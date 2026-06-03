@@ -1,0 +1,283 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/evaluate/evaluate_topical
+title: nemoguardrails.evaluate.evaluate_topical
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`TopicalRailsEvaluation`](#nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation) | Helper class for running the topical rails evaluation for a Guardrails app. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_split_test_set_from_config`](#nemoguardrails-evaluate-evaluate_topical-_split_test_set_from_config) | Extracts a test set of user messages from a config. |
+| [`cosine_similarity`](#nemoguardrails-evaluate-evaluate_topical-cosine_similarity) | Compute the dot product between two embeddings using numpy functions. |
+| [`sync_wrapper`](#nemoguardrails-evaluate-evaluate_topical-sync_wrapper) | Wrapper for the evaluate_topical_rails method which is async. |
+
+### API
+
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation(
+    config: str,
+    verbose: typing.Optional[bool] = False,
+    test_set_percentage: typing.Optional[float] = 0.3,
+    max_tests_per_intent: typing.Optional[int] = 3,
+    max_samples_per_intent: typing.Optional[int] = 0,
+    print_test_results_frequency: typing.Optional[int] = 10,
+    similarity_threshold: typing.Optional[float] = 0.0,
+    random_seed: typing.Optional[int] = None,
+    output_dir: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper class for running the topical rails evaluation for a Guardrails app.
+It contains all the configuration parameters required to run the evaluation.
+
+
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_compute_intent_embeddings">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._compute_intent_embeddings(
+    intents
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Compute intent embeddings if we have a sentence transformer model.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_get_main_llm_model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._get_main_llm_model()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_get_most_similar_intent">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._get_most_similar_intent(
+    generated_intent
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Retrieves the most similar intent using sentence transformers embeddings.
+If the most similar intent is below the similarity threshold,
+the generated intent is not changed.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_initialize_embeddings_model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._initialize_embeddings_model()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Instantiate a sentence transformer if we use a similarity check for canonical forms.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_initialize_rails_app">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._initialize_rails_app()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_initialize_random_seed">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._initialize_random_seed()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize random seed
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-_print_evaluation_results">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation._print_evaluation_results(
+    processed_samples,
+    total_test_samples,
+    num_user_intent_errors,
+    num_bot_intent_errors,
+    num_bot_utterance_errors
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Prints a summary of the evaluation results.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-TopicalRailsEvaluation-evaluate_topical_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.TopicalRailsEvaluation.evaluate_topical_rails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Runs the topical evaluation for the Guardrails app with the current configuration.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-_split_test_set_from_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical._split_test_set_from_config(
+    config: nemoguardrails.RailsConfig,
+    test_set_percentage: float,
+    test_set: typing.Dict[str, typing.List],
+    max_samples_per_intent: int,
+    random_seed: typing.Optional[int] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extracts a test set of user messages from a config.
+
+**Parameters:**
+
+<ParamField path="config" type="RailsConfig">
+The config from which the test set will be extracted.
+</ParamField>
+
+<ParamField path="test_set_percentage" type="float">
+The percentage used for the test set.
+</ParamField>
+
+<ParamField path="test_set" type="Dict[str, List]">
+A dictionary where the test set will be added.
+</ParamField>
+
+<ParamField path="max_samples_per_intent" type="int">
+A limit on the number of samples per intent to be enforced.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-cosine_similarity">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.cosine_similarity(
+    v1,
+    v2
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Compute the dot product between two embeddings using numpy functions.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-evaluate-evaluate_topical-sync_wrapper">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_topical.sync_wrapper(
+    async_func
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Wrapper for the evaluate_topical_rails method which is async.
+
+
+</Indent>

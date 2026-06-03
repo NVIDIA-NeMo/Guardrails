@@ -1,0 +1,47 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/grammar/load
+title: nemoguardrails.colang.v2_x.lang.grammar.load
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`load_lark_parser`](#nemoguardrails-colang-v2_x-lang-grammar-load-load_lark_parser) | Helper to load a Lark parser. |
+
+### API
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-grammar-load-load_lark_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.grammar.load.load_lark_parser(
+    grammar_path: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to load a Lark parser.
+
+The result is cached so that it's faster in subsequent times.
+
+**Parameters:**
+
+<ParamField path="grammar_path" type="str">
+The path to the .lark file with the grammar.
+</ParamField>
+
+**Returns:**
+
+A Lark parser instance.
+
+
+</Indent>

@@ -1,0 +1,215 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/content_safety/actions
+title: nemoguardrails.library.content_safety.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_detect_language`](#nemoguardrails-library-content_safety-actions-_detect_language) | - |
+| [`_get_reasoning_enabled`](#nemoguardrails-library-content_safety-actions-_get_reasoning_enabled) | - |
+| [`_get_refusal_message`](#nemoguardrails-library-content_safety-actions-_get_refusal_message) | - |
+| [`content_safety_check_input`](#nemoguardrails-library-content_safety-actions-content_safety_check_input) | - |
+| [`content_safety_check_output`](#nemoguardrails-library-content_safety-actions-content_safety_check_output) | - |
+| [`content_safety_check_output_mapping`](#nemoguardrails-library-content_safety-actions-content_safety_check_output_mapping) | Mapping function for content_safety_check_output. |
+| [`detect_language`](#nemoguardrails-library-content_safety-actions-detect_language) | - |
+
+### Data
+
+[`DEFAULT_REFUSAL_MESSAGES`](#nemoguardrails-library-content_safety-actions-DEFAULT_REFUSAL_MESSAGES)
+
+[`SUPPORTED_LANGUAGES`](#nemoguardrails-library-content_safety-actions-SUPPORTED_LANGUAGES)
+
+[`log`](#nemoguardrails-library-content_safety-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-content_safety-actions-_detect_language">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions._detect_language(
+    text: str
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-_get_reasoning_enabled">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions._get_reasoning_enabled(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-_get_refusal_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions._get_refusal_message(
+    lang: str,
+    custom_messages: typing.Optional[typing.Dict[str, str]]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-content_safety_check_input">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel","nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.content_safety_check_input(
+    llms: typing.Dict[str, nemoguardrails.types.LLMModel],
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    model_name: typing.Optional[str] = None,
+    context: typing.Optional[dict] = None,
+    model_caches: typing.Optional[typing.Dict[str, nemoguardrails.llm.cache.CacheInterface]] = None,
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-content_safety_check_output">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel","nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.content_safety_check_output(
+    llms: typing.Dict[str, nemoguardrails.types.LLMModel],
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    model_name: typing.Optional[str] = None,
+    context: typing.Optional[dict] = None,
+    model_caches: typing.Optional[typing.Dict[str, nemoguardrails.llm.cache.CacheInterface]] = None,
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-content_safety_check_output_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.content_safety_check_output_mapping(
+    result: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping function for content_safety_check_output.
+
+**Returns:** `bool`
+
+True if the content should be blocked (i.e. allowed is False),
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-detect_language">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.detect_language(
+    context: typing.Optional[dict] = None,
+    config: typing.Optional[dict] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-content_safety-actions-DEFAULT_REFUSAL_MESSAGES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.DEFAULT_REFUSAL_MESSAGES: Dict[str, str] = {'en': "I'm sorry, I can't respond to that.", 'es': 'Lo siento, no puedo respond...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-content_safety-actions-SUPPORTED_LANGUAGES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.SUPPORTED_LANGUAGES: FrozenSet[str] = frozenset({'en', 'es', 'zh', 'de', 'fr', 'hi', 'ja', 'ar', 'th'})
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-content_safety-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.content_safety.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

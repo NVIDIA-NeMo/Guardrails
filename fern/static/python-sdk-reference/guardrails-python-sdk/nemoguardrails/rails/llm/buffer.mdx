@@ -1,0 +1,406 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/rails/llm/buffer
+title: nemoguardrails.rails.llm.buffer
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`BufferStrategy`](#nemoguardrails-rails-llm-buffer-BufferStrategy) | Abstract base class for buffer strategies in streaming output rails. |
+| [`ChunkBatch`](#nemoguardrails-rails-llm-buffer-ChunkBatch) | Represents a batch of processed chunks from a buffer strategy. |
+| [`RollingBuffer`](#nemoguardrails-rails-llm-buffer-RollingBuffer) | A rolling buffer strategy for streaming output rails processing. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`get_buffer_strategy`](#nemoguardrails-rails-llm-buffer-get_buffer_strategy) | Create a buffer strategy from the given configuration. |
+
+### Data
+
+[`__all__`](#nemoguardrails-rails-llm-buffer-__all__)
+
+### API
+
+<Anchor id="nemoguardrails-rails-llm-buffer-BufferStrategy">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.buffer.BufferStrategy()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+Abstract base class for buffer strategies in streaming output rails.
+
+This class defines the interface for buffer strategies that manage how
+streaming chunks are buffered and processed for output rails.
+Concrete implementations should handle the accumulation and yielding of
+chunks in a way that optimizes output rails processing while maintaining
+streaming performance.
+
+The interface separates concerns:
+- Buffer management logic (process_stream)
+- Chunk representation formatting (format_chunks)
+
+
+<Anchor id="nemoguardrails-rails-llm-buffer-BufferStrategy-__call__">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.buffer.ChunkBatch":"#nemoguardrails-rails-llm-buffer-ChunkBatch"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.BufferStrategy.__call__(
+    streaming_handler
+) -> typing.AsyncGenerator[nemoguardrails.rails.llm.buffer.ChunkBatch, None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Callable interface that delegates to process_stream.
+
+It delegates to the `process_stream` method and can
+be extended to add common functionality like validation, logging,
+or error handling.
+
+**Parameters:**
+
+<ParamField path="streaming_handler">
+An async iterator that yields individual string
+chunks from the LLM stream.
+</ParamField>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-buffer-BufferStrategy-format_chunks">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.BufferStrategy.format_chunks(
+    chunks: typing.List[str]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Format chunks into a string representation for user consumption.
+
+This method defines how chunks should be formatted into a string
+representation. Different strategies might join chunks differently
+(e.g., preserving spaces, adding separators, etc.).
+
+**Parameters:**
+
+<ParamField path="chunks" type="List[str]">
+List of chunk tokens to be formatted.
+</ParamField>
+
+**Returns:** `str`
+
+String representation of the chunks ready for consumers.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-buffer-BufferStrategy-from_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.OutputRailsStreamingConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-OutputRailsStreamingConfig","nemoguardrails.rails.llm.buffer.BufferStrategy":"#nemoguardrails-rails-llm-buffer-BufferStrategy"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.BufferStrategy.from_config(
+    config: nemoguardrails.rails.llm.config.OutputRailsStreamingConfig
+) -> nemoguardrails.rails.llm.buffer.BufferStrategy
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge> <Badge>abstract</Badge>
+
+Create a buffer strategy instance from configuration.
+
+**Parameters:**
+
+<ParamField path="config" type="OutputRailsStreamingConfig">
+Configuration object containing
+buffer strategy parameters.
+</ParamField>
+
+**Returns:** `BufferStrategy`
+
+A configured buffer strategy instance.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-buffer-BufferStrategy-process_stream">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.buffer.ChunkBatch":"#nemoguardrails-rails-llm-buffer-ChunkBatch"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.BufferStrategy.process_stream(
+    streaming_handler
+) -> typing.AsyncGenerator[nemoguardrails.rails.llm.buffer.ChunkBatch, None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge> <Badge>abstract</Badge>
+
+Process streaming chunks and yield chunk batches.
+
+This is the main method that concrete buffer strategies must implement.
+It defines how chunks from the streaming handler should be buffered,
+processed, and yielded as ChunkBatch objects.
+
+**Parameters:**
+
+<ParamField path="streaming_handler">
+An async iterator that yields individual string
+chunks from the LLM stream.
+</ParamField>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-buffer-ChunkBatch">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.buffer.ChunkBatch()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `NamedTuple`
+
+Represents a batch of processed chunks from a buffer strategy.
+
+This class contains the raw chunk data from buffer processing. For string
+representation of chunks, use the buffer strategy's format_chunks() method.
+
+
+<ParamField path="processing_context" type="List[str]">
+</ParamField>
+
+<ParamField path="user_output_chunks" type="List[str]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-buffer-RollingBuffer">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.buffer.RollingBuffer(
+    buffer_context_size: int = 5,
+    buffer_chunk_size: int = 10
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [BufferStrategy](#nemoguardrails-rails-llm-buffer-BufferStrategy)
+
+A rolling buffer strategy for streaming output rails processing.
+
+This strategy accumulates incoming chunks in a buffer and yields them in
+batches when the buffer reaches the specified chunk size. It maintains
+context from previous chunks to ensure continuity in processing output rails.
+
+The buffer operates by:
+1. Accumulating incoming chunks until reaching the chunk size threshold
+2. Yielding a processing buffer (with context) and new chunks to process
+3. Retaining context tokens for the next processing round
+4. Yielding any remaining chunks at the end of the stream
+
+**Parameters:**
+
+<ParamField path="buffer_context_size" type="int" default="5">
+Number of tokens carried over from
+previous chunks to provide context for continuity. Defaults to 5.
+</ParamField>
+
+<ParamField path="buffer_chunk_size" type="int" default="10">
+Number of tokens in each processing
+chunk. This determines the size of token blocks on which output
+rails are applied. Defaults to 10.
+</ParamField>
+
+
+<ParamField path="total_yielded" type="= 0">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-buffer-RollingBuffer-format_chunks">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.RollingBuffer.format_chunks(
+    chunks: typing.List[str]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Generate string representation of chunks preserving original token format.
+
+The RollingBuffer strategy preserves the original token format by
+joining chunks without modification, maintaining spaces and formatting
+as they appeared in the original LLM output.
+
+**Parameters:**
+
+<ParamField path="chunks" type="List[str]">
+List of chunk tokens to be formatted.
+</ParamField>
+
+**Returns:** `str`
+
+String representation preserving original token spacing and format.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-buffer-RollingBuffer-from_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.OutputRailsStreamingConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-OutputRailsStreamingConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.RollingBuffer.from_config(
+    config: nemoguardrails.rails.llm.config.OutputRailsStreamingConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Create a RollingBuffer instance from a streaming configuration.
+
+**Parameters:**
+
+<ParamField path="config" type="OutputRailsStreamingConfig">
+Configuration object containing
+context_size and chunk_size parameters.
+</ParamField>
+
+**Returns:**
+
+A new RollingBuffer instance configured with the
+provided parameters.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-buffer-RollingBuffer-process_stream">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.buffer.ChunkBatch":"#nemoguardrails-rails-llm-buffer-ChunkBatch"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.RollingBuffer.process_stream(
+    streaming_handler
+) -> typing.AsyncGenerator[nemoguardrails.rails.llm.buffer.ChunkBatch, None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Process streaming chunks using rolling buffer strategy.
+
+This method implements the rolling buffer logic, accumulating chunks
+and yielding them in batches with context for output rails processing.
+The buffer maintains a sliding window of context tokens for continuity.
+
+**Parameters:**
+
+<ParamField path="streaming_handler">
+An async iterator that yields individual string
+chunks from the LLM stream.
+</ParamField>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-buffer-get_buffer_strategy">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.OutputRailsStreamingConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-OutputRailsStreamingConfig","nemoguardrails.rails.llm.buffer.BufferStrategy":"#nemoguardrails-rails-llm-buffer-BufferStrategy"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.get_buffer_strategy(
+    config: nemoguardrails.rails.llm.config.OutputRailsStreamingConfig
+) -> nemoguardrails.rails.llm.buffer.BufferStrategy
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a buffer strategy from the given configuration.
+
+**Parameters:**
+
+<ParamField path="config" type="OutputRailsStreamingConfig">
+Configuration object specifying
+the buffer strategy parameters.
+</ParamField>
+
+**Returns:** `BufferStrategy`
+
+A configured buffer strategy instance. Currently
+returns a RollingBuffer instance.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-buffer-__all__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.buffer.__all__ = ['ChunkBatch', 'BufferStrategy', 'RollingBuffer', 'get_buffer_strategy']
+```
+
+</CodeBlock>
+</Anchor>
+

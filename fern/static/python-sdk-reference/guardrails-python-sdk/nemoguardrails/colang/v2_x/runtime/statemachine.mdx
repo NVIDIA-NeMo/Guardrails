@@ -1,0 +1,1126 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/statemachine
+title: nemoguardrails.colang.v2_x.runtime.statemachine
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_abort_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_abort_flow) | Abort a flow instance and all its active child flows and decrement number of references of activated flow. |
+| [`_add_head_to_event_matching_structures`](#nemoguardrails-colang-v2_x-runtime-statemachine-_add_head_to_event_matching_structures) | - |
+| [`_advance_head_front`](#nemoguardrails-colang-v2_x-runtime-statemachine-_advance_head_front) | Advance all provided heads to the next blocking elements (actionable, matching, head merge) |
+| [`_clean_up_state`](#nemoguardrails-colang-v2_x-runtime-statemachine-_clean_up_state) | Perform a clean up of the state to avoid growing memory footprint. |
+| [`_compute_arguments_dict_matching_score`](#nemoguardrails-colang-v2_x-runtime-statemachine-_compute_arguments_dict_matching_score) | - |
+| [`_compute_event_comparison_score`](#nemoguardrails-colang-v2_x-runtime-statemachine-_compute_event_comparison_score) | Check if the given element matches the given event. |
+| [`_compute_event_matching_score`](#nemoguardrails-colang-v2_x-runtime-statemachine-_compute_event_matching_score) | Check if the element matches with given event. |
+| [`_context_log`](#nemoguardrails-colang-v2_x-runtime-statemachine-_context_log) | - |
+| [`_create_event_reference`](#nemoguardrails-colang-v2_x-runtime-statemachine-_create_event_reference) | - |
+| [`_evaluate_arguments`](#nemoguardrails-colang-v2_x-runtime-statemachine-_evaluate_arguments) | - |
+| [`_finish_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_finish_flow) | Finish a flow instance and all its active child flows and decrement number of references of activated flow. |
+| [`_flow_head_changed`](#nemoguardrails-colang-v2_x-runtime-statemachine-_flow_head_changed) | Callback function that is registered to head position/status changes |
+| [`_generate_action_event_from_actionable_element`](#nemoguardrails-colang-v2_x-runtime-statemachine-_generate_action_event_from_actionable_element) | Helper to create an outgoing event from the flow head element. |
+| [`_generate_umim_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-_generate_umim_event) | - |
+| [`_get_all_head_candidates`](#nemoguardrails-colang-v2_x-runtime-statemachine-_get_all_head_candidates) | Find all heads that are on a potential match with the event. |
+| [`_get_eval_context`](#nemoguardrails-colang-v2_x-runtime-statemachine-_get_eval_context) | - |
+| [`_get_flow_state_hierarchy`](#nemoguardrails-colang-v2_x-runtime-statemachine-_get_flow_state_hierarchy) | - |
+| [`_get_readable_flow_state_hierarchy`](#nemoguardrails-colang-v2_x-runtime-statemachine-_get_readable_flow_state_hierarchy) | - |
+| [`_get_reference_activated_flow_instance`](#nemoguardrails-colang-v2_x-runtime-statemachine-_get_reference_activated_flow_instance) | - |
+| [`_handle_event_matching`](#nemoguardrails-colang-v2_x-runtime-statemachine-_handle_event_matching) | - |
+| [`_is_child_activated_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_is_child_activated_flow) | - |
+| [`_is_done_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_is_done_flow) | - |
+| [`_is_reference_activated_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_is_reference_activated_flow) | - |
+| [`_log_action_or_intents`](#nemoguardrails-colang-v2_x-runtime-statemachine-_log_action_or_intents) | - |
+| [`_process_internal_events_without_default_matchers`](#nemoguardrails-colang-v2_x-runtime-statemachine-_process_internal_events_without_default_matchers) | Process internal events that have no default matchers in flows yet. |
+| [`_push_internal_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-_push_internal_event) | - |
+| [`_push_left_internal_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-_push_left_internal_event) | - |
+| [`_remove_head_from_event_matching_structures`](#nemoguardrails-colang-v2_x-runtime-statemachine-_remove_head_from_event_matching_structures) | - |
+| [`_resolve_action_conflicts`](#nemoguardrails-colang-v2_x-runtime-statemachine-_resolve_action_conflicts) | Resolve all conflicting action conflicts from actionable heads. |
+| [`_start_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-_start_flow) | - |
+| [`_update_action_status_by_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-_update_action_status_by_event) | - |
+| [`add_new_flow_instance`](#nemoguardrails-colang-v2_x-runtime-statemachine-add_new_flow_instance) | Add a new flow instance to the current state. |
+| [`create_flow_instance`](#nemoguardrails-colang-v2_x-runtime-statemachine-create_flow_instance) | Create a new flow instance that can be added. |
+| [`create_internal_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-create_internal_event) | Returns an internal event for the provided event data |
+| [`create_umim_event`](#nemoguardrails-colang-v2_x-runtime-statemachine-create_umim_event) | Returns an outgoing UMIM event for the provided action data |
+| [`find_all_active_event_matchers`](#nemoguardrails-colang-v2_x-runtime-statemachine-find_all_active_event_matchers) | Return a list of all active heads that point to an event 'match' element. |
+| [`get_element_from_head`](#nemoguardrails-colang-v2_x-runtime-statemachine-get_element_from_head) | Returns the element at the flow head position |
+| [`get_event_from_element`](#nemoguardrails-colang-v2_x-runtime-statemachine-get_event_from_element) | Converts the element into the corresponding event if possible. |
+| [`get_event_name_from_element`](#nemoguardrails-colang-v2_x-runtime-statemachine-get_event_name_from_element) | Converts the element into the corresponding event name if possible. |
+| [`get_flow_config_from_head`](#nemoguardrails-colang-v2_x-runtime-statemachine-get_flow_config_from_head) | Return the flow config of the flow of the head |
+| [`get_flow_state_from_head`](#nemoguardrails-colang-v2_x-runtime-statemachine-get_flow_state_from_head) | Return the flow state of the flow head |
+| [`initialize_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-initialize_flow) | Initialize a flow before it can be used and instantiated. |
+| [`initialize_state`](#nemoguardrails-colang-v2_x-runtime-statemachine-initialize_state) | Initialize the state to make it ready for the story start. |
+| [`is_action_op_element`](#nemoguardrails-colang-v2_x-runtime-statemachine-is_action_op_element) | Check if the given element is actionable. |
+| [`is_active_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-is_active_flow) | True if flow has started. |
+| [`is_inactive_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-is_inactive_flow) | True if flow is not started. |
+| [`is_listening_flow`](#nemoguardrails-colang-v2_x-runtime-statemachine-is_listening_flow) | True if flow is started or waiting to be started. |
+| [`is_match_op_element`](#nemoguardrails-colang-v2_x-runtime-statemachine-is_match_op_element) | Check if the given element is a match statement. |
+| [`run_to_completion`](#nemoguardrails-colang-v2_x-runtime-statemachine-run_to_completion) | Compute the next state of the flow-driven system. |
+| [`slide`](#nemoguardrails-colang-v2_x-runtime-statemachine-slide) | Try to slide a flow with the provided head. |
+
+### Data
+
+[`log`](#nemoguardrails-colang-v2_x-runtime-statemachine-log)
+
+### API
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_abort_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._abort_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    matching_scores: typing.List[float],
+    deactivate_flow: bool = False,
+    context_update: typing.Optional[dict] = None
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Abort a flow instance and all its active child flows and decrement number of references of activated flow.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_add_head_to_event_matching_structures">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._add_head_to_event_matching_structures(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_advance_head_front">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._advance_head_front(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    heads: typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+) -> typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Advance all provided heads to the next blocking elements (actionable, matching, head merge)
+and returns all heads on actionable elements.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_clean_up_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._clean_up_state(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Perform a clean up of the state to avoid growing memory footprint.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_compute_arguments_dict_matching_score">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._compute_arguments_dict_matching_score(
+    args: typing.Any,
+    ref_args: typing.Any
+) -> float
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_compute_event_comparison_score">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._compute_event_comparison_score(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event,
+    ref_event: nemoguardrails.colang.v2_x.runtime.flows.Event,
+    priority: typing.Optional[float] = None
+) -> float
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the given element matches the given event.
+
+Factors that determine the final score:
+- match event parameter specificity
+- flow priority [0.0-1.0]
+- definition order of flow
+
+**Returns:** `float`
+
+1.0: Exact match (all parameters match)
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_compute_event_matching_score">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._compute_event_matching_score(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> float
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the element matches with given event.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_context_log">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._context_log(
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_create_event_reference">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._create_event_reference(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    element: nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_evaluate_arguments">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._evaluate_arguments(
+    arguments: dict,
+    context: dict
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_finish_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._finish_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    matching_scores: typing.List[float],
+    deactivate_flow: bool = False,
+    context_update: typing.Optional[dict] = None
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Finish a flow instance and all its active child flows and decrement number of references of activated flow.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_flow_head_changed">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._flow_head_changed(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Callback function that is registered to head position/status changes
+and will update acceleration data structures.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_generate_action_event_from_actionable_element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._generate_action_event_from_actionable_element(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to create an outgoing event from the flow head element.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_generate_umim_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._generate_umim_event(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_get_all_head_candidates">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._get_all_head_candidates(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> typing.List[typing.Tuple[str, str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Find all heads that are on a potential match with the event.
+Returns those heads in a flow hierarchical order.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_get_eval_context">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._get_eval_context(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_get_flow_state_hierarchy">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._get_flow_state_hierarchy(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state_uid: str
+) -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_get_readable_flow_state_hierarchy">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._get_readable_flow_state_hierarchy(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state_uid: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_get_reference_activated_flow_instance">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.InternalEvent":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-InternalEvent","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._get_reference_activated_flow_instance(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.InternalEvent
+) -> typing.Optional[nemoguardrails.colang.v2_x.runtime.flows.FlowState]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_handle_event_matching">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._handle_event_matching(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event,
+    heads_matching: typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_is_child_activated_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._is_child_activated_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_is_done_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._is_done_flow(
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_is_reference_activated_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._is_reference_activated_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_log_action_or_intents">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._log_action_or_intents(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    matching_scores: typing.List[float]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_process_internal_events_without_default_matchers">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._process_internal_events_without_default_matchers(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> typing.Set[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Process internal events that have no default matchers in flows yet.
+Return a set of all the event loop ids that handled the event.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_push_internal_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._push_internal_event(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_push_left_internal_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.InternalEvent":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-InternalEvent"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._push_left_internal_event(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.InternalEvent
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_remove_head_from_event_matching_structures">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._remove_head_from_event_matching_structures(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_resolve_action_conflicts">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._resolve_action_conflicts(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    actionable_heads: typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+) -> typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Resolve all conflicting action conflicts from actionable heads.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_start_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._start_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    event_arguments: dict
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-_update_action_status_by_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.ActionEvent":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-ActionEvent"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine._update_action_status_by_event(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: nemoguardrails.colang.v2_x.runtime.flows.ActionEvent
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-add_new_flow_instance">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.add_new_flow_instance(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> nemoguardrails.colang.v2_x.runtime.flows.FlowState
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Add a new flow instance to the current state.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-create_flow_instance">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowConfig":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowConfig","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.create_flow_instance(
+    flow_config: nemoguardrails.colang.v2_x.runtime.flows.FlowConfig,
+    flow_instance_uid: str,
+    flow_hierarchy_position: str,
+    event_arguments: typing.Dict[str, typing.Any]
+) -> nemoguardrails.colang.v2_x.runtime.flows.FlowState
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a new flow instance that can be added.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-create_internal_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.InternalEvent":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-InternalEvent"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.create_internal_event(
+    event_name: str,
+    event_args: dict,
+    matching_scores: typing.List[float]
+) -> nemoguardrails.colang.v2_x.runtime.flows.InternalEvent
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns an internal event for the provided event data
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-create_umim_event">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event","nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.create_umim_event(
+    event: nemoguardrails.colang.v2_x.runtime.flows.Event,
+    event_args: typing.Dict[str, typing.Any],
+    config: typing.Optional[nemoguardrails.rails.llm.config.RailsConfig]
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns an outgoing UMIM event for the provided action data
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-find_all_active_event_matchers">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.find_all_active_event_matchers(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    event: typing.Optional[nemoguardrails.colang.v2_x.runtime.flows.Event] = None
+) -> typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return a list of all active heads that point to an event 'match' element.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-get_element_from_head">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead","nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.get_element_from_head(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> typing.Optional[nemoguardrails.colang.v2_x.lang.colang_ast.ElementType]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the element at the flow head position
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-get_event_from_element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.get_event_from_element(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    element: nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp
+) -> nemoguardrails.colang.v2_x.runtime.flows.Event
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts the element into the corresponding event if possible.
+
+Cases:
+1) Event as member of an action or flow reference: send/match $ref.Finished(args) (This is action/flow specific)
+2) Event as member of an action or flow constructor: send/match UtteranceBotAction(args).Finished(args)
+3) Bare event: send/match UtteranceBotActionFinished(args)
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-get_event_name_from_element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.get_event_name_from_element(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    element: nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts the element into the corresponding event name if possible.
+See also function get_event_from_element which is very similar but returns the full event including parameters.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-get_flow_config_from_head">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead","nemoguardrails.colang.v2_x.runtime.flows.FlowConfig":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.get_flow_config_from_head(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> nemoguardrails.colang.v2_x.runtime.flows.FlowConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the flow config of the flow of the head
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-get_flow_state_from_head">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.get_flow_state_from_head(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> nemoguardrails.colang.v2_x.runtime.flows.FlowState
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the flow state of the flow head
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-initialize_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowConfig":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.initialize_flow(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_config: nemoguardrails.colang.v2_x.runtime.flows.FlowConfig
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize a flow before it can be used and instantiated.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-initialize_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.initialize_state(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize the state to make it ready for the story start.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-is_action_op_element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.is_action_op_element(
+    element: nemoguardrails.colang.v2_x.lang.colang_ast.ElementType
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the given element is actionable.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-is_active_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.is_active_flow(
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+True if flow has started.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-is_inactive_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.is_inactive_flow(
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+True if flow is not started.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-is_listening_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.is_listening_flow(
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+True if flow is started or waiting to be started.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-is_match_op_element">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.ElementType":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-ElementType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.is_match_op_element(
+    element: nemoguardrails.colang.v2_x.lang.colang_ast.ElementType
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the given element is a match statement.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-run_to_completion">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.Event":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-Event"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.run_to_completion(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    external_event: typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.Event]
+) -> nemoguardrails.colang.v2_x.runtime.flows.State
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Compute the next state of the flow-driven system.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-slide">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.colang.v2_x.runtime.flows.FlowState":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowState","nemoguardrails.colang.v2_x.runtime.flows.FlowConfig":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowConfig","nemoguardrails.colang.v2_x.runtime.flows.FlowHead":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-FlowHead"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.slide(
+    state: nemoguardrails.colang.v2_x.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v2_x.runtime.flows.FlowState,
+    flow_config: nemoguardrails.colang.v2_x.runtime.flows.FlowConfig,
+    head: nemoguardrails.colang.v2_x.runtime.flows.FlowHead
+) -> typing.List[nemoguardrails.colang.v2_x.runtime.flows.FlowHead]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Try to slide a flow with the provided head.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v2_x-runtime-statemachine-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.runtime.statemachine.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

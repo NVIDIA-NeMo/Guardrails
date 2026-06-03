@@ -1,0 +1,364 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/clients/_errors
+title: nemoguardrails.llm.clients._errors
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ErrorContext`](#nemoguardrails-llm-clients-_errors-ErrorContext) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_build_error_fields`](#nemoguardrails-llm-clients-_errors-_build_error_fields) | - |
+| [`_classify_bad_request`](#nemoguardrails-llm-clients-_errors-_classify_bad_request) | - |
+| [`_extract_from_parsed_body`](#nemoguardrails-llm-clients-_errors-_extract_from_parsed_body) | - |
+| [`_looks_like_unknown_param_400`](#nemoguardrails-llm-clients-_errors-_looks_like_unknown_param_400) | - |
+| [`_maybe_append_migration_hint`](#nemoguardrails-llm-clients-_errors-_maybe_append_migration_hint) | - |
+| [`_parse_retry_after`](#nemoguardrails-llm-clients-_errors-_parse_retry_after) | - |
+| [`_parse_retry_after_value`](#nemoguardrails-llm-clients-_errors-_parse_retry_after_value) | - |
+| [`_redact_secrets`](#nemoguardrails-llm-clients-_errors-_redact_secrets) | - |
+| [`raise_for_sse_error`](#nemoguardrails-llm-clients-_errors-raise_for_sse_error) | - |
+| [`raise_for_status`](#nemoguardrails-llm-clients-_errors-raise_for_status) | - |
+
+### Data
+
+[`_CONTEXT_WINDOW_KEYWORDS`](#nemoguardrails-llm-clients-_errors-_CONTEXT_WINDOW_KEYWORDS)
+
+[`_EMPTY_CONTEXT`](#nemoguardrails-llm-clients-_errors-_EMPTY_CONTEXT)
+
+[`_MIGRATION_HINT_021`](#nemoguardrails-llm-clients-_errors-_MIGRATION_HINT_021)
+
+[`_SECRET_PATTERN`](#nemoguardrails-llm-clients-_errors-_SECRET_PATTERN)
+
+[`_SSE_ERROR_TYPE_TO_STATUS`](#nemoguardrails-llm-clients-_errors-_SSE_ERROR_TYPE_TO_STATUS)
+
+[`_UNKNOWN_PARAM_HINT_TOKENS`](#nemoguardrails-llm-clients-_errors-_UNKNOWN_PARAM_HINT_TOKENS)
+
+[`_UNSUPPORTED_PARAMS_KEYWORDS`](#nemoguardrails-llm-clients-_errors-_UNSUPPORTED_PARAMS_KEYWORDS)
+
+### API
+
+<Anchor id="nemoguardrails-llm-clients-_errors-ErrorContext">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.clients._errors.ErrorContext(
+    model_name: typing.Optional[str] = None,
+    provider_name: typing.Optional[str] = None,
+    base_url: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+<ParamField path="base_url" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="model_name" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="provider_name" type="Optional[str] = None">
+</ParamField>
+<Anchor id="nemoguardrails-llm-clients-_errors-ErrorContext-as_kwargs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors.ErrorContext.as_kwargs() -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_build_error_fields">
+
+<CodeBlock links={{"nemoguardrails.llm.clients._errors.ErrorContext":"#nemoguardrails-llm-clients-_errors-ErrorContext"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._build_error_fields(
+    parsed_body: typing.Any,
+    raw_body: str,
+    headers: typing.Any,
+    ctx: nemoguardrails.llm.clients._errors.ErrorContext
+) -> typing.Tuple[str, typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_classify_bad_request">
+
+<CodeBlock links={{"nemoguardrails.exceptions.LLMClientError":"/guardrails-python-sdk/nemoguardrails/exceptions#nemoguardrails-exceptions-LLMClientError"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._classify_bad_request(
+    status_code: int,
+    error_message: str,
+    kwargs: typing.Dict[str, typing.Any]
+) -> nemoguardrails.exceptions.LLMClientError
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_extract_from_parsed_body">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._extract_from_parsed_body(
+    parsed_body: typing.Any
+) -> typing.Tuple[str, typing.Optional[str], typing.Optional[str], typing.Optional[str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_looks_like_unknown_param_400">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._looks_like_unknown_param_400(
+    error_message: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_maybe_append_migration_hint">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._maybe_append_migration_hint(
+    error_message: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_parse_retry_after">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._parse_retry_after(
+    headers: typing.Any
+) -> typing.Optional[float]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_parse_retry_after_value">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._parse_retry_after_value(
+    value: typing.Any
+) -> typing.Optional[float]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_redact_secrets">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._redact_secrets(
+    text: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-raise_for_sse_error">
+
+<CodeBlock links={{"nemoguardrails.llm.clients._errors.ErrorContext":"#nemoguardrails-llm-clients-_errors-ErrorContext"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors.raise_for_sse_error(
+    parsed_payload: typing.Dict[str, typing.Any],
+    headers: typing.Any,
+    ctx: typing.Optional[nemoguardrails.llm.clients._errors.ErrorContext] = None
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-raise_for_status">
+
+<CodeBlock links={{"nemoguardrails.llm.clients._errors.ErrorContext":"#nemoguardrails-llm-clients-_errors-ErrorContext"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors.raise_for_status(
+    status_code: int,
+    body: str,
+    headers: typing.Any,
+    ctx: typing.Optional[nemoguardrails.llm.clients._errors.ErrorContext] = None
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_CONTEXT_WINDOW_KEYWORDS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._CONTEXT_WINDOW_KEYWORDS = ['context length', 'context_length', 'context window', 'maximum token', 'max_tok...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_EMPTY_CONTEXT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._EMPTY_CONTEXT = ErrorContext()
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_MIGRATION_HINT_021">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._MIGRATION_HINT_021 = '(If you upgraded from 0.21: the default framework forwards `parameters` verbati...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_SECRET_PATTERN">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._SECRET_PATTERN = re.compile('(sk-|nvapi-|AIza|bearer\\s+)\\S+', re.IGNORECASE)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_SSE_ERROR_TYPE_TO_STATUS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._SSE_ERROR_TYPE_TO_STATUS: Dict[str, int] = {'invalid_request_error': 400, 'authentication_error': 401, 'permission_error': ...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_UNKNOWN_PARAM_HINT_TOKENS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._UNKNOWN_PARAM_HINT_TOKENS = ('unrecognized request argument', 'unsupported parameter', "' is unsupported", '...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-clients-_errors-_UNSUPPORTED_PARAMS_KEYWORDS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.clients._errors._UNSUPPORTED_PARAMS_KEYWORDS = ['unsupported parameter', 'parameter not allowed', 'unknown parameter', 'unrecog...
+```
+
+</CodeBlock>
+</Anchor>
+

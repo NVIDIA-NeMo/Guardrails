@@ -1,0 +1,169 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions_server/actions_server
+title: nemoguardrails.actions_server.actions_server
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`RequestBody`](#nemoguardrails-actions_server-actions_server-RequestBody) | Request body for executing an action. |
+| [`ResponseBody`](#nemoguardrails-actions_server-actions_server-ResponseBody) | Response body for action execution. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`get_actions_list`](#nemoguardrails-actions_server-actions_server-get_actions_list) | Returns the list of available actions. |
+| [`run_action`](#nemoguardrails-actions_server-actions_server-run_action) | Execute the specified action and return the result. |
+
+### Data
+
+[`api_description`](#nemoguardrails-actions_server-actions_server-api_description)
+
+[`app`](#nemoguardrails-actions_server-actions_server-app)
+
+[`log`](#nemoguardrails-actions_server-actions_server-log)
+
+### API
+
+<Anchor id="nemoguardrails-actions_server-actions_server-RequestBody">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.actions_server.actions_server.RequestBody()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Request body for executing an action.
+
+
+<ParamField path="action_name" type="str = ''">
+</ParamField>
+
+<ParamField path="action_parameters" type="Dict">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-actions_server-actions_server-ResponseBody">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.actions_server.actions_server.ResponseBody()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Response body for action execution.
+
+
+<ParamField path="result" type="Optional[str]">
+</ParamField>
+
+<ParamField path="status" type="str = 'success'">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-actions_server-actions_server-get_actions_list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions_server.actions_server.get_actions_list()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Returns the list of available actions.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions_server-actions_server-run_action">
+
+<CodeBlock links={{"nemoguardrails.actions_server.actions_server.RequestBody":"#nemoguardrails-actions_server-actions_server-RequestBody"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions_server.actions_server.run_action(
+    body: nemoguardrails.actions_server.actions_server.RequestBody
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Execute the specified action and return the result.
+
+**Parameters:**
+
+<ParamField path="body" type="RequestBody">
+The request body containing action_name and action_parameters.
+</ParamField>
+
+**Returns:**
+
+The response containing the execution status and result.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions_server-actions_server-api_description">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions_server.actions_server.api_description = 'Guardrails Action Sever API.'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-actions_server-actions_server-app">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions_server.actions_server.app = FastAPI(title='Guardrails Action Server API', description=api_description, versi...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-actions_server-actions_server-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions_server.actions_server.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

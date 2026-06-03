@@ -1,0 +1,538 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/model_engine
+title: nemoguardrails.guardrails.model_engine
+---
+
+Model engine for IORails.
+
+Wraps a single Model config and makes raw HTTP calls to its
+OpenAI-compatible /v1/chat/completions endpoint via aiohttp.
+Retries are handled by aiohttp-retry (ExponentialRetry).
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ModelEngine`](#nemoguardrails-guardrails-model_engine-ModelEngine) | Wraps a single Model config and makes HTTP calls to its endpoint. |
+| [`ModelEngineError`](#nemoguardrails-guardrails-model_engine-ModelEngineError) | Raised when a model engine call fails. |
+| [`_RequestParams`](#nemoguardrails-guardrails-model_engine-_RequestParams) | Pre-built parameters for an HTTP request to the completions endpoint. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_parse_chat_completion`](#nemoguardrails-guardrails-model_engine-_parse_chat_completion) | Convert a /v1/chat/completions response dict into an LLMResponse. |
+| [`_parse_chat_completion_chunk`](#nemoguardrails-guardrails-model_engine-_parse_chat_completion_chunk) | Build an LLMResponseChunk from an SSE chunk dict. |
+| [`_parse_usage`](#nemoguardrails-guardrails-model_engine-_parse_usage) | Build UsageInfo from an OpenAI-format usage dict. |
+
+### Data
+
+[`_CHAT_COMPLETIONS_ENDPOINT`](#nemoguardrails-guardrails-model_engine-_CHAT_COMPLETIONS_ENDPOINT)
+
+[`_ENGINE_BASE_URLS`](#nemoguardrails-guardrails-model_engine-_ENGINE_BASE_URLS)
+
+[`log`](#nemoguardrails-guardrails-model_engine-log)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.Model":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-Model"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.model_engine.ModelEngine(
+    model_config: nemoguardrails.rails.llm.config.Model
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [BaseEngine](/guardrails-python-sdk/nemoguardrails/guardrails/base_engine#nemoguardrails-guardrails-base_engine-BaseEngine)
+
+Wraps a single Model config and makes HTTP calls to its endpoint.
+
+Each ModelEngine owns its own RetryClient with per-model timeout,
+retry, and connection pool settings.
+
+
+<ParamField path="api_key" type="Optional[str] = self._resolve_api_key(model_config.engine)">
+</ParamField>
+
+<ParamField path="base_url" type="str = self._resolve_base_url()">
+</ParamField>
+
+<ParamField path="model_name" type="str = model_config.model or ''">
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_ensure_running">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._ensure_running() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Raise if the engine has not been started.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_get_environment_variable">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._get_environment_variable(
+    variable_name: str
+) -> str | None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the value stored in environment variable `variable_name`.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_prepare_request">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.model_engine._RequestParams":"#nemoguardrails-guardrails-model_engine-_RequestParams"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._prepare_request(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs: typing.Any = {}
+) -> nemoguardrails.guardrails.model_engine._RequestParams
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Build the client, URL, headers, and body common to every request.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_raise_for_status">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._raise_for_status(
+    response: aiohttp.ClientResponse,
+    req_id: str,
+    t0: float
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Raise ``ModelEngineError`` if the HTTP status indicates an error.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_resolve_api_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._resolve_api_key(
+    engine: str | None
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Resolve the API key from model config or environment.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_resolve_base_url">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._resolve_base_url() -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Resolve the base URL from model parameters or engine type.
+
+Strips an optional trailing "/v1" so users can follow the OpenAI / LLMRails
+convention of including "/v1" in base_url without producing a doubled
+"/v1/v1/chat/completions" path when _CHAT_COMPLETIONS_ENDPOINT is appended.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-_wrap_exception">
+
+<CodeBlock links={{"nemoguardrails.guardrails.model_engine.ModelEngineError":"#nemoguardrails-guardrails-model_engine-ModelEngineError"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine._wrap_exception(
+    exc: Exception,
+    req_id: str,
+    t0: float,
+    label: str = 'Request'
+) -> nemoguardrails.guardrails.model_engine.ModelEngineError
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Wrap an unexpected exception in a ``ModelEngineError``.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-call">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine.call(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs: typing.Any = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Make a POST request to the /v1/chat/completions endpoint.
+
+Retries on transient failures (429, 5xx, connection errors) are
+handled automatically by the RetryClient with exponential backoff.
+
+**Parameters:**
+
+<ParamField path="messages" type="LLMMessages">
+List of message dicts in OpenAI format.
+</ParamField>
+
+<ParamField path="**kwargs" type="Any" default="&#123;&#125;">
+Additional parameters for the request body (temperature, max_tokens, etc.)
+</ParamField>
+
+**Returns:** `dict`
+
+The parsed JSON response dict from the API.
+
+**Raises:**
+
+- `ModelEngineError`: If the request fails after all retries.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-chat_completion">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine.chat_completion(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs: typing.Any = {}
+) -> nemoguardrails.types.LLMResponse
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a chat completion and return a structured ``LLMResponse``.
+
+Calls the /v1/chat/completions endpoint and parses the OpenAI-format
+response into an ``LLMResponse`` carrying content, reasoning (when the
+provider exposes ``reasoning_content``), usage, finish reason, and
+request id.
+
+**Raises:**
+
+- `ModelEngineError`: If the request fails or the response format is unexpected.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-stream_call">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.types.LLMResponseChunk":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponseChunk"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine.stream_call(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs: typing.Any = {}
+) -> collections.abc.AsyncGenerator[nemoguardrails.types.LLMResponseChunk, None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Make a streaming POST request to the /v1/chat/completions endpoint.
+
+Sends ``stream=True`` and yields one ``LLMResponseChunk`` per SSE
+event that carries a content delta, reasoning delta, OR a
+``usage`` payload. Role-only, finish-only, and empty-choices
+events without usage are skipped. Retries are handled by the
+RetryClient (same as ``call()``).
+
+Note: when the upstream payload includes
+``stream_options.include_usage=true`` (default for the
+OpenAI-compatible client), the provider sends a final
+usage-only chunk with empty ``choices`` after the last content
+chunk. That terminal chunk is yielded as
+``LLMResponseChunk(usage=...)`` with both ``delta_content``
+and ``delta_reasoning`` unset — callers that only care about
+content should gate on ``chunk.delta_content`` rather than
+assuming every yielded chunk carries one.
+
+**Parameters:**
+
+<ParamField path="messages" type="LLMMessages">
+List of message dicts in OpenAI format.
+</ParamField>
+
+<ParamField path="**kwargs" type="Any" default="&#123;&#125;">
+Additional parameters for the request body (temperature, max_tokens, etc.)
+</ParamField>
+
+**Raises:**
+
+- `ModelEngineError`: If the request fails after all retries.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngine-stream_chat_completion">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.types.LLMResponseChunk":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponseChunk"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.ModelEngine.stream_chat_completion(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs: typing.Any = {}
+) -> collections.abc.AsyncGenerator[nemoguardrails.types.LLMResponseChunk, None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Stream a chat completion and yield ``LLMResponseChunk`` objects.
+
+Thin pass-through over ``stream_call`` — see that method's
+docstring for the contract, including the terminal usage-only
+chunk emitted when ``stream_options.include_usage`` is on.
+
+**Raises:**
+
+- `ModelEngineError`: If the request fails after all retries.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-ModelEngineError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.model_engine.ModelEngineError(
+    message: str,
+    model_name: str,
+    status: int | None = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+Raised when a model engine call fails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_RequestParams">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.model_engine._RequestParams()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `NamedTuple`
+
+Pre-built parameters for an HTTP request to the completions endpoint.
+
+
+<ParamField path="body" type="dict[str, Any]">
+</ParamField>
+
+<ParamField path="client" type="RetryClient">
+</ParamField>
+
+<ParamField path="headers" type="dict[str, str]">
+</ParamField>
+
+<ParamField path="url" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_parse_chat_completion">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine._parse_chat_completion(
+    response: dict
+) -> nemoguardrails.types.LLMResponse
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a /v1/chat/completions response dict into an LLMResponse.
+
+Reasoning is read from ``message.reasoning_content`` when the provider
+exposes it (NIM, DeepSeek-style). Tool calls are out of scope for this
+PR series and are not currently surfaced.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_parse_chat_completion_chunk">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponseChunk":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponseChunk"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine._parse_chat_completion_chunk(
+    chunk: dict
+) -> typing.Optional[nemoguardrails.types.LLMResponseChunk]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Build an LLMResponseChunk from an SSE chunk dict.
+
+Returns None for chunks without one of: content delta, reasoning delta,
+or a usage payload.
+Role-only first events and finish-only events with empty deltas
+map to None.
+
+Last chunk from OpenAI-compatible providers has a ``usage`` field when
+``stream_options.include_usage=true``. This is passed through to capture
+the token usage metadata.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_parse_usage">
+
+<CodeBlock links={{"nemoguardrails.types.UsageInfo":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-UsageInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine._parse_usage(
+    usage_dict: dict
+) -> nemoguardrails.types.UsageInfo
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Build UsageInfo from an OpenAI-format usage dict.
+
+Picks up reasoning_tokens from completion_tokens_details (OpenAI reasoning
+models) and cached_tokens from prompt_tokens_details when present.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_CHAT_COMPLETIONS_ENDPOINT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine._CHAT_COMPLETIONS_ENDPOINT = '/v1/chat/completions'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-model_engine-_ENGINE_BASE_URLS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine._ENGINE_BASE_URLS = {'nim': 'https://integrate.api.nvidia.com', 'openai': 'https://api.openai.com'}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-model_engine-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.model_engine.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,106 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/policyai/actions
+title: nemoguardrails.library.policyai.actions
+---
+
+PolicyAI Integration for NeMo Guardrails.
+
+PolicyAI provides content moderation and policy enforcement capabilities
+for LLM applications. This integration allows using PolicyAI as an input
+and output rail for content moderation.
+
+For more information, see: https://musubilabs.ai
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`call_policyai_api`](#nemoguardrails-library-policyai-actions-call_policyai_api) | Call the PolicyAI API to evaluate content. |
+| [`call_policyai_api_mapping`](#nemoguardrails-library-policyai-actions-call_policyai_api_mapping) | Mapping for call_policyai_api. |
+
+### Data
+
+[`log`](#nemoguardrails-library-policyai-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-policyai-actions-call_policyai_api">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.policyai.actions.call_policyai_api(
+    text: typing.Optional[str] = None,
+    tag_name: typing.Optional[str] = None,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Call the PolicyAI API to evaluate content.
+
+**Parameters:**
+
+<ParamField path="text" type="Optional[str]" default="None">
+The text content to evaluate.
+</ParamField>
+
+<ParamField path="tag_name" type="Optional[str]" default="None">
+Optional tag name for the PolicyAI evaluation.
+      If not provided, uses POLICYAI_TAG_NAME env var or "prod".
+</ParamField>
+
+**Returns:**
+
+dict with:
+- assessment: "SAFE" or "UNSAFE"
+- category: the violation category (if UNSAFE)
+- severity: severity level 0-3
+- reason: explanation for the decision
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-policyai-actions-call_policyai_api_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.policyai.actions.call_policyai_api_mapping(
+    result: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for call_policyai_api.
+
+Block (return True) if:
+  1. Assessment is "UNSAFE"
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-policyai-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.policyai.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

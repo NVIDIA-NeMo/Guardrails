@@ -1,0 +1,495 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions/v2_x/generation
+title: nemoguardrails.actions.v2_x.generation
+---
+
+A set of actions for generating various types of completions using an LLMs.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`LLMGenerationActionsV2dotx`](#nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx) | Adapted version of LLMGenerationActions for Colang 2.x. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_remove_leading_empty_lines`](#nemoguardrails-actions-v2_x-generation-_remove_leading_empty_lines) | Remove the leading empty lines if they exist. |
+
+### Data
+
+[`log`](#nemoguardrails-actions-v2_x-generation-log)
+
+### API
+
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMGenerationActions](/guardrails-python-sdk/nemoguardrails/actions/llm/generation#nemoguardrails-actions-llm-generation-LLMGenerationActions)
+
+Adapted version of LLMGenerationActions for Colang 2.x.
+
+It overrides some methods.
+
+
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-_collect_user_intent_and_examples">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx._collect_user_intent_and_examples(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    user_action: str,
+    max_example_flows: int
+) -> typing.Tuple[typing.List[str], str, bool]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-_ensure_flows_index">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx._ensure_flows_index()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-_ensure_instruction_flows_index">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx._ensure_instruction_flows_index()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-_init_colang_flows_index">
+
+<CodeBlock links={{"nemoguardrails.embeddings.index.EmbeddingsIndex":"/guardrails-python-sdk/nemoguardrails/embeddings/index#nemoguardrails-embeddings-index-EmbeddingsIndex"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx._init_colang_flows_index(
+    flows: typing.List[str]
+) -> typing.Optional[nemoguardrails.embeddings.index.EmbeddingsIndex]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Initialize an index with colang flows.
+
+The flows are expected to have full definition.
+
+Args
+    flows: The list of flows, i.e. the flow definition from the source code.
+
+Returns
+    An initialized index.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-_init_flows_index">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx._init_flows_index() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Initializes the index of flows.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-check_for_active_flow_finished_match">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.check_for_active_flow_finished_match(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    event_name: str,
+    arguments: typing.Any = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Return True if there is a flow waiting for the provided event name and parameters.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-check_if_flow_defined">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.check_if_flow_defined(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    flow_id: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Return True if a flow with the provided flow_id is defined.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-check_if_flow_exists">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.check_if_flow_exists(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    flow_id: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Return True if a flow with the provided flow_id exists.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-create_flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.create_flow(
+    events: typing.List[dict],
+    name: str,
+    body: str,
+    decorators: typing.Optional[str] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Create a new flow during runtime.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_flow">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_flow(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    events: typing.List[dict],
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    flow_id: typing.Optional[str] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate the body for a flow.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_flow_continuation">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_flow_continuation(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    events: typing.List[dict],
+    temperature: typing.Optional[float] = None,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a continuation for the flow representing the current conversation.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_flow_from_instructions">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_flow_from_instructions(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    instructions: str,
+    events: typing.List[dict],
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a flow from the provided instructions.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_flow_from_name">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_flow_from_name(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    name: str,
+    events: typing.List[dict],
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a flow from the provided NAME.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_user_intent">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_user_intent(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    events: typing.List[dict],
+    user_action: str,
+    max_example_flows: int = 5,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate the canonical form for what the user said i.e. user intent.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_user_intent_and_bot_action">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_user_intent_and_bot_action(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    events: typing.List[dict],
+    user_action: str,
+    max_example_flows: int = 5,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate the canonical form for what the user said i.e. user intent and a suitable bot action.
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-generate_value">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.generate_value(
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    instructions: str,
+    events: typing.List[dict],
+    var_name: typing.Optional[str] = None,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a value in the context of the conversation.
+
+:param instructions: The instructions to generate the value.
+:param events: The full stream of events so far.
+:param var_name: The name of the variable to generate.
+:param llm: Custom llm model to generate_value
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-get_last_user_message">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.get_last_user_message(
+    events: typing.List[dict],
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-actions-v2_x-generation-LLMGenerationActionsV2dotx-passthrough_llm_action">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.statemachine.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.LLMGenerationActionsV2dotx.passthrough_llm_action(
+    user_message: str,
+    state: nemoguardrails.colang.v2_x.runtime.statemachine.State,
+    events: typing.List[dict],
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-actions-v2_x-generation-_remove_leading_empty_lines">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation._remove_leading_empty_lines(
+    s: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Remove the leading empty lines if they exist.
+
+A line is considered empty if it has only white spaces.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-v2_x-generation-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.v2_x.generation.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

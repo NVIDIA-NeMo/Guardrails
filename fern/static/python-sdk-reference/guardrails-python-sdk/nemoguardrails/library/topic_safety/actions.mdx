@@ -1,0 +1,99 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/topic_safety/actions
+title: nemoguardrails.library.topic_safety.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`topic_safety_check_input`](#nemoguardrails-library-topic_safety-actions-topic_safety_check_input) | - |
+
+### Data
+
+[`TOPIC_SAFETY_MAX_TOKENS`](#nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_MAX_TOKENS)
+
+[`TOPIC_SAFETY_OUTPUT_RESTRICTION`](#nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_OUTPUT_RESTRICTION)
+
+[`TOPIC_SAFETY_TEMPERATURE`](#nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_TEMPERATURE)
+
+[`log`](#nemoguardrails-library-topic_safety-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-topic_safety-actions-topic_safety_check_input">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel","nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.topic_safety.actions.topic_safety_check_input(
+    llms: typing.Dict[str, nemoguardrails.types.LLMModel],
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    model_name: typing.Optional[str] = None,
+    context: typing.Optional[dict] = None,
+    events: typing.Optional[typing.List[dict]] = None,
+    model_caches: typing.Optional[typing.Dict[str, nemoguardrails.llm.cache.CacheInterface]] = None,
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_MAX_TOKENS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.topic_safety.actions.TOPIC_SAFETY_MAX_TOKENS = 10
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_OUTPUT_RESTRICTION">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.topic_safety.actions.TOPIC_SAFETY_OUTPUT_RESTRICTION = 'If any of the above conditions are violated, please respond with "off-topic". O...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-topic_safety-actions-TOPIC_SAFETY_TEMPERATURE">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.topic_safety.actions.TOPIC_SAFETY_TEMPERATURE = 0.01
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-topic_safety-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.topic_safety.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

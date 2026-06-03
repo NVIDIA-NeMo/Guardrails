@@ -1,0 +1,102 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/embeddings/providers/base
+title: nemoguardrails.embeddings.providers.base
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`EmbeddingModel`](#nemoguardrails-embeddings-providers-base-EmbeddingModel) | Generic interface for an embedding model. |
+
+### API
+
+<Anchor id="nemoguardrails-embeddings-providers-base-EmbeddingModel">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.embeddings.providers.base.EmbeddingModel()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+Generic interface for an embedding model.
+
+The embedding model is responsible for creating the embeddings given a list of
+input texts.
+
+
+<ParamField path="engine_name" type="Optional[str] = None">
+</ParamField>
+<Anchor id="nemoguardrails-embeddings-providers-base-EmbeddingModel-encode">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.base.EmbeddingModel.encode(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Encode the provided documents into embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents for which embeddings should be created.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of embeddings corresponding to the input documents.
+
+
+</Indent>
+<Anchor id="nemoguardrails-embeddings-providers-base-EmbeddingModel-encode_async">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.base.EmbeddingModel.encode_async(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge> <Badge>abstract</Badge>
+
+Encode the provided documents into embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents for which embeddings should be created.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of embeddings corresponding to the input documents.
+
+
+</Indent>
+</Indent>

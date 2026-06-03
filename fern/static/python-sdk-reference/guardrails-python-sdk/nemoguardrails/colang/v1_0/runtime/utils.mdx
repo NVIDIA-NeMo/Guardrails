@@ -1,0 +1,91 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v1_0/runtime/utils
+title: nemoguardrails.colang.v1_0.runtime.utils
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`AttributeDict`](#nemoguardrails-colang-v1_0-runtime-utils-AttributeDict) | A simple utility class that allows accessing dictionary members as attributes. |
+
+### API
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-utils-AttributeDict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v1_0.runtime.utils.AttributeDict()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `dict`
+
+A simple utility class that allows accessing dictionary members as attributes.
+
+This class inherits from the built-in `dict` class and overrides the `__getattr__`
+and `__setattr__` methods to provide attribute-style access to dictionary keys.
+
+Example:
+<CodeBlock showLineNumbers={false}>
+
+```python
+# Using AttributeDict
+my_dict = AttributeDict({'key': 'value', 'nested': {'inner_key': 'inner_value'}})
+
+# Accessing dictionary keys as attributes
+print(my_dict.key)            # Output: 'value'
+print(my_dict.nested.inner_key)# Output: 'inner_value'
+```
+
+</CodeBlock>
+
+Note:
+- If a dictionary value is itself a dictionary, it is converted to an `AttributeDict`.
+- If a dictionary value is a list of dictionaries, the list is converted to a list of `AttributeDict` objects.
+
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-utils-AttributeDict-__getattr__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.utils.AttributeDict.__getattr__(
+    attr
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v1_0-runtime-utils-AttributeDict-__setattr__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.utils.AttributeDict.__setattr__(
+    attr,
+    value
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>

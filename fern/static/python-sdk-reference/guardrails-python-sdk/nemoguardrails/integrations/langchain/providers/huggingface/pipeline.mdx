@@ -1,0 +1,82 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/providers/huggingface/pipeline
+title: nemoguardrails.integrations.langchain.providers.huggingface.pipeline
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`HuggingFacePipelineCompatible`](#nemoguardrails-integrations-langchain-providers-huggingface-pipeline-HuggingFacePipelineCompatible) | Hackish way to add backward-compatibility functions to the Langchain class. |
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-huggingface-pipeline-HuggingFacePipelineCompatible">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.providers.huggingface.pipeline.HuggingFacePipelineCompatible()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `HuggingFacePipeline`
+
+Hackish way to add backward-compatibility functions to the Langchain class.
+TODO: Planning to add this fix directly to Langchain repo.
+
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-huggingface-pipeline-HuggingFacePipelineCompatible-_acall">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.huggingface.pipeline.HuggingFacePipelineCompatible._acall(
+    prompt: str,
+    stop: typing.Optional[typing.List[str]] = None,
+    run_manager: typing.Optional[langchain_core.callbacks.manager.AsyncCallbackManagerForLLMRun] = None,
+    kwargs: typing.Any = {}
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Hackish way to add async support
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-huggingface-pipeline-HuggingFacePipelineCompatible-_call">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.huggingface.pipeline.HuggingFacePipelineCompatible._call(
+    prompt: str,
+    stop: typing.Optional[typing.List[str]] = None,
+    run_manager: typing.Optional[langchain_core.callbacks.manager.CallbackManagerForLLMRun] = None,
+    kwargs: typing.Any = {}
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Hackish way to perform a single llm call since Langchain dropped support
+
+
+</Indent>
+</Indent>

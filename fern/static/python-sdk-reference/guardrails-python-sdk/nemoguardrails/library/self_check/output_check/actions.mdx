@@ -1,0 +1,67 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/self_check/output_check/actions
+title: nemoguardrails.library.self_check.output_check.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`self_check_output`](#nemoguardrails-library-self_check-output_check-actions-self_check_output) | Checks if the output from the bot. |
+
+### Data
+
+[`log`](#nemoguardrails-library-self_check-output_check-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-self_check-output_check-actions-self_check_output">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.self_check.output_check.actions.self_check_output(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks if the output from the bot.
+
+Prompt the LLM, using the `self_check_output` task prompt, to determine if the output
+from the bot should be allowed or not.
+
+The LLM call should return "yes" if the output is bad and should be blocked
+(this is consistent with self_check_input_prompt).
+
+**Returns:**
+
+True if the output should be allowed, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-self_check-output_check-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.self_check.output_check.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

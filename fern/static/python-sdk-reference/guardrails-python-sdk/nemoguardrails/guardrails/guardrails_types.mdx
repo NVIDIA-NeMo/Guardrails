@@ -1,0 +1,266 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types
+title: nemoguardrails.guardrails.guardrails_types
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`RailDirection`](#nemoguardrails-guardrails-guardrails_types-RailDirection) | Direction of a rail check, used for logging. |
+| [`RailResult`](#nemoguardrails-guardrails-guardrails_types-RailResult) | Result of a rail safety check. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_set_request_id`](#nemoguardrails-guardrails-guardrails_types-_set_request_id) | Set an explicit request ID (e.g., derived from an OTEL trace ID). |
+| [`get_request_id`](#nemoguardrails-guardrails-guardrails_types-get_request_id) | Return the current per-request correlation ID. |
+| [`reset_request_id`](#nemoguardrails-guardrails-guardrails_types-reset_request_id) | Restore the request ID ContextVar to its previous value. |
+| [`set_new_request_id`](#nemoguardrails-guardrails-guardrails_types-set_new_request_id) | Generate a random request ID, set it in the current context, and return the reset token. |
+| [`truncate`](#nemoguardrails-guardrails-guardrails_types-truncate) | Return ``str(text)`` truncated to *max_len* characters (default: LOG_CONTENT_TRUNCATE_LENGTH). |
+
+### Data
+
+[`LLMMessage`](#nemoguardrails-guardrails-guardrails_types-LLMMessage)
+
+[`LLMMessages`](#nemoguardrails-guardrails-guardrails_types-LLMMessages)
+
+[`LOG_CONTENT_TRUNCATE_LENGTH`](#nemoguardrails-guardrails-guardrails_types-LOG_CONTENT_TRUNCATE_LENGTH)
+
+[`REQUEST_ID_BYTES`](#nemoguardrails-guardrails-guardrails_types-REQUEST_ID_BYTES)
+
+[`REQUEST_ID_HEX_CHARS`](#nemoguardrails-guardrails-guardrails_types-REQUEST_ID_HEX_CHARS)
+
+[`_request_id_var`](#nemoguardrails-guardrails-guardrails_types-_request_id_var)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-RailDirection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.guardrails_types.RailDirection
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+Direction of a rail check, used for logging.
+
+<ParamField path="INPUT" type="= 'Input'">
+</ParamField>
+
+<ParamField path="OUTPUT" type="= 'Output'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-RailResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.guardrails_types.RailResult(
+    is_safe: bool,
+    reason: str | None = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+Result of a rail safety check.
+
+
+<ParamField path="is_safe" type="bool">
+</ParamField>
+
+<ParamField path="reason" type="str | None = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-_set_request_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types._set_request_id(
+    request_id: str
+) -> contextvars.Token[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Set an explicit request ID (e.g., derived from an OTEL trace ID).
+
+Unlike ``set_new_request_id`` which generates a random ID, this accepts
+a caller-provided string.  Returns the reset token for use with
+``reset_request_id``.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-get_request_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.get_request_id() -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the current per-request correlation ID.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-reset_request_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.reset_request_id(
+    token: contextvars.Token[str]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Restore the request ID ContextVar to its previous value.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-set_new_request_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.set_new_request_id() -> contextvars.Token[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Generate a random request ID, set it in the current context, and return the reset token.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-truncate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.truncate(
+    text: object,
+    max_len: int | None = None
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return ``str(text)`` truncated to *max_len* characters (default: LOG_CONTENT_TRUNCATE_LENGTH).
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-LLMMessage">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.LLMMessage: TypeAlias = dict[str, str]
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-LLMMessages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.LLMMessages: TypeAlias = list[LLMMessage]
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-LOG_CONTENT_TRUNCATE_LENGTH">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.LOG_CONTENT_TRUNCATE_LENGTH = 200
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-REQUEST_ID_BYTES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.REQUEST_ID_BYTES = 8
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-REQUEST_ID_HEX_CHARS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types.REQUEST_ID_HEX_CHARS = REQUEST_ID_BYTES * 2
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-guardrails_types-_request_id_var">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.guardrails_types._request_id_var: ContextVar[str] = ContextVar('request_id', default='no-req-id')
+```
+
+</CodeBlock>
+</Anchor>
+

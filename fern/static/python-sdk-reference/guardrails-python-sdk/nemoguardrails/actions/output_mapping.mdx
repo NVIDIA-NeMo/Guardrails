@@ -1,0 +1,75 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions/output_mapping
+title: nemoguardrails.actions.output_mapping
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`default_output_mapping`](#nemoguardrails-actions-output_mapping-default_output_mapping) | A fallback output mapping if an action does not provide one. |
+| [`is_output_blocked`](#nemoguardrails-actions-output_mapping-is_output_blocked) | Determines if an action result is not allowed using its attached mapping. |
+
+### API
+
+<Anchor id="nemoguardrails-actions-output_mapping-default_output_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.output_mapping.default_output_mapping(
+    result: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+A fallback output mapping if an action does not provide one.
+
+- For a boolean result: assume True means allowed (so block if False).
+- For a numeric result: use 0.5 as a threshold (block if the value is less).
+- Otherwise, assume the result is allowed.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-output_mapping-is_output_blocked">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.output_mapping.is_output_blocked(
+    result: typing.Any,
+    action_func: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Determines if an action result is not allowed using its attached mapping.
+
+**Parameters:**
+
+<ParamField path="result" type="Any">
+The value returned by the action.
+</ParamField>
+
+<ParamField path="action_func" type="Any">
+The action function (whose metadata contains the mapping).
+</ParamField>
+
+**Returns:** `bool`
+
+True if the mapping indicates that the output should be blocked, False otherwise.
+
+
+</Indent>

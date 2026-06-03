@@ -1,0 +1,2842 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/rails/llm/config
+title: nemoguardrails.rails.llm.config
+---
+
+Module for the configuration of rails.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`AIDefenseRailConfig`](#nemoguardrails-rails-llm-config-AIDefenseRailConfig) | Configuration data for the Cisco AI Defense API |
+| [`ActionRails`](#nemoguardrails-rails-llm-config-ActionRails) | Configuration of action rails. |
+| [`AutoAlignOptions`](#nemoguardrails-rails-llm-config-AutoAlignOptions) | List of guardrails that are activated |
+| [`AutoAlignRailConfig`](#nemoguardrails-rails-llm-config-AutoAlignRailConfig) | Configuration data for the AutoAlign API |
+| [`CacheStatsConfig`](#nemoguardrails-rails-llm-config-CacheStatsConfig) | Configuration for cache statistics tracking and logging. |
+| [`ClavataRailConfig`](#nemoguardrails-rails-llm-config-ClavataRailConfig) | Configuration data for the Clavata API |
+| [`ClavataRailOptions`](#nemoguardrails-rails-llm-config-ClavataRailOptions) | Configuration data for the Clavata API |
+| [`ContentSafetyConfig`](#nemoguardrails-rails-llm-config-ContentSafetyConfig) | Configuration data for content safety rails. |
+| [`CoreConfig`](#nemoguardrails-rails-llm-config-CoreConfig) | Settings for core internal mechanics. |
+| [`CrowdStrikeAIDRRailConfig`](#nemoguardrails-rails-llm-config-CrowdStrikeAIDRRailConfig) | Configuration data for the CrowdStrike AIDR API |
+| [`DialogRails`](#nemoguardrails-rails-llm-config-DialogRails) | Configuration of topical rails. |
+| [`Document`](#nemoguardrails-rails-llm-config-Document) | Configuration for documents that should be used for question answering. |
+| [`EmbeddingSearchProvider`](#nemoguardrails-rails-llm-config-EmbeddingSearchProvider) | Configuration of a embedding search provider. |
+| [`EmbeddingsCacheConfig`](#nemoguardrails-rails-llm-config-EmbeddingsCacheConfig) | Configuration for the caching embeddings. |
+| [`FactCheckingRailConfig`](#nemoguardrails-rails-llm-config-FactCheckingRailConfig) | Configuration data for the fact-checking rail. |
+| [`FiddlerGuardrails`](#nemoguardrails-rails-llm-config-FiddlerGuardrails) | Configuration for Fiddler Guardrails. |
+| [`GLiNERDetection`](#nemoguardrails-rails-llm-config-GLiNERDetection) | Configuration for GLiNER PII detection. |
+| [`GLiNERDetectionOptions`](#nemoguardrails-rails-llm-config-GLiNERDetectionOptions) | Configuration options for GLiNER. |
+| [`GuardrailsAIRailConfig`](#nemoguardrails-rails-llm-config-GuardrailsAIRailConfig) | Configuration data for Guardrails AI integration. |
+| [`GuardrailsAIValidatorConfig`](#nemoguardrails-rails-llm-config-GuardrailsAIValidatorConfig) | Configuration for a single Guardrails AI validator. |
+| [`InjectionDetection`](#nemoguardrails-rails-llm-config-InjectionDetection) | - |
+| [`InputRails`](#nemoguardrails-rails-llm-config-InputRails) | Configuration of input rails. |
+| [`Instruction`](#nemoguardrails-rails-llm-config-Instruction) | Configuration for instructions in natural language that should be passed to the LLM. |
+| [`JailbreakDetectionConfig`](#nemoguardrails-rails-llm-config-JailbreakDetectionConfig) | Configuration data for jailbreak detection. |
+| [`KnowledgeBaseConfig`](#nemoguardrails-rails-llm-config-KnowledgeBaseConfig) | - |
+| [`LocalHFClassifierConfig`](#nemoguardrails-rails-llm-config-LocalHFClassifierConfig) | Configuration for a local HuggingFace Transformers pipeline classifier. |
+| [`LogAdapterConfig`](#nemoguardrails-rails-llm-config-LogAdapterConfig) | - |
+| [`MessageTemplate`](#nemoguardrails-rails-llm-config-MessageTemplate) | Template for a message structure. |
+| [`MetricsConfig`](#nemoguardrails-rails-llm-config-MetricsConfig) | OpenTelemetry Metrics Configuration. |
+| [`Model`](#nemoguardrails-rails-llm-config-Model) | Configuration of a model used by the rails engine. |
+| [`ModelCacheConfig`](#nemoguardrails-rails-llm-config-ModelCacheConfig) | Configuration for model caching. |
+| [`MultilingualConfig`](#nemoguardrails-rails-llm-config-MultilingualConfig) | Configuration for multilingual refusal messages. |
+| [`OutputRails`](#nemoguardrails-rails-llm-config-OutputRails) | Configuration of output rails. |
+| [`OutputRailsStreamingConfig`](#nemoguardrails-rails-llm-config-OutputRailsStreamingConfig) | Configuration for managing streaming output of LLM tokens. |
+| [`PangeaRailConfig`](#nemoguardrails-rails-llm-config-PangeaRailConfig) | Configuration data for the Pangea AI Guard API |
+| [`PangeaRailOptions`](#nemoguardrails-rails-llm-config-PangeaRailOptions) | Configuration data for the Pangea AI Guard API |
+| [`PatronusEvaluateApiParams`](#nemoguardrails-rails-llm-config-PatronusEvaluateApiParams) | Config to parameterize the Patronus Evaluate API call |
+| [`PatronusEvaluateConfig`](#nemoguardrails-rails-llm-config-PatronusEvaluateConfig) | Config for the Patronus Evaluate API call |
+| [`PatronusEvaluationSuccessStrategy`](#nemoguardrails-rails-llm-config-PatronusEvaluationSuccessStrategy) | Strategy for determining whether a Patronus Evaluation API |
+| [`PatronusRailConfig`](#nemoguardrails-rails-llm-config-PatronusRailConfig) | Configuration data for the Patronus Evaluate API |
+| [`PrivateAIDetection`](#nemoguardrails-rails-llm-config-PrivateAIDetection) | Configuration for Private AI. |
+| [`PrivateAIDetectionOptions`](#nemoguardrails-rails-llm-config-PrivateAIDetectionOptions) | Configuration options for Private AI. |
+| [`Rails`](#nemoguardrails-rails-llm-config-Rails) | Configuration of specific rails. |
+| [`RailsConfig`](#nemoguardrails-rails-llm-config-RailsConfig) | Configuration object for the models and the rails. |
+| [`RailsConfigData`](#nemoguardrails-rails-llm-config-RailsConfigData) | Configuration data for specific rails that are supported out-of-the-box. |
+| [`ReasoningConfig`](#nemoguardrails-rails-llm-config-ReasoningConfig) | Configuration for reasoning mode in content safety models. |
+| [`RegexDetection`](#nemoguardrails-rails-llm-config-RegexDetection) | Configuration for regex pattern detection. |
+| [`RegexDetectionOptions`](#nemoguardrails-rails-llm-config-RegexDetectionOptions) | Configuration options for regex pattern detection on a specific source. |
+| [`RemoteHFClassifierConfig`](#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig) | Configuration for a remote HuggingFace classifier (vLLM, KServe, FMS). |
+| [`RetrievalRails`](#nemoguardrails-rails-llm-config-RetrievalRails) | Configuration of retrieval rails. |
+| [`SensitiveDataDetection`](#nemoguardrails-rails-llm-config-SensitiveDataDetection) | Configuration of what sensitive data should be detected. |
+| [`SensitiveDataDetectionOptions`](#nemoguardrails-rails-llm-config-SensitiveDataDetectionOptions) | - |
+| [`SingleCallConfig`](#nemoguardrails-rails-llm-config-SingleCallConfig) | Configuration for the single LLM call option for topical rails. |
+| [`SpanFormat`](#nemoguardrails-rails-llm-config-SpanFormat) | - |
+| [`TaskPrompt`](#nemoguardrails-rails-llm-config-TaskPrompt) | Configuration for prompts that will be used for a specific task. |
+| [`ToolInputRails`](#nemoguardrails-rails-llm-config-ToolInputRails) | Configuration of tool input rails. |
+| [`ToolOutputRails`](#nemoguardrails-rails-llm-config-ToolOutputRails) | Configuration of tool output rails. |
+| [`TracingConfig`](#nemoguardrails-rails-llm-config-TracingConfig) | - |
+| [`TrendMicroRailConfig`](#nemoguardrails-rails-llm-config-TrendMicroRailConfig) | Configuration data for the Trend Micro AI Guard API |
+| [`UserMessagesConfig`](#nemoguardrails-rails-llm-config-UserMessagesConfig) | Configuration for how the user messages are interpreted. |
+| [`_HFClassifierBase`](#nemoguardrails-rails-llm-config-_HFClassifierBase) | Shared fields for all HuggingFace classifier engines. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_generate_rails_flows`](#nemoguardrails-rails-llm-config-_generate_rails_flows) | Generates flow definitions from the list of flows. |
+| [`_get_flow_model`](#nemoguardrails-rails-llm-config-_get_flow_model) | Helper to return a model name from a flow definition |
+| [`_get_flow_name`](#nemoguardrails-rails-llm-config-_get_flow_name) | Helper to return a model name from a flow definition |
+| [`_get_rails_flows`](#nemoguardrails-rails-llm-config-_get_rails_flows) | Extracts the list of flows from the raw_config dictionary. |
+| [`_has_input_output_config_rails`](#nemoguardrails-rails-llm-config-_has_input_output_config_rails) | Checks if the raw configuration has input/output rails configured. |
+| [`_join_config`](#nemoguardrails-rails-llm-config-_join_config) | Helper to join two configuration. |
+| [`_join_dict`](#nemoguardrails-rails-llm-config-_join_dict) | Joins two dictionaries recursively. |
+| [`_join_rails_configs`](#nemoguardrails-rails-llm-config-_join_rails_configs) | Helper to join two rails configuration. |
+| [`_load_imported_paths`](#nemoguardrails-rails-llm-config-_load_imported_paths) | Load recursively all the imported path in the specified raw_config. |
+| [`_load_path`](#nemoguardrails-rails-llm-config-_load_path) | Load a configuration object from the specified path. |
+| [`_parse_colang_files_recursively`](#nemoguardrails-rails-llm-config-_parse_colang_files_recursively) | Helper function to parse all the Colang files. |
+| [`_unique_list_concat`](#nemoguardrails-rails-llm-config-_unique_list_concat) | Concatenates two lists ensuring all elements are unique. |
+| [`_validate_rail_prompts`](#nemoguardrails-rails-llm-config-_validate_rail_prompts) | - |
+| [`merge_two_dicts`](#nemoguardrails-rails-llm-config-merge_two_dicts) | Merges the fields of two dictionaries recursively. |
+
+### Data
+
+[`HFClassifierConfig`](#nemoguardrails-rails-llm-config-HFClassifierConfig)
+
+[`JAILBREAK_FLOW_HEURISTICS`](#nemoguardrails-rails-llm-config-JAILBREAK_FLOW_HEURISTICS)
+
+[`JAILBREAK_FLOW_MODEL`](#nemoguardrails-rails-llm-config-JAILBREAK_FLOW_MODEL)
+
+[`MODEL_PREFIX`](#nemoguardrails-rails-llm-config-MODEL_PREFIX)
+
+[`_default_config`](#nemoguardrails-rails-llm-config-_default_config)
+
+[`_default_config_v2`](#nemoguardrails-rails-llm-config-_default_config_v2)
+
+[`colang_path_dirs`](#nemoguardrails-rails-llm-config-colang_path_dirs)
+
+[`guardrails_stdlib_path`](#nemoguardrails-rails-llm-config-guardrails_stdlib_path)
+
+[`log`](#nemoguardrails-rails-llm-config-log)
+
+[`standard_library_path`](#nemoguardrails-rails-llm-config-standard_library_path)
+
+### API
+
+<Anchor id="nemoguardrails-rails-llm-config-AIDefenseRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.AIDefenseRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Cisco AI Defense API
+
+
+<ParamField path="fail_open" type="bool">
+</ParamField>
+
+<ParamField path="timeout" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ActionRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ActionRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of action rails.
+
+Action rails control various options related to the execution of actions.
+Currently, only
+
+In the future multiple options will be added, e.g., what input validation should be
+performed per action, output validation, throttling, disabling, etc.
+
+
+<ParamField path="instant_actions" type="Optional[List[str]]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-AutoAlignOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.AutoAlignOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+List of guardrails that are activated
+
+
+<ParamField path="guardrails_config" type="Dict[str, Any]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-AutoAlignRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.AutoAlignRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the AutoAlign API
+
+
+<ParamField path="input" type="AutoAlignOptions">
+</ParamField>
+
+<ParamField path="output" type="AutoAlignOptions">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any] = Field(default_factory=dict)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-CacheStatsConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.CacheStatsConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for cache statistics tracking and logging.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+
+<ParamField path="log_interval" type="Optional[float]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ClavataRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ClavataRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Clavata API
+
+
+<ParamField path="input" type="Optional[ClavataRailOptions]">
+</ParamField>
+
+<ParamField path="label_match_logic" type="Literal['ANY', 'ALL']">
+</ParamField>
+
+<ParamField path="output" type="Optional[ClavataRailOptions]">
+</ParamField>
+
+<ParamField path="policies" type="Dict[str, str]">
+</ParamField>
+
+<ParamField path="server_endpoint" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ClavataRailOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ClavataRailOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Clavata API
+
+
+<ParamField path="labels" type="List[str]">
+</ParamField>
+
+<ParamField path="policy" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ContentSafetyConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ContentSafetyConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for content safety rails.
+
+
+<ParamField path="multilingual" type="MultilingualConfig">
+</ParamField>
+
+<ParamField path="reasoning" type="ReasoningConfig">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-CoreConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.CoreConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Settings for core internal mechanics.
+
+
+<ParamField path="embedding_search_provider" type="EmbeddingSearchProvider">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-CrowdStrikeAIDRRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.CrowdStrikeAIDRRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the CrowdStrike AIDR API
+
+
+<ParamField path="timeout" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-DialogRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.DialogRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of topical rails.
+
+
+<ParamField path="single_call" type="SingleCallConfig">
+</ParamField>
+
+<ParamField path="user_messages" type="UserMessagesConfig">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-Document">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.Document()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for documents that should be used for question answering.
+
+
+<ParamField path="content" type="str">
+</ParamField>
+
+<ParamField path="format" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-EmbeddingSearchProvider">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.EmbeddingSearchProvider()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of a embedding search provider.
+
+
+<ParamField path="cache" type="EmbeddingsCacheConfig = Field(default_factory=EmbeddingsCacheConfig)">
+</ParamField>
+
+<ParamField path="name" type="str">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any] = Field(default_factory=dict)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-EmbeddingsCacheConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.EmbeddingsCacheConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for the caching embeddings.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+
+<ParamField path="key_generator" type="str">
+</ParamField>
+
+<ParamField path="store" type="str">
+</ParamField>
+
+<ParamField path="store_config" type="Dict[str, Any]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-EmbeddingsCacheConfig-to_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.EmbeddingsCacheConfig.to_dict()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-FactCheckingRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.FactCheckingRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the fact-checking rail.
+
+
+<ParamField path="fallback_to_self_check" type="bool">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any] = Field(default_factory=dict)">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-FiddlerGuardrails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.FiddlerGuardrails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for Fiddler Guardrails.
+
+
+<ParamField path="faithfulness_threshold" type="float">
+</ParamField>
+
+<ParamField path="fiddler_endpoint" type="str">
+</ParamField>
+
+<ParamField path="safety_threshold" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-GLiNERDetection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.GLiNERDetection()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for GLiNER PII detection.
+
+
+<ParamField path="api_key_env_var" type="Optional[str]">
+</ParamField>
+
+<ParamField path="chunk_length" type="int">
+</ParamField>
+
+<ParamField path="flat_ner" type="bool">
+</ParamField>
+
+<ParamField path="input" type="GLiNERDetectionOptions">
+</ParamField>
+
+<ParamField path="model" type="str">
+</ParamField>
+
+<ParamField path="model_config" type="= ConfigDict(extra='forbid')">
+</ParamField>
+
+<ParamField path="output" type="GLiNERDetectionOptions">
+</ParamField>
+
+<ParamField path="overlap" type="int">
+</ParamField>
+
+<ParamField path="retrieval" type="GLiNERDetectionOptions">
+</ParamField>
+
+<ParamField path="server_endpoint" type="str">
+</ParamField>
+
+<ParamField path="threshold" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-GLiNERDetectionOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.GLiNERDetectionOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration options for GLiNER.
+
+
+<ParamField path="entities" type="List[str]">
+</ParamField>
+
+<ParamField path="model_config" type="= ConfigDict(extra='forbid')">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-GuardrailsAIRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.GuardrailsAIRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for Guardrails AI integration.
+
+
+<ParamField path="validators" type="List[GuardrailsAIValidatorConfig]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-GuardrailsAIRailConfig-get_validator_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.GuardrailsAIValidatorConfig":"#nemoguardrails-rails-llm-config-GuardrailsAIValidatorConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.GuardrailsAIRailConfig.get_validator_config(
+    name: str
+) -> typing.Optional[nemoguardrails.rails.llm.config.GuardrailsAIValidatorConfig]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get a specific validator configuration by name.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-GuardrailsAIValidatorConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.GuardrailsAIValidatorConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for a single Guardrails AI validator.
+
+
+<ParamField path="metadata" type="Dict[str, Any]">
+</ParamField>
+
+<ParamField path="name" type="str">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-InjectionDetection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.InjectionDetection()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="action" type="str">
+</ParamField>
+
+<ParamField path="injections" type="List[str]">
+</ParamField>
+
+<ParamField path="yara_path" type="Optional[str]">
+</ParamField>
+
+<ParamField path="yara_rules" type="Optional[Dict[str, str]]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-InputRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.InputRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of input rails.
+
+
+<ParamField path="flows" type="List[str]">
+</ParamField>
+
+<ParamField path="parallel" type="Optional[bool]">
+</ParamField>
+
+<ParamField path="speculative_generation" type="Optional[bool]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-Instruction">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.Instruction()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for instructions in natural language that should be passed to the LLM.
+
+
+<ParamField path="content" type="str">
+</ParamField>
+
+<ParamField path="type" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-JailbreakDetectionConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.JailbreakDetectionConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for jailbreak detection.
+
+
+<ParamField path="api_key" type="Optional[SecretStr]">
+</ParamField>
+
+<ParamField path="api_key_env_var" type="Optional[str]">
+</ParamField>
+
+<ParamField path="embedding" type="Optional[str]">
+</ParamField>
+
+<ParamField path="length_per_perplexity_threshold" type="float">
+</ParamField>
+
+<ParamField path="nim_base_url" type="Optional[str]">
+</ParamField>
+
+<ParamField path="nim_port" type="Optional[int]">
+</ParamField>
+
+<ParamField path="nim_server_endpoint" type="Optional[str]">
+</ParamField>
+
+<ParamField path="nim_url" type="Optional[str]">
+</ParamField>
+
+<ParamField path="prefix_suffix_perplexity_threshold" type="float">
+</ParamField>
+
+<ParamField path="server_endpoint" type="Optional[str]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-JailbreakDetectionConfig-get_api_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.JailbreakDetectionConfig.get_api_key() -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to return an API key (if it exists) from a Jailbreak configuration.
+  This can come from (in descending order of priority):
+
+1. The `api_key` field, a Pydantic SecretStr from which we extract the full string.
+2. The `api_key_env_var` field, a string stored in this environment variable.
+
+If neither is found, None is returned.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-JailbreakDetectionConfig-migrate_deprecated_fields">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.JailbreakDetectionConfig":"#nemoguardrails-rails-llm-config-JailbreakDetectionConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.JailbreakDetectionConfig.migrate_deprecated_fields() -> nemoguardrails.rails.llm.config.JailbreakDetectionConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Migrate deprecated nim_url/nim_port fields to nim_base_url format.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-JailbreakDetectionConfig-validate_urls">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.JailbreakDetectionConfig":"#nemoguardrails-rails-llm-config-JailbreakDetectionConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.JailbreakDetectionConfig.validate_urls() -> nemoguardrails.rails.llm.config.JailbreakDetectionConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate URL formats for endpoints.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-KnowledgeBaseConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.KnowledgeBaseConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="embedding_search_provider" type="EmbeddingSearchProvider">
+</ParamField>
+
+<ParamField path="folder" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-LocalHFClassifierConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.LocalHFClassifierConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [_HFClassifierBase](#nemoguardrails-rails-llm-config-_HFClassifierBase)
+
+Configuration for a local HuggingFace Transformers pipeline classifier.
+
+
+<ParamField path="engine" type="Literal['local'] = 'local'">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any]">
+</ParamField>
+
+<ParamField path="task" type="Literal['text-classification', 'token-classification']">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-LocalHFClassifierConfig-_validate_local">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.LocalHFClassifierConfig":"#nemoguardrails-rails-llm-config-LocalHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.LocalHFClassifierConfig._validate_local() -> nemoguardrails.rails.llm.config.LocalHFClassifierConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-LogAdapterConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.LogAdapterConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="model_config" type="= ConfigDict(extra='allow')">
+</ParamField>
+
+<ParamField path="name" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-MessageTemplate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.MessageTemplate()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Template for a message structure.
+
+
+<ParamField path="content" type="str = Field(description='The content of the message.')">
+</ParamField>
+
+<ParamField path="type" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-MetricsConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.MetricsConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+OpenTelemetry Metrics Configuration.
+Configures and enables Metrics independent of OTEL Traces.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-Model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.Model()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of a model used by the rails engine.
+
+Typically, the main model is configured e.g.:
+&#123;
+    "type": "main",
+    "engine": "openai",
+    "model": "gpt-3.5-turbo-instruct"
+&#125;
+
+
+<ParamField path="api_key_env_var" type="Optional[str]">
+</ParamField>
+
+<ParamField path="cache" type="Optional[ModelCacheConfig]">
+</ParamField>
+
+<ParamField path="engine" type="str">
+</ParamField>
+
+<ParamField path="mode" type="Literal['chat', 'text']">
+</ParamField>
+
+<ParamField path="model" type="Optional[str]">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any] = Field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="type" type="str">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-Model-model_must_be_none_empty">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.Model":"#nemoguardrails-rails-llm-config-Model"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.Model.model_must_be_none_empty() -> nemoguardrails.rails.llm.config.Model
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate that a model name is present either directly or in parameters.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-Model-set_and_validate_model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.Model.set_and_validate_model(
+    data: typing.Any
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ModelCacheConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ModelCacheConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for model caching.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+
+<ParamField path="maxsize" type="int">
+</ParamField>
+
+<ParamField path="stats" type="CacheStatsConfig">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-MultilingualConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.MultilingualConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for multilingual refusal messages.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+
+<ParamField path="refusal_messages" type="Optional[Dict[str, str]]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-OutputRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.OutputRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of output rails.
+
+
+<ParamField path="flows" type="List[str]">
+</ParamField>
+
+<ParamField path="parallel" type="Optional[bool]">
+</ParamField>
+
+<ParamField path="streaming" type="OutputRailsStreamingConfig">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-OutputRailsStreamingConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.OutputRailsStreamingConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for managing streaming output of LLM tokens.
+
+
+<ParamField path="chunk_size" type="int">
+</ParamField>
+
+<ParamField path="context_size" type="int">
+</ParamField>
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+
+<ParamField path="model_config" type="= ConfigDict(extra='allow')">
+</ParamField>
+
+<ParamField path="stream_first" type="bool">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PangeaRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PangeaRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Pangea AI Guard API
+
+
+<ParamField path="input" type="Optional[PangeaRailOptions]">
+</ParamField>
+
+<ParamField path="output" type="Optional[PangeaRailOptions]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PangeaRailOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PangeaRailOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Pangea AI Guard API
+
+
+<ParamField path="recipe" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PatronusEvaluateApiParams">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PatronusEvaluateApiParams()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Config to parameterize the Patronus Evaluate API call
+
+
+<ParamField path="params" type="Dict[str, Any]">
+</ParamField>
+
+<ParamField path="success_strategy" type="Optional[PatronusEvaluationSuccessStrategy]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PatronusEvaluateConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PatronusEvaluateConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Config for the Patronus Evaluate API call
+
+
+<ParamField path="evaluate_config" type="PatronusEvaluateApiParams">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PatronusEvaluationSuccessStrategy">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PatronusEvaluationSuccessStrategy
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+Strategy for determining whether a Patronus Evaluation API
+request should pass, especially when multiple evaluators
+are called in a single request.
+ALL_PASS requires all evaluators to pass for success.
+ANY_PASS requires only one evaluator to pass for success.
+
+<ParamField path="ALL_PASS" type="= 'all_pass'">
+</ParamField>
+
+<ParamField path="ANY_PASS" type="= 'any_pass'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PatronusRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PatronusRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Patronus Evaluate API
+
+
+<ParamField path="input" type="Optional[PatronusEvaluateConfig]">
+</ParamField>
+
+<ParamField path="output" type="Optional[PatronusEvaluateConfig]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PrivateAIDetection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PrivateAIDetection()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for Private AI.
+
+
+<ParamField path="input" type="PrivateAIDetectionOptions">
+</ParamField>
+
+<ParamField path="output" type="PrivateAIDetectionOptions">
+</ParamField>
+
+<ParamField path="retrieval" type="PrivateAIDetectionOptions">
+</ParamField>
+
+<ParamField path="server_endpoint" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-PrivateAIDetectionOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.PrivateAIDetectionOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration options for Private AI.
+
+
+<ParamField path="entities" type="List[str]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-Rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.Rails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of specific rails.
+
+
+<ParamField path="actions" type="ActionRails">
+</ParamField>
+
+<ParamField path="config" type="RailsConfigData">
+</ParamField>
+
+<ParamField path="dialog" type="DialogRails">
+</ParamField>
+
+<ParamField path="input" type="InputRails">
+</ParamField>
+
+<ParamField path="output" type="OutputRails">
+</ParamField>
+
+<ParamField path="retrieval" type="RetrievalRails">
+</ParamField>
+
+<ParamField path="tool_input" type="ToolInputRails">
+</ParamField>
+
+<ParamField path="tool_output" type="ToolOutputRails">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RailsConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration object for the models and the rails.
+
+TODO: add typed config for user_messages, bot_messages, and flows.
+
+
+<ParamField path="actions_server_url" type="Optional[str]">
+</ParamField>
+
+<ParamField path="bot_messages" type="Dict[str, List[str]]">
+</ParamField>
+
+<ParamField path="colang_version" type="str">
+</ParamField>
+
+<ParamField path="config_path" type="Optional[str]">
+</ParamField>
+
+<ParamField path="core" type="CoreConfig">
+</ParamField>
+
+<ParamField path="custom_data" type="Dict">
+</ParamField>
+
+<ParamField path="docs" type="Optional[List[Document]]">
+</ParamField>
+
+<ParamField path="enable_multi_step_generation" type="Optional[bool]">
+</ParamField>
+
+<ParamField path="enable_rails_exceptions" type="bool">
+</ParamField>
+
+<ParamField path="event_source_uid" type="str">
+</ParamField>
+
+<ParamField path="flows" type="List[Union[Dict, Any]]">
+</ParamField>
+
+<ParamField path="import_paths" type="Optional[List[str]]">
+</ParamField>
+
+<ParamField path="imported_paths" type="Optional[Dict[str, str]]">
+</ParamField>
+
+<ParamField path="instructions" type="Optional[List[Instruction]]">
+</ParamField>
+
+<ParamField path="knowledge_base" type="KnowledgeBaseConfig">
+</ParamField>
+
+<ParamField path="lowest_temperature" type="Optional[float]">
+</ParamField>
+
+<ParamField path="metrics" type="MetricsConfig">
+</ParamField>
+
+<ParamField path="models" type="List[Model]">
+</ParamField>
+
+<ParamField path="passthrough" type="Optional[bool]">
+</ParamField>
+
+<ParamField path="prompting_mode" type="Optional[str]">
+</ParamField>
+
+<ParamField path="prompts" type="Optional[List[TaskPrompt]]">
+</ParamField>
+
+<ParamField path="rails" type="Rails">
+</ParamField>
+
+<ParamField path="raw_llm_call_action" type="Optional[str]">
+</ParamField>
+
+<ParamField path="sample_conversation" type="Optional[str]">
+</ParamField>
+
+<ParamField path="streaming" type="bool">
+</ParamField>
+
+<ParamField path="tracing" type="TracingConfig">
+</ParamField>
+
+<ParamField path="user_messages" type="Dict[str, List[str]]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-__add__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.__add__(
+    other
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Adds two RailsConfig objects.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-check_jailbreak_detection_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.check_jailbreak_detection_config(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate jailbreak detection configuration against enabled flows.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-check_model_exists_for_input_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.check_model_exists_for_input_rails(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Make sure we have a model for each input rail where one is provided using $model=&lt;model_type&gt;
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-check_model_exists_for_output_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.check_model_exists_for_output_rails(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Make sure we have a model for each output rail where one is provided using $model=&lt;model_type&gt;
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-check_output_parser_exists">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.check_output_parser_exists(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-check_prompt_exist_for_self_check_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.check_prompt_exist_for_self_check_rails(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-fill_in_default_values_for_v2_x">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.fill_in_default_values_for_v2_x(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-from_content">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.from_content(
+    colang_content: typing.Optional[str] = None,
+    yaml_content: typing.Optional[str] = None,
+    config: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Loads a configuration from the provided colang/YAML content/config dict.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-from_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.from_path(
+    config_path: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Loads a configuration from a given path.
+
+Supports loading a from a single file, or from a directory.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-parse_object">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.parse_object(
+    obj
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Parses a configuration object from a given dictionary.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfig-validate_models_api_key_env_var">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RailsConfig.validate_models_api_key_env_var(
+    models
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Model API Key Env var must be set to make LLM calls
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RailsConfigData">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RailsConfigData()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for specific rails that are supported out-of-the-box.
+
+
+<ParamField path="ai_defense" type="Optional[AIDefenseRailConfig]">
+</ParamField>
+
+<ParamField path="autoalign" type="AutoAlignRailConfig">
+</ParamField>
+
+<ParamField path="clavata" type="Optional[ClavataRailConfig]">
+</ParamField>
+
+<ParamField path="content_safety" type="Optional[ContentSafetyConfig]">
+</ParamField>
+
+<ParamField path="crowdstrike_aidr" type="Optional[CrowdStrikeAIDRRailConfig]">
+</ParamField>
+
+<ParamField path="fact_checking" type="FactCheckingRailConfig">
+</ParamField>
+
+<ParamField path="fiddler" type="Optional[FiddlerGuardrails]">
+</ParamField>
+
+<ParamField path="gliner" type="Optional[GLiNERDetection]">
+</ParamField>
+
+<ParamField path="guardrails_ai" type="Optional[GuardrailsAIRailConfig]">
+</ParamField>
+
+<ParamField path="hf_classifier" type="Optional[Dict[str, HFClassifierConfig]]">
+</ParamField>
+
+<ParamField path="injection_detection" type="Optional[InjectionDetection]">
+</ParamField>
+
+<ParamField path="jailbreak_detection" type="Optional[JailbreakDetectionConfig]">
+</ParamField>
+
+<ParamField path="pangea" type="Optional[PangeaRailConfig]">
+</ParamField>
+
+<ParamField path="patronus" type="Optional[PatronusRailConfig]">
+</ParamField>
+
+<ParamField path="privateai" type="Optional[PrivateAIDetection]">
+</ParamField>
+
+<ParamField path="regex_detection" type="Optional[RegexDetection]">
+</ParamField>
+
+<ParamField path="sensitive_data_detection" type="Optional[SensitiveDataDetection]">
+</ParamField>
+
+<ParamField path="trend_micro" type="Optional[TrendMicroRailConfig]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ReasoningConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ReasoningConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for reasoning mode in content safety models.
+
+
+<ParamField path="enabled" type="bool">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RegexDetection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RegexDetection()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for regex pattern detection.
+
+
+<ParamField path="input" type="RegexDetectionOptions">
+</ParamField>
+
+<ParamField path="output" type="RegexDetectionOptions">
+</ParamField>
+
+<ParamField path="retrieval" type="RegexDetectionOptions">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RegexDetectionOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RegexDetectionOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration options for regex pattern detection on a specific source.
+
+
+<ParamField path="_compiled_patterns" type="List[Pattern[str]] = PrivateAttr(default_factory=list)">
+</ParamField>
+
+<ParamField path="case_insensitive" type="bool">
+</ParamField>
+
+<ParamField path="compiled_patterns" type="List[Pattern[str]]">
+Return the pre-compiled regex patterns.
+</ParamField>
+
+<ParamField path="patterns" type="List[str]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-RegexDetectionOptions-compile_patterns">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RegexDetectionOptions":"#nemoguardrails-rails-llm-config-RegexDetectionOptions"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RegexDetectionOptions.compile_patterns() -> nemoguardrails.rails.llm.config.RegexDetectionOptions
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Pre-compile regex patterns at config load time.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RemoteHFClassifierConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RemoteHFClassifierConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [_HFClassifierBase](#nemoguardrails-rails-llm-config-_HFClassifierBase)
+
+Configuration for a remote HuggingFace classifier (vLLM, KServe, FMS).
+
+
+<ParamField path="_KNOWN_PARAMS" type="frozenset">
+</ParamField>
+
+<ParamField path="api_key_env_var" type="Optional[str]">
+</ParamField>
+
+<ParamField path="base_url" type="str">
+</ParamField>
+
+<ParamField path="engine" type="Literal['vllm', 'kserve', 'fms']">
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any]">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-RemoteHFClassifierConfig-_validate_remote">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.RemoteHFClassifierConfig._validate_remote() -> nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-RetrievalRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.RetrievalRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of retrieval rails.
+
+
+<ParamField path="flows" type="List[str]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-SensitiveDataDetection">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.SensitiveDataDetection()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of what sensitive data should be detected.
+
+
+<ParamField path="input" type="SensitiveDataDetectionOptions">
+</ParamField>
+
+<ParamField path="output" type="SensitiveDataDetectionOptions">
+</ParamField>
+
+<ParamField path="recognizers" type="List[dict]">
+</ParamField>
+
+<ParamField path="retrieval" type="SensitiveDataDetectionOptions">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-SensitiveDataDetectionOptions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.SensitiveDataDetectionOptions()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="entities" type="List[str]">
+</ParamField>
+
+<ParamField path="mask_token" type="str">
+</ParamField>
+
+<ParamField path="score_threshold" type="float">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-SingleCallConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.SingleCallConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for the single LLM call option for topical rails.
+
+
+<ParamField path="enabled" type="bool = False">
+</ParamField>
+
+<ParamField path="fallback_to_multiple_calls" type="bool">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-SpanFormat">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.SpanFormat
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+<ParamField path="legacy" type="= 'legacy'">
+</ParamField>
+
+<ParamField path="opentelemetry" type="= 'opentelemetry'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-TaskPrompt">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.TaskPrompt()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for prompts that will be used for a specific task.
+
+
+<ParamField path="content" type="Optional[str]">
+</ParamField>
+
+<ParamField path="max_length" type="Optional[int]">
+</ParamField>
+
+<ParamField path="max_tokens" type="Optional[int]">
+</ParamField>
+
+<ParamField path="messages" type="Optional[List[Union[MessageTemplate, str]]]">
+</ParamField>
+
+<ParamField path="mode" type="Optional[str]">
+</ParamField>
+
+<ParamField path="models" type="Optional[List[str]]">
+</ParamField>
+
+<ParamField path="output_parser" type="Optional[str]">
+</ParamField>
+
+<ParamField path="stop" type="Optional[List[str]]">
+</ParamField>
+
+<ParamField path="task" type="str">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-TaskPrompt-check_fields">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.TaskPrompt.check_fields(
+    values
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ToolInputRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ToolInputRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of tool input rails.
+
+Tool input rails are applied to tool results before they are processed.
+They can validate, filter, or transform tool outputs for security and safety.
+
+
+<ParamField path="flows" type="List[str]">
+</ParamField>
+
+<ParamField path="parallel" type="Optional[bool]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-ToolOutputRails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.ToolOutputRails()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration of tool output rails.
+
+Tool output rails are applied to tool calls before they are executed.
+They can validate tool names, parameters, and context to ensure safe tool usage.
+
+
+<ParamField path="flows" type="List[str]">
+</ParamField>
+
+<ParamField path="parallel" type="Optional[bool]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-TracingConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.TracingConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="adapters" type="List[LogAdapterConfig]">
+</ParamField>
+
+<ParamField path="enable_content_capture" type="bool">
+</ParamField>
+
+<ParamField path="enabled" type="bool = False">
+</ParamField>
+
+<ParamField path="span_format" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-TrendMicroRailConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.TrendMicroRailConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration data for the Trend Micro AI Guard API
+
+
+<ParamField path="api_key_env_var" type="Optional[str]">
+</ParamField>
+
+<ParamField path="application_name" type="str">
+</ParamField>
+
+<ParamField path="detailed_response" type="bool">
+</ParamField>
+
+<ParamField path="v1_url" type="str">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-TrendMicroRailConfig-get_api_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.TrendMicroRailConfig.get_api_key() -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to return an API key (if it exists) from a Trend Micro configuration.
+The `api_key_env_var` field, a string stored in this environment variable.
+
+If the environment variable is not found None is returned.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-UserMessagesConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config.UserMessagesConfig()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Configuration for how the user messages are interpreted.
+
+
+<ParamField path="embeddings_only" type="bool">
+</ParamField>
+
+<ParamField path="embeddings_only_fallback_intent" type="Optional[str]">
+</ParamField>
+
+<ParamField path="embeddings_only_similarity_threshold" type="Optional[float]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_HFClassifierBase">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.config._HFClassifierBase()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Shared fields for all HuggingFace classifier engines.
+
+
+<ParamField path="blocked_labels" type="List[str]">
+</ParamField>
+
+<ParamField path="model" type="str">
+</ParamField>
+
+<ParamField path="threshold" type="float">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-config-_HFClassifierBase-_validate_common">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config._HFClassifierBase":"#nemoguardrails-rails-llm-config-_HFClassifierBase"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._HFClassifierBase._validate_common() -> nemoguardrails.rails.llm.config._HFClassifierBase
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_generate_rails_flows">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._generate_rails_flows(
+    flows
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Generates flow definitions from the list of flows.
+Args:
+    flows (dict): The dictionary of flows.
+Returns:
+    str: The flow definitions.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_get_flow_model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._get_flow_model(
+    flow_text
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to return a model name from a flow definition
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_get_flow_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._get_flow_name(
+    flow_text
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to return a model name from a flow definition
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_get_rails_flows">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._get_rails_flows(
+    raw_config
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extracts the list of flows from the raw_config dictionary.
+
+**Parameters:**
+
+<ParamField path="raw_config" type="dict">
+The raw configuration dictionary.
+</ParamField>
+
+**Returns:**
+
+The list of flows.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_has_input_output_config_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._has_input_output_config_rails(
+    raw_config
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks if the raw configuration has input/output rails configured.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_join_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._join_config(
+    dest_config: dict,
+    additional_config: dict
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to join two configuration.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_join_dict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._join_dict(
+    dict1,
+    dict2
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Joins two dictionaries recursively.
+- If values are dictionaries, it applies _join_dict recursively.
+- If values are lists, it concatenates them, ensuring unique elements.
+- For other types, values from dict2 overwrite dict1.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_join_rails_configs">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._join_rails_configs(
+    base_rails_config: nemoguardrails.rails.llm.config.RailsConfig,
+    updated_rails_config: nemoguardrails.rails.llm.config.RailsConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to join two rails configuration.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_load_imported_paths">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._load_imported_paths(
+    raw_config: dict,
+    colang_files: typing.List[typing.Tuple[str, str]]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Load recursively all the imported path in the specified raw_config.
+
+**Parameters:**
+
+<ParamField path="raw_config" type="dict">
+The starting raw configuration (i.e., a dict)
+</ParamField>
+
+<ParamField path="colang_files" type="List[Tuple[str, str]]">
+The current set of colang files which will be extended as new
+configurations are loaded.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_load_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._load_path(
+    config_path: str
+) -> typing.Tuple[dict, typing.List[typing.Tuple[str, str]]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Load a configuration object from the specified path.
+
+**Parameters:**
+
+<ParamField path="config_path" type="str">
+The path from which to load.
+</ParamField>
+
+**Returns:** `Tuple[dict, List[Tuple[str, str]]]`
+
+(raw_config, colang_files) The raw config object and the list of colang files.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_parse_colang_files_recursively">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._parse_colang_files_recursively(
+    raw_config: dict,
+    colang_files: typing.List[typing.Tuple[str, str]],
+    parsed_colang_files: typing.List[dict]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to parse all the Colang files.
+
+If there are imports, they will be imported recursively
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_unique_list_concat">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._unique_list_concat(
+    list1,
+    list2
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Concatenates two lists ensuring all elements are unique.
+Handles unhashable types like dictionaries.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-_validate_rail_prompts">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._validate_rail_prompts(
+    rails: list[str],
+    prompts: list[typing.Any],
+    validation_rail: str
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-merge_two_dicts">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.merge_two_dicts(
+    dict_1: dict,
+    dict_2: dict,
+    ignore_keys: typing.Set[str]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Merges the fields of two dictionaries recursively.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-config-HFClassifierConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.HFClassifierConfig = Annotated[Union[LocalHFClassifierConfig, RemoteHFClassifierConfig], Discriminato...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-JAILBREAK_FLOW_HEURISTICS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.JAILBREAK_FLOW_HEURISTICS = 'jailbreak detection heuristics'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-JAILBREAK_FLOW_MODEL">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.JAILBREAK_FLOW_MODEL = 'jailbreak detection model'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-MODEL_PREFIX">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.MODEL_PREFIX = '$model='
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-_default_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._default_config = yaml.safe_load(_fc)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-_default_config_v2">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config._default_config_v2 = yaml.safe_load(_fc)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-colang_path_dirs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.colang_path_dirs = [(_path.strip()) for _path in (os.environ.get('COLANGPATH', '').split(os.pathsep...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-guardrails_stdlib_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.guardrails_stdlib_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-config-standard_library_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.config.standard_library_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'colang', '...
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,135 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/logging/explain
+title: nemoguardrails.logging.explain
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ExplainInfo`](#nemoguardrails-logging-explain-ExplainInfo) | Object that holds additional explanation information. |
+| [`LLMCallInfo`](#nemoguardrails-logging-explain-LLMCallInfo) | - |
+| [`LLMCallSummary`](#nemoguardrails-logging-explain-LLMCallSummary) | - |
+
+### API
+
+<Anchor id="nemoguardrails-logging-explain-ExplainInfo">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.logging.explain.ExplainInfo()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Object that holds additional explanation information.
+
+This is useful for debugging end educational purposes.
+
+
+<ParamField path="colang_history" type="Optional[str]">
+</ParamField>
+
+<ParamField path="llm_calls" type="List[LLMCallInfo]">
+</ParamField>
+<Anchor id="nemoguardrails-logging-explain-ExplainInfo-print_llm_calls_summary">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.logging.explain.ExplainInfo.print_llm_calls_summary()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to print a quick overview of the LLM calls that were made.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-logging-explain-LLMCallInfo">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.logging.explain.LLMCallInfo()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [LLMCallSummary](#nemoguardrails-logging-explain-LLMCallSummary)
+
+<ParamField path="completion" type="Optional[str]">
+</ParamField>
+
+<ParamField path="from_cache" type="bool">
+</ParamField>
+
+<ParamField path="id" type="Optional[str]">
+</ParamField>
+
+<ParamField path="llm_model_name" type="Optional[str]">
+</ParamField>
+
+<ParamField path="llm_provider_name" type="Optional[str]">
+</ParamField>
+
+<ParamField path="prompt" type="Optional[str]">
+</ParamField>
+
+<ParamField path="raw_response" type="Optional[dict]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-logging-explain-LLMCallSummary">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.logging.explain.LLMCallSummary()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="completion_tokens" type="Optional[int]">
+</ParamField>
+
+<ParamField path="duration" type="Optional[float]">
+</ParamField>
+
+<ParamField path="finished_at" type="Optional[float]">
+</ParamField>
+
+<ParamField path="prompt_tokens" type="Optional[int]">
+</ParamField>
+
+<ParamField path="started_at" type="Optional[float]">
+</ParamField>
+
+<ParamField path="task" type="Optional[str]">
+</ParamField>
+
+<ParamField path="total_tokens" type="Optional[int]">
+</ParamField>
+</Indent>

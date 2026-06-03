@@ -1,0 +1,353 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/clavata/actions
+title: nemoguardrails.library.clavata.actions
+---
+
+Check for matches against a Clavata policy.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`LabelResult`](#nemoguardrails-library-clavata-actions-LabelResult) | Result of a label evaluation |
+| [`PolicyResult`](#nemoguardrails-library-clavata-actions-PolicyResult) | Result of Clavata Policy Evaluation |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`clavata_check`](#nemoguardrails-library-clavata-actions-clavata_check) | Check for matches against a Clavata policy. |
+| [`evaluate_with_policy`](#nemoguardrails-library-clavata-actions-evaluate_with_policy) | Get the policy result for the given source. |
+| [`get_clavata_config`](#nemoguardrails-library-clavata-actions-get_clavata_config) | Get the Clavata config and flow config for the given source. |
+| [`get_labels`](#nemoguardrails-library-clavata-actions-get_labels) | Checks whether the provided text matches the specified Clavata policy ID. |
+| [`get_policy_id`](#nemoguardrails-library-clavata-actions-get_policy_id) | Get Policy ID will check the input policy. If the input is already a UUID, that UUID will be used. Otherwise, |
+| [`get_server_endpoint`](#nemoguardrails-library-clavata-actions-get_server_endpoint) | Get the server endpoint from the Clavata config. |
+| [`is_label_match`](#nemoguardrails-library-clavata-actions-is_label_match) | Check whether the labels matched the policy |
+
+### Data
+
+[`VALID_RAILS`](#nemoguardrails-library-clavata-actions-VALID_RAILS)
+
+[`ValidRailsType`](#nemoguardrails-library-clavata-actions-ValidRailsType)
+
+[`log`](#nemoguardrails-library-clavata-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-clavata-actions-LabelResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.actions.LabelResult()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Result of a label evaluation
+
+
+<ParamField path="label" type="str = Field(description='The label that was evaluated')">
+</ParamField>
+
+<ParamField path="matched" type="bool">
+</ParamField>
+
+<ParamField path="message" type="str">
+</ParamField>
+<Anchor id="nemoguardrails-library-clavata-actions-LabelResult-from_section_report">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.request.SectionReport":"/guardrails-python-sdk/nemoguardrails/library/clavata/request#nemoguardrails-library-clavata-request-SectionReport","nemoguardrails.library.clavata.actions.LabelResult":"#nemoguardrails-library-clavata-actions-LabelResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.LabelResult.from_section_report(
+    report: nemoguardrails.library.clavata.request.SectionReport
+) -> nemoguardrails.library.clavata.actions.LabelResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Convert a Clavata section report to a LabelResult
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-PolicyResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.clavata.actions.PolicyResult()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+Result of Clavata Policy Evaluation
+
+
+<ParamField path="failed" type="bool">
+</ParamField>
+
+<ParamField path="label_matches" type="List[LabelResult]">
+</ParamField>
+
+<ParamField path="policy_matched" type="bool">
+</ParamField>
+<Anchor id="nemoguardrails-library-clavata-actions-PolicyResult-from_job">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.request.Job":"/guardrails-python-sdk/nemoguardrails/library/clavata/request#nemoguardrails-library-clavata-request-Job","nemoguardrails.library.clavata.actions.PolicyResult":"#nemoguardrails-library-clavata-actions-PolicyResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.PolicyResult.from_job(
+    job: nemoguardrails.library.clavata.request.Job
+) -> nemoguardrails.library.clavata.actions.PolicyResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Convert a Clavata job to a PolicyResult
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-clavata-actions-PolicyResult-from_report">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.request.Report":"/guardrails-python-sdk/nemoguardrails/library/clavata/request#nemoguardrails-library-clavata-request-Report","nemoguardrails.library.clavata.actions.PolicyResult":"#nemoguardrails-library-clavata-actions-PolicyResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.PolicyResult.from_report(
+    report: nemoguardrails.library.clavata.request.Report
+) -> nemoguardrails.library.clavata.actions.PolicyResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Convert a Clavata report to a PolicyResult
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-clavata_check">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.actions.ValidRailsType":"#nemoguardrails-library-clavata-actions-ValidRailsType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.clavata_check(
+    text: str,
+    policy: typing.Union[str, None] = None,
+    labels: typing.Optional[typing.Union[typing.List[str], str]] = None,
+    rail: typing.Union[nemoguardrails.library.clavata.actions.ValidRailsType, None] = None,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    kwargs: typing.Any = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Check for matches against a Clavata policy.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-evaluate_with_policy">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig","nemoguardrails.library.clavata.actions.PolicyResult":"#nemoguardrails-library-clavata-actions-PolicyResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.evaluate_with_policy(
+    text: str,
+    policy_id: str,
+    clavata_config: nemoguardrails.rails.llm.config.ClavataRailConfig
+) -> nemoguardrails.library.clavata.actions.PolicyResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Get the policy result for the given source.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-get_clavata_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.get_clavata_config(
+    config: typing.Any
+) -> nemoguardrails.rails.llm.config.ClavataRailConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the Clavata config and flow config for the given source.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-get_labels">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig","nemoguardrails.library.clavata.actions.ValidRailsType":"#nemoguardrails-library-clavata-actions-ValidRailsType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.get_labels(
+    config: nemoguardrails.rails.llm.config.ClavataRailConfig,
+    labels: typing.Optional[typing.Union[typing.List[str], str]] = None,
+    rail: typing.Optional[nemoguardrails.library.clavata.actions.ValidRailsType] = None
+) -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks whether the provided text matches the specified Clavata policy ID.
+Note that this action will return True if any label in the policy matches the text.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-get_policy_id">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig","nemoguardrails.library.clavata.actions.ValidRailsType":"#nemoguardrails-library-clavata-actions-ValidRailsType"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.get_policy_id(
+    config: nemoguardrails.rails.llm.config.ClavataRailConfig,
+    policy: typing.Union[str, None] = None,
+    rail: typing.Optional[nemoguardrails.library.clavata.actions.ValidRailsType] = None
+) -> uuid.UUID
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get Policy ID will check the input policy. If the input is already a UUID, that UUID will be used. Otherwise,
+the config will be checked to try to match the input policy alias to a policy ID. If no match is found, an error
+will be raised.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-get_server_endpoint">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.get_server_endpoint(
+    config: nemoguardrails.rails.llm.config.ClavataRailConfig
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the server endpoint from the Clavata config.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-is_label_match">
+
+<CodeBlock links={{"nemoguardrails.library.clavata.actions.PolicyResult":"#nemoguardrails-library-clavata-actions-PolicyResult","nemoguardrails.rails.llm.config.ClavataRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-ClavataRailConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.is_label_match(
+    result: nemoguardrails.library.clavata.actions.PolicyResult,
+    labels: typing.List[str],
+    clavata_config: nemoguardrails.rails.llm.config.ClavataRailConfig
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check whether the labels matched the policy
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-clavata-actions-VALID_RAILS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.VALID_RAILS = ['input', 'output']
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-actions-ValidRailsType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.ValidRailsType = Literal['input', 'output']
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-clavata-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.clavata.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

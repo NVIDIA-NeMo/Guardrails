@@ -1,0 +1,234 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/registry
+title: nemoguardrails.registry
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`Registry`](#nemoguardrails-registry-Registry) | - |
+
+### API
+
+<Anchor id="nemoguardrails-registry-Registry">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.registry.Registry(
+    enable_validation: bool = True
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+<ParamField path="items" type="= defaultdict(str)">
+</ParamField>
+<Anchor id="nemoguardrails-registry-Registry-__contains__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.__contains__(
+    name: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-__getitem__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.__getitem__(
+    name: str
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-__iter__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.__iter__() -> typing.Iterator[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-__len__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.__len__() -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-__repr__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.__repr__() -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-add">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.add(
+    name: str,
+    item: typing.Any
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Add an item to the registry.
+
+**Parameters:**
+
+<ParamField path="name" type="str">
+The name of the item.
+</ParamField>
+
+<ParamField path="item" type="Any">
+The item to be added.
+</ParamField>
+
+**Raises:**
+
+- `ValueError`: If the item name already exists in the registry.
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-get">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.get(
+    name: str
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get an item by name.
+
+**Parameters:**
+
+<ParamField path="name" type="str">
+The name of the item.
+</ParamField>
+
+**Raises:**
+
+- `KeyError`: If the item name does not exist in the registry.
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.list() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+List all items in the registry.
+
+**Returns:** `List[str]`
+
+List[str]: A list of all item names.
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-reset">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.reset()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-registry-Registry-validate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.registry.Registry.validate(
+    name: str,
+    item: typing.Any
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+
+</Indent>
+</Indent>

@@ -1,0 +1,334 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/async_work_queue
+title: nemoguardrails.guardrails.async_work_queue
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`AsyncWorkQueue`](#nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue) | Async Work Queue with static concurrency and queue size |
+| [`WorkItem`](#nemoguardrails-guardrails-async_work_queue-WorkItem) | Dataclass with async function, args, kwargs, and a future to return result |
+
+### Data
+
+[`T`](#nemoguardrails-guardrails-async_work_queue-T)
+
+[`log`](#nemoguardrails-guardrails-async_work_queue-log)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue(
+    name: str,
+    max_queue_size: int,
+    max_concurrency: int,
+    reject_on_full: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `Generic[T]`
+
+Async Work Queue with static concurrency and queue size
+
+
+<ParamField path="WORKER_ERROR_BACKOFF_SECONDS" type="float = 0.1">
+</ParamField>
+
+<ParamField path="_busy_count" type="= 0">
+</ParamField>
+
+<ParamField path="_queue" type="Queue[WorkItem[T]] = asyncio.Queue(maxsize=max_queue_size)">
+</ParamField>
+
+<ParamField path="_workers" type="List[Task] = []">
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-__aenter__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.__aenter__()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Context manager (used for testing rather than long-lived instance)
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-__aexit__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.__aexit__(
+    exc_type,
+    exc_val,
+    exc_tb
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Context manager (used for testing rather than long-lived instance)
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-_worker_loop">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue._worker_loop() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-is_busy">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.is_busy() -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns True if any worker is currently executing a task.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-is_queue_empty">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.is_queue_empty() -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns True if the queue has zero pending items.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-is_queue_full">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.is_queue_full() -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns True if the queue is currently full.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-num_busy_workers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.num_busy_workers() -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the number of workers currently executing a task.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-num_pending">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.num_pending() -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Number of items buffered in the queue, waiting for a worker.
+Pairs with :meth:`num_busy_workers` — together they cover the two states a
+WorkItem can be in.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-start">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.start() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Starts the worker pool. Call this during service startup.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-stop">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.stop(
+    wait_for_completion: bool = True
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Stops the worker pool. Call this during service shutdown.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-async_work_queue-AsyncWorkQueue-submit">
+
+<CodeBlock links={{"nemoguardrails.guardrails.async_work_queue.T":"#nemoguardrails-guardrails-async_work_queue-T"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.AsyncWorkQueue.submit(
+    func: typing.Callable[..., typing.Awaitable[nemoguardrails.guardrails.async_work_queue.T]],
+    args: typing.Any = (),
+    kwargs: typing.Any = {}
+) -> nemoguardrails.guardrails.async_work_queue.T
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Submit a task.
+If queue is full:
+    - self._reject_on_full=True  -&gt; Raises asyncio.QueueFull
+    - self._reject_on_full=False -&gt; Blocks caller until slot opens
+
+Note: Automatically starts the queue on first submission (lazy initialization).
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-async_work_queue-WorkItem">
+
+<CodeBlock links={{"nemoguardrails.guardrails.async_work_queue.T":"#nemoguardrails-guardrails-async_work_queue-T"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.async_work_queue.WorkItem(
+    func: typing.Callable[..., typing.Awaitable[nemoguardrails.guardrails.async_work_queue.T]],
+    args: typing.Tuple[typing.Any, ...],
+    kwargs: typing.Dict[str, typing.Any],
+    future: asyncio.Future[nemoguardrails.guardrails.async_work_queue.T]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+**Bases:** `Generic[T]`
+
+Dataclass with async function, args, kwargs, and a future to return result
+
+
+<ParamField path="args" type="Tuple[Any, ...]">
+</ParamField>
+
+<ParamField path="func" type="Callable[..., Awaitable[T]]">
+</ParamField>
+
+<ParamField path="future" type="Future[T]">
+</ParamField>
+
+<ParamField path="kwargs" type="Dict[str, Any]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-async_work_queue-T">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.T = TypeVar('T')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-async_work_queue-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.async_work_queue.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

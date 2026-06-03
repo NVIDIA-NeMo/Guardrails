@@ -1,0 +1,288 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/tracing/span_extractors
+title: nemoguardrails.tracing.span_extractors
+---
+
+Span extraction logic for different span versions.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`SpanExtractor`](#nemoguardrails-tracing-span_extractors-SpanExtractor) | Base class for span extractors. |
+| [`SpanExtractorV1`](#nemoguardrails-tracing-span_extractors-SpanExtractorV1) | Extract v1 spans (legacy format). |
+| [`SpanExtractorV2`](#nemoguardrails-tracing-span_extractors-SpanExtractorV2) | Extract v2 spans with OpenTelemetry semantic conventions. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`create_span_extractor`](#nemoguardrails-tracing-span_extractors-create_span_extractor) | Create a span extractor based on format and configuration. |
+
+### API
+
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractor">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.tracing.span_extractors.SpanExtractor()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+Base class for span extractors.
+
+
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractor-extract_spans">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.ActivatedRail":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-ActivatedRail","nemoguardrails.tracing.spans.SpanLegacy":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanLegacy","nemoguardrails.tracing.spans.SpanOpentelemetry":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanOpentelemetry"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractor.extract_spans(
+    activated_rails: typing.List[nemoguardrails.rails.llm.options.ActivatedRail]
+) -> typing.List[typing.Union[nemoguardrails.tracing.spans.SpanLegacy, nemoguardrails.tracing.spans.SpanOpentelemetry]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Extract spans from activated rails.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV1">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.tracing.span_extractors.SpanExtractorV1()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [SpanExtractor](#nemoguardrails-tracing-span_extractors-SpanExtractor)
+
+Extract v1 spans (legacy format).
+
+
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV1-extract_spans">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.ActivatedRail":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-ActivatedRail","nemoguardrails.tracing.spans.SpanLegacy":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanLegacy","nemoguardrails.tracing.spans.SpanOpentelemetry":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanOpentelemetry"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV1.extract_spans(
+    activated_rails: typing.List[nemoguardrails.rails.llm.options.ActivatedRail]
+) -> typing.List[typing.Union[nemoguardrails.tracing.spans.SpanLegacy, nemoguardrails.tracing.spans.SpanOpentelemetry]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract v1 spans from activated rails.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.tracing.span_extractors.SpanExtractorV2(
+    events: typing.Optional[typing.List[dict]] = None,
+    enable_content_capture: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [SpanExtractor](#nemoguardrails-tracing-span_extractors-SpanExtractor)
+
+Extract v2 spans with OpenTelemetry semantic conventions.
+
+
+<ParamField path="internal_events" type="= events or []">
+</ParamField>
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2-_extract_conversation_events">
+
+<CodeBlock links={{"nemoguardrails.tracing.spans.SpanEvent":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanEvent"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV2._extract_conversation_events(
+    ref_time: float
+) -> typing.List[nemoguardrails.tracing.spans.SpanEvent]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract guardrails-specific conversation events from internal events.
+
+NOTE: These are NeMo Guardrails internal events, NOT OpenTelemetry GenAI events.
+We use guardrails-specific namespacing to avoid confusion with OTel GenAI semantic conventions.
+
+
+</Indent>
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2-_extract_finish_reasons">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV2._extract_finish_reasons(
+    raw_response: dict
+) -> typing.Optional[typing.List[str]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract finish reasons from raw LLM response.
+
+
+</Indent>
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2-_extract_llm_events">
+
+<CodeBlock links={{"nemoguardrails.tracing.spans.SpanEvent":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanEvent"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV2._extract_llm_events(
+    llm_call,
+    start_time: float
+) -> typing.List[nemoguardrails.tracing.spans.SpanEvent]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract OpenTelemetry GenAI message events from an LLM call.
+
+
+</Indent>
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2-_get_event_timestamp">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV2._get_event_timestamp(
+    event: dict,
+    ref_time: float
+) -> float
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract timestamp from event or use reference time.
+
+**Parameters:**
+
+<ParamField path="event" type="dict">
+The internal event dictionary
+</ParamField>
+
+<ParamField path="ref_time" type="float">
+Reference time to use as fallback (trace start time)
+</ParamField>
+
+**Returns:** `float`
+
+Timestamp in seconds relative to trace start
+
+
+</Indent>
+<Anchor id="nemoguardrails-tracing-span_extractors-SpanExtractorV2-extract_spans">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.ActivatedRail":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-ActivatedRail","nemoguardrails.tracing.spans.SpanLegacy":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanLegacy","nemoguardrails.tracing.spans.SpanOpentelemetry":"/guardrails-python-sdk/nemoguardrails/tracing/spans#nemoguardrails-tracing-spans-SpanOpentelemetry"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.SpanExtractorV2.extract_spans(
+    activated_rails: typing.List[nemoguardrails.rails.llm.options.ActivatedRail]
+) -> typing.List[typing.Union[nemoguardrails.tracing.spans.SpanLegacy, nemoguardrails.tracing.spans.SpanOpentelemetry]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract v2 spans from activated rails with OpenTelemetry attributes.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_extractors-create_span_extractor">
+
+<CodeBlock links={{"nemoguardrails.tracing.span_extractors.SpanExtractor":"#nemoguardrails-tracing-span_extractors-SpanExtractor"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_extractors.create_span_extractor(
+    span_format: str = 'legacy',
+    events: typing.Optional[typing.List[dict]] = None,
+    enable_content_capture: bool = True
+) -> nemoguardrails.tracing.span_extractors.SpanExtractor
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a span extractor based on format and configuration.
+
+**Parameters:**
+
+<ParamField path="span_format" type="str" default="'legacy'">
+Format of span extractor ('legacy' or 'opentelemetry')
+</ParamField>
+
+<ParamField path="events" type="Optional[List[dict]]" default="None">
+Internal events for OpenTelemetry extractor
+</ParamField>
+
+<ParamField path="enable_content_capture" type="bool" default="True">
+Whether to capture content in spans
+</ParamField>
+
+**Returns:** `SpanExtractor`
+
+Configured span extractor instance
+
+**Raises:**
+
+- `ValueError`: If span_format is not supported
+
+
+</Indent>

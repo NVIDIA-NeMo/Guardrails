@@ -1,0 +1,81 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/factchecking/align_score/actions
+title: nemoguardrails.library.factchecking.align_score.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`alignscore_check_facts`](#nemoguardrails-library-factchecking-align_score-actions-alignscore_check_facts) | Checks the facts for the bot response using an information alignment score. |
+| [`alignscore_check_facts_mapping`](#nemoguardrails-library-factchecking-align_score-actions-alignscore_check_facts_mapping) | Mapping for alignscore_check_facts. |
+
+### Data
+
+[`log`](#nemoguardrails-library-factchecking-align_score-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-factchecking-align_score-actions-alignscore_check_facts">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.factchecking.align_score.actions.alignscore_check_facts(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks the facts for the bot response using an information alignment score.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-factchecking-align_score-actions-alignscore_check_facts_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.factchecking.align_score.actions.alignscore_check_facts_mapping(
+    result: float
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for alignscore_check_facts.
+
+Expects result to be a numeric score (float) representing the factual accuracy.
+Returns True (i.e. block the output) if the score is below 0.5.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-factchecking-align_score-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.factchecking.align_score.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

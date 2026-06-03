@@ -1,0 +1,630 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/llm_adapter
+title: nemoguardrails.integrations.langchain.llm_adapter
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`LangChainFramework`](#nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework) | - |
+| [`LangChainLLMAdapter`](#nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter) | - |
+| [`_ModelInfo`](#nemoguardrails-integrations-langchain-llm_adapter-_ModelInfo) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_build_provider_metadata`](#nemoguardrails-integrations-langchain-llm_adapter-_build_provider_metadata) | - |
+| [`_build_usage_info`](#nemoguardrails-integrations-langchain-llm_adapter-_build_usage_info) | - |
+| [`_extract_model_info`](#nemoguardrails-integrations-langchain-llm_adapter-_extract_model_info) | - |
+| [`_extract_reasoning`](#nemoguardrails-integrations-langchain-llm_adapter-_extract_reasoning) | - |
+| [`_extract_tool_calls`](#nemoguardrails-integrations-langchain-llm_adapter-_extract_tool_calls) | - |
+| [`_extract_usage`](#nemoguardrails-integrations-langchain-llm_adapter-_extract_usage) | - |
+| [`_finalize_tool_call_acc`](#nemoguardrails-integrations-langchain-llm_adapter-_finalize_tool_call_acc) | - |
+| [`_flatten_content`](#nemoguardrails-integrations-langchain-llm_adapter-_flatten_content) | - |
+| [`_infer_model_name`](#nemoguardrails-integrations-langchain-llm_adapter-_infer_model_name) | Helper to infer the model name based from an LLM instance. |
+| [`_infer_provider_from_module`](#nemoguardrails-integrations-langchain-llm_adapter-_infer_provider_from_module) | Infer provider name from the LLM's module path. |
+| [`_langchain_chunk_to_llm_response_chunk`](#nemoguardrails-integrations-langchain-llm_adapter-_langchain_chunk_to_llm_response_chunk) | - |
+| [`_langchain_response_to_llm_response`](#nemoguardrails-integrations-langchain-llm_adapter-_langchain_response_to_llm_response) | - |
+| [`_map_finish_reason`](#nemoguardrails-integrations-langchain-llm_adapter-_map_finish_reason) | - |
+
+### Data
+
+[`_BASE_URL_ATTRIBUTES`](#nemoguardrails-integrations-langchain-llm_adapter-_BASE_URL_ATTRIBUTES)
+
+[`_EXTRACTED_METADATA_KEYS`](#nemoguardrails-integrations-langchain-llm_adapter-_EXTRACTED_METADATA_KEYS)
+
+[`_FINISH_REASON_MAP`](#nemoguardrails-integrations-langchain-llm_adapter-_FINISH_REASON_MAP)
+
+[`_REASONING_KEYS`](#nemoguardrails-integrations-langchain-llm_adapter-_REASONING_KEYS)
+
+[`log`](#nemoguardrails-integrations-langchain-llm_adapter-log)
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-create_model">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.create_model(
+    model_name: str,
+    provider_name: str,
+    model_kwargs: typing.Optional[typing.Dict[str, typing.Any]] = None
+) -> nemoguardrails.types.LLMModel
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-get_chat_provider_names">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.get_chat_provider_names() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-get_llm_provider_names">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.get_llm_provider_names() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-get_provider_names">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.get_provider_names() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-register_llm_provider">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.register_llm_provider(
+    name: str,
+    provider_cls: typing.Any
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-register_provider">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.register_provider(
+    name: str,
+    provider_cls: typing.Any
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainFramework-reset">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainFramework.reset() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter(
+    llm
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<ParamField path="model_name" type="str">
+</ParamField>
+
+<ParamField path="provider_name" type="Optional[str]">
+</ParamField>
+
+<ParamField path="provider_url" type="Optional[str]">
+</ParamField>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter-_prepare_call_params">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter._prepare_call_params(
+    stop: typing.Optional[typing.List[str]],
+    kwargs: typing.Dict[str, typing.Any]
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter-_to_langchain_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter._to_langchain_input(
+    prompt
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter-generate_async">
+
+<CodeBlock links={{"nemoguardrails.types.ChatMessage":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ChatMessage","nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter.generate_async(
+    prompt: typing.Union[str, typing.List[nemoguardrails.types.ChatMessage]],
+    stop: typing.Optional[typing.List[str]] = None,
+    kwargs = {}
+) -> nemoguardrails.types.LLMResponse
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-LangChainLLMAdapter-stream_async">
+
+<CodeBlock links={{"nemoguardrails.types.ChatMessage":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ChatMessage","nemoguardrails.types.LLMResponseChunk":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponseChunk"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.LangChainLLMAdapter.stream_async(
+    prompt: typing.Union[str, typing.List[nemoguardrails.types.ChatMessage]],
+    stop: typing.Optional[typing.List[str]] = None,
+    kwargs = {}
+) -> typing.AsyncIterator[nemoguardrails.types.LLMResponseChunk]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_ModelInfo">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.llm_adapter._ModelInfo()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `NamedTuple`
+
+<ParamField path="finish_reason" type="Optional[FinishReason]">
+</ParamField>
+
+<ParamField path="model" type="Optional[str]">
+</ParamField>
+
+<ParamField path="request_id" type="Optional[str]">
+</ParamField>
+
+<ParamField path="stop_sequence" type="Optional[str]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_build_provider_metadata">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._build_provider_metadata(
+    response_metadata: typing.Dict[str, typing.Any],
+    additional_kwargs: typing.Optional[typing.Dict[str, typing.Any]] = None
+) -> typing.Optional[typing.Dict[str, typing.Any]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_build_usage_info">
+
+<CodeBlock links={{"nemoguardrails.types.UsageInfo":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-UsageInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._build_usage_info(
+    raw: typing.Any
+) -> typing.Optional[nemoguardrails.types.UsageInfo]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_extract_model_info">
+
+<CodeBlock links={{"nemoguardrails.integrations.langchain.llm_adapter._ModelInfo":"#nemoguardrails-integrations-langchain-llm_adapter-_ModelInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._extract_model_info(
+    response_metadata: typing.Dict[str, typing.Any]
+) -> nemoguardrails.integrations.langchain.llm_adapter._ModelInfo
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_extract_reasoning">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._extract_reasoning(
+    response: typing.Any
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_extract_tool_calls">
+
+<CodeBlock links={{"nemoguardrails.types.ToolCall":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ToolCall"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._extract_tool_calls(
+    response: typing.Any
+) -> typing.Optional[typing.List[nemoguardrails.types.ToolCall]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_extract_usage">
+
+<CodeBlock links={{"nemoguardrails.types.UsageInfo":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-UsageInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._extract_usage(
+    response: typing.Any
+) -> typing.Optional[nemoguardrails.types.UsageInfo]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_finalize_tool_call_acc">
+
+<CodeBlock links={{"nemoguardrails.types.ToolCall":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-ToolCall"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._finalize_tool_call_acc(
+    acc: typing.Dict[int, typing.Dict[str, typing.Any]]
+) -> typing.List[nemoguardrails.types.ToolCall]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_flatten_content">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._flatten_content(
+    raw: typing.Any
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_infer_model_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._infer_model_name(
+    llm: typing.Any
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to infer the model name based from an LLM instance.
+
+Because not all models implement correctly _identifying_params from LangChain, we have to
+try to do this manually.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_infer_provider_from_module">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._infer_provider_from_module(
+    llm: typing.Any
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Infer provider name from the LLM's module path.
+
+This function extracts the provider name from LangChain package naming conventions:
+- langchain_openai -&gt; openai
+- langchain_anthropic -&gt; anthropic
+- langchain_google_genai -&gt; google_genai
+- langchain_nvidia_ai_endpoints -&gt; nvidia_ai_endpoints
+- langchain_community.chat_models.ollama -&gt; ollama
+
+For patched/wrapped classes, checks base classes as well.
+
+**Parameters:**
+
+<ParamField path="llm" type="Any">
+The LLM instance
+</ParamField>
+
+**Returns:** `Optional[str]`
+
+The inferred provider name, or None if it cannot be determined
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_langchain_chunk_to_llm_response_chunk">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponseChunk":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponseChunk"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._langchain_chunk_to_llm_response_chunk(
+    chunk: typing.Any
+) -> nemoguardrails.types.LLMResponseChunk
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_langchain_response_to_llm_response">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._langchain_response_to_llm_response(
+    response: typing.Any
+) -> nemoguardrails.types.LLMResponse
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_map_finish_reason">
+
+<CodeBlock links={{"nemoguardrails.types.FinishReason":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-FinishReason"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._map_finish_reason(
+    raw: typing.Optional[str]
+) -> typing.Optional[nemoguardrails.types.FinishReason]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_BASE_URL_ATTRIBUTES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._BASE_URL_ATTRIBUTES = ['base_url', 'endpoint_url', 'server_url', 'azure_endpoint', 'openai_api_base', ...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_EXTRACTED_METADATA_KEYS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._EXTRACTED_METADATA_KEYS = frozenset({'model_name', 'model', 'finish_reason', 'stop_reason', 'stop_sequence...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_FINISH_REASON_MAP">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._FINISH_REASON_MAP: Dict[str, FinishReason] = {'stop': 'stop', 'end_turn': 'stop', 'length': 'length', 'max_tokens': 'length',...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-_REASONING_KEYS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter._REASONING_KEYS = frozenset({'reasoning_content'})
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-llm_adapter-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.llm_adapter.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

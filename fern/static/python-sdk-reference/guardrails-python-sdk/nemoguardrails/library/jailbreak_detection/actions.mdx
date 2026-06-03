@@ -1,0 +1,80 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/jailbreak_detection/actions
+title: nemoguardrails.library.jailbreak_detection.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`jailbreak_detection_heuristics`](#nemoguardrails-library-jailbreak_detection-actions-jailbreak_detection_heuristics) | Checks the user's prompt to determine if it is attempt to jailbreak the model. |
+| [`jailbreak_detection_model`](#nemoguardrails-library-jailbreak_detection-actions-jailbreak_detection_model) | Uses a trained classifier to determine if a user input is a jailbreak attempt |
+
+### Data
+
+[`log`](#nemoguardrails-library-jailbreak_detection-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-actions-jailbreak_detection_heuristics">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_heuristics(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    kwargs = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks the user's prompt to determine if it is attempt to jailbreak the model.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-actions-jailbreak_detection_model">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    model_caches: typing.Optional[typing.Dict[str, nemoguardrails.llm.cache.CacheInterface]] = None
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Uses a trained classifier to determine if a user input is a jailbreak attempt
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

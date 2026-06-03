@@ -1,0 +1,309 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/integrations/langchain/providers/trtllm/client
+title: nemoguardrails.integrations.langchain.providers.trtllm.client
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`TritonClient`](#nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient) | An abstraction of the connection to a triton inference server. |
+
+### Data
+
+[`BAD_WORDS`](#nemoguardrails-integrations-langchain-providers-trtllm-client-BAD_WORDS)
+
+[`RANDOM_SEED`](#nemoguardrails-integrations-langchain-providers-trtllm-client-RANDOM_SEED)
+
+[`STOP_WORDS`](#nemoguardrails-integrations-langchain-providers-trtllm-client-STOP_WORDS)
+
+### API
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient(
+    server_url: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+An abstraction of the connection to a triton inference server.
+
+
+<ParamField path="client" type="= grpcclient.InferenceServerClient(server_url)">
+</ParamField>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-close_streaming">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.close_streaming() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Close the streaming connection.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-generate_inputs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.generate_inputs(
+    prompt: str,
+    tokens: int = 32,
+    temperature: float = 0.5,
+    top_k: float = 0,
+    top_p: float = 0.9,
+    beam_width: int = 1,
+    repetition_penalty: float = 1,
+    length_penalty: float = 1.0
+) -> typing.List['grpcclient.InferInput']
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Create the input for the triton inference server.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-generate_outputs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.generate_outputs() -> typing.List['grpcclient.InferRequestedOutput']
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Generate the expected output structure.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-get_model_concurrency">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.get_model_concurrency(
+    model_name: str,
+    timeout: int = 1000
+) -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get the modle concurrency.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-get_model_list">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.get_model_list() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get a list of models loaded in the triton server.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-load_model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.load_model(
+    model_name: str,
+    timeout: int = 1000
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Load a model into the server.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-prepare_tensor">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.prepare_tensor(
+    name: str,
+    input_data: typing.Any
+) -> 'grpcclient.InferInput'
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Prepare an input data structure.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-process_result">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.process_result(
+    result: typing.Dict[str, str]
+) -> typing.Dict[str, str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Post-process the result from the server.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-request_streaming">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.request_streaming(
+    model_name: str,
+    result_queue: queue.Queue[typing.Union[typing.Optional[typing.Dict[str, str]], str]],
+    params: typing.Any = {}
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Request a streaming connection.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-send_prompt_streaming">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.send_prompt_streaming(
+    model_name: str,
+    request_inputs: typing.Any,
+    request_outputs: typing.Optional[typing.Any],
+    result_queue: queue.Queue[typing.Union[typing.Optional[typing.Dict[str, str]], str]]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Send the prompt and start streaming the result.
+
+
+</Indent>
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-TritonClient-stream_callback">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.TritonClient.stream_callback(
+    result_queue: queue.Queue[typing.Union[typing.Optional[typing.Dict[str, str]], str]],
+    result: typing.Any,
+    error: str
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Add streamed result to queue.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-BAD_WORDS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.BAD_WORDS = ['']
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-RANDOM_SEED">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.RANDOM_SEED = 0
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-integrations-langchain-providers-trtllm-client-STOP_WORDS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.integrations.langchain.providers.trtllm.client.STOP_WORDS = ['</s>']
+```
+
+</CodeBlock>
+</Anchor>
+

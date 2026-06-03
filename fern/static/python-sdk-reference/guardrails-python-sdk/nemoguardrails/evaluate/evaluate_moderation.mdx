@@ -1,0 +1,169 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/evaluate/evaluate_moderation
+title: nemoguardrails.evaluate.evaluate_moderation
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ModerationRailsEvaluation`](#nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation) | Helper class for running the moderation rails (jailbreak, output) evaluation for a Guardrails app. |
+
+### API
+
+<Anchor id="nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.evaluate.evaluate_moderation.ModerationRailsEvaluation(
+    config: str,
+    dataset_path: str = 'nemoguardrails/nemoguardra...,
+    num_samples: int = 50,
+    check_input: bool = True,
+    check_output: bool = True,
+    output_dir: str = 'outputs/moderation',
+    write_outputs: bool = True,
+    split: str = 'harmful'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper class for running the moderation rails (jailbreak, output) evaluation for a Guardrails app.
+It contains all the configuration parameters required to run the evaluation.
+
+
+<ParamField path="dataset">
+</ParamField>
+
+<ParamField path="llm" type="= self.rails.llm">
+</ParamField>
+
+<ParamField path="llm_task_manager" type="= LLMTaskManager(self.rails_config)">
+</ParamField>
+
+<ParamField path="rails" type="= LLMRails(self.rails_config)">
+</ParamField>
+
+<ParamField path="rails_config" type="= RailsConfig.from_path(self.config_path)">
+</ParamField>
+<Anchor id="nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation-check_moderation">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_moderation.ModerationRailsEvaluation.check_moderation()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Evaluates moderation rails for the given dataset.
+
+**Returns:**
+
+Moderation check predictions, jailbreak results, check output results.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation-get_check_output_results">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_moderation.ModerationRailsEvaluation.get_check_output_results(
+    prompt,
+    results
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Gets the output moderation results for a given prompt.
+Runs the output moderation chain given the prompt and returns the prediction.
+
+Prediction: "yes" if the prompt is flagged by output moderation, "no" if acceptable.
+
+**Parameters:**
+
+<ParamField path="prompt" type="str">
+The user input prompt.
+</ParamField>
+
+<ParamField path="results" type="dict">
+Dictionary to store output moderation results.
+</ParamField>
+
+**Returns:**
+
+Bot response, check output prediction, updated results dictionary.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation-get_jailbreak_results">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_moderation.ModerationRailsEvaluation.get_jailbreak_results(
+    prompt,
+    results
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Gets the jailbreak results for a given prompt.
+Runs the jailbreak chain given the prompt and returns the prediction.
+
+Prediction: "yes" if the prompt is flagged as jailbreak, "no" if acceptable.
+
+**Parameters:**
+
+<ParamField path="prompt" type="str">
+The user input prompt.
+</ParamField>
+
+<ParamField path="results" type="dict">
+Dictionary to store jailbreak results.
+</ParamField>
+
+**Returns:**
+
+Jailbreak prediction, updated results dictionary.
+
+
+</Indent>
+<Anchor id="nemoguardrails-evaluate-evaluate_moderation-ModerationRailsEvaluation-run">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.evaluate.evaluate_moderation.ModerationRailsEvaluation.run()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Gets the evaluation results, prints them and writes them to file.
+
+
+</Indent>
+</Indent>

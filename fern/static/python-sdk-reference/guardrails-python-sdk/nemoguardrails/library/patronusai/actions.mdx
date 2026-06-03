@@ -1,0 +1,206 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/patronusai/actions
+title: nemoguardrails.library.patronusai.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`check_guardrail_pass`](#nemoguardrails-library-patronusai-actions-check_guardrail_pass) | Check if evaluations in the Patronus API response pass based on the success strategy. |
+| [`parse_patronus_lynx_response`](#nemoguardrails-library-patronusai-actions-parse_patronus_lynx_response) | Parses the response from the Patronus Lynx LLM and returns a tuple of: |
+| [`patronus_api_check_output`](#nemoguardrails-library-patronusai-actions-patronus_api_check_output) | Check the user message, bot response, and/or provided context |
+| [`patronus_api_check_output_mapping`](#nemoguardrails-library-patronusai-actions-patronus_api_check_output_mapping) | Mapping for patronus_api_check_output. |
+| [`patronus_evaluate_request`](#nemoguardrails-library-patronusai-actions-patronus_evaluate_request) | Make a call to the Patronus Evaluate API. |
+| [`patronus_lynx_check_output_hallucination`](#nemoguardrails-library-patronusai-actions-patronus_lynx_check_output_hallucination) | Check the bot response for hallucinations based on the given chunks |
+| [`patronus_lynx_check_output_hallucination_mapping`](#nemoguardrails-library-patronusai-actions-patronus_lynx_check_output_hallucination_mapping) | Mapping for patronus_lynx_check_output_hallucination. |
+
+### Data
+
+[`log`](#nemoguardrails-library-patronusai-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-patronusai-actions-check_guardrail_pass">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.check_guardrail_pass(
+    response: typing.Optional[dict],
+    success_strategy: typing.Literal['all_pass', 'any_pass']
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if evaluations in the Patronus API response pass based on the success strategy.
+"all_pass" requires all evaluators to pass for success.
+"any_pass" requires only one evaluator to pass for success.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-parse_patronus_lynx_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.parse_patronus_lynx_response(
+    response: str
+) -> typing.Tuple[bool, typing.Union[typing.List[str], None]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the response from the Patronus Lynx LLM and returns a tuple of:
+- Whether the response is hallucinated or not.
+- A reasoning trace explaining the decision.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-patronus_api_check_output">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.patronus_api_check_output(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Check the user message, bot response, and/or provided context
+for issues based on the Patronus Evaluate API
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-patronus_api_check_output_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.patronus_api_check_output_mapping(
+    result: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for patronus_api_check_output.
+
+Block (return True) if "pass" is False.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-patronus_evaluate_request">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.patronus_evaluate_request(
+    api_params: dict,
+    user_input: typing.Optional[str] = None,
+    bot_response: typing.Optional[str] = None,
+    provided_context: typing.Optional[typing.Union[str, typing.List[str]]] = None
+) -> typing.Optional[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Make a call to the Patronus Evaluate API.
+
+Returns a dictionary of the API response JSON if successful, or None if a server error occurs.
+    * Server errors will cause the guardrail to block the bot response
+
+Raises a ValueError for client errors (400-499), as these indicate invalid requests.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-patronus_lynx_check_output_hallucination">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.patronus_lynx_check_output_hallucination(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    patronus_lynx_llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Check the bot response for hallucinations based on the given chunks
+using the configured Patronus Lynx model.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-patronus_lynx_check_output_hallucination_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.patronus_lynx_check_output_hallucination_mapping(
+    result: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for patronus_lynx_check_output_hallucination.
+
+Block (return True) if "hallucination" is True.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-patronusai-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.patronusai.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

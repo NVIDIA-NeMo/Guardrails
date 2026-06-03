@@ -1,0 +1,178 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/testing/chat_harness
+title: nemoguardrails.testing.chat_harness
+---
+
+Ergonomic helper for writing conversational tests against a guardrails config.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`TestChat`](#nemoguardrails-testing-chat_harness-TestChat) | Helper class for easily writing tests. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_is_data_in_events`](#nemoguardrails-testing-chat_harness-_is_data_in_events) | - |
+
+### Data
+
+[`_TEST_PROVIDERS_WITH_TOKEN_USAGE`](#nemoguardrails-testing-chat_harness-_TEST_PROVIDERS_WITH_TOKEN_USAGE)
+
+### API
+
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat">
+
+<CodeBlock links={{"nemoguardrails.testing.fake_model.FakeLLMModel":"/guardrails-python-sdk/nemoguardrails/testing/fake_model#nemoguardrails-testing-fake_model-FakeLLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.testing.chat_harness.TestChat(
+    config: nemoguardrails.RailsConfig,
+    llm_completions: typing.Optional[typing.List[str]] = None,
+    streaming: bool = False,
+    llm_exception: typing.Optional[Exception] = None,
+    token_usage: typing.Optional[typing.List[typing.Dict[str, int]]] = None,
+    llm: typing.Optional[nemoguardrails.testing.fake_model.FakeLLMModel] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper class for easily writing tests.
+
+
+<ParamField path="app" type="= LLMRails(config, llm=(self.llm))">
+</ParamField>
+
+<ParamField path="history" type="= []">
+</ParamField>
+
+<ParamField path="input_events" type="= []">
+</ParamField>
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat-__lshift__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness.TestChat.__lshift__(
+    msg: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat-__rshift__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness.TestChat.__rshift__(
+    msg: typing.Union[str, dict]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat-bot">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness.TestChat.bot(
+    expected: typing.Union[str, dict, list]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat-bot_async">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness.TestChat.bot_async(
+    msg: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-testing-chat_harness-TestChat-user">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness.TestChat.user(
+    msg: typing.Union[str, dict]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-testing-chat_harness-_is_data_in_events">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness._is_data_in_events(
+    events: typing.List[typing.Dict[str, typing.Any]],
+    event_data: typing.List[typing.Dict[str, typing.Any]]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-testing-chat_harness-_TEST_PROVIDERS_WITH_TOKEN_USAGE">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.testing.chat_harness._TEST_PROVIDERS_WITH_TOKEN_USAGE = ['openai', 'azure_openai', 'nim']
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,100 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/tracing/span_format
+title: nemoguardrails.tracing.span_format
+---
+
+Span format definitions for NeMo Guardrails tracing.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`SpanFormat`](#nemoguardrails-tracing-span_format-SpanFormat) | Supported span formats for tracing. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`validate_span_format`](#nemoguardrails-tracing-span_format-validate_span_format) | Validate and convert span format value to SpanFormat enum. |
+
+### Data
+
+[`SpanFormatType`](#nemoguardrails-tracing-span_format-SpanFormatType)
+
+### API
+
+<Anchor id="nemoguardrails-tracing-span_format-SpanFormat">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.tracing.span_format.SpanFormat
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+Supported span formats for tracing.
+
+Inherits from str to allow direct string comparison and JSON serialization.
+
+<ParamField path="LEGACY" type="= 'legacy'">
+</ParamField>
+
+<ParamField path="OPENTELEMETRY" type="= 'opentelemetry'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_format-validate_span_format">
+
+<CodeBlock links={{"nemoguardrails.tracing.span_format.SpanFormatType":"#nemoguardrails-tracing-span_format-SpanFormatType","nemoguardrails.tracing.span_format.SpanFormat":"#nemoguardrails-tracing-span_format-SpanFormat"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_format.validate_span_format(
+    value: nemoguardrails.tracing.span_format.SpanFormatType
+) -> nemoguardrails.tracing.span_format.SpanFormat
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate and convert span format value to SpanFormat enum.
+
+**Parameters:**
+
+<ParamField path="value" type="SpanFormatType">
+Span format as enum, literal, or string
+</ParamField>
+
+**Returns:** `SpanFormat`
+
+Validated SpanFormat enum value
+
+**Raises:**
+
+- `ValueError`: If value is not a valid span format
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_format-SpanFormatType">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_format.SpanFormatType = Union[SpanFormat, Literal['legacy', 'opentelemetry'], str]
+```
+
+</CodeBlock>
+</Anchor>
+

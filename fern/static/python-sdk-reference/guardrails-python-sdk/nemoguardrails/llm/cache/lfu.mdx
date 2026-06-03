@@ -1,0 +1,515 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/cache/lfu
+title: nemoguardrails.llm.cache.lfu
+---
+
+Least Frequently Used (LFU) cache implementation.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`DoublyLinkedList`](#nemoguardrails-llm-cache-lfu-DoublyLinkedList) | Doubly linked list to maintain nodes with the same frequency. |
+| [`LFUCache`](#nemoguardrails-llm-cache-lfu-LFUCache) | Least Frequently Used (LFU) Cache implementation. |
+| [`LFUNode`](#nemoguardrails-llm-cache-lfu-LFUNode) | Node for the LFU cache doubly linked list. |
+
+### Data
+
+[`log`](#nemoguardrails-llm-cache-lfu-log)
+
+### API
+
+<Anchor id="nemoguardrails-llm-cache-lfu-DoublyLinkedList">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.lfu.DoublyLinkedList()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Doubly linked list to maintain nodes with the same frequency.
+
+
+<ParamField path="head" type="= LFUNode(None, None)">
+</ParamField>
+
+<ParamField path="size" type="= 0">
+</ParamField>
+
+<ParamField path="tail" type="= LFUNode(None, None)">
+</ParamField>
+<Anchor id="nemoguardrails-llm-cache-lfu-DoublyLinkedList-append">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.lfu.LFUNode":"#nemoguardrails-llm-cache-lfu-LFUNode"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.DoublyLinkedList.append(
+    node: nemoguardrails.llm.cache.lfu.LFUNode
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Add node to the end of the list (before tail).
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-DoublyLinkedList-pop">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.lfu.LFUNode":"#nemoguardrails-llm-cache-lfu-LFUNode"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.DoublyLinkedList.pop(
+    node: typing.Optional[nemoguardrails.llm.cache.lfu.LFUNode] = None
+) -> typing.Optional[nemoguardrails.llm.cache.lfu.LFUNode]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Remove and return a node. If no node specified, removes the first node.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.lfu.LFUCache(
+    maxsize: int,
+    track_stats: bool = False,
+    stats_logging_interval: typing.Optional[float] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [CacheInterface](/guardrails-python-sdk/nemoguardrails/llm/cache/interface#nemoguardrails-llm-cache-interface-CacheInterface)
+
+Least Frequently Used (LFU) Cache implementation.
+
+When the cache reaches maxsize, it evicts the least frequently used item.
+If there are ties in frequency, it evicts the least recently used among them.
+
+
+<ParamField path="_computing" type="dict[Any, Future] = &#123;&#125;">
+</ParamField>
+
+<ParamField path="_lock" type="= threading.RLock()">
+</ParamField>
+
+<ParamField path="freq_map" type="dict[int, DoublyLinkedList] = &#123;&#125;">
+</ParamField>
+
+<ParamField path="key_map" type="dict[Any, LFUNode] = &#123;&#125;">
+</ParamField>
+
+<ParamField path="maxsize" type="int">
+Get the maximum size of the cache.
+</ParamField>
+
+<ParamField path="min_freq" type="= 0">
+</ParamField>
+
+<ParamField path="stats">
+</ParamField>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-_check_and_log_stats">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache._check_and_log_stats() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if enough time has passed and log stats if needed.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-_evict_lfu">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache._evict_lfu() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Evict the least frequently used item from the cache.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-_log_stats">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache._log_stats() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Log current cache statistics.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-_update_node_freq">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.lfu.LFUNode":"#nemoguardrails-llm-cache-lfu-LFUNode"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache._update_node_freq(
+    node: nemoguardrails.llm.cache.lfu.LFUNode
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Update the frequency of a node and move it to the appropriate frequency list.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-clear">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.clear() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Clear all items from the cache.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-contains">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.contains(
+    key: typing.Any
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if a key exists in the cache without updating its frequency.
+
+This is more efficient than the default implementation which uses get()
+and has the side effect of updating frequency counts.
+
+**Parameters:**
+
+<ParamField path="key" type="Any">
+The key to check
+</ParamField>
+
+**Returns:** `bool`
+
+True if the key exists in the cache, False otherwise
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-get">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.get(
+    key: typing.Any,
+    default: typing.Any = None
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get an item from the cache.
+
+**Parameters:**
+
+<ParamField path="key" type="Any">
+The key to look up
+</ParamField>
+
+<ParamField path="default" type="Any" default="None">
+Value to return if key is not found
+</ParamField>
+
+**Returns:** `Any`
+
+The value associated with the key, or default if not found
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-get_or_compute">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.get_or_compute(
+    key: typing.Any,
+    compute_fn: typing.Callable[[], typing.Any],
+    default: typing.Any = None
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Atomically get a value from the cache or compute it if not present.
+
+This method ensures that the compute function is called at most once
+even in the presence of concurrent requests for the same key.
+
+**Parameters:**
+
+<ParamField path="key" type="Any">
+The key to look up
+</ParamField>
+
+<ParamField path="compute_fn" type="Callable[[], Any]">
+Async function to compute the value if key is not found
+</ParamField>
+
+<ParamField path="default" type="Any" default="None">
+Value to return if compute_fn raises an exception
+</ParamField>
+
+**Returns:** `Any`
+
+The cached value or the computed value
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-get_stats">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.get_stats() -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get cache statistics.
+
+**Returns:** `dict`
+
+Dictionary with cache statistics (if tracking is enabled)
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-is_empty">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.is_empty() -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the cache is empty.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-log_stats_now">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.log_stats_now() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Force immediate logging of cache statistics.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-put">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.put(
+    key: typing.Any,
+    value: typing.Any
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Put an item into the cache.
+
+**Parameters:**
+
+<ParamField path="key" type="Any">
+The key to store
+</ParamField>
+
+<ParamField path="value" type="Any">
+The value to associate with the key
+</ParamField>
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-reset_stats">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.reset_stats() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Reset cache statistics.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-size">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.size() -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the current size of the cache.
+
+
+</Indent>
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUCache-supports_stats_logging">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.LFUCache.supports_stats_logging() -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if this cache instance supports stats logging.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-lfu-LFUNode">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.lfu.LFUNode(
+    key: typing.Any,
+    value: typing.Any
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Node for the LFU cache doubly linked list.
+
+
+<ParamField path="accessed_at" type="= self.created_at">
+</ParamField>
+
+<ParamField path="created_at" type="= time.time()">
+</ParamField>
+
+<ParamField path="freq" type="= 1">
+</ParamField>
+
+<ParamField path="next" type="Optional[LFUNode] = None">
+</ParamField>
+
+<ParamField path="prev" type="Optional[LFUNode] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-lfu-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.lfu.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

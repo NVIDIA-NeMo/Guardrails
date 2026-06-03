@@ -1,0 +1,638 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v1_0/runtime/flows
+title: nemoguardrails.colang.v1_0.runtime.flows
+---
+
+A simplified modeling of the CoFlows engine.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`FlowConfig`](#nemoguardrails-colang-v1_0-runtime-flows-FlowConfig) | The configuration of a flow. |
+| [`FlowState`](#nemoguardrails-colang-v1_0-runtime-flows-FlowState) | The state of a flow. |
+| [`FlowStatus`](#nemoguardrails-colang-v1_0-runtime-flows-FlowStatus) | The status of a flow. |
+| [`State`](#nemoguardrails-colang-v1_0-runtime-flows-State) | A state of a flow-driven system. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_call_subflow`](#nemoguardrails-colang-v1_0-runtime-flows-_call_subflow) | Helper to call a subflow. |
+| [`_flow_id_has_params`](#nemoguardrails-colang-v1_0-runtime-flows-_flow_id_has_params) | Check if a flow ID contains arguments. |
+| [`_get_flow_params`](#nemoguardrails-colang-v1_0-runtime-flows-_get_flow_params) | Return the arguments in a flow id as a dictionary. |
+| [`_is_actionable`](#nemoguardrails-colang-v1_0-runtime-flows-_is_actionable) | Checks if the given element is actionable. |
+| [`_is_match`](#nemoguardrails-colang-v1_0-runtime-flows-_is_match) | Checks if the given element matches the given event. |
+| [`_normalize_flow_id`](#nemoguardrails-colang-v1_0-runtime-flows-_normalize_flow_id) | Normalize the flow id by removing the arguments from the id. |
+| [`_record_next_step`](#nemoguardrails-colang-v1_0-runtime-flows-_record_next_step) | Helper to record the next step. |
+| [`_slide_with_subflows`](#nemoguardrails-colang-v1_0-runtime-flows-_slide_with_subflows) | Slides the provided flow and also calls subflows, if applicable. |
+| [`_step_to_event`](#nemoguardrails-colang-v1_0-runtime-flows-_step_to_event) | Converts a next step from a flow element into an actual event. |
+| [`compute_context`](#nemoguardrails-colang-v1_0-runtime-flows-compute_context) | Computes the context given a history of events. |
+| [`compute_next_state`](#nemoguardrails-colang-v1_0-runtime-flows-compute_next_state) | Computes the next state of the flow-driven system. |
+| [`compute_next_steps`](#nemoguardrails-colang-v1_0-runtime-flows-compute_next_steps) | Computes the next step in a flow-driven system given a history of events. |
+
+### API
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-FlowConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v1_0.runtime.flows.FlowConfig(
+    id: str,
+    elements: typing.List[dict],
+    priority: float = 1.0,
+    is_extension: bool = False,
+    is_interruptible: bool = True,
+    is_subflow: bool = False,
+    allow_multiple: bool = False,
+    trigger_event_types: typing.List[str] = (lambda: ['UserIntent', 'Bo...,
+    source_code: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+The configuration of a flow.
+
+
+<ParamField path="allow_multiple" type="bool = False">
+</ParamField>
+
+<ParamField path="elements" type="List[dict]">
+</ParamField>
+
+<ParamField path="id" type="str">
+</ParamField>
+
+<ParamField path="is_extension" type="bool = False">
+</ParamField>
+
+<ParamField path="is_interruptible" type="bool = True">
+</ParamField>
+
+<ParamField path="is_subflow" type="bool = False">
+</ParamField>
+
+<ParamField path="priority" type="float = 1.0">
+</ParamField>
+
+<ParamField path="source_code" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="trigger_event_types" type="List[str]">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-FlowState">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.FlowStatus":"#nemoguardrails-colang-v1_0-runtime-flows-FlowStatus"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v1_0.runtime.flows.FlowState(
+    uid: str,
+    flow_id: str,
+    head: int,
+    status: nemoguardrails.colang.v1_0.runtime.flows.FlowStatus = FlowStatus.ACTIVE
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+The state of a flow.
+
+
+<ParamField path="flow_id" type="str">
+</ParamField>
+
+<ParamField path="head" type="int">
+</ParamField>
+
+<ParamField path="status" type="FlowStatus = FlowStatus.ACTIVE">
+</ParamField>
+
+<ParamField path="uid" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-FlowStatus">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v1_0.runtime.flows.FlowStatus
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+The status of a flow.
+
+<ParamField path="ABORTED" type="= 'aborted'">
+</ParamField>
+
+<ParamField path="ACTIVE" type="= 'active'">
+</ParamField>
+
+<ParamField path="COMPLETED" type="= 'completed'">
+</ParamField>
+
+<ParamField path="INTERRUPTED" type="= 'interrupted'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-State">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.FlowState":"#nemoguardrails-colang-v1_0-runtime-flows-FlowState","nemoguardrails.colang.v1_0.runtime.flows.FlowConfig":"#nemoguardrails-colang-v1_0-runtime-flows-FlowConfig","nemoguardrails.rails.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v1_0.runtime.flows.State(
+    context: dict,
+    flow_states: typing.List[nemoguardrails.colang.v1_0.runtime.flows.FlowState],
+    flow_configs: typing.Dict[str, nemoguardrails.colang.v1_0.runtime.flows.FlowConfig],
+    rails_config: typing.Optional[nemoguardrails.rails.RailsConfig] = None,
+    next_step: typing.Optional[dict] = None,
+    next_step_by_flow_uid: typing.Optional[str] = None,
+    next_step_priority: float = 0.0,
+    next_step_comment: typing.Optional[str] = None,
+    context_updates: dict = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+A state of a flow-driven system.
+
+
+<ParamField path="context" type="dict">
+</ParamField>
+
+<ParamField path="context_updates" type="dict = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="flow_configs" type="Dict[str, FlowConfig]">
+</ParamField>
+
+<ParamField path="flow_states" type="List[FlowState]">
+</ParamField>
+
+<ParamField path="next_step" type="Optional[dict] = None">
+</ParamField>
+
+<ParamField path="next_step_by_flow_uid" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="next_step_comment" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="next_step_priority" type="float = 0.0">
+</ParamField>
+
+<ParamField path="rails_config" type="Optional[RailsConfig] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_call_subflow">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.State":"#nemoguardrails-colang-v1_0-runtime-flows-State","nemoguardrails.colang.v1_0.runtime.flows.FlowState":"#nemoguardrails-colang-v1_0-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._call_subflow(
+    new_state: nemoguardrails.colang.v1_0.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v1_0.runtime.flows.FlowState
+) -> typing.Optional[nemoguardrails.colang.v1_0.runtime.flows.FlowState]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to call a subflow.
+
+The head for `flow_state` is expected to be on a "flow" element.
+
+**Parameters:**
+
+<ParamField path="new_state" type="State">
+The current state of the system.
+</ParamField>
+
+<ParamField path="flow_state" type="FlowState">
+The state of the current flow.
+</ParamField>
+
+**Returns:** `Optional[FlowState]`
+
+Optional[FlowState]: The state of the subflow, if applicable.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_flow_id_has_params">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._flow_id_has_params(
+    flow_id: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if a flow ID contains arguments.
+
+A flow ID is considered to contain arguments if it contains both "(" and ")".
+
+**Parameters:**
+
+<ParamField path="flow_id" type="str">
+The flow ID to check.
+</ParamField>
+
+**Returns:** `bool`
+
+True if the flow ID contains arguments, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_get_flow_params">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._get_flow_params(
+    flow_id: str
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the arguments in a flow id as a dictionary.
+
+**Parameters:**
+
+<ParamField path="flow_id" type="str">
+The flow id.
+</ParamField>
+
+**Returns:** `dict`
+
+A dictionary of arguments in the flow id.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_is_actionable">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._is_actionable(
+    element: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks if the given element is actionable.
+
+**Parameters:**
+
+<ParamField path="element" type="dict">
+The element to be checked.
+</ParamField>
+
+**Returns:** `bool`
+
+True if the element is actionable, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_is_match">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._is_match(
+    element: dict,
+    event: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks if the given element matches the given event.
+
+**Parameters:**
+
+<ParamField path="element" type="dict">
+The element to be checked for a match.
+</ParamField>
+
+<ParamField path="event" type="dict">
+The event to compare against.
+</ParamField>
+
+**Returns:** `bool`
+
+True if the element matches the event, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_normalize_flow_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._normalize_flow_id(
+    flow_id: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Normalize the flow id by removing the arguments from the id.
+
+Example:
+
+    flow_id = "flow_id_v1(arg1, arg2)"
+    _normalize_flow_id(flow_id) -&gt; "flow_id_v1"
+
+**Parameters:**
+
+<ParamField path="flow_id" type="str">
+The flow id.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_record_next_step">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.State":"#nemoguardrails-colang-v1_0-runtime-flows-State","nemoguardrails.colang.v1_0.runtime.flows.FlowState":"#nemoguardrails-colang-v1_0-runtime-flows-FlowState","nemoguardrails.colang.v1_0.runtime.flows.FlowConfig":"#nemoguardrails-colang-v1_0-runtime-flows-FlowConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._record_next_step(
+    new_state: nemoguardrails.colang.v1_0.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v1_0.runtime.flows.FlowState,
+    flow_config: nemoguardrails.colang.v1_0.runtime.flows.FlowConfig,
+    priority_modifier: float = 1.0
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to record the next step.
+
+**Parameters:**
+
+<ParamField path="new_state" type="State">
+The current state to update.
+</ParamField>
+
+<ParamField path="flow_state" type="FlowState">
+The state of the current flow.
+</ParamField>
+
+<ParamField path="flow_config" type="FlowConfig">
+The configuration of the current flow.
+</ParamField>
+
+<ParamField path="priority_modifier" type="float" default="1.0">
+Priority modifier. Defaults to 1.0.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_slide_with_subflows">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.State":"#nemoguardrails-colang-v1_0-runtime-flows-State","nemoguardrails.colang.v1_0.runtime.flows.FlowState":"#nemoguardrails-colang-v1_0-runtime-flows-FlowState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._slide_with_subflows(
+    state: nemoguardrails.colang.v1_0.runtime.flows.State,
+    flow_state: nemoguardrails.colang.v1_0.runtime.flows.FlowState
+) -> typing.Optional[int]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Slides the provided flow and also calls subflows, if applicable.
+
+**Parameters:**
+
+<ParamField path="state" type="State">
+The current state of the system.
+</ParamField>
+
+<ParamField path="flow_state" type="FlowState">
+The state of the current flow.
+</ParamField>
+
+**Returns:** `Optional[int]`
+
+Optional[int]: The new head position of the flow, if applicable.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-_step_to_event">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows._step_to_event(
+    step: dict
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts a next step from a flow element into an actual event.
+
+**Parameters:**
+
+<ParamField path="step" type="dict">
+The next step from a flow element.
+</ParamField>
+
+**Returns:** `dict`
+
+The corresponding event.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-compute_context">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows.compute_context(
+    history: typing.List[dict]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Computes the context given a history of events.
+
+Special context variables:
+- $last_user_message: the last message sent by the user.
+- $last_bot_message: the last message sent by the bot.
+
+**Parameters:**
+
+<ParamField path="history" type="List[dict]">
+The history of events.
+</ParamField>
+
+**Returns:**
+
+The computed context.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-compute_next_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.State":"#nemoguardrails-colang-v1_0-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows.compute_next_state(
+    state: nemoguardrails.colang.v1_0.runtime.flows.State,
+    event: dict
+) -> nemoguardrails.colang.v1_0.runtime.flows.State
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Computes the next state of the flow-driven system.
+
+Currently, this is a very simplified implementation, with the following assumptions:
+
+- All flows are singleton i.e. you can't have multiple instances of the same flow.
+- Flows can be interrupted by one flow at a time.
+- Flows are resumed when the interruption flow completes.
+- No prioritization between flows, the first one that can decide something will be used.
+
+**Parameters:**
+
+<ParamField path="state" type="State">
+The current state of the system.
+</ParamField>
+
+<ParamField path="event" type="dict">
+The event triggering the computation.
+</ParamField>
+
+**Returns:** `State`
+
+The updated state of the system.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-colang-v1_0-runtime-flows-compute_next_steps">
+
+<CodeBlock links={{"nemoguardrails.colang.v1_0.runtime.flows.FlowConfig":"#nemoguardrails-colang-v1_0-runtime-flows-FlowConfig","nemoguardrails.rails.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v1_0.runtime.flows.compute_next_steps(
+    history: typing.List[dict],
+    flow_configs: typing.Dict[str, nemoguardrails.colang.v1_0.runtime.flows.FlowConfig],
+    rails_config: nemoguardrails.rails.RailsConfig,
+    processing_log: typing.List[dict]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Computes the next step in a flow-driven system given a history of events.
+
+**Parameters:**
+
+<ParamField path="history" type="List[dict]">
+The history of events.
+</ParamField>
+
+<ParamField path="flow_configs" type="Dict[str, FlowConfig]">
+Flow configurations.
+</ParamField>
+
+<ParamField path="rails_config" type="RailsConfig">
+Rails configuration.
+</ParamField>
+
+<ParamField path="processing_log" type="List[dict]">
+The processing log so far. This will be mutated.
+</ParamField>
+
+**Returns:** `List[dict]`
+
+List[dict]: The list of computed next steps.
+
+
+</Indent>

@@ -1,0 +1,335 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/rail_action
+title: nemoguardrails.guardrails.rail_action
+---
+
+Base class for IORails rail actions.
+
+Defines the template-method pipeline: extract → prompt → respond → parse.
+Subclasses override individual steps. The base provides three concrete response
+helpers for the common call patterns (LLM, API, local).
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`RailAction`](#nemoguardrails-guardrails-rail_action-RailAction) | Base class for all IORails rail actions. |
+
+### Data
+
+[`log`](#nemoguardrails-guardrails-rail_action-log)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction">
+
+<CodeBlock links={{"nemoguardrails.guardrails.engine_registry.EngineRegistry":"/guardrails-python-sdk/nemoguardrails/guardrails/engine_registry#nemoguardrails-guardrails-engine_registry-EngineRegistry","nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.rail_action.RailAction(
+    engine_registry: nemoguardrails.guardrails.engine_registry.EngineRegistry,
+    task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    tracer: typing.Optional['Tracer'] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+Base class for all IORails rail actions.
+
+Subclasses implement the abstract ``_``-prefixed hooks to customise each
+stage of the pipeline.  The public entry point is :meth:`run`.
+
+
+<ParamField path="action_name" type="str">
+</ParamField>
+
+<ParamField path="fallback_model" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="requires_model" type="bool = True">
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_create_prompt">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._create_prompt(
+    model_type: typing.Optional[str],
+    extracted: dict[str, typing.Any]
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Build the prompt / request payload from extracted data.
+
+Returns whatever _get_response needs: a message list, a dict body, etc.
+May return None if the response step doesn't need a prompt (e.g. API calls
+that build their own payload).
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_extract_messages">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._extract_messages(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    bot_response: typing.Optional[str]
+) -> dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Extract the relevant fields from messages into a dict.
+
+Returns a dict of extracted values that will be passed to _create_prompt.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_get_api_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._get_api_response(
+    api_name: str,
+    body: dict[str, typing.Any],
+    kwargs: typing.Any = {}
+) -> dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Call an API endpoint via EngineRegistry and return the response dict.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_get_llm_response">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._get_llm_response(
+    model_type: typing.Optional[str],
+    messages: list[dict],
+    kwargs: typing.Any = {}
+) -> nemoguardrails.types.LLMResponse
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Call an LLM via EngineRegistry and return the structured response.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_get_local_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._get_local_response(
+    kwargs: typing.Any = {}
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Run a local/in-process check. Override in subclasses that need it.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_get_model_type">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._get_model_type(
+    flow: str
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract model from the flow's ``$model=`` parameter, falling back to :attr:`fallback_model`.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_get_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._get_response(
+    model_type: typing.Optional[str],
+    prompt: typing.Any
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge> <Badge>abstract</Badge>
+
+Call the model/API/local engine and return the raw response.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_last_user_content">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._last_user_content(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Return the content of the last user message.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_parse_response">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.RailResult":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-RailResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._parse_response(
+    response: typing.Any
+) -> nemoguardrails.guardrails.guardrails_types.RailResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>abstract</Badge>
+
+Convert the raw response into a RailResult.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_prompt_to_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._prompt_to_messages(
+    prompt: typing.Union[str, list[dict]]
+) -> list[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Convert LLMTaskManager render output to role/content message format.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-_validate_flow_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction._validate_flow_name(
+    base_flow: str | None
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Verify the flow's base name matches this action's action_name.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-rail_action-RailAction-run">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.guardrails_types.RailResult":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-RailResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.RailAction.run(
+    flow: str,
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    bot_response: typing.Optional[str] = None
+) -> nemoguardrails.guardrails.guardrails_types.RailResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Execute the full rail pipeline and return a safety result.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-rail_action-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.rail_action.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

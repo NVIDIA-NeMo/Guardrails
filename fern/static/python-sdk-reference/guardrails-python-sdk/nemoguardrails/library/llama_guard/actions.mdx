@@ -1,0 +1,131 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/llama_guard/actions
+title: nemoguardrails.library.llama_guard.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`llama_guard_check_input`](#nemoguardrails-library-llama_guard-actions-llama_guard_check_input) | Checks user messages using the configured Llama Guard model |
+| [`llama_guard_check_output`](#nemoguardrails-library-llama_guard-actions-llama_guard_check_output) | Check the bot response using the configured Llama Guard model |
+| [`llama_guard_check_output_mapping`](#nemoguardrails-library-llama_guard-actions-llama_guard_check_output_mapping) | Mapping for llama_guard_check_output. |
+| [`parse_llama_guard_response`](#nemoguardrails-library-llama_guard-actions-parse_llama_guard_response) | Parses the response from the Llama Guard LLM and returns a tuple of: |
+
+### Data
+
+[`log`](#nemoguardrails-library-llama_guard-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-llama_guard-actions-llama_guard_check_input">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.llama_guard.actions.llama_guard_check_input(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    llama_guard_llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    kwargs = {}
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks user messages using the configured Llama Guard model
+and the configured prompt containing the safety guidelines.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-llama_guard-actions-llama_guard_check_output">
+
+<CodeBlock links={{"nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.llama_guard.actions.llama_guard_check_output(
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    llama_guard_llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Check the bot response using the configured Llama Guard model
+and the configured prompt containing the safety guidelines.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-llama_guard-actions-llama_guard_check_output_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.llama_guard.actions.llama_guard_check_output_mapping(
+    result: dict
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for llama_guard_check_output.
+
+**Returns:** `bool`
+
+True if the response should be blocked (i.e. if "allowed" is False),
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-llama_guard-actions-parse_llama_guard_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.llama_guard.actions.parse_llama_guard_response(
+    response: str
+) -> typing.Tuple[bool, typing.Optional[typing.List[str]]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses the response from the Llama Guard LLM and returns a tuple of:
+- Whether the response is safe or not.
+- If not safe, a list of the violated policies.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-llama_guard-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.llama_guard.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

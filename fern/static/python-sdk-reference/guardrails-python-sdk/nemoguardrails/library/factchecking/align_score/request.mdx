@@ -1,0 +1,55 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/factchecking/align_score/request
+title: nemoguardrails.library.factchecking.align_score.request
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`alignscore_request`](#nemoguardrails-library-factchecking-align_score-request-alignscore_request) | Checks the facts for the bot response by making a request to the AlignScore API. |
+
+### Data
+
+[`log`](#nemoguardrails-library-factchecking-align_score-request-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-factchecking-align_score-request-alignscore_request">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.factchecking.align_score.request.alignscore_request(
+    api_url: str = 'http://localhost:5000/alig...,
+    evidence: typing.Optional[list] = None,
+    response: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks the facts for the bot response by making a request to the AlignScore API.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-factchecking-align_score-request-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.factchecking.align_score.request.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

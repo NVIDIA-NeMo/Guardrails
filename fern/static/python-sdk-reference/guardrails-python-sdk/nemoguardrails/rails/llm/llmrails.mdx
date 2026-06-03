@@ -1,0 +1,1079 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/rails/llm/llmrails
+title: nemoguardrails.rails.llm.llmrails
+---
+
+LLM Rails entry point.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`LLMRails`](#nemoguardrails-rails-llm-llmrails-LLMRails) | Rails based on a given configuration. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_determine_rails_from_messages`](#nemoguardrails-rails-llm-llmrails-_determine_rails_from_messages) | - |
+| [`_get_blocking_rail`](#nemoguardrails-rails-llm-llmrails-_get_blocking_rail) | - |
+| [`_get_last_content_by_role`](#nemoguardrails-rails-llm-llmrails-_get_last_content_by_role) | - |
+| [`_get_last_response_content`](#nemoguardrails-rails-llm-llmrails-_get_last_response_content) | - |
+| [`_normalize_messages_for_rails`](#nemoguardrails-rails-llm-llmrails-_normalize_messages_for_rails) | - |
+| [`_wrap_legacy_llm`](#nemoguardrails-rails-llm-llmrails-_wrap_legacy_llm) | - |
+
+### Data
+
+[`log`](#nemoguardrails-rails-llm-llmrails-log)
+
+[`process_events_semaphore`](#nemoguardrails-rails-llm-llmrails-process_events_semaphore)
+
+### API
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.rails.llm.llmrails.LLMRails(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None,
+    verbose: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Rails based on a given configuration.
+
+
+<ParamField path="_log_adapters" type="= create_log_adapters(config.tracing)">
+</ParamField>
+
+<ParamField path="default_embedding_engine" type="= 'FastEmbed'">
+</ParamField>
+
+<ParamField path="default_embedding_model" type="= 'all-MiniLM-L6-v2'">
+</ParamField>
+
+<ParamField path="default_embedding_params" type="= &#123;&#125;">
+</ParamField>
+
+<ParamField path="embedding_search_providers" type="= &#123;&#125;">
+</ParamField>
+
+<ParamField path="events_history_cache" type="= &#123;&#125;">
+</ParamField>
+
+<ParamField path="llm" type="Optional[LLMModel]">
+</ParamField>
+
+<ParamField path="llm_generation_actions">
+</ParamField>
+
+<ParamField path="runtime" type="Runtime">
+</ParamField>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-__getstate__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.__getstate__()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-__setstate__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.__setstate__(
+    state
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_create_model_cache">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.LFUCache":"/guardrails-python-sdk/nemoguardrails/llm/cache/lfu#nemoguardrails-llm-cache-lfu-LFUCache"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._create_model_cache(
+    model
+) -> nemoguardrails.llm.cache.LFUCache
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create cache instance for a model based on its configuration.
+
+**Parameters:**
+
+<ParamField path="model">
+The model configuration object
+</ParamField>
+
+**Returns:** `LFUCache`
+
+The cache instance
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_ensure_explain_info">
+
+<CodeBlock links={{"nemoguardrails.logging.explain.ExplainInfo":"/guardrails-python-sdk/nemoguardrails/logging/explain#nemoguardrails-logging-explain-ExplainInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._ensure_explain_info() -> nemoguardrails.logging.explain.ExplainInfo
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>staticmethod</Badge>
+
+Ensure that the ExplainInfo variable is present in the current context
+
+**Returns:** `ExplainInfo`
+
+A ExplainInfo class containing the llm calls' statistics
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_get_embeddings_search_provider_instance">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.EmbeddingSearchProvider":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-EmbeddingSearchProvider","nemoguardrails.embeddings.index.EmbeddingsIndex":"/guardrails-python-sdk/nemoguardrails/embeddings/index#nemoguardrails-embeddings-index-EmbeddingsIndex"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._get_embeddings_search_provider_instance(
+    esp_config: typing.Optional[nemoguardrails.rails.llm.config.EmbeddingSearchProvider] = None
+) -> nemoguardrails.embeddings.index.EmbeddingsIndex
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_get_events_for_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._get_events_for_messages(
+    messages: typing.List[dict],
+    state: typing.Any
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the list of events corresponding to the provided messages.
+
+Tries to find a prefix of messages for which we have already a list of events
+in the cache. For the rest, they are converted as is.
+
+The reason this cache exists is that we want to benefit from events generated in
+previous turns, which can't be computed again because it would be expensive (e.g.,
+involving multiple LLM calls).
+
+When an explicit state object will be added, this mechanism can be removed.
+
+**Parameters:**
+
+<ParamField path="messages" type="List[dict]">
+The list of messages.
+</ParamField>
+
+**Returns:**
+
+A list of events.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_init_kb">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._init_kb()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Initializes the knowledge base.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_init_llms">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._init_llms()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initializes the right LLM engines based on the configuration.
+There can be multiple LLM engines and types that can be specified in the config.
+The main LLM engine is the one that will be used for all the core guardrails generations.
+Other LLM engines can be specified for use in specific actions.
+
+The reason we provide an option for decoupling the main LLM engine from the action LLM
+is to allow for flexibility in using specialized LLM engines for specific actions.
+
+**Raises:**
+
+- `ModelInitializationError`: If any model initialization fails
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_initialize_model_caches">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._initialize_model_caches() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize caches for configured models.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_prepare_model_kwargs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._prepare_model_kwargs(
+    model_config
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Prepare kwargs for model initialization, including API key from environment variable.
+
+**Parameters:**
+
+<ParamField path="model_config">
+The model configuration object
+</ParamField>
+
+**Returns:**
+
+The prepared kwargs for model initialization
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_run_output_rails_in_streaming">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.OutputRailsStreamingConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-OutputRailsStreamingConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._run_output_rails_in_streaming(
+    streaming_handler: typing.AsyncIterator[str],
+    output_rails_streaming_config: nemoguardrails.rails.llm.config.OutputRailsStreamingConfig,
+    prompt: typing.Optional[str] = None,
+    messages: typing.Optional[typing.List[dict]] = None,
+    stream_first: typing.Optional[bool] = None
+) -> typing.AsyncIterator[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+1. Buffers tokens from 'streaming_handler' via BufferStrategy.
+2. Runs sequential (parallel for colang 2.0 in future) flows for each chunk.
+3. Yields the chunk if not blocked, or STOP if blocked.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_validate_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._validate_config()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Runs additional validation checks on the config.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_validate_public_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._validate_public_state(
+    state: typing.Optional[typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.State]]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate public dict state passed through generate/generate_async.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-_validate_streaming_with_output_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails._validate_streaming_with_output_rails() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-check">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.RailType":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-RailType","nemoguardrails.rails.llm.options.RailsResult":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-RailsResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.check(
+    messages: typing.List[dict],
+    rail_types: typing.Optional[typing.List[nemoguardrails.rails.llm.options.RailType]] = None
+) -> nemoguardrails.rails.llm.options.RailsResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Run rails on messages based on their content (synchronous).
+
+This is a synchronous wrapper around check_async().
+
+**Parameters:**
+
+<ParamField path="messages" type="List[dict]">
+List of message dicts with 'role' and 'content' fields.
+</ParamField>
+
+<ParamField path="rail_types" type="Optional[List[RailType]]" default="None">
+Optional list of rail types to run. See check_async() for details.
+</ParamField>
+
+**Returns:** `RailsResult`
+
+RailsResult containing status, content, and optional blocking rail name.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-check_async">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.RailType":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-RailType","nemoguardrails.rails.llm.options.RailsResult":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-RailsResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.check_async(
+    messages: typing.List[dict],
+    rail_types: typing.Optional[typing.List[nemoguardrails.rails.llm.options.RailType]] = None
+) -> nemoguardrails.rails.llm.options.RailsResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Run rails on messages based on their content (asynchronous).
+
+When ``rail_types`` is not provided, automatically determines which rails
+to run based on message roles:
+- Only user messages: runs input rails
+- Only assistant messages: runs output rails
+- Both user and assistant messages: runs both input and output rails
+- No user/assistant messages: logs warning and returns passing result
+
+When ``rail_types`` is provided, runs exactly the specified rail types,
+skipping the auto-detection logic.
+
+**Parameters:**
+
+<ParamField path="messages" type="List[dict]">
+List of message dicts with 'role' and 'content' fields.
+     Messages can contain any roles, but only user/assistant roles
+     determine which rails execute when ``rail_types`` is not provided.
+</ParamField>
+
+<ParamField path="rail_types" type="Optional[List[RailType]]" default="None">
+Optional list of rail types to run, e.g.
+  ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.
+  When provided, overrides automatic detection.
+</ParamField>
+
+**Returns:** `RailsResult`
+
+RailsResult containing:
+
+**Examples:**
+
+<CodeBlock showLineNumbers={false}>
+
+```python
+Check user input (auto-detected)::
+
+    result = await rails.check_async([{"role": "user", "content": "Hello!"}])
+    if result.status == RailStatus.BLOCKED:
+        print(f"Blocked by: {result.rail}")
+
+Check bot output with context (auto-detected)::
+
+    result = await rails.check_async([
+        {"role": "user", "content": "Hello!"},
+        {"role": "assistant", "content": "Hi there!"}
+    ])
+
+Run only input rails explicitly::
+
+    result = await rails.check_async(messages, rail_types=[RailType.INPUT])
+```
+
+</CodeBlock>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-explain">
+
+<CodeBlock links={{"nemoguardrails.logging.explain.ExplainInfo":"/guardrails-python-sdk/nemoguardrails/logging/explain#nemoguardrails-logging-explain-ExplainInfo"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.explain() -> nemoguardrails.logging.explain.ExplainInfo
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper function to return the latest ExplainInfo object.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-generate">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.GenerationOptions":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationOptions"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.generate(
+    prompt: typing.Optional[str] = None,
+    messages: typing.Optional[typing.List[dict]] = None,
+    options: typing.Optional[typing.Union[dict, nemoguardrails.rails.llm.options.GenerationOptions]] = None,
+    state: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Synchronous version of generate_async.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-generate_async">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.GenerationOptions":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationOptions","nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State","nemoguardrails.streaming.StreamingHandler":"/guardrails-python-sdk/nemoguardrails/streaming#nemoguardrails-streaming-StreamingHandler","nemoguardrails.rails.llm.options.GenerationResponse":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.generate_async(
+    prompt: typing.Optional[str] = None,
+    messages: typing.Optional[typing.List[dict]] = None,
+    options: typing.Optional[typing.Union[dict, nemoguardrails.rails.llm.options.GenerationOptions]] = None,
+    state: typing.Optional[typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.State]] = None,
+    streaming_handler: typing.Optional[nemoguardrails.streaming.StreamingHandler] = None
+) -> typing.Union[str, dict, nemoguardrails.rails.llm.options.GenerationResponse, typing.Tuple[dict, dict]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate a completion or a next message.
+
+The format for messages is the following::
+
+    [
+        &#123;"role": "context", "content": &#123;"user_name": "John"&#125;&#125;,
+        &#123;"role": "user", "content": "Hello! How are you?"&#125;,
+        &#123;"role": "assistant", "content": "I am fine, thank you!"&#125;,
+        &#123;"role": "event", "event": &#123;"type": "UserSilent"&#125;&#125;,
+        ...
+    ]
+
+System messages are not yet supported.
+
+**Parameters:**
+
+<ParamField path="prompt" type="Optional[str]" default="None">
+The prompt to be used for completion.
+</ParamField>
+
+<ParamField path="messages" type="Optional[List[dict]]" default="None">
+The history of messages to be used to generate the next message.
+</ParamField>
+
+<ParamField path="options" type="Optional[Union[dict, GenerationOptions]]" default="None">
+Options specific for the generation.
+</ParamField>
+
+<ParamField path="state" type="Optional[Union[dict, State]]" default="None">
+The state object that should be used as the starting point.
+</ParamField>
+
+<ParamField path="streaming_handler" type="Optional[StreamingHandler]" default="None">
+If specified, and the config supports streaming, the
+provided handler will be used for streaming.
+</ParamField>
+
+**Returns:** `Union[str, dict, GenerationResponse, Tuple[dict, dict]]`
+
+The completion (when a prompt is provided) or the next message.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-generate_events">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.generate_events(
+    events: typing.List[dict]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Synchronous version of `LLMRails.generate_events_async`.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-generate_events_async">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.generate_events_async(
+    events: typing.List[dict]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Generate the next events based on the provided history.
+
+The format for events is the following::
+
+    [
+        &#123;"type": "...", ...&#125;,
+        ...
+    ]
+
+**Parameters:**
+
+<ParamField path="events" type="List[dict]">
+The history of events to be used to generate the next events.
+</ParamField>
+
+<ParamField path="options">
+The options to be used for the generation.
+</ParamField>
+
+**Returns:** `List[dict]`
+
+The newly generate event(s).
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-process_events">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.process_events(
+    events: typing.List[dict],
+    state: typing.Union[typing.Optional[dict], nemoguardrails.colang.v2_x.runtime.flows.State] = None,
+    blocking: bool = False
+) -> typing.Tuple[typing.List[dict], typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.State]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Synchronous version of `LLMRails.process_events_async`.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-process_events_async">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.process_events_async(
+    events: typing.List[dict],
+    state: typing.Union[typing.Optional[dict], nemoguardrails.colang.v2_x.runtime.flows.State] = None,
+    blocking: bool = False
+) -> typing.Tuple[typing.List[dict], typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.State]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Process a sequence of events in a given state.
+
+The events will be processed one by one, in the input order.
+
+**Parameters:**
+
+<ParamField path="events" type="List[dict]">
+A sequence of events that needs to be processed.
+</ParamField>
+
+<ParamField path="state" type="Union[Optional[dict], State]" default="None">
+The state that should be used as the starting point. If not provided,
+a clean state will be used.
+</ParamField>
+
+**Returns:** `Tuple[List[dict], Union[dict, State]]`
+
+(output_events, output_state) Returns a sequence of output events and an output
+state.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_action">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_action(
+    action: typing.Callable,
+    name: typing.Optional[str] = None
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a custom action for the rails configuration.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_action_param">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_action_param(
+    name: str,
+    value: typing.Any
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Registers a custom action parameter.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_embedding_provider">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_embedding_provider(
+    name: typing.Optional[str] = None
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a custom embedding provider.
+
+**Parameters:**
+
+<ParamField path="model" type="Type[EmbeddingModel]">
+The embedding model class.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+The name of the embedding engine. If available in the model, it will be used.
+</ParamField>
+
+**Raises:**
+
+- `ValueError`: If the engine name is not provided and the model does not have an engine name.
+- `ValueError`: If the model does not have 'encode' or 'encode_async' methods.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_embedding_search_provider">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_embedding_search_provider(
+    name: str
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a new embedding search provider.
+
+**Parameters:**
+
+<ParamField path="name" type="str">
+The name of the embedding search provider that will be used.
+</ParamField>
+
+<ParamField path="cls" type="Type[EmbeddingsIndex]">
+The class that will be used to generate and search embedding
+</ParamField>
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_filter">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_filter(
+    filter_fn: typing.Callable,
+    name: typing.Optional[str] = None
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a custom filter for the rails configuration.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_output_parser">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_output_parser(
+    output_parser: typing.Callable,
+    name: str
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a custom output parser for the rails configuration.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-register_prompt_context">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.register_prompt_context(
+    name: str,
+    value_or_fn: typing.Any
+) -> typing_extensions.Self
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register a value to be included in the prompt context.
+
+:name: The name of the variable or function that will be used.
+:value_or_fn: The value or function that will be used to generate the value.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-stream_async">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.GenerationOptions":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationOptions","nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.stream_async(
+    prompt: typing.Optional[str] = None,
+    messages: typing.Optional[typing.List[dict]] = None,
+    options: typing.Optional[typing.Union[dict, nemoguardrails.rails.llm.options.GenerationOptions]] = None,
+    state: typing.Optional[typing.Union[dict, nemoguardrails.colang.v2_x.runtime.flows.State]] = None,
+    include_metadata: typing.Optional[bool] = False,
+    generator: typing.Optional[typing.AsyncIterator[str]] = None,
+    include_generation_metadata: typing.Optional[bool] = None
+) -> typing.AsyncIterator[typing.Union[str, dict]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Simplified interface for getting directly the streamed tokens from the LLM.
+
+
+</Indent>
+<Anchor id="nemoguardrails-rails-llm-llmrails-LLMRails-update_llm">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.LLMRails.update_llm(
+    llm: nemoguardrails.types.LLMModel
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Replace the main LLM with the provided one.
+
+**Parameters:**
+
+<ParamField path="llm" type="LLMModel">
+The new LLM that should be used.
+</ParamField>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_determine_rails_from_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._determine_rails_from_messages(
+    messages: typing.List[dict]
+) -> typing.Optional[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_get_blocking_rail">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.GenerationResponse":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._get_blocking_rail(
+    response: nemoguardrails.rails.llm.options.GenerationResponse
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_get_last_content_by_role">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._get_last_content_by_role(
+    messages: typing.List[dict],
+    role: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_get_last_response_content">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.GenerationResponse":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._get_last_response_content(
+    response: nemoguardrails.rails.llm.options.GenerationResponse
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_normalize_messages_for_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._normalize_messages_for_rails(
+    messages: typing.List[dict],
+    rails: typing.List[str]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-_wrap_legacy_llm">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails._wrap_legacy_llm(
+    llm
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-rails-llm-llmrails-process_events_semaphore">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.rails.llm.llmrails.process_events_semaphore = asyncio.Semaphore(1)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,136 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/embeddings/providers/nim
+title: nemoguardrails.embeddings.providers.nim
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`NIMEmbeddingModel`](#nemoguardrails-embeddings-providers-nim-NIMEmbeddingModel) | Embedding model using langchain-nvidia-ai-endpoints. |
+| [`NVIDIAAIEndpointsEmbeddingModel`](#nemoguardrails-embeddings-providers-nim-NVIDIAAIEndpointsEmbeddingModel) | A wrapper with a different name for the NIM embedding models. |
+
+### API
+
+<Anchor id="nemoguardrails-embeddings-providers-nim-NIMEmbeddingModel">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.embeddings.providers.nim.NIMEmbeddingModel(
+    embedding_model: str,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [EmbeddingModel](/guardrails-python-sdk/nemoguardrails/embeddings/providers/base#nemoguardrails-embeddings-providers-base-EmbeddingModel)
+
+Embedding model using langchain-nvidia-ai-endpoints.
+
+This class is a wrapper for using embedding models powered by NIM (hosted in the NVIDIA API Catalog or locally).
+
+**Parameters:**
+
+<ParamField path="embedding_model" type="str">
+The name embedding model to be used.
+</ParamField>
+
+
+<ParamField path="document_embedder" type="= NVIDIAEmbeddings(model=embedding_model, **kwargs)">
+</ParamField>
+
+<ParamField path="engine_name" type="= 'nim'">
+</ParamField>
+<Anchor id="nemoguardrails-embeddings-providers-nim-NIMEmbeddingModel-encode">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.nim.NIMEmbeddingModel.encode(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Encode a list of documents into their corresponding sentence embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents to be encoded.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
+
+
+</Indent>
+<Anchor id="nemoguardrails-embeddings-providers-nim-NIMEmbeddingModel-encode_async">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.nim.NIMEmbeddingModel.encode_async(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Encode a list of documents into their corresponding sentence embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents to be encoded.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-embeddings-providers-nim-NVIDIAAIEndpointsEmbeddingModel">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.embeddings.providers.nim.NVIDIAAIEndpointsEmbeddingModel()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [NIMEmbeddingModel](#nemoguardrails-embeddings-providers-nim-NIMEmbeddingModel)
+
+A wrapper with a different name for the NIM embedding models.
+
+There will be a better separation in the future between local NIM and NVIDIA AI Endpoints.
+
+
+<ParamField path="engine_name" type="= 'nvidia_ai_endpoints'">
+</ParamField>
+</Indent>

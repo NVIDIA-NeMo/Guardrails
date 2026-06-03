@@ -1,0 +1,123 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/fiddler/actions
+title: nemoguardrails.library.fiddler.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`call_fiddler_faithfulness`](#nemoguardrails-library-fiddler-actions-call_fiddler_faithfulness) | - |
+| [`call_fiddler_guardrail`](#nemoguardrails-library-fiddler-actions-call_fiddler_guardrail) | - |
+| [`call_fiddler_safety_bot`](#nemoguardrails-library-fiddler-actions-call_fiddler_safety_bot) | - |
+| [`call_fiddler_safety_user`](#nemoguardrails-library-fiddler-actions-call_fiddler_safety_user) | - |
+
+### Data
+
+[`log`](#nemoguardrails-library-fiddler-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-fiddler-actions-call_fiddler_faithfulness">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.fiddler.actions.call_fiddler_faithfulness(
+    config: nemoguardrails.RailsConfig,
+    context: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-fiddler-actions-call_fiddler_guardrail">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.fiddler.actions.call_fiddler_guardrail(
+    endpoint: str,
+    data: dict,
+    guardrail_name: str,
+    score_key: str,
+    threshold: float,
+    compare: typing.Callable[[float, float], bool],
+    default_score: float
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-fiddler-actions-call_fiddler_safety_bot">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.fiddler.actions.call_fiddler_safety_bot(
+    config: nemoguardrails.RailsConfig,
+    context: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-fiddler-actions-call_fiddler_safety_user">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.fiddler.actions.call_fiddler_safety_user(
+    config: nemoguardrails.RailsConfig,
+    context: typing.Optional[dict] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-fiddler-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.fiddler.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

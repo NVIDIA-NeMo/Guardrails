@@ -1,0 +1,141 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/privateai/actions
+title: nemoguardrails.library.privateai.actions
+---
+
+PII detection using Private AI.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`detect_pii`](#nemoguardrails-library-privateai-actions-detect_pii) | Checks whether the provided text contains any PII. |
+| [`detect_pii_mapping`](#nemoguardrails-library-privateai-actions-detect_pii_mapping) | Mapping for detect_pii. |
+| [`mask_pii`](#nemoguardrails-library-privateai-actions-mask_pii) | Masks any detected PII in the provided text. |
+
+### Data
+
+[`log`](#nemoguardrails-library-privateai-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-privateai-actions-detect_pii">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.privateai.actions.detect_pii(
+    source: str,
+    text: str,
+    config: nemoguardrails.RailsConfig,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks whether the provided text contains any PII.
+
+Args
+    source: The source for the text, i.e. "input", "output", "retrieval".
+    text: The text to check.
+    config: The rails configuration object.
+
+Returns
+    True if PII is detected, False otherwise.
+
+**Raises:**
+
+- `ValueError`: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-privateai-actions-detect_pii_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.privateai.actions.detect_pii_mapping(
+    result: bool
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for detect_pii.
+
+Since the function returns True when PII is detected,
+we block if result is True.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-privateai-actions-mask_pii">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.privateai.actions.mask_pii(
+    source: str,
+    text: str,
+    config: nemoguardrails.RailsConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Masks any detected PII in the provided text.
+
+**Parameters:**
+
+<ParamField path="source" type="str">
+The source for the text, i.e. "input", "output", "retrieval".
+</ParamField>
+
+<ParamField path="text" type="str">
+The text to check.
+</ParamField>
+
+<ParamField path="config" type="RailsConfig">
+The rails configuration object.
+</ParamField>
+
+**Returns:**
+
+The altered text with PII masked.
+
+**Raises:**
+
+- `ValueError`: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-privateai-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.privateai.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,275 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/cli/debugger
+title: nemoguardrails.cli.debugger
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`flow`](#nemoguardrails-cli-debugger-flow) | Shows all details about a flow or flow instance. |
+| [`flows`](#nemoguardrails-cli-debugger-flows) | Shows a table with all (active) flows ordered in terms of there interaction loop priority and name. |
+| [`pause`](#nemoguardrails-cli-debugger-pause) | Pause current interaction. |
+| [`restart`](#nemoguardrails-cli-debugger-restart) | Restart the current Colang script. |
+| [`resume`](#nemoguardrails-cli-debugger-resume) | Pause current interaction. |
+| [`run_command`](#nemoguardrails-cli-debugger-run_command) | - |
+| [`set_chat_state`](#nemoguardrails-cli-debugger-set_chat_state) | Register the chat state that will be used by the debugger. |
+| [`set_output_state`](#nemoguardrails-cli-debugger-set_output_state) | Registers the state that will be used by the debugger. |
+| [`set_runtime`](#nemoguardrails-cli-debugger-set_runtime) | Registers the runtime that will be used by the debugger. |
+| [`tree`](#nemoguardrails-cli-debugger-tree) | Lists the tree of all active flows. |
+
+### Data
+
+[`app`](#nemoguardrails-cli-debugger-app)
+
+[`chat_state`](#nemoguardrails-cli-debugger-chat_state)
+
+[`runtime`](#nemoguardrails-cli-debugger-runtime)
+
+[`state`](#nemoguardrails-cli-debugger-state)
+
+### API
+
+<Anchor id="nemoguardrails-cli-debugger-flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.flow(
+    flow_name: str = typer.Argument(help='Name o...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Shows all details about a flow or flow instance.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-flows">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.flows(
+    all: bool = typer.Option(default=False,...,
+    order_by_name: bool = typer.Option(default=False,...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Shows a table with all (active) flows ordered in terms of there interaction loop priority and name.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-pause">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.pause()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Pause current interaction.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-restart">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.restart()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Restart the current Colang script.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-resume">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.resume()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Pause current interaction.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-run_command">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.run_command(
+    command: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-set_chat_state">
+
+<CodeBlock links={{"nemoguardrails.cli.chat.ChatState":"/guardrails-python-sdk/nemoguardrails/cli/chat#nemoguardrails-cli-chat-ChatState"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.set_chat_state(
+    _chat_state: nemoguardrails.cli.chat.ChatState
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register the chat state that will be used by the debugger.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-set_output_state">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.set_output_state(
+    _state: nemoguardrails.colang.v2_x.runtime.flows.State
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Registers the state that will be used by the debugger.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-set_runtime">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.runtime.RuntimeV2_x":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/runtime#nemoguardrails-colang-v2_x-runtime-runtime-RuntimeV2_x"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.set_runtime(
+    _runtime: nemoguardrails.colang.v2_x.runtime.runtime.RuntimeV2_x
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Registers the runtime that will be used by the debugger.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-tree">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.tree(
+    all: bool = typer.Option(default=False,...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Lists the tree of all active flows.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-debugger-app">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.app = typer.Typer(name='!!!', no_args_is_help=True, add_completion=False)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-cli-debugger-chat_state">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.chat_state: Optional[ChatState] = None
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-cli-debugger-runtime">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.runtime: Optional[RuntimeV2_x] = None
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-cli-debugger-state">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.debugger.state: Optional[State] = None
+```
+
+</CodeBlock>
+</Anchor>
+

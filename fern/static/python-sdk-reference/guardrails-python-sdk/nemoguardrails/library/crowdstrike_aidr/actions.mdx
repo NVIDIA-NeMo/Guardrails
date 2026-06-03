@@ -1,0 +1,179 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/crowdstrike_aidr/actions
+title: nemoguardrails.library.crowdstrike_aidr.actions
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`GuardChatCompletionsResponse`](#nemoguardrails-library-crowdstrike_aidr-actions-GuardChatCompletionsResponse) | - |
+| [`GuardChatCompletionsResult`](#nemoguardrails-library-crowdstrike_aidr-actions-GuardChatCompletionsResult) | - |
+| [`GuardOutput`](#nemoguardrails-library-crowdstrike_aidr-actions-GuardOutput) | - |
+| [`Message`](#nemoguardrails-library-crowdstrike_aidr-actions-Message) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`crowdstrike_aidr_guard`](#nemoguardrails-library-crowdstrike_aidr-actions-crowdstrike_aidr_guard) | - |
+| [`get_crowdstrike_aidr_config`](#nemoguardrails-library-crowdstrike_aidr-actions-get_crowdstrike_aidr_config) | - |
+
+### Data
+
+[`log`](#nemoguardrails-library-crowdstrike_aidr-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-GuardChatCompletionsResponse">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.crowdstrike_aidr.actions.GuardChatCompletionsResponse()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="result" type="GuardChatCompletionsResult">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-GuardChatCompletionsResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.crowdstrike_aidr.actions.GuardChatCompletionsResult()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="blocked" type="Optional[bool] = None">
+Whether or not the prompt triggered a block detection.
+</ParamField>
+
+<ParamField path="bot_message" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="guard_output" type="Optional[GuardOutput] = None">
+Updated structured prompt, if applicable.
+</ParamField>
+
+<ParamField path="transformed" type="Optional[bool] = None">
+Whether or not the original input was transformed.
+</ParamField>
+
+<ParamField path="user_message" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-GuardOutput">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.crowdstrike_aidr.actions.GuardOutput
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="messages" type="list[Message]">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-Message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.crowdstrike_aidr.actions.Message()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="content" type="str">
+</ParamField>
+
+<ParamField path="role" type="str">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-crowdstrike_aidr_guard">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.library.crowdstrike_aidr.actions.GuardChatCompletionsResult":"#nemoguardrails-library-crowdstrike_aidr-actions-GuardChatCompletionsResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.crowdstrike_aidr.actions.crowdstrike_aidr_guard(
+    mode: typing_extensions.Literal['input', 'output'],
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    context: collections.abc.Mapping[str, typing.Any] = {},
+    user_message: typing.Optional[str] = None,
+    bot_message: typing.Optional[str] = None
+) -> nemoguardrails.library.crowdstrike_aidr.actions.GuardChatCompletionsResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-get_crowdstrike_aidr_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.rails.llm.config.CrowdStrikeAIDRRailConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-CrowdStrikeAIDRRailConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.crowdstrike_aidr.actions.get_crowdstrike_aidr_config(
+    config: nemoguardrails.rails.llm.config.RailsConfig
+) -> nemoguardrails.rails.llm.config.CrowdStrikeAIDRRailConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-crowdstrike_aidr-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.crowdstrike_aidr.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,797 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/server/api
+title: nemoguardrails.server.api
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ChunkError`](#nemoguardrails-server-api-ChunkError) | - |
+| [`ChunkErrorMetadata`](#nemoguardrails-server-api-ChunkErrorMetadata) | - |
+| [`GuardrailsApp`](#nemoguardrails-server-api-GuardrailsApp) | Custom FastAPI subclass with additional attributes for Guardrails server. |
+| [`GuardrailsConfigurationError`](#nemoguardrails-server-api-GuardrailsConfigurationError) | Exception raised for errors in the configuration. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_format_streaming_response`](#nemoguardrails-server-api-_format_streaming_response) | Format streaming chunks from LLMRails.stream_async() as SSE events. |
+| [`_generate_cache_key`](#nemoguardrails-server-api-_generate_cache_key) | Generates a cache key for the given config ids and model name. |
+| [`_get_rails`](#nemoguardrails-server-api-_get_rails) | Returns the rails instance for the given config id and model. |
+| [`_has_config_file`](#nemoguardrails-server-api-_has_config_file) | Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml. |
+| [`_raise_invalid_state`](#nemoguardrails-server-api-_raise_invalid_state) | - |
+| [`_update_models_in_config`](#nemoguardrails-server-api-_update_models_in_config) | Update the main model in the RailsConfig. |
+| [`_validate_public_state_shape`](#nemoguardrails-server-api-_validate_public_state_shape) | Validate request state shape before loading rails config. |
+| [`chat_completion`](#nemoguardrails-server-api-chat_completion) | Chat completion for the provided conversation. |
+| [`get_challenges`](#nemoguardrails-server-api-get_challenges) | Returns the list of available challenges for red teaming. |
+| [`get_rails_configs`](#nemoguardrails-server-api-get_rails_configs) | Returns the list of available rails configurations. |
+| [`lifespan`](#nemoguardrails-server-api-lifespan) | Register any additional challenges, if available at startup. |
+| [`list_models`](#nemoguardrails-server-api-list_models) | Return the list of models available from the configured provider. |
+| [`process_chunk`](#nemoguardrails-server-api-process_chunk) | Processes a single chunk from the stream. |
+| [`register_challenges`](#nemoguardrails-server-api-register_challenges) | Register additional challenges |
+| [`register_datastore`](#nemoguardrails-server-api-register_datastore) | Registers a DataStore to be used by the server. |
+| [`register_logger`](#nemoguardrails-server-api-register_logger) | Register an additional logger |
+| [`root_handler`](#nemoguardrails-server-api-root_handler) | - |
+| [`root_redirect`](#nemoguardrails-server-api-root_redirect) | - |
+| [`set_default_config_id`](#nemoguardrails-server-api-set_default_config_id) | - |
+| [`start_auto_reload_monitoring`](#nemoguardrails-server-api-start_auto_reload_monitoring) | Start a thread that monitors the config folder for changes. |
+
+### Data
+
+[`ALLOWED_ORIGINS`](#nemoguardrails-server-api-ALLOWED_ORIGINS)
+
+[`ENABLE_CORS`](#nemoguardrails-server-api-ENABLE_CORS)
+
+[`api_description`](#nemoguardrails-server-api-api_description)
+
+[`api_request_headers`](#nemoguardrails-server-api-api_request_headers)
+
+[`app`](#nemoguardrails-server-api-app)
+
+[`chainlit_app_path`](#nemoguardrails-server-api-chainlit_app_path)
+
+[`challenges`](#nemoguardrails-server-api-challenges)
+
+[`datastore`](#nemoguardrails-server-api-datastore)
+
+[`llm_rails_events_history_cache`](#nemoguardrails-server-api-llm_rails_events_history_cache)
+
+[`llm_rails_instances`](#nemoguardrails-server-api-llm_rails_instances)
+
+[`log`](#nemoguardrails-server-api-log)
+
+[`origins`](#nemoguardrails-server-api-origins)
+
+[`registered_loggers`](#nemoguardrails-server-api-registered_loggers)
+
+### API
+
+<Anchor id="nemoguardrails-server-api-ChunkError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.server.api.ChunkError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="error" type="ChunkErrorMetadata">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-ChunkErrorMetadata">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.server.api.ChunkErrorMetadata()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `BaseModel`
+
+<ParamField path="code" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="message" type="str">
+</ParamField>
+
+<ParamField path="param" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="type" type="Optional[str] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-GuardrailsApp">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.server.api.GuardrailsApp(
+    args = (),
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `FastAPI`
+
+Custom FastAPI subclass with additional attributes for Guardrails server.
+
+
+<ParamField path="auto_reload" type="bool = False">
+</ParamField>
+
+<ParamField path="default_config_id" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="disable_chat_ui" type="bool">
+</ParamField>
+
+<ParamField path="loop" type="Optional[AbstractEventLoop] = None">
+</ParamField>
+
+<ParamField path="rails_config_path" type="str = ''">
+</ParamField>
+
+<ParamField path="single_config_id" type="Optional[str] = None">
+</ParamField>
+
+<ParamField path="single_config_mode" type="bool = False">
+</ParamField>
+
+<ParamField path="stop_signal" type="bool = False">
+</ParamField>
+
+<ParamField path="task" type="Optional[Future] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-GuardrailsConfigurationError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.server.api.GuardrailsConfigurationError()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Exception</Badge>
+
+**Bases:** `Exception`
+
+Exception raised for errors in the configuration.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_format_streaming_response">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._format_streaming_response(
+    stream_iterator: typing.AsyncIterator[typing.Union[str, dict]],
+    model_name: str
+) -> typing.AsyncIterator[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Format streaming chunks from LLMRails.stream_async() as SSE events.
+
+    Args:
+        stream_iterator: AsyncIterator from stream_async() that yields str or dict chunks
+        model_name: The model name to include in the chunks
+
+    Yields:
+        SSE-formatted strings (data: &#123;...&#125;
+
+)
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_generate_cache_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._generate_cache_key(
+    config_ids: typing.List[str],
+    model_name: typing.Optional[str] = None
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Generates a cache key for the given config ids and model name.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_get_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._get_rails(
+    config_ids: typing.List[str],
+    model_name: typing.Optional[str] = None
+) -> nemoguardrails.LLMRails
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Returns the rails instance for the given config id and model.
+
+**Parameters:**
+
+<ParamField path="config_ids" type="List[str]">
+List of configuration IDs to load
+</ParamField>
+
+<ParamField path="model_name" type="Optional[str]" default="None">
+The model name from the request (overrides config's main model)
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_has_config_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._has_config_file(
+    path: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_raise_invalid_state">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._raise_invalid_state(
+    detail: str
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_update_models_in_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.Model":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-Model"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._update_models_in_config(
+    config: nemoguardrails.RailsConfig,
+    main_model: nemoguardrails.rails.llm.config.Model
+) -> nemoguardrails.RailsConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Update the main model in the RailsConfig.
+
+If a model with type="main" exists, it replaces it. Otherwise, adds it.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-_validate_public_state_shape">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api._validate_public_state_shape(
+    state: typing.Optional[dict]
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validate request state shape before loading rails config.
+
+At the public HTTP boundary, the only accepted non-empty dict state shape is
+Colang 1.0 transcript state: &#123;"events": [...]&#125;. Colang 2.0 has no safe
+public dict state shape.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-chat_completion">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.chat_completion(
+    body: nemoguardrails.server.schemas.openai.GuardrailsChatCompletionRequest,
+    request: fastapi.Request
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Chat completion for the provided conversation.
+
+TODO: add support for explicit state object.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-get_challenges">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.get_challenges()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Returns the list of available challenges for red teaming.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-get_rails_configs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.get_rails_configs()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Returns the list of available rails configurations.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-lifespan">
+
+<CodeBlock links={{"nemoguardrails.server.api.GuardrailsApp":"#nemoguardrails-server-api-GuardrailsApp"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.lifespan(
+    app: nemoguardrails.server.api.GuardrailsApp
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Register any additional challenges, if available at startup.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-list_models">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.list_models(
+    request: fastapi.Request
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Return the list of models available from the configured provider.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-process_chunk">
+
+<CodeBlock links={{"nemoguardrails.server.api.ChunkError":"#nemoguardrails-server-api-ChunkError"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.process_chunk(
+    chunk: typing.Any
+) -> typing.Union[typing.Any, nemoguardrails.server.api.ChunkError]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processes a single chunk from the stream.
+
+**Parameters:**
+
+<ParamField path="chunk" type="Any">
+A single chunk from the stream (can be str, dict, or other type).
+</ParamField>
+
+<ParamField path="model">
+The model name (not used in processing but kept for signature consistency).
+</ParamField>
+
+**Returns:** `Union[Any, ChunkError]`
+
+Union[Any, StreamingError]: StreamingError instance for errors or the original chunk.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-register_challenges">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.register_challenges(
+    additional_challenges: typing.List[dict]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register additional challenges
+
+**Parameters:**
+
+<ParamField path="additional_challenges" type="List[dict]">
+The new challenges to be registered.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-register_datastore">
+
+<CodeBlock links={{"nemoguardrails.server.datastore.datastore.DataStore":"/guardrails-python-sdk/nemoguardrails/server/datastore/datastore#nemoguardrails-server-datastore-datastore-DataStore"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.register_datastore(
+    datastore_instance: nemoguardrails.server.datastore.datastore.DataStore
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Registers a DataStore to be used by the server.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-register_logger">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.register_logger(
+    logger: typing.Callable
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Register an additional logger
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-root_handler">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.root_handler()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-root_redirect">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.root_redirect()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-set_default_config_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.set_default_config_id(
+    config_id: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-start_auto_reload_monitoring">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.start_auto_reload_monitoring()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Start a thread that monitors the config folder for changes.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-api-ALLOWED_ORIGINS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.ALLOWED_ORIGINS = os.getenv('NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS', '*')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-ENABLE_CORS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.ENABLE_CORS = os.getenv('NEMO_GUARDRAILS_SERVER_ENABLE_CORS', 'false').lower() == 'true'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-api_description">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.api_description = 'Guardrails Server API.'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-api_request_headers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.api_request_headers: ContextVar = contextvars.ContextVar('headers')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-app">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.app = GuardrailsApp(title='Guardrails Server API', description=api_description, versio...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-chainlit_app_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.chainlit_app_path = os.path.join(os.path.dirname(__file__), 'app.py')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-challenges">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.challenges = []
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-datastore">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.datastore: Optional[DataStore] = None
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-llm_rails_events_history_cache">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.llm_rails_events_history_cache: dict[str, dict] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-llm_rails_instances">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.llm_rails_instances: dict[str, LLMRails] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-origins">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.origins = ALLOWED_ORIGINS.split(',')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-server-api-registered_loggers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.api.registered_loggers: List[Callable] = []
+```
+
+</CodeBlock>
+</Anchor>
+

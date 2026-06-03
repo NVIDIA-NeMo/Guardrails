@@ -1,0 +1,137 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/embeddings/providers/fastembed
+title: nemoguardrails.embeddings.providers.fastembed
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`FastEmbedEmbeddingModel`](#nemoguardrails-embeddings-providers-fastembed-FastEmbedEmbeddingModel) | Embedding model using FastEmbed. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`get_executor`](#nemoguardrails-embeddings-providers-fastembed-get_executor) | - |
+
+### API
+
+<Anchor id="nemoguardrails-embeddings-providers-fastembed-FastEmbedEmbeddingModel">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.embeddings.providers.fastembed.FastEmbedEmbeddingModel(
+    embedding_model: str,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [EmbeddingModel](/guardrails-python-sdk/nemoguardrails/embeddings/providers/base#nemoguardrails-embeddings-providers-base-EmbeddingModel)
+
+Embedding model using FastEmbed.
+
+This class represents an embedding model that utilizes the FastEmbed library
+for generating sentence embeddings.
+
+**Parameters:**
+
+<ParamField path="embedding_model" type="str">
+The name or path of the pre-trained model.
+</ParamField>
+
+
+<ParamField path="embedding_size" type="= len(list(self.model.embed('test'))[0].tolist())">
+</ParamField>
+
+<ParamField path="engine_name" type="= 'FastEmbed'">
+</ParamField>
+
+<ParamField path="model" type="= Embedding(embedding_model, **kwargs)">
+</ParamField>
+<Anchor id="nemoguardrails-embeddings-providers-fastembed-FastEmbedEmbeddingModel-encode">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.fastembed.FastEmbedEmbeddingModel.encode(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Encode a list of documents into their corresponding sentence embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents to be encoded.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
+
+
+</Indent>
+<Anchor id="nemoguardrails-embeddings-providers-fastembed-FastEmbedEmbeddingModel-encode_async">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.fastembed.FastEmbedEmbeddingModel.encode_async(
+    documents: typing.List[str]
+) -> typing.List[typing.List[float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Encode a list of documents into their corresponding sentence embeddings.
+
+**Parameters:**
+
+<ParamField path="documents" type="List[str]">
+The list of documents to be encoded.
+</ParamField>
+
+**Returns:** `List[List[float]]`
+
+List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-embeddings-providers-fastembed-get_executor">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.embeddings.providers.fastembed.get_executor()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>

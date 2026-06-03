@@ -1,0 +1,99 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/tracing/span_formatting
+title: nemoguardrails.tracing.span_formatting
+---
+
+Simple span formatting functions for different output formats.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`extract_span_attributes`](#nemoguardrails-tracing-span_formatting-extract_span_attributes) | Extract OpenTelemetry attributes from any span type. |
+| [`format_span_for_filesystem`](#nemoguardrails-tracing-span_formatting-format_span_for_filesystem) | Format any span type for JSON filesystem storage. |
+| [`get_schema_version_for_filesystem`](#nemoguardrails-tracing-span_formatting-get_schema_version_for_filesystem) | Return the schema version string based on the span type. |
+
+### API
+
+<Anchor id="nemoguardrails-tracing-span_formatting-extract_span_attributes">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_formatting.extract_span_attributes(
+    span
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract OpenTelemetry attributes from any span type.
+
+**Parameters:**
+
+<ParamField path="span">
+Either SpanLegacy or typed span
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dictionary of OpenTelemetry attributes
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_formatting-format_span_for_filesystem">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_formatting.format_span_for_filesystem(
+    span
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Format any span type for JSON filesystem storage.
+
+**Parameters:**
+
+<ParamField path="span">
+Either SpanLegacy or typed span (InteractionSpan, RailSpan, etc.)
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dictionary with all span data for JSON serialization
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-tracing-span_formatting-get_schema_version_for_filesystem">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.tracing.span_formatting.get_schema_version_for_filesystem(
+    span
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the schema version string based on the span type.
+
+
+</Indent>

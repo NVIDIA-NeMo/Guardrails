@@ -1,0 +1,129 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/base_engine
+title: nemoguardrails.guardrails.base_engine
+---
+
+Base class for IORails HTTP engines with aiohttp retry client lifecycle.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`BaseEngine`](#nemoguardrails-guardrails-base_engine-BaseEngine) | HTTP engine base with aiohttp RetryClient lifecycle. |
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-base_engine-BaseEngine">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.base_engine.BaseEngine(
+    timeout_total: float = DEFAULT_TIMEOUT_TOTAL,
+    timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+HTTP engine base with aiohttp RetryClient lifecycle.
+
+Manages a single RetryClient with configurable timeout and retry settings.
+Subclasses add endpoint-specific call logic.
+
+
+<ParamField path="_client" type="Optional[RetryClient] = None">
+</ParamField>
+
+<ParamField path="_lock" type="= asyncio.Lock()">
+</ParamField>
+
+<ParamField path="_retry_options">
+</ParamField>
+
+<ParamField path="_timeout">
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-base_engine-BaseEngine-__aenter__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.base_engine.BaseEngine.__aenter__()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-base_engine-BaseEngine-__aexit__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.base_engine.BaseEngine.__aexit__(
+    exc_type,
+    exc_val,
+    exc_tb
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-base_engine-BaseEngine-start">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.base_engine.BaseEngine.start() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Create this engine's RetryClient. Call during service startup.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-base_engine-BaseEngine-stop">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.base_engine.BaseEngine.stop() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Close this engine's RetryClient. Call during service shutdown.
+
+
+</Indent>
+</Indent>

@@ -1,0 +1,133 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/regex/actions
+title: nemoguardrails.library.regex.actions
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`RegexDetectionResult`](#nemoguardrails-library-regex-actions-RegexDetectionResult) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_regex_blocked_mapping`](#nemoguardrails-library-regex-actions-_regex_blocked_mapping) | Return True (blocked) when a regex match was found. |
+| [`detect_regex_pattern`](#nemoguardrails-library-regex-actions-detect_regex_pattern) | Checks whether the provided text matches any forbidden regex pattern. |
+
+### Data
+
+[`log`](#nemoguardrails-library-regex-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-regex-actions-RegexDetectionResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.regex.actions.RegexDetectionResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="detections" type="List[str]">
+
+</ParamField>
+
+<ParamField path="is_match" type="bool">
+
+</ParamField>
+
+<ParamField path="text" type="str">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-regex-actions-_regex_blocked_mapping">
+
+<CodeBlock links={{"nemoguardrails.library.regex.actions.RegexDetectionResult":"#nemoguardrails-library-regex-actions-RegexDetectionResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.regex.actions._regex_blocked_mapping(
+    result: nemoguardrails.library.regex.actions.RegexDetectionResult
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return True (blocked) when a regex match was found.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-regex-actions-detect_regex_pattern">
+
+<CodeBlock links={{"nemoguardrails.library.regex.actions.RegexDetectionResult":"#nemoguardrails-library-regex-actions-RegexDetectionResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.regex.actions.detect_regex_pattern(
+    source: str,
+    text: str,
+    config: nemoguardrails.RailsConfig,
+    kwargs = {}
+) -> nemoguardrails.library.regex.actions.RegexDetectionResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks whether the provided text matches any forbidden regex pattern.
+
+**Parameters:**
+
+<ParamField path="source" type="str">
+The source for the text, i.e. "input", "output", "retrieval".
+</ParamField>
+
+<ParamField path="text" type="str">
+The text to check.
+</ParamField>
+
+<ParamField path="config" type="RailsConfig">
+The rails configuration object.
+</ParamField>
+
+**Returns:** `RegexDetectionResult`
+
+A TypedDict containing:
+- is_match (bool): Whether any pattern matched.
+- text (str): The original text that was checked.
+- detections (List[str]): List of pattern strings that matched.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-regex-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.regex.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

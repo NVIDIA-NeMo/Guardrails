@@ -1,0 +1,303 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/guardrails_ai/actions
+title: nemoguardrails.library.guardrails_ai.actions
+---
+
+Dynamic validator loading for Guardrails AI integration.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`Guard`](#nemoguardrails-library-guardrails_ai-actions-Guard) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_get_guard`](#nemoguardrails-library-guardrails_ai-actions-_get_guard) | Get or create a Guard instance for a validator. |
+| [`_load_validator_class`](#nemoguardrails-library-guardrails_ai-actions-_load_validator_class) | Dynamically load a validator class. |
+| [`guardrails_ai_validation_mapping`](#nemoguardrails-library-guardrails_ai-actions-guardrails_ai_validation_mapping) | Map Guardrails AI validation result to NeMo Guardrails format. |
+| [`validate_guardrails_ai`](#nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai) | Unified action for all Guardrails AI validators. |
+| [`validate_guardrails_ai_input`](#nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai_input) | Unified action for all Guardrails AI validators. |
+| [`validate_guardrails_ai_output`](#nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai_output) | Unified action for all Guardrails AI validators. |
+
+### Data
+
+[`_guard_cache`](#nemoguardrails-library-guardrails_ai-actions-_guard_cache)
+
+[`_validator_class_cache`](#nemoguardrails-library-guardrails_ai-actions-_validator_class_cache)
+
+[`log`](#nemoguardrails-library-guardrails_ai-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-Guard">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.guardrails_ai.actions.Guard()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-Guard-use">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.Guard.use(
+    validator
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-Guard-validate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.Guard.validate(
+    text,
+    metadata = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-_get_guard">
+
+<CodeBlock links={{"nemoguardrails.library.guardrails_ai.actions.Guard":"#nemoguardrails-library-guardrails_ai-actions-Guard"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions._get_guard(
+    validator_name: str,
+    validator_params = {}
+) -> nemoguardrails.library.guardrails_ai.actions.Guard
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get or create a Guard instance for a validator.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-_load_validator_class">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions._load_validator_class(
+    validator_name: str
+) -> typing.Type
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Dynamically load a validator class.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-guardrails_ai_validation_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.guardrails_ai_validation_mapping(
+    result: typing.Dict[str, typing.Any]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Map Guardrails AI validation result to NeMo Guardrails format.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.validate_guardrails_ai(
+    validator_name: str,
+    text: str,
+    kwargs = {}
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Unified action for all Guardrails AI validators.
+
+**Parameters:**
+
+<ParamField path="validator">
+Name of the validator to use (from VALIDATOR_REGISTRY)
+</ParamField>
+
+<ParamField path="text" type="str">
+Text to validate
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dict with validation_result
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai_input">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.validate_guardrails_ai_input(
+    validator: str,
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    context: typing.Optional[dict] = None,
+    text: typing.Optional[str] = None,
+    kwargs = {}
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Unified action for all Guardrails AI validators.
+
+**Parameters:**
+
+<ParamField path="validator" type="str">
+Name of the validator to use (from VALIDATOR_REGISTRY)
+</ParamField>
+
+<ParamField path="text" type="Optional[str]" default="None">
+Text to validate
+</ParamField>
+
+<ParamField path="context" type="Optional[dict]" default="None">
+Optional context dictionary
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dict with validation_result and valid (bool derived from validation_passed).
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-validate_guardrails_ai_output">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.validate_guardrails_ai_output(
+    validator: str,
+    context: typing.Optional[dict] = None,
+    text: typing.Optional[str] = None,
+    config: typing.Optional[nemoguardrails.rails.llm.config.RailsConfig] = None,
+    kwargs = {}
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Unified action for all Guardrails AI validators.
+
+**Parameters:**
+
+<ParamField path="validator" type="str">
+Name of the validator to use (from VALIDATOR_REGISTRY)
+</ParamField>
+
+<ParamField path="text" type="Optional[str]" default="None">
+Text to validate
+</ParamField>
+
+<ParamField path="context" type="Optional[dict]" default="None">
+Optional context dictionary
+</ParamField>
+
+**Returns:** `Dict[str, Any]`
+
+Dict with validation_result and valid (bool derived from validation_passed).
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-_guard_cache">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions._guard_cache: Dict[tuple, Guard] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-_validator_class_cache">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions._validator_class_cache: Dict[str, Type] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-guardrails_ai-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.guardrails_ai.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

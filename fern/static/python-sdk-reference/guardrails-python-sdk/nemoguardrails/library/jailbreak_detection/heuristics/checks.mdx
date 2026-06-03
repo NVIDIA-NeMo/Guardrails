@@ -1,0 +1,148 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/jailbreak_detection/heuristics/checks
+title: nemoguardrails.library.jailbreak_detection.heuristics.checks
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`check_jailbreak_length_per_perplexity`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-check_jailbreak_length_per_perplexity) | Check whether the input string has length/perplexity greater than the threshold. |
+| [`check_jailbreak_prefix_suffix_perplexity`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-check_jailbreak_prefix_suffix_perplexity) | Check whether the input string has prefix or suffix perplexity greater than the threshold. |
+| [`get_perplexity`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-get_perplexity) | Function to compute sliding window perplexity of `input_string` |
+
+### Data
+
+[`device`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-device)
+
+[`model`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-model)
+
+[`model_id`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-model_id)
+
+[`tokenizer`](#nemoguardrails-library-jailbreak_detection-heuristics-checks-tokenizer)
+
+### API
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-check_jailbreak_length_per_perplexity">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.check_jailbreak_length_per_perplexity(
+    input_string: str,
+    threshold: float
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check whether the input string has length/perplexity greater than the threshold.
+
+Args
+    input_string: The prompt to be sent to the model
+    lp_threshold: Threshold for determining whether `input_string` is a jailbreak (Default: 89.79)
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-check_jailbreak_prefix_suffix_perplexity">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.check_jailbreak_prefix_suffix_perplexity(
+    input_string: str,
+    threshold: float
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check whether the input string has prefix or suffix perplexity greater than the threshold.
+
+Args
+    input_string: The prompt to be sent to the model
+    ps_ppl_threshold: Threshold for determining whether `input_string` is a jailbreak (Default: 1845.65)
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-get_perplexity">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.get_perplexity(
+    input_string: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Function to compute sliding window perplexity of `input_string`
+
+Args
+    input_string: The prompt to be sent to the model
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-device">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.device = os.environ.get('JAILBREAK_CHECK_DEVICE', 'cpu')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-model">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.model = GPT2LMHeadModel.from_pretrained(model_id).to(device)
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-model_id">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.model_id = 'gpt2-large'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-jailbreak_detection-heuristics-checks-tokenizer">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.jailbreak_detection.heuristics.checks.tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
+```
+
+</CodeBlock>
+</Anchor>
+

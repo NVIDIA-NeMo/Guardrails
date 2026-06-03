@@ -1,0 +1,571 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/guardrails/iorails
+title: nemoguardrails.guardrails.iorails
+---
+
+Optimized IORails Engine for specific guardrail configurations.
+
+This module provides an optimized inference path for guardrail configurations that
+only use specific supported flows (input/output content safety). For configurations
+outside this supported set, the standard LLMRails engine should be used instead.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`IORails`](#nemoguardrails-guardrails-iorails-IORails) | Workflow engine for accelerated Input/Output rails inference. |
+
+### Data
+
+[`NONSTREAM_MAX_CONCURRENCY`](#nemoguardrails-guardrails-iorails-NONSTREAM_MAX_CONCURRENCY)
+
+[`NONSTREAM_QUEUE_DEPTH`](#nemoguardrails-guardrails-iorails-NONSTREAM_QUEUE_DEPTH)
+
+[`REFUSAL_MESSAGE`](#nemoguardrails-guardrails-iorails-REFUSAL_MESSAGE)
+
+[`STREAM_MAX_CONCURRENCY`](#nemoguardrails-guardrails-iorails-STREAM_MAX_CONCURRENCY)
+
+[`_GENERATION_ERROR_TYPE`](#nemoguardrails-guardrails-iorails-_GENERATION_ERROR_TYPE)
+
+[`log`](#nemoguardrails-guardrails-iorails-log)
+
+### API
+
+<Anchor id="nemoguardrails-guardrails-iorails-IORails">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.guardrails.iorails.IORails(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    _report_usage: bool = True
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Workflow engine for accelerated Input/Output rails inference.
+
+
+<ParamField path="SUPPORTED_INPUT_FLOWS">
+</ParamField>
+
+<ParamField path="SUPPORTED_OUTPUT_FLOWS" type="= frozenset(&#123;'content safety check output'&#125;)">
+</ParamField>
+
+<ParamField path="SUPPORTED_RAILS" type="= frozenset(&#123;'input', 'output', 'config'&#125;)">
+</ParamField>
+
+<ParamField path="_generate_async_queue">
+</ParamField>
+
+<ParamField path="_has_streaming_output_rails" type="bool">
+True when output rails are configured and streaming is enabled for them.
+</ParamField>
+
+<ParamField path="_metrics_enabled" type="= are_metrics_enabled(config.metrics)">
+</ParamField>
+
+<ParamField path="_speculative_generation" type="= config.rails.input.speculative_generation or False">
+</ParamField>
+
+<ParamField path="_stream_semaphore" type="= asyncio.Semaphore(STREAM_MAX_CONCURRENCY)">
+</ParamField>
+
+<ParamField path="_tracer" type="= get_tracer() if self._tracing_enabled else None">
+</ParamField>
+
+<ParamField path="_tracing_enabled" type="= is_tracing_enabled(config.tracing)">
+</ParamField>
+
+<ParamField path="engine_registry">
+</ParamField>
+
+<ParamField path="rails_manager">
+</ParamField>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-__aenter__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.__aenter__()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Context manager (used for testing rather than long-lived instance)
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-__aexit__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.__aexit__(
+    exc_type,
+    exc_val,
+    exc_tb
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Context manager (used for testing rather than long-lived instance)
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_do_generate">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.guardrails_types.LLMMessage":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._do_generate(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    req_id: str,
+    request_span: typing.Optional[opentelemetry.trace.Span] = None,
+    kwargs = {}
+) -> nemoguardrails.guardrails.guardrails_types.LLMMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Core pipeline: input rails -&gt; LLM call -&gt; output rails.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_do_generate_sequential">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._do_generate_sequential(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    req_id: str,
+    llm_kwargs: dict
+) -> typing.Optional[nemoguardrails.types.LLMResponse]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Sequential path: input rails block before LLM generation starts.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_do_generate_speculative">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._do_generate_speculative(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    req_id: str,
+    llm_kwargs: dict,
+    request_span: typing.Optional[opentelemetry.trace.Span] = None
+) -> typing.Optional[nemoguardrails.types.LLMResponse]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Speculative path: input rails and LLM generation race concurrently.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_parallel_input_rail_and_response_generation">
+
+<CodeBlock links={{"nemoguardrails.types.LLMResponse":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMResponse"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._parallel_input_rail_and_response_generation(
+    rails_task: asyncio.Task,
+    gen_task: asyncio.Task,
+    req_id: str,
+    request_span: typing.Optional[opentelemetry.trace.Span] = None
+) -> typing.Optional[nemoguardrails.types.LLMResponse]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Race input rails against LLM generation, return LLMResponse or None (rejected).
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_run_generate">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.guardrails_types.LLMMessage":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._run_generate(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs = {}
+) -> nemoguardrails.guardrails.guardrails_types.LLMMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Runs inside a queue worker task.  Wraps the pipeline in
+``traced_request`` so each request gets its own span + request ID,
+then delegates to ``_do_generate`` for the actual input rails →
+LLM → output rails flow.  Metrics are emitted at the outer
+lifecycle scope by ``generate_async``, not here.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_run_output_rails_in_streaming">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._run_output_rails_in_streaming(
+    streaming_handler: collections.abc.AsyncIterator[typing.Union[str, dict]],
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages
+) -> collections.abc.AsyncGenerator[typing.Union[str, dict], None]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Buffer streamed chunks and run output rails on each batch.
+
+Uses the same ``RollingBuffer`` and ``stream_first`` semantics as
+LLMRails:
+- ``stream_first=True``: yield chunks immediately, then run output
+  rails.  If unsafe, inject an error and stop.
+- ``stream_first=False``: run output rails first, only yield chunks
+  if safe.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-_validate_streaming_with_output_rails">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails._validate_streaming_with_output_rails() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Raise if output rails exist but streaming is not enabled for them.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-can_handle">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.can_handle(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Return True iff IORails can handle the given config and llm argument.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-generate">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.guardrails_types.LLMMessage":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.generate(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs = {}
+) -> nemoguardrails.guardrails.guardrails_types.LLMMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Synchronous version of generate_async.
+
+Telemetry is disabled for the ephemeral IORails object used for
+the ``generate()`` call. For production use, use the asynchronous
+`generate_async()` and `stream_async()` methods for non-streaming
+and streaming requests respectively.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-generate_async">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.guardrails.guardrails_types.LLMMessage":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessage"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.generate_async(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    kwargs = {}
+) -> nemoguardrails.guardrails.guardrails_types.LLMMessage
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Public entry: submit the request to the internal work queue.
+
+The queue enforces non-streaming concurrency limits
+(``NONSTREAM_MAX_CONCURRENCY`` workers draining up to
+``NONSTREAM_QUEUE_DEPTH`` pending items).  Callers receive
+``asyncio.QueueFull`` when the admission buffer is full and
+``guardrails.nonstream.rejections`` increments if metrics are enabled.
+
+Request-level metrics (``guardrails.requests``,
+``guardrails.request.duration``, ``guardrails.requests.errors``)
+wrap the queue submission, so duration includes queue-wait time
+(OTEL HTTP semconv).  A ``QueueFull`` rejection shows up in BOTH
+``requests.errors&#123;error.type=QueueFull&#125;`` and
+``nonstream.rejections`` — honest dual-signal reporting.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-start">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.start() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Start the IORails engine. Call this during service startup.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-stop">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.stop() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Stop the IORails engine. Call this during service shutdown.
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-stream_async">
+
+<CodeBlock links={{"nemoguardrails.guardrails.guardrails_types.LLMMessages":"/guardrails-python-sdk/nemoguardrails/guardrails/guardrails_types#nemoguardrails-guardrails-guardrails_types-LLMMessages","nemoguardrails.rails.llm.options.GenerationOptions":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationOptions"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.stream_async(
+    messages: nemoguardrails.guardrails.guardrails_types.LLMMessages,
+    options: typing.Optional[typing.Union[dict, nemoguardrails.rails.llm.options.GenerationOptions]] = None,
+    include_metadata: typing.Optional[bool] = False
+) -> collections.abc.AsyncIterator[typing.Union[str, dict]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Stream LLM response tokens with input/output rails applied.
+
+Returns an async iterator that yields string chunks (or dicts when
+``include_metadata=True``).  Input rails run before any tokens are
+streamed.  If output rails are configured and streaming is enabled,
+tokens are buffered and checked using the same ``RollingBuffer`` /
+``stream_first`` semantics as LLMRails.
+
+**Parameters:**
+
+<ParamField path="messages" type="LLMMessages">
+Conversation messages in OpenAI format.
+</ParamField>
+
+<ParamField path="options" type="Optional[Union[dict, GenerationOptions]]" default="None">
+Optional GenerationOptions (llm_params are forwarded to
+the main LLM call).
+</ParamField>
+
+<ParamField path="include_metadata" type="Optional[bool]" default="False">
+When True, chunks are dicts with ``text`` and
+``metadata`` keys instead of plain strings.
+</ParamField>
+
+**Returns:** `AsyncIterator[Union[str, dict]]`
+
+An async iterator of string chunks (or dicts).
+
+**Raises:**
+
+- `StreamingNotSupportedError`: If output rails are present but
+``rails.output.streaming.enabled`` is False.
+- `ValueError`: If ``include_metadata=True`` with output rails
+streaming enabled (BufferStrategy requires plain string chunks).
+- `asyncio.QueueFull`: If the streaming concurrency limit is
+reached (load shedding).
+
+
+</Indent>
+<Anchor id="nemoguardrails-guardrails-iorails-IORails-unsupported_reason">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.IORails.unsupported_reason(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    llm: typing.Optional[nemoguardrails.types.LLMModel] = None
+) -> typing.Optional[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>classmethod</Badge>
+
+Return None if IORails can handle (config, llm), else a human-readable reason.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-guardrails-iorails-NONSTREAM_MAX_CONCURRENCY">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY = 256
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-iorails-NONSTREAM_QUEUE_DEPTH">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH = 256
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-iorails-REFUSAL_MESSAGE">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.REFUSAL_MESSAGE = "I'm sorry, I can't respond to that."
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-iorails-STREAM_MAX_CONCURRENCY">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.STREAM_MAX_CONCURRENCY = 256
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-iorails-_GENERATION_ERROR_TYPE">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails._GENERATION_ERROR_TYPE = 'generation_error'
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-guardrails-iorails-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.guardrails.iorails.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

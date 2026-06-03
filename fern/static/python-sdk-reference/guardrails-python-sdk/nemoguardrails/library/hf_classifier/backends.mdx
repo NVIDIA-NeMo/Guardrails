@@ -1,0 +1,786 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/hf_classifier/backends
+title: nemoguardrails.library.hf_classifier.backends
+---
+
+Pluggable inference backends for HuggingFace classifier rails.
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ClassificationResult`](#nemoguardrails-library-hf_classifier-backends-ClassificationResult) | - |
+| [`ClassifierBackend`](#nemoguardrails-library-hf_classifier-backends-ClassifierBackend) | Abstract interface for HuggingFace classifier inference. |
+| [`FMSBackend`](#nemoguardrails-library-hf_classifier-backends-FMSBackend) | FMS guardrails-detectors ``/api/v1/text/contents`` backend. |
+| [`KServeBackend`](#nemoguardrails-library-hf_classifier-backends-KServeBackend) | KServe v1 inference predict backend. |
+| [`LocalBackend`](#nemoguardrails-library-hf_classifier-backends-LocalBackend) | Local HF Transformers pipeline backend. |
+| [`VLLMBackend`](#nemoguardrails-library-hf_classifier-backends-VLLMBackend) | vLLM ``/classify`` endpoint backend. |
+| [`_HTTPXSSLConfig`](#nemoguardrails-library-hf_classifier-backends-_HTTPXSSLConfig) | Stores httpx-compatible SSL parameters (verify, cert). |
+| [`_PipelineLoadError`](#nemoguardrails-library-hf_classifier-backends-_PipelineLoadError) | Sentinel stored in _pipelines when a pipeline fails to load at startup. |
+| [`_PipelineLoading`](#nemoguardrails-library-hf_classifier-backends-_PipelineLoading) | Sentinel stored while a pipeline is being loaded. |
+| [`_RemoteBackend`](#nemoguardrails-library-hf_classifier-backends-_RemoteBackend) | Base class for remote HTTP classifier backends. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_build_headers`](#nemoguardrails-library-hf_classifier-backends-_build_headers) | Build HTTP request headers from classifier config. |
+| [`_build_ssl_config`](#nemoguardrails-library-hf_classifier-backends-_build_ssl_config) | Build httpx SSL params from config parameters (cached). |
+| [`_check_cached`](#nemoguardrails-library-hf_classifier-backends-_check_cached) | Return cached pipeline, wait on loading, or raise on error. Returns None on miss. |
+| [`_flatten_ints`](#nemoguardrails-library-hf_classifier-backends-_flatten_ints) | - |
+| [`_get_or_create_pipeline`](#nemoguardrails-library-hf_classifier-backends-_get_or_create_pipeline) | - |
+| [`_get_timeout`](#nemoguardrails-library-hf_classifier-backends-_get_timeout) | - |
+| [`_pipeline_cache_key`](#nemoguardrails-library-hf_classifier-backends-_pipeline_cache_key) | - |
+| [`get_backend`](#nemoguardrails-library-hf_classifier-backends-get_backend) | Get or create a cached backend instance from classifier config. |
+
+### Data
+
+[`_BACKENDS`](#nemoguardrails-library-hf_classifier-backends-_BACKENDS)
+
+[`_DEFAULT_TIMEOUT`](#nemoguardrails-library-hf_classifier-backends-_DEFAULT_TIMEOUT)
+
+[`_FAILED_LOAD_MSG`](#nemoguardrails-library-hf_classifier-backends-_FAILED_LOAD_MSG)
+
+[`_HTTP_ONLY_PARAMS`](#nemoguardrails-library-hf_classifier-backends-_HTTP_ONLY_PARAMS)
+
+[`_TRANSIENT_ERRORS`](#nemoguardrails-library-hf_classifier-backends-_TRANSIENT_ERRORS)
+
+[`_backend_instances`](#nemoguardrails-library-hf_classifier-backends-_backend_instances)
+
+[`_pipelines`](#nemoguardrails-library-hf_classifier-backends-_pipelines)
+
+[`_pipelines_lock`](#nemoguardrails-library-hf_classifier-backends-_pipelines_lock)
+
+[`_ssl_cache`](#nemoguardrails-library-hf_classifier-backends-_ssl_cache)
+
+[`_warned_env_vars`](#nemoguardrails-library-hf_classifier-backends-_warned_env_vars)
+
+[`log`](#nemoguardrails-library-hf_classifier-backends-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-ClassificationResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.ClassificationResult
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="label" type="str">
+
+</ParamField>
+
+<ParamField path="score" type="float">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-ClassifierBackend">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.ClassifierBackend()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Abstract</Badge>
+
+**Bases:** `ABC`
+
+Abstract interface for HuggingFace classifier inference.
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-ClassifierBackend-classify">
+
+<CodeBlock links={{"nemoguardrails.library.hf_classifier.backends.ClassificationResult":"#nemoguardrails-library-hf_classifier-backends-ClassificationResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.ClassifierBackend.classify(
+    text: str
+) -> typing.List[nemoguardrails.library.hf_classifier.backends.ClassificationResult]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge> <Badge>abstract</Badge>
+
+Classify a single text. Returns list of label/score detections.
+
+
+</Indent>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-ClassifierBackend-close">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.ClassifierBackend.close() -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Release resources (e.g. HTTP sessions). Override in subclasses.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-FMSBackend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.FMSBackend(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [_RemoteBackend](#nemoguardrails-library-hf_classifier-backends-_RemoteBackend)
+
+FMS guardrails-detectors ``/api/v1/text/contents`` backend.
+
+Tested against: FMS guardrails-detectors API v1. Expects response shape::
+
+    [[&#123;"detection_type": "...", "score": float&#125;, ...]]
+
+Raises ``ValueError`` if the response is not a list-of-lists or detection
+entries lack required keys.
+
+
+<ParamField path="_threshold" type="= config.threshold">
+</ParamField>
+
+<ParamField path="_url" type="= config.base_url + '/api/v1/text/contents'">
+</ParamField>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-FMSBackend-classify">
+
+<CodeBlock links={{"nemoguardrails.library.hf_classifier.backends.ClassificationResult":"#nemoguardrails-library-hf_classifier-backends-ClassificationResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.FMSBackend.classify(
+    text: str
+) -> typing.List[nemoguardrails.library.hf_classifier.backends.ClassificationResult]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-KServeBackend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.KServeBackend(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [_RemoteBackend](#nemoguardrails-library-hf_classifier-backends-_RemoteBackend)
+
+KServe v1 inference predict backend.
+
+Tested against: KServe v1 predict API (``/v1/models/&#123;name&#125;:predict``).
+Handles three ``predictions`` shapes:
+
+- ``dict``: class-index → probability (``--return_probabilities``)
+- ``int/float``: argmax class index, score assumed 1.0
+- nested ``list``: token-level class indices, flattened and deduplicated
+
+Raises ``ValueError`` if ``predictions`` key is missing or the prediction
+has an unrecognised type.
+
+
+<ParamField path="_url">
+</ParamField>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-KServeBackend-classify">
+
+<CodeBlock links={{"nemoguardrails.library.hf_classifier.backends.ClassificationResult":"#nemoguardrails-library-hf_classifier-backends-ClassificationResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.KServeBackend.classify(
+    text: str
+) -> typing.List[nemoguardrails.library.hf_classifier.backends.ClassificationResult]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-LocalBackend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.LocalHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-LocalHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.LocalBackend(
+    config: nemoguardrails.rails.llm.config.LocalHFClassifierConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [ClassifierBackend](#nemoguardrails-library-hf_classifier-backends-ClassifierBackend)
+
+Local HF Transformers pipeline backend.
+
+Tested against: ``transformers &gt;= 4.35`` pipeline API for
+``text-classification`` and ``token-classification`` tasks.
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-LocalBackend-classify">
+
+<CodeBlock links={{"nemoguardrails.library.hf_classifier.backends.ClassificationResult":"#nemoguardrails-library-hf_classifier-backends-ClassificationResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.LocalBackend.classify(
+    text: str
+) -> typing.List[nemoguardrails.library.hf_classifier.backends.ClassificationResult]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-VLLMBackend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends.VLLMBackend(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [_RemoteBackend](#nemoguardrails-library-hf_classifier-backends-_RemoteBackend)
+
+vLLM ``/classify`` endpoint backend.
+
+Tested against: vLLM v0.6.x ``/classify`` API. Expects response shape::
+
+    &#123;"data": [&#123;"label": "...", "probs": [float, ...]&#125;]&#125;
+
+Raises ``ValueError`` if the response is missing required keys (``data``,
+``label``), indicating an API change.
+
+
+<ParamField path="_model_name" type="= config.model">
+</ParamField>
+
+<ParamField path="_url" type="= config.base_url + '/classify'">
+</ParamField>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-VLLMBackend-classify">
+
+<CodeBlock links={{"nemoguardrails.library.hf_classifier.backends.ClassificationResult":"#nemoguardrails-library-hf_classifier-backends-ClassificationResult"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.VLLMBackend.classify(
+    text: str
+) -> typing.List[nemoguardrails.library.hf_classifier.backends.ClassificationResult]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_HTTPXSSLConfig">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends._HTTPXSSLConfig(
+    verify: typing.Union[str, bool] = True,
+    cert: typing.Optional[tuple] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Stores httpx-compatible SSL parameters (verify, cert).
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_PipelineLoadError">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends._PipelineLoadError(
+    error: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Sentinel stored in _pipelines when a pipeline fails to load at startup.
+Prevents silent retry — classify() raises immediately with the original error.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_PipelineLoading">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends._PipelineLoading()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Sentinel stored while a pipeline is being loaded.
+Prevents duplicate concurrent loads — a second caller waits on the event.
+
+
+<ParamField path="_WAIT_TIMEOUT" type="= 600.0">
+</ParamField>
+
+<ParamField path="error" type="Optional[BaseException] = None">
+</ParamField>
+
+<ParamField path="ready" type="= threading.Event()">
+</ParamField>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_PipelineLoading-wait">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._PipelineLoading.wait() -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_RemoteBackend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.library.hf_classifier.backends._RemoteBackend(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** [ClassifierBackend](#nemoguardrails-library-hf_classifier-backends-ClassifierBackend)
+
+Base class for remote HTTP classifier backends.
+
+Uses a fresh httpx client per request — no connection pool state to manage.
+Classifier calls are infrequent and latency-tolerant (inference &gt;&gt; TLS
+handshake), so connection reuse provides negligible benefit while introducing
+stale-connection complexity.
+
+
+<ParamField path="_ssl" type="= _build_ssl_config(config)">
+</ParamField>
+
+<ParamField path="_timeout" type="= _get_timeout(config)">
+</ParamField>
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_RemoteBackend-_post">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._RemoteBackend._post(
+    url: str,
+    json: typing.Dict[str, typing.Any]
+) -> httpx.Response
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+POST with one automatic retry on transient failures.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_build_headers">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._build_headers(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+) -> typing.Dict[str, str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Build HTTP request headers from classifier config.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_build_ssl_config">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig","nemoguardrails.library.hf_classifier.backends._HTTPXSSLConfig":"#nemoguardrails-library-hf_classifier-backends-_HTTPXSSLConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._build_ssl_config(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+) -> nemoguardrails.library.hf_classifier.backends._HTTPXSSLConfig
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Build httpx SSL params from config parameters (cached).
+
+Reads from ``config.parameters``:
+  - ``verify_ssl`` (bool, default True): set to False to skip TLS verification.
+  - ``ca_cert`` (str): path to a CA bundle file for custom/internal CAs.
+  - ``client_cert`` (str) + ``client_key`` (str): paths for mTLS client auth.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_check_cached">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._check_cached(
+    cache_key: str,
+    model_name: str
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return cached pipeline, wait on loading, or raise on error. Returns None on miss.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_flatten_ints">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._flatten_ints(
+    nested: typing.Any
+) -> typing.List[int]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_get_or_create_pipeline">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._get_or_create_pipeline(
+    model_name: str,
+    task: str,
+    parameters: typing.Dict[str, typing.Any]
+) -> typing.Any
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_get_timeout">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RemoteHFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RemoteHFClassifierConfig"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._get_timeout(
+    config: nemoguardrails.rails.llm.config.RemoteHFClassifierConfig
+) -> httpx.Timeout
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_pipeline_cache_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._pipeline_cache_key(
+    model_name: str,
+    task: str,
+    parameters: typing.Dict[str, typing.Any]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-get_backend">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.HFClassifierConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-HFClassifierConfig","nemoguardrails.library.hf_classifier.backends.ClassifierBackend":"#nemoguardrails-library-hf_classifier-backends-ClassifierBackend"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.get_backend(
+    config: nemoguardrails.rails.llm.config.HFClassifierConfig,
+    name: str = ''
+) -> nemoguardrails.library.hf_classifier.backends.ClassifierBackend
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get or create a cached backend instance from classifier config.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_BACKENDS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._BACKENDS = {'local': LocalBackend, 'vllm': VLLMBackend, 'kserve': KServeBackend, 'fms': FMS...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_DEFAULT_TIMEOUT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._DEFAULT_TIMEOUT = 30.0
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_FAILED_LOAD_MSG">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._FAILED_LOAD_MSG = "HF pipeline '{model}' failed to load at startup: {error}. Check server logs for...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_HTTP_ONLY_PARAMS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._HTTP_ONLY_PARAMS = frozenset({'timeout', 'verify_ssl', 'ca_cert', 'client_cert', 'client_key'})
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_TRANSIENT_ERRORS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._TRANSIENT_ERRORS = (httpx.NetworkError, httpx.TimeoutException, httpx.RemoteProtocolError, OSError,...
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_backend_instances">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._backend_instances: Dict[str, ClassifierBackend] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_pipelines">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._pipelines: Dict[str, Any] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_pipelines_lock">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._pipelines_lock = threading.Lock()
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_ssl_cache">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._ssl_cache: Dict[tuple, _HTTPXSSLConfig] = {}
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-_warned_env_vars">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends._warned_env_vars: set = set()
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hf_classifier-backends-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.backends.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

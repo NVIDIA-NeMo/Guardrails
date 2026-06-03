@@ -1,0 +1,150 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/actions/actions
+title: nemoguardrails.actions.actions
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ActionMeta`](#nemoguardrails-actions-actions-ActionMeta) | - |
+| [`ActionResult`](#nemoguardrails-actions-actions-ActionResult) | Data class representing the result of an action. |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`action`](#nemoguardrails-actions-actions-action) | Decorator to mark a function or class as an action. |
+
+### Data
+
+[`T`](#nemoguardrails-actions-actions-T)
+
+### API
+
+<Anchor id="nemoguardrails-actions-actions-ActionMeta">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.actions.actions.ActionMeta
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="execute_async" type="bool">
+
+</ParamField>
+
+<ParamField path="is_system_action" type="bool">
+
+</ParamField>
+
+<ParamField path="name" type="str">
+
+</ParamField>
+
+<ParamField path="output_mapping" type="Optional[Callable[[Any], bool]]">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-actions-ActionResult">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.actions.actions.ActionResult(
+    return_value: typing.Optional[typing.Any] = None,
+    events: typing.Optional[typing.List[dict]] = None,
+    context_updates: typing.Optional[dict] = dict()
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+Data class representing the result of an action.
+
+
+<ParamField path="context_updates" type="Optional[dict] = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="events" type="Optional[List[dict]] = None">
+</ParamField>
+
+<ParamField path="return_value" type="Optional[Any] = None">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-actions-actions-action">
+
+<CodeBlock links={{"nemoguardrails.actions.actions.T":"#nemoguardrails-actions-actions-T"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.actions.action(
+    is_system_action: bool = False,
+    name: typing.Optional[str] = None,
+    execute_async: bool = False,
+    output_mapping: typing.Optional[typing.Callable[[Any], bool]] = None
+) -> typing.Callable[[T], nemoguardrails.actions.actions.T]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Decorator to mark a function or class as an action.
+
+**Parameters:**
+
+<ParamField path="is_system_action" type="bool" default="False">
+Flag indicating if the action is a system action.
+</ParamField>
+
+<ParamField path="name" type="str" default="None">
+The name to associate with the action.
+</ParamField>
+
+<ParamField path="execute_async" type="bool" default="False">
+Whether the function should be executed in async mode.
+</ParamField>
+
+<ParamField path="output_mapping" type="Optional[Callable[[Any], bool]]" default="None">
+A function to interpret the action's result.
+It accepts the return value (e.g. the first element of a tuple) and return True if the output
+is not safe.
+</ParamField>
+
+**Returns:** `Callable[[T], T]`
+
+The decorated function or class.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-actions-actions-T">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.actions.actions.T = TypeVar('T', bound=(Union[Callable[..., Any], Type[Any]]))
+```
+
+</CodeBlock>
+</Anchor>
+

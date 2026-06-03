@@ -1,0 +1,379 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/filters
+title: nemoguardrails.llm.filters
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_previous_line`](#nemoguardrails-llm-filters-_previous_line) | Returns the previous lines, skipping comments. |
+| [`co_v2`](#nemoguardrails-llm-filters-co_v2) | Creates a history of user messages and bot responses in colang format. |
+| [`colang`](#nemoguardrails-llm-filters-colang) | Filter that turns an array of events into a colang history. |
+| [`colang_without_identifiers`](#nemoguardrails-llm-filters-colang_without_identifiers) | Filter that turns an array of events into a colang history. |
+| [`conversation_to_events`](#nemoguardrails-llm-filters-conversation_to_events) | Filter that given a conversation, returns a list of events. |
+| [`first_turns`](#nemoguardrails-llm-filters-first_turns) | Returns the first n turns from a given colang history. |
+| [`indent`](#nemoguardrails-llm-filters-indent) | Indents the provided text with the provided number of spaces. |
+| [`last_turns`](#nemoguardrails-llm-filters-last_turns) | Returns the last n turns from a given colang history. |
+| [`remove_text_messages`](#nemoguardrails-llm-filters-remove_text_messages) | Filters that given a history in colang format, removes all texts. |
+| [`remove_trailing_new_line`](#nemoguardrails-llm-filters-remove_trailing_new_line) | - |
+| [`to_chat_messages`](#nemoguardrails-llm-filters-to_chat_messages) | Filter that turns an array of events into a sequence of user/assistant messages. |
+| [`to_intent_messages`](#nemoguardrails-llm-filters-to_intent_messages) | - |
+| [`to_intent_messages_2`](#nemoguardrails-llm-filters-to_intent_messages_2) | - |
+| [`to_messages`](#nemoguardrails-llm-filters-to_messages) | Filter that given a history in colang format, returns all messages. |
+| [`to_messages_v2`](#nemoguardrails-llm-filters-to_messages_v2) | Filter that given a history in colang 2.0 format, returns all messages. |
+| [`user_assistant_sequence`](#nemoguardrails-llm-filters-user_assistant_sequence) | Filter that turns an array of events into a sequence of user/assistant messages. |
+| [`verbose_v1`](#nemoguardrails-llm-filters-verbose_v1) | Filter that given a history in colang format, returns a verbose version of the history. |
+
+### API
+
+<Anchor id="nemoguardrails-llm-filters-_previous_line">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters._previous_line(
+    lines: typing.List[str],
+    i: int
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the previous lines, skipping comments.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-co_v2">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.co_v2(
+    events: typing.List[dict]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Creates a history of user messages and bot responses in colang format.
+
+user said "Hi, how are you today?"
+bot say "Greetings! I am the official NVIDIA Benefits Ambassador AI bot and I'm here to assist you."
+user said "What can you help me with?"
+bot say "As an AI, I can provide you with a wide range of services, such as ..."
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-colang">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.colang(
+    events: typing.List[dict]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that turns an array of events into a colang history.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-colang_without_identifiers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.colang_without_identifiers(
+    events: typing.List[dict]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that turns an array of events into a colang history.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-conversation_to_events">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.conversation_to_events(
+    conversation: typing.List
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that given a conversation, returns a list of events.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-first_turns">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.first_turns(
+    colang_history: str,
+    n: int
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the first n turns from a given colang history.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-indent">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.indent(
+    text: str,
+    n_spaces: int
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Indents the provided text with the provided number of spaces.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-last_turns">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.last_turns(
+    colang_history: str,
+    n: int
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the last n turns from a given colang history.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-remove_text_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.remove_text_messages(
+    colang_history: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filters that given a history in colang format, removes all texts.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-remove_trailing_new_line">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.remove_trailing_new_line(
+    s: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-to_chat_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.to_chat_messages(
+    events: typing.List[dict]
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that turns an array of events into a sequence of user/assistant messages.
+
+Properly handles multimodal content by preserving the structure when the content
+is in the format of a Message object with potential image_url content.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-to_intent_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.to_intent_messages(
+    colang_history: str
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-to_intent_messages_2">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.to_intent_messages_2(
+    colang_history: str
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-to_messages">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.to_messages(
+    colang_history: str
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that given a history in colang format, returns all messages.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-to_messages_v2">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.to_messages_v2(
+    colang_history: str
+) -> typing.List[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that given a history in colang 2.0 format, returns all messages.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-user_assistant_sequence">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.user_assistant_sequence(
+    events: typing.List[dict]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that turns an array of events into a sequence of user/assistant messages.
+
+For multimodal content, it extracts text content and indicates if there were images.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-filters-verbose_v1">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.filters.verbose_v1(
+    colang_history: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Filter that given a history in colang format, returns a verbose version of the history.
+
+
+</Indent>

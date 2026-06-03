@@ -1,0 +1,74 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/hallucination/actions
+title: nemoguardrails.library.hallucination.actions
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`self_check_hallucination`](#nemoguardrails-library-hallucination-actions-self_check_hallucination) | Checks if the last bot response is a hallucination by checking multiple completions for self-consistency. |
+
+### Data
+
+[`HALLUCINATION_NUM_EXTRA_RESPONSES`](#nemoguardrails-library-hallucination-actions-HALLUCINATION_NUM_EXTRA_RESPONSES)
+
+[`log`](#nemoguardrails-library-hallucination-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-hallucination-actions-self_check_hallucination">
+
+<CodeBlock links={{"nemoguardrails.types.LLMModel":"/guardrails-python-sdk/nemoguardrails/types#nemoguardrails-types-LLMModel","nemoguardrails.llm.taskmanager.LLMTaskManager":"/guardrails-python-sdk/nemoguardrails/llm/taskmanager#nemoguardrails-llm-taskmanager-LLMTaskManager"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hallucination.actions.self_check_hallucination(
+    llm: nemoguardrails.types.LLMModel,
+    llm_task_manager: nemoguardrails.llm.taskmanager.LLMTaskManager,
+    context: typing.Optional[dict] = None,
+    use_llm_checking: bool = True,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
+
+:return: True if hallucination is detected, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hallucination-actions-HALLUCINATION_NUM_EXTRA_RESPONSES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hallucination.actions.HALLUCINATION_NUM_EXTRA_RESPONSES = 2
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-hallucination-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hallucination.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

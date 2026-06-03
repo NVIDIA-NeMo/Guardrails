@@ -1,0 +1,161 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Telemetry"
+---
+The NVIDIA NeMo Guardrails library collects anonymous telemetry to help the NVIDIA engineering team understand which deployment patterns and safety features are most widely used. The event payload is transparent and does not contain user content or direct user identifiers such as usernames, API keys, or IP addresses.
+
+After cleaning and aggregation, NVIDIA might share a subset of the data with the community, such as adoption charts that show which built-in safety features are most used. NVIDIA will not share any user content or direct user identifiers such as usernames, API keys, or IP addresses.
+
+<Note>
+Telemetry is not to be confused with tracing. This page covers anonymous usage telemetry, which the library emits when you instantiate `LLMRails`, `IORails`, or `Guardrails` and through periodic heartbeats that it sends to NVIDIA. It is separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html), which you enable in your guardrails config to emit OpenTelemetry spans to your own observability backend.
+</Note>
+
+## Data Collected by Telemetry
+
+The library collects data when you construct `LLMRails`, `IORails`, or `Guardrails` and through periodic heartbeats. The data describes the deployment, not individual requests.
+
+In this context, a *session* is the lifetime of a single Python process running the NVIDIA NeMo Guardrails library. The library generates the session ID in memory when telemetry starts and does not store it for reuse across process restarts. The same session ID appears in local audit records and transmitted telemetry events so startup and heartbeat events from one process can be correlated. Two guardrails runs by the same user produce two unrelated session IDs.
+
+| Field | Type | Example | Description |
+| --- | --- | --- | --- |
+| `sessionId` | string | `"2b8e9879-80be-42bb-ad3f-81db8ec28e15"` | Random UUID4 generated in memory when telemetry starts. Shared by all events from the same process and included in audit records and transmitted events, but not stored for reuse across restarts. |
+| `nemoguardrailsVersion` | string | `"0.22.0"` | Installed package version. `"unknown"` if unavailable. |
+| `pythonVersion` | string | `"3.13.7"` | Python interpreter version. |
+| `platform` | string | `"Linux-5.15.0-x86_64-with-glibc2.35"` | OS and architecture string. |
+| `osName` | string | `"Linux"` | Operating system name (`"Darwin"`, `"Linux"`, `"Windows"`). |
+| `colangVersion` | string | `"1.0"` | Colang configuration language version (`"1.0"`, `"2.x"`, or `"unknown"` when no config context exists). This describes the loaded guardrails config, not the runtime rails engine. |
+| `llmProviders` | array of strings | `["nim", "openai"]` | LLM engine names, sorted. Engine identifiers, not model names. |
+| `numRailsConfigured` | integer | `4` | Count of configured rail flows for input, output, retrieval, tool input, and tool output rails. Dialog usage is represented in `railTypesInUse` but not counted as a flow. |
+| `railTypesInUse` | array of strings | `["input", "output"]` | Active rail categories from `input`, `output`, `retrieval`, `tool_input`, `tool_output`, `dialog`. |
+| `tracingEnabled` | boolean | `false` | Whether the tracing subsystem is enabled. |
+| `deploymentType` | string | `"library"` | How you deployed guardrails: `"library"` (direct `LLMRails`, `IORails`, or `Guardrails` use), `"api"` (FastAPI server), or `"cli"` (interactive `nemoguardrails chat`). |
+| `nemoSource` | string | `"guardrails"` | The NVIDIA NeMo product that produced the event. Always `"guardrails"` for this event type. |
+| `railsEngine` | string | `"LLMRails"` | Runtime rails engine in use: `"LLMRails"` or `"IORails"`. |
+| `hasKnowledgeBase` | boolean | `false` | Whether a knowledge base is configured. |
+| `streamingConfigured` | boolean | `false` | Whether streaming output is enabled. |
+| `builtinFeatures` | array of strings | `["content_safety", "jailbreak_detection"]` | Active built-in library features, sorted. Refer to the list below. |
+| `numCustomFlows` | integer | `0` | Count of user-defined Colang flows. Never flow names or contents. |
+| `timestamp` | number | `1775716074.855979` | Unix timestamp when the event was collected. |
+| `event` | string | `"startup"` | Event type: `"startup"` for the initial report, `"heartbeat"` for periodic pings. |
+
+### Possible Values for Built-In Features
+
+Each value corresponds to a directory under `nemoguardrails/library/`. This list reflects the current release; the directories under `nemoguardrails/library/` are the authoritative source.
+
+`activefence`, `ai_defense`, `autoalign`, `clavata`, `cleanlab`, `content_safety`, `crowdstrike_aidr`, `factchecking`, `fiddler`, `gliner`, `guardrails_ai`, `hallucination`, `injection_detection`, `jailbreak_detection`, `llama_guard`, `pangea`, `patronusai`, `policyai`, `prompt_security`, `regex`, `self_check`, `sensitive_data_detection`, `topic_safety`, `trend_micro`.
+
+## Data Not Collected by Telemetry
+
+Telemetry excludes the following data from event payloads:
+
+- Model names, model paths, or model parameters
+- API keys, endpoints, URLs, or credentials
+- Rail definitions, Colang source code, or YAML configuration contents
+- Prompts, completions, or any user messages
+- Token counts, request latency, or per-request metrics
+- File paths, usernames, or IP addresses
+
+The schema is designed to avoid user content and direct user identifiers. Review the audit file to confirm the exact event fields emitted by your local configuration.
+
+## Sample Payloads
+
+The following examples show the startup and heartbeat event payloads:
+
+**Startup event:**
+
+```json
+{
+  "sessionId": "2b8e9879-80be-42bb-ad3f-81db8ec28e15",
+  "nemoguardrailsVersion": "0.22.0",
+  "pythonVersion": "3.13.7",
+  "platform": "Linux-5.15.0-x86_64-with-glibc2.35",
+  "osName": "Linux",
+  "colangVersion": "1.0",
+  "llmProviders": ["nim"],
+  "numRailsConfigured": 4,
+  "railTypesInUse": ["input", "output"],
+  "tracingEnabled": false,
+  "deploymentType": "library",
+  "nemoSource": "guardrails",
+  "railsEngine": "LLMRails",
+  "hasKnowledgeBase": false,
+  "streamingConfigured": false,
+  "builtinFeatures": ["content_safety", "jailbreak_detection", "topic_safety"],
+  "numCustomFlows": 0,
+  "timestamp": 1775716074.855979,
+  "event": "startup"
+}
+```
+
+**Heartbeat event (every 10 minutes):**
+
+Heartbeat events reuse the startup event metadata and update only `event` and `timestamp`; `sessionId` remains constant for the lifetime of the process.
+
+```json
+{
+  "sessionId": "2b8e9879-80be-42bb-ad3f-81db8ec28e15",
+  "nemoguardrailsVersion": "0.22.0",
+  "pythonVersion": "3.13.7",
+  "platform": "Linux-5.15.0-x86_64-with-glibc2.35",
+  "osName": "Linux",
+  "colangVersion": "1.0",
+  "llmProviders": ["nim"],
+  "numRailsConfigured": 4,
+  "railTypesInUse": ["input", "output"],
+  "tracingEnabled": false,
+  "deploymentType": "library",
+  "nemoSource": "guardrails",
+  "railsEngine": "LLMRails",
+  "hasKnowledgeBase": false,
+  "streamingConfigured": false,
+  "builtinFeatures": ["content_safety", "jailbreak_detection", "topic_safety"],
+  "numCustomFlows": 0,
+  "timestamp": 1775716674.123456,
+  "event": "heartbeat"
+}
+```
+
+Before transmission, the telemetry client wraps each event in the shared NVIDIA telemetry envelope (schema v1.7, protocol v1.6) with `nemoSource: "guardrails"`.
+
+## Inspect What Is Sent
+
+The telemetry client attempts to write each outgoing event payload to a local audit file before sending it over the network:
+
+```bash
+cat ~/.config/nemoguardrails/usage_stats.json
+```
+
+The file uses JSON Lines format with one event per line. It rotates when the current file exceeds 10 MB, keeping only `usage_stats.json` and one `usage_stats.json.1` backup, so local audit storage is bounded. It stores the inner event payload, not the full NVIDIA telemetry envelope. Audit writes are best effort. If local audit writing fails, telemetry transmission still proceeds.
+
+## Opt Out
+
+Set one of the following options to opt out of telemetry collection:
+
+```bash
+# Product-specific:
+export NEMO_GUARDRAILS_NO_USAGE_STATS=1
+
+# Industry standard:
+export DO_NOT_TRACK=1
+
+# File-based:
+mkdir -p ~/.config/nemoguardrails && touch ~/.config/nemoguardrails/do_not_track
+```
+
+When any opt-out is active, the library does not start the heartbeat daemon thread, does not write to the audit file, and does not make any network requests.
+
+Set the opt-out before the NVIDIA NeMo Guardrails library starts. Changing environment variables or creating `do_not_track` after telemetry has started does not stop an already-running heartbeat thread.
+
+### Automatic Suppression in Test and CI Environments
+
+The telemetry client also disables telemetry automatically, with no configuration required, when either of the following environment variables is set:
+
+- `CI` (truthy: `1` or `true`). Set by GitHub Actions, GitLab CI, CircleCI, Travis, Buildkite, and most other CI runners. Honoring this is the same convention used by Homebrew, npm, conda, and others.
+- `PYTEST_CURRENT_TEST`. Set by pytest while a test is running. Suppresses telemetry from your test suite even outside CI.
+
+This behavior keeps adoption metrics focused on real deployments, not synthetic test or CI traffic. If you genuinely want telemetry from a CI run, unset `CI` for that step.
+
+## Schema and Source Code
+
+The Python source for the event lives in [`nemoguardrails/telemetry.py`](../nemoguardrails/telemetry.py). The wire contract is validated against a vendored snapshot of the shared NVIDIA telemetry schema at [`schemas/anonymous_events.snapshot.json`](../schemas/anonymous_events.snapshot.json). The conformance test in [`tests/telemetry/test_usage_reporting.py`](../tests/telemetry/test_usage_reporting.py) validates emitted payloads against that snapshot with `jsonschema`.

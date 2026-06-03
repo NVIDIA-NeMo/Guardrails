@@ -1,0 +1,310 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/cache/utils
+title: nemoguardrails.llm.cache.utils
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`CacheEntry`](#nemoguardrails-llm-cache-utils-CacheEntry) | - |
+| [`LLMCacheData`](#nemoguardrails-llm-cache-utils-LLMCacheData) | - |
+| [`LLMMetadataDict`](#nemoguardrails-llm-cache-utils-LLMMetadataDict) | - |
+| [`LLMStatsDict`](#nemoguardrails-llm-cache-utils-LLMStatsDict) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`create_normalized_cache_key`](#nemoguardrails-llm-cache-utils-create_normalized_cache_key) | Create a normalized, hashed cache key from a prompt. |
+| [`extract_llm_metadata_for_cache`](#nemoguardrails-llm-cache-utils-extract_llm_metadata_for_cache) | - |
+| [`extract_llm_stats_for_cache`](#nemoguardrails-llm-cache-utils-extract_llm_stats_for_cache) | - |
+| [`get_from_cache_and_restore_stats`](#nemoguardrails-llm-cache-utils-get_from_cache_and_restore_stats) | - |
+| [`restore_llm_metadata_from_cache`](#nemoguardrails-llm-cache-utils-restore_llm_metadata_from_cache) | - |
+| [`restore_llm_stats_from_cache`](#nemoguardrails-llm-cache-utils-restore_llm_stats_from_cache) | - |
+
+### Data
+
+[`PROMPT_PATTERN_WHITESPACES`](#nemoguardrails-llm-cache-utils-PROMPT_PATTERN_WHITESPACES)
+
+### API
+
+<Anchor id="nemoguardrails-llm-cache-utils-CacheEntry">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.utils.CacheEntry
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="llm_metadata" type="Optional[LLMMetadataDict]">
+
+</ParamField>
+
+<ParamField path="llm_stats" type="Optional[LLMStatsDict]">
+
+</ParamField>
+
+<ParamField path="result" type="dict">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-LLMCacheData">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.utils.LLMCacheData
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="metadata" type="Optional[LLMMetadataDict]">
+
+</ParamField>
+
+<ParamField path="stats" type="Optional[LLMStatsDict]">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-LLMMetadataDict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.utils.LLMMetadataDict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="model_name" type="str">
+
+</ParamField>
+
+<ParamField path="provider_name" type="str">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-LLMStatsDict">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.llm.cache.utils.LLMStatsDict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `typing.TypedDict`
+
+<ParamField path="completion_tokens" type="int">
+
+</ParamField>
+
+<ParamField path="prompt_tokens" type="int">
+
+</ParamField>
+
+<ParamField path="total_tokens" type="int">
+
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-create_normalized_cache_key">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.create_normalized_cache_key(
+    prompt: typing.Union[str, typing.List[dict]],
+    normalize_whitespace: bool = True
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Create a normalized, hashed cache key from a prompt.
+
+This function generates a deterministic cache key by normalizing the prompt
+and applying SHA-256 hashing. The normalization ensures that semantically
+equivalent prompts produce the same cache key.
+
+**Parameters:**
+
+<ParamField path="prompt" type="Union[str, List[dict]]">
+The prompt to be cached. Can be:
+- str: A single prompt string (for completion models)
+- List[dict]: A list of message dictionaries for chat models
+  (e.g., [&#123;"type": "user", "content": "Hello"&#125;])
+  Note: render_task_prompt() returns Union[str, List[dict]]
+</ParamField>
+
+<ParamField path="normalize_whitespace" type="bool" default="True">
+Whether to normalize whitespace characters.
+When True, collapses all whitespace sequences to single spaces and
+strips leading/trailing whitespace. Default: True
+</ParamField>
+
+**Returns:** `str`
+
+A SHA-256 hex digest string (64 characters) suitable for use as a cache key
+
+**Raises:**
+
+- `TypeError`: If prompt is not a str or List[dict]
+
+**Examples:**
+
+<CodeBlock showLineNumbers={false}>
+
+```python
+>>> create_normalized_cache_key("Hello world")
+'64ec88ca00b268e5ba1a35678a1b5316d212f4f366b2477232534a8aeca37f3c'
+```
+
+</CodeBlock>
+
+<CodeBlock showLineNumbers={false}>
+
+```python
+>>> create_normalized_cache_key([{"type": "user", "content": "Hello"}])
+'b2f5c9d8e3a1f7b6c4d2e5f8a9c1d3e5f7b9a2c4d6e8f1a3b5c7d9e2f4a6b8'
+```
+
+</CodeBlock>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-extract_llm_metadata_for_cache">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.utils.LLMMetadataDict":"#nemoguardrails-llm-cache-utils-LLMMetadataDict"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.extract_llm_metadata_for_cache() -> typing.Optional[nemoguardrails.llm.cache.utils.LLMMetadataDict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-extract_llm_stats_for_cache">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.utils.LLMStatsDict":"#nemoguardrails-llm-cache-utils-LLMStatsDict"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.extract_llm_stats_for_cache() -> typing.Optional[nemoguardrails.llm.cache.utils.LLMStatsDict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-get_from_cache_and_restore_stats">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.interface.CacheInterface":"/guardrails-python-sdk/nemoguardrails/llm/cache/interface#nemoguardrails-llm-cache-interface-CacheInterface"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.get_from_cache_and_restore_stats(
+    cache: nemoguardrails.llm.cache.interface.CacheInterface,
+    cache_key: str
+) -> typing.Optional[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-restore_llm_metadata_from_cache">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.utils.LLMMetadataDict":"#nemoguardrails-llm-cache-utils-LLMMetadataDict"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.restore_llm_metadata_from_cache(
+    cached_metadata: nemoguardrails.llm.cache.utils.LLMMetadataDict
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-restore_llm_stats_from_cache">
+
+<CodeBlock links={{"nemoguardrails.llm.cache.utils.LLMStatsDict":"#nemoguardrails-llm-cache-utils-LLMStatsDict"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.restore_llm_stats_from_cache(
+    cached_stats: nemoguardrails.llm.cache.utils.LLMStatsDict,
+    cache_read_duration_s: float
+) -> None
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-cache-utils-PROMPT_PATTERN_WHITESPACES">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.cache.utils.PROMPT_PATTERN_WHITESPACES = re.compile('\\s+')
+```
+
+</CodeBlock>
+</Anchor>
+

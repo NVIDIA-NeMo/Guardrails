@@ -1,0 +1,1037 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/cli/migration
+title: nemoguardrails.cli.migration
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_add_active_decorator`](#nemoguardrails-cli-migration-_add_active_decorator) | Adds an '@active' decorator above each flow id in the new lines. |
+| [`_add_imports`](#nemoguardrails-cli-migration-_add_imports) | - |
+| [`_add_main_co_file`](#nemoguardrails-cli-migration-_add_main_co_file) | Add the main co file to the given file path. |
+| [`_append_colang_version`](#nemoguardrails-cli-migration-_append_colang_version) | Appends the Colang version "2.x" at the end of the config file. |
+| [`_comment_rails_flows_in_config`](#nemoguardrails-cli-migration-_comment_rails_flows_in_config) | - |
+| [`_confirm_and_tag_replace`](#nemoguardrails-cli-migration-_confirm_and_tag_replace) | - |
+| [`_create_main_co_if_not_exists`](#nemoguardrails-cli-migration-_create_main_co_if_not_exists) | Check if the main co file exists in the directory of the file. |
+| [`_generate_main_flow`](#nemoguardrails-cli-migration-_generate_main_flow) | Adds a 'main' flow to the new lines that activates all other flows. |
+| [`_generate_rails_flows`](#nemoguardrails-cli-migration-_generate_rails_flows) | Generates flow definitions from the list of flows. |
+| [`_get_co_files_to_process`](#nemoguardrails-cli-migration-_get_co_files_to_process) | Get a list of .co files to process. |
+| [`_get_config_files_to_process`](#nemoguardrails-cli-migration-_get_config_files_to_process) | Get a list of .yaml or .yml files to process. |
+| [`_get_flow_ids`](#nemoguardrails-cli-migration-_get_flow_ids) | Returns the flow ids in the content. |
+| [`_get_flow_ids_from_newlines`](#nemoguardrails-cli-migration-_get_flow_ids_from_newlines) | Returns the flow ids in the new lines. |
+| [`_get_rails_flows`](#nemoguardrails-cli-migration-_get_rails_flows) | Extracts the list of flows from the raw_config dictionary. |
+| [`_get_raw_config`](#nemoguardrails-cli-migration-_get_raw_config) | read the yaml file and get rails key |
+| [`_globalize_variable_assignment`](#nemoguardrails-cli-migration-_globalize_variable_assignment) | - |
+| [`_is_anonymous_flow`](#nemoguardrails-cli-migration-_is_anonymous_flow) | Checks if the flow is an anonymous flow. |
+| [`_is_flow`](#nemoguardrails-cli-migration-_is_flow) | Checks if the line is a flow definition. it is a flow definition if it starts with "flow" and other words after flow. |
+| [`_process_co_files`](#nemoguardrails-cli-migration-_process_co_files) | Processes the Colang files in the given path. |
+| [`_process_config_files`](#nemoguardrails-cli-migration-_process_config_files) | Processes the config files in the given path. |
+| [`_process_sample_conversation_in_config`](#nemoguardrails-cli-migration-_process_sample_conversation_in_config) | Processes the sample_conversation section in the config file. |
+| [`_read_file_lines`](#nemoguardrails-cli-migration-_read_file_lines) | - |
+| [`_remove_files_from_path`](#nemoguardrails-cli-migration-_remove_files_from_path) | Remove files from the path. |
+| [`_remove_rails_flows_from_config`](#nemoguardrails-cli-migration-_remove_rails_flows_from_config) | - |
+| [`_revise_anonymous_flow`](#nemoguardrails-cli-migration-_revise_anonymous_flow) | Revises an anonymous flow by giving it a unique name. |
+| [`_set_colang_version`](#nemoguardrails-cli-migration-_set_colang_version) | Sets the 'colang_version' in the given raw_config. |
+| [`_validate_file`](#nemoguardrails-cli-migration-_validate_file) | Validates the file after the conversion. |
+| [`_write_rails_flows_to_file`](#nemoguardrails-cli-migration-_write_rails_flows_to_file) | Writes the rails flows to a file. |
+| [`_write_to_file`](#nemoguardrails-cli-migration-_write_to_file) | Writes new lines to a file. If the file does not exist, it is created. |
+| [`_write_transformed_content_and_rename_original`](#nemoguardrails-cli-migration-_write_transformed_content_and_rename_original) | Writes the transformed content to the file. |
+| [`convert_colang_1_syntax`](#nemoguardrails-cli-migration-convert_colang_1_syntax) | Converts a co file from v1 format to v2. |
+| [`convert_colang_2alpha_syntax`](#nemoguardrails-cli-migration-convert_colang_2alpha_syntax) | Convert a co file form v2-alpha to v2-beta |
+| [`convert_sample_conversation_syntax`](#nemoguardrails-cli-migration-convert_sample_conversation_syntax) | Converts the sample_conversation section from the old format to the new format. |
+| [`migrate`](#nemoguardrails-cli-migration-migrate) | Migrates all .co files in a directory from the old format to the new format. |
+
+### Data
+
+[`_FILES_TO_EXCLUDE_ALPHA`](#nemoguardrails-cli-migration-_FILES_TO_EXCLUDE_ALPHA)
+
+[`_LIBS_USED`](#nemoguardrails-cli-migration-_LIBS_USED)
+
+### API
+
+<Anchor id="nemoguardrails-cli-migration-_add_active_decorator">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._add_active_decorator(
+    new_lines: typing.List
+) -> typing.List
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Adds an '@active' decorator above each flow id in the new lines.
+
+**Parameters:**
+
+<ParamField path="new_lines" type="List">
+The lines to add the decorators to.
+</ParamField>
+
+**Returns:** `List`
+
+The lines with the decorators added.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_add_imports">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._add_imports(
+    new_lines: typing.List,
+    libraries: typing.List[str]
+) -> typing.List
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_add_main_co_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._add_main_co_file(
+    file_path: str,
+    libraries: typing.Optional[typing.List[str]] = None
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Add the main co file to the given file path.
+Args:
+    file_path (str): The path to the file to add the main co file to.
+    libraries (list[str]): The list of libraries to import in the main co file.
+Returns:
+    bool: True if the main co file was added successfully, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_append_colang_version">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._append_colang_version(
+    file_path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Appends the Colang version "2.x" at the end of the config file.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_comment_rails_flows_in_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._comment_rails_flows_in_config(
+    file_path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_confirm_and_tag_replace">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._confirm_and_tag_replace(
+    line,
+    original_line,
+    name
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_create_main_co_if_not_exists">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._create_main_co_if_not_exists(
+    file_path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Check if the main co file exists in the directory of the file.
+
+If the main co file does not exist, it creates an empty main co file in the directory of the given file.
+
+**Parameters:**
+
+<ParamField path="file_path" type="str">
+The path to the file to check for the main co file.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_generate_main_flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._generate_main_flow(
+    new_lines: typing.List
+) -> typing.List
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Adds a 'main' flow to the new lines that activates all other flows.
+
+The 'main' flow is added at the beginning of the new lines. It includes an 'activate' command for each flow id found in the new lines.
+
+Examples:
+new_lines = ["flow my_flow", "flow another_flow"]
+include_main_flow(new_lines)
+# '''flow main
+#  activate my_flow
+#  activate another_flow
+
+**Parameters:**
+
+<ParamField path="new_lines" type="list">
+The new lines to add the main flow to.
+</ParamField>
+
+**Returns:** `List`
+
+The new lines with the 'main' flow added at the beginning.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_generate_rails_flows">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._generate_rails_flows(
+    flows
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Generates flow definitions from the list of flows.
+Args:
+    flows (dict): The dictionary of flows.
+Returns:
+    str: The flow definitions.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_co_files_to_process">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_co_files_to_process(
+    path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get a list of .co files to process.
+
+**Parameters:**
+
+<ParamField path="path" type="str">
+The path to the file or directory to process.
+</ParamField>
+
+**Returns:**
+
+The list of .co files to process.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_config_files_to_process">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_config_files_to_process(
+    path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Get a list of .yaml or .yml files to process.
+
+**Parameters:**
+
+<ParamField path="path" type="str">
+The path to the file or directory to process.
+</ParamField>
+
+**Returns:**
+
+The list of .yaml or .yml files to process.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_flow_ids">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_flow_ids(
+    content: str
+) -> typing.List
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the flow ids in the content.
+
+    Args:
+        content (str): The content to search for flow ids.
+    Returns:
+        list: A list of flow ids.
+
+    Examples:
+    content = "flow my_flow"
+    get_flow_ids(content)
+    # ['my_flow']
+    content = "flow my_flow is better than
+flow another_flow"
+    get_flow_ids(content)
+    # ['my_flow is better than', 'another_flow']
+
+    # flow user and flow bot are not considered as flow ids
+    content = "flow user express greeting"
+    get_flow_ids(content)
+    # []
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_flow_ids_from_newlines">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_flow_ids_from_newlines(
+    new_lines: typing.List
+) -> typing.List
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Returns the flow ids in the new lines.
+Args:
+    new_lines (list): The new lines to search for flow ids.
+Returns:
+    list: A list of flow ids.
+Examples:
+new_lines = ["flow my_flow is better than", "flow another_flow"]
+get_flow_ids_from_newlines(new_lines)
+# ['my_flow is better than', 'another_flow']
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_rails_flows">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_rails_flows(
+    raw_config
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extracts the list of flows from the raw_config dictionary.
+
+**Parameters:**
+
+<ParamField path="raw_config" type="dict">
+The raw configuration dictionary.
+</ParamField>
+
+**Returns:**
+
+The list of flows.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_get_raw_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._get_raw_config(
+    config_path: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+read the yaml file and get rails key
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_globalize_variable_assignment">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._globalize_variable_assignment(
+    line
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_is_anonymous_flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._is_anonymous_flow(
+    flow_content: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks if the flow is an anonymous flow.
+
+an anonymous flow is a flow that does not start with a name. so it only has define flow without a name.
+
+Returns:
+    bool: True if the flow is anonymous, False otherwise.
+Examples:
+
+    flow_content = "flow  "
+    is_anonymous_flow(flow_content)
+    # True
+    flow_content = "flow my_flow"
+    is_anonymous_flow(flow_content)
+    # False
+
+**Parameters:**
+
+<ParamField path="flow_content" type="str">
+The content of the flow.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_is_flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._is_flow(
+    line: str
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Checks if the line is a flow definition. it is a flow definition if it starts with "flow" and other words after flow.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_process_co_files">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._process_co_files(
+    co_files_to_process: typing.List[str],
+    from_version: typing.Literal['1.0', '2.0-alpha'],
+    include_main_flow: bool,
+    use_active_decorator: bool,
+    validate: bool
+) -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processes the Colang files in the given path.
+
+It converts the Colang files from the given version to the latest version and writes the changes to the files.
+
+Returns:
+    int: The total number of files changed.
+
+**Parameters:**
+
+<ParamField path="co_files_to_process" type="List[str]">
+The list of Colang files to process.
+</ParamField>
+
+<ParamField path="from_version" type="str">
+The version of the Colang files to convert from.
+</ParamField>
+
+<ParamField path="include_main_flow" type="bool">
+Whether to include the main flow.
+</ParamField>
+
+<ParamField path="use_active_decorator" type="bool">
+Whether to use the active decorator.
+</ParamField>
+
+<ParamField path="validate" type="bool">
+Whether to validate the files.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_process_config_files">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._process_config_files(
+    config_files_to_process: typing.List[str]
+) -> int
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processes the config files in the given path.
+
+It extracts the rails flows from the config files and writes them to a new file.
+
+**Parameters:**
+
+<ParamField path="config_files_to_process" type="List[str]">
+The list of config files to process.
+</ParamField>
+
+**Returns:** `int`
+
+The total number of config files changed.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_process_sample_conversation_in_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._process_sample_conversation_in_config(
+    file_path: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processes the sample_conversation section in the config file.
+
+**Parameters:**
+
+<ParamField path="file_path" type="str">
+The path to the config file.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_read_file_lines">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._read_file_lines(
+    file_path
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_remove_files_from_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._remove_files_from_path(
+    path,
+    filenames: typing.List[str]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Remove files from the path.
+
+**Parameters:**
+
+<ParamField path="path" type="str">
+The path to the directory to remove files from.
+</ParamField>
+
+<ParamField path="filenames" type="list[str]">
+The list of filenames to remove.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_remove_rails_flows_from_config">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._remove_rails_flows_from_config(
+    raw_config
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_revise_anonymous_flow">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._revise_anonymous_flow(
+    flow_content: str,
+    first_message: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Revises an anonymous flow by giving it a unique name.
+Args:
+    flow_content (str): The content of the anonymous flow.
+    first_message (str): The first message in the flow.
+Returns:
+    str: The revised flow content with a unique name.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_set_colang_version">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._set_colang_version(
+    file_path: str,
+    version: str
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Sets the 'colang_version' in the given raw_config.
+
+**Parameters:**
+
+<ParamField path="file_path" type="str">
+The path to the config file.
+</ParamField>
+
+<ParamField path="version" type="str">
+The version to set.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_validate_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._validate_file(
+    file_path,
+    new_lines
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Validates the file after the conversion.
+
+It validates the file by parsing it and checking for any errors.
+
+**Parameters:**
+
+<ParamField path="file_path" type="str">
+The path to the file to validate.
+</ParamField>
+
+<ParamField path="new_lines" type="list">
+The new lines of the file after the conversion.
+</ParamField>
+
+**Raises:**
+
+- `Exception`: If the validation fails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_write_rails_flows_to_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._write_rails_flows_to_file(
+    file_path,
+    rails_flows
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Writes the rails flows to a file.
+Args:
+    file_path (str): The path to the file to write to.
+    rails_flows (list): The rails flows to write to the file.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_write_to_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._write_to_file(
+    file_path,
+    new_lines
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Writes new lines to a file. If the file does not exist, it is created.
+
+**Parameters:**
+
+<ParamField path="file_path" type="str">
+The path to the file to write to.
+</ParamField>
+
+<ParamField path="new_lines" type="list">
+The new lines to write to the file.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_write_transformed_content_and_rename_original">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._write_transformed_content_and_rename_original(
+    file_path,
+    new_lines,
+    co_extension = '.v1.co'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Writes the transformed content to the file.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-convert_colang_1_syntax">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration.convert_colang_1_syntax(
+    lines: typing.List[str]
+) -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts a co file from v1 format to v2.
+
+Returns:
+    List: The new lines of the file after successful migration.
+
+**Parameters:**
+
+<ParamField path="lines" type="List[str]">
+The lines of the file to convert.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-convert_colang_2alpha_syntax">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration.convert_colang_2alpha_syntax(
+    lines: typing.List[str]
+) -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert a co file form v2-alpha to v2-beta
+
+Returns:
+    List (str): The new lines of the file after successful migration.
+
+**Parameters:**
+
+<ParamField path="lines" type="List[str]">
+The lines of the file to convert
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-convert_sample_conversation_syntax">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration.convert_sample_conversation_syntax(
+    lines: typing.List[str]
+) -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Converts the sample_conversation section from the old format to the new format.
+
+**Parameters:**
+
+<ParamField path="lines" type="List[str]">
+The lines of the sample_conversation to convert.
+</ParamField>
+
+**Returns:** `List[str]`
+
+List[str]: The new lines of the sample_conversation after conversion.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-migrate">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration.migrate(
+    path,
+    include_main_flow = False,
+    use_active_decorator: bool = True,
+    from_version: typing.Literal['1.0', '2.0-alpha'] = '1.0',
+    validate: bool = True
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Migrates all .co files in a directory from the old format to the new format.
+
+**Parameters:**
+
+<ParamField path="path" type="str">
+The path to the directory containing the files to migrate.
+</ParamField>
+
+<ParamField path="include_main_flow" type="bool" default="False">
+Whether to add main flow to the files.
+</ParamField>
+
+<ParamField path="use_active_decorator" type="bool" default="True">
+Whether to use the active decorator.
+</ParamField>
+
+<ParamField path="from_version" type="str" default="'1.0'">
+The version of the colang files to convert from. Any of '1.0' or '2.0-alpha'.
+</ParamField>
+
+<ParamField path="validate" type="bool" default="True">
+Whether to validate the files.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-migration-_FILES_TO_EXCLUDE_ALPHA">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._FILES_TO_EXCLUDE_ALPHA = ['ccl.co', 'core_flo_library.co']
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-cli-migration-_LIBS_USED">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.migration._LIBS_USED = set()
+```
+
+</CodeBlock>
+</Anchor>
+

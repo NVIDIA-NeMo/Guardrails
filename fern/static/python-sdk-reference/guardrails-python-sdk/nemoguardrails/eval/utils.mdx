@@ -1,0 +1,170 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/eval/utils
+title: nemoguardrails.eval.utils
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_collect_span_metrics`](#nemoguardrails-eval-utils-_collect_span_metrics) | Collects and aggregates the metrics from all the spans. |
+| [`get_output_paths`](#nemoguardrails-eval-utils-get_output_paths) | Helper to return the output paths from the current dir. |
+| [`load_dict_from_file`](#nemoguardrails-eval-utils-load_dict_from_file) | Helper to load a dict from a file based on its extension. |
+| [`load_dict_from_path`](#nemoguardrails-eval-utils-load_dict_from_path) | Load a dict from a path. |
+| [`save_dict_to_file`](#nemoguardrails-eval-utils-save_dict_to_file) | Helper to write data to a file in the chosen format. |
+| [`save_eval_output`](#nemoguardrails-eval-utils-save_eval_output) | Writes the evaluation output to a folder. |
+| [`update_dict_at_path`](#nemoguardrails-eval-utils-update_dict_at_path) | Updates a dictionary at the specified path. |
+
+### API
+
+<Anchor id="nemoguardrails-eval-utils-_collect_span_metrics">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils._collect_span_metrics(
+    spans: typing.List[Span]
+) -> typing.Dict[str, typing.Union[int, float]]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Collects and aggregates the metrics from all the spans.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-get_output_paths">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.get_output_paths() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to return the output paths from the current dir.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-load_dict_from_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.load_dict_from_file(
+    file_path: str
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to load a dict from a file based on its extension.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-load_dict_from_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.load_dict_from_path(
+    path: str
+) -> typing.Dict[str, typing.Any]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Load a dict from a path.
+
+It recursively loads all .json and .yaml files in the given path.
+Top level arrays are joined.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-save_dict_to_file">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.save_dict_to_file(
+    val: typing.Any,
+    output_path: str,
+    output_format: str = 'yaml'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to write data to a file in the chosen format.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-save_eval_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.save_eval_output(
+    eval_output: EvalOutput,
+    output_path: str,
+    output_format: str = 'yaml'
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Writes the evaluation output to a folder.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-utils-update_dict_at_path">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.utils.update_dict_at_path(
+    path: str,
+    d: dict
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Updates a dictionary at the specified path.
+
+It recursively looks at all .json and .yaml files in the given path.
+for every file that contains a top level key found in `d`, it is updated.
+
+
+</Indent>

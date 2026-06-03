@@ -1,0 +1,97 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/ai_defense/actions
+title: nemoguardrails.library.ai_defense.actions
+---
+
+Prompt/Response protection using Cisco AI Defense.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`ai_defense_inspect`](#nemoguardrails-library-ai_defense-actions-ai_defense_inspect) | - |
+| [`is_ai_defense_text_blocked`](#nemoguardrails-library-ai_defense-actions-is_ai_defense_text_blocked) | Mapping for inspect API response. |
+
+### Data
+
+[`DEFAULT_TIMEOUT`](#nemoguardrails-library-ai_defense-actions-DEFAULT_TIMEOUT)
+
+[`log`](#nemoguardrails-library-ai_defense-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-ai_defense-actions-ai_defense_inspect">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.ai_defense.actions.ai_defense_inspect(
+    config: nemoguardrails.RailsConfig,
+    user_prompt: typing.Optional[str] = None,
+    bot_response: typing.Optional[str] = None,
+    kwargs = {}
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-ai_defense-actions-is_ai_defense_text_blocked">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.ai_defense.actions.is_ai_defense_text_blocked(
+    result: typing.Dict[str, typing.Any]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Mapping for inspect API response.
+Expects result to be a dict with:
+  - "is_blocked": a boolean indicating if the prompt or response sent to AI Defense should be blocked.
+
+**Returns:** `bool`
+
+True if the text should be blocked, False otherwise.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-ai_defense-actions-DEFAULT_TIMEOUT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.ai_defense.actions.DEFAULT_TIMEOUT = 30.0
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-library-ai_defense-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.ai_defense.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

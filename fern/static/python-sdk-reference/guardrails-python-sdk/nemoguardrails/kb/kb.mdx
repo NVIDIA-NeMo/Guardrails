@@ -1,0 +1,171 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/kb/kb
+title: nemoguardrails.kb.kb
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`KnowledgeBase`](#nemoguardrails-kb-kb-KnowledgeBase) | Basic implementation of a knowledge base. |
+
+### Data
+
+[`CACHE_FOLDER`](#nemoguardrails-kb-kb-CACHE_FOLDER)
+
+[`log`](#nemoguardrails-kb-kb-log)
+
+### API
+
+<Anchor id="nemoguardrails-kb-kb-KnowledgeBase">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.KnowledgeBaseConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-KnowledgeBaseConfig","nemoguardrails.embeddings.index.EmbeddingsIndex":"/guardrails-python-sdk/nemoguardrails/embeddings/index#nemoguardrails-embeddings-index-EmbeddingsIndex"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.kb.kb.KnowledgeBase(
+    documents: typing.List[str],
+    config: nemoguardrails.rails.llm.config.KnowledgeBaseConfig,
+    get_embedding_search_provider_instance: typing.Callable[[Optional[EmbeddingSearchProvider]], nemoguardrails.embeddings.index.EmbeddingsIndex]
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Basic implementation of a knowledge base.
+
+This class represents a knowledge base that can store and index documents for efficient retrieval.
+It utilizes an embedding search provider to build and search an index for relevant information.
+
+Parameters:
+- documents (List[str]): A list of documents to initialize the knowledge base.
+- config (KnowledgeBaseConfig): Configuration for the knowledge base.
+- get_embedding_search_provider_instance (Callable[[Optional[EmbeddingSearchProvider]], EmbeddingsIndex]):
+  A callable function to get an instance of the embedding search provider.
+
+Methods:
+- init(): Initializes the knowledge base by splitting documents into topic chunks.
+- build(): Builds the knowledge base index, utilizing the configured embedding search provider.
+- search_relevant_chunks(text: str, max_results: int = 3): Searches the index for the most relevant chunks.
+
+Attributes:
+- documents (List[str]): The list of documents provided during initialization.
+- chunks (List[dict]): A list of topic chunks extracted from the documents.
+- index (EmbeddingsIndex): The knowledge base index used for searching.
+- config (KnowledgeBaseConfig): Configuration for the knowledge base.
+
+Example:
+<CodeBlock showLineNumbers={false}>
+
+```python
+# Creating a KnowledgeBase instance
+kb = KnowledgeBase(documents=["Document 1", "Document 2"], config=my_config, get_embedding_search_provider_instance=my_provider)
+
+# Initializing and building the knowledge base
+kb.init()
+await kb.build()
+
+# Searching for relevant chunks
+results = await kb.search_relevant_chunks("query text", max_results=5)
+```
+
+</CodeBlock>
+
+Note:
+- The knowledge base supports markdown format documents.
+- The index is built using an embedding search provider, and the result is cached for future use.
+
+
+<ParamField path="chunks" type="= []">
+</ParamField>
+<Anchor id="nemoguardrails-kb-kb-KnowledgeBase-build">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.kb.kb.KnowledgeBase.build()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Builds the knowledge base index.
+
+
+</Indent>
+<Anchor id="nemoguardrails-kb-kb-KnowledgeBase-init">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.kb.kb.KnowledgeBase.init()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Initialize the knowledge base.
+
+The initial data is loaded from the `$kb_docs` context key. The key is populated when
+the model is loaded. Currently, only markdown format is supported.
+
+
+</Indent>
+<Anchor id="nemoguardrails-kb-kb-KnowledgeBase-search_relevant_chunks">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.kb.kb.KnowledgeBase.search_relevant_chunks(
+    text,
+    max_results: int = 3
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Search the index for the most relevant chunks.
+
+
+</Indent>
+</Indent>
+
+<Anchor id="nemoguardrails-kb-kb-CACHE_FOLDER">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.kb.kb.CACHE_FOLDER = os.path.join(os.getcwd(), '.cache')
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-kb-kb-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.kb.kb.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,572 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/transformer
+title: nemoguardrails.colang.v2_x.lang.transformer
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ColangTransformer`](#nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer) | A Lark transformer for transforming the parsing tree into the right internal structure. |
+
+### API
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer(
+    source: str,
+    include_source_mapping = True,
+    expand_await: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `Transformer`
+
+A Lark transformer for transforming the parsing tree into the right internal structure.
+
+It extracts the following:
+1. Flows
+2. Imports (TODO)
+
+
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-__default__">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer.__default__(
+    data,
+    children: list,
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Default function that is called if there is no attribute matching ``data``
+
+Can be overridden. Defaults to creating
+a new copy of the tree node (i.e. ``return Tree(data, children: list, meta)``)
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_abort_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Abort":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Abort"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._abort_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Abort
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_break_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Break":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Break"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._break_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Break
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_continue_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Continue":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Continue"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._continue_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Continue
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_expr">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._expr(
+    _children: typing.List[dict],
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_expr_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Assignment":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Assignment"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._expr_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Assignment
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_flow_def">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Flow":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Flow"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._flow_def(
+    children: dict,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Flow
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `flow` tree nodes.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_global_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Global":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Global"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._global_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Global
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_if_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.If":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-If"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._if_stmt(
+    children: list,
+    _meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.If
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `spec` tree nodes.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_import_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Import":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Import"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._import_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Import
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_label_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Label":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Label"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._label_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Label
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_log_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Log":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Log"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._log_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Log
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._name(
+    children: typing.List[dict],
+    _meta: lark.tree.Meta
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `name` tree nodes.
+
+We just copy the values from the children: list, which should be tokens.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_non_var_spec_and">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._non_var_spec_and(
+    children: list,
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_non_var_spec_or">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._non_var_spec_or(
+    children: list,
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_print_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Print":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Print"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._print_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Print
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_priority_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Priority":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Priority"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._priority_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Priority
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_remove_source_code_comments">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._remove_source_code_comments(
+    source: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_return_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Return":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Return"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._return_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Return
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_set_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp","nemoguardrails.colang.v2_x.lang.colang_ast.Assignment":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Assignment"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._set_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> typing.Union[nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp, nemoguardrails.colang.v2_x.lang.colang_ast.Assignment]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+The set statement can result in either a Set operation, or a SpecOp with a
+return value capturing.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_spec">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.Spec":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-Spec"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._spec(
+    children: typing.List[dict],
+    _meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.Spec
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `spec` tree nodes.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_spec_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._spec_name(
+    children: typing.List[str],
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_spec_op">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-SpecOp"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._spec_op(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.SpecOp
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `spec_op` tree nodes.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_test">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._test(
+    _children,
+    meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_var_name">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._var_name(
+    children: typing.List[dict],
+    _meta: lark.tree.Meta
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_when_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.When":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-When"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._when_stmt(
+    children: list,
+    _meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.When
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Processing for `spec` tree nodes.
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-_while_stmt">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.lang.colang_ast.While":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/lang/colang_ast#nemoguardrails-colang-v2_x-lang-colang_ast-While"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer._while_stmt(
+    children: list,
+    meta: lark.tree.Meta
+) -> nemoguardrails.colang.v2_x.lang.colang_ast.While
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+<Anchor id="nemoguardrails-colang-v2_x-lang-transformer-ColangTransformer-element">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.colang.v2_x.lang.transformer.ColangTransformer.element(
+    _type: str,
+    elements: typing.Optional[typing.List[typing.Any]] = None,
+    meta: typing.Optional[lark.tree.Meta] = None
+) -> dict
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Helper to create an element of the specified type.
+
+
+</Indent>
+</Indent>

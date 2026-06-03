@@ -1,0 +1,141 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/server/app
+title: nemoguardrails.server.app
+---
+
+Chat UI for Guardrails Server.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_discover_configs`](#nemoguardrails-server-app-_discover_configs) | Return the list of available guardrails configuration IDs. |
+| [`on_chat_start`](#nemoguardrails-server-app-on_chat_start) | Initialize a new chat session with a config selector dropdown. |
+| [`on_message`](#nemoguardrails-server-app-on_message) | Process an incoming user message through guardrails. |
+| [`on_settings_update`](#nemoguardrails-server-app-on_settings_update) | Handle configuration changes from the settings panel. |
+| [`set_starters`](#nemoguardrails-server-app-set_starters) | Show challenges as starter prompts when available. |
+
+### Data
+
+[`log`](#nemoguardrails-server-app-log)
+
+### API
+
+<Anchor id="nemoguardrails-server-app-_discover_configs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app._discover_configs() -> typing.List[str]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the list of available guardrails configuration IDs.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-app-on_chat_start">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app.on_chat_start()
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Initialize a new chat session with a config selector dropdown.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-app-on_message">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app.on_message(
+    message: chainlit.Message
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Process an incoming user message through guardrails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-app-on_settings_update">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app.on_settings_update(
+    settings
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Handle configuration changes from the settings panel.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-app-set_starters">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app.set_starters(
+    user: typing.Optional[chainlit.User] = None
+) -> typing.List[chainlit.Starter]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Show challenges as starter prompts when available.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-server-app-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.server.app.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,261 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/cli/chat
+title: nemoguardrails.cli.chat
+---
+
+## Module Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ChatState`](#nemoguardrails-cli-chat-ChatState) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_run_chat_v1_0`](#nemoguardrails-cli-chat-_run_chat_v1_0) | Asynchronously run a chat session in the terminal. |
+| [`_run_chat_v2_x`](#nemoguardrails-cli-chat-_run_chat_v2_x) | Simple chat loop for v2.x using the stateful events API. |
+| [`extract_scene_text_content`](#nemoguardrails-cli-chat-extract_scene_text_content) | Extract the text content of a scene event as a string. |
+| [`parse_events_inputs`](#nemoguardrails-cli-chat-parse_events_inputs) | Parses a event string and creates an event dictionary. |
+| [`run_chat`](#nemoguardrails-cli-chat-run_chat) | Run a chat session in the terminal. |
+
+### Data
+
+[`enable_input`](#nemoguardrails-cli-chat-enable_input)
+
+### API
+
+<Anchor id="nemoguardrails-cli-chat-ChatState">
+
+<CodeBlock links={{"nemoguardrails.colang.v2_x.runtime.flows.State":"/guardrails-python-sdk/nemoguardrails/colang/v2_x/runtime/flows#nemoguardrails-colang-v2_x-runtime-flows-State"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.cli.chat.ChatState(
+    state: typing.Optional[nemoguardrails.colang.v2_x.runtime.flows.State] = None,
+    waiting_user_input: bool = False,
+    paused: bool = False,
+    running_timer_tasks: typing.Dict[str, asyncio.Task] = dict(),
+    input_events: typing.List[dict] = list(),
+    output_events: typing.List[dict] = list(),
+    output_state: typing.Optional[nemoguardrails.colang.v2_x.runtime.flows.State] = None,
+    session: prompt_toolkit.PromptSession = PromptSession(),
+    first_time: bool = False
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>Dataclass</Badge>
+
+<ParamField path="events_counter" type="= 0">
+</ParamField>
+
+<ParamField path="first_time" type="bool = False">
+</ParamField>
+
+<ParamField path="input_events" type="List[dict] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="output_events" type="List[dict] = field(default_factory=list)">
+</ParamField>
+
+<ParamField path="output_state" type="Optional[State] = None">
+</ParamField>
+
+<ParamField path="paused" type="bool = False">
+</ParamField>
+
+<ParamField path="running_timer_tasks" type="Dict[str, Task] = field(default_factory=dict)">
+</ParamField>
+
+<ParamField path="session" type="PromptSession = PromptSession()">
+</ParamField>
+
+<ParamField path="state" type="Optional[State] = None">
+</ParamField>
+
+<ParamField path="status" type="= console.status('[bold green]Working ...[/]')">
+</ParamField>
+
+<ParamField path="waiting_user_input" type="bool = False">
+</ParamField>
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-_run_chat_v1_0">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat._run_chat_v1_0(
+    config_path: typing.Optional[str] = None,
+    verbose: bool = False,
+    streaming: bool = False,
+    server_url: typing.Optional[str] = None,
+    config_id: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Asynchronously run a chat session in the terminal.
+
+**Parameters:**
+
+<ParamField path="config_path" type="Optional[str]" default="None">
+The path to the configuration file. Defaults to None.
+</ParamField>
+
+<ParamField path="verbose" type="bool" default="False">
+Whether to run in verbose mode. Defaults to False.
+</ParamField>
+
+<ParamField path="streaming" type="bool" default="False">
+Whether to enable streaming mode. Defaults to False.
+</ParamField>
+
+<ParamField path="server_url" type="Optional[str]" default="None">
+The URL of the chat server. Defaults to None.
+</ParamField>
+
+<ParamField path="config_id" type="Optional[str]" default="None">
+The configuration ID. Defaults to None.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-_run_chat_v2_x">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat._run_chat_v2_x(
+    rails_app: nemoguardrails.LLMRails
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Simple chat loop for v2.x using the stateful events API.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-extract_scene_text_content">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat.extract_scene_text_content(
+    content_list: typing.List[dict]
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract the text content of a scene event as a string.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-parse_events_inputs">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat.parse_events_inputs(
+    input_str: str
+) -> typing.Optional[dict]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Parses a event string and creates an event dictionary.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-run_chat">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat.run_chat(
+    config_path: typing.Optional[str] = None,
+    verbose: bool = False,
+    verbose_llm_calls: bool = False,
+    streaming: bool = False,
+    server_url: typing.Optional[str] = None,
+    config_id: typing.Optional[str] = None
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Run a chat session in the terminal.
+
+**Parameters:**
+
+<ParamField path="config_path" type="Optional[str]" default="None">
+The path to the configuration file. Defaults to None.
+</ParamField>
+
+<ParamField path="verbose" type="bool" default="False">
+Whether to run in verbose mode. Defaults to False.
+</ParamField>
+
+<ParamField path="verbose_llm_calls" type="bool" default="False">
+Whether to print the prompts and the completions. Defaults to False.
+</ParamField>
+
+<ParamField path="streaming" type="bool" default="False">
+Whether to enable streaming mode. Defaults to False.
+</ParamField>
+
+<ParamField path="server_url" type="Optional[str]" default="None">
+The URL of the chat server. Defaults to None.
+</ParamField>
+
+<ParamField path="config_id" type="Optional[str]" default="None">
+The configuration ID. Defaults to None.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-chat-enable_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.chat.enable_input = asyncio.Event()
+```
+
+</CodeBlock>
+</Anchor>
+

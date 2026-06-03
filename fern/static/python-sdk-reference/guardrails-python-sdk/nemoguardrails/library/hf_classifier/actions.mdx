@@ -1,0 +1,173 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/library/hf_classifier/actions
+title: nemoguardrails.library.hf_classifier.actions
+---
+
+HuggingFace classifier-based detection actions.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_classify_and_check`](#nemoguardrails-library-hf_classifier-actions-_classify_and_check) | Classify *text* and check against blocked labels. |
+| [`_extract_text`](#nemoguardrails-library-hf_classifier-actions-_extract_text) | - |
+| [`_hf_classifier_output_mapping`](#nemoguardrails-library-hf_classifier-actions-_hf_classifier_output_mapping) | Map action result to streaming blocked semantic: True=blocked. |
+| [`hf_classifier_check_input`](#nemoguardrails-library-hf_classifier-actions-hf_classifier_check_input) | - |
+| [`hf_classifier_check_output`](#nemoguardrails-library-hf_classifier-actions-hf_classifier_check_output) | - |
+| [`hf_classifier_check_retrieval`](#nemoguardrails-library-hf_classifier-actions-hf_classifier_check_retrieval) | - |
+
+### Data
+
+[`log`](#nemoguardrails-library-hf_classifier-actions-log)
+
+### API
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-_classify_and_check">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions._classify_and_check(
+    classifier_name: str,
+    text: str,
+    config: typing.Optional[nemoguardrails.RailsConfig]
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Classify *text* and check against blocked labels.
+
+Returns ``True`` if allowed, ``False`` if blocked.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-_extract_text">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions._extract_text(
+    context: typing.Optional[dict],
+    key: str
+) -> str
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-_hf_classifier_output_mapping">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions._hf_classifier_output_mapping(
+    result: bool
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Map action result to streaming blocked semantic: True=blocked.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-hf_classifier_check_input">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions.hf_classifier_check_input(
+    classifier: str,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    context: typing.Optional[dict] = None,
+    kwargs = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-hf_classifier_check_output">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions.hf_classifier_check_output(
+    classifier: str,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    context: typing.Optional[dict] = None,
+    model_name: typing.Optional[str] = None,
+    kwargs = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-hf_classifier_check_retrieval">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions.hf_classifier_check_retrieval(
+    classifier: str,
+    config: typing.Optional[nemoguardrails.RailsConfig] = None,
+    context: typing.Optional[dict] = None,
+    kwargs = {}
+) -> bool
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-library-hf_classifier-actions-log">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.library.hf_classifier.actions.log = logging.getLogger(__name__)
+```
+
+</CodeBlock>
+</Anchor>
+

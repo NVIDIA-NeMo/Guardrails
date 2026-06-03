@@ -1,0 +1,233 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/cli
+title: nemoguardrails.cli
+---
+
+## Submodules
+
+- **[`nemoguardrails.cli.chat`](/guardrails-python-sdk/nemoguardrails/cli/chat)**
+- **[`nemoguardrails.cli.debugger`](/guardrails-python-sdk/nemoguardrails/cli/debugger)**
+- **[`nemoguardrails.cli.migration`](/guardrails-python-sdk/nemoguardrails/cli/migration)**
+- **[`nemoguardrails.cli.providers`](/guardrails-python-sdk/nemoguardrails/cli/providers)**
+
+## Package Contents
+
+### Classes
+
+| Name | Description |
+|------|-------------|
+| [`ColangVersions`](#nemoguardrails-cli-ColangVersions) | - |
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`action_server`](#nemoguardrails-cli-action_server) | Start a NeMo Guardrails actions server. |
+| [`cli`](#nemoguardrails-cli-cli) | - |
+| [`convert`](#nemoguardrails-cli-convert) | Convert Colang files and configs from older version to the latest. |
+| [`find_providers`](#nemoguardrails-cli-find_providers) | List and select LLM providers interactively. |
+| [`server`](#nemoguardrails-cli-server) | Start a NeMo Guardrails server. |
+| [`version_callback`](#nemoguardrails-cli-version_callback) | - |
+
+### Data
+
+[`_COLANG_VERSIONS`](#nemoguardrails-cli-_COLANG_VERSIONS)
+
+[`app`](#nemoguardrails-cli-app)
+
+### API
+
+<Anchor id="nemoguardrails-cli-ColangVersions">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+class nemoguardrails.cli.ColangVersions
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+**Bases:** `enum.Enum`
+
+<ParamField path="one" type="= '1.0'">
+</ParamField>
+
+<ParamField path="two_alpha" type="= '2.0-alpha'">
+</ParamField>
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-action_server">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.action_server(
+    port: int = typer.Option(default=8001, ...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Start a NeMo Guardrails actions server.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-cli">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.cli(
+    _: typing.Optional[bool] = typer.Option(None, '-v', '-...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-convert">
+
+<CodeBlock links={{"nemoguardrails.cli.ColangVersions":"#nemoguardrails-cli-ColangVersions"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.convert(
+    path: str = typer.Argument(..., help='T...,
+    from_version: nemoguardrails.cli.ColangVersions = typer.Option(default=(Colan...,
+    verbose: bool = typer.Option(default=False,...,
+    validate: bool = typer.Option(default=False,...,
+    use_active_decorator: bool = typer.Option(default=True, ...,
+    include_main_flow: bool = typer.Option(default=True, ...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Convert Colang files and configs from older version to the latest.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-find_providers">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.find_providers(
+    list_only: bool = typer.Option(False, '--list...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+List and select LLM providers interactively.
+
+This command provides an interactive interface to explore and select LLM providers.
+It supports both text completion and chat completion model providers.
+
+When run without options:
+1. First, you'll be prompted to select a provider type:
+- Type to filter between "text completion" and "chat completion"
+- Use arrow keys to navigate through matches
+- Press Tab to autocomplete
+- Press Enter to select
+
+2. Then, you'll be prompted to select a specific provider:
+- Type to filter through available providers
+- Use arrow keys to navigate through matches
+- Press Tab to autocomplete
+- Press Enter to select
+
+When run with --list:
+- Simply lists all available providers
+- No selection is made
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-server">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.server(
+    port: int = typer.Option(default=8000, ...,
+    config: typing.List[str] = typer.Option(default=[], ex...,
+    default_config_id: typing.Optional[str] = typer.Option(default=None, ...,
+    verbose: bool = typer.Option(default=False,...,
+    disable_chat_ui: bool = typer.Option(default=False,...,
+    auto_reload: bool = typer.Option(default=False,...,
+    prefix: str = typer.Option(default='', he...
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Start a NeMo Guardrails server.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-version_callback">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.version_callback(
+    value: bool
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-cli-_COLANG_VERSIONS">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli._COLANG_VERSIONS = [(version.value) for version in ColangVersions]
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-cli-app">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.cli.app = typer.Typer()
+```
+
+</CodeBlock>
+</Anchor>
+

@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fern site config. Mirrors the NemoClaw Fern layout while the Guardrails docs
+# are migrated from the legacy Sphinx/MyST source.
+instances:
+  - url: nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
+    custom-domain: docs.nvidia.com/nemo/guardrails
+    multi-source: true
+
+title: NVIDIA NeMo Guardrails Library Developer Guide
+
+global-theme: nvidia
+
+theme:
+  page-actions: toolbar
+  footer-nav: minimal
+
+logo:
+  href: /nemo/guardrails/latest
+  right-text: NeMo Guardrails
+
+favicon: ./assets/NVIDIA_symbol.svg
+
+js:
+  - url: https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js
+    strategy: beforeInteractive
+
+css:
+  - ./main.css
+
+navbar-links:
+  - type: github
+    value: https://github.com/NVIDIA-NeMo/Guardrails
+
+libraries:
+  guardrails-python-sdk:
+    input:
+      git: https://github.com/NVIDIA-NeMo/Guardrails
+      subpath: nemoguardrails
+    output:
+      path: ./static/python-sdk-reference
+    lang: python
+
+versions:
+  - display-name: Latest
+    path: ../docs/index.yml
+    slug: latest
+
+redirects:
+  # Paths are relative to the site root; subpath prefix matches instances + custom-domain.
+  # Legacy HTML URLs used .../path/to/page.html and .../path/to/page/index.html;
+  # Fern canonical URLs omit those suffixes.
+  - source: "/nemo/guardrails/index.html"
+    destination: "/nemo/guardrails/latest"
+  - source: "/nemo/guardrails/index"
+    destination: "/nemo/guardrails/latest"
+  - source: "/nemo/guardrails/latest/index.html"
+    destination: "/nemo/guardrails/latest"
+  - source: "/nemo/guardrails/latest/index"
+    destination: "/nemo/guardrails/latest"
+  - source: "/nemo/guardrails/latest"
+    destination: "/nemo/guardrails/latest/home"
+  - source: "/nemo/guardrails/:path*/index.html"
+    destination: "/nemo/guardrails/:path*"
+  - source: "/nemo/guardrails/:path*.html"
+    destination: "/nemo/guardrails/:path*"

@@ -1,0 +1,136 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/llm/prompts
+title: nemoguardrails.llm.prompts
+---
+
+Prompts for the various steps in the interaction.
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_get_prompt`](#nemoguardrails-llm-prompts-_get_prompt) | Return the prompt for the given task. |
+| [`_load_prompts`](#nemoguardrails-llm-prompts-_load_prompts) | Load the predefined prompts from the `prompts` directory. |
+| [`get_prompt`](#nemoguardrails-llm-prompts-get_prompt) | Return the prompt for the given task. |
+| [`get_task_model`](#nemoguardrails-llm-prompts-get_task_model) | Return the model for the given task in the current config. |
+
+### Data
+
+[`CURRENT_DIR`](#nemoguardrails-llm-prompts-CURRENT_DIR)
+
+[`_prompts`](#nemoguardrails-llm-prompts-_prompts)
+
+### API
+
+<Anchor id="nemoguardrails-llm-prompts-_get_prompt">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.TaskPrompt":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-TaskPrompt"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts._get_prompt(
+    task_name: str,
+    model: str,
+    prompting_mode: str,
+    prompts: typing.List
+) -> nemoguardrails.rails.llm.config.TaskPrompt
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the prompt for the given task.
+
+We intentionally update the matching model at equal score, to take the last one,
+basically allowing to override a prompt for a specific model.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-prompts-_load_prompts">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.TaskPrompt":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-TaskPrompt"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts._load_prompts() -> typing.List[nemoguardrails.rails.llm.config.TaskPrompt]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Load the predefined prompts from the `prompts` directory.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-prompts-get_prompt">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.llm.types.Task":"/guardrails-python-sdk/nemoguardrails/llm/types#nemoguardrails-llm-types-Task","nemoguardrails.rails.llm.config.TaskPrompt":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-TaskPrompt"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts.get_prompt(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    task: typing.Union[str, nemoguardrails.llm.types.Task]
+) -> nemoguardrails.rails.llm.config.TaskPrompt
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the prompt for the given task.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-prompts-get_task_model">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.config.RailsConfig":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-RailsConfig","nemoguardrails.llm.types.Task":"/guardrails-python-sdk/nemoguardrails/llm/types#nemoguardrails-llm-types-Task","nemoguardrails.rails.llm.config.Model":"/guardrails-python-sdk/nemoguardrails/rails/llm/config#nemoguardrails-rails-llm-config-Model"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts.get_task_model(
+    config: nemoguardrails.rails.llm.config.RailsConfig,
+    task: typing.Union[str, nemoguardrails.llm.types.Task]
+) -> typing.Optional[nemoguardrails.rails.llm.config.Model]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Return the model for the given task in the current config.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-llm-prompts-CURRENT_DIR">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts.CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+```
+
+</CodeBlock>
+</Anchor>
+
+
+<Anchor id="nemoguardrails-llm-prompts-_prompts">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.llm.prompts._prompts = _load_prompts()
+```
+
+</CodeBlock>
+</Anchor>
+

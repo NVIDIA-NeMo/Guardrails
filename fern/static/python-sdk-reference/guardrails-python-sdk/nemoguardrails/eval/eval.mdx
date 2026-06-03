@@ -1,0 +1,171 @@
+---
+layout: overview
+slug: guardrails-python-sdk/nemoguardrails/eval/eval
+title: nemoguardrails.eval.eval
+---
+
+## Module Contents
+
+### Functions
+
+| Name | Description |
+|------|-------------|
+| [`_extract_interaction_log`](#nemoguardrails-eval-eval-_extract_interaction_log) | Extracts an `InteractionLog` object from an `GenerationLog` object. |
+| [`_extract_interaction_outputs`](#nemoguardrails-eval-eval-_extract_interaction_outputs) | Extract the list of interactions that should be run. |
+| [`_extract_spans`](#nemoguardrails-eval-eval-_extract_spans) | Extract a simplified span view from the log of activated rails. |
+| [`_load_eval_output`](#nemoguardrails-eval-eval-_load_eval_output) | Loads the existing evaluation output from the provided path. |
+| [`run_eval`](#nemoguardrails-eval-eval-run_eval) | Run a guardrail evaluation. |
+
+### Data
+
+[`ROOT`](#nemoguardrails-eval-eval-ROOT)
+
+### API
+
+<Anchor id="nemoguardrails-eval-eval-_extract_interaction_log">
+
+<CodeBlock links={{"nemoguardrails.eval.models.InteractionOutput":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-InteractionOutput","nemoguardrails.rails.llm.options.GenerationLog":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-GenerationLog","nemoguardrails.eval.models.InteractionLog":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-InteractionLog"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval._extract_interaction_log(
+    interaction_output: nemoguardrails.eval.models.InteractionOutput,
+    generation_log: nemoguardrails.rails.llm.options.GenerationLog
+) -> nemoguardrails.eval.models.InteractionLog
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extracts an `InteractionLog` object from an `GenerationLog` object.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-eval-_extract_interaction_outputs">
+
+<CodeBlock links={{"nemoguardrails.eval.models.EvalConfig":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-EvalConfig","nemoguardrails.eval.models.InteractionOutput":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-InteractionOutput"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval._extract_interaction_outputs(
+    eval_config: nemoguardrails.eval.models.EvalConfig
+) -> typing.List[nemoguardrails.eval.models.InteractionOutput]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract the list of interactions that should be run.
+
+Creates the output objects with no data.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-eval-_extract_spans">
+
+<CodeBlock links={{"nemoguardrails.rails.llm.options.ActivatedRail":"/guardrails-python-sdk/nemoguardrails/rails/llm/options#nemoguardrails-rails-llm-options-ActivatedRail","nemoguardrails.eval.models.Span":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-Span"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval._extract_spans(
+    activated_rails: typing.List[nemoguardrails.rails.llm.options.ActivatedRail]
+) -> typing.List[nemoguardrails.eval.models.Span]
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Extract a simplified span view from the log of activated rails.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-eval-_load_eval_output">
+
+<CodeBlock links={{"nemoguardrails.eval.models.EvalConfig":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-EvalConfig","nemoguardrails.eval.models.EvalOutput":"/guardrails-python-sdk/nemoguardrails/eval/models#nemoguardrails-eval-models-EvalOutput"}} showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval._load_eval_output(
+    output_path: str,
+    eval_config: nemoguardrails.eval.models.EvalConfig
+) -> nemoguardrails.eval.models.EvalOutput
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+Loads the existing evaluation output from the provided path.
+
+If existing data is found, it is automatically loaded.
+If the evaluation config has changed meanwhile, it will try to reuse as much as possible.
+For example, if a new interaction is added, the output will keep all the data from the previous interactions.
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-eval-run_eval">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval.run_eval(
+    eval_config_path: str,
+    guardrail_config_path: str,
+    output_path: str,
+    output_format: str = 'json',
+    parallel: int = 1
+)
+```
+
+</CodeBlock>
+</Anchor>
+
+<Indent>
+
+<Badge>async</Badge>
+
+Run a guardrail evaluation.
+
+**Parameters:**
+
+<ParamField path="eval_config_path" type="str">
+Path to a directory containing eval configuration files.
+</ParamField>
+
+<ParamField path="guardrail_config_path" type="str">
+Path to a directory containing the guardrail configuration.
+</ParamField>
+
+<ParamField path="output_path" type="str">
+Output directory for predictions. Defaults to None.
+</ParamField>
+
+<ParamField path="output_format" type="str" default="'json'">
+Output format. Supported values are "yaml" and "json". Defaults to "yaml".
+</ParamField>
+
+<ParamField path="parallel" type="int" default="1">
+Number degree of parallelism to use. Defaults to 1.
+</ParamField>
+
+
+</Indent>
+
+<Anchor id="nemoguardrails-eval-eval-ROOT">
+
+<CodeBlock showLineNumbers={false} wordWrap={true}>
+
+```python
+nemoguardrails.eval.eval.ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
+```
+
+</CodeBlock>
+</Anchor>
+
