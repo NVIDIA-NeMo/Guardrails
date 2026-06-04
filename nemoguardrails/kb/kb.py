@@ -136,6 +136,12 @@ class KnowledgeBase:
             # index already exists, `add_items` only records the items and does not
             # recompute embeddings (item order matches the cached matrix rows).
             self.index.load(cache_file)
+            loaded_index = self.index.embeddings_index
+            if loaded_index is None or loaded_index.shape[0] != len(index_items):
+                loaded_rows = 0 if loaded_index is None else loaded_index.shape[0]
+                raise ValueError(
+                    f"{cache_file} is not a valid embeddings index. Expected {len(index_items)} rows, got {loaded_rows}."
+                )
             await self.index.add_items(index_items)
         else:
             self.index = self._get_embeddings_search_instance(self.config.embedding_search_provider)

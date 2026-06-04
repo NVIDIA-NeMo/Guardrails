@@ -84,9 +84,10 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._cache_config = EmbeddingsCacheConfig(**cache_config)
         else:
             self._cache_config = cache_config or EmbeddingsCacheConfig()
-        self._index: Optional[EmbeddingMatrix] = index
+        self._index: Optional[EmbeddingMatrix] = None
         if index is not None:
-            self._embedding_size = int(index.shape[1])
+            self._index = self._validate_index(index)
+            self._embedding_size = int(self._index.shape[1])
 
         # Data structures for batching embedding requests
         self._req_queue: Dict[int, str] = {}
@@ -109,8 +110,20 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
     @embeddings_index.setter
     def embeddings_index(self, index: Optional[EmbeddingMatrix]):
         """Setter to allow replacing the index dynamically."""
-        self._index = index
-        self._embedding_size = int(index.shape[1]) if index is not None else 0
+        if index is None:
+            self._index = None
+            self._embedding_size = 0
+        else:
+            self._index = self._validate_index(index)
+            self._embedding_size = int(self._index.shape[1])
+
+    @staticmethod
+    def _validate_index(index: Any, path: Optional[str] = None) -> EmbeddingMatrix:
+        matrix = np.asarray(index, dtype=np.float32)
+        if matrix.ndim != 2 or matrix.shape[1] <= 0:
+            label = path if path is not None else "Embedding index"
+            raise ValueError(f"{label} is not a valid embeddings index. Expected a 2D array with at least one column.")
+        return cast(EmbeddingMatrix, matrix)
 
     @property
     def cache_config(self):
@@ -343,7 +356,5 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Restore a previously persisted index from disk."""
         index_path = path if path.endswith(".npy") else f"{path}.npy"
         index = np.load(index_path).astype(np.float32, copy=False)
-        if index.ndim != 2 or index.shape[1] <= 0:
-            raise ValueError(f"{path} is not a valid embeddings index. Expected a 2D array with at least one column.")
-        self._index = index
-        self._embedding_size = int(index.shape[1])
+        self._index = self._validate_index(index, path)
+        self._embedding_size = int(self._index.shape[1])

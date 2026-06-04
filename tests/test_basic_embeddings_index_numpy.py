@@ -27,6 +27,10 @@ import pytest
 
 from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 from nemoguardrails.embeddings.index import IndexItem
+from nemoguardrails.kb import kb as kb_module
+from nemoguardrails.kb.kb import KnowledgeBase
+from nemoguardrails.rails.llm.config import KnowledgeBaseConfig
+from nemoguardrails.utils import compute_hash
 
 
 def _make_index(embeddings, query_embedding):
@@ -164,6 +168,22 @@ def test_embeddings_index_setter_updates_embedding_size():
         np.zeros((2, 0), dtype=np.float32),
     ],
 )
+def test_init_and_setter_reject_invalid_index_shape(bad_index):
+    with pytest.raises(ValueError, match="Embedding index is not a valid embeddings index"):
+        BasicEmbeddingsIndex(index=bad_index)
+
+    idx = BasicEmbeddingsIndex()
+    with pytest.raises(ValueError, match="Embedding index is not a valid embeddings index"):
+        idx.embeddings_index = bad_index
+
+
+@pytest.mark.parametrize(
+    "bad_index",
+    [
+        np.zeros((4,), dtype=np.float32),
+        np.zeros((2, 0), dtype=np.float32),
+    ],
+)
 def test_load_rejects_invalid_index_shape(tmp_path, bad_index):
     path = tmp_path / "index.npy"
     np.save(path, bad_index)
@@ -171,6 +191,28 @@ def test_load_rejects_invalid_index_shape(tmp_path, bad_index):
     idx = BasicEmbeddingsIndex()
     with pytest.raises(ValueError, match=f"{re.escape(str(path))} is not a valid embeddings index"):
         idx.load(str(path))
+
+
+@pytest.mark.asyncio
+async def test_kb_cache_load_rejects_index_item_count_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb_module, "CACHE_FOLDER", str(tmp_path))
+
+    config = KnowledgeBaseConfig()
+    kb = KnowledgeBase([], config, lambda _: BasicEmbeddingsIndex())
+    kb.chunks = [
+        {"title": "First", "body": "alpha"},
+        {"title": "Second", "body": "beta"},
+    ]
+
+    all_text_items = [f"# {chunk['title']}\n\n{chunk['body'].strip()}" for chunk in kb.chunks]
+    hash_prefix = config.embedding_search_provider.parameters.get(
+        "embedding_engine", ""
+    ) + config.embedding_search_provider.parameters.get("embedding_model", "")
+    cache_file = tmp_path / f"{compute_hash(hash_prefix + ''.join(all_text_items))}.npy"
+    np.save(cache_file, np.zeros((1, 3), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="Expected 2 rows, got 1"):
+        await kb.build()
 
 
 @pytest.mark.asyncio
