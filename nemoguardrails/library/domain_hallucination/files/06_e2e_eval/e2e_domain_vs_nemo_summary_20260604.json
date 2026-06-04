@@ -1,0 +1,88 @@
+{
+  "domain_e2e": {
+    "domain-s1": {
+      "total": 225,
+      "tp": 42,
+      "fp": 29,
+      "fn": 75,
+      "tn": 79,
+      "correct": 76,
+      "accuracy": 0.3378,
+      "precision": 0.5915,
+      "recall": 0.359,
+      "f1": 0.4468,
+      "fpr": 0.2685
+    },
+    "domain-s2": {
+      "total": 225,
+      "tp": 42,
+      "fp": 29,
+      "fn": 75,
+      "tn": 79,
+      "correct": 76,
+      "accuracy": 0.3378,
+      "precision": 0.5915,
+      "recall": 0.359,
+      "f1": 0.4468,
+      "fpr": 0.2685
+    },
+    "domain-s3": {
+      "total": 225,
+      "tp": 42,
+      "fp": 29,
+      "fn": 75,
+      "tn": 79,
+      "correct": 76,
+      "accuracy": 0.3378,
+      "precision": 0.5915,
+      "recall": 0.359,
+      "f1": 0.4468,
+      "fpr": 0.2685
+    },
+    "domain-s4": {
+      "total": 225,
+      "tp": 83,
+      "fp": 72,
+      "fn": 34,
+      "tn": 36,
+      "correct": 64,
+      "accuracy": 0.2844,
+      "precision": 0.5355,
+      "recall": 0.7094,
+      "f1": 0.6103,
+      "fpr": 0.6667
+    }
+  },
+  "nemo_e2e": {
+    "nemo-hallucination": {
+      "total_evaluated": 241,
+      "accuracy": 0.3693,
+      "binary_detection": {
+        "precision": 0.6905,
+        "recall": 0.4603,
+        "f1": 0.5524,
+        "tp": 58,
+        "fp": 26,
+        "fn": 68,
+        "tn": 89
+      },
+      "confusion_matrix": {
+        "clean": {
+          "clean": 89,
+          "hallucinated": 26,
+          "mixed": 0
+        },
+        "hallucinated": {
+          "clean": 2,
+          "hallucinated": 0,
+          "mixed": 0
+        },
+        "mixed": {
+          "clean": 66,
+          "hallucinated": 58,
+          "mixed": 0
+        }
+      }
+    }
+  }
+}

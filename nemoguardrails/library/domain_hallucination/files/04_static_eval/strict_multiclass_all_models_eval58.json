@@ -1,0 +1,1661 @@
+[
+  {
+    "file": "expert_S1_cached_full_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6724,
+      "precision": 0.8,
+      "recall": 0.5161,
+      "f1": 0.6275,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.684,
+      "confusion": {
+        "tp": 16,
+        "fp": 4,
+        "fn": 15,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4483,
+      "balanced_accuracy": 0.3953,
+      "macro_precision": 0.3041,
+      "macro_recall": 0.3953,
+      "macro_f1": 0.2523,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.6053,
+          "recall": 0.8519,
+          "f1": 0.7077
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1111,
+          "recall": 0.6667,
+          "f1": 0.1905
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.5,
+          "recall": 0.0625,
+          "f1": 0.1111
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 3,
+          "block": 1
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 8,
+          "block": 1
+        }
+      }
+    }
+  },
+  {
+    "file": "expert_S2_cached_full_skip_dnsfail_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.7931,
+      "precision": 0.913,
+      "recall": 0.6774,
+      "f1": 0.7778,
+      "false_positive_rate": 0.0741,
+      "specificity": 0.9259,
+      "balanced_accuracy": 0.8017,
+      "confusion": {
+        "tp": 21,
+        "fp": 2,
+        "fn": 10,
+        "tn": 25
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4828,
+      "balanced_accuracy": 0.4138,
+      "macro_precision": 0.4513,
+      "macro_recall": 0.4138,
+      "macro_f1": 0.271,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.7143,
+          "recall": 0.9259,
+          "f1": 0.8065
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0909,
+          "recall": 0.6667,
+          "f1": 0.16
+        },
+        "block": {
+          "support": 16,
+          "precision": 1.0,
+          "recall": 0.0625,
+          "f1": 0.1176
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 25,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "block": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 13,
+          "block": 1
+        }
+      }
+    }
+  },
+  {
+    "file": "expert_S3_cached_full_skip_dnsfail_no_whois_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.7069,
+      "precision": 0.85,
+      "recall": 0.5484,
+      "f1": 0.6667,
+      "false_positive_rate": 0.1111,
+      "specificity": 0.8889,
+      "balanced_accuracy": 0.7186,
+      "confusion": {
+        "tp": 17,
+        "fp": 3,
+        "fn": 14,
+        "tn": 24
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4483,
+      "balanced_accuracy": 0.3212,
+      "macro_precision": 0.2968,
+      "macro_recall": 0.3212,
+      "macro_f1": 0.2362,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.6316,
+          "recall": 0.8889,
+          "f1": 0.7385
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0556,
+          "recall": 0.3333,
+          "f1": 0.0952
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.5,
+          "recall": 0.0625,
+          "f1": 0.1111
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 24,
+          "warn": 0,
+          "refine": 2,
+          "block": 1
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 5,
+          "warn": 0,
+          "refine": 10,
+          "block": 1
+        }
+      }
+    }
+  },
+  {
+    "file": "expert_S4_http_skip_dnsfail_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5517,
+      "precision": 0.5926,
+      "recall": 0.5161,
+      "f1": 0.5517,
+      "false_positive_rate": 0.4074,
+      "specificity": 0.5926,
+      "balanced_accuracy": 0.5544,
+      "confusion": {
+        "tp": 16,
+        "fp": 11,
+        "fn": 15,
+        "tn": 16
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.2931,
+      "balanced_accuracy": 0.2315,
+      "macro_precision": 0.1422,
+      "macro_recall": 0.2315,
+      "macro_f1": 0.1606,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5161,
+          "recall": 0.5926,
+          "f1": 0.5517
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0526,
+          "recall": 0.3333,
+          "f1": 0.0909
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 16,
+          "warn": 4,
+          "refine": 4,
+          "block": 3
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 6,
+          "warn": 1,
+          "refine": 9,
+          "block": 0
+        }
+      }
+    }
+  },
+  {
+    "file": "qwen_expert_S1_cached_full_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.7586,
+      "precision": 0.84,
+      "recall": 0.6774,
+      "f1": 0.75,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.7646,
+      "confusion": {
+        "tp": 21,
+        "fp": 4,
+        "fn": 10,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.6034,
+      "balanced_accuracy": 0.5359,
+      "macro_precision": 0.3983,
+      "macro_recall": 0.5359,
+      "macro_f1": 0.4298,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.697,
+          "recall": 0.8519,
+          "f1": 0.7667
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1818,
+          "recall": 0.6667,
+          "f1": 0.2857
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.7143,
+          "recall": 0.625,
+          "f1": 0.6667
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 3,
+          "block": 1
+        },
+        "warn": {
+          "pass": 6,
+          "warn": 0,
+          "refine": 4,
+          "block": 2
+        },
+        "refine": {
+          "pass": 0,
+          "warn": 0,
+          "refine": 2,
+          "block": 1
+        },
+        "block": {
+          "pass": 4,
+          "warn": 0,
+          "refine": 2,
+          "block": 10
+        }
+      }
+    }
+  },
+  {
+    "file": "qwen_expert_S2_cached_full_skip_dnsfail_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6724,
+      "precision": 0.8,
+      "recall": 0.5161,
+      "f1": 0.6275,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.684,
+      "confusion": {
+        "tp": 16,
+        "fp": 4,
+        "fn": 15,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.569,
+      "balanced_accuracy": 0.4369,
+      "macro_precision": 0.3701,
+      "macro_recall": 0.4369,
+      "macro_f1": 0.3831,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.6053,
+          "recall": 0.8519,
+          "f1": 0.7077
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.125,
+          "recall": 0.3333,
+          "f1": 0.1818
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.75,
+          "recall": 0.5625,
+          "f1": 0.6429
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 3,
+          "block": 1
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 4,
+          "block": 1
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 1,
+          "block": 1
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 0,
+          "block": 9
+        }
+      }
+    }
+  },
+  {
+    "file": "qwen_expert_S3_cached_full_skip_dnsfail_no_whois_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6724,
+      "precision": 0.8,
+      "recall": 0.5161,
+      "f1": 0.6275,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.684,
+      "confusion": {
+        "tp": 16,
+        "fp": 4,
+        "fn": 15,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.569,
+      "balanced_accuracy": 0.4369,
+      "macro_precision": 0.3836,
+      "macro_recall": 0.4369,
+      "macro_f1": 0.3853,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.6053,
+          "recall": 0.8519,
+          "f1": 0.7077
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1111,
+          "recall": 0.3333,
+          "f1": 0.1667
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.8182,
+          "recall": 0.5625,
+          "f1": 0.6667
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 3,
+          "block": 1
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 1,
+          "block": 1
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 0,
+          "block": 9
+        }
+      }
+    }
+  },
+  {
+    "file": "qwen_expert_S4_http_skip_dnsfail_eval58_resume.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5517,
+      "precision": 0.5862,
+      "recall": 0.5484,
+      "f1": 0.5667,
+      "false_positive_rate": 0.4444,
+      "specificity": 0.5556,
+      "balanced_accuracy": 0.552,
+      "confusion": {
+        "tp": 17,
+        "fp": 12,
+        "fn": 14,
+        "tn": 15
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.431,
+      "balanced_accuracy": 0.3628,
+      "macro_precision": 0.3251,
+      "macro_recall": 0.3629,
+      "macro_f1": 0.3248,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5172,
+          "recall": 0.5556,
+          "f1": 0.5357
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0909,
+          "recall": 0.3333,
+          "f1": 0.1429
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.6923,
+          "recall": 0.5625,
+          "f1": 0.6207
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 15,
+          "warn": 4,
+          "refine": 5,
+          "block": 3
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 1,
+          "block": 1
+        },
+        "block": {
+          "pass": 6,
+          "warn": 1,
+          "refine": 0,
+          "block": 9
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_expert_S1_cached_full_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6379,
+      "precision": 0.75,
+      "recall": 0.4839,
+      "f1": 0.5882,
+      "false_positive_rate": 0.1852,
+      "specificity": 0.8148,
+      "balanced_accuracy": 0.6493,
+      "confusion": {
+        "tp": 15,
+        "fp": 5,
+        "fn": 16,
+        "tn": 22
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.3966,
+      "balanced_accuracy": 0.287,
+      "macro_precision": 0.1572,
+      "macro_recall": 0.287,
+      "macro_f1": 0.191,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5789,
+          "recall": 0.8148,
+          "f1": 0.6769
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.05,
+          "recall": 0.3333,
+          "f1": 0.087
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 22,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 9,
+          "block": 0
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_expert_S2_cached_full_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6379,
+      "precision": 0.75,
+      "recall": 0.4839,
+      "f1": 0.5882,
+      "false_positive_rate": 0.1852,
+      "specificity": 0.8148,
+      "balanced_accuracy": 0.6493,
+      "confusion": {
+        "tp": 15,
+        "fp": 5,
+        "fn": 16,
+        "tn": 22
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4138,
+      "balanced_accuracy": 0.3704,
+      "macro_precision": 0.1697,
+      "macro_recall": 0.3704,
+      "macro_f1": 0.2127,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5789,
+          "recall": 0.8148,
+          "f1": 0.6769
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1,
+          "recall": 0.6667,
+          "f1": 0.1739
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 22,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "warn": {
+          "pass": 8,
+          "warn": 0,
+          "refine": 4,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 9,
+          "block": 0
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_expert_S3_cached_full_skip_dnsfail_no_whois_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6379,
+      "precision": 0.75,
+      "recall": 0.4839,
+      "f1": 0.5882,
+      "false_positive_rate": 0.1852,
+      "specificity": 0.8148,
+      "balanced_accuracy": 0.6493,
+      "confusion": {
+        "tp": 15,
+        "fp": 5,
+        "fn": 16,
+        "tn": 22
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4138,
+      "balanced_accuracy": 0.3704,
+      "macro_precision": 0.1697,
+      "macro_recall": 0.3704,
+      "macro_f1": 0.2127,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5789,
+          "recall": 0.8148,
+          "f1": 0.6769
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1,
+          "recall": 0.6667,
+          "f1": 0.1739
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 22,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "warn": {
+          "pass": 8,
+          "warn": 0,
+          "refine": 4,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 9,
+          "block": 0
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_expert_S4_http_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6207,
+      "precision": 0.6364,
+      "recall": 0.6774,
+      "f1": 0.6562,
+      "false_positive_rate": 0.4444,
+      "specificity": 0.5556,
+      "balanced_accuracy": 0.6165,
+      "confusion": {
+        "tp": 21,
+        "fp": 12,
+        "fn": 10,
+        "tn": 15
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.3103,
+      "balanced_accuracy": 0.3889,
+      "macro_precision": 0.1759,
+      "macro_recall": 0.3889,
+      "macro_f1": 0.1911,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.6,
+          "recall": 0.5556,
+          "f1": 0.5769
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1034,
+          "recall": 1.0,
+          "f1": 0.1875
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 15,
+          "warn": 4,
+          "refine": 8,
+          "block": 0
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 0,
+          "warn": 0,
+          "refine": 3,
+          "block": 0
+        },
+        "block": {
+          "pass": 3,
+          "warn": 0,
+          "refine": 13,
+          "block": 0
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_air_expert_S1_cached_full_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5862,
+      "precision": 0.7333,
+      "recall": 0.3548,
+      "f1": 0.4783,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.6033,
+      "confusion": {
+        "tp": 11,
+        "fp": 4,
+        "fn": 20,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4655,
+      "balanced_accuracy": 0.3432,
+      "macro_precision": 0.4046,
+      "macro_recall": 0.3432,
+      "macro_f1": 0.2766,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5349,
+          "recall": 0.8519,
+          "f1": 0.6571
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0833,
+          "recall": 0.3333,
+          "f1": 0.1333
+        },
+        "block": {
+          "support": 16,
+          "precision": 1.0,
+          "recall": 0.1875,
+          "f1": 0.3158
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 4,
+          "block": 0
+        },
+        "warn": {
+          "pass": 11,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 6,
+          "block": 3
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_air_expert_S2_cached_full_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6379,
+      "precision": 0.8125,
+      "recall": 0.4194,
+      "f1": 0.5532,
+      "false_positive_rate": 0.1111,
+      "specificity": 0.8889,
+      "balanced_accuracy": 0.6541,
+      "confusion": {
+        "tp": 13,
+        "fp": 3,
+        "fn": 18,
+        "tn": 24
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4655,
+      "balanced_accuracy": 0.3368,
+      "macro_precision": 0.4107,
+      "macro_recall": 0.3368,
+      "macro_f1": 0.2589,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5714,
+          "recall": 0.8889,
+          "f1": 0.6957
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0714,
+          "recall": 0.3333,
+          "f1": 0.1176
+        },
+        "block": {
+          "support": 16,
+          "precision": 1.0,
+          "recall": 0.125,
+          "f1": 0.2222
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 24,
+          "warn": 0,
+          "refine": 3,
+          "block": 0
+        },
+        "warn": {
+          "pass": 10,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 6,
+          "warn": 0,
+          "refine": 8,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_air_expert_S3_cached_full_skip_dnsfail_no_whois_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.6034,
+      "precision": 0.75,
+      "recall": 0.3871,
+      "f1": 0.5106,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.6195,
+      "confusion": {
+        "tp": 12,
+        "fp": 4,
+        "fn": 19,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4483,
+      "balanced_accuracy": 0.3275,
+      "macro_precision": 0.4047,
+      "macro_recall": 0.3276,
+      "macro_f1": 0.2516,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5476,
+          "recall": 0.8519,
+          "f1": 0.6667
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0714,
+          "recall": 0.3333,
+          "f1": 0.1176
+        },
+        "block": {
+          "support": 16,
+          "precision": 1.0,
+          "recall": 0.125,
+          "f1": 0.2222
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 4,
+          "block": 0
+        },
+        "warn": {
+          "pass": 10,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 7,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "glm_air_expert_S4_http_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5517,
+      "precision": 0.5862,
+      "recall": 0.5484,
+      "f1": 0.5667,
+      "false_positive_rate": 0.4444,
+      "specificity": 0.5556,
+      "balanced_accuracy": 0.552,
+      "confusion": {
+        "tp": 17,
+        "fp": 12,
+        "fn": 14,
+        "tn": 15
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.3276,
+      "balanced_accuracy": 0.3368,
+      "macro_precision": 0.2556,
+      "macro_recall": 0.3368,
+      "macro_f1": 0.227,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5172,
+          "recall": 0.5556,
+          "f1": 0.5357
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1053,
+          "recall": 0.6667,
+          "f1": 0.1818
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.4,
+          "recall": 0.125,
+          "f1": 0.1905
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 15,
+          "warn": 4,
+          "refine": 5,
+          "block": 3
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 0
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 2,
+          "block": 0
+        },
+        "block": {
+          "pass": 6,
+          "warn": 1,
+          "refine": 7,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "openrouter_gpt41mini_expert_S1_cached_full_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5862,
+      "precision": 0.7333,
+      "recall": 0.3548,
+      "f1": 0.4783,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.6033,
+      "confusion": {
+        "tp": 11,
+        "fp": 4,
+        "fn": 20,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4828,
+      "balanced_accuracy": 0.3588,
+      "macro_precision": 0.2944,
+      "macro_recall": 0.3588,
+      "macro_f1": 0.2976,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5349,
+          "recall": 0.8519,
+          "f1": 0.6571
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1429,
+          "recall": 0.3333,
+          "f1": 0.2
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.5,
+          "recall": 0.25,
+          "f1": 0.3333
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 1,
+          "block": 3
+        },
+        "warn": {
+          "pass": 11,
+          "warn": 0,
+          "refine": 0,
+          "block": 1
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 5,
+          "block": 4
+        }
+      }
+    }
+  },
+  {
+    "file": "openrouter_gpt41mini_expert_S2_cached_full_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5862,
+      "precision": 0.7333,
+      "recall": 0.3548,
+      "f1": 0.4783,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.6033,
+      "confusion": {
+        "tp": 11,
+        "fp": 4,
+        "fn": 20,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4483,
+      "balanced_accuracy": 0.3275,
+      "macro_precision": 0.2448,
+      "macro_recall": 0.3276,
+      "macro_f1": 0.2514,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5349,
+          "recall": 0.8519,
+          "f1": 0.6571
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1111,
+          "recall": 0.3333,
+          "f1": 0.1667
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.3333,
+          "recall": 0.125,
+          "f1": 0.1818
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 1,
+          "block": 3
+        },
+        "warn": {
+          "pass": 11,
+          "warn": 0,
+          "refine": 0,
+          "block": 1
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 7,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "openrouter_gpt41mini_expert_S3_cached_full_skip_dnsfail_no_whois_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5862,
+      "precision": 0.7333,
+      "recall": 0.3548,
+      "f1": 0.4783,
+      "false_positive_rate": 0.1481,
+      "specificity": 0.8519,
+      "balanced_accuracy": 0.6033,
+      "confusion": {
+        "tp": 11,
+        "fp": 4,
+        "fn": 20,
+        "tn": 23
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.4483,
+      "balanced_accuracy": 0.3275,
+      "macro_precision": 0.2448,
+      "macro_recall": 0.3276,
+      "macro_f1": 0.2514,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5349,
+          "recall": 0.8519,
+          "f1": 0.6571
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.1111,
+          "recall": 0.3333,
+          "f1": 0.1667
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.3333,
+          "recall": 0.125,
+          "f1": 0.1818
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 23,
+          "warn": 0,
+          "refine": 1,
+          "block": 3
+        },
+        "warn": {
+          "pass": 11,
+          "warn": 0,
+          "refine": 0,
+          "block": 1
+        },
+        "refine": {
+          "pass": 2,
+          "warn": 0,
+          "refine": 1,
+          "block": 0
+        },
+        "block": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 7,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "openrouter_gpt41mini_expert_S4_http_skip_dnsfail_eval58.json",
+    "method_key": "domain_hallucination",
+    "binary": {
+      "accuracy": 0.5517,
+      "precision": 0.5862,
+      "recall": 0.5484,
+      "f1": 0.5667,
+      "false_positive_rate": 0.4444,
+      "specificity": 0.5556,
+      "balanced_accuracy": 0.552,
+      "confusion": {
+        "tp": 17,
+        "fp": 12,
+        "fn": 14,
+        "tn": 15
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.3103,
+      "balanced_accuracy": 0.2535,
+      "macro_precision": 0.194,
+      "macro_recall": 0.2535,
+      "macro_f1": 0.2022,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.5172,
+          "recall": 0.5556,
+          "f1": 0.5357
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0769,
+          "recall": 0.3333,
+          "f1": 0.125
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.1818,
+          "recall": 0.125,
+          "f1": 0.1481
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 15,
+          "warn": 4,
+          "refine": 2,
+          "block": 6
+        },
+        "warn": {
+          "pass": 7,
+          "warn": 0,
+          "refine": 3,
+          "block": 2
+        },
+        "refine": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 1,
+          "block": 1
+        },
+        "block": {
+          "pass": 6,
+          "warn": 1,
+          "refine": 7,
+          "block": 2
+        }
+      }
+    }
+  },
+  {
+    "file": "final_A_S3_full_skip_dnsfail_no_whois_vs_nemo_eval58.json",
+    "method_key": "baseline",
+    "binary": {
+      "accuracy": 0.7759,
+      "precision": 0.7143,
+      "recall": 0.9677,
+      "f1": 0.8219,
+      "false_positive_rate": 0.4444,
+      "specificity": 0.5556,
+      "balanced_accuracy": 0.7616,
+      "confusion": {
+        "tp": 30,
+        "fp": 12,
+        "fn": 1,
+        "tn": 15
+      }
+    },
+    "strict_multiclass": {
+      "total": 58,
+      "strict_accuracy": 0.5172,
+      "balanced_accuracy": 0.3733,
+      "macro_precision": 0.3236,
+      "macro_recall": 0.3733,
+      "macro_f1": 0.3037,
+      "per_class": {
+        "pass": {
+          "support": 27,
+          "precision": 0.9375,
+          "recall": 0.5556,
+          "f1": 0.6977
+        },
+        "warn": {
+          "support": 12,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "support": 3,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "support": 16,
+          "precision": 0.3571,
+          "recall": 0.9375,
+          "f1": 0.5172
+        }
+      },
+      "confusion_matrix": {
+        "pass": {
+          "pass": 15,
+          "warn": 0,
+          "refine": 0,
+          "block": 12
+        },
+        "warn": {
+          "pass": 0,
+          "warn": 0,
+          "refine": 0,
+          "block": 12
+        },
+        "refine": {
+          "pass": 0,
+          "warn": 0,
+          "refine": 0,
+          "block": 3
+        },
+        "block": {
+          "pass": 1,
+          "warn": 0,
+          "refine": 0,
+          "block": 15
+        }
+      }
+    }
+  }
+]
