@@ -71,37 +71,32 @@ python -m pip install -e .
 
 ```python
 from nemoguardrails import RailsConfig
-from domain_hallucination_guard_system.nemo_adapter import get_adapter
-
-# Initialize adapter
-adapter = get_adapter(
-    seed_kb_path="nemoguardrails/library/domain_hallucination/seed_kb.json"
-)
+from nemoguardrails.library.domain_hallucination import actions
 
 # In your NeMo rails config
 config = RailsConfig.from_path("config_folder")
 
 # Register the action in rails
-config.actions = [adapter.analyze_answer]
+config.actions = [actions.analyze_answer]
 ```
 
 ### 2. Direct Usage
 
 ```python
 import asyncio
-from domain_hallucination_guard_system.nemo_adapter import DomainHallucinationAdapter
+from nemoguardrails.library.domain_hallucination import actions
 
 async def main():
-    adapter = DomainHallucinationAdapter(
-        verification_level="dns",
-        enable_semantic_check=False,
-        enable_advanced_verification=False
-    )
-    
     answer = "You can find more info at https://github.com/pytorch/pytorch"
     query = "How do I use PyTorch?"
-    
-    result = await adapter.analyze_answer(answer, user_query=query)
+
+    result = await actions.analyze_answer(
+        answer=answer,
+        user_query=query,
+        verification_level="dns",
+        enable_semantic_check=False,
+        enable_advanced_verification=False,
+    )
     
     print(f"Status: {result['status']}")
     print(f"Decision: {result['decision']['action']}")
@@ -141,9 +136,9 @@ Create a config file `config.json`:
 Use the config:
 
 ```python
-from domain_hallucination_guard_system.nemo_adapter import DomainHallucinationAdapter
+from nemoguardrails.library.domain_hallucination import config as dh_config
 
-adapter = DomainHallucinationAdapter(config_path="config.json")
+loaded_config = dh_config.load_config("config.json")
 ```
 
 ## Modules Overview
