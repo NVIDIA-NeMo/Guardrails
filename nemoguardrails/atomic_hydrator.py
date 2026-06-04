@@ -80,7 +80,7 @@ class AtomicStateHydrator:
                 current_state = await self.backend.fetch_state(conversation_id)
                 result, updated_state = await evaluation_coro(current_state, *args, **kwargs)
                 await self.backend.save_state(conversation_id, updated_state)
-                return result
+                return result, updated_state
         finally:
             # O finally garante a integridade do ref-count mesmo se a corotina falhar
             await self._release_session_lock(conversation_id)

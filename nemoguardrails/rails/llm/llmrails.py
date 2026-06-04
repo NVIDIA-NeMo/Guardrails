@@ -1075,7 +1075,7 @@ class LLMRails(BaseGuardrails):
             # In generation mode, the processing is always blocking, i.e., it waits for
             # all local actions (sync and async).
             new_events, _output_state = await runtime.process_events(
-                events, state=state, instant_actions=instant_actions, blocking=True
+                events, state=state, instant_actions=instant_actions, blocking=True  # type: ignore
             )
             # The runtime State for 2.x is not publicly exposed through generate_async.
             # Callers that need stateful 2.x execution use process_events_async, which

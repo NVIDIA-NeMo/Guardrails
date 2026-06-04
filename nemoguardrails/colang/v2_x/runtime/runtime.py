@@ -315,7 +315,7 @@ class RuntimeV2_x(Runtime):
             return await self._execute_event_cycle_internals(events, current_state, blocking, instant_actions)
 
         conversation_id = getattr(state, "uid", "global_fallback_session")
-        return await self.hydrator.execute_atomic_pipeline(conversation_id, _run_pipeline, state)
+        return await self.hydrator.execute_atomic_pipeline(conversation_id, _run_pipeline)
 
     async def _execute_event_cycle_internals(
         self,
