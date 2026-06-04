@@ -53,7 +53,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_stream_rejected,
     register_nonstream_saturation_gauges,
     request_metrics,
-    set_llm_call_content,
+    set_request_content,
     set_speculative_span_attrs,
     stream_active_metric,
     traced_request,
@@ -330,7 +330,7 @@ class IORails:
             # Capture content once here at the traced_request boundary so any
             # future early-return added to _do_generate is covered automatically.
             if self._content_capture_enabled:
-                set_llm_call_content(request_span, messages, result.get("content"))
+                set_request_content(request_span, messages, result.get("content"))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -731,7 +731,7 @@ class IORails:
                                 # falsely claim an "" assistant message was produced.
                                 if self._content_capture_enabled:
                                     output_text = "".join(delivered) if delivered else None
-                                    set_llm_call_content(request_span, messages, output_text)
+                                    set_request_content(request_span, messages, output_text)
                 finally:
                     self._stream_semaphore.release()
 

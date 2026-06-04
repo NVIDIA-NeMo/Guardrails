@@ -2021,9 +2021,10 @@ class TestContentCaptureDisabled:
         await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
 
         span = _request_span(exporter.get_finished_spans())
+        assert GuardrailsAttributes.REQUEST_INPUT not in span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in span.attributes
         assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
         assert GenAIAttributes.GEN_AI_OUTPUT_MESSAGES not in span.attributes
-        # No legacy events either
         assert all(not e.name.startswith("gen_ai.") for e in span.events)
 
     @pytest.mark.asyncio
@@ -2052,52 +2053,25 @@ class TestContentCaptureDisabled:
 
 
 class TestContentCaptureLegacyFormat:
-    """Capture on + opt-in env unset: legacy gen_ai.* events on request + LLM spans."""
+    """Capture on + opt-in env unset: guardrails.request.* attrs on request span; gen_ai.* events on LLM span."""
 
     @pytest.mark.asyncio
-    async def test_legacy_events_on_request_span(self, iorails_content_capture, exporter):
-        """Capture on, no opt-in → request span gets gen_ai.* events, no JSON attrs."""
+    async def test_request_span_carries_guardrails_attrs(self, iorails_content_capture, exporter):
+        """Request span carries guardrails.request.input/output attrs, not gen_ai.* events."""
         _stub_deep_pipeline(iorails_content_capture, main_llm_response="Hi back")
 
         await iorails_content_capture.generate_async([{"role": "user", "content": "hello"}])
 
         span = _request_span(exporter.get_finished_spans())
-        event_names = [e.name for e in span.events]
-        assert "gen_ai.user.message" in event_names
-        assert "gen_ai.choice" in event_names
-        # No JSON-attr leakage on the events path
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "Hi back"
+        # The request span does not carry gen_ai.* content attrs or events
         assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
-        assert GenAIAttributes.GEN_AI_OUTPUT_MESSAGES not in span.attributes
-
-    @pytest.mark.asyncio
-    async def test_user_message_event_carries_content(self, iorails_content_capture, exporter):
-        """The gen_ai.user.message event carries the user's role and content."""
-        _stub_deep_pipeline(iorails_content_capture)
-
-        await iorails_content_capture.generate_async([{"role": "user", "content": "hello"}])
-
-        span = _request_span(exporter.get_finished_spans())
-        user_events = [e for e in span.events if e.name == "gen_ai.user.message"]
-        assert len(user_events) == 1
-        assert dict(user_events[0].attributes) == {"role": "user", "content": "hello"}
-
-    @pytest.mark.asyncio
-    async def test_choice_event_carries_assistant_output(self, iorails_content_capture, exporter):
-        """The gen_ai.choice event carries the assistant's response content."""
-        _stub_deep_pipeline(iorails_content_capture, main_llm_response="The answer")
-
-        await iorails_content_capture.generate_async([{"role": "user", "content": "hi"}])
-
-        span = _request_span(exporter.get_finished_spans())
-        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
-        assert len(choice_events) == 1
-        attrs = dict(choice_events[0].attributes)
-        assert attrs["message.role"] == "assistant"
-        assert attrs["message.content"] == "The answer"
+        assert all(not e.name.startswith("gen_ai.") for e in span.events)
 
     @pytest.mark.asyncio
     async def test_legacy_events_on_main_llm_span(self, iorails_content_capture, exporter):
-        """The main LLM span also carries the legacy gen_ai.* message/choice events."""
+        """The main LLM span carries the legacy gen_ai.* message/choice events."""
         _stub_deep_pipeline(iorails_content_capture)
 
         await iorails_content_capture.generate_async([{"role": "user", "content": "hello"}])
@@ -2108,25 +2082,49 @@ class TestContentCaptureLegacyFormat:
         assert "gen_ai.choice" in event_names
 
     @pytest.mark.asyncio
+    async def test_llm_span_user_event_carries_content(self, iorails_content_capture, exporter):
+        """The gen_ai.user.message event on the LLM span carries role and content."""
+        _stub_deep_pipeline(iorails_content_capture)
+
+        await iorails_content_capture.generate_async([{"role": "user", "content": "hello"}])
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        user_events = [e for e in span.events if e.name == "gen_ai.user.message"]
+        assert len(user_events) == 1
+        assert dict(user_events[0].attributes) == {"role": "user", "content": "hello"}
+
+    @pytest.mark.asyncio
+    async def test_llm_span_choice_event_carries_output(self, iorails_content_capture, exporter):
+        """The gen_ai.choice event on the LLM span carries the model's response."""
+        _stub_deep_pipeline(iorails_content_capture, main_llm_response="The answer")
+
+        await iorails_content_capture.generate_async([{"role": "user", "content": "hi"}])
+
+        span = _main_llm_span(exporter.get_finished_spans())
+        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
+        assert len(choice_events) == 1
+        attrs = dict(choice_events[0].attributes)
+        assert attrs["message.role"] == "assistant"
+        assert attrs["message.content"] == "The answer"
+
+    @pytest.mark.asyncio
     async def test_refusal_message_captured_on_blocked_input(self, iorails_content_capture, exporter):
-        """A blocked input still records the REFUSAL_MESSAGE as the assistant output."""
+        """A blocked input records REFUSAL_MESSAGE as guardrails.request.output."""
         _stub_deep_pipeline(iorails_content_capture, input_safe=False)
 
         result = await iorails_content_capture.generate_async([{"role": "user", "content": "bad"}])
         assert result["content"] == REFUSAL_MESSAGE
 
         span = _request_span(exporter.get_finished_spans())
-        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
-        assert len(choice_events) == 1
-        assert dict(choice_events[0].attributes)["message.content"] == REFUSAL_MESSAGE
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
 
     @pytest.mark.asyncio
     async def test_refusal_message_captured_on_blocked_output(self, iorails_content_capture, exporter):
-        """A blocked OUTPUT records REFUSAL_MESSAGE as the assistant output too.
+        """A blocked OUTPUT records REFUSAL_MESSAGE as guardrails.request.output.
 
-        Exercises the second of three return sites in _do_generate (output-rail
-        block path) — distinct from the input-rail block above.  Mocks at the
-        rails_manager level since _stub_deep_pipeline only varies input safety.
+        The LLM CLIENT span still records the raw model response while the
+        request SERVER span records what the caller actually received (REFUSAL) —
+        this is the semantic distinction that motivated the separate attr names.
         """
         iorails = iorails_content_capture
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
@@ -2139,9 +2137,7 @@ class TestContentCaptureLegacyFormat:
         assert result["content"] == REFUSAL_MESSAGE
 
         span = _request_span(exporter.get_finished_spans())
-        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
-        assert len(choice_events) == 1
-        assert dict(choice_events[0].attributes)["message.content"] == REFUSAL_MESSAGE
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
 
 
 class TestContentCaptureJsonFormat:
@@ -2163,24 +2159,22 @@ class TestContentCaptureJsonFormat:
         telemetry._use_json_span_format.cache_clear()
 
     @pytest.mark.asyncio
-    async def test_json_attrs_on_request_span(self, iorails_content_capture, exporter):
-        """Opt-in set → request span carries JSON input/output message attrs, no events."""
+    async def test_request_span_carries_guardrails_attrs(self, iorails_content_capture, exporter):
+        """Opt-in set → request span carries guardrails.request.* attrs (plain strings)."""
         _stub_deep_pipeline(iorails_content_capture, main_llm_response="The answer")
 
         await iorails_content_capture.generate_async([{"role": "user", "content": "hello"}])
 
         span = _request_span(exporter.get_finished_spans())
-        inputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
-        outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
-
-        assert inputs == [{"role": "user", "parts": [{"type": "text", "content": "hello"}]}]
-        assert outputs == [{"role": "assistant", "parts": [{"type": "text", "content": "The answer"}]}]
-        # No legacy events on the JSON path
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "The answer"
+        # The request span does not carry gen_ai.* content attrs or events
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
         assert all(not e.name.startswith("gen_ai.") for e in span.events)
 
     @pytest.mark.asyncio
-    async def test_system_instructions_split_into_own_attr(self, iorails_content_capture, exporter):
-        """System messages go to gen_ai.system_instructions, not gen_ai.input.messages."""
+    async def test_system_instructions_on_llm_span(self, iorails_content_capture, exporter):
+        """System messages split to gen_ai.system_instructions on the LLM span."""
         _stub_deep_pipeline(iorails_content_capture)
 
         messages = [
@@ -2189,13 +2183,16 @@ class TestContentCaptureJsonFormat:
         ]
         await iorails_content_capture.generate_async(messages)
 
-        span = _request_span(exporter.get_finished_spans())
-        sysinst = json.loads(span.attributes[GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS])
-        inputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
+        llm_span = _main_llm_span(exporter.get_finished_spans())
+        sysinst = json.loads(llm_span.attributes[GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS])
+        inputs = json.loads(llm_span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
 
         assert sysinst == [{"type": "text", "content": "be helpful"}]
-        # System message must not also appear in input.messages
         assert [m["role"] for m in inputs] == ["user"]
+
+        # Request span records the full raw input list (no split)
+        req_span = _request_span(exporter.get_finished_spans())
+        assert json.loads(req_span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == messages
 
     @pytest.mark.asyncio
     async def test_json_attrs_on_main_llm_span(self, iorails_content_capture, exporter):
@@ -2227,8 +2224,9 @@ class TestContentCaptureEnvVarFallback:
                 await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         span = _request_span(exporter.get_finished_spans())
-        # Events emitted on the legacy path (no stability opt-in)
-        assert any(e.name == "gen_ai.user.message" for e in span.events)
+        # Request span carries guardrails.request.* attrs
+        assert GuardrailsAttributes.REQUEST_INPUT in span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT in span.attributes
 
     @pytest.mark.asyncio
     async def test_env_var_false_disables_capture_when_config_true(self, monkeypatch, tracer_from_provider, exporter):
@@ -2250,8 +2248,9 @@ class TestContentCaptureEnvVarFallback:
                 await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         span = _request_span(exporter.get_finished_spans())
-        # No content events despite config=True — env=false wins
-        assert all(not e.name.startswith("gen_ai.") for e in span.events)
+        # No content attrs despite config=True — env=false wins
+        assert GuardrailsAttributes.REQUEST_INPUT not in span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in span.attributes
         assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
 
 
@@ -2303,9 +2302,8 @@ class TestStreamingContentCapture:
         assert delivered  # sanity: stream produced something
 
         span = _request_span(exporter.get_finished_spans())
-        # Legacy events path (no stability opt-in) — choice event carries output
-        choice = next(e for e in span.events if e.name == "gen_ai.choice")
-        assert dict(choice.attributes)["message.content"] == delivered
+        # Request span: guardrails.request.* attrs carry the delivered text
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == delivered
 
     @pytest.mark.asyncio
     async def test_output_text_recorded_on_streaming_llm_span(self, iorails_streaming_content_capture, exporter):
@@ -2331,19 +2329,17 @@ class TestStreamingContentCapture:
         [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
 
         span = _request_span(exporter.get_finished_spans())
-        choice_events = [e for e in span.events if e.name == "gen_ai.choice"]
-        assert len(choice_events) == 1
-        assert dict(choice_events[0].attributes)["message.content"] == REFUSAL_MESSAGE
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
 
     @pytest.mark.asyncio
-    async def test_empty_delivered_records_no_choice_event(self, iorails_streaming_content_capture, exporter):
-        """When the LLM yields zero content chunks, output_text becomes None
-        and no gen_ai.choice event fires.  Guards against an empty-string
-        assistant message getting recorded for a stream that produced nothing."""
+    async def test_empty_delivered_records_no_output_attr(self, iorails_streaming_content_capture, exporter):
+        """When the LLM yields zero content chunks, guardrails.request.output is absent.
+
+        Guards against an empty-string output being recorded when the stream
+        produced nothing — None output_text means no attribute is set."""
         iorails = iorails_streaming_content_capture
 
         async def _empty_stream(messages, **kwargs):
-            # An async generator that yields no items at all
             if False:
                 yield  # pragma: no cover
 
@@ -2353,13 +2349,11 @@ class TestStreamingContentCapture:
 
         spans = exporter.get_finished_spans()
         request_span = _request_span(spans)
-        # No choice event because output_text was None (empty delivered list)
-        assert all(e.name != "gen_ai.choice" for e in request_span.events)
-        # Input events still fire (input messages were captured)
-        assert any(e.name == "gen_ai.user.message" for e in request_span.events)
+        # Input is captured; output is absent (empty delivered)
+        assert GuardrailsAttributes.REQUEST_INPUT in request_span.attributes
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in request_span.attributes
 
-        # LLM streaming span behaves consistently: empty content_parts ->
-        # output_text=None -> no choice event (matches request span).
+        # LLM span also has no output — empty content_parts → None
         llm_span = _main_llm_span(spans)
         assert all(e.name != "gen_ai.choice" for e in llm_span.events)
 
@@ -2389,8 +2383,7 @@ class TestStreamingContentCapture:
         expected = "Hello world"
 
         span = _request_span(exporter.get_finished_spans())
-        choice = next(e for e in span.events if e.name == "gen_ai.choice")
-        assert dict(choice.attributes)["message.content"] == expected
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == expected
 
 
 class TestStreamingContentCaptureJsonFormat:
@@ -2417,12 +2410,10 @@ class TestStreamingContentCaptureJsonFormat:
         delivered = "".join(c for c in chunks if isinstance(c, str))
 
         span = _request_span(exporter.get_finished_spans())
-        inputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES])
-        outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
-        assert inputs == [{"role": "user", "parts": [{"type": "text", "content": "hi"}]}]
-        assert outputs == [{"role": "assistant", "parts": [{"type": "text", "content": delivered}]}]
-        # No legacy events leaking onto the JSON path
-        assert all(not e.name.startswith("gen_ai.") for e in span.events)
+        # Request span: guardrails.request.* plain-string attrs regardless of opt-in format
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hi"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == delivered
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
 
     @pytest.mark.asyncio
     async def test_json_attrs_on_streaming_llm_span(self, iorails_streaming_content_capture, exporter):

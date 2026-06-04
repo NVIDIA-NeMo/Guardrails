@@ -589,6 +589,36 @@ def set_llm_call_content(
         _set_llm_call_content_events(span, input_messages, output_text)
 
 
+def set_request_content(
+    span: Optional["Span"],
+    input_messages: LLMMessages,
+    output_text: Optional[str] = None,
+) -> None:
+    """Capture caller-facing input/output on the ``guardrails.request`` SERVER span.
+
+    Uses ``guardrails.request.input`` (JSON-encoded input messages) and
+    ``guardrails.request.output`` (the text actually returned to the caller)
+    rather than the ``gen_ai.*`` attribute names used on LLM CLIENT spans.
+    This distinction matters on block paths: the LLM CLIENT span records the
+    raw model response, while the SERVER span records the refusal message —
+    the same ``gen_ai.output.messages`` name on both spans would carry
+    different values and confuse backends correlating the two.
+
+    ``guardrails.request.input`` is always a JSON-encoded list of role/content
+    message objects matching the caller's input.  ``guardrails.request.output``
+    is the plain string that IORails returned (REFUSAL_MESSAGE on block paths,
+    the model's response text on the success path).  ``output_text=None`` is
+    valid when the output is not yet known (input-only capture at span open).
+
+    Safe to call with ``span=None`` (no-op).
+    """
+    if span is None:
+        return
+    span.set_attribute(GuardrailsAttributes.REQUEST_INPUT, json.dumps(input_messages))
+    if output_text is not None:
+        span.set_attribute(GuardrailsAttributes.REQUEST_OUTPUT, output_text)
+
+
 def set_rail_content(
     span: Optional["Span"],
     rail_input: dict[str, Any],

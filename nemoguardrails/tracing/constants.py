@@ -176,6 +176,16 @@ class GuardrailsAttributes:
     RAIL_INPUT = "guardrails.rail.input"
     RAIL_REASON = "guardrails.rail.reason"
 
+    # request-level content-capture attributes on the guardrails.request
+    # SERVER span.  These record the caller-facing input and output —
+    # what the caller sent and what was returned — which differs
+    # from gen_ai.input/output.messages on the LLM CLIENT span on block
+    # paths (where the LLM CLIENT span records the raw model response
+    # while the SERVER span records the refusal message).  Using a
+    # distinct attribute namespace avoids conflating the two semantics.
+    REQUEST_INPUT = "guardrails.request.input"
+    REQUEST_OUTPUT = "guardrails.request.output"
+
     # action attributes
     ACTION_NAME = "action.name"
     ACTION_HAS_LLM_CALLS = "action.has_llm_calls"
