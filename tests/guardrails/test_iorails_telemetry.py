@@ -1948,12 +1948,9 @@ def _clear_otel_content_envvars(monkeypatch):
     Without this, an inherited ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT``
     or ``OTEL_SEMCONV_STABILITY_OPT_IN`` from CI / dev shell would flip
     capture on or change format mid-suite and produce flaky assertions.
-    Also clears the ``_use_json_span_format`` cache so format-switching
-    tests (legacy vs JSON) re-read the env var fresh.
     """
     monkeypatch.delenv(OtelContentCapture.CAPTURE_CONTENT_ENV, raising=False)
     monkeypatch.delenv(OtelContentCapture.STABILITY_OPT_IN_ENV, raising=False)
-    telemetry._use_json_span_format.cache_clear()
 
 
 def _make_content_capture_config():
@@ -2144,19 +2141,11 @@ class TestContentCaptureJsonFormat:
     """Capture on + OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental: JSON attrs."""
 
     @pytest.fixture(autouse=True)
-    def _set_stability_opt_in(self, monkeypatch, _clear_otel_content_envvars):
-        # Explicit dependency on _clear_otel_content_envvars forces pytest to
-        # run the module-level cleanup (which delenvs both OTEL vars and clears
-        # the _use_json_span_format cache) BEFORE this fixture sets the opt-in.
-        # Without the dependency, the autouse fixture ordering is alphabetical
-        # within the same scope and _clear would run after _set, undoing it.
+    def _set_stability_opt_in(self, monkeypatch):
         monkeypatch.setenv(
             OtelContentCapture.STABILITY_OPT_IN_ENV,
             OtelContentCapture.STABILITY_OPT_IN_LATEST,
         )
-        # Cache cleared by _clear_otel_content_envvars above; clear again here
-        # in case any prior in-class fixture warmed it with the wrong value.
-        telemetry._use_json_span_format.cache_clear()
 
     @pytest.mark.asyncio
     async def test_request_span_carries_guardrails_attrs(self, iorails_content_capture, exporter):
@@ -2390,15 +2379,11 @@ class TestStreamingContentCaptureJsonFormat:
     """Streaming + capture on + OTEL_SEMCONV_STABILITY_OPT_IN: JSON attrs on both spans."""
 
     @pytest.fixture(autouse=True)
-    def _set_stability_opt_in(self, monkeypatch, _clear_otel_content_envvars):
-        # Same dependency-ordering trick as TestContentCaptureJsonFormat:
-        # force the module-level cleanup BEFORE the class-level setenv so the
-        # cleanup's cache_clear doesn't wipe our opt-in.
+    def _set_stability_opt_in(self, monkeypatch):
         monkeypatch.setenv(
             OtelContentCapture.STABILITY_OPT_IN_ENV,
             OtelContentCapture.STABILITY_OPT_IN_LATEST,
         )
-        telemetry._use_json_span_format.cache_clear()
 
     @pytest.mark.asyncio
     async def test_json_attrs_on_request_span(self, iorails_streaming_content_capture, exporter):

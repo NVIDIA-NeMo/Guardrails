@@ -17,7 +17,7 @@
 
 Covers the helpers introduced for OTEL GenAI content capture:
 ``is_content_capture_enabled``, ``_use_json_span_format``,
-``_get_parts_by_role``, ``_system_parts_from_messages``,
+``_system_parts_from_messages``,
 ``_non_system_input_messages``, the two ``_set_llm_call_content_*``
 branches, the ``set_llm_call_content`` dispatcher, and ``set_rail_content``.
 """
@@ -31,7 +31,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.telemetry import (
-    _get_parts_by_role,
     _non_system_input_messages,
     _set_llm_call_content_events,
     _set_llm_call_content_json,
@@ -57,13 +56,9 @@ def _clear_otel_envvars(monkeypatch):
     The CI/dev shell may have ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT``
     or ``OTEL_SEMCONV_STABILITY_OPT_IN`` set; without this, tests asserting
     "False" / "events branch" would be flaky depending on the runner's env.
-    Also clears the ``_use_json_span_format`` cache so each test re-reads
-    the stability opt-in env var fresh — without this, the first test's
-    value would stick across the whole module.
     """
     monkeypatch.delenv(OtelContentCapture.CAPTURE_CONTENT_ENV, raising=False)
     monkeypatch.delenv(OtelContentCapture.STABILITY_OPT_IN_ENV, raising=False)
-    _use_json_span_format.cache_clear()
 
 
 @pytest.fixture
@@ -216,49 +211,6 @@ _MIXED_MESSAGES = [
     {"role": "assistant", "content": "hi there"},
     {"role": "user", "content": "ok"},
 ]
-
-
-class TestGetPartsByRole:
-    """Role-filtered walker that powers the two specialised parts helpers."""
-
-    def test_include_true_returns_matching_role(self):
-        """include=True keeps only messages whose role equals the target role."""
-        result = _get_parts_by_role(_MIXED_MESSAGES, "system", include=True)
-        assert result == [{"role": "system", "parts": [{"type": "text", "content": "you are helpful"}]}]
-
-    def test_include_false_returns_non_matching_roles(self):
-        """include=False keeps every message whose role differs from the target."""
-        result = _get_parts_by_role(_MIXED_MESSAGES, "system", include=False)
-        roles = [entry["role"] for entry in result]
-        assert roles == ["user", "assistant", "user"]
-
-    def test_empty_messages_returns_empty(self):
-        """An empty message list yields an empty result."""
-        assert _get_parts_by_role([], "system", include=True) == []
-
-    def test_skips_entries_missing_role(self):
-        """Messages without a ``role`` field are skipped silently."""
-        messages = [{"content": "no role"}, {"role": "user", "content": "ok"}]
-        result = _get_parts_by_role(messages, "user", include=True)
-        assert len(result) == 1
-        assert result[0]["role"] == "user"
-
-    def test_skips_entries_missing_content(self):
-        """Messages without a ``content`` field are skipped silently."""
-        messages = [{"role": "user"}, {"role": "user", "content": "ok"}]
-        result = _get_parts_by_role(messages, "user", include=True)
-        assert len(result) == 1
-        assert result[0]["parts"][0]["content"] == "ok"
-
-    def test_no_matches_returns_empty(self):
-        """include=True with a role absent from the messages yields an empty result."""
-        result = _get_parts_by_role(_MIXED_MESSAGES, "tool", include=True)
-        assert result == []
-
-    def test_all_match_when_excluded_role_absent(self):
-        """include=False excluding an absent role returns every valid entry."""
-        result = _get_parts_by_role(_MIXED_MESSAGES, "tool", include=False)
-        assert len(result) == len(_MIXED_MESSAGES)
 
 
 class TestSystemPartsFromMessages:

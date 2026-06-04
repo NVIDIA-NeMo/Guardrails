@@ -33,7 +33,6 @@ import time
 import warnings
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from functools import cache
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -406,46 +405,18 @@ _LEGACY_EVENT_BY_ROLE = {
 }
 
 
-@cache
 def _use_json_span_format() -> bool:
     """Return True iff OTEL_SEMCONV_STABILITY_OPT_IN selects JSON span attrs.
 
     The env var holds a comma-separated list of opt-in tokens.  When
     ``gen_ai_latest_experimental`` is present, content is emitted as
     JSON-encoded span attributes, otherwise as legacy per-message span events.
-
-    Cached after first call (``functools.cache``) since the env var is
-    process-global and normally set at startup, and this runs on every
-    captured-content span emission.  Tests that mutate the env var must
-    call ``_use_json_span_format.cache_clear()`` to re-read.
+    Read fresh each call so runtime changes to the env var take effect
+    immediately.
     """
     raw_env_value = os.environ.get(OtelContentCapture.STABILITY_OPT_IN_ENV, "")
     tokens = {tok.strip() for tok in raw_env_value.split(",")}
     return OtelContentCapture.STABILITY_OPT_IN_LATEST in tokens
-
-
-def _get_parts_by_role(messages: LLMMessages, role: str, include: bool) -> list[dict]:
-    """Return role-wrapped OTEL GenAI message entries filtered by *role*.
-
-    When *include* is True, returns only messages whose ``role`` field
-    equals *role*; when False, returns only those whose ``role`` differs.
-    Each result is ``{"role": <msg_role>, "parts": [{"type": "text",
-    "content": <content>}]}``.  Entries missing ``role`` or ``content``
-    are skipped silently.
-    """
-    out: list[dict] = []
-    for msg in messages:
-        msg_role = msg.get("role")
-        content = msg.get("content")
-        if msg_role is None or content is None:
-            continue
-        role_matches = msg_role == role
-        if include and not role_matches:
-            continue
-        if not include and role_matches:
-            continue
-        out.append({"role": msg_role, "parts": [{"type": "text", "content": content}]})
-    return out
 
 
 def _system_parts_from_messages(messages: LLMMessages) -> list[dict]:
@@ -492,7 +463,15 @@ def _non_system_input_messages(messages: LLMMessages) -> list[dict]:
         ... ])
         [{"role": "user", "parts": [{"type": "text", "content": "hi"}]}]
     """
-    return _get_parts_by_role(messages, "system", include=False)
+    out: list[dict] = []
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role is None or content is None:
+            continue
+        if role != "system":
+            out.append({"role": role, "parts": [{"type": "text", "content": content}]})
+    return out
 
 
 def _set_llm_call_content_json(
