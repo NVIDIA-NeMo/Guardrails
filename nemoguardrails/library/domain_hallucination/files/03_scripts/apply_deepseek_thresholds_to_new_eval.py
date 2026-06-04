@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Apply fixed DeepSeek S2 thresholds to the new safe/danger eval outputs."""
 
 from __future__ import annotations
@@ -14,8 +29,9 @@ from threshold_sweep_strict_multiclass import (
     simulate_details,
 )
 
-
 ROOT = Path(__file__).resolve().parent
+FILES_ROOT = ROOT.parent
+SAFE_DANGER_ROOT = FILES_ROOT / "07_safe_danger_validation"
 
 THRESHOLD_CONFIG = {
     "calibrated_from": "deepseek_expert_S2_cached_full_skip_dnsfail_full223.json",
@@ -33,7 +49,7 @@ INPUTS = [
 
 
 def remap_file(filename: str) -> Dict[str, Any]:
-    source = ROOT / filename
+    source = SAFE_DANGER_ROOT / filename
     data = json.loads(source.read_text(encoding="utf-8"))
     details: List[Dict[str, Any]] = []
     for result in data.get("results", []):
@@ -60,7 +76,8 @@ def remap_file(filename: str) -> Dict[str, Any]:
 
     stem = source.stem
     output_name = f"{stem}_deepseek_thresholds_20260604.json"
-    output_path = ROOT / output_name
+    output_path = SAFE_DANGER_ROOT / output_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
     return {
         "input_file": filename,
@@ -73,7 +90,7 @@ def remap_file(filename: str) -> Dict[str, Any]:
 
 
 def summarize_baseline(filename: str) -> Dict[str, Any]:
-    data = json.loads((ROOT / filename).read_text(encoding="utf-8"))
+    data = json.loads((SAFE_DANGER_ROOT / filename).read_text(encoding="utf-8"))
     details: List[Dict[str, Any]] = []
     for result in data.get("results", []):
         details.extend(result.get("baseline", {}).get("details", []) or [])
@@ -115,16 +132,14 @@ def task_metrics(details: List[Dict[str, Any]]) -> Dict[str, Any]:
         "danger_severe_catch_count": severe_hits,
         "danger_severe_catch_rate": severe_hits / len(danger_items) if danger_items else 0.0,
         "danger_warn_only_count": warn_only_hits,
-        "danger_warn_or_severe_catch_rate": (severe_hits + warn_only_hits) / len(danger_items)
-        if danger_items
-        else 0.0,
+        "danger_warn_or_severe_catch_rate": (severe_hits + warn_only_hits) / len(danger_items) if danger_items else 0.0,
         "danger_missed_count": missed,
         "danger_missed_rate": missed / len(danger_items) if danger_items else 0.0,
     }
 
 
 def summarize_domain_original(filename: str) -> Dict[str, Any]:
-    data = json.loads((ROOT / filename).read_text(encoding="utf-8"))
+    data = json.loads((SAFE_DANGER_ROOT / filename).read_text(encoding="utf-8"))
     details: List[Dict[str, Any]] = []
     for result in data.get("results", []):
         details.extend(result.get("domain_hallucination", {}).get("details", []) or [])
@@ -155,7 +170,8 @@ def main() -> None:
         "threshold_config": THRESHOLD_CONFIG,
         "rows": rows,
     }
-    summary_path = ROOT / "safe_danger_deepseek_thresholds_vs_nemo_20260604.json"
+    summary_path = SAFE_DANGER_ROOT / "safe_danger_deepseek_thresholds_vs_nemo_20260604.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
 

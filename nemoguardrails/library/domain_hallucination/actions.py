@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """NeMo Guardrails actions for domain hallucination detection."""
 
 from __future__ import annotations
@@ -8,11 +23,13 @@ from typing import Any, Dict, Optional
 try:  # pragma: no cover - available in NeMo runtime
     from nemoguardrails.actions import action
 except Exception:  # pragma: no cover - standalone import fallback
+
     def action(*_args: Any, **_kwargs: Any):
         def decorator(fn):
             return fn
 
         return decorator
+
 
 from . import checkers, decision, expert_review, extractors, kb, scoring, semantic, verification
 
@@ -213,16 +230,18 @@ async def analyze_answer(
         )
         if semantic_result.get("has_irrelevant_domains"):
             for domain_item in semantic_result.get("irrelevant_domains", []):
-                detection_result["issues"].append({
-                    "type": "semantic_mismatch",
-                    "target_type": "domain",
-                    "target": domain_item.get("domain", ""),
-                    "severity": "low",
-                    "confidence": "low",
-                    "evidence_source": "semantic",
-                    "evidence": domain_item,
-                    "message": "Domain not semantically related to query",
-                })
+                detection_result["issues"].append(
+                    {
+                        "type": "semantic_mismatch",
+                        "target_type": "domain",
+                        "target": domain_item.get("domain", ""),
+                        "severity": "low",
+                        "confidence": "low",
+                        "evidence_source": "semantic",
+                        "evidence": domain_item,
+                        "message": "Domain not semantically related to query",
+                    }
+                )
             detection_result = {
                 "has_issues": bool(detection_result["issues"]),
                 "issues": detection_result["issues"],
@@ -238,16 +257,18 @@ async def analyze_answer(
         )
         if adv_result.get("has_issues"):
             for issue_item in adv_result.get("issues", []):
-                detection_result["issues"].append({
-                    "type": issue_item.get("type", "advanced_verification_failed"),
-                    "target_type": "url" if "url" in issue_item else "github_repo",
-                    "target": issue_item.get("url", "") or issue_item.get("target", ""),
-                    "severity": issue_item.get("severity", "low"),
-                    "confidence": "low",
-                    "evidence_source": "advanced_verification",
-                    "evidence": issue_item,
-                    "message": issue_item.get("message", "Advanced verification failed"),
-                })
+                detection_result["issues"].append(
+                    {
+                        "type": issue_item.get("type", "advanced_verification_failed"),
+                        "target_type": "url" if "url" in issue_item else "github_repo",
+                        "target": issue_item.get("url", "") or issue_item.get("target", ""),
+                        "severity": issue_item.get("severity", "low"),
+                        "confidence": "low",
+                        "evidence_source": "advanced_verification",
+                        "evidence": issue_item,
+                        "message": issue_item.get("message", "Advanced verification failed"),
+                    }
+                )
             detection_result = {
                 "has_issues": bool(detection_result["issues"]),
                 "issues": detection_result["issues"],
@@ -307,18 +328,8 @@ async def self_check_domain_hallucination(
 ) -> Dict[str, Any]:
     """NeMo output-rail action for domain hallucination detection."""
     context = context or {}
-    answer = (
-        context.get("bot_message")
-        or context.get("assistant_output")
-        or context.get("last_bot_message")
-        or ""
-    )
-    user_query = (
-        context.get("user_message")
-        or context.get("last_user_message")
-        or context.get("user_input")
-        or ""
-    )
+    answer = context.get("bot_message") or context.get("assistant_output") or context.get("last_bot_message") or ""
+    user_query = context.get("user_message") or context.get("last_user_message") or context.get("user_input") or ""
 
     result = await analyze_answer(
         answer=str(answer),

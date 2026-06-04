@@ -328,7 +328,7 @@ Domain Hallucination Issues
 
 ```
 score = min(100, sum([
-    issue_i.base_score 
+    issue_i.base_score
     * severity_weight[issue_i.severity]
     * confidence_boost[issue_i.confidence]
     for each issue_i

@@ -45,22 +45,22 @@ Create `config/colang/guardrails.co`:
 ```colang
 flow output_rail
   """Main output rail for domain hallucination checking."""
-  
+
   # Check if answer has external links
   $has_links = len($assistant_output.split("http")) > 1
-  
+
   if not $has_links
     return
-  
+
   # Call domain hallucination detection
   execute analyze_answer(
     answer=$assistant_output,
     user_query=$user_message,
     verification_level="dns"
   )
-  
+
   $result = output
-  
+
   # Enforce decision
   if $result.decision.action == "block"
     reject $result.enforced_answer.modified_answer
@@ -157,7 +157,7 @@ async def analyze(req: AnalysisRequest):
         answer=req.answer,
         user_query=req.user_query
     )
-    
+
     return AnalysisResponse(
         status=result["status"],
         decision=result["decision"]["action"],
@@ -175,11 +175,11 @@ from domain_hallucination_guard_system.nemo_adapter import get_adapter
 class DomainHallucinationCallback(BaseCallbackHandler):
     def __init__(self, adapter=None):
         self.adapter = adapter or get_adapter()
-    
+
     async def on_llm_end(self, response, **kwargs):
         answer = response.generations[0][0].text if response.generations else ""
         result = await self.adapter.analyze_answer(answer)
-        
+
         if result["decision"]["action"] != "pass":
             # Handle enforcement
             modified = result["enforced_answer"]["modified_answer"]
@@ -198,10 +198,10 @@ async def analyze_stream(answer_generator):
     """Analyze streaming answers as they arrive."""
     adapter = get_adapter()
     accumulated = ""
-    
+
     async for chunk in answer_generator:
         accumulated += chunk
-        
+
         # Periodically check for hallucinations
         if len(accumulated) > 100:
             result = await adapter.analyze_answer(accumulated)
@@ -209,7 +209,7 @@ async def analyze_stream(answer_generator):
                 # Cancel stream and return blocked message
                 return result["enforced_answer"]["modified_answer"]
             accumulated = ""
-    
+
     # Final check
     if accumulated:
         result = await adapter.analyze_answer(accumulated)
@@ -304,7 +304,7 @@ python -m nemoguardrails.library.domain_hallucination.examples
 2. **Pre-load KB:**
    ```python
    from nemoguardrails.library.domain_hallucination import kb, config
-   
+
    kb_instance = kb.initialize_kb(
        seed_kb_path="/opt/kb/seed_kb.json",
        external_kb_root="/opt/kb/external"
@@ -383,12 +383,12 @@ class MetricsCollector:
         self.decisions = defaultdict(int)
         self.risk_scores = []
         self.verification_times = []
-    
+
     def record(self, result):
         action = result["decision"]["action"]
         self.decisions[action] += 1
         self.risk_scores.append(result.get("risk_score", {}).get("score", 0))
-    
+
     def get_stats(self):
         return {
             "total_analyzed": sum(self.decisions.values()),

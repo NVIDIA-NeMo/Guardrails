@@ -1,17 +1,33 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Configuration management for domain hallucination guard."""
 
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass
 class VerificationConfig:
     """Verification settings."""
+
     level: str = "dns"  # none, dns, http, full
     dns_timeout: float = 4.0
     http_timeout: float = 6.0
@@ -24,6 +40,7 @@ class VerificationConfig:
 @dataclass
 class DetectionConfig:
     """Detection settings."""
+
     enable_semantic_check: bool = False
     enable_advanced_verification: bool = False
     no_link_fast_pass: bool = True
@@ -32,40 +49,48 @@ class DetectionConfig:
 @dataclass
 class ScoringConfig:
     """Scoring and threshold settings."""
+
     fail_threshold: float = 60.0
     refine_threshold: float = 40.0
     warn_threshold: float = 20.0
-    issue_type_scores: Dict[str, float] = field(default_factory=lambda: {
-        "fake_github_repo": 85.0,
-        "non_existent_domain": 80.0,
-        "delegated_no_address_record": 50.0,
-        "blacklisted_domain": 95.0,
-        "tls_certificate_expired": 70.0,
-        "tls_hostname_mismatch": 70.0,
-        "tls_untrusted_chain": 55.0,
-        "tls_verification_failed": 50.0,
-        "tls_certificate_expiring_soon": 15.0,
-        "recent_domain": 20.0,
-        "no_local_kb_evidence": 15.0,
-        "semantic_mismatch": 30.0,
-        "advanced_verification_failed": 40.0,
-    })
-    severity_weights: Dict[str, float] = field(default_factory=lambda: {
-        "critical": 1.5,
-        "high": 1.3,
-        "medium": 1.0,
-        "low": 0.7,
-    })
-    confidence_boosts: Dict[str, float] = field(default_factory=lambda: {
-        "high": 1.0,
-        "medium": 0.8,
-        "low": 0.6,
-    })
+    issue_type_scores: Dict[str, float] = field(
+        default_factory=lambda: {
+            "fake_github_repo": 85.0,
+            "non_existent_domain": 80.0,
+            "delegated_no_address_record": 50.0,
+            "blacklisted_domain": 95.0,
+            "tls_certificate_expired": 70.0,
+            "tls_hostname_mismatch": 70.0,
+            "tls_untrusted_chain": 55.0,
+            "tls_verification_failed": 50.0,
+            "tls_certificate_expiring_soon": 15.0,
+            "recent_domain": 20.0,
+            "no_local_kb_evidence": 15.0,
+            "semantic_mismatch": 30.0,
+            "advanced_verification_failed": 40.0,
+        }
+    )
+    severity_weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "critical": 1.5,
+            "high": 1.3,
+            "medium": 1.0,
+            "low": 0.7,
+        }
+    )
+    confidence_boosts: Dict[str, float] = field(
+        default_factory=lambda: {
+            "high": 1.0,
+            "medium": 0.8,
+            "low": 0.6,
+        }
+    )
 
 
 @dataclass
 class KnowledgeBaseConfig:
     """Knowledge base settings."""
+
     seed_kb_path: Optional[str] = None
     external_kb_root: Optional[str] = None
     auto_load: bool = True
@@ -74,6 +99,7 @@ class KnowledgeBaseConfig:
 @dataclass
 class EnforcementConfig:
     """Enforcement action settings."""
+
     block_message: str = "[BLOCKED] The response contains unverified information and has been blocked."
     refine_message: str = "[NOTICE] This response may contain unverified information."
     warn_message: str = "[WARNING] Potential unverified information detected."
@@ -83,6 +109,7 @@ class EnforcementConfig:
 @dataclass
 class DomainHallucinationGuardConfig:
     """Main configuration class."""
+
     verification: VerificationConfig = field(default_factory=VerificationConfig)
     detection: DetectionConfig = field(default_factory=DetectionConfig)
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
@@ -160,7 +187,9 @@ class DomainHallucinationGuardConfig:
         if f"{prefix}SEMANTIC_CHECK" in os.environ:
             config.detection.enable_semantic_check = os.environ[f"{prefix}SEMANTIC_CHECK"].lower() == "true"
         if f"{prefix}ADVANCED_VERIFICATION" in os.environ:
-            config.detection.enable_advanced_verification = os.environ[f"{prefix}ADVANCED_VERIFICATION"].lower() == "true"
+            config.detection.enable_advanced_verification = (
+                os.environ[f"{prefix}ADVANCED_VERIFICATION"].lower() == "true"
+            )
 
         # Scoring
         if f"{prefix}FAIL_THRESHOLD" in os.environ:

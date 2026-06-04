@@ -112,6 +112,48 @@ Note: `eval_dataset.json` metadata still reports 120 samples, but the current
 file contains 58 `test_cases`. `question_pool_v2.json` metadata reports 250
 questions, but the current nested pool contains 265 questions.
 
+## 3.1 Current Result Artifacts
+
+The result and comparison artifacts are now grouped by stage instead of being
+kept in the old flat `01_datasets` dump.
+
+### Static evaluation outputs
+
+- `04_static_eval/baseline_deepseek_nemo_hallucination_full223.json`
+- `04_static_eval/strict_multiclass_all_models_eval58.json`
+- `04_static_eval/strict_multiclass_all_models_full223.json`
+- `04_static_eval/strict_multiclass_metrics.json`
+- `04_static_eval/threshold_sweep_strict_metrics_comparison.json`
+
+### Calibration outputs
+
+- `05_calibration/full223/raw/`
+- `05_calibration/full223/calibrated/`
+- `05_calibration/full223/analysis/`
+- `05_calibration/full223/partials/`
+- `05_calibration/eval58/raw/`
+- `05_calibration/eval58/analysis/`
+- `05_calibration/safe_danger/analysis/`
+
+### E2E outputs
+
+- `06_e2e_eval/e2e_all_strategies_COMPLETE_20260603_174423.json`
+- `06_e2e_eval/e2e_nemo_hallucination_baseline_full_20260604.json`
+- `06_e2e_eval/e2e_domain_vs_nemo_summary_20260604.json`
+
+### Safe/danger outputs
+
+- `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604.json`
+- `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604.json`
+- `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json`
+- `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json`
+- `07_safe_danger_validation/safe_danger_deepseek_thresholds_vs_nemo_20260604.json`
+
+### Historical report bundle
+
+- `08_reports/` is now historical report material.
+- Old eval-runner outputs live under `08_reports/history/eval_runner/`.
+
 ## 4. Experiment Plan
 
 The paper-facing order should be:
@@ -391,14 +433,14 @@ but is not enough by itself for high-risk recall on this new danger set.
 
 | File | Purpose |
 |---|---|
-| `e2e_nemo_hallucination_baseline_full_20260604.json` | E2E NeMo hallucination baseline |
-| `e2e_domain_vs_nemo_summary_20260604.json` | E2E domain-vs-NeMo aggregate comparison |
-| `exp_A_danger_s2_expert_vs_nemo_20260604.json` | Static danger-set Experiment A |
-| `exp_A_safe_s2_expert_vs_nemo_20260604.json` | Static safe-set Experiment A |
-| `exp_A_danger_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Danger-set fixed DeepSeek boundary remap |
-| `exp_A_safe_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Safe-set fixed DeepSeek boundary remap |
-| `safe_danger_deepseek_thresholds_vs_nemo_20260604.json` | Safe/danger summary with task-aligned metrics |
-| `apply_deepseek_thresholds_to_new_eval.py` | Script used for fixed-boundary remapping on new eval files |
+| `06_e2e_eval/e2e_nemo_hallucination_baseline_full_20260604.json` | E2E NeMo hallucination baseline |
+| `06_e2e_eval/e2e_domain_vs_nemo_summary_20260604.json` | E2E domain-vs-NeMo aggregate comparison |
+| `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604.json` | Static danger-set Experiment A |
+| `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604.json` | Static safe-set Experiment A |
+| `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Danger-set fixed DeepSeek boundary remap |
+| `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Safe-set fixed DeepSeek boundary remap |
+| `07_safe_danger_validation/safe_danger_deepseek_thresholds_vs_nemo_20260604.json` | Safe/danger summary with task-aligned metrics |
+| `03_scripts/A/apply_deepseek_thresholds_to_new_eval.py` | Script used for fixed-boundary remapping on new eval files |
 
 ## 11. Recommended Paper Wording
 

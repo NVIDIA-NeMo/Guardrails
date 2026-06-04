@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """End-to-end URL/domain hallucination evaluation pipeline.
 
 Flow:
@@ -28,7 +43,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse
 
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
@@ -36,7 +50,8 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 ROOT = Path(__file__).resolve().parent
-REPO_ROOT = ROOT.parents[3]
+FILES_ROOT = ROOT.parent
+REPO_ROOT = ROOT.parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 if str(ROOT) not in sys.path:
@@ -451,7 +466,7 @@ class DomainGuardAdapter:
         if self._runtime is None:
             from run_ablation_experiments import NemoRuntime
 
-            self._runtime = NemoRuntime(config_path=ROOT / self.nemo_config)
+            self._runtime = NemoRuntime(config_path=FILES_ROOT / "02_configs" / self.nemo_config)
         return self._runtime
 
     async def analyze_answer(self, answer: str, user_query: str) -> Dict[str, Any]:
@@ -558,7 +573,7 @@ class NemoHallucinationAdapter:
     def __init__(self, *, nemo_config: str, extra_responses: int, retries: int) -> None:
         from run_ablation_experiments import NemoRuntime
 
-        self.runtime = NemoRuntime(config_path=ROOT / nemo_config)
+        self.runtime = NemoRuntime(config_path=FILES_ROOT / "02_configs" / nemo_config)
         self.extra_responses = extra_responses
         self.retries = retries
 
@@ -608,9 +623,9 @@ class IncrementalWriter:
         # Load existing results if partial file exists
         if self.path.exists():
             try:
-                with open(self.path, encoding='utf-8') as f:
+                with open(self.path, encoding="utf-8") as f:
                     existing = json.load(f)
-                    self.results = existing.get('results', [])
+                    self.results = existing.get("results", [])
                     print(f"[WRITER] Loaded {len(self.results)} existing results from {self.path.name}")
             except Exception as e:
                 print(f"[WRITER] Could not load existing results: {e}")
@@ -723,16 +738,16 @@ class E2EPipeline:
         completed_ids = set()
         if self.writer.path.exists():
             try:
-                with open(self.writer.path, encoding='utf-8') as f:
+                with open(self.writer.path, encoding="utf-8") as f:
                     partial_data = json.load(f)
-                    completed_ids = {r['id'] for r in partial_data.get('results', [])}
+                    completed_ids = {r["id"] for r in partial_data.get("results", [])}
                     if completed_ids:
                         print(f"\n[RESUME] Found {len(completed_ids)} completed questions")
             except Exception as e:
                 print(f"[RESUME] Could not load partial file: {e}")
 
         # Filter questions: only run those not yet completed
-        questions_to_run = [q for q in questions if q['id'] not in completed_ids]
+        questions_to_run = [q for q in questions if q["id"] not in completed_ids]
 
         print("\n=== Domain Hallucination E2E Evaluation ===")
         print(f"LLM: {self.llm.provider}/{self.llm.model}")
@@ -742,7 +757,7 @@ class E2EPipeline:
         print(f"Guard modes: {', '.join(self.guard_adapters) if self.guard_adapters else 'none'}\n")
 
         results = []
-        for index, item in enumerate(questions_to_run, start=len(completed_ids)+1):
+        for index, item in enumerate(questions_to_run, start=len(completed_ids) + 1):
             print(f"[{index:03d}/{len(questions):03d}] {item['category']:<32}", end=" ")
             single = await self.run_single(item)
             results.append(single)
@@ -794,10 +809,7 @@ class E2EPipeline:
                 "rate": round(len(category_hall) / len(category_with_links), 4) if category_with_links else 0.0,
             }
 
-        guard_metrics = {
-            mode: compute_guard_metrics(results, mode)
-            for mode in self.guard_adapters
-        }
+        guard_metrics = {mode: compute_guard_metrics(results, mode) for mode in self.guard_adapters}
         latency = {
             "llm_ms": lat_stats([r.get("timestamps", {}).get("llm_ms", 0) for r in results if "error" not in r]),
             "verification_ms": lat_stats(
@@ -923,10 +935,7 @@ def print_report(report: Dict[str, Any]) -> None:
     print(f"Total questions: {report['summary']['total_questions']}")
     print("Ground truth:", report["ground_truth_distribution"])
     rate = report["llm_hallucination_rate"]
-    print(
-        f"LLM hallucination rate: {rate['hallucinated_or_mixed']}/{rate['total_with_links']} "
-        f"({rate['rate']:.1%})"
-    )
+    print(f"LLM hallucination rate: {rate['hallucinated_or_mixed']}/{rate['total_with_links']} ({rate['rate']:.1%})")
     print("\nGuard performance:")
     for mode, metrics in report.get("guard_performance", {}).items():
         binary = metrics.get("binary_detection", {})
@@ -944,7 +953,7 @@ def print_report(report: Dict[str, Any]) -> None:
 
 
 async def main_async(args: argparse.Namespace) -> None:
-    question_pool_path = ROOT / args.questions
+    question_pool_path = FILES_ROOT / "01_datasets" / args.questions
     question_pool = load_question_pool(question_pool_path)
 
     system_prompt = args.system_prompt or DEFAULT_SYSTEM_PROMPT
@@ -964,7 +973,8 @@ async def main_async(args: argparse.Namespace) -> None:
     )
     adapters = build_guard_adapters(args)
 
-    output = ROOT / args.output
+    output = FILES_ROOT / "06_e2e_eval" / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
     metadata = {
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "question_pool": str(question_pool_path),
@@ -994,7 +1004,9 @@ async def main_async(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="End-to-end domain hallucination evaluation.")
-    parser.add_argument("--questions", default="question_pool_v2.json", help="Question pool JSON under files/.")
+    parser.add_argument(
+        "--questions", default="question_pool_v2.json", help="Question pool JSON under files/01_datasets/."
+    )
     parser.add_argument("--questions-per-category", type=int, default=1, help="Questions selected from each category.")
     parser.add_argument(
         "--guard-modes",
@@ -1015,7 +1027,7 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--max-tokens", type=int, default=600)
     parser.add_argument("--system-prompt", default=None)
-    parser.add_argument("--nemo-config", default="deepseek_config.yml", help="NeMo config under files/.")
+    parser.add_argument("--nemo-config", default="deepseek_config.yml", help="NeMo config under files/02_configs/.")
     parser.add_argument("--github-token", default=None)
     parser.add_argument("--verifier-timeout", type=float, default=8.0)
     parser.add_argument("--disable-ground-truth-http", action="store_true")

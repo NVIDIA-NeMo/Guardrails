@@ -1,7 +1,7 @@
 # Domain Hallucination Guard — Evaluation Report
 
-**Date:** 2026-06-02T14:49:33  
-**Mode:** dry_run  
+**Date:** 2026-06-02T14:49:33
+**Mode:** dry_run
 **Total Test Cases:** 151
 
 ## Executive Summary

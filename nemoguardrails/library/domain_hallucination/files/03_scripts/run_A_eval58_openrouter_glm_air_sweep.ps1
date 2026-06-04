@@ -72,4 +72,3 @@ foreach ($run in $runs) {
     Copy-Item -LiteralPath "$($run.Output).partial.json" -Destination "$($run.Output).partial.json.backup_$stamp"
   }
 }
-

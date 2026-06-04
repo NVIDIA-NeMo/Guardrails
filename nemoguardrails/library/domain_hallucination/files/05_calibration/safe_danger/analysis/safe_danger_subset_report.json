@@ -1,0 +1,53 @@
+[
+  {
+    "label": "原始 DeepSeek S2",
+    "safe": {
+      "strict_accuracy": 0.8707,
+      "balanced_accuracy": 0.2428,
+      "macro_f1": 0.2382,
+      "block_recall": 0.0
+    },
+    "dangerous": {
+      "strict_accuracy": 0.1869,
+      "balanced_accuracy": 0.1787,
+      "macro_f1": 0.1139,
+      "block_recall": 0.0482
+    },
+    "n_safe": 116,
+    "n_dangerous": 107
+  },
+  {
+    "label": "DeepSeek S2 + 校准边界",
+    "safe": {
+      "strict_accuracy": 0.8103,
+      "balanced_accuracy": 0.2812,
+      "macro_f1": 0.3097,
+      "block_recall": 0.0
+    },
+    "dangerous": {
+      "strict_accuracy": 0.6075,
+      "balanced_accuracy": 0.3143,
+      "macro_f1": 0.3716,
+      "block_recall": 0.5904
+    },
+    "n_safe": 116,
+    "n_dangerous": 107
+  },
+  {
+    "label": "NeMo 官方 baseline",
+    "safe": {
+      "strict_accuracy": 0.4828,
+      "balanced_accuracy": 0.1346,
+      "macro_f1": 0.175,
+      "block_recall": 0.0
+    },
+    "dangerous": {
+      "strict_accuracy": 0.7757,
+      "balanced_accuracy": 0.25,
+      "macro_f1": 0.2184,
+      "block_recall": 1.0
+    },
+    "n_safe": 116,
+    "n_dangerous": 107
+  }
+]

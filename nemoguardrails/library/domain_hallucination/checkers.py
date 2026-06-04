@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Domain hallucination checkers aggregating detection issues."""
 
 from __future__ import annotations
@@ -76,30 +91,34 @@ def _check_dns_failures(
             key = ("non_existent_domain", domain)
             if key not in seen:
                 seen.add(key)
-                issues.append({
-                    "type": "non_existent_domain",
-                    "target_type": "domain",
-                    "target": domain,
-                    "severity": "high",
-                    "confidence": "high",
-                    "evidence_source": "dns",
-                    "evidence": dns,
-                    "message": "Domain cannot be resolved; likely fabricated or stale.",
-                })
+                issues.append(
+                    {
+                        "type": "non_existent_domain",
+                        "target_type": "domain",
+                        "target": domain,
+                        "severity": "high",
+                        "confidence": "high",
+                        "evidence_source": "dns",
+                        "evidence": dns,
+                        "message": "Domain cannot be resolved; likely fabricated or stale.",
+                    }
+                )
         elif dns_status == "no_data":
             key = ("delegated_no_address_record", domain)
             if key not in seen:
                 seen.add(key)
-                issues.append({
-                    "type": "delegated_no_address_record",
-                    "target_type": "domain",
-                    "target": domain,
-                    "severity": "medium",
-                    "confidence": "medium",
-                    "evidence_source": "dns",
-                    "evidence": dns,
-                    "message": "Domain exists but has no address record.",
-                })
+                issues.append(
+                    {
+                        "type": "delegated_no_address_record",
+                        "target_type": "domain",
+                        "target": domain,
+                        "severity": "medium",
+                        "confidence": "medium",
+                        "evidence_source": "dns",
+                        "evidence": dns,
+                        "message": "Domain exists but has no address record.",
+                    }
+                )
 
     return issues
 
@@ -171,16 +190,18 @@ def _check_tls_failures(
             continue
 
         seen.add(key)
-        issues.append({
-            "type": issue_type,
-            "target_type": "domain",
-            "target": domain,
-            "severity": issue_template["severity"],
-            "confidence": issue_template["confidence"],
-            "evidence_source": "tls",
-            "evidence": tls,
-            "message": issue_template["message"],
-        })
+        issues.append(
+            {
+                "type": issue_type,
+                "target_type": "domain",
+                "target": domain,
+                "severity": issue_template["severity"],
+                "confidence": issue_template["confidence"],
+                "evidence_source": "tls",
+                "evidence": tls,
+                "message": issue_template["message"],
+            }
+        )
 
     return issues
 
@@ -219,16 +240,18 @@ def _check_github_repos(
             issue_key = ("fake_github_repo", key)
             if issue_key not in seen:
                 seen.add(issue_key)
-                issues.append({
-                    "type": "fake_github_repo",
-                    "target_type": "github_repo",
-                    "target": key,
-                    "severity": "high",
-                    "confidence": "high",
-                    "evidence_source": "github",
-                    "evidence": github,
-                    "message": "GitHub repository does not exist; likely fabricated.",
-                })
+                issues.append(
+                    {
+                        "type": "fake_github_repo",
+                        "target_type": "github_repo",
+                        "target": key,
+                        "severity": "high",
+                        "confidence": "high",
+                        "evidence_source": "github",
+                        "evidence": github,
+                        "message": "GitHub repository does not exist; likely fabricated.",
+                    }
+                )
 
     return issues
 
@@ -274,32 +297,36 @@ def _check_phishing_domains(
             key = ("blacklisted_domain", domain)
             if key not in seen:
                 seen.add(key)
-                issues.append({
-                    "type": "blacklisted_domain",
-                    "target_type": "domain",
-                    "target": domain,
-                    "severity": "critical",
-                    "confidence": "high",
-                    "evidence_source": "blacklist",
-                    "evidence": {"domain": domain},
-                    "message": "Domain is in blacklist.",
-                })
+                issues.append(
+                    {
+                        "type": "blacklisted_domain",
+                        "target_type": "domain",
+                        "target": domain,
+                        "severity": "critical",
+                        "confidence": "high",
+                        "evidence_source": "blacklist",
+                        "evidence": {"domain": domain},
+                        "message": "Domain is in blacklist.",
+                    }
+                )
 
         if is_recent:
             key = ("recent_domain", domain)
             if key not in seen:
                 seen.add(key)
-                issues.append({
-                    "type": "recent_domain",
-                    "target_type": "domain",
-                    "target": domain,
-                    "severity": "low",
-                    "confidence": "low",
-                    "evidence_source": "whois",
-                    "evidence": whois,
-                    "message": "Recently registered domain.",
-                    "signals": ["recent_domain"],
-                })
+                issues.append(
+                    {
+                        "type": "recent_domain",
+                        "target_type": "domain",
+                        "target": domain,
+                        "severity": "low",
+                        "confidence": "low",
+                        "evidence_source": "whois",
+                        "evidence": whois,
+                        "message": "Recently registered domain.",
+                        "signals": ["recent_domain"],
+                    }
+                )
 
     return issues
 
@@ -329,16 +356,18 @@ def _check_kb_evidence(
             key = ("no_local_kb_evidence", domain)
             if key not in seen:
                 seen.add(key)
-                issues.append({
-                    "type": "no_local_kb_evidence",
-                    "target_type": "domain",
-                    "target": domain,
-                    "severity": "low",
-                    "confidence": "low",
-                    "evidence_source": "rag",
-                    "evidence": [],
-                    "message": "No local KB evidence for this domain.",
-                })
+                issues.append(
+                    {
+                        "type": "no_local_kb_evidence",
+                        "target_type": "domain",
+                        "target": domain,
+                        "severity": "low",
+                        "confidence": "low",
+                        "evidence_source": "rag",
+                        "evidence": [],
+                        "message": "No local KB evidence for this domain.",
+                    }
+                )
 
     return issues
 

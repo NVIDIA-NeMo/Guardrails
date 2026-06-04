@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -46,4 +48,18 @@ def langchain_framework():
 
 
 def pytest_configure(config):
+    repo_root = Path(__file__).resolve().parent.parent
+    temp_root = repo_root / ".pytest-tmp"
+    fastembed_cache = repo_root / ".fastembed-cache"
+    hf_home = repo_root / ".hf-home"
+
+    temp_root.mkdir(parents=True, exist_ok=True)
+    fastembed_cache.mkdir(parents=True, exist_ok=True)
+    hf_home.mkdir(parents=True, exist_ok=True)
+
+    os.environ.setdefault("TEMP", str(temp_root))
+    os.environ.setdefault("TMP", str(temp_root))
+    os.environ.setdefault("FASTEMBED_CACHE_PATH", str(fastembed_cache))
+    os.environ.setdefault("HF_HOME", str(hf_home))
+
     patch("prompt_toolkit.PromptSession", autospec=True).start()

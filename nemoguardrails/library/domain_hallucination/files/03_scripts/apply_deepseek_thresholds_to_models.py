@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Apply the DeepSeek-calibrated strict four-class thresholds to all model files.
 
 This is an offline evaluator. It does not call DNS, HTTP, GitHub, WHOIS, or any
@@ -15,10 +30,12 @@ predictions with the fixed DeepSeek S2 thresholds:
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "A"))
 from threshold_sweep_strict_multiclass import (
     collect_domain_details,
     multiclass_metrics,
@@ -26,8 +43,12 @@ from threshold_sweep_strict_multiclass import (
     simulate_details,
 )
 
-
 ROOT = Path(__file__).resolve().parent
+FILES_ROOT = ROOT.parent
+CAL_ROOT = FILES_ROOT / "05_calibration"
+RAW_ROOT = CAL_ROOT / "full223" / "raw"
+CALIBRATED_ROOT = CAL_ROOT / "full223" / "calibrated"
+ANALYSIS_ROOT = CAL_ROOT / "full223" / "analysis"
 THRESHOLD_CONFIG = {
     "score_source": "recalibrated",
     "expert_policy": "none",
@@ -112,7 +133,7 @@ def binary_metrics(details: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def process_file(filename: str) -> Dict[str, Any]:
-    source_path = ROOT / filename
+    source_path = RAW_ROOT / filename
     data = json.loads(source_path.read_text(encoding="utf-8"))
     details = collect_domain_details(data)
     remapped = simulate_details(
@@ -136,7 +157,8 @@ def process_file(filename: str) -> Dict[str, Any]:
 
     stem = source_path.stem
     output_name = f"{stem}_deepseek_thresholds.json"
-    output_path = ROOT / output_name
+    output_path = CALIBRATED_ROOT / output_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     return {
@@ -197,7 +219,7 @@ def main() -> None:
         "results": rows,
         "errors": errors,
     }
-    summary_path = ROOT / "deepseek_thresholds_all_models_full223_summary.json"
+    summary_path = ANALYSIS_ROOT / "deepseek_thresholds_all_models_full223_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print_summary(rows)

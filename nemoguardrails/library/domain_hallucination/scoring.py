@@ -1,9 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Risk scoring and recalibration for domain hallucination."""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
-
 
 ISSUE_TYPE_SCORES = {
     "fake_github_repo": 85,
@@ -65,14 +79,16 @@ def calculate_risk_score(detection_result: Dict[str, Any]) -> Dict[str, Any]:
         weighted_score = base_score * severity_weight * confidence_boost
         total_score += weighted_score
 
-        score_details.append({
-            "type": issue_type,
-            "base_score": base_score,
-            "severity_weight": severity_weight,
-            "confidence_boost": confidence_boost,
-            "weighted_score": weighted_score,
-            "target": issue.get("target", ""),
-        })
+        score_details.append(
+            {
+                "type": issue_type,
+                "base_score": base_score,
+                "severity_weight": severity_weight,
+                "confidence_boost": confidence_boost,
+                "weighted_score": weighted_score,
+                "target": issue.get("target", ""),
+            }
+        )
 
     raw_score = min(100.0, total_score)
     bonus = _calculate_bonus(issues, issue_summary)
@@ -141,12 +157,14 @@ def recalibrate_score(
     if successful_dns > 0:
         reduction = successful_dns * 10.0
         score = max(0.0, score - reduction)
-        adjustments.append({
-            "type": "dns_success",
-            "count": successful_dns,
-            "reduction": reduction,
-            "new_score": score,
-        })
+        adjustments.append(
+            {
+                "type": "dns_success",
+                "count": successful_dns,
+                "reduction": reduction,
+                "new_score": score,
+            }
+        )
 
     # HTTP success reduces score
     http_results = verification_results.get("http", []) or []
@@ -154,12 +172,14 @@ def recalibrate_score(
     if successful_http > 0:
         reduction = successful_http * 15.0
         score = max(0.0, score - reduction)
-        adjustments.append({
-            "type": "http_success",
-            "count": successful_http,
-            "reduction": reduction,
-            "new_score": score,
-        })
+        adjustments.append(
+            {
+                "type": "http_success",
+                "count": successful_http,
+                "reduction": reduction,
+                "new_score": score,
+            }
+        )
 
     # GitHub success reduces score
     github_results = verification_results.get("github", []) or []
@@ -167,12 +187,14 @@ def recalibrate_score(
     if existing_repos > 0:
         reduction = existing_repos * 20.0
         score = max(0.0, score - reduction)
-        adjustments.append({
-            "type": "github_success",
-            "count": existing_repos,
-            "reduction": reduction,
-            "new_score": score,
-        })
+        adjustments.append(
+            {
+                "type": "github_success",
+                "count": existing_repos,
+                "reduction": reduction,
+                "new_score": score,
+            }
+        )
 
     # KB evidence boosts confidence (slight reduction)
     kb_evidence = rag_results.get("domain_evidence", {}) or {}
@@ -180,12 +202,14 @@ def recalibrate_score(
     if evidence_count > 0:
         reduction = min(10.0, evidence_count * 2.0)
         score = max(0.0, score - reduction)
-        adjustments.append({
-            "type": "kb_evidence",
-            "count": evidence_count,
-            "reduction": reduction,
-            "new_score": score,
-        })
+        adjustments.append(
+            {
+                "type": "kb_evidence",
+                "count": evidence_count,
+                "reduction": reduction,
+                "new_score": score,
+            }
+        )
 
     recalibrated_score = round(max(0.0, min(100.0, score)), 2)
     level, label = _score_to_level(recalibrated_score)

@@ -173,8 +173,11 @@ def _load_rules(
             rules_source = {name: rule for name, rule in yara_rules.items() if name in rule_names}
             rules = yara.compile(sources={rule_name: rules_source[rule_name] for rule_name in rule_names})
         else:
-            rules_to_load = {rule_name: str(yara_path.joinpath(f"{rule_name}.yara")) for rule_name in rule_names}
-            rules = yara.compile(filepaths=rules_to_load)
+            rules_source = {
+                rule_name: yara_path.joinpath(f"{rule_name}.yara").read_text(encoding="utf-8")
+                for rule_name in rule_names
+            }
+            rules = yara.compile(sources=rules_source)
     except yara.SyntaxError as e:
         msg = f"Failed to initialize injection detection due to configuration or YARA rule error: YARA compilation failed: {e}"
         log.error(msg)

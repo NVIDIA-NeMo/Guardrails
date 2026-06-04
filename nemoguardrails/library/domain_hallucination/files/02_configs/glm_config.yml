@@ -30,4 +30,3 @@ prompts:
       You will only use the contents of the evidence and not rely on external knowledge.
       Answer with yes/no. "evidence": {{ evidence }} "statement": {{ response }} "faithful":
     max_tokens: 64
-
