@@ -58,7 +58,7 @@ class RuntimeV2_x(Runtime):
         # Register local system actions
         self.register_action(self._add_flows_action, "AddFlowsAction", False)
         self.register_action(self._remove_flows_action, "RemoveFlowsAction", False)
-        
+
         # Inicializa o hydrator passando a instância do runtime para lazy routing
         self.hydrator = AtomicStateHydrator(backend_client=self)
 
@@ -80,7 +80,7 @@ class RuntimeV2_x(Runtime):
                 content=flow_content,
                 version="2.x",
                 include_source_mapping=True,
-                )
+            )
         except Exception as e:
             log.warning(
                 "Failed parsing a generated flow\n%s\n%s",
@@ -241,7 +241,9 @@ class RuntimeV2_x(Runtime):
                     try:
                         async with session.post(url, json=data) as resp:
                             if resp.status != 200:
-                                raise ValueError(f"Got status code {resp.status} while getting response from {action_name}")
+                                raise ValueError(
+                                    f"Got status code {resp.status} while getting response from {action_name}"
+                                )
                             resp = await resp.json()
                             result, status = resp.get("result", result), resp.get("status", status)
                     except Exception as e:
@@ -311,6 +313,7 @@ class RuntimeV2_x(Runtime):
 
         Alinhado estritamente no plural atendendo ao contrato abstrato da classe Runtime base.
         """
+
         async def _run_pipeline(current_state: Any) -> Tuple[List[dict], State]:
             return await self._execute_event_cycle_internals(events, current_state, blocking, instant_actions)
 
@@ -361,7 +364,10 @@ class RuntimeV2_x(Runtime):
                     input_events.insert(0, input_event)
                     idx += 1
 
-        (local_action_finished_events, pending_local_async_action_counter) = await self._get_async_actions_finished_events(main_flow_uid)
+        (
+            local_action_finished_events,
+            pending_local_async_action_counter,
+        ) = await self._get_async_actions_finished_events(main_flow_uid)
         input_events.extend(local_action_finished_events)
         local_action_finished_events = []
         return_local_async_action_count = False
@@ -443,7 +449,10 @@ class RuntimeV2_x(Runtime):
                     else:
                         output_events.append(out_event)
 
-                (new_local_action_finished_events, pending_local_async_action_counter) = await self._get_async_actions_finished_events(main_flow_uid)
+                (
+                    new_local_action_finished_events,
+                    pending_local_async_action_counter,
+                ) = await self._get_async_actions_finished_events(main_flow_uid)
                 local_action_finished_events.extend(new_local_action_finished_events)
                 new_outgoing_events.extend(state.outgoing_events)
 
@@ -535,16 +544,22 @@ def create_flow_configs_from_flow_list(flows: List[Flow]) -> Dict[str, FlowConfi
 
         if config.is_override:
             if flow.name in override_flows:
-                raise ColangSyntaxError(f"Multiple override flows with name '{flow.name}' detected! There can only be one!")
+                raise ColangSyntaxError(
+                    f"Multiple override flows with name '{flow.name}' detected! There can only be one!"
+                )
             override_flows[flow.name] = config
         elif flow.name in flow_configs:
-            raise ColangSyntaxError(f"Multiple non-overriding flows with name '{flow.name}' detected! There can only be one!")
+            raise ColangSyntaxError(
+                f"Multiple non-overriding flows with name '{flow.name}' detected! There can only be one!"
+            )
         else:
             flow_configs[flow.name] = config
 
     for override_flow in override_flows.values():
         if override_flow.id not in flow_configs:
-            raise ColangSyntaxError(f"Override flow with name '{override_flow.id}' does not override any flow with that name!")
+            raise ColangSyntaxError(
+                f"Override flow with name '{override_flow.id}' does not override any flow with that name!"
+            )
         flow_configs[override_flow.id] = override_flow
 
     return flow_configs

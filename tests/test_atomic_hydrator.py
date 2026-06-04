@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock
 from nemoguardrails.atomic_hydrator import AtomicStateHydrator
 
+
 @pytest.mark.asyncio
 class TestAtomicStateHydrator:
     @pytest.fixture
@@ -20,6 +21,7 @@ class TestAtomicStateHydrator:
 
     async def test_atomic_pipeline_success_and_cleanup(self, hydrator, mock_backend):
         conv_id = "sessao_segura_01"
+
         async def mock_evaluation(state, *args, **kwargs):
             return "resultado_aprovado", {"status": "updated"}
 
@@ -32,6 +34,7 @@ class TestAtomicStateHydrator:
 
     async def test_atomic_pipeline_failure_preserves_integrity(self, hydrator, mock_backend):
         conv_id = "sessao_falha_02"
+
         async def failing_evaluation(state, *args, **kwargs):
             raise RuntimeError("Colapso simulado na IA")
 

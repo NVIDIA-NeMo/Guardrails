@@ -63,7 +63,7 @@ class AtomicStateHydrator:
             self._ref_counts[conversation_id] += 1
             return self._locks[conversation_id]
 
-   # Correção: O método release deve ser um método real da classe
+    # Correção: O método release deve ser um método real da classe
     async def _release_session_lock(self, conversation_id: str) -> None:
         mutex = self._ensure_mutex()
         async with mutex:
@@ -73,7 +73,9 @@ class AtomicStateHydrator:
                     self._locks.pop(conversation_id, None)
                     self._ref_counts.pop(conversation_id, None)
 
-    async def execute_atomic_pipeline(self, conversation_id: str, evaluation_coro: Any, *args: Any, **kwargs: Any) -> Any:
+    async def execute_atomic_pipeline(
+        self, conversation_id: str, evaluation_coro: Any, *args: Any, **kwargs: Any
+    ) -> Any:
         lock = await self._acquire_session_lock(conversation_id)
         try:
             async with lock:
