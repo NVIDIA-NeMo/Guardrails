@@ -138,7 +138,12 @@ async def review_with_nemo_llm(
 
 
 def apply_expert_decision(decision: Dict[str, Any], expert_review: Dict[str, Any]) -> Dict[str, Any]:
-    """Upgrade or enrich rule decision with expert semantic review."""
+    """Upgrade or enrich rule decision with expert semantic review.
+
+    Expert review is treated as advisory semantic evidence: it may increase the
+    enforcement level, but it must not downgrade rule-based or verification-based
+    hard evidence such as an existing block decision.
+    """
     if expert_review.get("status") != "success":
         return decision
 
@@ -146,18 +151,42 @@ def apply_expert_decision(decision: Dict[str, Any], expert_review: Dict[str, Any
     risk = str(expert_review.get("semantic_risk") or "unknown").lower()
     relevance = str(expert_review.get("domain_relevance") or "unknown").lower()
     misleading = expert_review.get("is_answer_misleading") is True
+    original_action = str(updated.get("action") or "pass").lower()
 
     if risk == "critical":
-        updated["action"] = "block"
-        updated["reason"] = "Expert semantic review found critical misleading domain guidance."
+        _upgrade_action(
+            updated,
+            "block",
+            "Expert semantic review found critical misleading domain guidance.",
+        )
     elif risk == "high" and misleading:
-        updated["action"] = "refine"
-        updated["reason"] = "Expert semantic review found high-risk misleading domain guidance."
+        _upgrade_action(
+            updated,
+            "refine",
+            "Expert semantic review found high-risk misleading domain guidance.",
+        )
     elif relevance == "mismatch" and updated.get("action") in {"warn", "refine", "block"}:
-        updated["action"] = "refine"
-        updated["reason"] = "Expert semantic review found domain relevance mismatch."
+        _upgrade_action(
+            updated,
+            "refine",
+            "Expert semantic review found domain relevance mismatch.",
+        )
+
+    if original_action == "block" and updated.get("action") == "block":
+        updated["expert_policy"] = "advisory_preserve_block"
 
     return updated
+
+
+def _upgrade_action(decision: Dict[str, Any], candidate_action: str, reason: str) -> None:
+    action_order = {"pass": 0, "warn": 1, "refine": 2, "block": 3}
+    current_action = str(decision.get("action") or "pass").lower()
+    if action_order.get(candidate_action, 0) > action_order.get(current_action, 0):
+        decision["action"] = candidate_action
+        decision["reason"] = reason
+        decision["expert_policy"] = "advisory_upgrade_only"
+    else:
+        decision["expert_policy"] = "advisory_no_downgrade"
 
 
 def _extract_json_object(text: str) -> Dict[str, Any]:

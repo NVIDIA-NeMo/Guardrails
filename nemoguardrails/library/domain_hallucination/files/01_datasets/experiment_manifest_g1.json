@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-06-02T16:14:03",
+  "eval_runner": "E:\\123\\Guardrails\\nemoguardrails\\library\\domain_hallucination\\files\\eval_runner.py",
+  "groups": [
+    {
+      "name": "g1_framework_dry_run",
+      "description": "Framework-only dry-run without label leakage.",
+      "dataset": "eval_dataset.json",
+      "output": "g1_framework_dry_run.json",
+      "dry_run": true,
+      "config": null,
+      "categories": [],
+      "enabled": true,
+      "notes": "Does not run DNS, HTTP, GitHub, expert review, or LLM checks."
+    }
+  ],
+  "results": [
+    {
+      "name": "g1_framework_dry_run",
+      "output": "g1_framework_dry_run.json",
+      "returncode": 0,
+      "elapsed_ms": 224.93,
+      "success": true
+    }
+  ]
+}

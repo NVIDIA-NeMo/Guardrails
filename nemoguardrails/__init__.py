@@ -16,7 +16,7 @@
 """NeMo Guardrails Toolkit."""
 
 import os
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 # If no explicit value is set for TOKENIZERS_PARALLELISM, we disable it
 # to get rid of the annoying warning.
@@ -77,7 +77,10 @@ from nemoguardrails.types import (  # noqa: E402
     UsageInfo,
 )
 
-__version__ = version("nemoguardrails")
+try:
+    __version__ = version("nemoguardrails")
+except PackageNotFoundError:
+    __version__ = "0.0.0+local"
 __all__ = [
     "ChatMessage",
     "FinishReason",
