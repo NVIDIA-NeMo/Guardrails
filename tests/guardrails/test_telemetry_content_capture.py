@@ -39,6 +39,7 @@ from nemoguardrails.guardrails.telemetry import (
     is_content_capture_enabled,
     set_llm_call_content,
     set_rail_content,
+    set_request_content,
 )
 from nemoguardrails.rails.llm.config import TracingConfig
 from nemoguardrails.tracing.constants import (
@@ -265,6 +266,16 @@ class TestNonSystemInputMessages:
         messages = [{"role": "system", "content": "x"}]
         assert _non_system_input_messages(messages) == []
 
+    def test_skips_entries_missing_role_or_content(self):
+        """Malformed non-system entries missing role or content are skipped silently."""
+        messages = [
+            {"content": "no role"},
+            {"role": "user"},
+            {"role": "user", "content": "valid"},
+        ]
+        result = _non_system_input_messages(messages)
+        assert result == [{"role": "user", "parts": [{"type": "text", "content": "valid"}]}]
+
 
 class TestSetLlmCallContentJsonBranch:
     """Direct tests for the JSON-attributes branch helper."""
@@ -452,3 +463,35 @@ class TestSetRailContent:
     def test_none_span_is_noop(self):
         """Passing span=None is a no-op and raises nothing."""
         set_rail_content(None, {"messages": []}, reason="should not raise")
+
+
+class TestSetRequestContent:
+    """guardrails.request.input / guardrails.request.output capture on the SERVER span."""
+
+    def test_sets_input_and_output(self, finished_span):
+        """Both attrs are set: input as JSON messages, output as the returned string."""
+        messages = [{"role": "user", "content": "hi"}]
+        span = finished_span(lambda s: set_request_content(s, messages, "the answer"))
+        attrs = span.attributes
+        assert json.loads(attrs[GuardrailsAttributes.REQUEST_INPUT]) == messages
+        assert attrs[GuardrailsAttributes.REQUEST_OUTPUT] == "the answer"
+
+    def test_omits_output_when_output_text_none(self, finished_span):
+        """output_text=None → only request.input is set, request.output is absent."""
+        messages = [{"role": "user", "content": "hi"}]
+        span = finished_span(lambda s: set_request_content(s, messages, None))
+        attrs = span.attributes
+        assert GuardrailsAttributes.REQUEST_INPUT in attrs
+        assert GuardrailsAttributes.REQUEST_OUTPUT not in attrs
+
+    def test_uses_guardrails_attrs_not_genai(self, finished_span):
+        """Request capture uses guardrails.* attrs, never the gen_ai.* names or events."""
+        messages = [{"role": "user", "content": "hi"}]
+        span = finished_span(lambda s: set_request_content(s, messages, "out"))
+        assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in span.attributes
+        assert GenAIAttributes.GEN_AI_OUTPUT_MESSAGES not in span.attributes
+        assert span.events == ()
+
+    def test_none_span_is_noop(self):
+        """Passing span=None is a no-op and raises nothing."""
+        set_request_content(None, [{"role": "user", "content": "hi"}], "out")

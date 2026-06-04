@@ -2136,6 +2136,40 @@ class TestContentCaptureLegacyFormat:
         span = _request_span(exporter.get_finished_spans())
         assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
 
+    @pytest.mark.asyncio
+    async def test_llm_and_request_spans_diverge_on_output_block(self, iorails_content_capture, exporter):
+        """On an output block, the LLM CLIENT span and request SERVER span hold different outputs.
+
+        This is the core scenario that motivated separate guardrails.request.*
+        attributes: the LLM span records the RAW model response (what the model
+        produced) while the request span records REFUSAL_MESSAGE (what the caller
+        actually received).  The main LLM call runs for real at the engine level
+        so its CLIENT span is created and captures content; only the output rail
+        is forced to block.
+        """
+        iorails = iorails_content_capture
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        # Mock at the engine level (not engine_registry.model_call) so the real
+        # model_call wrapper runs, creating the LLM CLIENT span + capturing content.
+        iorails.engine_registry._engines["main"].chat_completion = AsyncMock(
+            return_value=LLMResponse(content="raw model answer")
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        result = await iorails.generate_async([{"role": "user", "content": "hi"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        spans = exporter.get_finished_spans()
+        # LLM CLIENT span: the raw model output (legacy gen_ai.choice event)
+        llm_span = _main_llm_span(spans)
+        choice = next(e for e in llm_span.events if e.name == "gen_ai.choice")
+        assert dict(choice.attributes)["message.content"] == "raw model answer"
+        # Request SERVER span: the refusal the caller actually received — divergent
+        req_span = _request_span(spans)
+        assert req_span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
+
 
 class TestContentCaptureJsonFormat:
     """Capture on + OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental: JSON attrs."""

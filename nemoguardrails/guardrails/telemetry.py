@@ -586,8 +586,9 @@ def set_request_content(
     ``guardrails.request.input`` is always a JSON-encoded list of role/content
     message objects matching the caller's input.  ``guardrails.request.output``
     is the plain string that IORails returned (REFUSAL_MESSAGE on block paths,
-    the model's response text on the success path).  ``output_text=None`` is
-    valid when the output is not yet known (input-only capture at span open).
+    the model's response text on the success path).  ``output_text=None``
+    suppresses the output attribute entirely — used by the streaming path when
+    the stream produced no content, so an empty output is not falsely recorded.
 
     Safe to call with ``span=None`` (no-op).
     """
