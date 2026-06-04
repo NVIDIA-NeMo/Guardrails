@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Knowledge base management for trusted domains and GitHub repos."""
 
 from __future__ import annotations
@@ -5,7 +20,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 
 class KnowledgeBase:
@@ -128,19 +143,23 @@ class KnowledgeBase:
 
         # Check if domain is trusted
         if domain in self.trusted_domains:
-            evidence.append({
-                "type": "trusted_domain",
-                "domain": domain,
-                "metadata": self.trusted_domains[domain],
-            })
+            evidence.append(
+                {
+                    "type": "trusted_domain",
+                    "domain": domain,
+                    "metadata": self.trusted_domains[domain],
+                }
+            )
 
         # Check if domain is blacklisted
         if domain in self.blacklisted_domains:
-            evidence.append({
-                "type": "blacklisted_domain",
-                "domain": domain,
-                "metadata": self.blacklisted_domains[domain],
-            })
+            evidence.append(
+                {
+                    "type": "blacklisted_domain",
+                    "domain": domain,
+                    "metadata": self.blacklisted_domains[domain],
+                }
+            )
 
         # Query external KB if configured
         if self.external_kb_root and os.path.isdir(self.external_kb_root):
@@ -163,12 +182,14 @@ class KnowledgeBase:
             try:
                 with open(domain_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    evidence.append({
-                        "type": "external_kb",
-                        "source": str(domain_file),
-                        "domain": domain,
-                        "data": data,
-                    })
+                    evidence.append(
+                        {
+                            "type": "external_kb",
+                            "source": str(domain_file),
+                            "domain": domain,
+                            "data": data,
+                        }
+                    )
             except Exception:
                 pass
 
@@ -179,12 +200,14 @@ class KnowledgeBase:
                 try:
                     with open(f, "r", encoding="utf-8") as file:
                         data = json.load(file)
-                        evidence.append({
-                            "type": "external_kb",
-                            "source": str(f),
-                            "domain": domain,
-                            "data": data,
-                        })
+                        evidence.append(
+                            {
+                                "type": "external_kb",
+                                "source": str(f),
+                                "domain": domain,
+                                "data": data,
+                            }
+                        )
                 except Exception:
                     pass
 

@@ -20,12 +20,12 @@ from nemoguardrails.library.domain_hallucination import actions
 
 async def main():
     answer = "Visit https://github.com/pytorch/pytorch for PyTorch"
-    
+
     result = await actions.analyze_answer(
         answer=answer,
         user_query="How do I use PyTorch?"
     )
-    
+
     if result["decision"]["action"] != "pass":
         print(f"Action: {result['decision']['action']}")
         print(f"Modified: {result['enforced_answer']['modified_answer']}")
@@ -126,9 +126,9 @@ flow output_rail
     user_query=$user_message,
     verification_level="dns"
   )
-  
+
   $result = output
-  
+
   if $result.decision.action == "block"
     reject "Response contains unverified information"
   elif $result.decision.action == "refine"

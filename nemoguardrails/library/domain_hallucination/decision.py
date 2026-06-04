@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Decision engine for enforcement actions."""
 
 from __future__ import annotations
@@ -30,14 +45,8 @@ def make_decision(
     recalibrated_score = recalibrated_score or {}
 
     # Use recalibrated score if available, otherwise use initial score
-    final_score = float(
-        recalibrated_score.get("recalibrated_score")
-        or risk_score.get("score", 0.0)
-    )
-    level = (
-        recalibrated_score.get("recalibrated_level")
-        or risk_score.get("level", "L0")
-    )
+    final_score = float(recalibrated_score.get("recalibrated_score") or risk_score.get("score", 0.0))
+    level = recalibrated_score.get("recalibrated_level") or risk_score.get("level", "L0")
 
     # Determine action based on score and verification level
     if final_score >= policy.fail_threshold:
@@ -98,7 +107,9 @@ def apply_decision(
         }
 
     elif action == "refine":
-        modified_answer = f"[NOTICE] This response may contain unverified information:\n\n{answer}\n\n[Refined by domain guard]"
+        modified_answer = (
+            f"[NOTICE] This response may contain unverified information:\n\n{answer}\n\n[Refined by domain guard]"
+        )
         return {
             "action": "refine",
             "reason": reason,

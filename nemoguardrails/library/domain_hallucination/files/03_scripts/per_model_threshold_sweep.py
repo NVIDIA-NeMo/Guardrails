@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Per-model threshold sweep (Method A).
 
 For each model × strategy file, run an independent threshold search on the
@@ -9,20 +24,25 @@ cross-model comparison.
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # Reuse all logic from threshold_sweep_strict_multiclass
+sys.path.insert(0, str(Path(__file__).resolve().parent / "A"))
 from threshold_sweep_strict_multiclass import (
     collect_domain_details,
-    sweep,
-    simulate_details,
     multiclass_metrics,
-    replace_domain_details,
+    simulate_details,
+    sweep,
 )
 
 ROOT = Path(__file__).resolve().parent
+FILES_ROOT = ROOT.parent
+CAL_ROOT = FILES_ROOT / "05_calibration"
+RAW_ROOT = CAL_ROOT / "full223" / "raw"
+ANALYSIS_ROOT = CAL_ROOT / "full223" / "analysis"
 
 # All raw result files per model × strategy
 MODEL_FILES = {
@@ -116,12 +136,12 @@ def main() -> None:
     best_per_model: Dict[str, Any] = {}
 
     for model, strategies in MODEL_FILES.items():
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Model: {model}")
         model_results = {}
 
         for strategy, filename in strategies.items():
-            filepath = ROOT / filename
+            filepath = RAW_ROOT / filename
             if not filepath.exists():
                 print(f"  [{strategy}] MISSING: {filename}")
                 continue
@@ -158,9 +178,9 @@ def main() -> None:
             }
 
     # Print cross-model comparison table
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("PER-MODEL BEST THRESHOLD COMPARISON")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(
         f"{'Model':<14} {'Strategy':<6} {'macro_f1':>10} {'bal_acc':>9} "
         f"{'strict_acc':>11} {'block_recall':>13} {'warn/refine/block':>18} {'score':>12} {'policy':>14}"
@@ -198,7 +218,8 @@ def main() -> None:
         "all_results": all_results,
     }
 
-    out_path = ROOT / "per_model_threshold_sweep_results.json"
+    out_path = ANALYSIS_ROOT / "per_model_threshold_sweep_results.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nFull results saved to {out_path.name}")
 
@@ -215,7 +236,8 @@ def main() -> None:
             for model, d in best_per_model.items()
         },
     }
-    summary_path = ROOT / "per_model_threshold_sweep_summary.json"
+    summary_path = ANALYSIS_ROOT / "per_model_threshold_sweep_summary.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Summary saved to {summary_path.name}")
 

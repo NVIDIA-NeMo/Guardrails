@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Offline threshold sweep for strict four-class domain decisions.
 
 This script does not call DNS, HTTP, GitHub, WHOIS, or any LLM. It reads saved
@@ -13,10 +28,13 @@ import copy
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
-
+from typing import Any, Dict, Iterable, List
 
 ROOT = Path(__file__).resolve().parent
+FILES_ROOT = ROOT.parent
+CAL_ROOT = FILES_ROOT / "05_calibration"
+RAW_ROOT = CAL_ROOT / "full223" / "raw"
+ANALYSIS_ROOT = CAL_ROOT / "full223" / "analysis"
 LABELS = ["pass", "warn", "refine", "block"]
 
 
@@ -215,7 +233,9 @@ def collect_domain_details(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return details
 
 
-def replace_domain_details(data: Dict[str, Any], details: List[Dict[str, Any]], metrics: Dict[str, Any]) -> Dict[str, Any]:
+def replace_domain_details(
+    data: Dict[str, Any], details: List[Dict[str, Any]], metrics: Dict[str, Any]
+) -> Dict[str, Any]:
     output = copy.deepcopy(data)
     offset = 0
     for result in output.get("results", []):
@@ -292,7 +312,9 @@ def pct(value: float) -> str:
 
 
 def print_top(rows: List[Dict[str, Any]], limit: int) -> None:
-    print("| rank | score | expert_policy | warn | refine | block | strict_acc | bal_acc | macro_p | macro_r | macro_f1 | block_recall |")
+    print(
+        "| rank | score | expert_policy | warn | refine | block | strict_acc | bal_acc | macro_p | macro_r | macro_f1 | block_recall |"
+    )
     print("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for index, row in enumerate(rows[:limit], start=1):
         print(
@@ -323,8 +345,15 @@ def main() -> None:
     parser.add_argument("--output", default="threshold_sweep_best_deepseek_s2_full223.json")
     parser.add_argument("--summary-output", default="threshold_sweep_summary_deepseek_s2_full223.json")
     parser.add_argument("--top", type=int, default=15)
-    parser.add_argument("--score-sources", nargs="+", default=["recalibrated", "risk", "max"], choices=["recalibrated", "risk", "max"])
-    parser.add_argument("--expert-policies", nargs="+", default=["current", "preserve_block", "none"], choices=["current", "preserve_block", "none"])
+    parser.add_argument(
+        "--score-sources", nargs="+", default=["recalibrated", "risk", "max"], choices=["recalibrated", "risk", "max"]
+    )
+    parser.add_argument(
+        "--expert-policies",
+        nargs="+",
+        default=["current", "preserve_block", "none"],
+        choices=["current", "preserve_block", "none"],
+    )
     parser.add_argument("--warn-min", type=int, default=0)
     parser.add_argument("--warn-max", type=int, default=50)
     parser.add_argument("--refine-min", type=int, default=5)
@@ -334,7 +363,7 @@ def main() -> None:
     parser.add_argument("--step", type=int, default=5)
     args = parser.parse_args()
 
-    source_path = ROOT / args.input
+    source_path = RAW_ROOT / args.input
     data = json.loads(source_path.read_text(encoding="utf-8"))
     details = collect_domain_details(data)
 
@@ -371,10 +400,12 @@ def main() -> None:
         "metrics": best_metrics,
     }
 
-    output_path = ROOT / args.output
+    output_path = ANALYSIS_ROOT / args.output
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    summary_path = ROOT / args.summary_output
+    summary_path = ANALYSIS_ROOT / args.summary_output
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary = {
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "input": source_path.name,
@@ -391,4 +422,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

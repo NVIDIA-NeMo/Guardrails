@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Utility functions for domain hallucination detection."""
 
 from __future__ import annotations
@@ -6,7 +21,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from . import extractors, verification
-
 
 logger = logging.getLogger(__name__)
 
@@ -86,32 +100,38 @@ def find_unverified_domains(
     # Check DNS failures
     for dns_item in verification_result.get("verification", {}).get("dns", []) or []:
         if not dns_item.get("resolves"):
-            unverified.append({
-                "type": "domain",
-                "domain": dns_item.get("domain"),
-                "reason": dns_item.get("status", "unknown"),
-                "evidence": dns_item,
-            })
+            unverified.append(
+                {
+                    "type": "domain",
+                    "domain": dns_item.get("domain"),
+                    "reason": dns_item.get("status", "unknown"),
+                    "evidence": dns_item,
+                }
+            )
 
     # Check HTTP failures
     for http_item in verification_result.get("verification", {}).get("http", []) or []:
         if not http_item.get("reachable"):
-            unverified.append({
-                "type": "url",
-                "url": http_item.get("url"),
-                "reason": http_item.get("status", "unknown"),
-                "evidence": http_item,
-            })
+            unverified.append(
+                {
+                    "type": "url",
+                    "url": http_item.get("url"),
+                    "reason": http_item.get("status", "unknown"),
+                    "evidence": http_item,
+                }
+            )
 
     # Check GitHub failures
     for github_item in verification_result.get("verification", {}).get("github", []) or []:
         if github_item.get("exists") is False:
-            unverified.append({
-                "type": "github_repo",
-                "repo": github_item.get("full_name"),
-                "reason": github_item.get("status", "unknown"),
-                "evidence": github_item,
-            })
+            unverified.append(
+                {
+                    "type": "github_repo",
+                    "repo": github_item.get("full_name"),
+                    "reason": github_item.get("status", "unknown"),
+                    "evidence": github_item,
+                }
+            )
 
     return unverified
 
@@ -141,12 +161,14 @@ def extract_suspicious_domains(
             continue
 
         if domain in kb_blacklist_lower:
-            suspicious.append({
-                "type": "blacklisted",
-                "domain": domain,
-                "source": "kb",
-                "evidence": domain_item,
-            })
+            suspicious.append(
+                {
+                    "type": "blacklisted",
+                    "domain": domain,
+                    "source": "kb",
+                    "evidence": domain_item,
+                }
+            )
 
     return suspicious
 
@@ -167,9 +189,7 @@ def count_entities_by_type(answer: str) -> Dict[str, int]:
         "domains": len(extracted.get("domains", [])),
         "github_repos": len(extracted.get("github_repos", [])),
         "total_entities": (
-            len(extracted.get("urls", []))
-            + len(extracted.get("domains", []))
-            + len(extracted.get("github_repos", []))
+            len(extracted.get("urls", [])) + len(extracted.get("domains", [])) + len(extracted.get("github_repos", []))
         ),
     }
 

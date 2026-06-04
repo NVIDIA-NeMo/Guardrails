@@ -97,7 +97,7 @@ async def main():
         enable_semantic_check=False,
         enable_advanced_verification=False,
     )
-    
+
     print(f"Status: {result['status']}")
     print(f"Decision: {result['decision']['action']}")
     if result['decision']['action'] != 'pass':
@@ -286,7 +286,7 @@ kb_root/
 ## Performance Considerations
 
 1. **Fast Pass**: Enable `no_link_fast_pass` to skip checking when no links are detected
-2. **Verification Level**: 
+2. **Verification Level**:
    - Use "dns" for most cases (good balance)
    - Use "none" for maximum speed
    - Use "http" or "full" only when strict verification needed

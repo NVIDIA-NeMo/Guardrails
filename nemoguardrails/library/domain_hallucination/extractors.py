@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Unified extraction module for URLs, domains, and GitHub repos."""
 
 from __future__ import annotations
@@ -5,7 +20,6 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
-
 
 URL_RE = re.compile(
     r"""
@@ -31,15 +45,30 @@ TRAILING_CHARS = " \t\r\n.。．，,;；:：!！?？)）]】}>\"'`"
 DOMAIN_TRAILING_CHARS = " \t\r\n。．，,;；:：!！?？)）]】}>\"'`"
 
 GITHUB_RESERVED_PATHS = {
-    "features", "topics", "search", "marketplace", "pricing",
-    "login", "signup", "explore", "collections", "events",
-    "sponsors", "about", "enterprise", "customer-stories",
-    "readme", "trending", "new", "organizations",
+    "features",
+    "topics",
+    "search",
+    "marketplace",
+    "pricing",
+    "login",
+    "signup",
+    "explore",
+    "collections",
+    "events",
+    "sponsors",
+    "about",
+    "enterprise",
+    "customer-stories",
+    "readme",
+    "trending",
+    "new",
+    "organizations",
 }
 
 _TLD_EXTRACTOR = None
 try:
     import tldextract
+
     _TLD_EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=None, cache_dir=None)
 except Exception:
     pass
@@ -100,16 +129,18 @@ def extract_urls(text: str, source: str = "model_answer") -> List[Dict[str, Any]
             continue
 
         seen.add(normalized)
-        results.append({
-            "raw": clean_url(raw),
-            "normalized": normalized,
-            "scheme": parsed["scheme"],
-            "host": parsed["host"],
-            "path": parsed["path"],
-            "query": parsed["query"],
-            "fragment": parsed["fragment"],
-            "source": source,
-        })
+        results.append(
+            {
+                "raw": clean_url(raw),
+                "normalized": normalized,
+                "scheme": parsed["scheme"],
+                "host": parsed["host"],
+                "path": parsed["path"],
+                "query": parsed["query"],
+                "fragment": parsed["fragment"],
+                "source": source,
+            }
+        )
 
     return results
 
@@ -195,7 +226,9 @@ def split_domain(domain: str) -> Dict[str, str]:
     }
 
 
-def extract_domains(text: str, urls: List[Dict[str, Any]] | None = None, source: str = "model_answer") -> List[Dict[str, Any]]:
+def extract_domains(
+    text: str, urls: List[Dict[str, Any]] | None = None, source: str = "model_answer"
+) -> List[Dict[str, Any]]:
     """Extract domains from URLs and bare text."""
     urls = urls or []
     results: List[Dict[str, Any]] = []
@@ -209,13 +242,15 @@ def extract_domains(text: str, urls: List[Dict[str, Any]] | None = None, source:
             continue
         seen.add(normalized)
         domain_info = split_domain(normalized)
-        results.append({
-            **domain_info,
-            "raw_host": raw_host,
-            "source_url": item.get("normalized", ""),
-            "source": item.get("source", source),
-            "from_url": True,
-        })
+        results.append(
+            {
+                **domain_info,
+                "raw_host": raw_host,
+                "source_url": item.get("normalized", ""),
+                "source": item.get("source", source),
+                "from_url": True,
+            }
+        )
 
     # Bare domains
     for match in DOMAIN_RE.finditer(text):
@@ -225,14 +260,16 @@ def extract_domains(text: str, urls: List[Dict[str, Any]] | None = None, source:
             continue
         seen.add(normalized)
         domain_info = split_domain(normalized)
-        results.append({
-            **domain_info,
-            "raw": raw,
-            "raw_host": raw,
-            "source_url": "",
-            "source": source,
-            "from_url": False,
-        })
+        results.append(
+            {
+                **domain_info,
+                "raw": raw,
+                "raw_host": raw,
+                "source_url": "",
+                "source": source,
+                "from_url": False,
+            }
+        )
 
     return results
 

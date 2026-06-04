@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Calculate strict multi-class metrics from saved experiment JSON files.
 
 This is an offline evaluator. It does not call any detector, LLM, DNS, HTTP,
@@ -9,12 +24,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
-
+from typing import Any, Dict, Iterable, List
 
 ROOT = Path(__file__).resolve().parent
+FILES_ROOT = ROOT.parent
+RAW_FULL223_ROOT = FILES_ROOT / "05_calibration" / "full223" / "raw"
+STATIC_EVAL_ROOT = FILES_ROOT / "04_static_eval"
 LABELS = ["pass", "warn", "refine", "block"]
 FLAGGED = {"warn", "refine", "block"}
 
@@ -137,12 +154,33 @@ def summarize_file(path: Path, method_key: str) -> Dict[str, Any]:
     }
 
 
+def resolve_input_path(filename: str) -> Path:
+    path = Path(filename)
+    if path.is_absolute():
+        return path
+
+    candidates = [
+        path,
+        ROOT / filename,
+        FILES_ROOT / filename,
+        RAW_FULL223_ROOT / filename,
+        STATIC_EVAL_ROOT / filename,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return FILES_ROOT / filename
+
+
 def pct(value: float) -> str:
     return f"{value * 100:.2f}%"
 
 
 def print_summary(rows: List[Dict[str, Any]]) -> None:
-    print("| file | method | binary_acc | binary_recall | binary_fpr | binary_precision | binary_f1 | strict_acc | strict_bal_acc | macro_f1 |")
+    print(
+        "| file | method | binary_acc | binary_recall | binary_fpr | binary_precision | binary_f1 | strict_acc | strict_bal_acc | macro_f1 |"
+    )
     print("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in rows:
         binary = row["binary"]
@@ -182,8 +220,8 @@ def main() -> None:
     args = parser.parse_args()
 
     items = args.items or [
-        "deepseek_expert_S2_cached_full_skip_dnsfail_full223.json:domain_hallucination",
-        "baseline_deepseek_nemo_hallucination_full223.json:baseline",
+        str(RAW_FULL223_ROOT / "deepseek_expert_S2_cached_full_skip_dnsfail_full223.json") + ":domain_hallucination",
+        str(STATIC_EVAL_ROOT / "baseline_deepseek_nemo_hallucination_full223.json") + ":baseline",
     ]
 
     rows = []
@@ -192,9 +230,10 @@ def main() -> None:
             filename, method_key = item.rsplit(":", 1)
         else:
             filename, method_key = item, "domain_hallucination"
-        rows.append(summarize_file(ROOT / filename, method_key))
+        rows.append(summarize_file(resolve_input_path(filename), method_key))
 
-    output = ROOT / args.output
+    output = STATIC_EVAL_ROOT / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     print_summary(rows)
     print(f"\nSaved strict metrics to {output}")
@@ -202,4 +241,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Summarize optimization trial JSON files for Experiment A."""
 
 from __future__ import annotations
@@ -8,8 +23,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-
 ROOT = Path(__file__).resolve().parent
+DATA_ROOT = ROOT.parent / "05_calibration" / "eval58" / "raw"
 
 
 def pct(value: Any) -> str:
@@ -106,13 +121,12 @@ def main() -> None:
     parser.add_argument("files", nargs="*", help="Result JSON files under files/.")
     args = parser.parse_args()
 
-    paths = [ROOT / name for name in args.files]
+    paths = [DATA_ROOT / name for name in args.files]
     if not paths:
-        paths = sorted(ROOT.glob("opt_S*_eval58.json"))
+        paths = sorted(DATA_ROOT.glob("opt_S*_eval58.json"))
     rows = load_rows(paths)
     print_markdown(rows)
 
 
 if __name__ == "__main__":
     main()
-

@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Domain Hallucination Guard - Evaluation Report Generator
 
@@ -10,9 +25,8 @@ Usage:
     python generate_report.py --results current.json --baseline baseline.json
 """
 
-import json
 import argparse
-from pathlib import Path
+import json
 
 
 def generate_report(results: dict, baseline: dict = None) -> str:
@@ -34,19 +48,23 @@ def generate_report(results: dict, baseline: dict = None) -> str:
     L("## Executive Summary\n")
 
     bd = overall["binary_detection"]
-    L(f"The Domain Hallucination Guard was evaluated on **{overall['total_samples']}** "
-      f"test cases spanning {len(by_cat)} categories. "
-      f"Overall accuracy was **{overall['accuracy']:.1%}**, with a binary "
-      f"hallucination detection F1 of **{bd['f1']:.4f}** "
-      f"(Precision: {bd['precision']:.4f}, Recall: {bd['recall']:.4f}).\n")
+    L(
+        f"The Domain Hallucination Guard was evaluated on **{overall['total_samples']}** "
+        f"test cases spanning {len(by_cat)} categories. "
+        f"Overall accuracy was **{overall['accuracy']:.1%}**, with a binary "
+        f"hallucination detection F1 of **{bd['f1']:.4f}** "
+        f"(Precision: {bd['precision']:.4f}, Recall: {bd['recall']:.4f}).\n"
+    )
 
     if baseline:
         b_overall = baseline.get("overall", {})
         b_bd = b_overall.get("binary_detection", {})
         acc_delta = overall["accuracy"] - b_overall.get("accuracy", 0)
         f1_delta = bd["f1"] - b_bd.get("f1", 0)
-        L(f"Compared to the baseline, this represents an accuracy improvement "
-          f"of **{acc_delta:+.1%}** and a binary F1 improvement of **{f1_delta:+.4f}**.\n")
+        L(
+            f"Compared to the baseline, this represents an accuracy improvement "
+            f"of **{acc_delta:+.1%}** and a binary F1 improvement of **{f1_delta:+.4f}**.\n"
+        )
 
     # ── Overall Metrics Table
     L("## Overall Metrics\n")
@@ -78,17 +96,13 @@ def generate_report(results: dict, baseline: dict = None) -> str:
     L("| Decision | Precision | Recall | F1 | Support |")
     L("|----------|-----------|--------|-----|---------|")
     for label, m in sorted(overall.get("per_decision", {}).items()):
-        L(f"| {label} | {m['precision']:.4f} | {m['recall']:.4f} "
-          f"| {m['f1']:.4f} | {m['support']} |")
+        L(f"| {label} | {m['precision']:.4f} | {m['recall']:.4f} | {m['f1']:.4f} | {m['support']} |")
     L("")
 
     # ── Confusion Matrix
     cm = overall.get("confusion_matrix", {})
     if cm:
-        all_labels = sorted(set(
-            list(cm.keys()) +
-            [l for row in cm.values() for l in row.keys()]
-        ))
+        all_labels = sorted(set(list(cm.keys()) + [label for row in cm.values() for label in row.keys()]))
         L("## Confusion Matrix\n")
         header = "| Actual \\ Predicted | " + " | ".join(all_labels) + " |"
         sep = "|" + "---|" * (len(all_labels) + 1)
@@ -144,8 +158,7 @@ def generate_report(results: dict, baseline: dict = None) -> str:
         comparisons = [
             ("Accuracy", b_overall.get("accuracy", 0), overall["accuracy"]),
             ("Weighted F1", b_overall.get("weighted_f1", 0), overall["weighted_f1"]),
-            ("Macro F1", b_overall.get("macro_avg", {}).get("f1", 0),
-             overall["macro_avg"]["f1"]),
+            ("Macro F1", b_overall.get("macro_avg", {}).get("f1", 0), overall["macro_avg"]["f1"]),
             ("Binary Precision", b_bd.get("precision", 0), bd["precision"]),
             ("Binary Recall", b_bd.get("recall", 0), bd["recall"]),
             ("Binary F1", b_bd.get("f1", 0), bd["f1"]),
@@ -157,15 +170,14 @@ def generate_report(results: dict, baseline: dict = None) -> str:
             if name.startswith("Latency"):
                 arrow = "↓" if delta < 0 else "↑" if delta > 0 else "="
                 # For latency, lower is better
-                pct = f"{abs(delta)/base_val*100:.1f}%" if base_val else "N/A"
+                pct = f"{abs(delta) / base_val * 100:.1f}%" if base_val else "N/A"
                 change = f"{arrow} {pct}"
             else:
                 arrow = "↑" if delta > 0 else "↓" if delta < 0 else "="
-                pct = f"{abs(delta)/base_val*100:.1f}%" if base_val else "N/A"
+                pct = f"{abs(delta) / base_val * 100:.1f}%" if base_val else "N/A"
                 change = f"{arrow} {pct}"
 
-            L(f"| {name} | {base_val:.4f} | {curr_val:.4f} "
-              f"| {delta:+.4f} | {change} |")
+            L(f"| {name} | {base_val:.4f} | {curr_val:.4f} | {delta:+.4f} | {change} |")
         L("")
 
         # Per-category comparison
@@ -234,18 +246,10 @@ def generate_report(results: dict, baseline: dict = None) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate evaluation report from results JSON"
-    )
-    parser.add_argument(
-        "--results", required=True,
-        help="Path to evaluation results JSON")
-    parser.add_argument(
-        "--baseline", default=None,
-        help="Path to baseline results JSON for comparison")
-    parser.add_argument(
-        "--output", default="eval_report.md",
-        help="Output path for Markdown report")
+    parser = argparse.ArgumentParser(description="Generate evaluation report from results JSON")
+    parser.add_argument("--results", required=True, help="Path to evaluation results JSON")
+    parser.add_argument("--baseline", default=None, help="Path to baseline results JSON for comparison")
+    parser.add_argument("--output", default="eval_report.md", help="Output path for Markdown report")
 
     args = parser.parse_args()
 

@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Run comparison experiments for URL/domain hallucination detection.
 
@@ -28,7 +43,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
@@ -36,7 +50,8 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 ROOT = Path(__file__).resolve().parent
-REPO_ROOT = ROOT.parents[3]
+FILES_ROOT = ROOT.parent
+REPO_ROOT = ROOT.parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -241,7 +256,9 @@ class IncrementalRecorder:
             "enable_semantic_check": not args.disable_domain_semantic_check,
             "enable_advanced_verification": not args.disable_domain_advanced_verification,
             "expert_review_enabled": args.enable_domain_expert_review,
-            "expert_review_min_level": args.domain_expert_review_min_level if args.enable_domain_expert_review else None,
+            "expert_review_min_level": args.domain_expert_review_min_level
+            if args.enable_domain_expert_review
+            else None,
             "enable_tls_verification": not args.disable_domain_tls,
             "enable_whois_verification": not args.disable_domain_whois,
         }
@@ -368,7 +385,7 @@ _NEMO_RUNTIME: Optional[NemoRuntime] = None
 def get_nemo_runtime(args: argparse.Namespace) -> NemoRuntime:
     global _NEMO_RUNTIME
     if _NEMO_RUNTIME is None:
-        config_path = ROOT / args.nemo_config
+        config_path = FILES_ROOT / "02_configs" / args.nemo_config
         _NEMO_RUNTIME = NemoRuntime(config_path=config_path)
     return _NEMO_RUNTIME
 
@@ -530,14 +547,18 @@ async def run_ours(case: Dict[str, Any], args: argparse.Namespace) -> MethodResu
     return MethodResult(
         predicted=decision,
         latency_ms=latency,
-        mode="domain_hallucination_live_expert" if args.enable_domain_expert_review else "domain_hallucination_live_no_expert",
+        mode="domain_hallucination_live_expert"
+        if args.enable_domain_expert_review
+        else "domain_hallucination_live_no_expert",
         raw={
             "verification_level": args.domain_verification_level,
             "skip_secondary_checks_on_dns_failure": args.skip_secondary_checks_on_dns_failure,
             "tls_verification_enabled": not args.disable_domain_tls,
             "whois_verification_enabled": not args.disable_domain_whois,
             "expert_review_enabled": args.enable_domain_expert_review,
-            "expert_review_min_level": args.domain_expert_review_min_level if args.enable_domain_expert_review else None,
+            "expert_review_min_level": args.domain_expert_review_min_level
+            if args.enable_domain_expert_review
+            else None,
             "expert_review": result.get("expert_review"),
             "risk_score": result.get("risk_score"),
             "recalibrated_score": result.get("recalibrated_score"),
@@ -807,7 +828,7 @@ async def run_experiment(
     recorder: Optional[IncrementalRecorder] = None,
 ) -> Dict[str, Any]:
     experiment = EXPERIMENTS[experiment_id]
-    dataset = load_dataset(ROOT / dataset_name)
+    dataset = load_dataset(FILES_ROOT / "01_datasets" / dataset_name)
     cases = dataset.get("test_cases", [])
     if args.max_cases_per_dataset is not None:
         cases = cases[: args.max_cases_per_dataset]
@@ -851,8 +872,7 @@ async def run_experiment(
                 "skipped_samples": len(cases),
                 "error_samples": 0,
                 "skipped": [
-                    {"id": case.get("id", ""), "reason": "baseline skipped by --skip-baseline"}
-                    for case in cases
+                    {"id": case.get("id", ""), "reason": "baseline skipped by --skip-baseline"} for case in cases
                 ],
                 "errors": [],
             },
@@ -893,7 +913,15 @@ def selected_experiments(values: Optional[List[str]]) -> List[str]:
 async def main_async(args: argparse.Namespace) -> None:
     experiments = selected_experiments(args.experiments)
     datasets = args.datasets or DATASETS
-    output = ROOT / args.output
+    if len(datasets) == 1 and datasets[0] == "eval_dataset.json":
+        output = FILES_ROOT / "05_calibration" / "eval58" / "raw" / args.output
+    elif len(datasets) == 1 and datasets[0] == "full_dataset.json":
+        output = FILES_ROOT / "05_calibration" / "full223" / "raw" / args.output
+    elif len(datasets) == 1 and datasets[0] in {"eval_dataset_safe.json", "eval_dataset_danger.json"}:
+        output = FILES_ROOT / "07_safe_danger_validation" / args.output
+    else:
+        output = ROOT / args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
     recorder = IncrementalRecorder(output.with_suffix(output.suffix + ".partial.json"), args)
 
     results = []
@@ -915,7 +943,9 @@ async def main_async(args: argparse.Namespace) -> None:
             "enable_tls_verification": not args.disable_domain_tls,
             "enable_whois_verification": not args.disable_domain_whois,
             "expert_review_enabled": args.enable_domain_expert_review,
-            "expert_review_min_level": args.domain_expert_review_min_level if args.enable_domain_expert_review else None,
+            "expert_review_min_level": args.domain_expert_review_min_level
+            if args.enable_domain_expert_review
+            else None,
             "expert_review_future_optional": True,
             "baseline_skipped": args.skip_baseline,
             "baseline_only": args.baseline_only,
@@ -931,9 +961,7 @@ async def main_async(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run A/B/C baseline comparisons for domain hallucination detection."
-    )
+    parser = argparse.ArgumentParser(description="Run A/B/C baseline comparisons for domain hallucination detection.")
     parser.add_argument(
         "--experiments",
         nargs="*",
@@ -944,7 +972,7 @@ def main() -> None:
         "--datasets",
         nargs="*",
         default=None,
-        help="Dataset files under files/. Defaults to eval_dataset.json and expanded_dataset.json.",
+        help="Dataset files under files/01_datasets/. Defaults to eval_dataset.json and expanded_dataset.json.",
     )
     parser.add_argument(
         "--max-cases-per-dataset",
@@ -955,7 +983,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         default="ablation_comparison_results.json",
-        help="Output JSON file under files/.",
+        help="Output JSON file under this script directory.",
     )
     parser.add_argument(
         "--disable-incremental-save",

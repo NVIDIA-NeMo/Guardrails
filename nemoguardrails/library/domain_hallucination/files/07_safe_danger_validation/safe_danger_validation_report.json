@@ -1,0 +1,281 @@
+{
+  "safe_set": {
+    "count": 200,
+    "原始 DeepSeek S2": {
+      "total": 200,
+      "strict_accuracy": 0.92,
+      "balanced_accuracy": 0.2359,
+      "macro_precision": 0.2434,
+      "macro_recall": 0.2359,
+      "macro_f1": 0.2396,
+      "per_class": {
+        "pass": {
+          "precision": 0.9735,
+          "recall": 0.9436,
+          "f1": 0.9583
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "DeepSeek S2 + 校准边界": {
+      "total": 200,
+      "strict_accuracy": 0.705,
+      "balanced_accuracy": 0.1808,
+      "macro_precision": 0.2414,
+      "macro_recall": 0.1808,
+      "macro_f1": 0.2067,
+      "per_class": {
+        "pass": {
+          "precision": 0.9658,
+          "recall": 0.7231,
+          "f1": 0.827
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "NeMo 官方 baseline": {
+      "total": 200,
+      "strict_accuracy": 0.77,
+      "balanced_accuracy": 0.1974,
+      "macro_precision": 0.2452,
+      "macro_recall": 0.1974,
+      "macro_f1": 0.2188,
+      "per_class": {
+        "pass": {
+          "precision": 0.9809,
+          "recall": 0.7897,
+          "f1": 0.875
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    }
+  },
+  "danger_set": {
+    "count": 40,
+    "原始 DeepSeek S2": {
+      "total": 40,
+      "strict_accuracy": 0.475,
+      "balanced_accuracy": 0.2284,
+      "macro_precision": 0.4375,
+      "macro_recall": 0.2283,
+      "macro_f1": 0.2996,
+      "per_class": {
+        "pass": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.75,
+          "recall": 0.4286,
+          "f1": 0.5455
+        },
+        "block": {
+          "precision": 1.0,
+          "recall": 0.4848,
+          "f1": 0.6531
+        }
+      }
+    },
+    "DeepSeek S2 + 校准边界": {
+      "total": 40,
+      "strict_accuracy": 0.45,
+      "balanced_accuracy": 0.1926,
+      "macro_precision": 0.4167,
+      "macro_recall": 0.1926,
+      "macro_f1": 0.2633,
+      "per_class": {
+        "pass": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.6667,
+          "recall": 0.2857,
+          "f1": 0.4
+        },
+        "block": {
+          "precision": 1.0,
+          "recall": 0.4848,
+          "f1": 0.6531
+        }
+      }
+    },
+    "NeMo 官方 baseline": {
+      "total": 40,
+      "strict_accuracy": 0.775,
+      "balanced_accuracy": 0.2348,
+      "macro_precision": 0.2039,
+      "macro_recall": 0.2349,
+      "macro_f1": 0.2183,
+      "per_class": {
+        "pass": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "precision": 0.8158,
+          "recall": 0.9394,
+          "f1": 0.8732
+        }
+      }
+    }
+  },
+  "merged_set": {
+    "count": 240,
+    "原始 DeepSeek S2": {
+      "total": 240,
+      "strict_accuracy": 0.8458,
+      "balanced_accuracy": 0.4643,
+      "macro_precision": 0.5239,
+      "macro_recall": 0.4642,
+      "macro_f1": 0.4883,
+      "per_class": {
+        "pass": {
+          "precision": 0.8804,
+          "recall": 0.9436,
+          "f1": 0.9109
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.6,
+          "recall": 0.4286,
+          "f1": 0.5
+        },
+        "block": {
+          "precision": 0.6154,
+          "recall": 0.4848,
+          "f1": 0.5424
+        }
+      }
+    },
+    "DeepSeek S2 + 校准边界": {
+      "total": 240,
+      "strict_accuracy": 0.6625,
+      "balanced_accuracy": 0.3734,
+      "macro_precision": 0.3854,
+      "macro_recall": 0.3734,
+      "macro_f1": 0.3694,
+      "per_class": {
+        "pass": {
+          "precision": 0.865,
+          "recall": 0.7231,
+          "f1": 0.7877
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.125,
+          "recall": 0.2857,
+          "f1": 0.1739
+        },
+        "block": {
+          "precision": 0.5517,
+          "recall": 0.4848,
+          "f1": 0.5161
+        }
+      }
+    },
+    "NeMo 官方 baseline": {
+      "total": 240,
+      "strict_accuracy": 0.7708,
+      "balanced_accuracy": 0.4323,
+      "macro_precision": 0.3378,
+      "macro_recall": 0.4323,
+      "macro_f1": 0.3535,
+      "per_class": {
+        "pass": {
+          "precision": 0.9686,
+          "recall": 0.7897,
+          "f1": 0.8701
+        },
+        "warn": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "refine": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "block": {
+          "precision": 0.3827,
+          "recall": 0.9394,
+          "f1": 0.5439
+        }
+      }
+    }
+  }
+}

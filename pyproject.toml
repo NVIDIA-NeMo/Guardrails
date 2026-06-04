@@ -39,6 +39,11 @@ changelog = "https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md
 documentation = "https://docs.nvidia.com/nemo/guardrails/"
 repository = "https://github.com/NVIDIA-NeMo/Guardrails"
 
+[[tool.poetry.source]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+priority = "primary"
+
 
 [tool.poetry.scripts]
 nemoguardrails = "nemoguardrails.__main__:app"

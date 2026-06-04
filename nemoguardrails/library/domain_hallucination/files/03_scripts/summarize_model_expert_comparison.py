@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Build a model-by-strategy comparison table and chart for expert sweeps."""
 
 from __future__ import annotations
@@ -7,8 +22,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-
 ROOT = Path(__file__).resolve().parent
+DATA_ROOT = ROOT.parent / "05_calibration" / "eval58" / "raw"
 
 
 FILES = {
@@ -42,7 +57,7 @@ def seconds(value: Any) -> str:
 
 
 def read_row(model: str, strategy: str, filename: str) -> Dict[str, Any] | None:
-    path = ROOT / filename
+    path = DATA_ROOT / filename
     if not path.exists():
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -125,11 +140,19 @@ def save_chart(rows: List[Dict[str, Any]]) -> None:
     ax2.set_ylim(0, max(latency + [1]) * 1.25)
 
     for bar, value in zip(bars, f1):
-        ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1, f"{value:.1f}", ha="center", va="bottom", fontsize=8)
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 1,
+            f"{value:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
 
     fig.suptitle("Expert Model Comparison on Experiment A eval_dataset.json")
     fig.tight_layout()
-    output = ROOT / "model_expert_comparison_A_eval58.png"
+    output = ROOT.parent / "05_calibration" / "eval58" / "analysis" / "model_expert_comparison_A_eval58.png"
+    output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=180)
     print(f"Saved chart to {output}")
 

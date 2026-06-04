@@ -1,8 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Semantic relevance checking for domain hallucination detection."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 def check_semantic_relevance(
@@ -46,12 +61,14 @@ def check_semantic_relevance(
         # Simple heuristic: if domain shares keywords with query, it's relevant
         overlap = domain_keywords & query_keywords
         if not overlap and len(query_keywords) > 3:
-            irrelevant.append({
-                "domain": domain,
-                "reason": "no_keyword_overlap",
-                "query_keywords": list(query_keywords),
-                "domain_keywords": list(domain_keywords),
-            })
+            irrelevant.append(
+                {
+                    "domain": domain,
+                    "reason": "no_keyword_overlap",
+                    "query_keywords": list(query_keywords),
+                    "domain_keywords": list(domain_keywords),
+                }
+            )
 
     return {
         "has_irrelevant_domains": bool(irrelevant),
@@ -85,12 +102,14 @@ def check_advanced_verification(
         scheme = str(url_item.get("scheme", "")).lower()
 
         if scheme == "http" and not url.endswith(":8080"):
-            issues.append({
-                "type": "insecure_protocol",
-                "url": url,
-                "severity": "low",
-                "message": "URL uses HTTP instead of HTTPS",
-            })
+            issues.append(
+                {
+                    "type": "insecure_protocol",
+                    "url": url,
+                    "severity": "low",
+                    "message": "URL uses HTTP instead of HTTPS",
+                }
+            )
 
     # Check GitHub typosquatting
     github_map = {}
@@ -110,13 +129,15 @@ def check_advanced_verification(
         # Check for common typos (single character differences)
         for common_owner in common_owners:
             if _edit_distance(owner, common_owner) == 1:
-                issues.append({
-                    "type": "possible_typosquatting",
-                    "target": key,
-                    "severity": "medium",
-                    "similar_to": common_owner,
-                    "message": f"GitHub owner '{owner}' is similar to '{common_owner}'",
-                })
+                issues.append(
+                    {
+                        "type": "possible_typosquatting",
+                        "target": key,
+                        "severity": "medium",
+                        "similar_to": common_owner,
+                        "message": f"GitHub owner '{owner}' is similar to '{common_owner}'",
+                    }
+                )
                 break
 
     return {
