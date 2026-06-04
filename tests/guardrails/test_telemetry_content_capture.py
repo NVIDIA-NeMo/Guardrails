@@ -103,62 +103,38 @@ def _config_with_capture(value: Optional[bool]) -> TracingConfig:
 class TestIsContentCaptureEnabled:
     """Resolution of the content-capture flag: env var wins, config field as fallback."""
 
-    def test_returns_false_when_config_none_and_env_unset(self):
-        """No config and no env var → capture off."""
-        assert is_content_capture_enabled(None) is False
+    @pytest.mark.parametrize(
+        "config_tracing, expected",
+        [
+            (None, False),  # no config object
+            (TracingConfig(), False),  # default → enable_content_capture False
+            (_config_with_capture(False), False),
+            (_config_with_capture(True), True),
+        ],
+    )
+    def test_config_decides_when_env_unset(self, config_tracing, expected):
+        """With no env var, the config field (default False) decides."""
+        assert is_content_capture_enabled(config_tracing) is expected
 
-    def test_returns_true_when_config_flag_set(self):
-        """Config enable_content_capture=True with no env var → capture on."""
-        assert is_content_capture_enabled(_config_with_capture(True)) is True
-
-    def test_returns_false_when_config_flag_false_and_env_unset(self):
-        """Config enable_content_capture=False with no env var → capture off."""
-        assert is_content_capture_enabled(_config_with_capture(False)) is False
-
-    def test_returns_false_for_default_tracing_config_and_env_unset(self):
-        """Default TracingConfig() has enable_content_capture=False by spec → capture off."""
-        assert is_content_capture_enabled(_config_with_capture(None)) is False
-
-    @pytest.mark.parametrize("env_value", ["true", "True", "TRUE", "1"])
-    def test_env_var_truthy_values_enable_capture(self, monkeypatch, env_value):
-        """Truthy env-var values (case-insensitive 'true' / '1') force capture on."""
+    @pytest.mark.parametrize("config_flag", [None, True, False])
+    @pytest.mark.parametrize("env_value", ["true", "True", "TRUE", "1", "  true  "])
+    def test_env_truthy_forces_on(self, monkeypatch, env_value, config_flag):
+        """Truthy env (case-insensitive, whitespace-stripped) forces capture on regardless of config."""
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
-        assert is_content_capture_enabled(None) is True
+        config = None if config_flag is None else _config_with_capture(config_flag)
+        assert is_content_capture_enabled(config) is True
 
-    @pytest.mark.parametrize("env_value", ["false", "0", "yes", "no", "", "  "])
-    def test_env_var_other_values_do_not_enable_capture(self, monkeypatch, env_value):
-        """Falsy and unrecognized env values do not enable capture when config is unset."""
+    @pytest.mark.parametrize("config_flag", [None, True, False])
+    @pytest.mark.parametrize("env_value", ["false", "False", "FALSE", "0", "  FALSE  "])
+    def test_env_falsy_forces_off(self, monkeypatch, env_value, config_flag):
+        """Falsy env (case-insensitive, whitespace-stripped) forces capture off regardless of config."""
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
-        assert is_content_capture_enabled(None) is False
+        config = None if config_flag is None else _config_with_capture(config_flag)
+        assert is_content_capture_enabled(config) is False
 
-    def test_env_var_takes_effect_when_config_is_false(self, monkeypatch):
-        """env=true overrides an explicit config=False (env-var-wins semantic)."""
-        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "true")
-        assert is_content_capture_enabled(_config_with_capture(False)) is True
-
-    def test_config_true_overrides_env_unset(self):
-        """Config=True with no env var → capture on (config is the fallback signal)."""
-        assert is_content_capture_enabled(_config_with_capture(True)) is True
-
-    def test_env_value_with_surrounding_whitespace(self, monkeypatch):
-        """Leading/trailing whitespace on the env value is stripped before matching."""
-        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "  true  ")
-        assert is_content_capture_enabled(None) is True
-
-    @pytest.mark.parametrize("env_value", ["false", "False", "FALSE", "0"])
-    def test_env_var_falsy_disables_capture_even_when_config_true(self, monkeypatch, env_value):
-        """Explicit env=false/0 overrides config=True so operators can disable capture fleet-wide."""
-        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
-        assert is_content_capture_enabled(_config_with_capture(True)) is False
-
-    def test_env_var_falsy_with_whitespace_disables_capture(self, monkeypatch):
-        """A falsy env value with surrounding whitespace still overrides config=True."""
-        monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, "  FALSE  ")
-        assert is_content_capture_enabled(_config_with_capture(True)) is False
-
-    @pytest.mark.parametrize("env_value", ["yes", "no", "maybe"])
-    def test_unrecognized_env_value_falls_through_to_config(self, monkeypatch, env_value):
-        """Unrecognized env values are neither enable nor disable signals — config decides."""
+    @pytest.mark.parametrize("env_value", ["yes", "no", "maybe", ""])
+    def test_unrecognized_env_falls_through_to_config(self, monkeypatch, env_value):
+        """Unrecognized/empty env values are ignored; the config field decides."""
         monkeypatch.setenv(OtelContentCapture.CAPTURE_CONTENT_ENV, env_value)
         assert is_content_capture_enabled(_config_with_capture(True)) is True
         assert is_content_capture_enabled(_config_with_capture(False)) is False
@@ -167,43 +143,24 @@ class TestIsContentCaptureEnabled:
 class TestUseJsonSpanFormat:
     """Parsing of OTEL_SEMCONV_STABILITY_OPT_IN to select JSON attrs vs legacy events."""
 
-    def test_returns_false_when_env_unset(self):
-        """No stability opt-in → legacy-event format (False)."""
+    def test_false_when_env_unset(self):
+        """No stability opt-in set → legacy-event format (False)."""
         assert _use_json_span_format() is False
 
-    def test_returns_true_when_opt_in_token_present(self, monkeypatch):
-        """The exact opt-in token alone selects JSON-attribute format."""
-        monkeypatch.setenv(
-            OtelContentCapture.STABILITY_OPT_IN_ENV,
-            OtelContentCapture.STABILITY_OPT_IN_LATEST,
-        )
-        assert _use_json_span_format() is True
-
-    def test_returns_true_when_token_in_csv_list(self, monkeypatch):
-        """The opt-in token is recognized within a comma-separated token list."""
-        monkeypatch.setenv(
-            OtelContentCapture.STABILITY_OPT_IN_ENV,
-            f"http,{OtelContentCapture.STABILITY_OPT_IN_LATEST},db",
-        )
-        assert _use_json_span_format() is True
-
-    def test_strips_token_whitespace(self, monkeypatch):
-        """Whitespace around individual CSV tokens is stripped before matching."""
-        monkeypatch.setenv(
-            OtelContentCapture.STABILITY_OPT_IN_ENV,
-            f"http,  {OtelContentCapture.STABILITY_OPT_IN_LATEST}  ,db",
-        )
-        assert _use_json_span_format() is True
-
-    def test_returns_false_for_unrelated_token(self, monkeypatch):
-        """A different opt-in token does not select JSON format."""
-        monkeypatch.setenv(OtelContentCapture.STABILITY_OPT_IN_ENV, "gen_ai_legacy")
-        assert _use_json_span_format() is False
-
-    def test_returns_false_for_empty_string(self, monkeypatch):
-        """An empty opt-in value selects legacy-event format (False)."""
-        monkeypatch.setenv(OtelContentCapture.STABILITY_OPT_IN_ENV, "")
-        assert _use_json_span_format() is False
+    @pytest.mark.parametrize(
+        "env_value, expected",
+        [
+            (OtelContentCapture.STABILITY_OPT_IN_LATEST, True),  # exact token
+            (f"http,{OtelContentCapture.STABILITY_OPT_IN_LATEST},db", True),  # token within CSV list
+            (f"http,  {OtelContentCapture.STABILITY_OPT_IN_LATEST}  ,db", True),  # CSV token w/ whitespace
+            ("gen_ai_legacy", False),  # unrelated token
+            ("", False),  # empty value
+        ],
+    )
+    def test_format_selection(self, monkeypatch, env_value, expected):
+        """gen_ai_latest_experimental anywhere in the comma-separated token list selects JSON attrs."""
+        monkeypatch.setenv(OtelContentCapture.STABILITY_OPT_IN_ENV, env_value)
+        assert _use_json_span_format() is expected
 
 
 _MIXED_MESSAGES = [
