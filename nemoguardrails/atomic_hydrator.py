@@ -63,12 +63,8 @@ class AtomicStateHydrator:
             self._ref_counts[conversation_id] += 1
             return self._locks[conversation_id]
 
+   # Correção: O método release deve ser um método real da classe
     async def _release_session_lock(self, conversation_id: str) -> None:
-        """Decrements reference counter and releases resources if execution queue drops to zero.
-
-        Args:
-            conversation_id: Unique string identifier for the active tracking sequence.
-        """
         mutex = self._ensure_mutex()
         async with mutex:
             if conversation_id in self._ref_counts:
@@ -77,26 +73,14 @@ class AtomicStateHydrator:
                     self._locks.pop(conversation_id, None)
                     self._ref_counts.pop(conversation_id, None)
 
-    async def execute_atomic_pipeline(
-        self, conversation_id: str, evaluation_coro: Any, *args: Any, **kwargs: Any
-    ) -> Any:
-        """Enforces a strict serialize linearizability lifecycle around state extraction.
-
-        Args:
-            conversation_id: Unique session hash.
-            evaluation_coro: Target coroutine task evaluating actual guardrail parameters.
-            *args: Variable length argument list forwarded to the target routine.
-            **kwargs: Arbitrary keyword arguments forwarded to the target routine.
-
-        Returns:
-            Any: The raw execution return context resolved out of the evaluation task.
-        """
+    async def execute_atomic_pipeline(self, conversation_id: str, evaluation_coro: Any, *args: Any, **kwargs: Any) -> Any:
         lock = await self._acquire_session_lock(conversation_id)
-        async with lock:
-            try:
+        try:
+            async with lock:
                 current_state = await self.backend.fetch_state(conversation_id)
                 result, updated_state = await evaluation_coro(current_state, *args, **kwargs)
                 await self.backend.save_state(conversation_id, updated_state)
                 return result
-            finally:
-                await self._release_session_lock(conversation_id)
+        finally:
+            # O finally garante a integridade do ref-count mesmo se a corotina falhar
+            await self._release_session_lock(conversation_id)
