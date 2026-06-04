@@ -1075,7 +1075,7 @@ class LLMRails(BaseGuardrails):
             # In generation mode, the processing is always blocking, i.e., it waits for
             # all local actions (sync and async).
             new_events, _output_state = await runtime.process_events(
-                events, state=state, instant_actions=instant_actions, blocking=True  # type: ignore
+                events, state=state  # type: ignore,  # type: ignore instant_actions=instant_actions, blocking=True  # type: ignore
             )
             # The runtime State for 2.x is not publicly exposed through generate_async.
             # Callers that need stateful 2.x execution use process_events_async, which
@@ -1419,7 +1419,7 @@ class LLMRails(BaseGuardrails):
                     messages=messages,
                     streaming_handler=streaming_handler,
                     options=options,
-                    state=state,
+                    state=state  # type: ignore,  # type: ignore
                 )
             except Exception as e:
                 # If an exception occurs during generation, push it to the streaming handler as a json string
@@ -1489,7 +1489,7 @@ class LLMRails(BaseGuardrails):
                 prompt=prompt,
                 messages=messages,
                 options=options,
-                state=state,
+                state=state  # type: ignore,  # type: ignore
             )
         )
 
