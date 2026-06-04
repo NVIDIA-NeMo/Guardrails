@@ -1,5 +1,5 @@
 .PHONY: help
-.PHONY: test test-parallel test-serial test-watch test-coverage test-profile warm-fastembed-cache
+.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile warm-fastembed-cache
 .PHONY: docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards docs-check-redirects
 .PHONY: pre-commit
 
@@ -28,6 +28,9 @@ test-parallel: test
 
 test-serial:
 	$(PYTEST) $(ARGS) $(TEST)
+
+test-benchmark:
+	$(PYTEST) $(ARGS) benchmark/tests
 
 test-watch:
 	poetry run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
@@ -72,6 +75,7 @@ help:
 		'Usage:' \
 		'  make test [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-serial [TEST=path] [ARGS="-q"]' \
+		'  make test-benchmark [ARGS="-q"]' \
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
 		'' \
@@ -79,6 +83,7 @@ help:
 		'  test                  Run non-live pytest with pytest-xdist' \
 		'  test-parallel         Alias for test' \
 		'  test-serial           Run pytest without xdist or env filtering' \
+		'  test-benchmark        Run benchmark tooling tests' \
 		'  test-watch            Run pytest in watch mode' \
 		'  test-coverage         Run pytest with coverage' \
 		'  test-profile          Run pytest with profiling' \

@@ -1,0 +1,85 @@
+name: Benchmark Tests
+
+on:
+  pull_request:
+    paths:
+      - "benchmark/**"
+      - "Makefile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/benchmark-tests.yml"
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "benchmark/**"
+      - "Makefile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/benchmark-tests.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  POETRY_VERSION: 1.8.2
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  benchmark-tests:
+    name: Benchmark Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Get full Python version
+        id: full-python-version
+        run: echo "version=$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")" >> $GITHUB_OUTPUT
+
+      - name: Get runner architecture
+        id: runner-arch
+        run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
+
+      - name: Bootstrap poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Set up cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}-benchmark
+
+      - name: Ensure cache is healthy
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: timeout 10s poetry run pip --version || rm -rf .venv
+
+      - name: Check Poetry .lock
+        run: poetry check --lock
+
+      - name: Set baseline x86-64 compiler flags
+        if: runner.os == 'Linux' && steps.runner-arch.outputs.arch == 'x86_64'
+        run: |
+          echo "CFLAGS=-march=x86-64" >> $GITHUB_ENV
+          echo "CXXFLAGS=-march=x86-64" >> $GITHUB_ENV
+          echo "ANNOY_COMPILER_ARGS=-fpermissive,-march=x86-64,-O3,-ffast-math,-fno-associative-math,-DANNOYLIB_MULTITHREADED_BUILD,-std=c++14" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Run benchmark tests
+        run: make test-benchmark ARGS="-q"
