@@ -2365,19 +2365,28 @@ class TestStreamingContentCapture:
 
     @pytest.mark.asyncio
     async def test_dict_chunks_with_include_metadata_get_captured(self, iorails_streaming_content_capture, exporter):
-        """include_metadata=True streams dict chunks; capture extracts text fields.
+        """include_metadata=True streams dict chunks; capture extracts non-empty text fields.
 
         Covers the isinstance(chunk, dict) branch in _wrapped_iterator's
-        accumulator — without this test, that path is unreachable from the
-        rest of the suite (which all use plain-string streaming).
+        accumulator.  Also verifies that dict chunks with an empty-string
+        ``text`` field (metadata-only frames) are excluded from the captured
+        output — they must not contribute empty strings to the join and must
+        not cause a spurious empty assistant output where None is correct.
         """
         iorails = iorails_streaming_content_capture
-        _stub_deep_streaming_pipeline(iorails)
+
+        async def _stream_with_empty_frame(messages, **kwargs):
+            """Inject an empty-text metadata frame between real content chunks."""
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content="")  # empty delta — metadata frame
+            yield LLMResponseChunk(delta_content=" world")
+
+        _stub_deep_streaming_pipeline(iorails, main_stream=_stream_with_empty_frame)
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}], include_metadata=True)]
-        # Sanity: with include_metadata=True chunks are dicts, not strings
         assert all(isinstance(c, dict) for c in chunks)
-        expected = "".join(c.get("text", "") for c in chunks if isinstance(c.get("text"), str))
+        # Expected: only the non-empty text parts joined; empty delta excluded
+        expected = "Hello world"
 
         span = _request_span(exporter.get_finished_spans())
         choice = next(e for e in span.events if e.name == "gen_ai.choice")

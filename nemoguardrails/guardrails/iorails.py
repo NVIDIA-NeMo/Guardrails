@@ -327,6 +327,10 @@ class IORails:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
+            # Capture content once here at the traced_request boundary so any
+            # future early-return added to _do_generate is covered automatically.
+            if self._content_capture_enabled:
+                set_llm_call_content(request_span, messages, result.get("content"))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -351,8 +355,6 @@ class IORails:
             response = await self._do_generate_sequential(messages, req_id, llm_kwargs)
 
         if response is None:
-            if self._content_capture_enabled:
-                set_llm_call_content(request_span, messages, REFUSAL_MESSAGE)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # Log raw content before reasoning extraction and think-token removal
@@ -371,8 +373,6 @@ class IORails:
             log.info("[%s] Output blocked: %s", req_id, output_result.reason)
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.OUTPUT)
-            if self._content_capture_enabled:
-                set_llm_call_content(request_span, messages, REFUSAL_MESSAGE)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # TODO: Support returning GenerationResponse `reasoning_content` to match LLMRails
@@ -380,8 +380,6 @@ class IORails:
         if reasoning_content:
             response_text = f"<think>{reasoning_content}</think>\n" + response_text
 
-        if self._content_capture_enabled:
-            set_llm_call_content(request_span, messages, response_text)
         return {"role": "assistant", "content": response_text}
 
     async def _do_generate_sequential(
@@ -701,15 +699,16 @@ class IORails:
                                     async for chunk in base_iterator:
                                         if chunk is not None:
                                             if self._content_capture_enabled:
-                                                # chunk is str by default; dict when
-                                                # include_metadata=True (no output
-                                                # rails streaming in that case, per
-                                                # earlier validation).
+                                                # Plain strings are the normal path.
+                                                # Dicts arrive when include_metadata=True;
+                                                # skip empty-string text fields so
+                                                # metadata-only frames don't pollute
+                                                # the captured output.
                                                 if isinstance(chunk, str):
                                                     delivered.append(chunk)
                                                 elif isinstance(chunk, dict):
                                                     text = chunk.get("text")
-                                                    if isinstance(text, str):
+                                                    if isinstance(text, str) and text:
                                                         delivered.append(text)
                                             yield chunk
                                 finally:

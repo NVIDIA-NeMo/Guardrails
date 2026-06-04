@@ -296,7 +296,7 @@ class EventNames:
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
     GEN_AI_USER_MESSAGE = "gen_ai.user.message"
     GEN_AI_ASSISTANT_MESSAGE = "gen_ai.assistant.message"
-    # GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
+    GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
 
     GEN_AI_CHOICE = "gen_ai.choice"
 

@@ -367,7 +367,7 @@ class TestSetLlmCallContentEventsBranch:
         """Each supported-role message becomes one event, plus a final choice event."""
         span = finished_span(lambda s: _set_llm_call_content_events(s, _MIXED_MESSAGES, "the answer"))
         event_names = [e.name for e in span.events]
-        # 3 input events (1 system + 2 user + 1 assistant = 4) + 1 choice
+        # 4 input events (1 system + 1 assistant + 2 user) + 1 choice
         assert event_names == [
             EventNames.GEN_AI_SYSTEM_MESSAGE,
             EventNames.GEN_AI_USER_MESSAGE,
@@ -400,22 +400,32 @@ class TestSetLlmCallContentEventsBranch:
         span = finished_span(lambda s: _set_llm_call_content_events(s, messages, None))
         assert all(e.name != EventNames.GEN_AI_CHOICE for e in span.events)
 
-    def test_skips_unsupported_roles_silently(self, finished_span):
-        """Roles without a legacy event mapping (e.g. tool) are dropped, not errored.
-
-        IORails doesn't yet emit tool/function events; unknown roles must
-        be dropped rather than crashing the capture path.
-        """
+    def test_tool_role_produces_tool_message_event(self, finished_span):
+        """tool role maps to gen_ai.tool.message — forward-compatible for tool calling."""
         messages = [
             {"role": "user", "content": "u"},
-            {"role": "tool", "content": "should be skipped"},
+            {"role": "tool", "content": "tool result"},
+            {"role": "assistant", "content": "a"},
+        ]
+        span = finished_span(lambda s: _set_llm_call_content_events(s, messages, None))
+        names = [e.name for e in span.events]
+        assert EventNames.GEN_AI_USER_MESSAGE in names
+        assert EventNames.GEN_AI_TOOL_MESSAGE in names
+        assert EventNames.GEN_AI_ASSISTANT_MESSAGE in names
+        assert len(span.events) == 3
+
+    def test_skips_unsupported_roles_silently(self, finished_span):
+        """Roles without a legacy event mapping (e.g. function) are dropped, not errored."""
+        messages = [
+            {"role": "user", "content": "u"},
+            {"role": "function", "content": "should be skipped"},
             {"role": "assistant", "content": "a"},
         ]
         span = finished_span(lambda s: _set_llm_call_content_events(s, messages, None))
         names = [e.name for e in span.events]
         assert EventNames.GEN_AI_USER_MESSAGE in names
         assert EventNames.GEN_AI_ASSISTANT_MESSAGE in names
-        # No event was raised for the tool role
+        # function role has no mapping — dropped silently
         assert len(span.events) == 2
 
     def test_skips_messages_missing_role_or_content(self, finished_span):

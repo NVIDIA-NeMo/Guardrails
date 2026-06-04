@@ -396,12 +396,13 @@ def set_speculative_span_attrs(
 # Maps an OpenAI-style ``role`` to the OTEL GenAI legacy event name used
 # when content capture emits per-message span events (i.e. when the
 # stability opt-in does NOT select the new structured attribute form).
-# Roles outside this set (``tool`` etc.) are not yet supported and will
-# be skipped silently rather than crashing the capture path.
+# ``function`` role (OpenAI legacy function-call format) is deliberately
+# excluded — it will need its own decision when function-call support lands.
 _LEGACY_EVENT_BY_ROLE = {
     "system": EventNames.GEN_AI_SYSTEM_MESSAGE,
     "user": EventNames.GEN_AI_USER_MESSAGE,
     "assistant": EventNames.GEN_AI_ASSISTANT_MESSAGE,
+    "tool": EventNames.GEN_AI_TOOL_MESSAGE,
 }
 
 
@@ -528,10 +529,10 @@ def _set_llm_call_content_events(
     """Legacy-event branch of :func:`set_llm_call_content`.
 
     Adds one span event per input message (``gen_ai.system.message`` /
-    ``gen_ai.user.message`` / ``gen_ai.assistant.message``) plus a
-    ``gen_ai.choice`` event for the assistant output.  Roles not in
-    :data:`_LEGACY_EVENT_BY_ROLE` (e.g. ``tool``) are skipped — adding
-    tool/function-call events is deferred until IORails supports them.
+    ``gen_ai.user.message`` / ``gen_ai.assistant.message`` /
+    ``gen_ai.tool.message``) plus a ``gen_ai.choice`` event for the
+    assistant output.  Roles not in :data:`_LEGACY_EVENT_BY_ROLE`
+    (e.g. ``function``) are skipped silently.
     """
     for msg in input_messages:
         role = msg.get("role")
