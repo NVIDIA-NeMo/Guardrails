@@ -9,7 +9,7 @@ content:
   type: "reference"
 ---
 
-You can use a guardrails configuration through an event-based API using `LLMRails.generate_events_async` and `LLMRails.generate_events`. For the full API reference, see [](/reference/python-api).
+You can use a guardrails configuration through an event-based API using `LLMRails.generate_events_async` and `LLMRails.generate_events`. For the full API reference, see [Python SDK Reference](/guardrails-python-sdk/nemoguardrails).
 
 Example usage:
 
@@ -228,9 +228,11 @@ You can also use custom events:
 }
 ```
 
-```{note}
+<Note>
+
 You need to make sure that the guardrails logic can handle the custom event. You do this by updating your flows to deal with the new events where needed. Otherwise, the custom event will just be ignored.
-```
+
+</Note>
 
 ## Typical Usage
 

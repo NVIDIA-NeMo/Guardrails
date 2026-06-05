@@ -166,9 +166,7 @@ As we can see, the LLM did generate the message containing the word "idiot", how
 
 The following figure depicts the process:
 
-```{image} ../../../../../_static/puml/output_rails_fig_1.png
-:alt: "Sequence diagram showing how the self-check output rail works in NeMo Guardrails when processing a response that contains blocked content"
-```
+![Sequence diagram showing how the self-check output rail works in NeMo Guardrails when processing a response that contains blocked content](../../../../../_static/puml/output_rails_fig_1.png "Sequence diagram showing how the self-check output rail works in NeMo Guardrails when processing a response that contains blocked content")
 
 ## Streaming Output
 
@@ -177,9 +175,7 @@ You can enable streaming to provide asynchronous responses and reduce the time t
 
 1. Modify the `rails` field in the `config.yml` file and add the `streaming` field to enable streaming:
 
-   ```{code-block} yaml
-   :emphasize-lines: 9-12
-
+   ```yaml
    rails:
      input:
        flows:

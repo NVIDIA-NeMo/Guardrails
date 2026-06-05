@@ -5,8 +5,9 @@ title: "Add Multimodal Content Safety Using a Vision Model"
 sidebar-title: "Add Multimodal Content Safety"
 description: "Add safety checks to images and text using a vision model as LLM-as-a-Judge."
 content:
-  type: "tutorial"
+    type: "tutorial"
 ---
+
 Learn how to add safety checks to images and text using a vision model as LLM-as-a-Judge with [OpenAI GPT-4 Vision](https://platform.openai.com/docs/guides/vision), Llama Vision, or Llama Guard.
 
 By following this tutorial, you learn how to:
@@ -18,7 +19,8 @@ By following this tutorial, you learn how to:
 The NeMo Guardrails library supports multimodal content safety for input and output rails. You can provide images as base64-encoded data or URLs, depending on the model.
 
 <Note>
-Ensure image size and prompt length do not exceed the model's maximum context length.
+    Ensure image size and prompt length do not exceed the model's maximum
+    context length.
 </Note>
 
 ## Prerequisites
@@ -30,15 +32,19 @@ Ensure image size and prompt length do not exceed the model's maximum context le
 
 1. Create a configuration directory and add `config.yml`.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/config.yml
-   :language: yaml
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/config.yml"
+        language="yaml"
+        title="config.yml"
+    />
 
 1. Add `prompts.yml`.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/prompts.yml
-   :language: yaml
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/prompts.yml"
+        language="yaml"
+        title="prompts.yml"
+    />
 
 ## Test with OpenAI
 
@@ -46,56 +52,60 @@ This example sends image requests to OpenAI endpoints and tests safety checks on
 
 1. Set your OpenAI API key.
 
-   ```console
-   export OPENAI_API_KEY=<your-openai-api-key>
-   ```
+    ```console
+    export OPENAI_API_KEY=<your-openai-api-key>
+    ```
 
 1. Install the IPython REPL and run it to interpret the Python code below.
 
-      ```console
-      $ pip install ipython
-      $ ipython
+    ```console
+    $ pip install ipython
+    $ ipython
 
-      In [1]:
-      ```
+    In [1]:
+    ```
 
 1. Import libraries.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
-   :language: python
-   :start-after: "# start-prerequisites"
-   :end-before: "# end-prerequisites"
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="20-21"
+    />
 
 1. Load the configuration.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
-   :language: python
-   :start-after: "# start-config"
-   :end-before: "# end-config"
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="25-29"
+    />
 
 1. Send a safe image reasoning request.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
-   :language: python
-   :start-after: "# start-image-reasoning"
-   :end-before: "# end-image-reasoning"
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="33-49"
+    />
 
 1. Send an unsafe request.
 
-   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
-   :language: python
-   :start-after: "# start-potentially-unsafe"
-   :end-before: "# end-potentially-unsafe"
-   ```
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="53-69"
+    />
 
 ## Use Base64-Encoded Images
 
 Some models such as Llama Vision require base64-encoded images instead of URLs.
 
-```{code-block} python
+```python
 import base64
 import json
 

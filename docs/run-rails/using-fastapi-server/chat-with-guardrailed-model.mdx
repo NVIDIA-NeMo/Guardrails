@@ -138,9 +138,11 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 The configurations combine in the order specified.
 If there are conflicts, the last configuration takes precedence.
 
-```{note}
+<Note>
+
 All configurations must use the same model type and engine.
-```
+
+</Note>
 
 ### Example: Atomic Configurations
 
@@ -277,9 +279,11 @@ for line in response.iter_lines():
 Use `thread_id` inside the `guardrails` object to maintain conversation history on the server.
 This is useful when you can only send the latest message rather than the full history.
 
-```{tip}
+<Tip>
+
 The `thread_id` must be between 16 and 255 characters long.
-```
+
+</Tip>
 
 ```python
 # First message
@@ -325,9 +329,11 @@ register_datastore(MemoryStore())
 # register_datastore(RedisStore(redis_url="redis://localhost:6379"))
 ```
 
-```{caution}
+<Warning>
+
 To use `RedisStore`, install `aioredis >= 2.0.1`.
-```
+
+</Warning>
 
 ### Thread Limitations
 

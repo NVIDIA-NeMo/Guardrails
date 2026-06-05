@@ -95,6 +95,33 @@ Improving the project documentation is a valuable way to contribute to NeMo Guar
 - **Adding Examples**: Providing examples and use cases can help users better understand how to use the project effectively.
 - **New Content**: Creating new content such as tutorials, FAQs, Troubleshooting, etc.
 
+### Fern Documentation Workflow
+
+The migrated documentation source lives in `docs/` as MDX files and is built with Fern. Use the Makefile targets for Fern documentation work so the workflow stays consistent with the rest of the repository.
+
+```bash
+make docs-fern-strict
+```
+
+Use the following targets for common Fern documentation tasks:
+
+| Target | Description |
+| ------ | ----------- |
+| `make docs-fern` | Run the Fern docs check. |
+| `make docs-fern-strict` | Run the Fern docs check with the pinned Fern CLI version. |
+| `make docs-fern-live` | Serve the Fern docs locally. |
+| `make docs-fern-preview-watch` | Watch local changes and publish a Fern preview for the current branch. |
+| `make docs-fern-generate-sdk` | Regenerate the Python SDK reference pages with Fern's library docs generator. |
+
+The Fern CLI version is pinned in `fern/fern.config.json`. Do not run `fern upgrade` as part of normal documentation changes.
+
+When editing the migrated docs:
+
+- Edit `.mdx` files directly.
+- Do not edit deleted legacy `.md` source files.
+- Do not run the old conversion scripts unless you are intentionally restarting the migration from the legacy source.
+- After regenerating the Python SDK reference, verify that the generated sidebar does not contain duplicate page and folder entries.
+
 ## Code Contributions
 
 If you’re contributing for the first time and are searching for an issue to work on, we encourage you to check the [Contributing page](https://github.com/NVIDIA-NeMo/Guardrails/contribute) for suitable candidates. We strive to keep a selection of issues curated for first-time contributors, but sometimes there may be delays in updating. If you don’t find anything that fits, don’t hesitate to ask for guidance.

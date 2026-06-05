@@ -118,29 +118,16 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
 
 1. Create a configuration directory, such as `config`, and add a `config.yml` file with contents like the following:
 
-   ```{literalinclude} ../../../examples/configs/injection_detection/config/config.yml
-   :language: yaml
-   ```
+   <Code src="../../../examples/configs/injection_detection/config/config.yml" language="yaml" title="config.yml" />
 
 1. Load the guardrails configuration:
 
-   ```{literalinclude} ../../../examples/configs/injection_detection/demo.py
-   :language: python
-   :start-after: "# start-load-config"
-   :end-before: "# end-load-config"
-   ```
+   <Code src="../../../examples/configs/injection_detection/demo.py" language="python" title="demo.py" lines="32-35" />
 
 1. Send a possibly unsafe request:
 
-   ```{literalinclude} ../../../examples/configs/injection_detection/demo.py
-   :language: python
-   :start-after: "# start-unsafe-response"
-   :end-before: "# end-unsafe-response"
-   ```
+   <Code src="../../../examples/configs/injection_detection/demo.py" language="python" title="demo.py" lines="39-47" />
 
    *Example Output*
 
-   ```{literalinclude} ../../../examples/configs/injection_detection/demo-out.txt
-   :start-after: "# start-unsafe-response"
-   :end-before: "# end-unsafe-response"
-   ```
+   <Code src="../../../examples/configs/injection_detection/demo-out.txt" language="text" title="demo-out.txt" lines="2-2" />

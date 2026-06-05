@@ -136,14 +136,16 @@ IORails is an early-release feature, and metric names can change as the OpenTele
     - `count`: Number of observations recorded for this token type. Each LLM call records one `input` observation and one `output` observation, giving `count: 1` per type.
     - `sum`: Total tokens across those observations.
 
-```{important}
+<Info>
+
 The host application is responsible for configuring a `MeterProvider`.
 If you construct `LLMRails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **silently discards every metric emission**.
 The library does not log a warning.
 Always set the `MeterProvider` before constructing `LLMRails`.
-```
+
+</Info>
 
 ## Next Steps
 
-- For production exporters (OTLP, Prometheus), refer to [](/observability/metrics/opentelemetry-integration).
-- For the full list of emitted metrics, refer to [](/observability/metrics/reference).
+- For production exporters (OTLP, Prometheus), refer to [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration).
+- For the full list of emitted metrics, refer to [Metric Reference](/observability/metrics/reference).

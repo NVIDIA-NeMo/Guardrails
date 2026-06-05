@@ -24,9 +24,11 @@ When you include these parameters in your action's function signature, they are 
 | `llm_task_manager` | `LLMTaskManager` | Access to the LLM task manager for prompt rendering |
 | `state` | `State` | The runtime state object (Colang 2.x only) |
 
-```{important}
+<Info>
+
 Special parameters are only injected for actions that run locally. When an `actions_server_url` is configured, non-system actions are sent to the remote server and do **not** receive these parameters. To ensure an action always receives special parameters, mark it with `is_system_action=True`. When no actions server is configured, all actions run locally and receive these parameters regardless of `is_system_action`.
-```
+
+</Info>
 
 ## The `context` Parameter
 

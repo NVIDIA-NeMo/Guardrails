@@ -74,7 +74,7 @@ navigation:
             path: configure-rails/yaml-schema/model-configuration.mdx
             slug: model-configuration
           - page: Guardrails
-            path: configure-rails/yaml-schema/guardrails-configuration/index.mdx
+            path: configure-rails/yaml-schema/guardrails-configuration.mdx
             slug: guardrails-configuration
           - page: Prompts
             path: configure-rails/yaml-schema/prompt-configuration.mdx

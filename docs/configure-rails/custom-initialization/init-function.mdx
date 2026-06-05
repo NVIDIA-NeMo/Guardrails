@@ -10,9 +10,11 @@ content:
 
 If `config.py` contains an `init` function, it is called during `LLMRails` initialization. Use it to set up shared resources and register action parameters.
 
-```{important}
+<Info>
+
 The `init` function **must be synchronous** (`def init`, not `async def init`). The framework calls it without `await`, so an async function would silently do nothing.
-```
+
+</Info>
 
 Any top-level code in `config.py` runs at import time, before `init()` is called. This can be used for provider registration that does not require the `LLMRails` instance.
 

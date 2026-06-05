@@ -152,9 +152,11 @@ If no `Authorization` header is present, the server uses the API key from the ap
 | 502 | The upstream provider is unreachable or returned an error. |
 | 4xx | Proxied from the upstream provider (e.g., 401 for invalid API key). |
 
-```{note}
+<Note>
+
 If the engine is not in the built-in provider table and `MAIN_MODEL_BASE_URL` is not set, the endpoint returns an empty model list instead of an error.
-```
+
+</Note>
 
 ## Related Topics
 

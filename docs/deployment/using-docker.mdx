@@ -61,9 +61,11 @@ To build the Docker images, complete the following steps:
    docker build -t alignscore-server .
    ```
 
-   ```{note}
+   <Note>
+
    The provided Dockerfile downloads only the `base` AlignScore image. For large model support, uncomment the corresponding line in the Dockerfile.
-   ```
+
+   </Note>
 
 1. Optional: Build the jailbreak detection heuristics server image.
 
@@ -84,9 +86,11 @@ docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY nemoguardrails
 
 This command starts the library server with the example configurations. The Chat UI is accessible at `http://localhost:8000`.
 
-```{note}
+<Note>
+
 Because the example configurations use OpenAI models such as `gpt-3.5-turbo-instruct` and `gpt-4`, you must provide an `OPENAI_API_KEY`.
-```
+
+</Note>
 
 To specify your own config folder for the server, mount your local configuration into the `/config` path in the container:
 

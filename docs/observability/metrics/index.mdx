@@ -35,7 +35,7 @@ With metrics, you can:
 | Engine | Metrics |
 |--------|---------|
 | **IORails** | Preview support. All metrics described on this page are emitted by the opt-in `IORails` engine. |
-| **LLMRails** | Not supported. For LLMRails observability, use tracing; refer to [](/observability/tracing). |
+| **LLMRails** | Not supported. For LLMRails observability, use tracing; refer to [Tracing](/observability/tracing). |
 
 ## Independent of Tracing
 
@@ -61,7 +61,7 @@ Two families of metrics are emitted.
 | Request-level | `guardrails.*` | Volume, latency, errors, blocked requests, queue and stream saturation. |
 | LLM client-side | `gen_ai.client.*` | Per-LLM-call token usage, operation duration, streaming chunk timing. Follows the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/). |
 
-For the full list of metric names, types, labels, and units, refer to [](/observability/metrics/reference).
+For the full list of metric names, types, labels, and units, refer to [Metric Reference](/observability/metrics/reference).
 
 ## Important Considerations
 
@@ -83,7 +83,7 @@ For the full list of metric names, types, labels, and units, refer to [](/observ
 
 ## Contents
 
-- [](/observability/metrics/enable-metrics) — Minimal setup to enable metrics using the OpenTelemetry SDK with console output.
-- [](/observability/metrics/opentelemetry-integration) — Production-ready OpenTelemetry SDK configuration with OTLP and Prometheus exporters.
-- [](/observability/metrics/reference) — Full reference for every metric: name, instrument type, unit, labels, and emission semantics.
-- [](/troubleshooting#guardrails-metrics) — Common metrics issues and solutions.
+- [Enable Guardrails Metrics](/observability/metrics/enable-metrics) — Minimal setup to enable metrics using the OpenTelemetry SDK with console output.
+- [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration) — Production-ready OpenTelemetry SDK configuration with OTLP and Prometheus exporters.
+- [Metric Reference](/observability/metrics/reference) — Full reference for every metric: name, instrument type, unit, labels, and emission semantics.
+- [Troubleshooting: Guardrails Metrics](/troubleshooting#guardrails-metrics) — Common metrics issues and solutions.

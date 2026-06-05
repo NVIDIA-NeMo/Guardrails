@@ -12,13 +12,17 @@ Reasoning-capable large language models (LLMs) expose their internal thought pro
 
 The NeMo Guardrails library helps you set up guardrails to inspect and control these reasoning traces by extracting them. With this feature, you can configure guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
 
-```{note}
-This guide uses Colang 1.0 syntax. Colang 1.0 currently supports bot reasoning guardrails only.
-```
+<Note>
 
-```{important}
+This guide uses Colang 1.0 syntax. Colang 1.0 currently supports bot reasoning guardrails only.
+
+</Note>
+
+<Info>
+
 The examples in this guide range from minimal toy examples (for understanding concepts) to complete reference implementations. These examples teach you how to access and work with `bot_thinking` in different contexts, not as production-ready code to copy-paste. Adapt these patterns to your specific use case with appropriate validation, error handling, and business logic for your application.
-```
+
+</Info>
 
 ---
 
@@ -30,7 +34,7 @@ When an LLM generates a response with reasoning traces, the NeMo Guardrails libr
 
 The reasoning content is available as a context variable in Colang output rails. For example, in `config/rails.co`, you can set up a flow to capture the reasoning content by setting the `$captured_reasoning` variable to `$bot_thinking`.
 
-```{code-block}
+```
 define flow check_reasoning
   if $bot_thinking
     $captured_reasoning = $bot_thinking
@@ -40,7 +44,7 @@ define flow check_reasoning
 
 When you write Python action functions in  `config/actions.py`, you can access the reasoning through the context dictionary. For example, the following is an example action function that checks if the reasoning retrieved through `context.get("bot_thinking")` contains the word `"sensitive"`. It returns `False` if the bot reasoning contains the word `"sensitive"`.
 
-```{code-block} python
+```python
 @action(is_system_action=True)
 async def check_reasoning(context: Optional[dict] = None):
     bot_thinking = context.get("bot_thinking")
@@ -66,9 +70,11 @@ prompts:
       Should this be blocked (Yes or No)?
 ```
 
-```{important}
+<Info>
+
 Always check if reasoning exists before using it, as not all models provide reasoning traces.
-```
+
+</Info>
 
 ---
 
@@ -78,7 +84,7 @@ You can use the `$bot_thinking` variable in output rails to inspect and control 
 
 1. Write a basic pattern matching flow that uses the `$bot_thinking` variable in `config/rails.co` as follows:
 
-    ```{code-block}
+    ```
     define bot refuse to respond
       "I'm sorry, I can't respond to that."
 
@@ -91,16 +97,18 @@ You can use the `$bot_thinking` variable in output rails to inspect and control 
 
 2. Add the flow to your output rails in `config.yml` as follows:
 
-    ```{code-block}
+    ```
     rails:
       output:
         flows:
           - block_sensitive_reasoning
     ```
 
-```{note}
+<Note>
+
 This demonstrates how to set up a basic pattern matching flow for learning purposes. Production implementations must use more comprehensive validation and consider edge cases.
-```
+
+</Note>
 
 ---
 
@@ -111,7 +119,7 @@ This approach provides better code organization and makes it easier to share val
 
 1. Write the custom action function in `config/actions.py` as follows:
 
-    ```{code-block} python
+    ```python
     from typing import Optional
     from nemoguardrails.actions import action
 
@@ -137,7 +145,7 @@ This approach provides better code organization and makes it easier to share val
 
 2. Write the flow that uses the custom action function in `config/rails.co` as follows:
 
-    ```{code-block}
+    ```
     define bot refuse to respond
       "I'm sorry, I can't respond to that."
 
@@ -151,7 +159,7 @@ This approach provides better code organization and makes it easier to share val
 
 3. Add the flow to your output rails in `config.yml`.
 
-    ```{code-block}
+    ```
     rails:
       output:
         flows:

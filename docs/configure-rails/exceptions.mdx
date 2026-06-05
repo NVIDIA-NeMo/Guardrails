@@ -37,7 +37,7 @@ define flow input rail example
 
 ## Guardrails Library Exception
 
-By default, all the guardrails included in the [](/configure-rails/guardrail-catalog) return a predefined message
+By default, all the guardrails included in the [Guardrail Catalog](/configure-rails/guardrail-catalog) return a predefined message
 when a rail is triggered. You can change this behavior by setting the `enable_rails_exceptions` key to `True` in your
 `config.yml` file:
 
@@ -59,9 +59,11 @@ define flow self check input
       stop
 ```
 
-```{note}
+<Note>
+
 In Colang 2.x, you must change `$config.enable_rails_exceptions` to `$system.config.enable_rails_exceptions` and `create event` to `send`.
-```
+
+</Note>
 
 When the `self check input` rail is triggered, the following exception is returned.
 

@@ -27,9 +27,11 @@ By default, an `LLMRails` instance supports using documents as context for gener
 │       └── ...
 ```
 
-```{note}
+<Note>
+
 Currently, only the Markdown format is supported.
-```
+
+</Note>
 
 ## Document Structure
 
@@ -193,8 +195,10 @@ response = rails.generate(messages=[
 
 You can reference the retrieved chunks in your Colang flows:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -209,17 +213,21 @@ flow main
 flow user asked question
   user said "what" or user said "how" or user said "tell me"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define flow answer question
   user ask question
   # Use the retrieved knowledge base chunks to answer
   bot respond with knowledge
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Best Practices
 

@@ -13,8 +13,8 @@ If the application LLM supports streaming, the NeMo Guardrails library can strea
 
 For information about configuring streaming with output guardrails, refer to the following:
 
-- For configuration, refer to [](/configure-rails/yaml-schema/streaming/output-rail-streaming).
-- For sample Python client code, refer to [](/getting-started/tutorials).
+- For configuration, refer to [Output Rail Streaming](/configure-rails/yaml-schema/streaming/output-rail-streaming).
+- For sample Python client code, refer to [Tutorials](/getting-started/tutorials).
 
 ## Usage
 
@@ -167,9 +167,11 @@ With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` k
 
 Without `include_metadata`, chunks are plain strings (default behavior).
 
-```{warning}
+<Warning>
+
 The `include_generation_metadata` parameter is deprecated. Use `include_metadata` instead. It will be removed in version 0.22.0.
-```
+
+</Warning>
 
 ## Token Usage Tracking
 
@@ -201,11 +203,13 @@ info = rails.explain()
 info.print_llm_calls_summary()
 ```
 
-For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [](/run-rails/using-python-apis/generation-options#detailed-logging-information) and [](/observability/logging).
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options: Detailed Logging Information](/run-rails/using-python-apis/generation-options#detailed-logging-information) and [Logging](/observability/logging).
 
-```{note}
-For streaming while using the Guardrails API server, refer to [](/run-rails/using-fastapi-server/chat-with-guardrailed-model#streaming-responses).
-```
+<Note>
+
+For streaming while using the Guardrails API server, refer to [Chat Completions: Streaming Responses](/run-rails/using-fastapi-server/chat-with-guardrailed-model#streaming-responses).
+
+</Note>
 
 ### Streaming for LLMs Deployed Using HuggingFacePipeline
 

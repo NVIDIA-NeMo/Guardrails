@@ -8,9 +8,11 @@ description: "Convert Colang 1.0 configurations to Colang 2.x using the nemoguar
 The NeMo Guardrails CLI provides a tool (`nemoguardrails convert ...`) for converting guardrail configurations from Colang 1.0 format to Colang 2.x.
 It performs several syntax transformations on the content of the files, such as converting certain keywords and changing the case of certain identifiers.
 
-```{warning}
+<Warning>
+
 There are edge cases not covered by the conversion tool. You should always manually review a guardrail configuration after conversion.
-```
+
+</Warning>
 
 ## How it Works
 
@@ -81,15 +83,19 @@ flow express_greeting
   bot express greeting
 ```
 
-```{note}
+<Note>
+
 It is a convention to use past tense for user flows and present tense for bot flows. However, the migration tool does not enforce this convention.
-```
+
+</Note>
 
 The tool keeps track of the number of lines processed and the number of changes made in each file. It also counts the total number of files changed.
 
-```{warning}
+<Warning>
+
 The tool modifies the original files. It is recommended to use version control to track the changes made by the tool. It also enables you to see the differences between the original and modified files.
-```
+
+</Warning>
 
 ## Usage
 

@@ -66,15 +66,19 @@ tracing:
     - name: OpenTelemetry
 ```
 
-```{important}
+<Info>
+
 To use OpenTelemetry tracing, install the tracing dependencies:
 `pip install nemoguardrails[tracing]`
-```
 
-```{note}
+</Info>
+
+<Note>
+
 OpenTelemetry integration requires configuring the OpenTelemetry SDK in your application code.
 NeMo Guardrails follows OpenTelemetry best practices where libraries use only the API and applications configure the SDK.
-```
+
+</Note>
 
 ## Adapter Comparison
 

@@ -1,12 +1,20 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Overview of the Python API"
-sidebar-title: "Overview"
+title: "Overview of the NeMo Guardrails Python APIs"
+sidebar-title: "Python APIs Overview"
 description: "RailsConfig and LLMRails core classes for generating guarded responses."
-keywords: ["NeMo Guardrails", "RailsConfig", "LLMRails", "Python API", "generate", "generate_async"]
+keywords:
+    [
+        "NeMo Guardrails",
+        "RailsConfig",
+        "LLMRails",
+        "Python API",
+        "generate",
+        "generate_async",
+    ]
 content:
-  type: "concept"
+    type: "concept"
 ---
 
 The NeMo Guardrails library Python API provides two core classes for running guardrails:
@@ -14,7 +22,7 @@ The NeMo Guardrails library Python API provides two core classes for running gua
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
 - **`LLMRails`**: The main interface for generating responses with guardrails applied.
 
-Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [](/configure-rails).
+Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [About Configuring Guardrails](/configure-rails).
 
 ## Quick Start
 
@@ -24,7 +32,7 @@ The following steps show how to run a sample guardrailed chat request using the 
 
 Meet the following prerequisites to use the NeMo Guardrails library Python API.
 
-1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra, following the instructions in [](/getting-started/installation-guide).
+1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra, following the instructions in [Installation](/getting-started/installation-guide).
 
 1. Set up an environment variable for your NVIDIA API key.
 
@@ -77,22 +85,24 @@ def handler(event, context):
 
 ## When to Use Each API
 
-| API | Use Case |
-|-----|----------|
-| `generate()` / `generate_async()` | Standard chat interactions with messages |
-| `stream_async()` | Real-time token streaming |
+| API                                             | Use Case                                        |
+| ----------------------------------------------- | ----------------------------------------------- |
+| `generate()` / `generate_async()`               | Standard chat interactions with messages        |
+| `stream_async()`                                | Real-time token streaming                       |
 | `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations |
 
 ## Synchronous vs Asynchronous
 
 The NeMo Guardrails library provides both synchronous and asynchronous methods:
 
-| Synchronous | Asynchronous | Description |
-|-------------|--------------|-------------|
-| `generate()` | `generate_async()` | Generate responses from messages |
+| Synchronous         | Asynchronous              | Description                        |
+| ------------------- | ------------------------- | ---------------------------------- |
+| `generate()`        | `generate_async()`        | Generate responses from messages   |
 | `generate_events()` | `generate_events_async()` | Generate events from event history |
-| - | `stream_async()` | Stream tokens asynchronously |
+| -                   | `stream_async()`          | Stream tokens asynchronously       |
 
-```{note}
+<Note>
+
 Use asynchronous methods (`generate_async`, `stream_async`) in async contexts for better performance. The synchronous `generate()` method cannot be called from within an async context.
-```
+
+</Note>

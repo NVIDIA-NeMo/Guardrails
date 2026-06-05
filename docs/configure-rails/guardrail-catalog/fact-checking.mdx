@@ -16,11 +16,13 @@ The goal of the self-check fact-checking output rail is to ensure that the answe
 
 The NeMo Guardrails library uses the concept of **relevant chunks** (which are stored in the `$relevant_chunks` context variable) as the evidence against which fact-checking should be performed. The relevant chunks can be extracted automatically, if the built-in knowledge base support is used, or provided directly alongside the query.
 
-```{important}
+<Info>
+
 The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_facts` prompt.
 
 If your LLM does not reliably follow this prompt, consider a model purpose-built for hallucination detection instead. See [AlignScore-based Fact-Checking](#alignscore-based-fact-checking) or [Patronus Lynx-based RAG Hallucination Detection](#patronus-lynx-based-rag-hallucination-detection) on this page.
-```
+
+</Info>
 
 ### Usage
 
@@ -46,17 +48,21 @@ To use the self-check fact-checking rail, you should:
           Answer with yes/no. "evidence": {{ evidence }} "hypothesis": {{ response }} "entails":
     ```
 
-    ```{note}
+    <Note>
+
     If a prompt is not defined, an exception will be raised when the configuration is loaded.
-    ```
+
+    </Note>
 
 The above is an example prompt that you can use with the *self check facts rail*. The `self_check_facts` prompt has two input variables: `{{ evidence }}`, which includes the relevant chunks, and `{{ response }}`, which includes the bot response that should be fact-checked. The completion must be "yes" if the response is factually correct and "no" otherwise.
 
 The self-check fact-checking rail executes the [`self_check_facts` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a score between `0.0` (response is not accurate) and `1.0` (response is accurate). The reason a number is returned, instead of a boolean, is to keep a consistent API with other methods that return a score, e.g., the AlignScore method below.
 
-```{note}
+<Note>
+
 If the LLM hits its `max_tokens` budget before producing a verdict (`finish_reason="length"` with empty content), the action fail-closes and returns `0.0` so the response is blocked. This typically happens with reasoning models that consume output tokens on internal reasoning. Set `max_tokens` on the `self_check_facts` prompt task to fit both the reasoning trace and the yes/no verdict; if unset, the action falls back to `1024` tokens. See [Reasoning Models as Self-Check LLMs](/configure-rails/guardrail-catalog/self-check#reasoning-models-as-self-check-llms).
-```
+
+</Note>
 
 ```text
 define subflow self check facts
@@ -122,9 +128,11 @@ To use the hallucination rail, you should:
           Answer with yes/no. "context": {{ paragraph }} "hypothesis": {{ statement }} "agreement":
     ```
 
-    ```{note}
+    <Note>
+
     If a prompt is not defined, an exception will be raised when the configuration is loaded.
-    ```
+
+    </Note>
 
 The above is an example prompt you can use with the *self check hallucination rail*. The `self_check_hallucination` prompt has two input variables: `{{ paragraph }}`, which represents alternative generations for the same user query, and `{{ statement }}`, which represents the current bot response. The completion must be "yes" if the statement is not a hallucination (i.e., agrees with alternative generations) and "no" otherwise.
 

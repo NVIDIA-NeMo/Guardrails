@@ -20,12 +20,14 @@ Running actions in a separate server provides:
 - **Resource management**: Separate resource allocation for action execution.
 - **Scalability**: Scale the actions server independently from the guardrails server.
 
-```{note}
+<Note>
+
 Using an actions server is optional but highly recommended for production deployments.
 If no actions server is configured, actions run in the same process as the guardrails server.
-```
 
-For more details on security considerations, see [](/resources/security/guidelines).
+</Note>
+
+For more details on security considerations, see [Security](/resources/security/guidelines).
 
 ## Start the Actions Server
 
@@ -312,6 +314,6 @@ For production deployments:
 
 ## Related Topics
 
-- [](/run-rails/using-fastapi-server/run-guardrails-server)
-- [](/resources/security/guidelines)
-- [](/configure-rails/actions)
+- [Run the Server](/run-rails/using-fastapi-server/run-guardrails-server)
+- [Security](/resources/security/guidelines)
+- [Custom Actions](/configure-rails/actions)

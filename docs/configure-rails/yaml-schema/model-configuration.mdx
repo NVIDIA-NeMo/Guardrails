@@ -99,9 +99,11 @@ You can supply the resource endpoint as `azure_endpoint` (preferred, matches the
 
 Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
 
-```{note}
+<Note>
+
 Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/migration/0.22#azure-openai) for both alternatives.
-```
+
+</Note>
 
 ### Anthropic
 
@@ -114,9 +116,11 @@ models:
     model: claude-3-5-sonnet-20241022
 ```
 
-```{note}
+<Note>
+
 Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/migration/0.22#using-langchain).
-```
+
+</Note>
 
 ### vLLM (OpenAI-Compatible)
 
@@ -155,13 +159,17 @@ When self-hosted vLLM does not enforce authentication, set `parameters.api_key` 
     base_url: http://localhost:5000/v1
 ```
 
-```{note}
-Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
-```
+<Note>
 
-```{note}
+Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
+
+</Note>
+
+<Note>
+
 The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
-```
+
+</Note>
 
 ### Other OpenAI-Compatible Endpoints
 
@@ -178,9 +186,11 @@ models:
     model: gemini-1.0-pro
 ```
 
-```{note}
+<Note>
+
 Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](/migration/0.22#using-langchain).
-```
+
+</Note>
 
 ### Complete Example
 

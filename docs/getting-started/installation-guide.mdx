@@ -26,27 +26,27 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
 1. Create and activate a virtual environment:
 
-   ::::{tab-set}
+   <Tabs>
 
-   :::{tab-item} Linux/macOS
+   <Tab title="Linux/macOS">
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    ```
 
-   :::
+   </Tab>
 
-   :::{tab-item} Windows (Git Bash)
+   <Tab title="Windows (Git Bash)">
 
    ```bash
    python -m venv .venv
    source .venv/Scripts/activate
    ```
 
-   :::
+   </Tab>
 
-   ::::
+   </Tabs>
 
 1. Install the NeMo Guardrails library. Set `NVIDIA_API_KEY` to your personal API key generated on [build.nvidia.com](https://build.nvidia.com/).
 
@@ -66,9 +66,9 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
 Install the NeMo Guardrails library from source using pip or Poetry. Choose this method if you want to contribute to the library or use the latest development version.
 
-<Note>
+<Tabs>
 
-<Note title="pip">
+<Tab title="pip">
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
@@ -78,9 +78,9 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-</Note>
+</Tab>
 
-<Note title="Poetry">
+<Tab title="Poetry">
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
@@ -96,9 +96,9 @@ When using Poetry, prefix CLI commands with `poetry run`:
 poetry run nemoguardrails server --config examples/configs
 ```
 
-</Note>
+</Tab>
 
-</Note>
+</Tabs>
 
 ## Extra Dependencies
 
@@ -129,9 +129,9 @@ Use the following information to resolve common installation issues.
 
 The library uses [Annoy](https://github.com/spotify/annoy), which requires a C++ compiler. Most systems already have one installed. To check, run the following command:
 
-<Note>
+<Tabs>
 
-<Note title="Linux/macOS">
+<Tab title="Linux/macOS">
 
 ```bash
 g++ --version
@@ -145,9 +145,9 @@ If the command is not found, install the compiler:
 apt-get install gcc g++ python3-dev
 ```
 
-</Note>
+</Tab>
 
-<Note title="Windows">
+<Tab title="Windows">
 
 Open a terminal (CMD or PowerShell) and run:
 
@@ -159,6 +159,6 @@ If the command prints a file path, a C++ compiler is already installed and no ac
 
 If the command is not found, install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (version 14.0 or greater).
 
-</Note>
+</Tab>
 
-</Note>
+</Tabs>

@@ -20,7 +20,7 @@ Launch the server using the `nemoguardrails` CLI:
 nemoguardrails server --config examples/configs
 ```
 
-For more information about the available options, see [](/reference/cli#server).
+For more information about the available options, see [CLI: Server](/reference/cli#server).
 
 ## Link Guardrail Configurations to the Server
 
@@ -130,9 +130,11 @@ You can add the `--auto-reload` flag to the server to automatically reload when 
 nemoguardrails server --config ./configs --auto-reload
 ```
 
-```{important}
+<Info>
+
 Use `--auto-reload` only in development environments. It is not recommended for production.
-```
+
+</Info>
 
 ## Model Provider Configuration
 
@@ -217,10 +219,12 @@ nemoguardrails server --config ./configs
 The server includes a built-in Chat UI for testing guardrails configurations.
 Access it at `http://localhost:8000/` after starting the server.
 
-```{important}
+<Info>
+
 The Chat UI is for internal testing only.
 For production deployments, disable it using the `--disable-chat-ui` flag.
-```
+
+</Info>
 
 ## Related Topics
 

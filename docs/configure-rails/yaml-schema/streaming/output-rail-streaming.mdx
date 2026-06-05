@@ -89,9 +89,11 @@ rails:
       enabled: True
 ```
 
-```{note}
+<Note>
+
 The top-level `streaming: True` field is deprecated and no longer required. Use `stream_async()` directly instead.
-```
+
+</Note>
 
 ---
 
@@ -145,9 +147,11 @@ rails:
       stream_first: True
 ```
 
-```{warning}
+<Warning>
+
 With `stream_first: True`, the client receives tokens before output rails run. If a rail blocks the content, the user has already received the tokens up to that point. The stream terminates with a JSON error object when it detects a violation.
-```
+
+</Warning>
 
 ### Safety-First Configuration
 

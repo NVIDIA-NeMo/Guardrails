@@ -34,13 +34,17 @@ To use the content safety check, you should:
           api_key: EMPTY
     ```
 
-    ```{note}
-    The `type` is a unique identifier for the model that will be passed to the input and output rails as a parameter.
-    ```
+    <Note>
 
-    ```{note}
+    The `type` is a unique identifier for the model that will be passed to the input and output rails as a parameter.
+
+    </Note>
+
+    <Note>
+
     The vLLM example above uses NeMo Guardrails' built-in OpenAI-compatible client. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it directly with no LangChain dependency. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For background, see [Migrating to 0.22](/migration/0.22).
-    ```
+
+    </Note>
 
 2. Include the content safety check in the input and output rails section of the `config.yml` file:
 
@@ -90,9 +94,11 @@ To use the content safety check, you should:
         output_parser: is_content_safe
     ```
 
-    ```{warning}
+    <Warning>
+
     If a prompt is not defined, an exception will be raised when the configuration is loaded.
-    ```
+
+    </Warning>
 
 4. You must specify the output parser. You can use your own parser and register it or use the off-the-shelf `is_content_safe` output parser as shown above.
 
@@ -101,9 +107,11 @@ To use the content safety check, you should:
     - If the response includes "unsafe" or "yes", the content is considered unsafe.
     - If the response includes "no", the content is considered safe.
 
-    ```{note}
+    <Note>
+
     If you're using this function for a different task with a custom prompt, you'll need to update the logic to fit the new context. In this case, "yes" means the content should be blocked, is unsafe, or breaks a policy, while "no" means the content is safe and doesn't break any policies.
-    ```
+
+    </Note>
 
 The above is an example prompt that you can use with the *content safety check input $model=shieldgemma*. The prompt has one input variable: `{{ user_input }}`, which includes user input that should be moderated. The completion must be "yes" if the response is not safe and "no" otherwise. Optionally, some models may return a set of policy violations.
 

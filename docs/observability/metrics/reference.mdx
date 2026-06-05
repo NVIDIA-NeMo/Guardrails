@@ -88,10 +88,12 @@ These metrics are recorded once per downstream LLM call, not once per IORails re
 | `gen_ai.client.operation.time_to_first_chunk` | Histogram | `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model` | Streaming-only. Time from request issue to the first content-bearing chunk. |
 | `gen_ai.client.operation.time_per_output_chunk` | Histogram | `s` | `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model` | Streaming-only. Inter-chunk gap; one observation per content-bearing chunk after the first. |
 
-```{note}
+<Note>
+
 `gen_ai.token.type` only takes the values `input` and `output` per spec.
 Reasoning and cached tokens are exposed as **span attributes** (`gen_ai.usage.reasoning.output_tokens` and so on), not as additional metric label values.
-```
+
+</Note>
 
 ### Bucket Boundaries
 
@@ -140,6 +142,6 @@ Bucket boundaries follow the OpenTelemetry GenAI spec and can change if the spec
 
 ## Related Resources
 
-- [](/observability/metrics/enable-metrics) — Minimal SDK setup with console output.
-- [](/observability/metrics/opentelemetry-integration) — Production exporters: OTLP, Prometheus.
+- [Enable Guardrails Metrics](/observability/metrics/enable-metrics) — Minimal SDK setup with console output.
+- [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration) — Production exporters: OTLP, Prometheus.
 - [OpenTelemetry GenAI metrics specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) — Upstream semantic conventions.

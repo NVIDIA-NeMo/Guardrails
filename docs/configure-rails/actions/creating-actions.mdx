@@ -54,9 +54,11 @@ $is_valid = execute validate_user_input(text=$user_message)
 
 When `is_system_action=True`, the action always runs locally, even when an `actions_server_url` is configured. This is important for actions that need access to special parameters like `context`, `llm`, `config`, and `events`, which are only injected for locally-run actions.
 
-```{note}
+<Note>
+
 When no `actions_server_url` is configured, all actions run locally and receive special parameters regardless of the `is_system_action` setting. The flag only affects behavior when an actions server is in use.
-```
+
+</Note>
 
 ```python
 @action(is_system_action=True)
@@ -71,9 +73,11 @@ async def check_policy_compliance(context: Optional[dict] = None):
 
 When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background and the result is picked up later via polling. This is useful for long-running operations where you don't need the result immediately.
 
-```{note}
+<Note>
+
 This flag is only supported in the Colang 2.x runtime. In the Colang 1.0 runtime, it is stored in metadata but has no effect.
-```
+
+</Note>
 
 ```python
 @action(execute_async=True)

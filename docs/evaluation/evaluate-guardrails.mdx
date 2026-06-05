@@ -5,12 +5,22 @@ title: "Evaluate NeMo Guardrails Library Performance"
 sidebar-title: "Evaluate Guardrails"
 description: "Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails."
 content:
-  type: "how_to"
+    type: "how_to"
 ---
 
 The NeMo Guardrails library includes a set of tools that you can use to evaluate the different types of rails. In the current version, these tools test the performance of each type of rail individually. You can use the evaluation tools through the `nemoguardrails` CLI. Examples will be provided for each type of rail.
 
-> **Note.** Evaluation uses whichever LLM framework is active. The default framework serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, and any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url`. Engines whose API is not OpenAI-compatible (`vertexai`, `anthropic`, `cohere`, `azure`, the in-process `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, and the legacy `vllm_openai` LangChain wrapper) require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` plus the matching `langchain-*` package.
+<Note>
+    Evaluation uses whichever LLM framework is active. The default framework
+    serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, and
+    any other OpenAI-compatible provider configured with `engine: openai` and
+    `parameters.base_url`. Engines whose API is not OpenAI-compatible
+    (`vertexai`, `anthropic`, `cohere`, `azure`, the in-process
+    `huggingface_pipeline`, `huggingface_endpoint` with the default
+    text-generation schema, `trt_llm`, and the legacy `vllm_openai` LangChain
+    wrapper) require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` plus the matching
+    `langchain-*` package.
+</Note>
 
 At the same time, we provide preliminary results on the performance of the rails on a set of public datasets that are relevant to each task at hand.
 
@@ -41,7 +51,7 @@ A dialog rails evaluation has the following CLI parameters:
 - `max-tests-intent`: Maximum number of test samples per intent to be used when testing (useful to have balanced test data for unbalanced datasets). If the value is 0, this parameter is not used.
 - `max-samples-intent`: Maximum number of samples per intent to be used in the vector database. If the value is 0, all samples not in test set are used.
 - `results-frequency`: If we want to print intermediate results about the
-current evaluation, this is the step.
+  current evaluation, this is the step.
 - `sim-threshold`: If larger than 0, for intents that do not have an exact match, pick the most similar intent above this threshold.
 - `random-seed`: Random seed used by the evaluation.
 - `output-dir`: Output directory for predictions.
@@ -75,14 +85,14 @@ Important lessons to be learned from the evaluation results:
 Evaluation Date - June 21, 2023. Updated July 24, 2023 for Dolly, Vicuna and Mosaic MPT models. Updated Mar 13 2024 for `gemini-1.0-pro` and `text-bison`.
 
 | Dataset   | # intents | # test samples |
-|-----------|-----------|----------------|
+| --------- | --------- | -------------- |
 | chit-chat | 76        | 226            |
 | banking   | 77        | 231            |
 
 Results on _chit-chat_ dataset, metric used is accuracy.
 
 | Model                                  | User intent, `w.o sim` | User intent, `sim=0.6` | Bot intent, `w.o sim` | Bot intent, `sim=0.6` | Bot message, `w.o sim` | Bot message, `sim=0.6` |
-|----------------------------------------|------------------------|------------------------|-----------------------|-----------------------|------------------------|------------------------|
+| -------------------------------------- | ---------------------- | ---------------------- | --------------------- | --------------------- | ---------------------- | ---------------------- |
 | `gpt-3.5-turbo-instruct, k=all`        | 0.88                   | N/A                    | 0.88                  | N/A                   | 0.88                   | N/A                    |
 | `gpt-3.5-turbo-instruct, single call`  | 0.90                   | N/A                    | 0.91                  | N/A                   | 0.91                   | N/A                    |
 | `gpt-3.5-turbo-instruct, compact`      | 0.89                   | N/A                    | 0.89                  | N/A                   | 0.90                   | N/A                    |
@@ -105,7 +115,7 @@ Results on _chit-chat_ dataset, metric used is accuracy.
 Results on _banking_ dataset, metric used is accuracy.
 
 | Model                                  | User intent, `w.o sim` | User intent, `sim=0.6` | Bot intent, `w.o sim` | Bot intent, `sim=0.6` | Bot message, `w.o sim` | Bot message, `sim=0.6` |
-|----------------------------------------|------------------------|------------------------|-----------------------|-----------------------|------------------------|------------------------|
+| -------------------------------------- | ---------------------- | ---------------------- | --------------------- | --------------------- | ---------------------- | ---------------------- |
 | `gpt-3.5-turbo-instruct, k=all`        | 0.73                   | N/A                    | 0.74                  | N/A                   | N/A                    | N/A                    |
 | `gpt-3.5-turbo-instruct, single call`  | 0.81                   | N/A                    | 0.83                  | N/A                   | N/A                    | N/A                    |
 | `gpt-3.5-turbo-instruct, compact`      | 0.86                   | N/A                    | 0.87                  | N/A                   | N/A                    | N/A                    |
@@ -141,7 +151,7 @@ This approach is based on the AlignScore model [Zha et al. 2023](https://aclanth
 
 1. All information in the predicted answer is present in the evidence passage, and
 2. None of the information in the predicted answer contradicts the evidence passage.
-The response is a value between 0.0 and 1.0. In our testing, the best average accuracies were observed with a threshold of 0.7.
+   The response is a value between 0.0 and 1.0. In our testing, the best average accuracies were observed with a threshold of 0.7.
 
 Please see the [AlignScore Integration](/configure-rails/guardrail-catalog/community/alignscore) for detailed steps on how to configure your deployment to use AlignScore.
 
@@ -184,15 +194,15 @@ We evaluate the performance of the fact-checking rail on the [MSMARCO](https://h
 We breakdown the performance into positive entailment accuracy and negative entailment accuracy. Positive entailment accuracy is the accuracy of the model in correctly identifying answers that are grounded in the evidence passage. Negative entailment accuracy is the accuracy of the model in correctly identifying answers that are **not** supported in the evidence. Details on how to create synthetic negative examples can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/factchecking/README.md).
 
 | Model                  | Positive Entailment Accuracy | Negative Entailment Accuracy | Overall Accuracy | Average Time Per Checked Fact (ms) |
-|------------------------|------------------------------|------------------------------|------------------|------------------------------------|
+| ---------------------- | ---------------------------- | ---------------------------- | ---------------- | ---------------------------------- |
 | gpt-3.5-turbo-instruct | **92.0%**                    | 69.0%                        | 80.5%            | 188.8ms                            |
 | gpt-3.5-turbo          | 76.0%                        | 89.0%                        | 82.5%            | 435.1ms                            |
 | text-davinci-003       | 70.0%                        | **93.0%**                    | 81.5%            | 272.2ms                            |
 | gemini-1.0-pro         | **92.0%**                    | **93.0%**                    | **92.5%**        | 704.5ms                            |
-| align_score-base*      | 81.0%                        | 88.0%                        | 84.5%            | **23.0ms** ^                       |
-| align_score-large*     | 87.0%                        | 90.0%                        | **88.5%**        | 46.0ms ^                           |
+| align_score-base\*     | 81.0%                        | 88.0%                        | 84.5%            | **23.0ms** ^                       |
+| align_score-large\*    | 87.0%                        | 90.0%                        | **88.5%**        | 46.0ms ^                           |
 
-*The threshold used for align_score is 0.7, i.e. an align_score >= 0.7 is considered a factual statement, and an align_score < 0.7 signifies an incorrect statement.
+\*The threshold used for align_score is 0.7, i.e. an align_score >= 0.7 is considered a factual statement, and an align_score < 0.7 signifies an incorrect statement.
 ^When the AlignScore model is loaded in-memory and inference is carried out without network overheads, i.e., not as a RESTful service.
 
 ### Moderation Rails
@@ -228,11 +238,11 @@ The various arguments that can be passed to evaluate the moderation rails are
 
 It is also possible to evaluate each of the rails individually. To evaluate the input rail only, use the following command:
 
-```nemoguardrails evaluate moderation --check-output False --config=path/to/guardrails/config```
+`nemoguardrails evaluate moderation --check-output False --config=path/to/guardrails/config`
 
 To evaluate the output moderation rail only, use the following command:
 
-```nemoguardrails evaluate moderation --check-input False --config=path/to/guardrails/config```
+`nemoguardrails evaluate moderation --check-input False --config=path/to/guardrails/config`
 
 More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/moderation/README.md).
 
@@ -254,13 +264,21 @@ We want the models to block as many harmful prompts as possible and allow as man
 These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [LLM Self-Check](/configure-rails/guardrail-catalog/self-check) guide.
 
 | Model                  | % of harmful prompts blocked | % harmful prompts triggering model errors | % of helpful prompts allowed |
-|------------------------|------------------------------|-------------------------------------------|------------------------------|
+| ---------------------- | ---------------------------- | ----------------------------------------- | ---------------------------- |
 | gpt-3.5-turbo-instruct | 78                           | 0                                         | 97                           |
 | gpt-3.5-turbo          | 70                           | 0                                         | 100                          |
 | text-davinci-003       | 80                           | 0                                         | 97                           |
-| gemini-1.0-pro         | 63                           | 36<sup>*</sup>                            | 97                           |
+| gemini-1.0-pro         | 63                           | 36<sup>\*</sup>                           | 97                           |
 
-<sup>*</sup> Note that as of Mar 13, 2024 `gemini-1.0-pro` when queried via the Vertex AI API occasionally produces [this error](https://github.com/GoogleCloudPlatform/generative-ai/issues/344). Note that this occurs with a self check prompt, that is when the model is given an input where it is asked to give a yes / no answer to whether it should respond to a particular input. We report these separately since this behavior is triggered by the self check prompt itself in which case it is debatable whether this behavior should be treated as effective moderation or being triggered by a false positive.
+<sup>*</sup> Note that as of Mar 13, 2024 `gemini-1.0-pro` when queried via the
+Vertex AI API occasionally produces [this
+error](https://github.com/GoogleCloudPlatform/generative-ai/issues/344). Note
+that this occurs with a self check prompt, that is when the model is given an
+input where it is asked to give a yes / no answer to whether it should respond
+to a particular input. We report these separately since this behavior is
+triggered by the self check prompt itself in which case it is debatable whether
+this behavior should be treated as effective moderation or being triggered by a
+false positive.
 
 <a id="llamaguard-based-moderation-rails-performance"></a>
 ##### LlamaGuard-based Moderation Rails Performance
@@ -274,19 +292,19 @@ Results on the OpenAI Moderation test set
 Dataset size: 1,680
 Number of user inputs labeled harmful: 552 (31.1%)
 
-| Main LLM               | Input Rail               | Accuracy | Precision | Recall | F1 score |
-|------------------------|--------------------------|----------|-----------|--------|----------|
-| gpt-3.5-turbo-instruct | self check input         | 65.9%    | 0.47      | 0.88   | 0.62     |
-| gpt-3.5-turbo-instruct | llama guard check input  | 81.9%    | 0.73      | 0.66   | 0.69     |
+| Main LLM               | Input Rail              | Accuracy | Precision | Recall | F1 score |
+| ---------------------- | ----------------------- | -------- | --------- | ------ | -------- |
+| gpt-3.5-turbo-instruct | self check input        | 65.9%    | 0.47      | 0.88   | 0.62     |
+| gpt-3.5-turbo-instruct | llama guard check input | 81.9%    | 0.73      | 0.66   | 0.69     |
 
 Results on the ToxicChat dataset:
 Dataset size: 10,165
 Number of user inputs labeled harmful: 730 (7.2%)
 
-| Main LLM               | Input Rail               | Accuracy | Precision | Recall | F1 score |
-|------------------------|--------------------------|----------|-----------|--------|----------|
-| gpt-3.5-turbo-instruct | self check input         | 66.5%    | 0.16      | 0.85   | 0.27     |
-| gpt-3.5-turbo-instruct | llama guard check input  | 94.4%    | 0.67      | 0.44   | 0.53     |
+| Main LLM               | Input Rail              | Accuracy | Precision | Recall | F1 score |
+| ---------------------- | ----------------------- | -------- | --------- | ------ | -------- |
+| gpt-3.5-turbo-instruct | self check input        | 66.5%    | 0.16      | 0.85   | 0.27     |
+| gpt-3.5-turbo-instruct | llama guard check input | 94.4%    | 0.67      | 0.44   | 0.53     |
 
 The low precision and high recall numbers from the self check input with the complex prompt indicates an overly defensive behavior from the self check input rail. We will run this evaluation with more variations of the self check prompt and report numbers.
 
@@ -321,7 +339,7 @@ Here is a list of arguments that you can use to configure the hallucination rail
 
 To evaluate the hallucination rail on your own dataset, you can follow the create a text file with the list of questions and run the evaluation using the following command
 
-```nemoguardrails evaluate hallucination --dataset-path <path-to-your-text-file>```
+`nemoguardrails evaluate hallucination --dataset-path <path-to-your-text-file>`
 
 #### Evaluation Results
 
@@ -339,11 +357,13 @@ We breakdown the performance into the following metrics:
 - % of questions that are intercepted by model + hallucination rail, i.e., % of questions where the either the model detects are not answerable or the hallucination rail detects that the model is making up facts
 
 | Model            | % intercepted - model | % intercepted - model + hallucination rail | % model errored out |
-|------------------|-----------------------|--------------------------------------------|---------------------|
-| text-davinci-003 | 0                     | 70                                         | 0                   |                                       |
-| gpt-3.5-turbo    | 65                    | 90                                         | 0                   |                                       |
-| gemini-1.0-pro   | 60                    | 80                                         | 6.7<sup>*</sup>     |
+| ---------------- | --------------------- | ------------------------------------------ | ------------------- | --- |
+| text-davinci-003 | 0                     | 70                                         | 0                   |     |
+| gpt-3.5-turbo    | 65                    | 90                                         | 0                   |     |
+| gemini-1.0-pro   | 60                    | 80                                         | 6.7<sup>\*</sup>    |
 
 We find that gpt-3.5-turbo is able to intercept 65% of the questions and identify them as not answerable on its own. Adding the hallucination rail helps intercepts 25% more questions and prevents the model from making up facts.
 
-<sup>*</sup> Vertex AI models sometimes error out on hallucination and moderation tests due to [this issue](https://github.com/GoogleCloudPlatform/generative-ai/issues/344).
+<sup>*</sup> Vertex AI models sometimes error out on hallucination and
+moderation tests due to [this
+issue](https://github.com/GoogleCloudPlatform/generative-ai/issues/344).

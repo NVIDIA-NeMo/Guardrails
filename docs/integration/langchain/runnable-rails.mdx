@@ -52,9 +52,11 @@ Add guardrails around the LLM model in the example above with the following code
 chain_with_guardrails = prompt | (guardrails | model) | output_parser
 ```
 
-```{note}
+<Note>
+
 Using the extra parenthesis is essential to enforce the order in which the `|` (pipe) operator is applied.
-```
+
+</Note>
 
 To add guardrails to an existing chain or any `Runnable`, wrap it similarly.
 

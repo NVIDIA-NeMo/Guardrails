@@ -9,8 +9,10 @@ This guide teaches you how to extract user-provided values (for example, a name,
 
 ## Overview
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 In Colang 2.0, you use **Natural Language Descriptions (NLD)** with the generation operator (`...`) to extract values. The NLD is placed inline after the `...` operator:
 
 ~~~text
@@ -18,9 +20,11 @@ $variable_name = ..."Instructions on how to extract the value."
 ~~~
 
 The NLD together with the variable name is interpreted by the LLM directly. Be specific about the format and type you expect.
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 In Colang 1.0, you place a **comment** above the variable assignment with the `...` operator:
 
 ~~~text
@@ -30,19 +34,25 @@ $variable_name = ...
 ~~~
 
 The comment is included in the prompt, instructing the LLM on how to compute the variable's value.
-```
-````
 
-```{note}
+</Tab>
+
+</Tabs>
+
+<Note>
+
 `...` is not a placeholder; it is the actual syntax (the generation operator).
-```
+
+</Note>
 
 ## Single Values
 
 You can extract single values from user input:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -57,9 +67,11 @@ flow main
 flow user provided name
   user said "my name is" or user said "I am" or user said "call me"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define user provide name
   "My name is John"
@@ -72,15 +84,19 @@ define flow
   $name = ...
   bot express greeting
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Lists of Values
 
 You can instruct the LLM to extract a list of values:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -99,9 +115,11 @@ flow user requested add items to cart
     or user said "I want to order"
     or user said "can I get"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define flow add to cart
   user request add items to cart
@@ -112,15 +130,19 @@ define flow add to cart
 
   $item_list = ...
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Multiple Values
 
 You can extract values for multiple variables from the same user input:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -139,9 +161,11 @@ flow user requested book flight
     or user said "I want to fly"
     or user said "I need a flight"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define user request book flight
   "I want to book a flight."
@@ -157,8 +181,10 @@ define flow
   # Extract the destination city from the user's request. If not specified, say "unknown".
   $destination_city = ...
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Contextual Queries
 
@@ -173,8 +199,10 @@ user: "And its square root?"
 bot: "The square root for 1024 is 32"
 ```
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -192,9 +220,11 @@ flow user asked math question
     or user said "calculate"
     or user said "and its"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define flow
   user ask math question
@@ -205,13 +235,17 @@ define flow
   execute wolfram alpha request(query=$math_query)
   bot respond to math question
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Best Practices
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 **Be specific in your NLDs:**
 
 ~~~text
@@ -231,9 +265,11 @@ $value = ..."Get the value."
 $order_info = ..."Extract the order details."
 $summary = ..."Provide a brief summary of the current order. Order Information: '{$order_info}'"
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 **Be specific in your comments:**
 
 ~~~text
@@ -249,8 +285,10 @@ $items = ...
 # Get the value.
 $value = ...
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Key Differences
 

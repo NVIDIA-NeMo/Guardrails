@@ -15,7 +15,7 @@ content:
     type: "concept"
 ---
 
-Before using the NeMo Guardrails library, you need to prepare configuration files that define your guardrails behavior. When you initialize the library's core classes or the `nemoguardrails` CLI chat or server, it will load these configuration files as shown in the next chapter [](/run-rails). This section provides complete instructions on preparing your configuration files and executable scripts.
+Before using the NeMo Guardrails library, you need to prepare configuration files that define your guardrails behavior. When you initialize the library's core classes or the `nemoguardrails` CLI chat or server, it will load these configuration files as shown in the next chapter [About Running Guardrailed Inference](/run-rails). This section provides complete instructions on preparing your configuration files and executable scripts.
 
 A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed. All the components should be placed in the `config` folder, and the locations in the following table are relative to the `config` folder.
 
@@ -92,11 +92,11 @@ The following are example configuration folder structures.
 
 For each component, refer to the following sections for more details:
 
-- [](/configure-rails/yaml-schema) - A complete guide to writing your `config.yml` file.
-- [](/configure-rails/colang) - `.co` flow files in `rails` folder.
-- [](/configure-rails/actions) - `actions.py` or `actions/` folder for callable actions.
-- [](/configure-rails/custom-initialization) - `config.py` for custom initialization.
-- [](/configure-rails/other-configurations/knowledge-base) - `kb/` folder for RAG.
+- [Configuring YAML File](/configure-rails/yaml-schema) - A complete guide to writing your `config.yml` file.
+- [Colang](/configure-rails/colang) - `.co` flow files in `rails` folder.
+- [Custom Actions](/configure-rails/actions) - `actions.py` or `actions/` folder for callable actions.
+- [Custom Initialization](/configure-rails/custom-initialization) - `config.py` for custom initialization.
+- [Knowledge Base](/configure-rails/other-configurations/knowledge-base) - `kb/` folder for RAG.
 
 After preparing your configuration files, you can use the NeMo Guardrails SDK to instantiate the core classes (`RailsConfig` and `LLMRails`) and run guardrails on your LLM applications.
-For detailed SDK usage, including loading configurations, generating responses, streaming, and debugging, refer to [](/run-rails).
+For detailed SDK usage, including loading configurations, generating responses, streaming, and debugging, refer to [About Running Guardrailed Inference](/run-rails).

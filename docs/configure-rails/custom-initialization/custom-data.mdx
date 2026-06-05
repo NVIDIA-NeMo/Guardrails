@@ -103,9 +103,11 @@ def init(app: LLMRails):
     app.register_action_param("api_client", client)
 ```
 
-```{note}
+<Note>
+
 The `custom_data` field in `config.yml` uses standard YAML parsing and does **not** support inline environment variable substitution (e.g., `${VAR}`). Load sensitive values from environment variables in your `init()` function instead.
-```
+
+</Note>
 
 ## Best Practices
 

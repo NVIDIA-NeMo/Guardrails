@@ -61,9 +61,11 @@ When `rail_types` is not provided, the methods automatically determine which rai
 | Both `user` and `assistant` | Both input and output rails |
 | No `user` or `assistant` messages | Returns PASSED status |
 
-```{note}
+<Note>
+
 The methods ignore other message roles such as `system`, `context`, `tool` when determining which rails to run but still include them in the validation context.
-```
+
+</Note>
 
 ### Explicit Rail Types
 
@@ -159,11 +161,11 @@ result = await rails.check_async([
 ])
 ```
 
-For more information about context variables, refer to [](/run-rails/using-python-apis/core-classes#passing-context).
+For more information about context variables, refer to [Core Classes: Passing Context](/run-rails/using-python-apis/core-classes#passing-context).
 
 ---
 
 ## Related Resources
 
-- [](/run-rails/using-python-apis/core-classes) - `LLMRails` and `RailsConfig` class reference
-- [](/run-rails/using-python-apis/generation-options) - Fine-grained control over generation with the `options` parameter
+- [Core Classes](/run-rails/using-python-apis/core-classes) - `LLMRails` and `RailsConfig` class reference
+- [Generation Options](/run-rails/using-python-apis/generation-options) - Fine-grained control over generation with the `options` parameter

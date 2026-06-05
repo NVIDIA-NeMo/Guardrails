@@ -9,22 +9,30 @@ You can provide instructions to the LLM on how to generate bot messages. The app
 
 ## Overview
 
-````{tab-set}
-```{tab-item} Colang 2.0
-In Colang 2.0, you use **flow docstrings** (Natural Language Descriptions) to provide instructions to the LLM. These docstrings are included in the prompt when the generation operator (`...`) is invoked.
-```
+<Tabs>
 
-```{tab-item} Colang 1.0
+<Tab title="Colang 2.0">
+
+In Colang 2.0, you use **flow docstrings** (Natural Language Descriptions) to provide instructions to the LLM. These docstrings are included in the prompt when the generation operator (`...`) is invoked.
+
+</Tab>
+
+<Tab title="Colang 1.0">
+
 In Colang 1.0, you place a **comment** above a `bot something` statement. The comment is included in the prompt, instructing the LLM on how to generate the message.
-```
-````
+
+</Tab>
+
+</Tabs>
 
 ## Formal Greeting Example
 
 The following example instructs the LLM to respond formally when the user greets:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -44,9 +52,11 @@ flow bot respond formally
 ~~~
 
 The docstring in the `bot respond formally` flow provides the instruction. The `...` (generation operator) triggers the LLM to generate the response following that instruction.
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define flow
   user express greeting
@@ -55,8 +65,10 @@ define flow
 ~~~
 
 The comment above `bot express greeting` is included in the prompt to the LLM.
-```
-````
+
+</Tab>
+
+</Tabs>
 
 The LLM generates a response like:
 
@@ -68,8 +80,10 @@ The LLM generates a response like:
 
 The following example instructs the LLM to respond informally with a joke:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 ~~~text
 import core
 import llm
@@ -87,17 +101,21 @@ flow bot respond informally with joke
   """Respond in a very informal way and also include a joke."""
   bot say ...
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 ~~~text
 define flow
   user express greeting
   # Respond in a very informal way and also include a joke
   bot express greeting
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 The LLM generates a response like:
 
@@ -109,8 +127,10 @@ Hi there! I'm your friendly AI assistant, here to help with any math questions y
 
 You can also include dynamic context in your instructions:
 
-````{tab-set}
-```{tab-item} Colang 2.0
+<Tabs>
+
+<Tab title="Colang 2.0">
+
 In Colang 2.0, you can use Jinja2 syntax to include variables in flow docstrings:
 
 ~~~text
@@ -126,9 +146,11 @@ flow bot greet user $name
   """Greet the user by their name: {{ name }}. Be warm and friendly."""
   bot say ...
 ~~~
-```
 
-```{tab-item} Colang 1.0
+</Tab>
+
+<Tab title="Colang 1.0">
+
 In Colang 1.0, context variables are accessed differently through the context object:
 
 ~~~text
@@ -138,7 +160,9 @@ define flow
   # Greet the user by their name. Be warm and friendly.
   bot express greeting
 ~~~
-```
-````
+
+</Tab>
+
+</Tabs>
 
 This flexible mechanism allows you to alter generated messages based on context and specific requirements.
