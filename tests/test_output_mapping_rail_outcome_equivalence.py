@@ -21,11 +21,13 @@ from nemoguardrails.actions.output_mapping import (
     outcome_from_output_mapping,
 )
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
 from nemoguardrails.library.autoalign.actions import (
     autoalign_factcheck_output_api,
     autoalign_groundedness_output_api,
     autoalign_output_api,
 )
+from nemoguardrails.library.cleanlab.actions import call_cleanlab_api
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
 )
@@ -56,6 +58,7 @@ from nemoguardrails.library.sensitive_data_detection.actions import (
     detect_sensitive_data,
     mask_sensitive_data,
 )
+from nemoguardrails.library.trend_micro.actions import GuardResult, trend_ai_guard
 
 
 @action()
@@ -447,3 +450,47 @@ def test_injection_detection_default_mapping_cannot_express_block_or_transform(
     assert mapping_blocked is False
     assert reject_blocks is raw_return["is_injection"]
     assert omit_transforms is (raw_return["text"] != "NORMAL OUTPUT")
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (GuardResult(action="Allow", reason="allowed"), False),
+        (GuardResult(action="Block", reason="blocked"), True),
+    ],
+)
+def test_trend_micro_output_mapping_matches_block_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, trend_ai_guard)
+
+    assert raw_return.blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"trustworthiness_score": 0.59}, True),
+        ({"trustworthiness_score": 0.6}, False),
+        ({"trustworthiness_score": 0.61}, False),
+        ({}, False),
+    ],
+)
+def test_cleanlab_output_mapping_matches_threshold_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, call_cleanlab_api)
+
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"is_blocked": False}, False),
+        ({"is_blocked": True}, True),
+        ({}, True),
+        (None, True),
+    ],
+)
+def test_ai_defense_output_mapping_matches_fail_closed_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, ai_defense_inspect)
+
+    assert mapping_blocked is expected_blocked
