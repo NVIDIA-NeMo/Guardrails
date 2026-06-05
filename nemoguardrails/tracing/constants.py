@@ -25,7 +25,7 @@ to satisfy the OTEL GenAI semantic conventions.
 """
 
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, Optional
 
@@ -550,7 +550,10 @@ def llm_operation_duration(
     finally:
         elapsed = time.monotonic() - t0
         attrs = base if exc_type is None else {**base, "error.type": exc_type}
-        instruments.operation_duration.record(elapsed, attributes=attrs)
+        # Best-effort emission: a broken meter SDK must never mask the
+        # original exception propagating through ``finally``.
+        with suppress(Exception):
+            instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
 def record_time_to_first_chunk(

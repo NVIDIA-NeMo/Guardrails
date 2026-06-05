@@ -31,7 +31,7 @@ import os
 import secrets
 import time
 import warnings
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -348,12 +348,20 @@ def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
     (per OTEL GenAI conditional-required convention).  Safe to call with
     ``None`` (no-op).  Use from every span helper's ``except`` block and
     from callers that swallow exceptions before they can propagate.
+
+    Best-effort: any failure while annotating the span (e.g. a broken
+    exporter or SDK) is swallowed so it can never mask the original
+    exception the caller is about to re-raise — notably ``CancelledError``
+    / ``GeneratorExit`` on a cancelled stream.  Only ``Exception`` is
+    suppressed, so a ``BaseException`` raised *inside* the SDK still
+    propagates.
     """
     if span is None:
         return
-    span.set_attribute("error.type", type(exc).__name__)
-    span.record_exception(exc)
-    span.set_status(StatusCode.ERROR, str(exc))
+    with suppress(Exception):
+        span.set_attribute("error.type", type(exc).__name__)
+        span.record_exception(exc)
+        span.set_status(StatusCode.ERROR, str(exc))
 
 
 def mark_rail_stop(span: Optional["Span"], is_safe: bool) -> None:
@@ -901,11 +909,14 @@ def record_request_error(exc: BaseException) -> None:
     requests, not just those whose exceptions bubble up.
 
     No-op when the OTEL API is unavailable or instruments cannot be created.
+    Best-effort: a failure inside the meter SDK is swallowed so it can never
+    mask the original exception the caller is about to re-raise.
     """
     instruments = _ensure_request_instruments()
     if instruments is None:
         return
-    instruments.errors.add(1, attributes={"error.type": type(exc).__name__})
+    with suppress(Exception):
+        instruments.errors.add(1, attributes={"error.type": type(exc).__name__})
 
 
 def record_stream_rejected() -> None:
@@ -984,9 +995,15 @@ def request_metrics() -> Generator[None, None, None]:
         record_request_error(exc)
         raise
     finally:
-        instruments.requests_active.add(-1)
+        # Best-effort emission: a broken meter SDK must never mask the
+        # original exception propagating through ``finally``.  Guard each
+        # emit independently so a failure in one still attempts the other —
+        # the active-counter decrement must run to avoid leaking the gauge.
+        with suppress(Exception):
+            instruments.requests_active.add(-1)
         duration_s = time.monotonic() - t0
-        instruments.duration.record(duration_s)
+        with suppress(Exception):
+            instruments.duration.record(duration_s)
 
 
 @contextmanager
