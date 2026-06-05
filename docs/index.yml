@@ -455,7 +455,7 @@ navigation:
       - page: Use Case Diagrams
         path: reference/use-case-diagrams.mdx
         slug: use-case-diagrams
-      - folder: ../fern/static/python-sdk-reference/guardrails-python-sdk
+      - folder: _static/python-sdk-reference/guardrails-python-sdk
         title: Python SDK Reference
         collapsed: true
       - page: CLI
