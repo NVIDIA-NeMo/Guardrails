@@ -133,7 +133,7 @@ class RunnableRails(Runnable[Input, Output]):
 
             return text, _output
 
-        self.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+        self.rails.passthrough_fn = passthrough_fn
 
     def __or__(self, other: Union[BaseLanguageModel, Runnable[Any, Any]]) -> Union["RunnableRails", Runnable[Any, Any]]:
         """Chain this runnable with another, returning a new runnable.

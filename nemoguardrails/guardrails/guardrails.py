@@ -22,10 +22,12 @@ LLM responses with programmable guardrails.
 """
 
 import logging
+import warnings
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
 
 from typing_extensions import Self
 
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -42,7 +44,7 @@ from nemoguardrails.types import LLMModel
 log = logging.getLogger(__name__)
 
 
-class Guardrails:
+class Guardrails(BaseGuardrails):
     """Top-level interface for NeMo Guardrails functionality."""
 
     config: RailsConfig
@@ -123,6 +125,61 @@ class Guardrails:
 
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.runtime
+
+    @property
+    def explain_info(self) -> Optional[ExplainInfo]:
+        """Deprecated. Use ``explain()`` instead.
+
+        Direct access can return ``None`` for an uninitialized accumulator;
+        ``explain()`` guarantees a non-None ExplainInfo. Only supported for LLMRails.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
+
+        warnings.warn(
+            "Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "Use Guardrails.explain() instead, which guarantees a valid ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails._explain_info
+
+    @explain_info.setter
+    def explain_info(self, value: Optional[ExplainInfo]) -> None:
+        """Deprecated. Setting ``explain_info`` is no longer supported; use ``explain()`` to read it."""
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support explain_info attribute access")
+
+        warnings.warn(
+            "Setting Guardrails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use Guardrails.explain() to read it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails._explain_info = value
+
+    @property
+    def passthrough_fn(self) -> Optional[Callable]:
+        """The optional passthrough function that bypasses LLM generation.
+
+        Only supported for LLMRails. When set, the rails pipeline calls this
+        function instead of the main LLM for generating responses.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn: Optional[Callable]) -> None:
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support passthrough_fn attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.passthrough_fn = fn
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
@@ -236,6 +293,28 @@ class Guardrails:
         # self.rails_engine must be LLMRails since we raise above if we're using IORails
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.update_llm(llm)
+
+    @property
+    def events_history_cache(self) -> dict:
+        """Per-session events history cache. Only supported for LLMRails.
+
+        Used by the server to persist conversation state across requests.
+        Stored by reference; assigning replaces the dict object, not its
+        contents.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support events_history_cache attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.events_history_cache
+
+    @events_history_cache.setter
+    def events_history_cache(self, value: dict) -> None:
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support events_history_cache attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.events_history_cache = value
 
     async def generate_events_async(self, events: List[dict]) -> List[dict]:
         """Generate the next events based on the provided history.

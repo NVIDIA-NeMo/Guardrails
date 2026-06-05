@@ -593,7 +593,21 @@ class TracingConfig(BaseModel):
         description=(
             "Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. "
             "Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. "
-            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend."
+            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend. "
+            "Behaviour differs by engine. "
+            "For IORails — "
+            "1. OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable has highest priority: "
+            "'true'/'1' force on, 'false'/'0' force off, for other values this field is used. "
+            "2. OTEL_SEMCONV_STABILITY_OPT_IN selects output format: when the comma-separated token list "
+            "contains 'gen_ai_latest_experimental', content is emitted as JSON-encoded span attributes "
+            "(gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions); "
+            "otherwise as legacy per-message span events "
+            "(gen_ai.user.message, gen_ai.assistant.message, gen_ai.system.message, gen_ai.choice). "
+            "For LLMRails — "
+            "Neither OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT nor OTEL_SEMCONV_STABILITY_OPT_IN "
+            "are consulted; this field is the only control. "
+            "Content is always emitted via the deprecated gen_ai.content.prompt and "
+            "gen_ai.content.completion span events."
         ),
     )
 

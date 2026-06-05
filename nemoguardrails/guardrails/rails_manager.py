@@ -39,7 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
 )
 from nemoguardrails.guardrails.rail_action import RailAction
-from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span
+from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
 
@@ -78,15 +78,23 @@ class RailsManager:
         input_parallel: bool = False,
         output_parallel: bool = False,
         tracer: Optional["Tracer"] = None,
+        content_capture_enabled: bool = False,
     ) -> None:
         """Build RailAction instances for each configured input and output flow.
 
         When *tracer* is provided, rail and action executions produce OTEL
         spans; when ``None`` the span helpers become no-ops.
+
+        When *content_capture_enabled* is True, rail spans carry the
+        rail's input messages (``guardrails.rail.input``) and the block
+        reason (``guardrails.rail.reason``) when the rail rejects the
+        request.  Defaults to False; only meaningful when ``tracer`` is
+        also set.
         """
         self.engine_registry = engine_registry
         self.task_manager = task_manager
         self._tracer = tracer
+        self._content_capture_enabled = content_capture_enabled
 
         self.input_flows: list[str] = list(input_flows)
         self.output_flows: list[str] = list(output_flows)
@@ -159,6 +167,17 @@ class RailsManager:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
             mark_rail_stop(span, result.is_safe)
+            # Capture rail input + block reason after the action runs.
+            # RailAction.run() catches its own exceptions and returns
+            # RailResult(is_safe=False, reason=...), so this branch is
+            # reached even on action errors and the error reason gets
+            # recorded as the block reason.
+            if self._content_capture_enabled:
+                set_rail_content(
+                    span,
+                    {"messages": messages, "bot_response": bot_response},
+                    reason=result.reason if not result.is_safe else None,
+                )
             return result
 
     async def _run_rails_sequential(

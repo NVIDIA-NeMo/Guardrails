@@ -30,6 +30,7 @@ from contextlib import nullcontext, suppress
 from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -44,6 +45,7 @@ from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
     get_tracer,
+    is_content_capture_enabled,
     is_tracing_enabled,
     record_nonstream_rejected,
     record_request_blocked,
@@ -52,6 +54,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_stream_rejected,
     register_nonstream_saturation_gauges,
     request_metrics,
+    set_request_content,
     set_speculative_span_attrs,
     stream_active_metric,
     traced_request,
@@ -86,7 +89,7 @@ STREAM_MAX_CONCURRENCY = 256
 _GENERATION_ERROR_TYPE = "generation_error"
 
 
-class IORails:
+class IORails(BaseGuardrails):
     """Workflow engine for accelerated Input/Output rails inference."""
 
     # Rail sections and flows that this engine can handle. Configs using anything
@@ -140,12 +143,17 @@ class IORails:
         self._tracing_enabled = is_tracing_enabled(config.tracing)
         self._tracer = get_tracer() if self._tracing_enabled else None
         self._metrics_enabled = are_metrics_enabled(config.metrics)
+        # Content capture only makes sense when tracing is on — there's no
+        # point recording prompts/responses onto spans that won't be exported.
+        # The flag itself is resolved from config + env var by the helper.
+        self._content_capture_enabled = self._tracing_enabled and is_content_capture_enabled(config.tracing)
 
         self.engine_registry = EngineRegistry(
             config.models,
             config.rails.config,
             tracer=self._tracer,
             metrics_enabled=self._metrics_enabled,
+            content_capture_enabled=self._content_capture_enabled,
         )
         self.rails_manager = RailsManager(
             engine_registry=self.engine_registry,
@@ -155,6 +163,7 @@ class IORails:
             input_parallel=config.rails.input.parallel or False,
             output_parallel=config.rails.output.parallel or False,
             tracer=self._tracer,
+            content_capture_enabled=self._content_capture_enabled,
         )
         self._speculative_generation = config.rails.input.speculative_generation or False
 
@@ -319,6 +328,10 @@ class IORails:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
+            # Capture content once here at the traced_request boundary so any
+            # future early-return added to _do_generate is covered automatically.
+            if self._content_capture_enabled:
+                set_request_content(request_span, messages, result.get("content"))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -661,6 +674,14 @@ class IORails:
                         # spans raised inside _generation_task attach as children.
                         with traced_request(tracer) as (request_span, req_id):
                             t0 = time.monotonic()
+                            # Accumulate chunks the consumer actually receives.
+                            # Declared outside the try so the outer finally can
+                            # always reference it, even if the try body raises
+                            # before any chunk is yielded.  Captured at stream end
+                            # on the request span so we record exactly what reached
+                            # the caller (including any output-rails error JSON
+                            # injected on block).
+                            delivered: list[str] = []
                             try:
                                 log.info("[%s] stream_async called", req_id)
                                 log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
@@ -678,6 +699,18 @@ class IORails:
 
                                     async for chunk in base_iterator:
                                         if chunk is not None:
+                                            if self._content_capture_enabled:
+                                                # Plain strings are the normal path.
+                                                # Dicts arrive when include_metadata=True;
+                                                # skip empty-string text fields so
+                                                # metadata-only frames don't pollute
+                                                # the captured output.
+                                                if isinstance(chunk, str):
+                                                    delivered.append(chunk)
+                                                elif isinstance(chunk, dict):
+                                                    text = chunk.get("text")
+                                                    if isinstance(text, str) and text:
+                                                        delivered.append(text)
                                             yield chunk
                                 finally:
                                     if not task.done():
@@ -691,6 +724,15 @@ class IORails:
                             finally:
                                 elapsed_ms = (time.monotonic() - t0) * 1000
                                 log.info("[%s] stream_async completed time=%.1fms", req_id, elapsed_ms)
+                                # Capture input + accumulated output onto the request
+                                # span before it closes.  Always runs (normal exit,
+                                # error, or consumer cancellation) so an errored
+                                # stream still records whatever reached the caller.
+                                # Empty `delivered` -> output_text=None so we don't
+                                # falsely claim an "" assistant message was produced.
+                                if self._content_capture_enabled:
+                                    output_text = "".join(delivered) if delivered else None
+                                    set_request_content(request_span, messages, output_text)
                 finally:
                     self._stream_semaphore.release()
 

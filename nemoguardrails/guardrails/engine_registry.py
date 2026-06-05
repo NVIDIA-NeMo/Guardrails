@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
+    set_llm_call_content,
 )
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.tracing.constants import (
@@ -63,6 +64,7 @@ class EngineRegistry:
         rails_config_data: RailsConfigData,
         tracer: Optional["Tracer"] = None,
         metrics_enabled: bool = False,
+        content_capture_enabled: bool = False,
     ) -> None:
         """Build one engine per configured model and API service.
 
@@ -75,11 +77,18 @@ class EngineRegistry:
         chunk-timing metrics).  Defaults to False so callers that don't
         opt in get no metric emissions even if a MeterProvider is
         configured globally.
+
+        When *content_capture_enabled* is True, LLM call spans carry
+        input/output message content per the OTEL GenAI content-capture
+        contract.  Defaults to False; should only be True when
+        ``tracer`` is also set, since capture on a no-op span is wasted
+        work.
         """
         self._engines: dict[str, BaseEngine] = {}
         self._running = False
         self._tracer = tracer
         self._metrics_enabled = metrics_enabled
+        self._content_capture_enabled = content_capture_enabled
 
         for model_config in models:
             engine = ModelEngine(model_config)
@@ -194,9 +203,14 @@ class EngineRegistry:
             if self._metrics_enabled
             else nullcontext()
         )
-        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
+        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
             with duration_ctx:
                 result = await engine.chat_completion(messages, **kwargs)
+            # Capture content inside the span context so the helper sees
+            # the live LLM CLIENT span (not None even on the success path)
+            # and the attributes/events land before the span closes.
+            if self._content_capture_enabled:
+                set_llm_call_content(span, messages, result.content)
 
         if self._metrics_enabled:
             record_token_usage(engine.model_name, provider_name, operation_name, result.usage)
@@ -240,12 +254,18 @@ class EngineRegistry:
         # OpenAI-compatible) only populate ``usage`` on the terminal
         # chunk when ``stream_options.include_usage=true``.
         captured_usage: Optional["UsageInfo"] = None
+        # Accumulate streamed delta_content here when content capture is on;
+        # joined and recorded onto the LLM span at stream end.  The list is
+        # allocated unconditionally (cost: one empty list per stream); the
+        # per-chunk appends are gated on the flag so the disabled path
+        # doesn't carry chunk strings in memory.
+        content_parts: list[str] = []
         duration_ctx = (
             llm_operation_duration(engine.model_name, provider_name, operation_name)
             if self._metrics_enabled
             else nullcontext()
         )
-        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
+        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
             with duration_ctx:
                 # Gate timing-state setup on ``_metrics_enabled`` so the
                 # cold path skips ``time.monotonic()`` and the per-chunk
@@ -272,7 +292,20 @@ class EngineRegistry:
                             last_chunk_time = now
                         if chunk.usage is not None:
                             captured_usage = chunk.usage
+                    if self._content_capture_enabled and chunk.delta_content:
+                        content_parts.append(chunk.delta_content)
                     yield chunk
+            # Capture accumulated stream content inside the span context so
+            # the helper sees the live LLM CLIENT span before it closes.
+            # Reached only on natural exhaustion — consumer cancellation or
+            # provider error raises out of the ``with`` blocks above, in
+            # which case partial content is intentionally not recorded.
+            # Empty ``content_parts`` -> output_text=None so we don't claim
+            # an empty assistant response (matches iorails.py's request-span
+            # streaming path).
+            if self._content_capture_enabled:
+                output_text = "".join(content_parts) if content_parts else None
+                set_llm_call_content(span, messages, output_text)
 
         # Reached only on natural exhaustion (not on consumer cancellation
         # or provider error — those raise out of the ``with`` blocks above).
