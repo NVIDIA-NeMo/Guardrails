@@ -95,6 +95,7 @@ class FlowEquivalenceCase:
     context: dict[str, Any] | None = None
     expected_content: str | None = None
     output_vars: list[str] | None = None
+    baseline_output_data: dict[str, Any] | None = None
     expected_output_data: dict[str, Any] | None = None
 
 
@@ -465,6 +466,16 @@ SENSITIVE_DATA_MASK_RETRIEVAL = RailSpec(
     interpret=_transform_if_changed_from_relevant_chunks,
 )
 
+CONTENT_SAFETY_INPUT = RailSpec(
+    name="content_safety_input",
+    flow="content safety check input $model=content_safety",
+    direction="input",
+    action="content_safety_check_input",
+    model_type="content_safety",
+    task="content_safety_check_input $model=content_safety",
+    output_parser="nemoguard_parse_prompt_safety",
+)
+
 CONTENT_SAFETY_OUTPUT = RailSpec(
     name="content_safety_output",
     flow="content safety check output $model=content_safety",
@@ -767,6 +778,7 @@ def _case(
     context: dict[str, Any] | None = None,
     expected_content: str | None = None,
     output_vars: list[str] | None = None,
+    baseline_output_data: dict[str, Any] | None = None,
     expected_output_data: dict[str, Any] | None = None,
 ) -> FlowEquivalenceCase:
     return FlowEquivalenceCase(
@@ -779,6 +791,7 @@ def _case(
         context=context,
         expected_content=expected_content,
         output_vars=output_vars,
+        baseline_output_data=baseline_output_data,
         expected_output_data=expected_output_data,
     )
 
@@ -919,6 +932,7 @@ def _output_var_transform_cases(
             FlowDecision.ALLOW,
             context=context,
             output_vars=[output_var],
+            baseline_output_data={output_var: original_value},
             expected_output_data={output_var: original_value},
         ),
         _case(
@@ -929,6 +943,7 @@ def _output_var_transform_cases(
             FlowDecision.TRANSFORM,
             context=context,
             output_vars=[output_var],
+            baseline_output_data={output_var: original_value},
             expected_output_data={output_var: transformed_value},
         ),
     ]
@@ -949,10 +964,12 @@ def _guard_result_cases(
     else:
         transform_kwargs = {
             "output_vars": ["user_message"],
+            "baseline_output_data": {"user_message": USER_INPUT},
             "expected_output_data": {"user_message": transformed_value},
         }
         allow_kwargs = {
             "output_vars": ["user_message"],
+            "baseline_output_data": {"user_message": USER_INPUT},
             "expected_output_data": {"user_message": USER_INPUT},
         }
 
@@ -1184,6 +1201,7 @@ FIXTURES = [
         FlowDecision.ALLOW,
         context={"relevant_chunks": RELEVANT_CHUNKS},
         output_vars=["relevant_chunks"],
+        baseline_output_data={"relevant_chunks": RELEVANT_CHUNKS},
         expected_output_data={"relevant_chunks": RELEVANT_CHUNKS},
     ),
     _case(
@@ -1194,6 +1212,7 @@ FIXTURES = [
         FlowDecision.TRANSFORM,
         context={"relevant_chunks": RELEVANT_CHUNKS},
         output_vars=["relevant_chunks"],
+        baseline_output_data={"relevant_chunks": RELEVANT_CHUNKS},
         expected_output_data={"relevant_chunks": ""},
     ),
     _case(
@@ -1320,6 +1339,7 @@ FIXTURES = [
         FlowDecision.ALLOW,
         context={"relevant_chunks": RELEVANT_CHUNKS},
         output_vars=["relevant_chunks"],
+        baseline_output_data={"relevant_chunks": RELEVANT_CHUNKS},
         expected_output_data={"relevant_chunks": RELEVANT_CHUNKS},
     ),
     _case(
@@ -1330,6 +1350,7 @@ FIXTURES = [
         FlowDecision.TRANSFORM,
         context={"relevant_chunks": RELEVANT_CHUNKS},
         output_vars=["relevant_chunks"],
+        baseline_output_data={"relevant_chunks": RELEVANT_CHUNKS},
         expected_output_data={"relevant_chunks": ""},
     ),
     *_boolean_flag_cases(
@@ -1553,6 +1574,7 @@ FIXTURES = [
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         output_vars=["user_message"],
+        baseline_output_data={"user_message": USER_INPUT},
         expected_output_data={"user_message": USER_INPUT},
     ),
     _case(
@@ -1589,6 +1611,7 @@ FIXTURES = [
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
         output_vars=["user_message"],
+        baseline_output_data={"user_message": USER_INPUT},
         expected_output_data={"user_message": "autoalign transformed input"},
     ),
     _case(
@@ -2207,8 +2230,20 @@ def _run_flow(case: FlowEquivalenceCase) -> tuple[dict[str, Any], dict[str, Any]
     return response, None
 
 
-def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
+def _output_data_changed(case: FlowEquivalenceCase, output_data: dict[str, Any] | None) -> bool:
+    if case.baseline_output_data is None or output_data is None:
+        return False
+    return any(output_data.get(key) != value for key, value in case.baseline_output_data.items())
+
+
+def _classify_response(
+    response: dict[str, Any],
+    output_data: dict[str, Any] | None,
+    case: FlowEquivalenceCase,
+) -> ObservableOutcome:
     if response == {"role": "assistant", "content": NORMAL_OUTPUT}:
+        if _output_data_changed(case, output_data):
+            return ObservableOutcome.TRANSFORM
         return ObservableOutcome.ALLOW
     if response == {"role": "assistant", "content": REFUSAL}:
         return ObservableOutcome.REFUSAL
@@ -2260,10 +2295,7 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
 def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
     response, output_data = _run_flow(case)
-    observable = _classify_response(response)
-
-    if observable is ObservableOutcome.ALLOW and case.expected_decision is FlowDecision.TRANSFORM:
-        observable = ObservableOutcome.TRANSFORM
+    observable = _classify_response(response, output_data, case)
 
     assert observable is case.expected_observable
     assert _decision_from_observable(observable) is case.expected_decision
