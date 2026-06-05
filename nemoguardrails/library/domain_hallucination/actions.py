@@ -35,6 +35,7 @@ except Exception:  # pragma: no cover - standalone import fallback
 
 from . import (
     checkers,
+    config,
     decision,
     expert_review,
     extractors,
@@ -163,6 +164,11 @@ async def analyze_answer(
             "decision": {"action": "pass", "reason": "empty answer"},
         }
 
+    # Load operator-configured timeouts and credentials once per call.
+    cfg = config.get_config()
+    vc = cfg.verification
+    effective_token = github_token or vc.github_token
+
     # Step 1: Extract entities
     extracted = extractors.extract_all(answer, source="model_answer")
 
@@ -184,7 +190,9 @@ async def analyze_answer(
         for domain_item in extracted.get("domains", []):
             domain = domain_item.get("host", "")
             if domain:
-                result = await _cached_verification_async("dns", domain, verification.resolve_domain, domain)
+                result = await _cached_verification_async(
+                    "dns", domain, verification.resolve_domain, domain, timeout=vc.dns_timeout
+                )
                 dns_results.append(result)
                 dns_status_by_domain[str(domain).strip().lower()] = str(result.get("status") or "")
         verification_results["dns"] = dns_results
@@ -202,7 +210,9 @@ async def analyze_answer(
             ):
                 continue
             if url:
-                result = await _cached_verification_async("http", url, verification.check_http_domain, url)
+                result = await _cached_verification_async(
+                    "http", url, verification.check_http_domain, url, timeout=vc.http_timeout
+                )
                 http_results.append(result)
         verification_results["http"] = http_results
 
@@ -220,10 +230,16 @@ async def analyze_answer(
                 ):
                     continue
                 if enable_tls_verification:
-                    tls_results.append(await _cached_verification_async("tls", domain, verification.check_tls, domain))
+                    tls_results.append(
+                        await _cached_verification_async(
+                            "tls", domain, verification.check_tls, domain, timeout=vc.tls_timeout
+                        )
+                    )
                 if enable_whois_verification:
                     whois_results.append(
-                        await _cached_verification_async("whois", domain, verification.check_whois, domain)
+                        await _cached_verification_async(
+                            "whois", domain, verification.check_whois, domain, timeout=vc.whois_timeout
+                        )
                     )
         verification_results["tls"] = tls_results
         verification_results["whois"] = whois_results
@@ -237,7 +253,8 @@ async def analyze_answer(
                 repo_key,
                 verification.check_github_repo,
                 repo_item,
-                token=github_token,
+                token=effective_token,
+                timeout=vc.github_timeout,
             )
             github_results.append(result)
     verification_results["github"] = github_results

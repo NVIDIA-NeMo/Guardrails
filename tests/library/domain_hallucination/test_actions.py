@@ -291,7 +291,7 @@ class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
             result = await actions.analyze_answer("Check https://example.com", verification_level="dns")
         assert result["status"] == "analyzed"
         assert result["verification_results"]["dns"][0]["status"] == "resolved"
-        mock_dns.assert_called_once_with("example.com")
+        mock_dns.assert_called_once_with("example.com", timeout=4.0)
 
     async def test_analyze_answer_http_verification(self):
         """Test HTTP verification level."""
@@ -325,7 +325,7 @@ class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
         ):
             result = await actions.analyze_answer("Visit https://example.com", verification_level="http")
         assert result["verification_results"]["http"][0]["status"] == "http_ok"
-        mock_http.assert_called_once_with("https://example.com")
+        mock_http.assert_called_once_with("https://example.com", timeout=6.0)
 
     async def test_analyze_answer_full_verification(self):
         """Test full verification with TLS and WHOIS."""
@@ -364,8 +364,8 @@ class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
             result = await actions.analyze_answer("Check domain", verification_level="full")
         assert result["verification_results"]["tls"][0]["status"] == "tls_ok"
         assert result["verification_results"]["whois"][0]["status"] == "ok"
-        mock_tls.assert_called_once_with("example.com")
-        mock_whois.assert_called_once_with("example.com")
+        mock_tls.assert_called_once_with("example.com", timeout=5.0)
+        mock_whois.assert_called_once_with("example.com", timeout=6.0)
 
     async def test_analyze_answer_with_semantic_check(self):
         """Test semantic check enabled."""
