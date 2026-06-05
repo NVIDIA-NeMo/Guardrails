@@ -15,6 +15,7 @@
 
 """Tests for domain hallucination actions module."""
 
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -131,6 +132,50 @@ class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
         result = await actions.analyze_answer(answer="")
         assert result["status"] == "skipped"
         assert result["reason"] == "empty_answer"
+
+    async def test_analyze_rejects_invalid_verification_level(self):
+        """Test misspelled verification levels fail closed."""
+        with self.assertRaises(ValueError):
+            await actions.analyze_answer(answer="hello", verification_level="ful")
+
+    async def test_self_check_rejects_invalid_verification_level(self):
+        """Test rail action rejects invalid verification levels."""
+        with self.assertRaises(ValueError):
+            await actions.self_check_domain_hallucination(
+                context={"bot_message": "hello"},
+                verification_level="ful",
+            )
+
+    async def test_cached_verification_async_uses_executor(self):
+        """Test blocking verification is delegated to an executor."""
+        real_loop = asyncio.get_running_loop()
+
+        class DummyLoop:
+            def __init__(self):
+                self.executor = "unset"
+
+            def run_in_executor(self, executor, func):
+                self.executor = executor
+                future = real_loop.create_future()
+                future.set_result(func())
+                return future
+
+        dummy_loop = DummyLoop()
+
+        with patch(
+            "nemoguardrails.library.domain_hallucination.actions.asyncio.get_running_loop",
+            return_value=dummy_loop,
+        ):
+            result = await actions._cached_verification_async(
+                "dns",
+                "example.com",
+                lambda value: {"status": "ok", "value": value},
+                "example.com",
+            )
+
+        assert dummy_loop.executor is None
+        assert result["status"] == "ok"
+        assert result["cache_hit"] is False
 
     async def test_analyze_no_links(self):
         """Test link-free answers fast-pass early."""

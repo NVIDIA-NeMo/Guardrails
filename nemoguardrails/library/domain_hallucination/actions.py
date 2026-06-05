@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Dict, Optional
@@ -55,6 +56,7 @@ _VERIFICATION_CACHE: Dict[str, Dict[str, Dict[str, Any]]] = {
 }
 _CACHE_TTL_SECONDS = 3600
 _CACHE_MAX_ITEMS_PER_SOURCE = 512
+VALID_VERIFICATION_LEVELS = {"none", "dns", "http", "full"}
 
 
 def _cache_get(source: str, key: str) -> Optional[Dict[str, Any]]:
@@ -94,6 +96,27 @@ def _cached_verification(source: str, key: str, fn, *args: Any, **kwargs: Any) -
     return _cache_set(source, normalized_key, fn(*args, **kwargs))
 
 
+def _validate_verification_level(verification_level: str) -> None:
+    if verification_level not in VALID_VERIFICATION_LEVELS:
+        raise ValueError(
+            f"verification_level must be one of {sorted(VALID_VERIFICATION_LEVELS)}, got {verification_level!r}"
+        )
+
+
+async def _cached_verification_async(
+    source: str,
+    key: str,
+    fn,
+    *args: Any,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _cached_verification(source, key, fn, *args, **kwargs),
+    )
+
+
 async def analyze_answer(
     answer: str = "",
     user_query: str = "",
@@ -131,6 +154,8 @@ async def analyze_answer(
     Returns:
         Dict with detection result, risk score, decision, and modified answer
     """
+    _validate_verification_level(verification_level)
+
     if not answer:
         return {
             "status": "skipped",
@@ -159,7 +184,7 @@ async def analyze_answer(
         for domain_item in extracted.get("domains", []):
             domain = domain_item.get("host", "")
             if domain:
-                result = _cached_verification("dns", domain, verification.resolve_domain, domain)
+                result = await _cached_verification_async("dns", domain, verification.resolve_domain, domain)
                 dns_results.append(result)
                 dns_status_by_domain[str(domain).strip().lower()] = str(result.get("status") or "")
         verification_results["dns"] = dns_results
@@ -177,7 +202,7 @@ async def analyze_answer(
             ):
                 continue
             if url:
-                result = _cached_verification("http", url, verification.check_http_domain, url)
+                result = await _cached_verification_async("http", url, verification.check_http_domain, url)
                 http_results.append(result)
         verification_results["http"] = http_results
 
@@ -195,9 +220,11 @@ async def analyze_answer(
                 ):
                     continue
                 if enable_tls_verification:
-                    tls_results.append(_cached_verification("tls", domain, verification.check_tls, domain))
+                    tls_results.append(await _cached_verification_async("tls", domain, verification.check_tls, domain))
                 if enable_whois_verification:
-                    whois_results.append(_cached_verification("whois", domain, verification.check_whois, domain))
+                    whois_results.append(
+                        await _cached_verification_async("whois", domain, verification.check_whois, domain)
+                    )
         verification_results["tls"] = tls_results
         verification_results["whois"] = whois_results
 
@@ -205,7 +232,7 @@ async def analyze_answer(
     if verification_level == "full":
         for repo_item in extracted.get("github_repos", []):
             repo_key = f"{repo_item.get('owner', '')}/{repo_item.get('repo', '')}"
-            result = _cached_verification(
+            result = await _cached_verification_async(
                 "github",
                 repo_key,
                 verification.check_github_repo,
@@ -352,6 +379,8 @@ async def self_check_domain_hallucination(
     **_: Any,
 ) -> Dict[str, Any]:
     """NeMo output-rail action for domain hallucination detection."""
+    _validate_verification_level(verification_level)
+
     context = context or {}
     answer = context.get("bot_message") or context.get("assistant_output") or context.get("last_bot_message") or ""
     user_query = context.get("user_message") or context.get("last_user_message") or context.get("user_input") or ""

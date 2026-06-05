@@ -70,12 +70,13 @@ def verify_entities_in_answer(
                 http_results.append(result)
         results["verification"]["http"] = http_results
 
-    # GitHub verification
-    github_results = []
-    for repo_item in extracted.get("github_repos", []):
-        result = verification.check_github_repo(repo_item, token=github_token)
-        github_results.append(result)
-    results["verification"]["github"] = github_results
+    # GitHub verification is API-backed and reserved for full verification.
+    if verification_level == "full":
+        github_results = []
+        for repo_item in extracted.get("github_repos", []):
+            result = verification.check_github_repo(repo_item, token=github_token)
+            github_results.append(result)
+        results["verification"]["github"] = github_results
 
     return results
 

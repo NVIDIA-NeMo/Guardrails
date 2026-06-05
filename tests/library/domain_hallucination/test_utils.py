@@ -59,8 +59,8 @@ def test_verify_entities_in_answer_dns(mock_extract_all, mock_resolve, mock_gith
     result = utils.verify_entities_in_answer("See example.com", "dns", github_token="t")
 
     assert result["verification"]["dns"] == [{"domain": "example.com", "resolves": True}]
-    assert result["verification"]["github"] == [{"full_name": "pytorch/pytorch", "exists": True}]
-    mock_github.assert_called_once_with({"owner": "pytorch", "repo": "pytorch"}, token="t")
+    assert "github" not in result["verification"]
+    mock_github.assert_not_called()
 
 
 @patch("nemoguardrails.library.domain_hallucination.utils.verification.check_github_repo")
@@ -77,8 +77,11 @@ def test_verify_entities_in_answer_http_and_full(mock_extract_all, mock_resolve,
     full_result = utils.verify_entities_in_answer("See example.com", "full")
 
     assert http_result["verification"]["http"][0]["reachable"] is True
+    assert "github" not in http_result["verification"]
     assert full_result["verification"]["http"][0]["reachable"] is True
+    assert full_result["verification"]["github"][0]["exists"] is True
     assert mock_http.call_count == 2
+    mock_github.assert_called_once_with({"owner": "pytorch", "repo": "pytorch"}, token=None)
 
 
 @patch("nemoguardrails.library.domain_hallucination.utils.verify_entities_in_answer")

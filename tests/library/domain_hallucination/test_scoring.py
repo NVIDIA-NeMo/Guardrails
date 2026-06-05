@@ -162,6 +162,21 @@ class TestRecalibration(unittest.TestCase):
         recalibrated = scoring.recalibrate_score(risk_score)
         assert recalibrated["recalibrated_score"] == 50.0
 
+    def test_recalibration_counts_only_non_empty_kb_evidence(self):
+        """Test empty KB evidence lists are not counted as evidence."""
+        risk_score = {"score": 50.0, "level": "L2"}
+        rag_results = {
+            "domain_evidence": {
+                "empty.example": [],
+                "trusted.example": [{"type": "trusted_domain"}],
+            }
+        }
+
+        recalibrated = scoring.recalibrate_score(risk_score, rag_results=rag_results)
+
+        assert recalibrated["recalibrated_score"] == 48.0
+        assert recalibrated["adjustments"][0]["count"] == 1
+
 
 if __name__ == "__main__":
     unittest.main()

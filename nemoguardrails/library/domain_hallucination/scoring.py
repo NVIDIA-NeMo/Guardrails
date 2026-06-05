@@ -198,7 +198,7 @@ def recalibrate_score(
 
     # KB evidence boosts confidence (slight reduction)
     kb_evidence = rag_results.get("domain_evidence", {}) or {}
-    evidence_count = len(kb_evidence)
+    evidence_count = sum(1 for evidence in kb_evidence.values() if evidence)
     if evidence_count > 0:
         reduction = min(10.0, evidence_count * 2.0)
         score = max(0.0, score - reduction)

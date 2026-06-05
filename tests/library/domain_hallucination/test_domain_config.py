@@ -75,6 +75,7 @@ class TestConfig(unittest.TestCase):
             "DOMAIN_HALLUCINATION_REFINE_THRESHOLD": "55",
             "DOMAIN_HALLUCINATION_WARN_THRESHOLD": "25",
             "DOMAIN_HALLUCINATION_VERIFICATION_LEVEL": "full",
+            "DOMAIN_HALLUCINATION_GITHUB_TIMEOUT": "9.5",
             "DOMAIN_HALLUCINATION_GITHUB_TOKEN": "token-123",
             "DOMAIN_HALLUCINATION_SEMANTIC_CHECK": "true",
             "DOMAIN_HALLUCINATION_ADVANCED_VERIFICATION": "true",
@@ -86,6 +87,7 @@ class TestConfig(unittest.TestCase):
         assert cfg.scoring.refine_threshold == 55.0
         assert cfg.scoring.warn_threshold == 25.0
         assert cfg.verification.level == "full"
+        assert cfg.verification.github_timeout == 9.5
         assert cfg.verification.github_token == "token-123"
         assert cfg.detection.enable_semantic_check is True
         assert cfg.detection.enable_advanced_verification is True

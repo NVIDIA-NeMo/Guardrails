@@ -55,6 +55,8 @@ def resolve_domain(domain: str, timeout: float = 4.0) -> Dict[str, Any]:
             "latency_ms": 0,
         }
 
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(timeout)
     try:
         infos = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
         addresses = sorted({info[4][0] for info in infos})
@@ -127,6 +129,8 @@ def resolve_domain(domain: str, timeout: float = 4.0) -> Dict[str, Any]:
             "checked_at_utc": utc_now(),
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
         }
+    finally:
+        socket.setdefaulttimeout(old_timeout)
 
 
 def check_http_domain(target: str, timeout: float = 6.0) -> Dict[str, Any]:
@@ -154,13 +158,49 @@ def check_http_domain(target: str, timeout: float = 6.0) -> Dict[str, Any]:
     else:
         urls = [f"https://{target}/", f"http://{target}/"]
 
-    last: Dict[str, Any] = {}
+    last: Dict[str, Any] = {
+        "source": "http",
+        "target": target,
+        "domain": "",
+        "status": "http_error",
+        "reachable": False,
+        "url": target,
+        "status_code": None,
+        "final_url": target,
+        "error": "no_successful_url",
+        "confidence": "low",
+        "use_in_scoring": True,
+        "checked_at_utc": utc_now(),
+        "latency_ms": 0,
+    }
     for url in urls:
         from urllib.parse import urlparse
 
         parsed = urlparse(url)
         domain = parsed.hostname or ""
         started = time.perf_counter()
+
+        try:
+            ip = ipaddress.ip_address(domain)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                last = {
+                    "source": "http",
+                    "target": target,
+                    "domain": domain,
+                    "status": "ssrf_blocked",
+                    "reachable": False,
+                    "url": url,
+                    "status_code": None,
+                    "final_url": url,
+                    "error": "blocked private or non-public IP address",
+                    "confidence": "high",
+                    "use_in_scoring": True,
+                    "checked_at_utc": utc_now(),
+                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                }
+                continue
+        except ValueError:
+            pass
 
         request = Request(url, method="HEAD", headers={"User-Agent": "DomainGuard/0.1"})
 

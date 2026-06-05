@@ -54,6 +54,24 @@ class TestDNSVerification(unittest.TestCase):
         assert isinstance(result, dict)
         assert result["status"] == "dns_error"
 
+    @patch("nemoguardrails.library.domain_hallucination.verification.socket.setdefaulttimeout")
+    @patch("nemoguardrails.library.domain_hallucination.verification.socket.getdefaulttimeout")
+    @patch("nemoguardrails.library.domain_hallucination.verification.socket.getaddrinfo")
+    def test_resolve_domain_applies_and_restores_timeout(
+        self, mock_getaddrinfo, mock_getdefaulttimeout, mock_setdefaulttimeout
+    ):
+        """DNS timeout argument is applied and restored around getaddrinfo."""
+        mock_getdefaulttimeout.return_value = 12.0
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 443))
+        ]
+
+        result = verification.resolve_domain("example.com", timeout=1.5)
+
+        assert result["status"] == "resolved"
+        mock_setdefaulttimeout.assert_any_call(1.5)
+        mock_setdefaulttimeout.assert_called_with(12.0)
+
 
 class TestHTTPVerification(unittest.TestCase):
     """HTTP verification error paths."""
@@ -102,6 +120,34 @@ class TestHTTPVerification(unittest.TestCase):
         assert result["status"] == "http_ok"
         assert result["url"] == "http://fallback.test/"
         assert mock_urlopen.call_count == 2
+
+    @patch(
+        "nemoguardrails.library.domain_hallucination.verification.urlopen",
+        side_effect=HTTPError(
+            url="https://forbidden.test/",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=None,
+        ),
+    )
+    def test_check_http_403_single_url_returns_structured_fallback(self, _mock_urlopen):
+        """A single HTTPS URL 403 should never return an empty dict."""
+        result = verification.check_http_domain("https://forbidden.test/")
+
+        assert result["source"] == "http"
+        assert result["status"] == "http_error"
+        assert result["reachable"] is False
+        assert result["error"] == "no_successful_url"
+
+    @patch("nemoguardrails.library.domain_hallucination.verification.urlopen")
+    def test_check_http_blocks_private_ip_literal(self, mock_urlopen):
+        """Private IP literals are blocked before urlopen to prevent SSRF."""
+        result = verification.check_http_domain("http://127.0.0.1/admin")
+
+        assert result["status"] == "ssrf_blocked"
+        assert result["reachable"] is False
+        mock_urlopen.assert_not_called()
 
 
 class TestTLSVerification(unittest.TestCase):

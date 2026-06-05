@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -172,12 +173,17 @@ class KnowledgeBase:
         domain = (domain or "").strip().lower()
         if not domain or not self.external_kb_root:
             return []
+        if not re.fullmatch(r"[a-z0-9._-]+", domain):
+            return []
 
-        kb_root = Path(self.external_kb_root)
+        kb_root = Path(self.external_kb_root).resolve()
+        domains_root = (kb_root / "domains").resolve()
         evidence: List[Dict[str, Any]] = []
 
         # Look for domain-specific files
-        domain_file = kb_root / "domains" / f"{domain}.json"
+        domain_file = (domains_root / f"{domain}.json").resolve()
+        if not domain_file.is_relative_to(kb_root):
+            return []
         if domain_file.is_file():
             try:
                 with open(domain_file, "r", encoding="utf-8") as f:
@@ -194,16 +200,18 @@ class KnowledgeBase:
                 pass
 
         # Look for wildcard files
-        base_domain_file = kb_root / "domains" / f"*.{domain}.json"
-        if base_domain_file.parent.is_dir():
-            for f in base_domain_file.parent.glob(f"*.{domain}.json"):
+        if domains_root.is_dir():
+            for f in domains_root.glob(f"*.{domain}.json"):
+                resolved = f.resolve()
+                if not resolved.is_relative_to(kb_root):
+                    continue
                 try:
-                    with open(f, "r", encoding="utf-8") as file:
+                    with open(resolved, "r", encoding="utf-8") as file:
                         data = json.load(file)
                         evidence.append(
                             {
                                 "type": "external_kb",
-                                "source": str(f),
+                                "source": str(resolved),
                                 "domain": domain,
                                 "data": data,
                             }

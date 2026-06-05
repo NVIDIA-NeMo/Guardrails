@@ -180,6 +180,28 @@ class TestKnowledgeBase(unittest.TestCase):
         assert evidence[0]["type"] == "external_kb"
         assert evidence[0]["data"] == {"owner": "unit-test"}
 
+    def test_query_external_kb_rejects_path_traversal_domain(self):
+        """Test external KB lookup rejects path traversal input."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            domains_dir = os.path.join(tmp_dir, "domains")
+            os.mkdir(domains_dir)
+            self.kb.external_kb_root = tmp_dir
+
+            evidence = self.kb._query_external_kb("../secret")
+
+        assert evidence == []
+
+    def test_query_external_kb_rejects_glob_metacharacters(self):
+        """Test external KB lookup rejects unsafe glob characters."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            domains_dir = os.path.join(tmp_dir, "domains")
+            os.mkdir(domains_dir)
+            self.kb.external_kb_root = tmp_dir
+
+            evidence = self.kb._query_external_kb("*.example.com")
+
+        assert evidence == []
+
     def test_initialize_kb_sets_external_root(self):
         """Test initialize_kb stores external KB root."""
         original = kb._kb_instance

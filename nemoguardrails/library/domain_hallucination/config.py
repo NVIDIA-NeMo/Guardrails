@@ -180,6 +180,8 @@ class DomainHallucinationGuardConfig:
             config.verification.tls_timeout = float(os.environ[f"{prefix}TLS_TIMEOUT"])
         if f"{prefix}WHOIS_TIMEOUT" in os.environ:
             config.verification.whois_timeout = float(os.environ[f"{prefix}WHOIS_TIMEOUT"])
+        if f"{prefix}GITHUB_TIMEOUT" in os.environ:
+            config.verification.github_timeout = float(os.environ[f"{prefix}GITHUB_TIMEOUT"])
         if f"{prefix}GITHUB_TOKEN" in os.environ:
             config.verification.github_token = os.environ[f"{prefix}GITHUB_TOKEN"]
 
