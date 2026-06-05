@@ -24,6 +24,10 @@ from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
 )
+from nemoguardrails.library.factchecking.align_score.actions import (
+    alignscore_check_facts,
+)
+from nemoguardrails.library.self_check.facts.actions import self_check_facts
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
 
 
@@ -118,3 +122,26 @@ def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return,
 
     assert mapping_blocked is expected_blocked
     assert outcome_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("action_func", "action_name"),
+    [
+        (self_check_facts, "self_check_facts"),
+        (alignscore_check_facts, "alignscore_check_facts"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (0.49, True),
+        (0.5, False),
+        (0.51, False),
+    ],
+)
+def test_fact_check_mapping_threshold_matches_default_interpret(action_func, action_name, raw_return, expected_blocked):
+    outcome_blocked = default_interpret(raw_return, RailInvocation(action_name)).is_blocked
+    mapping_blocked = is_output_blocked(raw_return, action_func)
+
+    assert outcome_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked

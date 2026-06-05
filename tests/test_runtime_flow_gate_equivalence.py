@@ -25,11 +25,13 @@ from tests.utils import TestChat
 
 NORMAL_OUTPUT = "NORMAL OUTPUT"
 REFUSAL = "I'm sorry, I can't respond to that."
+ANSWER_UNKNOWN = "I don't know the answer to that."
 
 
 class ObservableOutcome(Enum):
     ALLOW = "allow"
     REFUSAL = "refusal"
+    ANSWER_UNKNOWN = "answer_unknown"
     EXCEPTION = "exception"
     TRANSFORM = "transform"
 
@@ -87,6 +89,13 @@ SELF_CHECK_FACTS = RailSpec(
     direction="output",
     action="self_check_facts",
     task="self_check_facts",
+)
+
+ALIGNSCORE_CHECK_FACTS = RailSpec(
+    name="alignscore_check_facts",
+    flow="alignscore check facts",
+    direction="output",
+    action="alignscore_check_facts",
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -265,6 +274,39 @@ FIXTURES = [
         enable_rails_exceptions=True,
         context={"check_facts": True},
     ),
+    _case(
+        "alignscore_check_facts_blocks_below_threshold",
+        ALIGNSCORE_CHECK_FACTS,
+        0.49,
+        ObservableOutcome.ANSWER_UNKNOWN,
+        FlowDecision.BLOCK,
+        context={"check_facts": True},
+    ),
+    _case(
+        "alignscore_check_facts_allows_at_threshold",
+        ALIGNSCORE_CHECK_FACTS,
+        0.5,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"check_facts": True},
+    ),
+    _case(
+        "alignscore_check_facts_allows_above_threshold",
+        ALIGNSCORE_CHECK_FACTS,
+        0.51,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"check_facts": True},
+    ),
+    _case(
+        "alignscore_check_facts_blocks_below_threshold_exception",
+        ALIGNSCORE_CHECK_FACTS,
+        0.49,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+        context={"check_facts": True},
+    ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -344,6 +386,8 @@ def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
         return ObservableOutcome.ALLOW
     if response == {"role": "assistant", "content": REFUSAL}:
         return ObservableOutcome.REFUSAL
+    if response == {"role": "assistant", "content": ANSWER_UNKNOWN}:
+        return ObservableOutcome.ANSWER_UNKNOWN
     if response.get("role") == "exception":
         return ObservableOutcome.EXCEPTION
     if response.get("role") == "assistant":
@@ -355,7 +399,11 @@ def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
 def _decision_from_observable(observable: ObservableOutcome) -> FlowDecision:
     if observable is ObservableOutcome.ALLOW:
         return FlowDecision.ALLOW
-    if observable in (ObservableOutcome.REFUSAL, ObservableOutcome.EXCEPTION):
+    if observable in (
+        ObservableOutcome.REFUSAL,
+        ObservableOutcome.ANSWER_UNKNOWN,
+        ObservableOutcome.EXCEPTION,
+    ):
         return FlowDecision.BLOCK
     return FlowDecision.TRANSFORM
 
