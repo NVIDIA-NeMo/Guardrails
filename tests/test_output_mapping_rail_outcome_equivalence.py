@@ -580,11 +580,11 @@ def test_gcp_simple_output_flow_allows_detail_only_mapping_block():
 @pytest.mark.parametrize(
     ("raw_return", "flow_blocked", "mapping_blocked"),
     [
-        ({"valid": True, "validation_result": {"validation_passed": True}}, False, True),
-        ({"valid": False, "validation_result": {"validation_passed": False}}, True, False),
+        ({"valid": True, "validation_result": {"validation_passed": True}}, False, False),
+        ({"valid": False, "validation_result": {"validation_passed": False}}, True, True),
     ],
 )
-def test_guardrails_ai_output_mapping_reverses_flow_polarity(raw_return, flow_blocked, mapping_blocked):
+def test_guardrails_ai_output_mapping_matches_flow_polarity(raw_return, flow_blocked, mapping_blocked):
     assert is_output_blocked(raw_return, validate_guardrails_ai_output) is mapping_blocked
     assert (not raw_return["valid"]) is flow_blocked
 

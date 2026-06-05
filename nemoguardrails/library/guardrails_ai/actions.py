@@ -21,9 +21,9 @@ from functools import lru_cache
 from typing import Any, Dict, Optional, Type
 
 try:
-    from guardrails import Guard
+    from guardrails import Guard  # type: ignore[reportAttributeAccessIssue]
 except ImportError:
-    # Mock Guard class for when guardrails is not available
+
     class Guard:
         def __init__(self):
             pass
@@ -48,23 +48,21 @@ _validator_class_cache: Dict[str, Type] = {}
 _guard_cache: Dict[tuple, Guard] = {}
 
 
-def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> bool:
-    """Map Guardrails AI validation result to NeMo Guardrails format."""
-    # The Guardrails AI `validate` method returns a ValidationResult object.
-    # On failure (PII found, Jailbreak detected, etc.), it's often a FailResult.
-    # Both PassResult and FailResult have a `validation_passed` boolean attribute
-    # which indicates if the validation criteria were met.
-    # FailResult also often contains `fixed_value` if a fix like anonymization was applied.
-    # We map `validation_passed=False` to `True` (block) and `validation_passed=True` to `False` (don't block).
+def _guardrails_ai_validation_passed(result: Dict[str, Any]) -> bool:
     validation_result = result.get("validation_result", {})
 
-    # Handle both dict and object formats
     if hasattr(validation_result, "validation_passed"):
-        valid = validation_result.validation_passed
-    else:
-        valid = validation_result.get("validation_passed", False)
+        return bool(validation_result.validation_passed)
 
-    return valid  # {"valid": valid, "validation_result": validation_result}
+    if isinstance(validation_result, dict):
+        return bool(validation_result.get("validation_passed", False))
+
+    return False
+
+
+def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> bool:
+    """Map Guardrails AI validation result to NeMo Guardrails blocked semantics."""
+    return not _guardrails_ai_validation_passed(result)
 
 
 # TODO: we need to do this
@@ -110,18 +108,26 @@ def validate_guardrails_ai_input(
         Dict with validation_result and valid (bool derived from validation_passed).
     """
 
+    context = context or {}
     text = text or context.get("user_message", "")
     if not text:
         raise ValueError("Either 'text' or 'context' must be provided.")
 
-    validator_config = config.rails.config.guardrails_ai.get_validator_config(validator)
+    guardrails_ai_config = config.rails.config.guardrails_ai
+    if guardrails_ai_config is None:
+        raise ValueError("Guardrails AI config is required.")
+
+    validator_config = guardrails_ai_config.get_validator_config(validator)
+    if validator_config is None:
+        raise ValueError(f"Guardrails AI validator '{validator}' is not configured.")
+
     parameters = validator_config.parameters or {}
     metadata = validator_config.metadata or {}
 
     joined_parameters = {**parameters, **metadata}
 
     result = validate_guardrails_ai(validator, text, **joined_parameters)
-    valid = guardrails_ai_validation_mapping(result)
+    valid = _guardrails_ai_validation_passed(result)
 
     # Return both validation_result and valid for backward compatibility with Colang flows
     return {**result, "valid": valid}
@@ -150,11 +156,22 @@ def validate_guardrails_ai_output(
         Dict with validation_result and valid (bool derived from validation_passed).
     """
 
+    context = context or {}
     text = text or context.get("bot_message", "")
     if not text:
         raise ValueError("Either 'text' or 'context' must be provided.")
 
-    validator_config = config.rails.config.guardrails_ai.get_validator_config(validator)
+    if config is None:
+        raise ValueError("Rails config is required.")
+
+    guardrails_ai_config = config.rails.config.guardrails_ai
+    if guardrails_ai_config is None:
+        raise ValueError("Guardrails AI config is required.")
+
+    validator_config = guardrails_ai_config.get_validator_config(validator)
+    if validator_config is None:
+        raise ValueError(f"Guardrails AI validator '{validator}' is not configured.")
+
     parameters = validator_config.parameters or {}
     metadata = validator_config.metadata or {}
 
@@ -162,7 +179,7 @@ def validate_guardrails_ai_output(
     joined_parameters = {**parameters, **metadata}
 
     result = validate_guardrails_ai(validator, text, **joined_parameters)
-    valid = guardrails_ai_validation_mapping(result)
+    valid = _guardrails_ai_validation_passed(result)
 
     # Return both validation_result and valid for backward compatibility with Colang flows
     return {**result, "valid": valid}
