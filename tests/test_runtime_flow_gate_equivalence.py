@@ -15,7 +15,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
 import pytest
 
@@ -24,7 +24,6 @@ from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.crowdstrike_aidr.actions import GuardChatCompletionsResult
 from nemoguardrails.library.pangea.actions import TextGuardResult
-from nemoguardrails.library.trend_micro.actions import GuardResult
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
@@ -136,14 +135,6 @@ def _blocked_if_true(raw_return: Any) -> FlowDecision:
 
 def _transform_if_false(raw_return: Any) -> FlowDecision:
     return FlowDecision.TRANSFORM if not raw_return else FlowDecision.ALLOW
-
-
-def _blocked_if_cleanlab_low_score(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return["trustworthiness_score"] < 0.6 else FlowDecision.ALLOW
-
-
-def _blocked_if_attr_blocked(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return.blocked else FlowDecision.ALLOW
 
 
 def _blocked_if_is_blocked(raw_return: Any) -> FlowDecision:
@@ -725,7 +716,6 @@ TREND_MICRO_INPUT = RailSpec(
     flow="trend ai guard input",
     direction="input",
     action="trend_ai_guard",
-    interpret=_blocked_if_attr_blocked,
 )
 
 TREND_MICRO_OUTPUT = RailSpec(
@@ -733,7 +723,6 @@ TREND_MICRO_OUTPUT = RailSpec(
     flow="trend ai guard output",
     direction="output",
     action="trend_ai_guard",
-    interpret=_blocked_if_attr_blocked,
 )
 
 CLEANLAB_OUTPUT = RailSpec(
@@ -741,7 +730,6 @@ CLEANLAB_OUTPUT = RailSpec(
     flow="cleanlab trustworthiness",
     direction="output",
     action="call cleanlab api",
-    interpret=_blocked_if_cleanlab_low_score,
 )
 
 AI_DEFENSE_INPUT = RailSpec(
@@ -1063,14 +1051,6 @@ def _injection_detection_result(
         "text": text,
         "detections": detections or [],
     }
-
-
-def _trend_micro_result(*, action: Literal["Allow", "Block"]) -> GuardResult:
-    return GuardResult(action=action, reason=f"{action} reason")
-
-
-def _cleanlab_result(score: float) -> dict[str, float]:
-    return {"trustworthiness_score": score}
 
 
 def _fact_check_outcome(accuracy: float) -> RailOutcome:
@@ -1767,21 +1747,21 @@ FIXTURES = [
     _case(
         "trend_micro_input_allows_allow_action",
         TREND_MICRO_INPUT,
-        _trend_micro_result(action="Allow"),
+        RailOutcome.allow(reason="Allow reason", action="Allow"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "trend_micro_input_blocks_block_action",
         TREND_MICRO_INPUT,
-        _trend_micro_result(action="Block"),
+        RailOutcome.block(reason="Block reason", action="Block"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "trend_micro_input_blocks_block_action_exception",
         TREND_MICRO_INPUT,
-        _trend_micro_result(action="Block"),
+        RailOutcome.block(reason="Block reason", action="Block"),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1789,21 +1769,21 @@ FIXTURES = [
     _case(
         "trend_micro_output_allows_allow_action",
         TREND_MICRO_OUTPUT,
-        _trend_micro_result(action="Allow"),
+        RailOutcome.allow(reason="Allow reason", action="Allow"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "trend_micro_output_blocks_block_action",
         TREND_MICRO_OUTPUT,
-        _trend_micro_result(action="Block"),
+        RailOutcome.block(reason="Block reason", action="Block"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "trend_micro_output_blocks_block_action_exception",
         TREND_MICRO_OUTPUT,
-        _trend_micro_result(action="Block"),
+        RailOutcome.block(reason="Block reason", action="Block"),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1811,7 +1791,7 @@ FIXTURES = [
     _case(
         "cleanlab_output_blocks_below_threshold",
         CLEANLAB_OUTPUT,
-        _cleanlab_result(0.59),
+        RailOutcome.block(trustworthiness_score=0.59),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content=f"{NORMAL_OUTPUT} {CLEANLAB_WARNING_SUFFIX}",
@@ -1819,21 +1799,21 @@ FIXTURES = [
     _case(
         "cleanlab_output_allows_at_threshold",
         CLEANLAB_OUTPUT,
-        _cleanlab_result(0.6),
+        RailOutcome.allow(trustworthiness_score=0.6),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "cleanlab_output_allows_above_threshold",
         CLEANLAB_OUTPUT,
-        _cleanlab_result(0.61),
+        RailOutcome.allow(trustworthiness_score=0.61),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "cleanlab_output_blocks_below_threshold_exception",
         CLEANLAB_OUTPUT,
-        _cleanlab_result(0.59),
+        RailOutcome.block(trustworthiness_score=0.59),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,

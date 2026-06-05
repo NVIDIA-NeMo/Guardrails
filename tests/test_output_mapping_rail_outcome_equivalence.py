@@ -68,7 +68,7 @@ from nemoguardrails.library.sensitive_data_detection.actions import (
     detect_sensitive_data,
     mask_sensitive_data,
 )
-from nemoguardrails.library.trend_micro.actions import GuardResult, trend_ai_guard
+from nemoguardrails.library.trend_micro.actions import trend_ai_guard
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
     LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
@@ -483,30 +483,40 @@ def test_injection_detection_default_mapping_cannot_express_block_or_transform(
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (GuardResult(action="Allow", reason="allowed"), False),
-        (GuardResult(action="Block", reason="blocked"), True),
+        (RailOutcome.allow(reason="allowed", action="Allow"), False),
+        (RailOutcome.block(reason="blocked", action="Block"), True),
     ],
 )
-def test_trend_micro_output_mapping_matches_block_interpretation(raw_return, expected_blocked):
+def test_trend_micro_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, trend_ai_guard)
+    outcome = outcome_from_output_mapping(raw_return, trend_ai_guard)
 
-    assert raw_return.blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_trend_micro_action_has_no_legacy_output_mapping():
+    assert getattr(trend_ai_guard, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"trustworthiness_score": 0.59}, True),
-        ({"trustworthiness_score": 0.6}, False),
-        ({"trustworthiness_score": 0.61}, False),
-        ({}, False),
+        (RailOutcome.block(trustworthiness_score=0.59), True),
+        (RailOutcome.allow(trustworthiness_score=0.6), False),
+        (RailOutcome.allow(trustworthiness_score=0.61), False),
     ],
 )
-def test_cleanlab_output_mapping_matches_threshold_interpretation(raw_return, expected_blocked):
+def test_cleanlab_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, call_cleanlab_api)
+    outcome = outcome_from_output_mapping(raw_return, call_cleanlab_api)
 
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_cleanlab_action_has_no_legacy_output_mapping():
+    assert getattr(call_cleanlab_api, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
