@@ -52,6 +52,8 @@ jobs:
           node-version: "22"
 
       - name: Check Fern docs
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-strict
 
   preview-docs:
