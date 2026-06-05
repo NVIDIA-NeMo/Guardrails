@@ -27,6 +27,7 @@ from nemoguardrails.library.autoalign.actions import (
     autoalign_groundedness_output_api,
     autoalign_output_api,
 )
+from nemoguardrails.library.clavata.actions import clavata_check
 from nemoguardrails.library.cleanlab.actions import call_cleanlab_api
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
@@ -38,6 +39,7 @@ from nemoguardrails.library.crowdstrike_aidr.actions import (
 from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
+from nemoguardrails.library.fiddler.actions import call_fiddler_faithfulness, call_fiddler_safety_bot
 from nemoguardrails.library.gliner.actions import gliner_detect_pii, gliner_mask_pii
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.injection_detection.actions import injection_detection
@@ -494,3 +496,28 @@ def test_ai_defense_output_mapping_matches_fail_closed_interpretation(raw_return
     mapping_blocked = is_output_blocked(raw_return, ai_defense_inspect)
 
     assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    "action_func",
+    [
+        clavata_check,
+        call_fiddler_safety_bot,
+        call_fiddler_faithfulness,
+    ],
+)
+@pytest.mark.parametrize(
+    ("raw_return", "flow_blocked", "mapping_blocked"),
+    [
+        (False, False, True),
+        (True, True, False),
+    ],
+)
+def test_boolean_flag_actions_without_output_mapping_invert_output_bypass(
+    action_func,
+    raw_return,
+    flow_blocked,
+    mapping_blocked,
+):
+    assert is_output_blocked(raw_return, action_func) is mapping_blocked
+    assert raw_return is flow_blocked

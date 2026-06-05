@@ -550,6 +550,46 @@ INJECTION_DETECTION_OMIT = RailSpec(
     rails_config=INJECTION_DETECTION_OMIT_RAILS_CONFIG,
 )
 
+CLAVATA_INPUT = RailSpec(
+    name="clavata_input",
+    flow="clavata check input",
+    direction="input",
+    action="ClavataCheckAction",
+    interpret=_blocked_if_true,
+)
+
+CLAVATA_OUTPUT = RailSpec(
+    name="clavata_output",
+    flow="clavata check output",
+    direction="output",
+    action="ClavataCheckAction",
+    interpret=_blocked_if_true,
+)
+
+FIDDLER_USER_SAFETY = RailSpec(
+    name="fiddler_user_safety",
+    flow="fiddler user safety",
+    direction="input",
+    action="call fiddler safety on user message",
+    interpret=_blocked_if_true,
+)
+
+FIDDLER_BOT_SAFETY = RailSpec(
+    name="fiddler_bot_safety",
+    flow="fiddler bot safety",
+    direction="output",
+    action="call fiddler safety on bot message",
+    interpret=_blocked_if_true,
+)
+
+FIDDLER_BOT_FAITHFULNESS = RailSpec(
+    name="fiddler_bot_faithfulness",
+    flow="fiddler bot faithfulness",
+    direction="output",
+    action="call fiddler faithfulness",
+    interpret=_blocked_if_true,
+)
+
 TREND_MICRO_INPUT = RailSpec(
     name="trend_micro_input",
     flow="trend ai guard input",
@@ -1677,6 +1717,66 @@ FIXTURES = [
         "ai_defense_output_blocks_true_exception",
         AI_DEFENSE_OUTPUT,
         {"is_blocked": True},
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    *_boolean_flag_cases(
+        CLAVATA_INPUT,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_boolean_flag_cases(
+        CLAVATA_OUTPUT,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    _case(
+        "clavata_input_blocks_true_exception",
+        CLAVATA_INPUT,
+        True,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "clavata_output_blocks_true_exception",
+        CLAVATA_OUTPUT,
+        True,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    *_boolean_flag_cases(
+        FIDDLER_USER_SAFETY,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_boolean_flag_cases(
+        FIDDLER_BOT_SAFETY,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_boolean_flag_cases(
+        FIDDLER_BOT_FAITHFULNESS,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    _case(
+        "fiddler_user_safety_blocks_true_exception",
+        FIDDLER_USER_SAFETY,
+        True,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "fiddler_bot_safety_blocks_true_exception",
+        FIDDLER_BOT_SAFETY,
+        True,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "fiddler_bot_faithfulness_blocks_true_exception",
+        FIDDLER_BOT_FAITHFULNESS,
+        True,
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
