@@ -1,6 +1,6 @@
 .PHONY: help
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile warm-fastembed-cache
-.PHONY: docs docs-strict docs-serve docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-update-cards docs-check-cards docs-watch-cards docs-check-redirects
+.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-redirects
 .PHONY: pre-commit
 
 .DEFAULT_GOAL := help
@@ -45,15 +45,6 @@ test-profile:
 warm-fastembed-cache:
 	$(FASTEMBED_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
-docs:
-	poetry run sphinx-build -b html docs _build/docs
-
-docs-strict:
-	poetry run sphinx-build -b html -W --keep-going docs _build/docs
-
-docs-serve:
-	cd docs && poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
-
 docs-fern: docs-fern-strict
 
 docs-fern-strict: docs-fern-generate-sdk
@@ -74,15 +65,6 @@ docs-fern-generate-sdk:
 
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
-
-docs-update-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py
-
-docs-check-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py --dry-run
-
-docs-watch-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py watch
 
 docs-check-redirects:
 	cd docs && poetry run python scripts/validate_redirects.py
@@ -112,9 +94,6 @@ help:
 		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
 		'' \
 		'Docs:' \
-		'  docs                  Build docs' \
-		'  docs-strict           Build docs with warnings as errors' \
-		'  docs-serve            Serve docs locally' \
 		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-live        Serve Fern docs locally' \
@@ -122,9 +101,6 @@ help:
 		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
 		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
-		'  docs-update-cards     Update generated docs cards' \
-		'  docs-check-cards      Check generated docs cards' \
-		'  docs-watch-cards      Watch and update generated docs cards' \
 		'  docs-check-redirects  Validate docs redirects' \
 		'' \
 		'Maintenance:' \

@@ -1,0 +1,57 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Colang Standard Library (CSL)"
+description: "The Colang Standard Library (CSL) provides an abstraction from the underlying event and action layer and offers a semantic interface to design interaction patterns between the bot "
+---
+
+<a id="the-standard-library"></a>
+
+
+The Colang Standard Library (CSL) provides an abstraction from the underlying event and action layer and offers a semantic interface to design interaction patterns between the bot and the user. Currently, there are the following library files available under `nemoguardrails/colang/v2_x/library/` ([Github link](../../../../../nemoguardrails/colang/v2_x/library)):
+
+<Cards>
+
+<Card title="Core Flows" href="csl/core">
+
+Core user, bot, wait, and notification flows.
+
+</Card>
+
+<Card title="Timing Flows" href="csl/timing">
+
+Wait, timer, and silence detection flows.
+
+</Card>
+
+<Card title="LLM Flows" href="csl/lmm">
+
+LLM continuation and utility flows.
+
+</Card>
+
+<Card title="Avatar Flows" href="csl/avatars">
+
+Gesture, posture, and avatar-related flows.
+
+</Card>
+
+<Card title="Guardrail Flows" href="csl/guardrails">
+
+Standard guardrail flow definitions.
+
+</Card>
+
+<Card title="Attention Flows" href="csl/attention">
+
+User attention tracking and checks.
+
+</Card>
+
+</Cards>
+To use the flows defined in these libraries you have two options:
+
+- [Recommended] Import the standard library files using the import statement: e.g. `import llm`
+- Copy the corresponding `*.co` file directly inside your Colang script directory.
+
+Note that the `import <library>` statement will import all available flows of the corresponding library.

@@ -1,23 +1,21 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Update Cards Script"
+title: "Legacy Update Cards Script"
 ---
-Automatically updates and generates grid cards in index files based on linked page content.
+Legacy helper for updating and generating Sphinx-Design grid cards in old Markdown and RST index files.
+
+<Warning>
+The migrated Fern MDX docs use `<Cards>` and `<Card>` components directly. Do not use this script for Fern pages.
+</Warning>
 
 ## Quick Start
 
 ```bash
-# Preview changes (dry run)
-make docs-check-cards
-
-# Apply updates
-make docs-update-cards
-
-# Watch mode (auto-update on file changes)
+# Watch mode for legacy Sphinx card sources
 cd docs && python scripts/update_cards/update_cards.py watch
 
-# Generate cards for a new directory
+# Generate cards for a legacy directory
 cd docs && python scripts/update_cards/update_cards.py generate ./new-section/
 ```
 
@@ -153,18 +151,6 @@ Complete reference for configuring guardrails, models, and behaviors.
 
 ## Integration Options
 
-### Makefile Targets
-
-The project Makefile includes these targets:
-
-```makefile
-docs-update-cards:
-    cd docs && python scripts/update_cards/update_cards.py
-
-docs-check-cards:
-    cd docs && python scripts/update_cards/update_cards.py --dry-run
-```
-
 ### Pre-commit Hook
 
 Add to `.pre-commit-config.yaml`:
@@ -191,7 +177,7 @@ Add a GitHub Actions step to verify cards are up to date:
     cd docs
     python scripts/update_cards/update_cards.py --dry-run
     if [ $? -ne 0 ]; then
-      echo "Documentation cards are out of date. Run 'make docs-update-cards'"
+      echo "Documentation cards are out of date. Run the legacy update_cards.py helper."
       exit 1
     fi
 ```
@@ -202,7 +188,7 @@ For active documentation development, use watch mode:
 
 ```bash
 # Terminal 1: Run documentation server
-make docs-serve
+make docs-fern-live
 
 # Terminal 2: Auto-update cards
 cd docs && python scripts/update_cards/update_cards.py watch

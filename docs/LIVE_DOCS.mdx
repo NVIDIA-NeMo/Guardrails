@@ -1,140 +1,90 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Live Documentation Server - Quick Reference"
+title: "Fern Documentation Preview - Quick Reference"
 ---
-This guide shows you how to run a live documentation server that automatically rebuilds when you save changes.
+This guide shows you how to preview the Fern documentation site while editing MDX pages.
 
 ## Quick Start
 
-The easiest way to get started:
+Start the local Fern development server from the repository root:
 
 ```bash
-# From the repository root
-make docs-serve
+make docs-fern-live
 ```
 
-Or from the `docs` directory:
+For a branch preview that publishes to Fern, run:
 
 ```bash
-# Using the shell script
-./serve.sh
-
-# Using the Python script
-python serve.py
+make docs-fern-preview-watch
 ```
 
 ## Prerequisites
 
-Install the documentation dependencies first:
+Fern is run through the pinned CLI version in `fern/fern.config.json`. The commands use `npx` to fetch that version.
 
-```bash
-poetry install --with docs
-```
+The Python SDK reference is generated automatically before the Fern checks and preview commands run.
 
 ## Available Methods
 
-### Method 1: Makefile Target (Recommended)
+### Local Fern Server
 
 ```bash
-# From repository root
-make docs-serve
+make docs-fern-live
 ```
 
-- ✅ Simplest method
-- ✅ Automatically opens browser
-- ✅ Runs on port 8000
+- Regenerates the Python SDK reference under `docs/_static/python-sdk-reference`.
+- Normalizes the generated SDK tree to avoid duplicate sidebar entries.
+- Starts the Fern local development server.
 
-### Method 2: Shell Script
+### Published Branch Preview
 
 ```bash
-cd docs
-./serve.sh [port]
+make docs-fern-preview-watch
 ```
 
-**Features:**
+This watches local docs changes and publishes a Fern preview for the current Git branch.
 
-- Default port: 8000
-- Watches for changes in all documentation files
-- Ignores build artifacts and temporary files
-- Also watches Python source code for API docs
-
-**Custom port:**
+### Check Only
 
 ```bash
-./serve.sh 8080
+make docs-fern-strict
 ```
 
-### Method 3: Python Script
+This regenerates the SDK reference, normalizes it, and runs `fern check`.
+
+### Direct Fern Command
 
 ```bash
-cd docs
-python serve.py [OPTIONS]
-```
-
-**Options:**
-
-- `--port PORT`: Port to serve on (default: 8000)
-- `--host HOST`: Host to bind to (default: 0.0.0.0)
-- `--open`: Automatically open browser
-
-**Examples:**
-
-```bash
-# Default settings
-python serve.py
-
-# Custom port with auto-open
-python serve.py --port 8080 --open
-
-# Localhost only
-python serve.py --host 127.0.0.1
-```
-
-### Method 4: Direct Command
-
-```bash
-cd docs
-poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
+make docs-fern-generate-sdk
+cd fern
+npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
 ```
 
 ## How It Works
 
-1. **Initial Build**: The server builds the documentation from scratch
-2. **Watch Mode**: Monitors all source files for changes (`.md`, `.rst`, `.py`, etc.)
-3. **Auto-Rebuild**: When you save a file, it automatically rebuilds only what changed
-4. **Live Reload**: Your browser automatically refreshes to show the updates
+1. **SDK Reference Generation**: Fern generates Python library reference pages from the `nemoguardrails` package.
+2. **Normalization**: `scripts/normalize-fern-sdk-reference.mjs` removes duplicate generated sidebar entries.
+3. **Fern Dev Server**: Fern starts a local documentation server.
+4. **Live Reload**: Your browser refreshes as Fern rebuilds changed pages.
 
 ## What Files Are Watched?
 
-The server watches:
+The Fern workflow watches:
 
-- ✅ All Markdown files (`.md`)
-- ✅ All reStructuredText files (`.rst`)
-- ✅ Configuration files (`conf.py`, `config.yml`)
-- ✅ Python source code in `nemoguardrails/` (for API docs)
-- ✅ Static assets (images, CSS, etc.)
+- MDX files in `docs/`
+- Fern configuration in `fern/`
+- Static assets referenced by the docs
 
 Files ignored:
 
-- ❌ Build output (`_build/`)
-- ❌ Temporary files (`.swp`, `*~`)
-- ❌ Python cache (`__pycache__/`, `*.pyc`)
-- ❌ Git files (`.git/`)
+- Generated SDK reference output (`docs/_static/python-sdk-reference/`)
+- Temporary files (`.swp`, `*~`)
+- Git files (`.git/`)
 
 ## Accessing the Documentation
 
-Once the server starts, open your browser to:
-
-```
-http://127.0.0.1:8000
-```
-
-Or if you used a custom port:
-
-```
-http://127.0.0.1:<your-port>
-```
+Use the local URL printed by Fern in the terminal.
 
 ## Stopping the Server
 
@@ -142,67 +92,51 @@ Press `Ctrl+C` in the terminal to stop the server.
 
 ## Troubleshooting
 
-### Port Already in Use
+### Fern CLI Fails to Start
 
-If you see an error about the port being in use:
-
-```bash
-# Use a different port
-./serve.sh 8080
-# or
-python serve.py --port 8080
-```
-
-### Module Not Found: sphinx-autobuild
-
-Install the documentation dependencies:
+The Fern CLI is downloaded through `npx`. If it fails to start, check network access and rerun:
 
 ```bash
-poetry install --with docs
+make docs-fern-live
 ```
 
 ### Changes Not Reflecting
 
-1. Check the terminal for build errors
-2. Try a full rebuild:
+Regenerate the SDK reference and restart the local server:
 
-   ```bash
-   cd docs
-   rm -rf _build
-   make docs-serve
-   ```
+```bash
+make docs-fern-generate-sdk
+make docs-fern-live
+```
 
 ### Browser Not Auto-Refreshing
 
-- Make sure you're viewing the page served by the local server (port 8000)
-- Some browser extensions may block the live reload WebSocket
+- Make sure you're viewing the URL printed by Fern.
+- Some browser extensions may block live reload.
 - Try a different browser or incognito mode
 
 ## Tips
 
 1. **Keep the terminal visible**: You'll see build progress and any errors
 2. **Check for errors**: Red text in the terminal indicates build warnings or errors
-3. **Multiple files**: The server batches changes, so save multiple files then wait a moment
-4. **Clean builds**: If things look wrong, stop the server and delete `_build/` directory
+3. **Generated files**: Do not edit files under `docs/_static/python-sdk-reference/`; regenerate them.
+4. **Clean builds**: If things look wrong, stop the server and rerun `make docs-fern-live`.
 
 ## Advanced Configuration
 
-The scripts automatically configure:
+The Make targets automatically:
 
-- Ignore patterns for temporary files
-- Debounce delay (1 second) to batch rapid changes
-- Watch additional directories (Python source code)
-- Rebuild only changed files for speed
+- Use the pinned Fern CLI version.
+- Regenerate and normalize Python SDK reference docs.
+- Run Fern check or the Fern development server.
 
 To customize, edit:
 
-- `docs/serve.sh` (bash script)
-- `docs/serve.py` (Python script)
+- `Makefile`
+- `fern/docs.yml`
 
-Or run `sphinx-autobuild` directly with your own options:
+Or run Fern directly from the `fern/` directory:
 
 ```bash
-sphinx-autobuild [SOURCE] [BUILD] [OPTIONS]
+npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
 ```
-
-See `sphinx-autobuild --help` for all available options.

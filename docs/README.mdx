@@ -20,10 +20,10 @@ Product documentation for the toolkit is available at
 1. Build the documentation:
 
    ```console
-   make docs
+   make docs-fern
    ```
 
-   The HTML is created in the `_build/docs` directory.
+   The Fern docs configuration is validated with the pinned Fern CLI.
 
 ## Live Documentation Server
 
@@ -32,17 +32,15 @@ For local development with automatic rebuilding on file changes, use one of the 
 ### Option 1: Using the Shell Script (Recommended for Unix/Mac)
 
 ```bash
-cd docs
-./serve.sh [port]
+make docs-fern-live
 ```
 
-Default port is 8000. The server will automatically rebuild documentation when you save changes to any source file.
+The Fern development server starts locally and updates as you edit docs files.
 
 ### Option 2: Using the Python Script (Cross-Platform)
 
 ```bash
-cd docs
-python serve.py [--port PORT] [--host HOST] [--open]
+make docs-fern-preview-watch
 ```
 
 Options:
@@ -64,11 +62,11 @@ python serve.py --port 8080 --open
 python serve.py --host 127.0.0.1
 ```
 
-### Option 3: Direct sphinx-autobuild Command
+### Option 3: Direct Fern Command
 
 ```bash
-cd docs
-sphinx-autobuild . _build/html --port 8000 --open-browser
+cd fern
+npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
 ```
 
 Once the server is running:

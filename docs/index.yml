@@ -229,6 +229,97 @@ navigation:
         path: configure-rails/colang/index.mdx
         slug: colang
         contents:
+          - section: Colang 2.0 Guide
+            path: configure-rails/colang/colang-2/index.mdx
+            slug: colang-2
+            contents:
+              - page: What's Changed
+                path: configure-rails/colang/colang-2/whats-changed.mdx
+                slug: whats-changed
+              - page: Migration Guide
+                path: configure-rails/colang/colang-2/migration-guide.mdx
+                slug: migration-guide
+              - section: Getting Started
+                path: configure-rails/colang/colang-2/getting-started/index.mdx
+                slug: getting-started
+                contents:
+                  - page: Hello World
+                    path: configure-rails/colang/colang-2/getting-started/hello-world.mdx
+                    slug: hello-world
+                  - page: Interaction Loop
+                    path: configure-rails/colang/colang-2/getting-started/interaction-loop.mdx
+                    slug: interaction-loop
+                  - page: Input Rails
+                    path: configure-rails/colang/colang-2/getting-started/input-rails.mdx
+                    slug: input-rails
+                  - page: Dialog Rails
+                    path: configure-rails/colang/colang-2/getting-started/dialog-rails.mdx
+                    slug: dialog-rails
+                  - page: LLM Flows
+                    path: configure-rails/colang/colang-2/getting-started/llm-flows.mdx
+                    slug: llm-flows
+                  - page: Multimodal Rails
+                    path: configure-rails/colang/colang-2/getting-started/multimodal-rails.mdx
+                    slug: multimodal-rails
+                  - page: Recommended Next Steps
+                    path: configure-rails/colang/colang-2/getting-started/recommended-next-steps.mdx
+                    slug: recommended-next-steps
+              - section: Language Reference
+                path: configure-rails/colang/colang-2/language-reference/index.mdx
+                slug: language-reference
+                contents:
+                  - page: Introduction
+                    path: configure-rails/colang/colang-2/language-reference/introduction.mdx
+                    slug: introduction
+                  - page: Event Generation and Matching
+                    path: configure-rails/colang/colang-2/language-reference/event-generation-and-matching.mdx
+                    slug: event-generation-and-matching
+                  - page: Working with Actions
+                    path: configure-rails/colang/colang-2/language-reference/working-with-actions.mdx
+                    slug: working-with-actions
+                  - page: Defining Flows
+                    path: configure-rails/colang/colang-2/language-reference/defining-flows.mdx
+                    slug: defining-flows
+                  - page: Working with Variables and Expressions
+                    path: configure-rails/colang/colang-2/language-reference/working-with-variables-and-expressions.mdx
+                    slug: working-with-variables-and-expressions
+                  - page: Flow Control
+                    path: configure-rails/colang/colang-2/language-reference/flow-control.mdx
+                    slug: flow-control
+                  - section: Colang Standard Library
+                    path: configure-rails/colang/colang-2/language-reference/the-standard-library.mdx
+                    slug: the-standard-library
+                    contents:
+                      - page: Core Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/core.mdx
+                        slug: core
+                      - page: Timing Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/timing.mdx
+                        slug: timing
+                      - page: LLM Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/lmm.mdx
+                        slug: lmm
+                      - page: Avatar Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/avatars.mdx
+                        slug: avatars
+                      - page: Guardrail Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/guardrails.mdx
+                        slug: guardrails
+                      - page: Attention Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/attention.mdx
+                        slug: attention
+                  - page: Make Use of LLMs
+                    path: configure-rails/colang/colang-2/language-reference/make-use-of-llms.mdx
+                    slug: make-use-of-llms
+                  - page: More on Flows
+                    path: configure-rails/colang/colang-2/language-reference/more-on-flows.mdx
+                    slug: more-on-flows
+                  - page: Python Actions
+                    path: configure-rails/colang/colang-2/language-reference/python-actions.mdx
+                    slug: python-actions
+                  - page: Development and Debugging
+                    path: configure-rails/colang/colang-2/language-reference/development-and-debugging.mdx
+                    slug: development-and-debugging
           - section: Colang 1.0 Guide
             path: configure-rails/colang/colang-1/index.mdx
             slug: colang-1
