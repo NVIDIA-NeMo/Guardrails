@@ -7,6 +7,8 @@ instances:
   - url: nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
     custom-domain: docs.nvidia.com/nemo/guardrails
     multi-source: true
+  - url: nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails
+    multi-source: true
 
 title: NVIDIA NeMo Guardrails Library Developer Guide
 
