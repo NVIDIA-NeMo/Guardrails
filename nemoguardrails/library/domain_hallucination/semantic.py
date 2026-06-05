@@ -131,11 +131,11 @@ def check_advanced_verification(
     }
     for key, repo_item in github_map.items():
         owner = key.split("/")[0]
-        if owner not in common_owners:
-            continue
 
         # Check for common typos (single character differences)
         for common_owner in common_owners:
+            if owner == common_owner:
+                continue
             if _edit_distance(owner, common_owner) == 1:
                 issues.append(
                     {
