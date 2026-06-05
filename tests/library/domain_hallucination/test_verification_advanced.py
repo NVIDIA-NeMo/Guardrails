@@ -54,14 +54,9 @@ class TestDNSVerification(unittest.TestCase):
         assert isinstance(result, dict)
         assert result["status"] == "dns_error"
 
-    @patch("nemoguardrails.library.domain_hallucination.verification.socket.setdefaulttimeout")
-    @patch("nemoguardrails.library.domain_hallucination.verification.socket.getdefaulttimeout")
     @patch("nemoguardrails.library.domain_hallucination.verification.socket.getaddrinfo")
-    def test_resolve_domain_applies_and_restores_timeout(
-        self, mock_getaddrinfo, mock_getdefaulttimeout, mock_setdefaulttimeout
-    ):
-        """DNS timeout argument is applied and restored around getaddrinfo."""
-        mock_getdefaulttimeout.return_value = 12.0
+    def test_resolve_domain_applies_timeout_via_executor(self, mock_getaddrinfo):
+        """DNS resolution uses a per-call thread executor timeout (no global mutation)."""
         mock_getaddrinfo.return_value = [
             (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 443))
         ]
@@ -69,8 +64,8 @@ class TestDNSVerification(unittest.TestCase):
         result = verification.resolve_domain("example.com", timeout=1.5)
 
         assert result["status"] == "resolved"
-        mock_setdefaulttimeout.assert_any_call(1.5)
-        mock_setdefaulttimeout.assert_called_with(12.0)
+        # The global default timeout must NOT be mutated by resolve_domain()
+        assert socket.getdefaulttimeout() is None
 
 
 class TestHTTPVerification(unittest.TestCase):

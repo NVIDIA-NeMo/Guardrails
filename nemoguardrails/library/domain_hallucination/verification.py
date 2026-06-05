@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import ipaddress
 import json
 import re
@@ -55,10 +56,17 @@ def resolve_domain(domain: str, timeout: float = 4.0) -> Dict[str, Any]:
             "latency_ms": 0,
         }
 
-    old_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(timeout)
+    # Use a per-call executor timeout instead of mutating the global
+    # socket.setdefaulttimeout(), which is not thread-safe when multiple
+    # resolve_domain() calls run concurrently in a thread pool.
     try:
-        infos = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(socket.getaddrinfo, domain, 443, proto=socket.IPPROTO_TCP)
+            try:
+                infos = future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                raise socket.timeout(f"DNS resolution timed out after {timeout}s")
+
         addresses = sorted({info[4][0] for info in infos})
         public_addresses = []
 
@@ -129,8 +137,6 @@ def resolve_domain(domain: str, timeout: float = 4.0) -> Dict[str, Any]:
             "checked_at_utc": utc_now(),
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
         }
-    finally:
-        socket.setdefaulttimeout(old_timeout)
 
 
 def check_http_domain(target: str, timeout: float = 6.0) -> Dict[str, Any]:
