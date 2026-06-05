@@ -261,5 +261,48 @@ class TestDomainParsing(unittest.TestCase):
         assert parsed["host"] == "example.com"
 
 
+class TestSplitDomainFallback(unittest.TestCase):
+    """Test split_domain() when tldextract is unavailable."""
+
+    def test_split_domain_multi_part_without_tldextract(self):
+        """split_domain falls back to simple string splitting."""
+        import nemoguardrails.library.domain_hallucination.extractors as ext_mod
+
+        original = ext_mod._TLD_EXTRACTOR
+        try:
+            ext_mod._TLD_EXTRACTOR = None
+            result = extractors.split_domain("sub.example.com")
+            assert result["host"] == "sub.example.com"
+            assert result["registered_domain"] == "example.com"
+            assert result["subdomain"] == "sub"
+            assert result["domain"] == "example"
+            assert result["suffix"] == "com"
+        finally:
+            ext_mod._TLD_EXTRACTOR = original
+
+    def test_split_domain_single_part_without_tldextract(self):
+        """Single-label domain handled gracefully in fallback mode."""
+        import nemoguardrails.library.domain_hallucination.extractors as ext_mod
+
+        original = ext_mod._TLD_EXTRACTOR
+        try:
+            ext_mod._TLD_EXTRACTOR = None
+            result = extractors.split_domain("localhost")
+            assert result["host"] == "localhost"
+            assert result["registered_domain"] == "localhost"
+            assert result["subdomain"] == ""
+            assert result["suffix"] == ""
+        finally:
+            ext_mod._TLD_EXTRACTOR = original
+
+    def test_clean_url_empty_string(self):
+        """clean_url returns empty string for empty input."""
+        assert extractors.clean_url("") == ""
+
+    def test_normalize_url_empty_string(self):
+        """normalize_url returns empty string for empty input."""
+        assert extractors.normalize_url("") == ""
+
+
 if __name__ == "__main__":
     unittest.main()

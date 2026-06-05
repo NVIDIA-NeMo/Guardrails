@@ -663,5 +663,206 @@ class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
         assert "kb_results" in result
 
 
+class TestSelfCheckDomainHallucination(unittest.IsolatedAsyncioTestCase):
+    """Tests for the self_check_domain_hallucination rail action."""
+
+    def _mock_analyze_result(self):
+        return {
+            "status": "analyzed",
+            "extraction": {"urls": [], "domains": [], "github_repos": [], "no_links": False},
+            "detection": {"has_issues": False, "issues": []},
+            "risk_score": {"score": 0.0, "level": "L0", "label": "safe"},
+            "recalibrated_score": {"recalibrated_score": 0.0, "level": "L0"},
+            "decision": {"action": "pass", "reason": "low risk"},
+            "enforced_answer": {"action": "pass", "modified_answer": "answer", "enforced": False},
+            "verification_results": {},
+            "kb_results": {},
+        }
+
+    async def test_self_check_reads_bot_message_from_context(self):
+        """self_check_domain_hallucination extracts answer from bot_message key."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
+            return_value=self._mock_analyze_result(),
+        ) as mock_analyze:
+            result = await actions.self_check_domain_hallucination(
+                context={"bot_message": "See https://pytorch.org", "user_message": "what?"},
+                verification_level="none",
+            )
+        assert result["status"] == "analyzed"
+        call_kwargs = mock_analyze.call_args
+        assert call_kwargs.kwargs["answer"] == "See https://pytorch.org"
+        assert call_kwargs.kwargs["user_query"] == "what?"
+
+    async def test_self_check_reads_assistant_output_from_context(self):
+        """Fallback to assistant_output when bot_message is absent."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
+            return_value=self._mock_analyze_result(),
+        ) as mock_analyze:
+            await actions.self_check_domain_hallucination(
+                context={"assistant_output": "answer text"},
+                verification_level="none",
+            )
+        assert mock_analyze.call_args.kwargs["answer"] == "answer text"
+
+    async def test_self_check_with_none_context(self):
+        """None context is treated as empty dict (no crash)."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
+            return_value=self._mock_analyze_result(),
+        ) as mock_analyze:
+            result = await actions.self_check_domain_hallucination(
+                context=None,
+                verification_level="none",
+            )
+        assert result["status"] == "analyzed"
+        assert mock_analyze.call_args.kwargs["answer"] == ""
+
+    async def test_self_check_expert_review_path(self):
+        """enable_expert_review=True triggers expert_review module."""
+        analyze_result = self._mock_analyze_result()
+        analyze_result["risk_score"] = {"score": 60.0, "level": "L2", "label": "warn"}
+
+        expert_review_result = {
+            "risk": "medium",
+            "explanation": "borderline",
+            "corrected_answer": None,
+        }
+        updated_decision = {"action": "warn", "reason": "expert confirmed"}
+        enforced = {"action": "warn", "modified_answer": "answer", "enforced": False}
+
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
+                return_value=analyze_result,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.expert_review.review_with_nemo_llm",
+                return_value=expert_review_result,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.expert_review.apply_expert_decision",
+                return_value=updated_decision,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
+                return_value=enforced,
+            ),
+        ):
+            result = await actions.self_check_domain_hallucination(
+                context={"bot_message": "answer"},
+                verification_level="none",
+                enable_expert_review=True,
+                expert_review_min_level="L2",
+            )
+        assert result["expert_review"] == expert_review_result
+        assert result["decision"] == updated_decision
+
+    async def test_self_check_expert_review_with_corrected_answer(self):
+        """Corrected answer from expert review is propagated when action is refine."""
+        analyze_result = self._mock_analyze_result()
+        analyze_result["risk_score"] = {"score": 70.0, "level": "L3", "label": "block"}
+
+        expert_review_result = {
+            "risk": "high",
+            "corrected_answer": "corrected text",
+        }
+        updated_decision = {"action": "refine", "reason": "expert refined"}
+        enforced = {"action": "refine", "modified_answer": "old", "enforced": True}
+
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
+                return_value=analyze_result,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.expert_review.review_with_nemo_llm",
+                return_value=expert_review_result,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.expert_review.apply_expert_decision",
+                return_value=updated_decision,
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
+                return_value=enforced,
+            ),
+        ):
+            result = await actions.self_check_domain_hallucination(
+                context={"bot_message": "answer"},
+                verification_level="none",
+                enable_expert_review=True,
+            )
+        assert result["enforced_answer"]["modified_answer"] == "corrected text"
+
+
+class TestBlacklistPath(unittest.IsolatedAsyncioTestCase):
+    """Test that blacklisted domains are flagged in analyze_answer."""
+
+    async def test_blacklisted_domain_appears_in_rag_results(self):
+        """Domains on the KB blacklist are collected into blacklist_hosts."""
+        kb_instance = kb_module.KnowledgeBase()
+        kb_instance.add_blacklisted_domain("evil.com")
+
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
+                return_value={
+                    "urls": [{"normalized": "https://evil.com", "host": "evil.com"}],
+                    "domains": [{"host": "evil.com"}],
+                    "github_repos": [],
+                    "no_links": False,
+                },
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
+                return_value={"status": "resolved", "resolves": True},
+            ),
+        ):
+            result = await actions.analyze_answer(
+                answer="check evil.com",
+                verification_level="dns",
+                kb_instance=kb_instance,
+            )
+
+        blacklist = result["kb_results"].get("blacklist_hosts", [])
+        assert any(item.get("host") == "evil.com" for item in blacklist)
+
+
+class TestSkipSecondaryChecks(unittest.IsolatedAsyncioTestCase):
+    """Test skip_secondary_checks_on_dns_failure in analyze_answer."""
+
+    async def test_tls_skipped_when_dns_fails_and_skip_enabled(self):
+        """TLS/WHOIS skipped for domains whose DNS lookup returned nxdomain."""
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
+                return_value={
+                    "urls": [],
+                    "domains": [{"host": "fake-domain.xyz"}],
+                    "github_repos": [],
+                    "no_links": False,
+                },
+            ),
+            patch(
+                "nemoguardrails.library.domain_hallucination.actions._cached_verification_async",
+                side_effect=lambda source, key, fn, *a, **kw: (
+                    {"status": "nxdomain_or_no_data", "resolves": False} if source == "dns" else {"status": "ok"}
+                ),
+            ) as mock_verify,
+        ):
+            result = await actions.analyze_answer(
+                answer="see fake-domain.xyz",
+                verification_level="full",
+                skip_secondary_checks_on_dns_failure=True,
+                enable_tls_verification=True,
+            )
+
+        sources_used = [call.args[0] for call in mock_verify.call_args_list]
+        assert "dns" in sources_used
+        assert "tls" not in sources_used
+
+
 if __name__ == "__main__":
     unittest.main()

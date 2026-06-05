@@ -241,5 +241,37 @@ class TestKnowledgeBase(unittest.TestCase):
         assert "blacklisted_domains_count" in stats
 
 
+class TestKBEmptyInputGuards(unittest.TestCase):
+    """Test that KB methods handle empty/None inputs without crashing."""
+
+    def setUp(self):
+        self.kb = kb.KnowledgeBase()
+
+    def test_add_trusted_domain_empty_string_is_noop(self):
+        """add_trusted_domain('') should not add anything."""
+        self.kb.add_trusted_domain("")
+        assert "" not in self.kb.trusted_domains
+
+    def test_add_trusted_github_repo_empty_owner_is_noop(self):
+        """add_trusted_github_repo with empty owner should not add."""
+        self.kb.add_trusted_github_repo("", "repo")
+        assert len(self.kb.trusted_github_repos) == 0
+
+    def test_add_trusted_github_repo_empty_repo_is_noop(self):
+        """add_trusted_github_repo with empty repo should not add."""
+        self.kb.add_trusted_github_repo("owner", "")
+        assert len(self.kb.trusted_github_repos) == 0
+
+    def test_add_blacklisted_domain_empty_string_is_noop(self):
+        """add_blacklisted_domain('') should not add anything."""
+        self.kb.add_blacklisted_domain("")
+        assert "" not in self.kb.blacklisted_domains
+
+    def test_is_trusted_github_repo_empty_args_returns_false(self):
+        """is_trusted_github_repo with empty owner/repo returns False."""
+        assert self.kb.is_trusted_github_repo("", "") is False
+        assert self.kb.is_trusted_github_repo("", "repo") is False
+
+
 if __name__ == "__main__":
     unittest.main()

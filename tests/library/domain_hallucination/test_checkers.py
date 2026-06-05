@@ -193,5 +193,59 @@ class TestCheckers(unittest.TestCase):
         assert any(issue["target"] == "fakesite.xyz" for issue in result["issues"])
 
 
+class TestCheckersEdgeCases(unittest.TestCase):
+    """Edge cases: non-dict items and empty-host guards in checkers."""
+
+    def test_non_dict_domain_item_is_skipped(self):
+        """Non-dict entries in domains list are silently skipped."""
+        from nemoguardrails.library.domain_hallucination import checkers
+
+        extracted = {
+            "domains": ["not-a-dict", None, 42, {"host": ""}],
+            "urls": [],
+            "github_repos": [],
+        }
+        result = checkers.check_domain_hallucination(
+            extracted_items=extracted,
+            verification_result={},
+            rag_result={},
+        )
+        # No crash; the bad items are simply ignored
+        assert isinstance(result, dict)
+        assert "issues" in result
+
+    def test_empty_host_domain_item_is_skipped(self):
+        """Domain items with empty host are skipped without raising."""
+        from nemoguardrails.library.domain_hallucination import checkers
+
+        extracted = {
+            "domains": [{"host": ""}, {"host": None}],
+            "urls": [],
+            "github_repos": [],
+        }
+        result = checkers.check_domain_hallucination(
+            extracted_items=extracted,
+            verification_result={},
+            rag_result={},
+        )
+        assert result["has_issues"] is False
+
+    def test_http_checker_skips_non_dict_and_empty_host(self):
+        """HTTP checker handles non-dict URL items and items without host."""
+        from nemoguardrails.library.domain_hallucination import checkers
+
+        extracted = {
+            "domains": [],
+            "urls": ["not-a-dict", {"host": ""}, {"normalized": ""}],
+            "github_repos": [],
+        }
+        result = checkers.check_domain_hallucination(
+            extracted_items=extracted,
+            verification_result={"http": []},
+            rag_result={},
+        )
+        assert isinstance(result, dict)
+
+
 if __name__ == "__main__":
     unittest.main()
