@@ -66,6 +66,15 @@ class FlowEquivalenceCase:
 
 
 JAILBREAK_RAILS_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://localhost:9999"}}
+HF_CLASSIFIER_RAILS_CONFIG = {
+    "hf_classifier": {
+        "toxicity": {
+            "engine": "local",
+            "model": "placeholder",
+            "blocked_labels": ["toxic"],
+        }
+    }
+}
 
 SELF_CHECK_OUTPUT = RailSpec(
     name="self_check_output",
@@ -96,6 +105,22 @@ ALIGNSCORE_CHECK_FACTS = RailSpec(
     flow="alignscore check facts",
     direction="output",
     action="alignscore_check_facts",
+)
+
+HF_CLASSIFIER_INPUT = RailSpec(
+    name="hf_classifier_input",
+    flow='hf classifier check input $classifier="toxicity"',
+    direction="input",
+    action="hf_classifier_check_input",
+    rails_config=HF_CLASSIFIER_RAILS_CONFIG,
+)
+
+HF_CLASSIFIER_OUTPUT = RailSpec(
+    name="hf_classifier_output",
+    flow='hf classifier check output $classifier="toxicity"',
+    direction="output",
+    action="hf_classifier_check_output",
+    rails_config=HF_CLASSIFIER_RAILS_CONFIG,
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -196,6 +221,41 @@ def _rail_outcome_cases(
                 f"{spec.name}_blocks_outcome_block_exception",
                 spec,
                 block_return,
+                ObservableOutcome.EXCEPTION,
+                FlowDecision.BLOCK,
+                enable_rails_exceptions=True,
+            )
+        )
+    return cases
+
+
+def _boolean_allowed_cases(
+    spec: RailSpec,
+    *,
+    include_exception_case: bool = False,
+) -> list[FlowEquivalenceCase]:
+    cases = [
+        _case(
+            f"{spec.name}_allows_true",
+            spec,
+            True,
+            ObservableOutcome.ALLOW,
+            FlowDecision.ALLOW,
+        ),
+        _case(
+            f"{spec.name}_blocks_false",
+            spec,
+            False,
+            ObservableOutcome.REFUSAL,
+            FlowDecision.BLOCK,
+        ),
+    ]
+    if include_exception_case:
+        cases.append(
+            _case(
+                f"{spec.name}_blocks_false_exception",
+                spec,
+                False,
                 ObservableOutcome.EXCEPTION,
                 FlowDecision.BLOCK,
                 enable_rails_exceptions=True,
@@ -306,6 +366,14 @@ FIXTURES = [
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
         context={"check_facts": True},
+    ),
+    *_boolean_allowed_cases(
+        HF_CLASSIFIER_INPUT,
+        include_exception_case=True,
+    ),
+    *_boolean_allowed_cases(
+        HF_CLASSIFIER_OUTPUT,
+        include_exception_case=True,
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,

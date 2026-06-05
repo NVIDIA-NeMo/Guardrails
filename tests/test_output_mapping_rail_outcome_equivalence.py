@@ -27,6 +27,7 @@ from nemoguardrails.library.content_safety.actions import (
 from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
+from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.self_check.facts.actions import self_check_facts
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
 
@@ -142,6 +143,21 @@ def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return,
 def test_fact_check_mapping_threshold_matches_default_interpret(action_func, action_name, raw_return, expected_blocked):
     outcome_blocked = default_interpret(raw_return, RailInvocation(action_name)).is_blocked
     mapping_blocked = is_output_blocked(raw_return, action_func)
+
+    assert outcome_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_hf_classifier_output_mapping_matches_default_interpret(raw_return, expected_blocked):
+    outcome_blocked = default_interpret(raw_return, RailInvocation("hf_classifier_check_output")).is_blocked
+    mapping_blocked = is_output_blocked(raw_return, hf_classifier_check_output)
 
     assert outcome_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
