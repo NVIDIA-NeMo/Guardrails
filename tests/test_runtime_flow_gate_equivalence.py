@@ -26,6 +26,11 @@ from nemoguardrails.library.crowdstrike_aidr.actions import GuardChatCompletions
 from nemoguardrails.library.pangea.actions import TextGuardResult
 from nemoguardrails.library.trend_micro.actions import GuardResult
 from nemoguardrails.rails.llm.options import GenerationResponse
+from tests.llama_guard_fixtures import (
+    LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
+    LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS,
+    LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
+)
 from tests.utils import TestChat
 
 NORMAL_OUTPUT = "NORMAL OUTPUT"
@@ -114,10 +119,6 @@ INJECTION_DETECTION_OMIT_RAILS_CONFIG = {"injection_detection": {"action": "omit
 GUARDRAILS_AI_RAILS_CONFIG = {"guardrails_ai": {"validators": [{"name": "regex_match"}]}}
 ACTIVEFENCE_DETAILED_THRESHOLDS = {"adult_content.general": 0.3}
 GCP_DETAILED_THRESHOLDS = {"Derogatory": 0.4}
-
-
-def _blocked_if_not_allowed(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if not raw_return["allowed"] else FlowDecision.ALLOW
 
 
 def _blocked_if_policyai_unsafe(raw_return: Any) -> FlowDecision:
@@ -293,7 +294,6 @@ LLAMA_GUARD_INPUT = RailSpec(
     flow="llama guard check input",
     direction="input",
     action="llama_guard_check_input",
-    interpret=_blocked_if_not_allowed,
     task="llama_guard_check_input",
 )
 
@@ -302,7 +302,6 @@ LLAMA_GUARD_OUTPUT = RailSpec(
     flow="llama guard check output",
     direction="output",
     action="llama_guard_check_output",
-    interpret=_blocked_if_not_allowed,
     task="llama_guard_check_output",
 )
 
@@ -1216,48 +1215,62 @@ FIXTURES = [
         expected_output_data={"relevant_chunks": ""},
     ),
     _case(
-        "llama_guard_input_allows_allowed_true",
+        "llama_guard_input_allows_outcome_allow",
         LLAMA_GUARD_INPUT,
-        {"allowed": True, "policy_violations": None},
+        RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "llama_guard_input_blocks_allowed_false",
+        "llama_guard_input_blocks_outcome_block",
         LLAMA_GUARD_INPUT,
-        {"allowed": False, "policy_violations": ["S1"]},
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "llama_guard_input_blocks_allowed_false_exception",
+        "llama_guard_input_blocks_outcome_block_exception",
         LLAMA_GUARD_INPUT,
-        {"allowed": False, "policy_violations": ["S1"]},
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
     _case(
-        "llama_guard_output_allows_allowed_true",
-        LLAMA_GUARD_OUTPUT,
-        {"allowed": True, "policy_violations": None},
-        ObservableOutcome.ALLOW,
-        FlowDecision.ALLOW,
-    ),
-    _case(
-        "llama_guard_output_blocks_allowed_false",
-        LLAMA_GUARD_OUTPUT,
-        {"allowed": False, "policy_violations": ["S1"]},
+        "llama_guard_input_blocks_unparseable_outcome_block",
+        LLAMA_GUARD_INPUT,
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "llama_guard_output_blocks_allowed_false_exception",
+        "llama_guard_output_allows_outcome_allow",
         LLAMA_GUARD_OUTPUT,
-        {"allowed": False, "policy_violations": ["S1"]},
+        RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "llama_guard_output_blocks_outcome_block",
+        LLAMA_GUARD_OUTPUT,
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "llama_guard_output_blocks_outcome_block_exception",
+        LLAMA_GUARD_OUTPUT,
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
+    ),
+    _case(
+        "llama_guard_output_blocks_unparseable_outcome_block",
+        LLAMA_GUARD_OUTPUT,
+        RailOutcome.block(policy_violations=LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
     ),
     _case(
         "policyai_input_allows_safe",

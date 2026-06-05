@@ -69,6 +69,10 @@ from nemoguardrails.library.sensitive_data_detection.actions import (
     mask_sensitive_data,
 )
 from nemoguardrails.library.trend_micro.actions import GuardResult, trend_ai_guard
+from tests.llama_guard_fixtures import (
+    LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
+    LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
+)
 
 
 @action()
@@ -205,16 +209,16 @@ def test_hf_classifier_output_mapping_matches_default_interpret(raw_return, expe
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"allowed": True, "policy_violations": None}, False),
-        ({"allowed": False, "policy_violations": ["S1"]}, True),
+        (RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS), False),
+        (RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS), True),
     ],
 )
-def test_llama_guard_output_mapping_matches_interpretation(raw_return, expected_blocked):
-    interpreted_blocked = not raw_return["allowed"]
+def test_llama_guard_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, llama_guard_check_output)
+    outcome = outcome_from_output_mapping(raw_return, llama_guard_check_output)
 
-    assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
 @pytest.mark.parametrize(
