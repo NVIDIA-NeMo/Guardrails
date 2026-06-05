@@ -795,6 +795,7 @@ def _rail_outcome_cases(
     *,
     allow_return: RailOutcome | None = None,
     block_return: RailOutcome | None = None,
+    block_observable: ObservableOutcome = ObservableOutcome.REFUSAL,
     include_exception_case: bool = False,
 ) -> list[FlowEquivalenceCase]:
     allow_return = allow_return or RailOutcome.allow()
@@ -811,7 +812,7 @@ def _rail_outcome_cases(
             f"{spec.name}_blocks_outcome_block",
             spec,
             block_return,
-            ObservableOutcome.REFUSAL,
+            block_observable,
             FlowDecision.BLOCK,
         ),
     ]
@@ -1361,27 +1362,27 @@ FIXTURES = [
         baseline_output_data={"relevant_chunks": RELEVANT_CHUNKS},
         expected_output_data={"relevant_chunks": ""},
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         PRIVATEAI_DETECT_INPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         PRIVATEAI_DETECT_OUTPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         GLINER_DETECT_INPUT,
         block_observable=ObservableOutcome.REFUSAL,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         GLINER_DETECT_OUTPUT,
         block_observable=ObservableOutcome.REFUSAL,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_INPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_OUTPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),

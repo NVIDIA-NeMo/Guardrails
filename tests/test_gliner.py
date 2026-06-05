@@ -15,7 +15,7 @@
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -23,6 +23,8 @@ from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.rails.llm.config import GLiNERDetection
 from tests.utils import TestChat
 
 
@@ -122,11 +124,13 @@ def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
 
 
 def create_mock_gliner_detect_pii(entities_to_detect: Optional[List[str]] = None):
-    """Create a mock gliner_detect_pii action that returns True when PII is detected."""
+    """Create a mock gliner_detect_pii action."""
 
     async def mock_gliner_detect_pii(source: str, text: str, config, **kwargs):
         response = create_gliner_mock_response(text, entities_to_detect)
-        return response.get("total_entities", 0) > 0
+        if response.get("total_entities", 0) > 0:
+            return RailOutcome.block(has_pii=True)
+        return RailOutcome.allow(has_pii=False)
 
     return mock_gliner_detect_pii
 
@@ -186,8 +190,8 @@ def test_gliner_pii_detection_no_active_pii_detection():
     chat.app.register_action(create_mock_gliner_detect_pii(), "gliner_detect_pii")
     chat.app.register_action(create_mock_gliner_mask_pii(), "gliner_mask_pii")
 
-    chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
-    chat << "Hi! My name is John as well."
+    _ = chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
+    _ = chat << "Hi! My name is John as well."
 
 
 @pytest.mark.unit
@@ -237,8 +241,8 @@ def test_gliner_pii_detection_input():
         "gliner_mask_pii",
     )
 
-    chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
+    _ = chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -288,8 +292,8 @@ def test_gliner_pii_detection_output():
         "gliner_mask_pii",
     )
 
-    chat >> "Hi!"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Hi!"
+    _ = chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -339,8 +343,8 @@ def test_gliner_pii_detection_retrieval_with_no_pii():
         "gliner_mask_pii",
     )
 
-    chat >> "Hi!"
-    chat << "Hi! My name is John as well."
+    _ = chat >> "Hi!"
+    _ = chat << "Hi! My name is John as well."
 
 
 @pytest.mark.unit
@@ -389,9 +393,9 @@ def test_gliner_pii_masking_on_output():
         "gliner_mask_pii",
     )
 
-    chat >> "Hi!"
+    _ = chat >> "Hi!"
     # The name should be masked - response should contain [FIRST_NAME] instead of John
-    response = chat.app.generate(messages=[{"role": "user", "content": "Hi!"}])
+    response = cast(dict[str, Any], chat.app.generate(messages=[{"role": "user", "content": "Hi!"}]))
     # Verify the name was masked
     assert "John" not in response["content"] or "[FIRST_NAME]" in response["content"]
 
@@ -453,7 +457,7 @@ def test_gliner_pii_masking_on_input():
         "gliner_mask_pii",
     )
 
-    chat >> "Hi there! Are you John?"
+    _ = chat >> "Hi there! Are you John?"
 
 
 @pytest.mark.unit
@@ -522,7 +526,7 @@ def test_gliner_pii_masking_on_retrieval():
         "gliner_mask_pii",
     )
 
-    chat >> "Hey! Can you help me get John's email?"
+    _ = chat >> "Hey! Can you help me get John's email?"
 
 
 def _build_gliner_config_for_api_key_tests(api_key_env_var: Optional[str] = None) -> RailsConfig:
@@ -583,7 +587,10 @@ def test_resolve_api_key_env_var_not_configured(monkeypatch, caplog):
     from nemoguardrails.library.gliner.actions import _resolve_api_key
 
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var=None).rails.config.gliner
+    gliner_config = cast(
+        GLiNERDetection,
+        _build_gliner_config_for_api_key_tests(api_key_env_var=None).rails.config.gliner,
+    )
 
     with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
         result = _resolve_api_key(gliner_config)
@@ -598,7 +605,10 @@ def test_resolve_api_key_env_var_set_and_present(monkeypatch, caplog):
     from nemoguardrails.library.gliner.actions import _resolve_api_key
 
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-token")
-    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
+    gliner_config = cast(
+        GLiNERDetection,
+        _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner,
+    )
 
     with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
         result = _resolve_api_key(gliner_config)
@@ -613,7 +623,10 @@ def test_resolve_api_key_env_var_set_but_missing(monkeypatch, caplog):
     from nemoguardrails.library.gliner.actions import _resolve_api_key
 
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
+    gliner_config = cast(
+        GLiNERDetection,
+        _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner,
+    )
 
     with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
         result = _resolve_api_key(gliner_config)
@@ -643,6 +656,7 @@ async def test_gliner_detect_pii_forwards_resolved_api_key():
 
         await gliner_detect_pii(source="input", text="Hello.", config=config)
 
+    assert mock_request.await_args is not None
     assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
 
 
@@ -666,6 +680,7 @@ async def test_gliner_mask_pii_forwards_resolved_api_key():
 
         await gliner_mask_pii(source="input", text="Hello.", config=config)
 
+    assert mock_request.await_args is not None
     assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
 
 

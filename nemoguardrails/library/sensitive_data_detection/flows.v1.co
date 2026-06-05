@@ -2,9 +2,9 @@
 
 define subflow detect sensitive data on input
   """Check if the user input has any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="input", text=$user_message)
+  $response = execute detect_sensitive_data(source="input", text=$user_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
@@ -19,9 +19,9 @@ define subflow mask sensitive data on input
 
 define subflow detect sensitive data on output
   """Check if the bot output has any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="output", text=$bot_message)
+  $response = execute detect_sensitive_data(source="output", text=$bot_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
@@ -36,9 +36,9 @@ define subflow mask sensitive data on output
 
 define subflow detect sensitive data on retrieval
   """Check if the relevant chunks from the knowledge base have any sensitive data."""
-  $has_sensitive_data = execute detect_sensitive_data(source="retrieval", text=$relevant_chunks)
+  $response = execute detect_sensitive_data(source="retrieval", text=$relevant_chunks)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     stop
 

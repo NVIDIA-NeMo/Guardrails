@@ -21,29 +21,26 @@ from urllib.parse import urlparse
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
 log = logging.getLogger(__name__)
 
 
-def detect_pii_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_pii.
-
-    Since the function returns True when PII is detected,
-    we block if result is True.
-    """
-    return result
+def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
+    if has_pii:
+        return RailOutcome.block(has_pii=has_pii)
+    return RailOutcome.allow(has_pii=has_pii)
 
 
-@action(is_system_action=False, output_mapping=detect_pii_mapping)
+@action(is_system_action=False)
 async def detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks whether the provided text contains any PII.
 
     Args
@@ -52,7 +49,7 @@ async def detect_pii(
         config: The rails configuration object.
 
     Returns
-        True if PII is detected, False otherwise.
+        RailOutcome.block() if PII is detected, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
@@ -84,7 +81,7 @@ async def detect_pii(
         entity_detected = any(res["entities_present"] for res in private_ai_response)
     except (KeyError, TypeError) as e:
         raise ValueError(f"Invalid response from Private AI service: {str(e)}")
-    return entity_detected
+    return _pii_detection_outcome(entity_detected)
 
 
 @action(is_system_action=False)

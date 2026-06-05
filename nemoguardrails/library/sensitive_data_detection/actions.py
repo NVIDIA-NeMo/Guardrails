@@ -15,18 +15,22 @@
 
 import logging
 from functools import lru_cache
+from typing import Any
 
 try:
-    from presidio_analyzer import PatternRecognizer
-    from presidio_analyzer.nlp_engine import NlpEngineProvider
-    from presidio_anonymizer import AnonymizerEngine
-    from presidio_anonymizer.entities import OperatorConfig
+    from presidio_analyzer import PatternRecognizer  # type: ignore[reportMissingImports]
+    from presidio_analyzer.nlp_engine import NlpEngineProvider  # type: ignore[reportMissingImports]
+    from presidio_anonymizer import AnonymizerEngine  # type: ignore[reportMissingImports]
+    from presidio_anonymizer.entities import OperatorConfig  # type: ignore[reportMissingImports]
 except ImportError:
-    # The exception about installing presidio will be on the first call to the analyzer
-    pass
+    PatternRecognizer = None
+    NlpEngineProvider = None
+    AnonymizerEngine = None
+    OperatorConfig = None
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.config import (
     SensitiveDataDetection,
     SensitiveDataDetectionOptions,
@@ -40,7 +44,7 @@ def _get_analyzer(score_threshold: float = 0.4):
     if not 0.0 <= score_threshold <= 1.0:
         raise ValueError("score_threshold must be a float between 0 and 1 (inclusive).")
     try:
-        from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer import AnalyzerEngine  # type: ignore[reportMissingImports]
 
     except ImportError:
         raise ImportError(
@@ -48,7 +52,7 @@ def _get_analyzer(score_threshold: float = 0.4):
         )
 
     try:
-        import spacy
+        import spacy  # type: ignore[reportMissingImports]
     except ImportError:
         raise RuntimeError("The spacy module is not installed. Please install it using pip: pip install spacy.")
 
@@ -65,6 +69,11 @@ def _get_analyzer(score_threshold: float = 0.4):
     }
 
     # Create NLP engine based on configuration
+    if NlpEngineProvider is None:
+        raise ImportError(
+            "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
+        )
+
     provider = NlpEngineProvider(nlp_configuration=configuration)
     nlp_engine = provider.create_engine()
 
@@ -74,29 +83,30 @@ def _get_analyzer(score_threshold: float = 0.4):
 
 def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
     """Helper to compute the ad hoc recognizers for a config."""
+    if PatternRecognizer is None:
+        raise ImportError(
+            "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
+        )
+
     ad_hoc_recognizers = []
     for recognizer in sdd_config.recognizers:
         ad_hoc_recognizers.append(PatternRecognizer.from_dict(recognizer))
     return ad_hoc_recognizers
 
 
-def detect_sensitive_data_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_sensitive_data.
-
-    Since the function returns True when sensitive data is detected,
-    we block if result is True.
-    """
-    return result
+def _sensitive_data_detection_outcome(has_sensitive_data: bool) -> RailOutcome:
+    if has_sensitive_data:
+        return RailOutcome.block(has_sensitive_data=has_sensitive_data)
+    return RailOutcome.allow(has_sensitive_data=has_sensitive_data)
 
 
-@action(is_system_action=True, output_mapping=detect_sensitive_data_mapping)
+@action(is_system_action=True)
 async def detect_sensitive_data(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks whether the provided text contains any sensitive data.
 
     Args
@@ -105,18 +115,18 @@ async def detect_sensitive_data(
         config: The rails configuration object.
 
     Returns
-        True if any sensitive data has been detected, False otherwise.
+        RailOutcome.block() if sensitive data has been detected, RailOutcome.allow() otherwise.
     """
-    # Based on the source of the data, we use the right options
     sdd_config = config.rails.config.sensitive_data_detection
+    if sdd_config is None:
+        raise ValueError("sensitive_data_detection configuration is required.")
     if source not in ["input", "output", "retrieval"]:
         raise ValueError("source must be one of 'input', 'output', or 'retrieval'")
     options: SensitiveDataDetectionOptions = getattr(sdd_config, source)
     default_score_threshold = getattr(options, "score_threshold")
 
-    # If we don't have any entities specified, we stop
     if len(options.entities) == 0:
-        return False
+        return _sensitive_data_detection_outcome(False)
 
     analyzer = _get_analyzer(score_threshold=default_score_threshold)
     results = analyzer.analyze(
@@ -126,11 +136,10 @@ async def detect_sensitive_data(
         ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
     )
 
-    # If we have any
     if results:
-        return True
+        return _sensitive_data_detection_outcome(True)
 
-    return False
+    return _sensitive_data_detection_outcome(False)
 
 
 @action(is_system_action=True)
@@ -145,17 +154,22 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
     Returns
         The altered text, if applicable.
     """
-    # Based on the source of the data, we use the right options
     sdd_config = config.rails.config.sensitive_data_detection
+    if sdd_config is None:
+        raise ValueError("sensitive_data_detection configuration is required.")
     assert source in ["input", "output", "retrieval"]
     options: SensitiveDataDetectionOptions = getattr(sdd_config, source)
 
-    # If we don't have any entities specified, we stop
     if len(options.entities) == 0:
         return text
 
     analyzer = _get_analyzer()
-    operators = {}
+    if OperatorConfig is None or AnonymizerEngine is None:
+        raise ImportError(
+            "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
+        )
+
+    operators: dict[str, Any] = {}
     for entity in options.entities:
         operators[entity] = OperatorConfig("replace")
 

@@ -272,16 +272,21 @@ def test_regex_output_mapping_matches_interpretation(raw_return, expected_blocke
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (False, False),
-        (True, True),
+        (RailOutcome.allow(), False),
+        (RailOutcome.block(), True),
     ],
 )
-def test_detect_pii_output_mapping_matches_interpretation(action_func, raw_return, expected_blocked):
-    interpreted_blocked = raw_return
+def test_detect_pii_output_bypass_reads_rail_outcome(action_func, raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, action_func)
+    outcome = outcome_from_output_mapping(raw_return, action_func)
 
-    assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+@pytest.mark.parametrize("action_func", [privateai_detect_pii, gliner_detect_pii, detect_sensitive_data])
+def test_detect_pii_actions_have_no_legacy_output_mapping(action_func):
+    assert getattr(action_func, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(

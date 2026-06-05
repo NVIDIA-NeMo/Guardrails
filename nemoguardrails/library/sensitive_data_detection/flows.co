@@ -2,9 +2,9 @@
 
 flow detect sensitive data on input
   """Check if the user input has any sensitive data."""
-  $has_sensitive_data = await DetectSensitiveDataAction(source="input", text=$user_message)
+  $response = await DetectSensitiveDataAction(source="input", text=$user_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     abort
 
@@ -20,9 +20,9 @@ flow mask sensitive data on input
 
 flow detect sensitive data on output
   """Check if the bot output has any sensitive data."""
-  $has_sensitive_data = await DetectSensitiveDataAction(source="output", text=$bot_message)
+  $response = await DetectSensitiveDataAction(source="output", text=$bot_message)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     abort
 
@@ -38,9 +38,9 @@ flow mask sensitive data on output
 
 flow detect sensitive data on retrieval
   """Check if the relevant chunks from the knowledge base have any sensitive data."""
-  $has_sensitive_data = await DetectSensitiveDataAction(source="retrieval", text=$relevant_chunks)
+  $response = await DetectSensitiveDataAction(source="retrieval", text=$relevant_chunks)
 
-  if $has_sensitive_data
+  if $response.is_blocked
     bot inform answer unknown
     abort
 

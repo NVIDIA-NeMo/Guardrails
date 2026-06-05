@@ -4,9 +4,9 @@
 
 define subflow gliner detect pii on input
   """Check if the user input has PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="input", text=$user_message)
+  $response = execute gliner_detect_pii(source="input", text=$user_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -15,9 +15,9 @@ define subflow gliner detect pii on input
 
 define subflow gliner detect pii on output
   """Check if the bot output has PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="output", text=$bot_message)
+  $response = execute gliner_detect_pii(source="output", text=$bot_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -26,9 +26,9 @@ define subflow gliner detect pii on output
 
 define subflow gliner detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
+  $response = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 

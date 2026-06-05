@@ -21,20 +21,17 @@ from typing import List, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.gliner.request import gliner_request
 from nemoguardrails.rails.llm.config import GLiNERDetection
 
 log = logging.getLogger(__name__)
 
 
-def detect_pii_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_pii.
-
-    Since the function returns True when PII is detected,
-    we block if result is True.
-    """
-    return result
+def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
+    if has_pii:
+        return RailOutcome.block(has_pii=has_pii)
+    return RailOutcome.allow(has_pii=has_pii)
 
 
 def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
@@ -80,13 +77,13 @@ def _resolve_api_key(gliner_config: GLiNERDetection) -> Optional[str]:
     return api_key
 
 
-@action(is_system_action=False, output_mapping=detect_pii_mapping)
+@action(is_system_action=False)
 async def gliner_detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks whether the provided text contains any PII using GLiNER.
 
     Args:
@@ -95,7 +92,7 @@ async def gliner_detect_pii(
         config: The rails configuration object.
 
     Returns:
-        True if PII is detected, False otherwise.
+        RailOutcome.block() if PII is detected, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If the response is invalid or source is not valid.
@@ -129,7 +126,7 @@ async def gliner_detect_pii(
 
     try:
         total_entities = gliner_response.get("total_entities", 0)
-        return total_entities > 0
+        return _pii_detection_outcome(total_entities > 0)
     except (KeyError, TypeError) as e:
         raise ValueError(f"Invalid response from GLiNER service: {str(e)}")
 
