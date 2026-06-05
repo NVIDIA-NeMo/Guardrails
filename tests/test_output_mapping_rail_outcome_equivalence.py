@@ -21,6 +21,7 @@ from nemoguardrails.actions.output_mapping import (
     outcome_from_output_mapping,
 )
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.activefence.actions import call_activefence_api
 from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
 from nemoguardrails.library.autoalign.actions import (
     autoalign_factcheck_output_api,
@@ -40,6 +41,7 @@ from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
 from nemoguardrails.library.fiddler.actions import call_fiddler_faithfulness, call_fiddler_safety_bot
+from nemoguardrails.library.gcp_moderate_text.actions import call_gcp_text_moderation_api
 from nemoguardrails.library.gliner.actions import gliner_detect_pii, gliner_mask_pii
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.injection_detection.actions import injection_detection
@@ -521,3 +523,49 @@ def test_boolean_flag_actions_without_output_mapping_invert_output_bypass(
 ):
     assert is_output_blocked(raw_return, action_func) is mapping_blocked
     assert raw_return is flow_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"max_risk_score": 0.7, "violations": {}}, False),
+        ({"max_risk_score": 0.71, "violations": {}}, True),
+        ({"max_risk_score": 0.31, "violations": {"adult_content.general": 0.31}}, True),
+    ],
+)
+def test_activefence_output_mapping_matches_max_and_detailed_thresholds(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, call_activefence_api)
+
+    assert mapping_blocked is expected_blocked
+
+
+def test_activefence_simple_output_flow_allows_detail_only_mapping_block():
+    raw_return = {"max_risk_score": 0.31, "violations": {"adult_content.general": 0.31}}
+    simple_flow_blocked = raw_return["max_risk_score"] > 0.7
+    mapping_blocked = is_output_blocked(raw_return, call_activefence_api)
+
+    assert simple_flow_blocked is False
+    assert mapping_blocked is True
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"max_risk_score": 0.8, "violations": {}}, False),
+        ({"max_risk_score": 0.81, "violations": {}}, True),
+        ({"max_risk_score": 0.41, "violations": {"Derogatory": 0.41}}, True),
+    ],
+)
+def test_gcp_text_moderation_output_mapping_matches_max_and_detailed_thresholds(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, call_gcp_text_moderation_api)
+
+    assert mapping_blocked is expected_blocked
+
+
+def test_gcp_simple_output_flow_allows_detail_only_mapping_block():
+    raw_return = {"max_risk_score": 0.41, "violations": {"Derogatory": 0.41}}
+    simple_flow_blocked = raw_return["max_risk_score"] > 0.8
+    mapping_blocked = is_output_blocked(raw_return, call_gcp_text_moderation_api)
+
+    assert simple_flow_blocked is False
+    assert mapping_blocked is True

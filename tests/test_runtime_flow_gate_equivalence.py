@@ -32,6 +32,13 @@ NORMAL_OUTPUT = "NORMAL OUTPUT"
 REFUSAL = "I'm sorry, I can't respond to that."
 ANSWER_UNKNOWN = "I don't know the answer to that."
 CLEANLAB_WARNING_SUFFIX = "\nCAUTION: THIS ANSWER HAS BEEN FLAGGED AS POTENTIALLY UNTRUSTWORTHY"
+RENDERED_BLOCK_MESSAGES = {
+    "I will not engage in any abusive_or_harmful behavior.",
+    "I will not engage in any abusive or harmful behavior.",
+    "I will not engage in any self harm behavior.",
+    "I will not engage with inappropriate content.",
+    "I will not engage with sensitive content.",
+}
 INJECTION_DETECTION_REFUSAL_PREFIX = (
     "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of "
 )
@@ -103,6 +110,8 @@ HF_CLASSIFIER_RAILS_CONFIG = {
 }
 INJECTION_DETECTION_REJECT_RAILS_CONFIG = {"injection_detection": {"action": "reject"}}
 INJECTION_DETECTION_OMIT_RAILS_CONFIG = {"injection_detection": {"action": "omit"}}
+ACTIVEFENCE_DETAILED_THRESHOLDS = {"adult_content.general": 0.3}
+GCP_DETAILED_THRESHOLDS = {"Derogatory": 0.4}
 
 
 def _blocked_if_not_allowed(raw_return: Any) -> FlowDecision:
@@ -139,6 +148,26 @@ def _blocked_if_attr_blocked(raw_return: Any) -> FlowDecision:
 
 def _blocked_if_is_blocked(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_blocked"] else FlowDecision.ALLOW
+
+
+def _blocked_if_activefence_simple(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return["max_risk_score"] > 0.7 else FlowDecision.ALLOW
+
+
+def _blocked_if_activefence_detailed(raw_return: Any) -> FlowDecision:
+    violations = raw_return.get("violations", {})
+    blocked = any(violations.get(name, 0) > threshold for name, threshold in ACTIVEFENCE_DETAILED_THRESHOLDS.items())
+    return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
+
+
+def _blocked_if_gcp_simple(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return["max_risk_score"] > 0.8 else FlowDecision.ALLOW
+
+
+def _blocked_if_gcp_detailed(raw_return: Any) -> FlowDecision:
+    violations = raw_return.get("violations", {})
+    blocked = any(violations.get(name, 0) > threshold for name, threshold in GCP_DETAILED_THRESHOLDS.items())
+    return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
 
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
@@ -590,6 +619,46 @@ FIDDLER_BOT_FAITHFULNESS = RailSpec(
     interpret=_blocked_if_true,
 )
 
+ACTIVEFENCE_INPUT = RailSpec(
+    name="activefence_input",
+    flow="activefence moderation on input",
+    direction="input",
+    action="call_activefence_api",
+    interpret=_blocked_if_activefence_simple,
+)
+
+ACTIVEFENCE_OUTPUT = RailSpec(
+    name="activefence_output",
+    flow="activefence moderation on output",
+    direction="output",
+    action="call_activefence_api",
+    interpret=_blocked_if_activefence_simple,
+)
+
+ACTIVEFENCE_INPUT_DETAILED = RailSpec(
+    name="activefence_input_detailed",
+    flow="activefence moderation on input detailed",
+    direction="input",
+    action="call_activefence_api",
+    interpret=_blocked_if_activefence_detailed,
+)
+
+GCP_MODERATION_OUTPUT = RailSpec(
+    name="gcp_moderation_output",
+    flow="gcpnlp moderation",
+    direction="output",
+    action="call gcpnlp api",
+    interpret=_blocked_if_gcp_simple,
+)
+
+GCP_MODERATION_OUTPUT_DETAILED = RailSpec(
+    name="gcp_moderation_output_detailed",
+    flow="gcpnlp moderation detailed",
+    direction="output",
+    action="call gcpnlp api",
+    interpret=_blocked_if_gcp_detailed,
+)
+
 TREND_MICRO_INPUT = RailSpec(
     name="trend_micro_input",
     flow="trend ai guard input",
@@ -934,6 +1003,10 @@ def _trend_micro_result(*, action: Literal["Allow", "Block"]) -> GuardResult:
 
 def _cleanlab_result(score: float) -> dict[str, float]:
     return {"trustworthiness_score": score}
+
+
+def _risk_result(max_risk_score: float, violations: dict[str, float] | None = None) -> dict[str, Any]:
+    return {"max_risk_score": max_risk_score, "violations": violations or {}}
 
 
 FIXTURES = [
@@ -1781,6 +1854,102 @@ FIXTURES = [
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
+    _case(
+        "activefence_input_allows_at_simple_threshold",
+        ACTIVEFENCE_INPUT,
+        _risk_result(0.7),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "activefence_input_blocks_above_simple_threshold",
+        ACTIVEFENCE_INPUT,
+        _risk_result(0.71),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "activefence_input_blocks_above_simple_threshold_exception",
+        ACTIVEFENCE_INPUT,
+        _risk_result(0.71),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "activefence_output_allows_at_simple_threshold",
+        ACTIVEFENCE_OUTPUT,
+        _risk_result(0.7),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "activefence_output_blocks_above_simple_threshold",
+        ACTIVEFENCE_OUTPUT,
+        _risk_result(0.71),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "activefence_output_blocks_above_simple_threshold_exception",
+        ACTIVEFENCE_OUTPUT,
+        _risk_result(0.71),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "activefence_input_detailed_allows_at_adult_content_threshold",
+        ACTIVEFENCE_INPUT_DETAILED,
+        _risk_result(0.3, {"adult_content.general": 0.3}),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "activefence_input_detailed_blocks_above_adult_content_threshold",
+        ACTIVEFENCE_INPUT_DETAILED,
+        _risk_result(0.31, {"adult_content.general": 0.31}),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
+        "activefence_input_detailed_blocks_above_adult_content_threshold_exception",
+        ACTIVEFENCE_INPUT_DETAILED,
+        _risk_result(0.31, {"adult_content.general": 0.31}),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "gcp_moderation_output_allows_at_simple_threshold",
+        GCP_MODERATION_OUTPUT,
+        _risk_result(0.8),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "gcp_moderation_output_blocks_above_simple_threshold",
+        GCP_MODERATION_OUTPUT,
+        _risk_result(0.81),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "gcp_moderation_output_detailed_allows_at_derogatory_threshold",
+        GCP_MODERATION_OUTPUT_DETAILED,
+        _risk_result(0.4, {"Derogatory": 0.4}),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "gcp_moderation_output_detailed_blocks_above_derogatory_threshold",
+        GCP_MODERATION_OUTPUT_DETAILED,
+        _risk_result(0.41, {"Derogatory": 0.41}),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage in any abusive or harmful behavior.",
+    ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -1881,6 +2050,8 @@ def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
     if response == {"role": "assistant", "content": NORMAL_OUTPUT}:
         return ObservableOutcome.ALLOW
     if response == {"role": "assistant", "content": REFUSAL}:
+        return ObservableOutcome.REFUSAL
+    if response.get("role") == "assistant" and response.get("content") in RENDERED_BLOCK_MESSAGES:
         return ObservableOutcome.REFUSAL
     if response.get("role") == "assistant" and response.get("content", "").endswith(CLEANLAB_WARNING_SUFFIX):
         return ObservableOutcome.REFUSAL
