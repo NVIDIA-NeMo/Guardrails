@@ -18,8 +18,9 @@
 The parallel streaming output-rail path in
 ``nemoguardrails/colang/v1_0/runtime/runtime.py`` (``_run_output_rails_in_parallel_streaming``)
 decides whether a chunk is blocked by calling
-``is_output_blocked(result, action_func)`` at runtime.py:495, which applies the
-action's ``output_mapping`` callable (True == blocked).
+``outcome_from_output_mapping(result, action_func).is_blocked`` at runtime.py:495,
+which reads ``RailOutcome`` directly or applies the action's ``output_mapping``
+callable for legacy raw returns.
 
 These tests pin that behavior for an action that declares its own
 ``output_mapping`` so an upcoming rewrite of that call site can be proven to
@@ -34,6 +35,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from tests.utils import TestChat
 
 
@@ -47,6 +49,14 @@ def scored_output_check(context=None, **params):
     if "HIGHSCORE" in bot_message_chunk:
         return 0.9
     return 0.1
+
+
+@action(is_system_action=True)
+def rail_outcome_output_check(context=None, **params):
+    bot_message_chunk = (context or {}).get("bot_message", "")
+    if "HIGHSCORE" in bot_message_chunk:
+        return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 def _build_parallel_config() -> RailsConfig:
@@ -81,18 +91,54 @@ def _build_parallel_config() -> RailsConfig:
     )
 
 
-async def _stream_chunks(llm_completions):
+def _build_parallel_rail_outcome_config() -> RailsConfig:
+    return RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "parallel": True,
+                    "flows": ["rail outcome output check"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "streaming": False,
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+
+        define flow
+          user express greeting
+          bot tell joke
+
+        define subflow rail outcome output check
+          execute rail_outcome_output_check
+        """,
+    )
+
+
+async def _stream_chunks_with_action(config, action_func, llm_completions):
     chat = TestChat(
-        _build_parallel_config(),
+        config,
         llm_completions=llm_completions,
         streaming=True,
     )
-    chat.app.register_action(scored_output_check)
+    chat.app.register_action(action_func)
 
     chunks = []
     async for chunk in chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         chunks.append(chunk)
     return chunks
+
+
+async def _stream_chunks(llm_completions):
+    return await _stream_chunks_with_action(_build_parallel_config(), scored_output_check, llm_completions)
 
 
 def _error_chunks(chunks):
@@ -128,6 +174,32 @@ async def test_parallel_output_mapping_blocks_when_mapping_returns_true():
     assert error["error"]["type"] == "guardrails_violation"
     assert error["error"]["code"] == "content_blocked"
     assert error["error"]["param"] == "scored output check"
+
+    response = "".join(chunks)
+    assert "must be blocked" not in response
+
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+async def test_parallel_output_rails_block_rail_outcome_without_output_mapping():
+    llm_completions = [
+        '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
+        '  "This response has a HIGHSCORE and must be blocked."',
+    ]
+
+    chunks = await _stream_chunks_with_action(
+        _build_parallel_rail_outcome_config(),
+        rail_outcome_output_check,
+        llm_completions,
+    )
+    errors = _error_chunks(chunks)
+
+    assert len(errors) == 1, f"Expected exactly one block error, got: {chunks}"
+    error = errors[0]
+    assert error["error"]["type"] == "guardrails_violation"
+    assert error["error"]["code"] == "content_blocked"
+    assert error["error"]["param"] == "rail outcome output check"
 
     response = "".join(chunks)
     assert "must be blocked" not in response

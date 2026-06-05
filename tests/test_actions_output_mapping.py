@@ -18,7 +18,9 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.output_mapping import (
     default_output_mapping,
     is_output_blocked,
+    outcome_from_output_mapping,
 )
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 # Tests for default_output_mapping
 
@@ -64,6 +66,15 @@ def dummy_action(result):
     return result
 
 
+def failing_output_mapping(val):
+    raise AssertionError(f"Unexpected legacy output mapping call for {val!r}")
+
+
+@action(output_mapping=failing_output_mapping)
+def rail_outcome_action(result):
+    return result
+
+
 def test_should_block_output_with_tuple_result_and_mapping():
     # Test should_block_output when the result is a tuple and the dummy mapping is used.
     # When the first element equals "block", we expect True.
@@ -93,7 +104,7 @@ def test_should_block_output_without_action_meta():
 
     # Ensure there is no action_meta attribute.
     if hasattr(action_without_meta, "action_meta"):
-        del action_without_meta.action_meta
+        delattr(action_without_meta, "action_meta")
 
     # Test with a boolean: default_output_mapping for True is False and for False is True.
     assert is_output_blocked(True, action_without_meta) is False
@@ -102,3 +113,19 @@ def test_should_block_output_without_action_meta():
     # Test with a numeric value: block if < 0.5.
     assert is_output_blocked(0.4, action_without_meta) is True
     assert is_output_blocked(0.6, action_without_meta) is False
+
+
+def test_should_block_output_reads_rail_outcome_before_mapping():
+    assert is_output_blocked(RailOutcome.block(), rail_outcome_action) is True
+    assert is_output_blocked(RailOutcome.allow(), rail_outcome_action) is False
+
+
+def test_should_block_output_reads_tuple_wrapped_rail_outcome_before_mapping():
+    assert is_output_blocked((RailOutcome.block(), {"events": []}), rail_outcome_action) is True
+    assert is_output_blocked((RailOutcome.allow(), {"events": []}), rail_outcome_action) is False
+
+
+def test_outcome_from_output_mapping_preserves_rail_outcome():
+    outcome = RailOutcome.block(reason="blocked")
+
+    assert outcome_from_output_mapping(outcome, rail_outcome_action) is outcome

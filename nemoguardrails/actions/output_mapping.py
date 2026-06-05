@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Tuple
+from typing import Any
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 
@@ -33,6 +33,12 @@ def default_output_mapping(result: Any) -> bool:
         return False
 
 
+def _unwrap_output_mapping_result(result: Any) -> Any:
+    if isinstance(result, tuple):
+        return result[0]
+    return result
+
+
 def is_output_blocked(result: Any, action_func: Any) -> bool:
     """Determines if an action result is not allowed using its attached mapping.
 
@@ -43,22 +49,27 @@ def is_output_blocked(result: Any, action_func: Any) -> bool:
     Returns:
         True if the mapping indicates that the output should be blocked, False otherwise.
     """
+    result = _unwrap_output_mapping_result(result)
+
+    if isinstance(result, RailOutcome):
+        return result.is_blocked
+
     mapping = getattr(action_func, "action_meta", {}).get("output_mapping")
     if mapping is None:
         mapping = default_output_mapping
 
-    if not isinstance(result, Tuple):
-        result = (result,)
-
-    return mapping(result[0])
+    return mapping(result)
 
 
 def outcome_from_output_mapping(result: Any, action_func: Any) -> RailOutcome:
     """Bridge the legacy output mapping to a RailOutcome.
 
-    Mirrors is_output_blocked exactly, including its tuple unwrapping, so the
-    streaming output-rail bypass paths can read RailOutcome.is_blocked with no
-    change in behavior. The richer per-vendor interpretation that supersedes
-    output_mapping is introduced when the engines converge.
+    Mirrors is_output_blocked exactly, including its tuple unwrapping and direct
+    RailOutcome handling, so the streaming output-rail bypass paths can read
+    RailOutcome.is_blocked with no change in behavior.
     """
+    result = _unwrap_output_mapping_result(result)
+    if isinstance(result, RailOutcome):
+        return result
+
     return RailOutcome.block() if is_output_blocked(result, action_func) else RailOutcome.allow()
