@@ -30,6 +30,9 @@ from tests.utils import TestChat
 NORMAL_OUTPUT = "NORMAL OUTPUT"
 REFUSAL = "I'm sorry, I can't respond to that."
 ANSWER_UNKNOWN = "I don't know the answer to that."
+INJECTION_DETECTION_REFUSAL_PREFIX = (
+    "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of "
+)
 USER_INPUT = "hello"
 RELEVANT_CHUNKS = "RELEVANT CHUNKS"
 RETRIEVAL_COLANG = """
@@ -96,6 +99,8 @@ HF_CLASSIFIER_RAILS_CONFIG = {
         }
     }
 }
+INJECTION_DETECTION_REJECT_RAILS_CONFIG = {"injection_detection": {"action": "reject"}}
+INJECTION_DETECTION_OMIT_RAILS_CONFIG = {"injection_detection": {"action": "omit"}}
 
 
 def _blocked_if_not_allowed(raw_return: Any) -> FlowDecision:
@@ -140,6 +145,26 @@ def _prompt_security_decision(raw_return: Any) -> FlowDecision:
     if raw_return["is_modified"]:
         return FlowDecision.TRANSFORM
     return FlowDecision.ALLOW
+
+
+def _autoalign_decision(raw_return: Any) -> FlowDecision:
+    if raw_return["guardrails_triggered"]:
+        return FlowDecision.BLOCK
+    if raw_return["pii"] and raw_return["pii"]["guarded"]:
+        return FlowDecision.TRANSFORM
+    return FlowDecision.ALLOW
+
+
+def _injection_detection_reject_decision(raw_return: Any) -> FlowDecision:
+    if raw_return["is_injection"]:
+        return FlowDecision.BLOCK
+    if raw_return["text"] != NORMAL_OUTPUT:
+        return FlowDecision.TRANSFORM
+    return FlowDecision.ALLOW
+
+
+def _injection_detection_transform_decision(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if raw_return["text"] != NORMAL_OUTPUT else FlowDecision.ALLOW
 
 
 SELF_CHECK_OUTPUT = RailSpec(
@@ -452,6 +477,40 @@ PROMPT_SECURITY_OUTPUT = RailSpec(
     interpret=_prompt_security_decision,
 )
 
+AUTOALIGN_INPUT = RailSpec(
+    name="autoalign_input",
+    flow="autoalign check input",
+    direction="input",
+    action="autoalign_input_api",
+    interpret=_autoalign_decision,
+)
+
+AUTOALIGN_OUTPUT = RailSpec(
+    name="autoalign_output",
+    flow="autoalign check output",
+    direction="output",
+    action="autoalign_output_api",
+    interpret=_autoalign_decision,
+)
+
+INJECTION_DETECTION_REJECT = RailSpec(
+    name="injection_detection_reject",
+    flow="injection detection",
+    direction="output",
+    action="injection_detection",
+    interpret=_injection_detection_reject_decision,
+    rails_config=INJECTION_DETECTION_REJECT_RAILS_CONFIG,
+)
+
+INJECTION_DETECTION_OMIT = RailSpec(
+    name="injection_detection_omit",
+    flow="injection detection",
+    direction="output",
+    action="injection_detection",
+    interpret=_injection_detection_transform_decision,
+    rails_config=INJECTION_DETECTION_OMIT_RAILS_CONFIG,
+)
+
 
 def _case(
     case_id: str,
@@ -724,6 +783,29 @@ def _prompt_security_result(*, blocked: bool, modified: bool, text: str | None =
         "is_blocked": blocked,
         "is_modified": modified,
         "modified_text": text,
+    }
+
+
+def _autoalign_result(
+    *,
+    guardrails_triggered: bool,
+    pii_guarded: bool,
+    pii_response: str,
+) -> dict[str, Any]:
+    return {
+        "guardrails_triggered": guardrails_triggered,
+        "combined_response": "AutoAlign guardrail response",
+        "pii": {"guarded": pii_guarded, "response": pii_response},
+    }
+
+
+def _injection_detection_result(
+    *, is_injection: bool, text: str, detections: list[str] | None = None
+) -> dict[str, Any]:
+    return {
+        "is_injection": is_injection,
+        "text": text,
+        "detections": detections or [],
     }
 
 
@@ -1164,6 +1246,196 @@ FIXTURES = [
         ),
         transformed_value="prompt security transformed output",
     ),
+    _case(
+        "autoalign_input_allows",
+        AUTOALIGN_INPUT,
+        _autoalign_result(
+            guardrails_triggered=False,
+            pii_guarded=False,
+            pii_response=USER_INPUT,
+        ),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        output_vars=["user_message"],
+        expected_output_data={"user_message": USER_INPUT},
+    ),
+    _case(
+        "autoalign_input_blocks_guardrail",
+        AUTOALIGN_INPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=False,
+            pii_response=USER_INPUT,
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "autoalign_input_blocks_guardrail_exception",
+        AUTOALIGN_INPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=False,
+            pii_response=USER_INPUT,
+        ),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "autoalign_input_transforms_pii",
+        AUTOALIGN_INPUT,
+        _autoalign_result(
+            guardrails_triggered=False,
+            pii_guarded=True,
+            pii_response="autoalign transformed input",
+        ),
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        output_vars=["user_message"],
+        expected_output_data={"user_message": "autoalign transformed input"},
+    ),
+    _case(
+        "autoalign_input_block_wins_over_pii_transform",
+        AUTOALIGN_INPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=True,
+            pii_response="autoalign transformed input",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "autoalign_output_allows",
+        AUTOALIGN_OUTPUT,
+        _autoalign_result(
+            guardrails_triggered=False,
+            pii_guarded=False,
+            pii_response=NORMAL_OUTPUT,
+        ),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        expected_content=NORMAL_OUTPUT,
+    ),
+    _case(
+        "autoalign_output_blocks_guardrail",
+        AUTOALIGN_OUTPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=False,
+            pii_response=NORMAL_OUTPUT,
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "autoalign_output_blocks_guardrail_exception",
+        AUTOALIGN_OUTPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=False,
+            pii_response=NORMAL_OUTPUT,
+        ),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "autoalign_output_transforms_pii",
+        AUTOALIGN_OUTPUT,
+        _autoalign_result(
+            guardrails_triggered=False,
+            pii_guarded=True,
+            pii_response="autoalign transformed output",
+        ),
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        expected_content="autoalign transformed output",
+    ),
+    _case(
+        "autoalign_output_block_wins_over_pii_transform",
+        AUTOALIGN_OUTPUT,
+        _autoalign_result(
+            guardrails_triggered=True,
+            pii_guarded=True,
+            pii_response="autoalign transformed output",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "injection_detection_reject_allows_unchanged_output",
+        INJECTION_DETECTION_REJECT,
+        _injection_detection_result(is_injection=False, text=NORMAL_OUTPUT),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        expected_content=NORMAL_OUTPUT,
+    ),
+    _case(
+        "injection_detection_reject_transforms_non_injection_text",
+        INJECTION_DETECTION_REJECT,
+        _injection_detection_result(is_injection=False, text="injection detection transformed output"),
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        expected_content="injection detection transformed output",
+    ),
+    _case(
+        "injection_detection_reject_blocks_injection",
+        INJECTION_DETECTION_REJECT,
+        _injection_detection_result(is_injection=True, text=NORMAL_OUTPUT, detections=["sqli"]),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content=f"{INJECTION_DETECTION_REFUSAL_PREFIX}sqli.",
+    ),
+    _case(
+        "injection_detection_reject_blocks_injection_exception",
+        INJECTION_DETECTION_REJECT,
+        _injection_detection_result(is_injection=True, text=NORMAL_OUTPUT, detections=["sqli"]),
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "injection_detection_reject_block_wins_over_text_transform",
+        INJECTION_DETECTION_REJECT,
+        _injection_detection_result(
+            is_injection=True,
+            text="injection detection transformed output",
+            detections=["sqli"],
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content=f"{INJECTION_DETECTION_REFUSAL_PREFIX}sqli.",
+    ),
+    _case(
+        "injection_detection_omit_allows_unchanged_output",
+        INJECTION_DETECTION_OMIT,
+        _injection_detection_result(is_injection=False, text=NORMAL_OUTPUT),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        expected_content=NORMAL_OUTPUT,
+    ),
+    _case(
+        "injection_detection_omit_transforms_non_injection_text",
+        INJECTION_DETECTION_OMIT,
+        _injection_detection_result(is_injection=False, text="injection detection normalized output"),
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        expected_content="injection detection normalized output",
+    ),
+    _case(
+        "injection_detection_omit_transforms_injection_text",
+        INJECTION_DETECTION_OMIT,
+        _injection_detection_result(
+            is_injection=True,
+            text="injection detection omitted output",
+            detections=["sqli"],
+        ),
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        expected_content="injection detection omitted output",
+    ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -1264,6 +1536,10 @@ def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
     if response == {"role": "assistant", "content": NORMAL_OUTPUT}:
         return ObservableOutcome.ALLOW
     if response == {"role": "assistant", "content": REFUSAL}:
+        return ObservableOutcome.REFUSAL
+    if response.get("role") == "assistant" and response.get("content", "").startswith(
+        INJECTION_DETECTION_REFUSAL_PREFIX
+    ):
         return ObservableOutcome.REFUSAL
     if response == {"role": "assistant", "content": ANSWER_UNKNOWN}:
         return ObservableOutcome.ANSWER_UNKNOWN

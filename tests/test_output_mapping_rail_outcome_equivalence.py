@@ -21,6 +21,11 @@ from nemoguardrails.actions.output_mapping import (
     outcome_from_output_mapping,
 )
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.autoalign.actions import (
+    autoalign_factcheck_output_api,
+    autoalign_groundedness_output_api,
+    autoalign_output_api,
+)
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
 )
@@ -33,6 +38,7 @@ from nemoguardrails.library.factchecking.align_score.actions import (
 )
 from nemoguardrails.library.gliner.actions import gliner_detect_pii, gliner_mask_pii
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
+from nemoguardrails.library.injection_detection.actions import injection_detection
 from nemoguardrails.library.llama_guard.actions import llama_guard_check_output
 from nemoguardrails.library.pangea.actions import TextGuardResult, pangea_ai_guard
 from nemoguardrails.library.policyai.actions import call_policyai_api
@@ -261,17 +267,16 @@ def test_detect_pii_output_mapping_matches_interpretation(action_func, raw_retur
     ],
 )
 @pytest.mark.parametrize(
-    ("raw_return", "is_transform"),
+    "raw_return",
     [
-        ("NORMAL OUTPUT", False),
-        ("MASKED OUTPUT", True),
+        "NORMAL OUTPUT",
+        "MASKED OUTPUT",
     ],
 )
-def test_mask_output_default_mapping_cannot_express_transform(action_func, raw_return, is_transform):
+def test_mask_output_default_mapping_cannot_express_transform(action_func, raw_return):
     mapping_blocked = is_output_blocked(raw_return, action_func)
 
     assert mapping_blocked is False
-    assert is_transform is (raw_return != "NORMAL OUTPUT")
 
 
 @pytest.mark.parametrize(
@@ -349,3 +354,96 @@ def test_prompt_security_output_mapping_cannot_express_transform():
 
     assert mapping_blocked is False
     assert raw_return["is_modified"] is True
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (
+            {"guardrails_triggered": False, "pii": {"guarded": False, "response": "NORMAL OUTPUT"}},
+            False,
+        ),
+        (
+            {"guardrails_triggered": True, "pii": {"guarded": False, "response": "NORMAL OUTPUT"}},
+            True,
+        ),
+        (
+            {"guardrails_triggered": True, "pii": {"guarded": True, "response": "MASKED OUTPUT"}},
+            True,
+        ),
+    ],
+)
+def test_autoalign_output_mapping_matches_block_interpretation(
+    raw_return,
+    expected_blocked,
+):
+    mapping_blocked = is_output_blocked(raw_return, autoalign_output_api)
+
+    assert mapping_blocked is expected_blocked
+    assert raw_return["guardrails_triggered"] is expected_blocked
+
+
+def test_autoalign_output_mapping_cannot_express_transform():
+    raw_return = {"guardrails_triggered": False, "pii": {"guarded": True, "response": "MASKED OUTPUT"}}
+    mapping_blocked = is_output_blocked(raw_return, autoalign_output_api)
+
+    assert mapping_blocked is False
+    assert raw_return["pii"]["guarded"] is True
+
+
+@pytest.mark.parametrize(
+    "action_func",
+    [
+        autoalign_groundedness_output_api,
+        autoalign_factcheck_output_api,
+    ],
+)
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (0.49, True),
+        (0.5, False),
+        (0.51, False),
+    ],
+)
+def test_autoalign_score_output_mappings_block_below_threshold(action_func, raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, action_func)
+
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "reject_blocks", "omit_transforms"),
+    [
+        (
+            {"is_injection": False, "text": "NORMAL OUTPUT", "detections": []},
+            False,
+            False,
+        ),
+        (
+            {"is_injection": True, "text": "NORMAL OUTPUT", "detections": ["sqli"]},
+            True,
+            False,
+        ),
+        (
+            {"is_injection": False, "text": "NORMALIZED OUTPUT", "detections": []},
+            False,
+            True,
+        ),
+        (
+            {"is_injection": True, "text": "OMITTED OUTPUT", "detections": ["sqli"]},
+            True,
+            True,
+        ),
+    ],
+)
+def test_injection_detection_default_mapping_cannot_express_block_or_transform(
+    raw_return,
+    reject_blocks,
+    omit_transforms,
+):
+    mapping_blocked = is_output_blocked(raw_return, injection_detection)
+
+    assert mapping_blocked is False
+    assert reject_blocks is raw_return["is_injection"]
+    assert omit_transforms is (raw_return["text"] != "NORMAL OUTPUT")
