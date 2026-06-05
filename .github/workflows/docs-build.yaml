@@ -112,3 +112,21 @@ jobs:
                 body,
               });
             }
+
+  publish-staging:
+    name: Publish Fern staging docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [build-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Publish Fern staging docs
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-publish-staging

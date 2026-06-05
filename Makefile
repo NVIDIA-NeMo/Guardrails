@@ -20,6 +20,7 @@ UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
 FASTEMBED_CACHE ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
 FASTEMBED_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE)
+FERN_STAGING_INSTANCE ?= nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails
 
 test:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST)
@@ -60,6 +61,9 @@ docs-fern-strict: docs-fern-generate-sdk
 
 docs-fern-live: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
+
+docs-fern-publish-staging: docs-fern-generate-sdk
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_STAGING_INSTANCE)"
 
 docs-fern-preview-watch: docs-fern-generate-sdk
 	node scripts/watch-fern-preview.mjs
@@ -114,6 +118,7 @@ help:
 		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-live        Serve Fern docs locally' \
+		'  docs-fern-publish-staging Publish Fern docs to the staging instance' \
 		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
 		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
