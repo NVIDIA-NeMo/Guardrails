@@ -756,8 +756,9 @@ This gives operators a single OpenTelemetry-standard switch to flip capture acro
 <section id="output-format">
 <h2>Output Format<a class="headerlink" href="#output-format" title="Link to this heading">#</a></h2>
 <p><em>Applies to the IORails engine only — see <a class="reference internal" href="#engine-support">Engine Support</a> below.</em></p>
-<p>Captured content is emitted in one of two forms, selected by the <code class="docutils literal notranslate"><span class="pre">OTEL_SEMCONV_STABILITY_OPT_IN</span></code> environment variable.
-This variable holds a comma-separated list of opt-in tokens.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> content captured on the LLM calls is emitted in one of two forms, selected by the <code class="docutils literal notranslate"><span class="pre">OTEL_SEMCONV_STABILITY_OPT_IN</span></code> environment variable.
+This variable holds a comma-separated list of opt-in tokens.
+The format selector applies only to this <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> content; the <code class="docutils literal notranslate"><span class="pre">guardrails.request.*</span></code> and <code class="docutils literal notranslate"><span class="pre">guardrails.rail.*</span></code> attributes described under <a class="reference internal" href="#where-content-is-captured">Where Content Is Captured</a> are always emitted as plain span attributes regardless of its value.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">OTEL_SEMCONV_STABILITY_OPT_IN</span></code></p></th>
@@ -820,13 +821,16 @@ This variable holds a comma-separated list of opt-in tokens.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gen_ai.assistant.message</span></code></p></td>
 <td><p>Each assistant message in the input.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gen_ai.choice</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gen_ai.tool.message</span></code></p></td>
+<td><p>Each tool message in the input.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gen_ai.choice</span></code></p></td>
 <td><p>The assistant output (the response).</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Roles outside this set (for example, <code class="docutils literal notranslate"><span class="pre">tool</span></code>) are skipped; tool and function-call events are not yet captured.</p>
+<p>Roles outside this set (for example, the legacy <code class="docutils literal notranslate"><span class="pre">function</span></code> role) are skipped; function-call events are not yet captured.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This format selection is independent of the <code class="docutils literal notranslate"><span class="pre">tracing.span_format</span></code> config field.
@@ -847,11 +851,11 @@ This variable holds a comma-separated list of opt-in tokens.</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.request</span></code></p></td>
 <td><p>SERVER</p></td>
-<td><p>The request input messages, and the final output delivered to the caller, using the <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> attribute or event names above.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">guardrails.request.input</span></code> — the JSON-encoded caller input messages — and <code class="docutils literal notranslate"><span class="pre">guardrails.request.output</span></code> — the plain-text response actually delivered to the caller (the refusal message when a rail blocks). These are always plain span attributes, independent of the <code class="docutils literal notranslate"><span class="pre">OTEL_SEMCONV_STABILITY_OPT_IN</span></code> format selector.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code></p></td>
 <td><p>CLIENT</p></td>
-<td><p>The input messages and output of every LLM call — both the main LLM and the per-rail-action LLM calls (for example, content-safety models).</p></td>
+<td><p>The input messages and output of every LLM call — both the main LLM and the per-rail-action LLM calls (for example, content-safety models) — using the <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> attribute or event names above.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">guardrails.rail</span></code></p></td>
 <td><p>INTERNAL</p></td>
@@ -860,7 +864,11 @@ This variable holds a comma-separated list of opt-in tokens.</p>
 </tbody>
 </table>
 </div>
-<p>Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and parent-child <code class="docutils literal notranslate"><span class="pre">span_id</span></code> relationships). The shared <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> attribute and event names do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.</p>
+<p>The request span deliberately uses its own <code class="docutils literal notranslate"><span class="pre">guardrails.request.*</span></code> attributes rather than the <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> names.
+On a block path the two diverge: the LLM CLIENT span records the raw model response, while the SERVER span records what the caller actually received — the refusal message.
+Reusing <code class="docutils literal notranslate"><span class="pre">gen_ai.output.messages</span></code> on both would put different values under the same name and confuse a backend correlating them.</p>
+<p>Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and parent-child <code class="docutils literal notranslate"><span class="pre">span_id</span></code> relationships).
+The shared <code class="docutils literal notranslate"><span class="pre">gen_ai.*</span></code> names across the LLM CLIENT spans do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.</p>
 </section>
 <section id="streaming">
 <h2>Streaming<a class="headerlink" href="#streaming" title="Link to this heading">#</a></h2>
