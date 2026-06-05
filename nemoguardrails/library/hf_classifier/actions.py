@@ -16,10 +16,10 @@
 """HuggingFace classifier-based detection actions."""
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
-from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.hf_classifier.backends import get_backend
 
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 async def _classify_and_check(
     classifier_name: str,
     text: str,
-    config: Optional[RailsConfig],
+    config: Any | None,
 ) -> bool:
     """Classify *text* and check against blocked labels.
 
@@ -82,41 +82,44 @@ def _extract_text(context: Optional[dict], key: str) -> str:
     return (context.get(key) or "") if context else ""
 
 
-def _hf_classifier_output_mapping(result: bool) -> bool:
-    """Map action result to streaming blocked semantic: True=blocked."""
-    return not result
+def _hf_classifier_outcome(allowed: bool) -> RailOutcome:
+    if allowed:
+        return RailOutcome.allow()
+    return RailOutcome.block()
 
 
 @action()
 async def hf_classifier_check_input(
     classifier: str,
-    config: Optional[RailsConfig] = None,
+    config: Any | None = None,
     context: Optional[dict] = None,
     **kwargs,
-) -> bool:
-    return await _classify_and_check(classifier, _extract_text(context, "user_message"), config)
+) -> RailOutcome:
+    allowed = await _classify_and_check(classifier, _extract_text(context, "user_message"), config)
+    return _hf_classifier_outcome(allowed)
 
 
-@action(output_mapping=_hf_classifier_output_mapping)
+@action()
 async def hf_classifier_check_output(
     classifier: str,
-    config: Optional[RailsConfig] = None,
+    config: Any | None = None,
     context: Optional[dict] = None,
     model_name: Optional[str] = None,
     **kwargs,
-) -> bool:
+) -> RailOutcome:
     # Streaming output rail path doesn't resolve flow variables — $classifier
     # arrives as a literal string. Fall back to model_name which the streaming
     # engine extracts from the flow_id.
     if classifier.startswith("$") and model_name:
         classifier = model_name
-    return await _classify_and_check(classifier, _extract_text(context, "bot_message"), config)
+    allowed = await _classify_and_check(classifier, _extract_text(context, "bot_message"), config)
+    return _hf_classifier_outcome(allowed)
 
 
 @action()
 async def hf_classifier_check_retrieval(
     classifier: str,
-    config: Optional[RailsConfig] = None,
+    config: Any | None = None,
     context: Optional[dict] = None,
     **kwargs,
 ) -> bool:

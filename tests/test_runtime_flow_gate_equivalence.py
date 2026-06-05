@@ -31,6 +31,7 @@ from tests.llama_guard_fixtures import (
     LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS,
     LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
 )
+from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 from tests.utils import TestChat
 
 NORMAL_OUTPUT = "NORMAL OUTPUT"
@@ -119,10 +120,6 @@ INJECTION_DETECTION_OMIT_RAILS_CONFIG = {"injection_detection": {"action": "omit
 GUARDRAILS_AI_RAILS_CONFIG = {"guardrails_ai": {"validators": [{"name": "regex_match"}]}}
 ACTIVEFENCE_DETAILED_THRESHOLDS = {"adult_content.general": 0.3}
 GCP_DETAILED_THRESHOLDS = {"Derogatory": 0.4}
-
-
-def _blocked_if_policyai_unsafe(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return.get("assessment", "SAFE") == "UNSAFE" else FlowDecision.ALLOW
 
 
 def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
@@ -310,7 +307,6 @@ POLICYAI_INPUT = RailSpec(
     flow="policyai moderation on input",
     direction="input",
     action="call_policyai_api",
-    interpret=_blocked_if_policyai_unsafe,
 )
 
 POLICYAI_OUTPUT = RailSpec(
@@ -318,7 +314,6 @@ POLICYAI_OUTPUT = RailSpec(
     flow="policyai moderation on output",
     direction="output",
     action="call_policyai_api",
-    interpret=_blocked_if_policyai_unsafe,
 )
 
 REGEX_INPUT = RailSpec(
@@ -1184,14 +1179,8 @@ FIXTURES = [
         enable_rails_exceptions=True,
         context={"check_facts": True},
     ),
-    *_boolean_allowed_cases(
-        HF_CLASSIFIER_INPUT,
-        include_exception_case=True,
-    ),
-    *_boolean_allowed_cases(
-        HF_CLASSIFIER_OUTPUT,
-        include_exception_case=True,
-    ),
+    *_rail_outcome_cases(HF_CLASSIFIER_INPUT, include_exception_case=True),
+    *_rail_outcome_cases(HF_CLASSIFIER_OUTPUT, include_exception_case=True),
     _case(
         "hf_classifier_retrieval_allows_true",
         HF_CLASSIFIER_RETRIEVAL,
@@ -1273,45 +1262,45 @@ FIXTURES = [
         FlowDecision.BLOCK,
     ),
     _case(
-        "policyai_input_allows_safe",
+        "policyai_input_allows_outcome_allow",
         POLICYAI_INPUT,
-        {"assessment": "SAFE", "category": "Safe"},
+        RailOutcome.allow(**POLICYAI_SAFE_OUTCOME_KWARGS),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "policyai_input_blocks_unsafe",
+        "policyai_input_blocks_outcome_block",
         POLICYAI_INPUT,
-        {"assessment": "UNSAFE", "category": "violence"},
+        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "policyai_input_blocks_unsafe_exception",
+        "policyai_input_blocks_outcome_block_exception",
         POLICYAI_INPUT,
-        {"assessment": "UNSAFE", "category": "violence"},
+        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
     _case(
-        "policyai_output_allows_safe",
+        "policyai_output_allows_outcome_allow",
         POLICYAI_OUTPUT,
-        {"assessment": "SAFE", "category": "Safe"},
+        RailOutcome.allow(**POLICYAI_SAFE_OUTCOME_KWARGS),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "policyai_output_blocks_unsafe",
+        "policyai_output_blocks_outcome_block",
         POLICYAI_OUTPUT,
-        {"assessment": "UNSAFE", "category": "violence"},
+        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "policyai_output_blocks_unsafe_exception",
+        "policyai_output_blocks_outcome_block_exception",
         POLICYAI_OUTPUT,
-        {"assessment": "UNSAFE", "category": "violence"},
+        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,

@@ -73,6 +73,7 @@ from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
     LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
 )
+from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 
 
 @action()
@@ -194,16 +195,16 @@ def test_fact_check_mapping_threshold_matches_default_interpret(action_func, act
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (True, False),
-        (False, True),
+        (RailOutcome.allow(), False),
+        (RailOutcome.block(), True),
     ],
 )
-def test_hf_classifier_output_mapping_matches_default_interpret(raw_return, expected_blocked):
-    outcome_blocked = _candidate_is_blocked(raw_return)
+def test_hf_classifier_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, hf_classifier_check_output)
+    outcome = outcome_from_output_mapping(raw_return, hf_classifier_check_output)
 
-    assert outcome_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
 @pytest.mark.parametrize(
@@ -224,17 +225,16 @@ def test_llama_guard_output_bypass_reads_rail_outcome(raw_return, expected_block
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"assessment": "SAFE", "category": "Safe"}, False),
-        ({"assessment": "UNSAFE", "category": "violence"}, True),
-        ({}, False),
+        (RailOutcome.allow(**POLICYAI_SAFE_OUTCOME_KWARGS), False),
+        (RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS), True),
     ],
 )
-def test_policyai_output_mapping_matches_interpretation(raw_return, expected_blocked):
-    interpreted_blocked = raw_return.get("assessment", "SAFE") == "UNSAFE"
+def test_policyai_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, call_policyai_api)
+    outcome = outcome_from_output_mapping(raw_return, call_policyai_api)
 
-    assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
 @pytest.mark.parametrize(

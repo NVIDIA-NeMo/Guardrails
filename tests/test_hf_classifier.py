@@ -30,6 +30,7 @@ from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
     _classify_and_check,
@@ -109,7 +110,7 @@ class TestConfig:
     @pytest.mark.parametrize("engine", ["vllm", "kserve", "fms"])
     def test_remote_requires_base_url(self, engine):
         with pytest.raises(ValidationError, match="base_url"):
-            RemoteHFClassifierConfig(engine=engine, model="m", blocked_labels=["x"])
+            RemoteHFClassifierConfig(engine=engine, model="m", blocked_labels=["x"])  # type: ignore[reportCallIssue]
 
     def test_invalid_base_url_scheme(self):
         with pytest.raises(ValidationError, match="http://"):
@@ -499,19 +500,23 @@ class TestActionContextKeys:
                 config=cfg,
                 context=None,
             )
-        assert result is True
+        assert result == RailOutcome.allow()
 
 
 class TestOutputMapping:
-    def test_allowed_maps_to_not_blocked(self):
-        assert is_output_blocked(True, hf_classifier_check_output) is False
+    def test_allow_outcome_maps_to_not_blocked(self):
+        outcome = RailOutcome.allow()
 
-    def test_blocked_maps_to_blocked(self):
-        assert is_output_blocked(False, hf_classifier_check_output) is True
+        assert is_output_blocked(outcome, hf_classifier_check_output) is False
 
-    def test_has_explicit_output_mapping(self):
+    def test_block_outcome_maps_to_blocked(self):
+        outcome = RailOutcome.block()
+
+        assert is_output_blocked(outcome, hf_classifier_check_output) is True
+
+    def test_has_no_explicit_output_mapping(self):
         meta = getattr(hf_classifier_check_output, "action_meta", {})
-        assert meta.get("output_mapping") is not None
+        assert meta.get("output_mapping") is None
 
 
 class TestStreamingOutputFallback:
@@ -526,7 +531,7 @@ class TestStreamingOutputFallback:
                 context={"bot_message": "bad"},
                 model_name="hap",
             )
-        assert result is False
+        assert result == RailOutcome.block()
 
     @pytest.mark.asyncio
     async def test_dollar_classifier_without_model_name_raises(self):
