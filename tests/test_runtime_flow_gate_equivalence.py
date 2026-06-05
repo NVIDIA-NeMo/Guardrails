@@ -115,8 +115,16 @@ def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_match"] else FlowDecision.ALLOW
 
 
+def _transform_if_regex_retrieval_match(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if raw_return["is_match"] else FlowDecision.ALLOW
+
+
 def _blocked_if_true(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return else FlowDecision.ALLOW
+
+
+def _transform_if_false(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if not raw_return else FlowDecision.ALLOW
 
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
@@ -214,6 +222,15 @@ HF_CLASSIFIER_OUTPUT = RailSpec(
     rails_config=HF_CLASSIFIER_RAILS_CONFIG,
 )
 
+HF_CLASSIFIER_RETRIEVAL = RailSpec(
+    name="hf_classifier_retrieval",
+    flow="hf classifier check retrieval",
+    direction="retrieval",
+    action="hf_classifier_check_retrieval",
+    interpret=_transform_if_false,
+    rails_config=HF_CLASSIFIER_RAILS_CONFIG,
+)
+
 LLAMA_GUARD_INPUT = RailSpec(
     name="llama_guard_input",
     flow="llama guard check input",
@@ -262,6 +279,14 @@ REGEX_OUTPUT = RailSpec(
     direction="output",
     action="detect_regex_pattern",
     interpret=_blocked_if_regex_match,
+)
+
+REGEX_RETRIEVAL = RailSpec(
+    name="regex_retrieval",
+    flow="regex check retrieval",
+    direction="retrieval",
+    action="detect_regex_pattern",
+    interpret=_transform_if_regex_retrieval_match,
 )
 
 PRIVATEAI_DETECT_INPUT = RailSpec(
@@ -921,6 +946,26 @@ FIXTURES = [
         include_exception_case=True,
     ),
     _case(
+        "hf_classifier_retrieval_allows_true",
+        HF_CLASSIFIER_RETRIEVAL,
+        True,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+        output_vars=["relevant_chunks"],
+        expected_output_data={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    _case(
+        "hf_classifier_retrieval_transforms_false",
+        HF_CLASSIFIER_RETRIEVAL,
+        False,
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+        output_vars=["relevant_chunks"],
+        expected_output_data={"relevant_chunks": ""},
+    ),
+    _case(
         "llama_guard_input_allows_allowed_true",
         LLAMA_GUARD_INPUT,
         {"allowed": True, "policy_violations": None},
@@ -1035,6 +1080,26 @@ FIXTURES = [
         {"is_match": True, "text": "secret", "detections": ["secret"]},
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
+    ),
+    _case(
+        "regex_retrieval_allows_no_match",
+        REGEX_RETRIEVAL,
+        {"is_match": False, "text": RELEVANT_CHUNKS, "detections": []},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+        output_vars=["relevant_chunks"],
+        expected_output_data={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    _case(
+        "regex_retrieval_transforms_match",
+        REGEX_RETRIEVAL,
+        {"is_match": True, "text": RELEVANT_CHUNKS, "detections": ["secret"]},
+        ObservableOutcome.TRANSFORM,
+        FlowDecision.TRANSFORM,
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+        output_vars=["relevant_chunks"],
+        expected_output_data={"relevant_chunks": ""},
     ),
     *_boolean_flag_cases(
         PRIVATEAI_DETECT_INPUT,
