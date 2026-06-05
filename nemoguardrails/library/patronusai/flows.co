@@ -21,3 +21,4 @@ flow patronus api check output
 
   if not $evaluation_passed
     bot inform answer unknown
+    abort
