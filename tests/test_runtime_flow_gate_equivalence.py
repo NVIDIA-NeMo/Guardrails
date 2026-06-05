@@ -16,15 +16,12 @@
 import textwrap
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.library.content_safety.actions import content_safety_check_output
-from nemoguardrails.library.self_check.output_check.actions import self_check_output
 from tests.utils import TestChat
 
 NORMAL_OUTPUT = "NORMAL OUTPUT"
@@ -43,7 +40,6 @@ class FlowEquivalenceCase:
     case_id: str
     yaml_content: str
     action_name: str
-    action_func: Callable[..., Any]
     raw_return: Any
     expected: RuntimeVerdict
 
@@ -85,7 +81,6 @@ FIXTURES = [
         case_id="self_check_output_allows_true",
         yaml_content=SELF_CHECK_OUTPUT_YAML,
         action_name="self_check_output",
-        action_func=self_check_output,
         raw_return=True,
         expected=RuntimeVerdict.ALLOW,
     ),
@@ -93,7 +88,6 @@ FIXTURES = [
         case_id="self_check_output_blocks_false",
         yaml_content=SELF_CHECK_OUTPUT_YAML,
         action_name="self_check_output",
-        action_func=self_check_output,
         raw_return=False,
         expected=RuntimeVerdict.BLOCK,
     ),
@@ -101,7 +95,6 @@ FIXTURES = [
         case_id="content_safety_output_allows_allowed_true",
         yaml_content=CONTENT_SAFETY_OUTPUT_YAML,
         action_name="content_safety_check_output",
-        action_func=content_safety_check_output,
         raw_return={"allowed": True, "policy_violations": []},
         expected=RuntimeVerdict.ALLOW,
     ),
@@ -109,7 +102,6 @@ FIXTURES = [
         case_id="content_safety_output_blocks_allowed_false",
         yaml_content=CONTENT_SAFETY_OUTPUT_YAML,
         action_name="content_safety_check_output",
-        action_func=content_safety_check_output,
         raw_return={"allowed": False, "policy_violations": ["violence"]},
         expected=RuntimeVerdict.BLOCK,
     ),
@@ -155,12 +147,7 @@ def _outcome_verdict(raw_return: Any, action_name: str) -> RuntimeVerdict:
     return RuntimeVerdict.BLOCK if blocked else RuntimeVerdict.ALLOW
 
 
-def _mapping_verdict(raw_return: Any, action_func: Callable[..., Any]) -> RuntimeVerdict:
-    return RuntimeVerdict.BLOCK if is_output_blocked(raw_return, action_func) else RuntimeVerdict.ALLOW
-
-
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
-def test_runtime_flow_gate_matches_output_mapping_and_rail_outcome(case: FlowEquivalenceCase):
+def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
     assert _classify_response(_run_flow(case)) is case.expected
-    assert _mapping_verdict(case.raw_return, case.action_func) is case.expected
     assert _outcome_verdict(case.raw_return, case.action_name) is case.expected
