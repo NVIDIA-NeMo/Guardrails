@@ -5,6 +5,7 @@ on:
     paths:
       - "benchmark/**"
       - "Makefile"
+      - "pytest.ini"
       - "pyproject.toml"
       - "poetry.lock"
       - ".github/workflows/benchmark-tests.yml"
@@ -15,6 +16,7 @@ on:
     paths:
       - "benchmark/**"
       - "Makefile"
+      - "pytest.ini"
       - "pyproject.toml"
       - "poetry.lock"
       - ".github/workflows/benchmark-tests.yml"
