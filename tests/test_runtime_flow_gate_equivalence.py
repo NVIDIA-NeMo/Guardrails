@@ -64,6 +64,7 @@ class FlowEquivalenceCase:
     expected_decision: FlowDecision
     enable_rails_exceptions: bool = False
     context: dict[str, Any] | None = None
+    expected_content: str | None = None
 
 
 JAILBREAK_RAILS_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://localhost:9999"}}
@@ -92,6 +93,10 @@ def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
 
 def _blocked_if_true(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return else FlowDecision.ALLOW
+
+
+def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if raw_return != NORMAL_OUTPUT else FlowDecision.ALLOW
 
 
 SELF_CHECK_OUTPUT = RailSpec(
@@ -207,6 +212,14 @@ PRIVATEAI_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+PRIVATEAI_MASK_OUTPUT = RailSpec(
+    name="privateai_mask_output",
+    flow="mask pii on output",
+    direction="output",
+    action="mask_pii",
+    interpret=_transform_if_changed_from_normal_output,
+)
+
 GLINER_DETECT_INPUT = RailSpec(
     name="gliner_detect_input",
     flow="gliner detect pii on input",
@@ -223,6 +236,14 @@ GLINER_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+GLINER_MASK_OUTPUT = RailSpec(
+    name="gliner_mask_output",
+    flow="gliner mask pii on output",
+    direction="output",
+    action="gliner_mask_pii",
+    interpret=_transform_if_changed_from_normal_output,
+)
+
 SENSITIVE_DATA_DETECT_INPUT = RailSpec(
     name="sensitive_data_detect_input",
     flow="detect sensitive data on input",
@@ -237,6 +258,14 @@ SENSITIVE_DATA_DETECT_OUTPUT = RailSpec(
     direction="output",
     action="detect_sensitive_data",
     interpret=_blocked_if_true,
+)
+
+SENSITIVE_DATA_MASK_OUTPUT = RailSpec(
+    name="sensitive_data_mask_output",
+    flow="mask sensitive data on output",
+    direction="output",
+    action="mask_sensitive_data",
+    interpret=_transform_if_changed_from_normal_output,
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -294,6 +323,7 @@ def _case(
     *,
     enable_rails_exceptions: bool = False,
     context: dict[str, Any] | None = None,
+    expected_content: str | None = None,
 ) -> FlowEquivalenceCase:
     return FlowEquivalenceCase(
         case_id=case_id,
@@ -303,6 +333,7 @@ def _case(
         expected_decision=expected_decision,
         enable_rails_exceptions=enable_rails_exceptions,
         context=context,
+        expected_content=expected_content,
     )
 
 
@@ -399,6 +430,28 @@ def _boolean_flag_cases(
             True,
             block_observable,
             FlowDecision.BLOCK,
+        ),
+    ]
+
+
+def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
+    transformed_output = f"{spec.name} masked output"
+    return [
+        _case(
+            f"{spec.name}_allows_unchanged_output",
+            spec,
+            NORMAL_OUTPUT,
+            ObservableOutcome.ALLOW,
+            FlowDecision.ALLOW,
+            expected_content=NORMAL_OUTPUT,
+        ),
+        _case(
+            f"{spec.name}_transforms_changed_output",
+            spec,
+            transformed_output,
+            ObservableOutcome.TRANSFORM,
+            FlowDecision.TRANSFORM,
+            expected_content=transformed_output,
         ),
     ]
 
@@ -654,6 +707,9 @@ FIXTURES = [
         SENSITIVE_DATA_DETECT_OUTPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
+    *_output_transform_cases(PRIVATEAI_MASK_OUTPUT),
+    *_output_transform_cases(GLINER_MASK_OUTPUT),
+    *_output_transform_cases(SENSITIVE_DATA_MASK_OUTPUT),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -772,8 +828,11 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
 
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
 def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
-    observable = _classify_response(_run_flow(case))
+    response = _run_flow(case)
+    observable = _classify_response(response)
 
     assert observable is case.expected_observable
     assert _decision_from_observable(observable) is case.expected_decision
     assert _outcome_decision(case.raw_return, case.spec) is case.expected_decision
+    if case.expected_content is not None:
+        assert response == {"role": "assistant", "content": case.expected_content}
