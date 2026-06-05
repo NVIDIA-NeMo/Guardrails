@@ -68,6 +68,8 @@ jobs:
           node-version: "22"
 
       - name: Generate Python SDK reference
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-generate-sdk
 
       - name: Publish Fern preview
