@@ -5,7 +5,7 @@
 
 .DEFAULT_GOAL := help
 
-TEST ?= tests/
+TEST ?=
 ARGS ?=
 WORKERS ?= auto
 # pytest-xdist --dist strategy for $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST).
@@ -80,7 +80,7 @@ help:
 		'  make test-watch [TEST=path]' \
 		'' \
 		'Tests:' \
-		'  test                  Run non-live pytest with pytest-xdist' \
+		'  test                  Run pytest.ini testpaths with pytest-xdist' \
 		'  test-parallel         Alias for test' \
 		'  test-serial           Run pytest without xdist or env filtering' \
 		'  test-benchmark        Run benchmark tooling tests' \
