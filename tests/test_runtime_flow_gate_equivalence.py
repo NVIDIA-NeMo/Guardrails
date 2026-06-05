@@ -34,11 +34,13 @@ REFUSAL = "I'm sorry, I can't respond to that."
 class RuntimeVerdict(Enum):
     ALLOW = "allow"
     BLOCK = "block"
+    EXCEPTION = "exception"
+    TRANSFORM = "transform"
 
 
 @dataclass(frozen=True)
-class RuntimeFlowFixture:
-    name: str
+class FlowEquivalenceCase:
+    case_id: str
     yaml_content: str
     action_name: str
     action_func: Callable[..., Any]
@@ -79,32 +81,32 @@ CONTENT_SAFETY_OUTPUT_YAML = textwrap.dedent(
 
 
 FIXTURES = [
-    RuntimeFlowFixture(
-        name="self_check_output_allows_true",
+    FlowEquivalenceCase(
+        case_id="self_check_output_allows_true",
         yaml_content=SELF_CHECK_OUTPUT_YAML,
         action_name="self_check_output",
         action_func=self_check_output,
         raw_return=True,
         expected=RuntimeVerdict.ALLOW,
     ),
-    RuntimeFlowFixture(
-        name="self_check_output_blocks_false",
+    FlowEquivalenceCase(
+        case_id="self_check_output_blocks_false",
         yaml_content=SELF_CHECK_OUTPUT_YAML,
         action_name="self_check_output",
         action_func=self_check_output,
         raw_return=False,
         expected=RuntimeVerdict.BLOCK,
     ),
-    RuntimeFlowFixture(
-        name="content_safety_output_allows_allowed_true",
+    FlowEquivalenceCase(
+        case_id="content_safety_output_allows_allowed_true",
         yaml_content=CONTENT_SAFETY_OUTPUT_YAML,
         action_name="content_safety_check_output",
         action_func=content_safety_check_output,
         raw_return={"allowed": True, "policy_violations": []},
         expected=RuntimeVerdict.ALLOW,
     ),
-    RuntimeFlowFixture(
-        name="content_safety_output_blocks_allowed_false",
+    FlowEquivalenceCase(
+        case_id="content_safety_output_blocks_allowed_false",
         yaml_content=CONTENT_SAFETY_OUTPUT_YAML,
         action_name="content_safety_check_output",
         action_func=content_safety_check_output,
@@ -114,20 +116,26 @@ FIXTURES = [
 ]
 
 
-def _runtime_verdict(fixture: RuntimeFlowFixture) -> RuntimeVerdict:
-    config = RailsConfig.from_content(yaml_content=fixture.yaml_content)
+def _run_flow(case: FlowEquivalenceCase) -> dict[str, Any]:
+    config = RailsConfig.from_content(yaml_content=case.yaml_content)
     chat = TestChat(config, llm_completions=[NORMAL_OUTPUT])
 
     async def stub_action(**kwargs):
-        return fixture.raw_return
+        return case.raw_return
 
-    chat.app.register_action(stub_action, fixture.action_name)
-    response = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+    chat.app.register_action(stub_action, case.action_name)
+    return chat.app.generate(messages=[{"role": "user", "content": "hello"}])
 
+
+def _classify_response(response: dict[str, Any]) -> RuntimeVerdict:
     if response == {"role": "assistant", "content": NORMAL_OUTPUT}:
         return RuntimeVerdict.ALLOW
     if response == {"role": "assistant", "content": REFUSAL}:
         return RuntimeVerdict.BLOCK
+    if response.get("role") == "exception":
+        return RuntimeVerdict.EXCEPTION
+    if response.get("role") == "assistant":
+        return RuntimeVerdict.TRANSFORM
 
     raise AssertionError(f"Unexpected runtime response: {response!r}")
 
@@ -151,8 +159,8 @@ def _mapping_verdict(raw_return: Any, action_func: Callable[..., Any]) -> Runtim
     return RuntimeVerdict.BLOCK if is_output_blocked(raw_return, action_func) else RuntimeVerdict.ALLOW
 
 
-@pytest.mark.parametrize("fixture", FIXTURES, ids=[fixture.name for fixture in FIXTURES])
-def test_runtime_flow_gate_matches_output_mapping_and_rail_outcome(fixture: RuntimeFlowFixture):
-    assert _runtime_verdict(fixture) is fixture.expected
-    assert _mapping_verdict(fixture.raw_return, fixture.action_func) is fixture.expected
-    assert _outcome_verdict(fixture.raw_return, fixture.action_name) is fixture.expected
+@pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
+def test_runtime_flow_gate_matches_output_mapping_and_rail_outcome(case: FlowEquivalenceCase):
+    assert _classify_response(_run_flow(case)) is case.expected
+    assert _mapping_verdict(case.raw_return, case.action_func) is case.expected
+    assert _outcome_verdict(case.raw_return, case.action_name) is case.expected
