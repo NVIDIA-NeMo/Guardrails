@@ -31,6 +31,10 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -49,3 +53,57 @@ jobs:
 
       - name: Check Fern docs
         run: make docs-fern-strict
+
+  preview-docs:
+    name: Publish Fern preview
+    if: github.event_name == 'pull_request'
+    needs: [build-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Generate Python SDK reference
+        run: make docs-fern-generate-sdk
+
+      - name: Publish Fern preview
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+          PREVIEW_ID: pr-${{ github.event.pull_request.number }}
+        run: |
+          FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
+          cd fern
+          npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force
+
+      - name: Comment preview URL
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const previewUrl = `https://nvidia-preview-pr-${context.issue.number}.docs.buildwithfern.com/nemo/guardrails`;
+            const marker = '<!-- guardrails-fern-preview -->';
+            const body = `${marker}\nStaged Fern docs preview: ${previewUrl}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
