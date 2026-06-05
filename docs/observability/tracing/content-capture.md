@@ -74,8 +74,9 @@ Values are case-insensitive, and surrounding whitespace is ignored.
 
 *Applies to the IORails engine only — see [Engine Support](#engine-support) below.*
 
-Captured content is emitted in one of two forms, selected by the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable.
+The `gen_ai.*` content captured on the LLM calls is emitted in one of two forms, selected by the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable.
 This variable holds a comma-separated list of opt-in tokens.
+The format selector applies only to this `gen_ai.*` content; the `guardrails.request.*` and `guardrails.rail.*` attributes described under [Where Content Is Captured](#where-content-is-captured) are always emitted as plain span attributes regardless of its value.
 
 | `OTEL_SEMCONV_STABILITY_OPT_IN` | Format | What is emitted |
 |---------------------------------|--------|-----------------|
@@ -103,9 +104,10 @@ By default — when `OTEL_SEMCONV_STABILITY_OPT_IN` is unset or does not include
 | `gen_ai.system.message` | Each system message. |
 | `gen_ai.user.message` | Each user message. |
 | `gen_ai.assistant.message` | Each assistant message in the input. |
+| `gen_ai.tool.message` | Each tool message in the input. |
 | `gen_ai.choice` | The assistant output (the response). |
 
-Roles outside this set (for example, `tool`) are skipped; tool and function-call events are not yet captured.
+Roles outside this set (for example, the legacy `function` role) are skipped; function-call events are not yet captured.
 
 ```{note}
 This format selection is independent of the `tracing.span_format` config field.
@@ -118,11 +120,16 @@ When capture is active, content lands on the following spans.
 
 | Span | Kind | Captured content |
 |------|------|------------------|
-| `guardrails.request` | SERVER | The request input messages, and the final output delivered to the caller, using the `gen_ai.*` attribute or event names above. |
-| `gen_ai.*` | CLIENT | The input messages and output of every LLM call — both the main LLM and the per-rail-action LLM calls (for example, content-safety models). |
+| `guardrails.request` | SERVER | `guardrails.request.input` — the JSON-encoded caller input messages — and `guardrails.request.output` — the plain-text response actually delivered to the caller (the refusal message when a rail blocks). These are always plain span attributes, independent of the `OTEL_SEMCONV_STABILITY_OPT_IN` format selector. |
+| `gen_ai.*` | CLIENT | The input messages and output of every LLM call — both the main LLM and the per-rail-action LLM calls (for example, content-safety models) — using the `gen_ai.*` attribute or event names above. |
 | `guardrails.rail` | INTERNAL | `guardrails.rail.input` — the JSON-encoded rail input (`{"messages": [...], "bot_response": ...}`). On a rail that blocks, `guardrails.rail.reason` also carries the human-readable block reason. |
 
-Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the `trace_id` and parent-child `span_id` relationships). The shared `gen_ai.*` attribute and event names do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.
+The request span deliberately uses its own `guardrails.request.*` attributes rather than the `gen_ai.*` names.
+On a block path the two diverge: the LLM CLIENT span records the raw model response, while the SERVER span records what the caller actually received — the refusal message.
+Reusing `gen_ai.output.messages` on both would put different values under the same name and confuse a backend correlating them.
+
+Because the request span and the LLM spans belong to the same trace, a backend correlates the outer guardrails request with the inner model calls through trace and span context (the `trace_id` and parent-child `span_id` relationships).
+The shared `gen_ai.*` names across the LLM CLIENT spans do not establish that link — names repeat across requests — but they make the captured content easier to interpret once the spans are correlated.
 
 ## Streaming
 
