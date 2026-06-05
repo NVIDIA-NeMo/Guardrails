@@ -15,7 +15,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -48,6 +48,7 @@ class RailSpec:
     flow: str
     direction: str
     action: str
+    interpret: Callable[[Any], FlowDecision] | None = None
     model_type: str | None = None
     task: str | None = None
     output_parser: str | None = None
@@ -75,6 +76,19 @@ HF_CLASSIFIER_RAILS_CONFIG = {
         }
     }
 }
+
+
+def _blocked_if_not_allowed(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if not raw_return["allowed"] else FlowDecision.ALLOW
+
+
+def _blocked_if_policyai_unsafe(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return.get("assessment", "SAFE") == "UNSAFE" else FlowDecision.ALLOW
+
+
+def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return["is_match"] else FlowDecision.ALLOW
+
 
 SELF_CHECK_OUTPUT = RailSpec(
     name="self_check_output",
@@ -121,6 +135,56 @@ HF_CLASSIFIER_OUTPUT = RailSpec(
     direction="output",
     action="hf_classifier_check_output",
     rails_config=HF_CLASSIFIER_RAILS_CONFIG,
+)
+
+LLAMA_GUARD_INPUT = RailSpec(
+    name="llama_guard_input",
+    flow="llama guard check input",
+    direction="input",
+    action="llama_guard_check_input",
+    interpret=_blocked_if_not_allowed,
+    task="llama_guard_check_input",
+)
+
+LLAMA_GUARD_OUTPUT = RailSpec(
+    name="llama_guard_output",
+    flow="llama guard check output",
+    direction="output",
+    action="llama_guard_check_output",
+    interpret=_blocked_if_not_allowed,
+    task="llama_guard_check_output",
+)
+
+POLICYAI_INPUT = RailSpec(
+    name="policyai_input",
+    flow="policyai moderation on input",
+    direction="input",
+    action="call_policyai_api",
+    interpret=_blocked_if_policyai_unsafe,
+)
+
+POLICYAI_OUTPUT = RailSpec(
+    name="policyai_output",
+    flow="policyai moderation on output",
+    direction="output",
+    action="call_policyai_api",
+    interpret=_blocked_if_policyai_unsafe,
+)
+
+REGEX_INPUT = RailSpec(
+    name="regex_input",
+    flow="regex check input",
+    direction="input",
+    action="detect_regex_pattern",
+    interpret=_blocked_if_regex_match,
+)
+
+REGEX_OUTPUT = RailSpec(
+    name="regex_output",
+    flow="regex check output",
+    direction="output",
+    action="detect_regex_pattern",
+    interpret=_blocked_if_regex_match,
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -375,6 +439,122 @@ FIXTURES = [
         HF_CLASSIFIER_OUTPUT,
         include_exception_case=True,
     ),
+    _case(
+        "llama_guard_input_allows_allowed_true",
+        LLAMA_GUARD_INPUT,
+        {"allowed": True, "policy_violations": None},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "llama_guard_input_blocks_allowed_false",
+        LLAMA_GUARD_INPUT,
+        {"allowed": False, "policy_violations": ["S1"]},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "llama_guard_input_blocks_allowed_false_exception",
+        LLAMA_GUARD_INPUT,
+        {"allowed": False, "policy_violations": ["S1"]},
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "llama_guard_output_allows_allowed_true",
+        LLAMA_GUARD_OUTPUT,
+        {"allowed": True, "policy_violations": None},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "llama_guard_output_blocks_allowed_false",
+        LLAMA_GUARD_OUTPUT,
+        {"allowed": False, "policy_violations": ["S1"]},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "llama_guard_output_blocks_allowed_false_exception",
+        LLAMA_GUARD_OUTPUT,
+        {"allowed": False, "policy_violations": ["S1"]},
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "policyai_input_allows_safe",
+        POLICYAI_INPUT,
+        {"assessment": "SAFE", "category": "Safe"},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "policyai_input_blocks_unsafe",
+        POLICYAI_INPUT,
+        {"assessment": "UNSAFE", "category": "violence"},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "policyai_input_blocks_unsafe_exception",
+        POLICYAI_INPUT,
+        {"assessment": "UNSAFE", "category": "violence"},
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "policyai_output_allows_safe",
+        POLICYAI_OUTPUT,
+        {"assessment": "SAFE", "category": "Safe"},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "policyai_output_blocks_unsafe",
+        POLICYAI_OUTPUT,
+        {"assessment": "UNSAFE", "category": "violence"},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "policyai_output_blocks_unsafe_exception",
+        POLICYAI_OUTPUT,
+        {"assessment": "UNSAFE", "category": "violence"},
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "regex_input_allows_no_match",
+        REGEX_INPUT,
+        {"is_match": False, "text": "hello", "detections": []},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "regex_input_blocks_match",
+        REGEX_INPUT,
+        {"is_match": True, "text": "secret", "detections": ["secret"]},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "regex_output_allows_no_match",
+        REGEX_OUTPUT,
+        {"is_match": False, "text": "hello", "detections": []},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "regex_output_blocks_match",
+        REGEX_OUTPUT,
+        {"is_match": True, "text": "secret", "detections": ["secret"]},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -476,9 +656,11 @@ def _decision_from_observable(observable: ObservableOutcome) -> FlowDecision:
     return FlowDecision.TRANSFORM
 
 
-def _outcome_decision(raw_return: Any, action_name: str) -> FlowDecision:
+def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
     if isinstance(raw_return, RailOutcome):
         blocked = raw_return.is_blocked
+    elif spec.interpret:
+        return spec.interpret(raw_return)
     elif isinstance(raw_return, bool):
         blocked = not raw_return
     elif isinstance(raw_return, (int, float)):
@@ -495,4 +677,4 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
 
     assert observable is case.expected_observable
     assert _decision_from_observable(observable) is case.expected_decision
-    assert _outcome_decision(case.raw_return, case.spec.action) is case.expected_decision
+    assert _outcome_decision(case.raw_return, case.spec) is case.expected_decision

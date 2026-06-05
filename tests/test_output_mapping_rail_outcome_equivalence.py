@@ -28,6 +28,9 @@ from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
+from nemoguardrails.library.llama_guard.actions import llama_guard_check_output
+from nemoguardrails.library.policyai.actions import call_policyai_api
+from nemoguardrails.library.regex.actions import detect_regex_pattern
 from nemoguardrails.library.self_check.facts.actions import self_check_facts
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
 
@@ -141,7 +144,7 @@ def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return,
     ],
 )
 def test_fact_check_mapping_threshold_matches_default_interpret(action_func, action_name, raw_return, expected_blocked):
-    outcome_blocked = default_interpret(raw_return, RailInvocation(action_name)).is_blocked
+    outcome_blocked = _candidate_is_blocked(raw_return)
     mapping_blocked = is_output_blocked(raw_return, action_func)
 
     assert outcome_blocked is expected_blocked
@@ -156,8 +159,54 @@ def test_fact_check_mapping_threshold_matches_default_interpret(action_func, act
     ],
 )
 def test_hf_classifier_output_mapping_matches_default_interpret(raw_return, expected_blocked):
-    outcome_blocked = default_interpret(raw_return, RailInvocation("hf_classifier_check_output")).is_blocked
+    outcome_blocked = _candidate_is_blocked(raw_return)
     mapping_blocked = is_output_blocked(raw_return, hf_classifier_check_output)
 
     assert outcome_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"allowed": True, "policy_violations": None}, False),
+        ({"allowed": False, "policy_violations": ["S1"]}, True),
+    ],
+)
+def test_llama_guard_output_mapping_matches_interpretation(raw_return, expected_blocked):
+    interpreted_blocked = not raw_return["allowed"]
+    mapping_blocked = is_output_blocked(raw_return, llama_guard_check_output)
+
+    assert interpreted_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"assessment": "SAFE", "category": "Safe"}, False),
+        ({"assessment": "UNSAFE", "category": "violence"}, True),
+        ({}, False),
+    ],
+)
+def test_policyai_output_mapping_matches_interpretation(raw_return, expected_blocked):
+    interpreted_blocked = raw_return.get("assessment", "SAFE") == "UNSAFE"
+    mapping_blocked = is_output_blocked(raw_return, call_policyai_api)
+
+    assert interpreted_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"is_match": False, "text": "hello", "detections": []}, False),
+        ({"is_match": True, "text": "secret", "detections": ["secret"]}, True),
+    ],
+)
+def test_regex_output_mapping_matches_interpretation(raw_return, expected_blocked):
+    interpreted_blocked = raw_return["is_match"]
+    mapping_blocked = is_output_blocked(raw_return, detect_regex_pattern)
+
+    assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
