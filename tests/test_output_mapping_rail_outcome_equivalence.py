@@ -27,12 +27,17 @@ from nemoguardrails.library.content_safety.actions import (
 from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
+from nemoguardrails.library.gliner.actions import gliner_detect_pii
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.llama_guard.actions import llama_guard_check_output
 from nemoguardrails.library.policyai.actions import call_policyai_api
+from nemoguardrails.library.privateai.actions import detect_pii as privateai_detect_pii
 from nemoguardrails.library.regex.actions import detect_regex_pattern
 from nemoguardrails.library.self_check.facts.actions import self_check_facts
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
+from nemoguardrails.library.sensitive_data_detection.actions import (
+    detect_sensitive_data,
+)
 
 
 @action()
@@ -207,6 +212,29 @@ def test_policyai_output_mapping_matches_interpretation(raw_return, expected_blo
 def test_regex_output_mapping_matches_interpretation(raw_return, expected_blocked):
     interpreted_blocked = raw_return["is_match"]
     mapping_blocked = is_output_blocked(raw_return, detect_regex_pattern)
+
+    assert interpreted_blocked is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    "action_func",
+    [
+        privateai_detect_pii,
+        gliner_detect_pii,
+        detect_sensitive_data,
+    ],
+)
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (False, False),
+        (True, True),
+    ],
+)
+def test_detect_pii_output_mapping_matches_interpretation(action_func, raw_return, expected_blocked):
+    interpreted_blocked = raw_return
+    mapping_blocked = is_output_blocked(raw_return, action_func)
 
     assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked

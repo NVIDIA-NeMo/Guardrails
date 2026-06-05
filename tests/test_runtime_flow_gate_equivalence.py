@@ -90,6 +90,10 @@ def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_match"] else FlowDecision.ALLOW
 
 
+def _blocked_if_true(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return else FlowDecision.ALLOW
+
+
 SELF_CHECK_OUTPUT = RailSpec(
     name="self_check_output",
     flow="self check output",
@@ -185,6 +189,54 @@ REGEX_OUTPUT = RailSpec(
     direction="output",
     action="detect_regex_pattern",
     interpret=_blocked_if_regex_match,
+)
+
+PRIVATEAI_DETECT_INPUT = RailSpec(
+    name="privateai_detect_input",
+    flow="detect pii on input",
+    direction="input",
+    action="detect_pii",
+    interpret=_blocked_if_true,
+)
+
+PRIVATEAI_DETECT_OUTPUT = RailSpec(
+    name="privateai_detect_output",
+    flow="detect pii on output",
+    direction="output",
+    action="detect_pii",
+    interpret=_blocked_if_true,
+)
+
+GLINER_DETECT_INPUT = RailSpec(
+    name="gliner_detect_input",
+    flow="gliner detect pii on input",
+    direction="input",
+    action="gliner_detect_pii",
+    interpret=_blocked_if_true,
+)
+
+GLINER_DETECT_OUTPUT = RailSpec(
+    name="gliner_detect_output",
+    flow="gliner detect pii on output",
+    direction="output",
+    action="gliner_detect_pii",
+    interpret=_blocked_if_true,
+)
+
+SENSITIVE_DATA_DETECT_INPUT = RailSpec(
+    name="sensitive_data_detect_input",
+    flow="detect sensitive data on input",
+    direction="input",
+    action="detect_sensitive_data",
+    interpret=_blocked_if_true,
+)
+
+SENSITIVE_DATA_DETECT_OUTPUT = RailSpec(
+    name="sensitive_data_detect_output",
+    flow="detect sensitive data on output",
+    direction="output",
+    action="detect_sensitive_data",
+    interpret=_blocked_if_true,
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -326,6 +378,29 @@ def _boolean_allowed_cases(
             )
         )
     return cases
+
+
+def _boolean_flag_cases(
+    spec: RailSpec,
+    *,
+    block_observable: ObservableOutcome,
+) -> list[FlowEquivalenceCase]:
+    return [
+        _case(
+            f"{spec.name}_allows_false",
+            spec,
+            False,
+            ObservableOutcome.ALLOW,
+            FlowDecision.ALLOW,
+        ),
+        _case(
+            f"{spec.name}_blocks_true",
+            spec,
+            True,
+            block_observable,
+            FlowDecision.BLOCK,
+        ),
+    ]
 
 
 FIXTURES = [
@@ -554,6 +629,30 @@ FIXTURES = [
         {"is_match": True, "text": "secret", "detections": ["secret"]},
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
+    ),
+    *_boolean_flag_cases(
+        PRIVATEAI_DETECT_INPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_boolean_flag_cases(
+        PRIVATEAI_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_boolean_flag_cases(
+        GLINER_DETECT_INPUT,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_boolean_flag_cases(
+        GLINER_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_boolean_flag_cases(
+        SENSITIVE_DATA_DETECT_INPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_boolean_flag_cases(
+        SENSITIVE_DATA_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
