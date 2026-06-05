@@ -1,119 +1,125 @@
 # Domain Hallucination Guard Library
 
-A comprehensive library for detecting and preventing domain hallucinations in LLM outputs within the NeMo Guardrails framework.
+Domain Hallucination Guard detects unverifiable URLs, domains, and GitHub
+repositories in model-generated answers for NeMo Guardrails. It extracts
+external references, verifies them at a configurable depth, scores risk, and
+returns an enforcement decision that can pass, warn, refine, or block an answer.
 
 ## Features
 
-- **Entity Extraction**: Automatically extracts URLs, domains, and GitHub repositories from text
-- **Multi-level Verification**: DNS, HTTP, TLS, WHOIS/RDAP, and GitHub API verification
-- **Knowledge Base Integration**: Local seed KB + external KB support
-- **Risk Scoring**: Sophisticated risk scoring with issue aggregation and recalibration
-- **Semantic Analysis**: Optional semantic relevance checking
-- **Advanced Verification**: Typosquatting detection, HTTPS validation
-- **Flexible Enforcement**: Block, refine, warn, or pass decisions
-- **Configurable Thresholds**: Adjustable scoring and decision thresholds
+- Extracts URLs, bare domains, and GitHub repository references from text.
+- Supports verification levels: `none`, `dns`, `http`, and `full`.
+- Performs DNS, HTTP, TLS, WHOIS/RDAP, and GitHub repository checks.
+- Blocks private and non-public IP literals before HTTP probing to reduce SSRF risk.
+- Supports local seed KB data plus path-safe external KB files.
+- Scores issues by type, severity, and confidence, then recalibrates with evidence.
+- Provides optional semantic relevance and advanced typosquatting checks.
+- Applies configurable enforcement messages for block, refine, warn, and pass outcomes.
 
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────┐
-│         NeMo Guardrails Flow (flows.co)         │
-└─────────────────────────────────────────────────┘
-                        │
-                        ▼
-        ┌───────────────────────────────┐
-        │  analyze_answer() Action      │
-        │  (actions.py)                 │
-        └───────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-    ┌─────────┐  ┌─────────┐  ┌──────────────┐
-    │Extract  │  │Verify   │  │Query KB      │
-    │Entities │  │Evidence │  │(RAG)         │
-    └─────────┘  └─────────┘  └──────────────┘
-        │               │               │
-        └───────────────┼───────────────┘
-                        ▼
-        ┌───────────────────────────────┐
-        │ Aggregate Issues (checkers)   │
-        └───────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-    ┌─────────┐  ┌──────────┐  ┌──────────────┐
-    │Score    │  │Recalibr. │  │Semantic/Adv. │
-    │Risk     │  │           │  │Verification  │
-    └─────────┘  └──────────┘  └──────────────┘
-        │               │               │
-        └───────────────┼───────────────┘
-                        ▼
-        ┌───────────────────────────────┐
-        │ Make Decision (decision.py)   │
-        └───────────────────────────────┘
-                        │
-        ┌───────────────┴───────────────┐
-        ▼                               ▼
-    ENFORCE DECISION            MODIFIED ANSWER
-    (block/refine/warn/pass)
+NeMo Guardrails flow
+        |
+        v
+self_check_domain_hallucination / analyze_answer
+        |
+        +-- extract entities: URLs, domains, GitHub repos
+        |
+        +-- verify evidence according to verification_level
+        |      none: no network verification
+        |      dns: DNS only
+        |      http: DNS + HTTP
+        |      full: DNS + HTTP + TLS + WHOIS/RDAP + GitHub API
+        |
+        +-- query KB evidence
+        |
+        +-- aggregate issues
+        |
+        +-- calculate and recalibrate risk score
+        |
+        +-- optional semantic and advanced checks
+        |
+        v
+make decision -> apply enforcement -> return modified answer metadata
 ```
 
 ## Installation
 
 ```bash
-# Assuming the library is in nemoguardrails/library/domain_hallucination/
 python -m pip install -e .
 ```
 
+The module uses Python standard-library networking for DNS, HTTP, TLS,
+WHOIS/RDAP, and GitHub API calls. No additional runtime dependency is required
+for the domain hallucination module itself.
+
 ## Quick Start
 
-### 1. Basic Usage with NeMo Guardrails
-
-```python
-from nemoguardrails import RailsConfig
-from nemoguardrails.library.domain_hallucination import actions
-
-# In your NeMo rails config
-config = RailsConfig.from_path("config_folder")
-
-# Register the action in rails
-config.actions = [actions.analyze_answer]
-```
-
-### 2. Direct Usage
+### Direct Usage
 
 ```python
 import asyncio
+
 from nemoguardrails.library.domain_hallucination import actions
 
-async def main():
-    answer = "You can find more info at https://github.com/pytorch/pytorch"
-    query = "How do I use PyTorch?"
 
+async def main():
     result = await actions.analyze_answer(
-        answer=answer,
-        user_query=query,
+        answer="See https://github.com/pytorch/pytorch for details.",
+        user_query="How do I use PyTorch?",
         verification_level="dns",
         enable_semantic_check=False,
         enable_advanced_verification=False,
     )
 
-    print(f"Status: {result['status']}")
-    print(f"Decision: {result['decision']['action']}")
-    if result['decision']['action'] != 'pass':
-        print(f"Modified Answer: {result['enforced_answer']['modified_answer']}")
+    print(result["status"])
+    print(result["decision"]["action"])
+    print(result["enforced_answer"]["modified_answer"])
+
 
 asyncio.run(main())
 ```
 
-### 3. Configuration
+### Rail Action
 
-Create a config file `config.json`:
+The module exposes `self_check_domain_hallucination`, which is registered as a
+NeMo Guardrails action.
+
+```co
+flow self check domain hallucination
+  $domain_hallucination = await SelfCheckDomainHallucinationAction()
+
+  if $domain_hallucination["decision"]["action"] == "block"
+    bot say $domain_hallucination["enforced_answer"]["modified_answer"]
+    stop
+```
+
+## Verification Levels
+
+| Level | Checks | Notes |
+| --- | --- | --- |
+| `none` | No network checks | Fastest mode. High-risk block/refine decisions are downgraded to warn. |
+| `dns` | DNS resolution | Default balance for most uses. |
+| `http` | DNS + HTTP reachability | HTTP requests block private, loopback, link-local, and reserved IP literals. |
+| `full` | DNS + HTTP + TLS + WHOIS/RDAP + GitHub API | Strictest mode. GitHub API verification only runs at this level. |
+
+Invalid verification levels raise `ValueError` instead of silently skipping
+verification.
+
+## Configuration
+
+Create a JSON config file:
 
 ```json
 {
   "verification": {
     "level": "dns",
+    "dns_timeout": 4.0,
+    "http_timeout": 6.0,
+    "tls_timeout": 5.0,
+    "whois_timeout": 6.0,
+    "github_timeout": 6.0,
     "github_token": "ghp_xxxxx"
   },
   "scoring": {
@@ -133,7 +139,7 @@ Create a config file `config.json`:
 }
 ```
 
-Use the config:
+Load it with:
 
 ```python
 from nemoguardrails.library.domain_hallucination import config as dh_config
@@ -141,108 +147,38 @@ from nemoguardrails.library.domain_hallucination import config as dh_config
 loaded_config = dh_config.load_config("config.json")
 ```
 
-## Modules Overview
+## Environment Variables
 
-### extractors.py
-Extracts URLs, domains, and GitHub repositories from text with robust parsing and normalization.
+All environment variables use the `DOMAIN_HALLUCINATION_` prefix.
 
-**Key Functions:**
-- `extract_urls(text)` - Extract and normalize URLs
-- `extract_domains(text)` - Extract domain names
-- `extract_github_repos(urls)` - Parse GitHub repository URLs
-- `extract_all(text)` - Extract all entity types
+| Variable | Purpose |
+| --- | --- |
+| `VERIFICATION_LEVEL` | One of `none`, `dns`, `http`, `full`. |
+| `DNS_TIMEOUT` | DNS timeout in seconds. |
+| `HTTP_TIMEOUT` | HTTP timeout in seconds. |
+| `TLS_TIMEOUT` | TLS timeout in seconds. |
+| `WHOIS_TIMEOUT` | WHOIS/RDAP timeout in seconds. |
+| `GITHUB_TIMEOUT` | GitHub API timeout in seconds. |
+| `GITHUB_TOKEN` | Optional GitHub token for higher API limits. |
+| `SEMANTIC_CHECK` | `true` or `false`. |
+| `ADVANCED_VERIFICATION` | `true` or `false`. |
+| `FAIL_THRESHOLD` | Score threshold for block. |
+| `REFINE_THRESHOLD` | Score threshold for refine. |
+| `WARN_THRESHOLD` | Score threshold for warn. |
+| `SEED_KB_PATH` | Path to seed KB JSON. |
+| `EXTERNAL_KB_ROOT` | Root directory for external KB files. |
+| `DEBUG` | `true` or `false`. |
 
-### verification.py
-Performs DNS, HTTP, TLS certificate, WHOIS/RDAP, and GitHub API verification.
+Example:
 
-**Key Functions:**
-- `resolve_domain(domain)` - DNS resolution
-- `check_http_domain(url)` - HTTP accessibility check
-- `check_tls(domain)` - TLS certificate verification
-- `check_whois(domain)` - WHOIS/RDAP registration metadata lookup
-- `check_github_repo(repo_item)` - GitHub API verification
+```bash
+export DOMAIN_HALLUCINATION_VERIFICATION_LEVEL=full
+export DOMAIN_HALLUCINATION_GITHUB_TIMEOUT=8
+```
 
-### checkers.py
-Aggregates verification results into normalized issue types.
+## Knowledge Base
 
-**Key Functions:**
-- `check_domain_hallucination(extracted, verification, rag)` - Main checking logic
-- `_check_dns_failures()` - Detect non-existent domains
-- `_check_tls_failures()` - Detect TLS certificate problems
-- `_check_github_repos()` - Detect fake GitHub repos
-- `_check_phishing_domains()` - Detect suspicious domains
-
-### scoring.py
-Calculates risk scores and recalibrates based on verification evidence.
-
-**Key Functions:**
-- `calculate_risk_score(detection_result)` - Initial scoring
-- `recalibrate_score(risk_score, verification_results)` - Evidence-based adjustment
-
-### decision.py
-Makes enforcement decisions based on risk scores and policies.
-
-**Key Functions:**
-- `make_decision(risk_score, policy, verification_level)` - Determine action
-- `apply_decision(decision, answer)` - Modify answer based on action
-
-### kb.py
-Manages local seed knowledge base and external KB integration.
-
-**Key Classes:**
-- `KnowledgeBase` - In-memory KB for trusted/blacklisted domains and repos
-- `initialize_kb()` - Load seed KB and set external root
-
-### semantic.py
-Optional semantic relevance and advanced verification checks.
-
-**Key Functions:**
-- `check_semantic_relevance()` - Check if mentioned domains relate to query
-- `check_advanced_verification()` - Typosquatting, HTTPS, etc.
-
-### schemas.py
-Data structures for issues, detection results, and scores.
-
-**Key Classes:**
-- `Issue` - Represents a domain hallucination issue
-- `DetectionResult` - Aggregated detection results
-- `RiskScore` - Scoring result
-- `Decision` - Enforcement decision
-
-### config.py
-Configuration management with JSON serialization.
-
-**Key Classes:**
-- `DomainHallucinationGuardConfig` - Main config object
-- Environment variable support via `from_env()`
-
-## Verification Levels
-
-- **none**: No verification (fast, but no checking)
-- **dns**: DNS resolution only (default, good balance)
-- **http**: DNS + HTTP accessibility check
-- **full**: DNS + HTTP + TLS + WHOIS/RDAP + GitHub checks
-
-## Risk Scoring
-
-Scores are calculated by:
-1. **Base Score**: Issue type-specific base scores (0-100)
-2. **Severity Weight**: 1.5× (critical), 1.3× (high), 1.0× (medium), 0.7× (low)
-3. **Confidence Boost**: 1.0× (high), 0.8× (medium), 0.6× (low)
-4. **Bonus**: Additional points for multiple critical issues
-5. **Recalibration**: Adjusted down based on successful verification
-
-### Risk Levels
-
-- **L0 (Normal)**: Score 0-19 → Pass
-- **L1 (Low)**: Score 20-39 → Warn
-- **L2 (Medium)**: Score 40-59 → Refine
-- **L3 (High)**: Score 60-79 → Block
-- **L4 (Critical)**: Score 80+ → Block
-
-## Knowledge Base Format
-
-### Seed KB (JSON)
+### Seed KB
 
 ```json
 {
@@ -255,98 +191,72 @@ Scores are calculated by:
     "tensorflow/tensorflow"
   ],
   "blacklisted_domains": [
-    {"domain": "phishing.com", "reason": "Known phishing site"}
+    {"domain": "phishing.example", "reason": "Known phishing site"}
   ]
 }
 ```
 
-### External KB Structure
+### External KB
+
+External KB files are looked up under `external_kb_root/domains`. Domain names
+are accepted only when they match `[a-z0-9._-]+`, and resolved paths must remain
+under the configured KB root.
 
 ```text
 kb_root/
-├── domains/
-│   ├── github.com.json
-│   ├── pytorch.org.json
-│   └── *.example.com.json
-├── repos/
-│   └── pytorch_pytorch.json
-└── blacklist.json
+  domains/
+    github.com.json
+    pytorch.org.json
+    *.example.com.json
 ```
 
-## Environment Variables
+## Risk Scoring
 
-- `DOMAIN_HALLUCINATION_VERIFICATION_LEVEL`: dns, http, full
-- `DOMAIN_HALLUCINATION_FAIL_THRESHOLD`: 60.0
-- `DOMAIN_HALLUCINATION_SEMANTIC_CHECK`: true/false
-- `DOMAIN_HALLUCINATION_GITHUB_TOKEN`: GitHub API token
-- `DOMAIN_HALLUCINATION_SEED_KB_PATH`: Path to seed KB
-- `DOMAIN_HALLUCINATION_EXTERNAL_KB_ROOT`: External KB root dir
-- `DOMAIN_HALLUCINATION_DEBUG`: true/false
+Scoring combines:
 
-## Performance Considerations
+1. Issue type base score.
+2. Severity weight.
+3. Confidence multiplier.
+4. Bonus for critical or combined issue patterns.
+5. Recalibration from successful DNS, HTTP, GitHub, and KB evidence.
 
-1. **Fast Pass**: Enable `no_link_fast_pass` to skip checking when no links are detected
-2. **Verification Level**:
-   - Use "dns" for most cases (good balance)
-   - Use "none" for maximum speed
-   - Use "http" or "full" only when strict verification needed
-3. **Caching**: Consider caching verification results to avoid repeated checks
-4. **Async**: All verification is async to allow concurrent checking
+| Score | Level | Default Action |
+| --- | --- | --- |
+| 0-19 | L0 Normal | pass |
+| 20-39 | L1 Low | warn |
+| 40-59 | L2 Medium | refine |
+| 60-79 | L3 High | block |
+| 80-100 | L4 Critical | block |
 
-## Extending the Library
+## Module Overview
 
-### Add Custom Issue Types
+| Module | Purpose |
+| --- | --- |
+| `extractors.py` | Extract URLs, domains, and GitHub repositories. |
+| `verification.py` | DNS, HTTP, TLS, WHOIS/RDAP, and GitHub checks. |
+| `checkers.py` | Convert verification and KB evidence into issues. |
+| `scoring.py` | Calculate and recalibrate risk. |
+| `decision.py` | Select enforcement action and modify answers. |
+| `kb.py` | Manage trusted, blacklisted, seed, and external KB data. |
+| `semantic.py` | Optional relevance and typosquatting checks. |
+| `schemas.py` | Lightweight result schema helpers. |
+| `config.py` | JSON and environment-based configuration. |
+| `utils.py` | Convenience helpers for direct analysis. |
 
-Edit `scoring.py`:
+## Security Notes
 
-```python
-ISSUE_TYPE_SCORES = {
-    "my_custom_issue": 50.0,
-    # ...
-}
-```
-
-Then in `checkers.py`, add your custom checking function.
-
-### Add Custom Verification Methods
-
-Create a new function in `verification.py`:
-
-```python
-def check_custom_verification(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Custom verification logic."""
-    return {
-        "source": "custom",
-        "status": "verified",
-        "confidence": "high",
-    }
-```
-
-Call it in `actions.py`:
-
-```python
-custom_results = [check_custom_verification(item) for item in items]
-verification_results["custom"] = custom_results
-```
+- HTTP verification blocks private, loopback, link-local, and reserved IP literals before `urlopen`.
+- External KB lookup validates domain names and confirms resolved file paths remain under the KB root.
+- GitHub API checks only run at `verification_level="full"`.
+- Blocking verification work is delegated to an executor from async actions to avoid event-loop stalls.
 
 ## Testing
 
 ```bash
-# Run tests
-python -m pytest tests/
-
-# Run with coverage
-python -m pytest --cov=nemoguardrails/library/domain_hallucination tests/
+python -m pytest tests/library/domain_hallucination -q
+python -m pytest tests/library/domain_hallucination --cov=nemoguardrails.library.domain_hallucination --cov-report=term-missing -q
 ```
-
-## API Reference
-
-See docstrings in individual modules for detailed API documentation.
 
 ## License
 
 SPDX-License-Identifier: Apache-2.0
-
-## Contributing
-
-Contributions welcome! Please follow the existing code style and add tests for new features.
