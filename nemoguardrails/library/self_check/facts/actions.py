@@ -19,6 +19,7 @@ from typing import Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -27,34 +28,31 @@ from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
-
-def mapping_self_check_facts(result: float) -> bool:
-    """
-    Mapping for self_check_facts.
-
-    Expects result to be a numeric score (float) representing the factual accuracy.
-    Returns True (i.e. block the output) if the score is below 0.5.
-    """
-    THRESHOLD = 0.5
-    return result < THRESHOLD
+FACT_CHECK_THRESHOLD = 0.5
 
 
-@action(output_mapping=mapping_self_check_facts)
+def _fact_check_outcome(accuracy: float) -> RailOutcome:
+    if accuracy < FACT_CHECK_THRESHOLD:
+        return RailOutcome.block(accuracy=accuracy)
+    return RailOutcome.allow(accuracy=accuracy)
+
+
+@action()
 async def self_check_facts(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks the facts for the bot response by appropriately prompting the base llm."""
     _MAX_TOKENS = 1024
+    context = context or {}
     evidence = context.get("relevant_chunks", [])
     response = context.get("bot_message")
 
     if not evidence:
-        # If there is no evidence, we always return true
-        return True
+        return _fact_check_outcome(1.0)
     task = Task.SELF_CHECK_FACTS
     prompt = llm_task_manager.render_task_prompt(
         task=task,
@@ -66,21 +64,18 @@ async def self_check_facts(
     stop = llm_task_manager.get_stop_tokens(task=task)
     max_tokens = llm_task_manager.get_max_tokens(task=task)
     max_tokens = max_tokens or _MAX_TOKENS
+    temperature = config.lowest_temperature if config is not None else 0.0
 
-    # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=task.value))
 
     llm_response = await llm_call(
         llm,
         prompt,
         stop=stop,
-        llm_params={"temperature": config.lowest_temperature, "max_tokens": max_tokens},
+        llm_params={"temperature": temperature, "max_tokens": max_tokens},
     )
     if warn_if_truncated(llm_response, task.value):
-        # is_content_safe returns [False] on empty input, which this action
-        # inverts to "facts are correct". Fail safe instead: treat truncated
-        # content as a failed fact-check so the output gets blocked.
-        return 0.0
+        return _fact_check_outcome(0.0)
     response = llm_response.content
 
     if llm_task_manager.has_output_parser(task):
@@ -88,7 +83,7 @@ async def self_check_facts(
     else:
         result = llm_task_manager.parse_task_output(task, output=response, forced_output_parser="is_content_safe")
 
-    is_not_safe = result[0]
+    is_not_safe = bool(result[0])
 
     result = float(not is_not_safe)
-    return result
+    return _fact_check_outcome(result)

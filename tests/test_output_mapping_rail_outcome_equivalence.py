@@ -142,26 +142,30 @@ def test_content_safety_mapping_characterization_for_p3_golden():
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (True, False),
-        (False, True),
+        (RailOutcome.allow(), False),
+        (RailOutcome.block(), True),
     ],
 )
-def test_self_check_output_mapping_matches_default_interpret(raw_return, expected_blocked):
-    outcome_blocked = _candidate_is_blocked(raw_return)
+def test_self_check_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, self_check_output)
+    outcome = outcome_from_output_mapping(raw_return, self_check_output)
 
-    assert outcome_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_self_check_output_action_has_no_legacy_output_mapping():
+    assert getattr(self_check_output, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ((True, {"events": []}), False),
-        ((False, {"events": []}), True),
+        ((RailOutcome.allow(), {"events": []}), False),
+        ((RailOutcome.block(), {"events": []}), True),
     ],
 )
-def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return, expected_blocked):
+def test_self_check_output_bypass_tuple_unwrap_preserves_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, self_check_output)
     outcome_blocked = outcome_from_output_mapping(raw_return, self_check_output).is_blocked
 
@@ -170,26 +174,31 @@ def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return,
 
 
 @pytest.mark.parametrize(
-    ("action_func", "action_name"),
+    "action_func",
     [
-        (self_check_facts, "self_check_facts"),
-        (alignscore_check_facts, "alignscore_check_facts"),
+        self_check_facts,
+        alignscore_check_facts,
     ],
 )
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (0.49, True),
-        (0.5, False),
-        (0.51, False),
+        (RailOutcome.block(accuracy=0.49), True),
+        (RailOutcome.allow(accuracy=0.5), False),
+        (RailOutcome.allow(accuracy=0.51), False),
     ],
 )
-def test_fact_check_mapping_threshold_matches_default_interpret(action_func, action_name, raw_return, expected_blocked):
-    outcome_blocked = _candidate_is_blocked(raw_return)
+def test_fact_check_output_bypass_reads_rail_outcome(action_func, raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, action_func)
+    outcome = outcome_from_output_mapping(raw_return, action_func)
 
-    assert outcome_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+@pytest.mark.parametrize("action_func", [self_check_facts, alignscore_check_facts])
+def test_fact_check_actions_have_no_legacy_output_mapping(action_func):
+    assert getattr(action_func, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(

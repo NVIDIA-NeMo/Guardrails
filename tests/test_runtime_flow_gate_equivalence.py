@@ -1072,43 +1072,49 @@ def _cleanlab_result(score: float) -> dict[str, float]:
     return {"trustworthiness_score": score}
 
 
+def _fact_check_outcome(accuracy: float) -> RailOutcome:
+    if accuracy < 0.5:
+        return RailOutcome.block(accuracy=accuracy)
+    return RailOutcome.allow(accuracy=accuracy)
+
+
 def _risk_result(max_risk_score: float, violations: dict[str, float] | None = None) -> dict[str, Any]:
     return {"max_risk_score": max_risk_score, "violations": violations or {}}
 
 
 FIXTURES = [
     _case(
-        "self_check_output_allows_true",
+        "self_check_output_allows_outcome_allow",
         SELF_CHECK_OUTPUT,
-        True,
+        RailOutcome.allow(),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "self_check_output_blocks_false",
+        "self_check_output_blocks_outcome_block",
         SELF_CHECK_OUTPUT,
-        False,
+        RailOutcome.block(),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "self_check_input_allows_true",
+        "self_check_input_allows_outcome_allow",
         SELF_CHECK_INPUT,
-        True,
+        RailOutcome.allow(),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "self_check_input_blocks_false",
+        "self_check_input_blocks_outcome_block",
         SELF_CHECK_INPUT,
-        False,
+        RailOutcome.block(),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "self_check_input_blocks_false_exception",
+        "self_check_input_blocks_outcome_block_exception",
         SELF_CHECK_INPUT,
-        False,
+        RailOutcome.block(),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1116,7 +1122,7 @@ FIXTURES = [
     _case(
         "self_check_facts_blocks_below_threshold",
         SELF_CHECK_FACTS,
-        0.49,
+        _fact_check_outcome(0.49),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         context={"check_facts": True},
@@ -1124,7 +1130,7 @@ FIXTURES = [
     _case(
         "self_check_facts_allows_at_threshold",
         SELF_CHECK_FACTS,
-        0.5,
+        _fact_check_outcome(0.5),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_facts": True},
@@ -1132,7 +1138,7 @@ FIXTURES = [
     _case(
         "self_check_facts_allows_above_threshold",
         SELF_CHECK_FACTS,
-        0.51,
+        _fact_check_outcome(0.51),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_facts": True},
@@ -1140,7 +1146,7 @@ FIXTURES = [
     _case(
         "self_check_facts_blocks_below_threshold_exception",
         SELF_CHECK_FACTS,
-        0.49,
+        _fact_check_outcome(0.49),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1149,7 +1155,7 @@ FIXTURES = [
     _case(
         "alignscore_check_facts_blocks_below_threshold",
         ALIGNSCORE_CHECK_FACTS,
-        0.49,
+        _fact_check_outcome(0.49),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
         context={"check_facts": True},
@@ -1157,7 +1163,7 @@ FIXTURES = [
     _case(
         "alignscore_check_facts_allows_at_threshold",
         ALIGNSCORE_CHECK_FACTS,
-        0.5,
+        _fact_check_outcome(0.5),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_facts": True},
@@ -1165,7 +1171,7 @@ FIXTURES = [
     _case(
         "alignscore_check_facts_allows_above_threshold",
         ALIGNSCORE_CHECK_FACTS,
-        0.51,
+        _fact_check_outcome(0.51),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_facts": True},
@@ -1173,7 +1179,7 @@ FIXTURES = [
     _case(
         "alignscore_check_facts_blocks_below_threshold_exception",
         ALIGNSCORE_CHECK_FACTS,
-        0.49,
+        _fact_check_outcome(0.49),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,

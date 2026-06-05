@@ -1,7 +1,7 @@
 flow self check output $variant="self_check_output"
-  $allowed = await SelfCheckOutputAction(task=$variant)
+  $response = await SelfCheckOutputAction(task=$variant)
 
-  if not $allowed
+  if $response.is_blocked
     if $system.config.enable_rails_exceptions
       send OutputRailException(message="Output not allowed. The output was blocked by the 'self check output' flow.")
     else
