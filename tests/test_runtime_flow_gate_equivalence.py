@@ -60,6 +60,7 @@ class FlowEquivalenceCase:
     expected_observable: ObservableOutcome
     expected_decision: FlowDecision
     enable_rails_exceptions: bool = False
+    context: dict[str, Any] | None = None
 
 
 JAILBREAK_RAILS_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://localhost:9999"}}
@@ -70,6 +71,22 @@ SELF_CHECK_OUTPUT = RailSpec(
     direction="output",
     action="self_check_output",
     task="self_check_output",
+)
+
+SELF_CHECK_INPUT = RailSpec(
+    name="self_check_input",
+    flow="self check input",
+    direction="input",
+    action="self_check_input",
+    task="self_check_input",
+)
+
+SELF_CHECK_FACTS = RailSpec(
+    name="self_check_facts",
+    flow="self check facts",
+    direction="output",
+    action="self_check_facts",
+    task="self_check_facts",
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -126,6 +143,7 @@ def _case(
     expected_decision: FlowDecision,
     *,
     enable_rails_exceptions: bool = False,
+    context: dict[str, Any] | None = None,
 ) -> FlowEquivalenceCase:
     return FlowEquivalenceCase(
         case_id=case_id,
@@ -134,6 +152,7 @@ def _case(
         expected_observable=expected_observable,
         expected_decision=expected_decision,
         enable_rails_exceptions=enable_rails_exceptions,
+        context=context,
     )
 
 
@@ -190,6 +209,61 @@ FIXTURES = [
         False,
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
+    ),
+    _case(
+        "self_check_input_allows_true",
+        SELF_CHECK_INPUT,
+        True,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "self_check_input_blocks_false",
+        SELF_CHECK_INPUT,
+        False,
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "self_check_input_blocks_false_exception",
+        SELF_CHECK_INPUT,
+        False,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+    ),
+    _case(
+        "self_check_facts_blocks_below_threshold",
+        SELF_CHECK_FACTS,
+        0.49,
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        context={"check_facts": True},
+    ),
+    _case(
+        "self_check_facts_allows_at_threshold",
+        SELF_CHECK_FACTS,
+        0.5,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"check_facts": True},
+    ),
+    _case(
+        "self_check_facts_allows_above_threshold",
+        SELF_CHECK_FACTS,
+        0.51,
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"check_facts": True},
+    ),
+    _case(
+        "self_check_facts_blocks_below_threshold_exception",
+        SELF_CHECK_FACTS,
+        0.49,
+        ObservableOutcome.EXCEPTION,
+        FlowDecision.BLOCK,
+        enable_rails_exceptions=True,
+        context={"check_facts": True},
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
@@ -255,7 +329,11 @@ def _run_flow(case: FlowEquivalenceCase) -> dict[str, Any]:
         return case.raw_return
 
     chat.app.register_action(stub_action, case.spec.action)
-    response = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+    messages: list[dict[str, Any]] = [{"role": "user", "content": "hello"}]
+    if case.context:
+        messages.insert(0, {"role": "context", "content": case.context})
+
+    response = chat.app.generate(messages=messages)
     if not isinstance(response, dict):
         raise AssertionError(f"Unexpected runtime response type: {response!r}")
     return response

@@ -16,7 +16,10 @@
 import pytest
 
 from nemoguardrails.actions import action
-from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.output_mapping import (
+    is_output_blocked,
+    outcome_from_output_mapping,
+)
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
@@ -100,3 +103,18 @@ def test_self_check_output_mapping_matches_default_interpret(raw_return, expecte
 
     assert outcome_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ((True, {"events": []}), False),
+        ((False, {"events": []}), True),
+    ],
+)
+def test_self_check_output_mapping_tuple_unwrap_matches_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, self_check_output)
+    outcome_blocked = outcome_from_output_mapping(raw_return, self_check_output).is_blocked
+
+    assert mapping_blocked is expected_blocked
+    assert outcome_blocked is expected_blocked
