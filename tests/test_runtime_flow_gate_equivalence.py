@@ -20,12 +20,27 @@ from typing import Any, Callable
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.utils import TestChat
 
 NORMAL_OUTPUT = "NORMAL OUTPUT"
 REFUSAL = "I'm sorry, I can't respond to that."
 ANSWER_UNKNOWN = "I don't know the answer to that."
+USER_INPUT = "hello"
+RELEVANT_CHUNKS = "RELEVANT CHUNKS"
+RETRIEVAL_COLANG = """
+define user express greeting
+  "hello"
+
+define flow
+  user express greeting
+  bot express greeting
+
+define bot express greeting
+  "NORMAL OUTPUT"
+"""
 
 
 class ObservableOutcome(Enum):
@@ -65,6 +80,8 @@ class FlowEquivalenceCase:
     enable_rails_exceptions: bool = False
     context: dict[str, Any] | None = None
     expected_content: str | None = None
+    output_vars: list[str] | None = None
+    expected_output_data: dict[str, Any] | None = None
 
 
 JAILBREAK_RAILS_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://localhost:9999"}}
@@ -97,6 +114,14 @@ def _blocked_if_true(raw_return: Any) -> FlowDecision:
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
     return FlowDecision.TRANSFORM if raw_return != NORMAL_OUTPUT else FlowDecision.ALLOW
+
+
+def _transform_if_changed_from_user_input(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if raw_return != USER_INPUT else FlowDecision.ALLOW
+
+
+def _transform_if_changed_from_relevant_chunks(raw_return: Any) -> FlowDecision:
+    return FlowDecision.TRANSFORM if raw_return != RELEVANT_CHUNKS else FlowDecision.ALLOW
 
 
 SELF_CHECK_OUTPUT = RailSpec(
@@ -212,12 +237,28 @@ PRIVATEAI_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+PRIVATEAI_MASK_INPUT = RailSpec(
+    name="privateai_mask_input",
+    flow="mask pii on input",
+    direction="input",
+    action="mask_pii",
+    interpret=_transform_if_changed_from_user_input,
+)
+
 PRIVATEAI_MASK_OUTPUT = RailSpec(
     name="privateai_mask_output",
     flow="mask pii on output",
     direction="output",
     action="mask_pii",
     interpret=_transform_if_changed_from_normal_output,
+)
+
+PRIVATEAI_MASK_RETRIEVAL = RailSpec(
+    name="privateai_mask_retrieval",
+    flow="mask pii on retrieval",
+    direction="retrieval",
+    action="mask_pii",
+    interpret=_transform_if_changed_from_relevant_chunks,
 )
 
 GLINER_DETECT_INPUT = RailSpec(
@@ -236,12 +277,28 @@ GLINER_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+GLINER_MASK_INPUT = RailSpec(
+    name="gliner_mask_input",
+    flow="gliner mask pii on input",
+    direction="input",
+    action="gliner_mask_pii",
+    interpret=_transform_if_changed_from_user_input,
+)
+
 GLINER_MASK_OUTPUT = RailSpec(
     name="gliner_mask_output",
     flow="gliner mask pii on output",
     direction="output",
     action="gliner_mask_pii",
     interpret=_transform_if_changed_from_normal_output,
+)
+
+GLINER_MASK_RETRIEVAL = RailSpec(
+    name="gliner_mask_retrieval",
+    flow="gliner mask pii on retrieval",
+    direction="retrieval",
+    action="gliner_mask_pii",
+    interpret=_transform_if_changed_from_relevant_chunks,
 )
 
 SENSITIVE_DATA_DETECT_INPUT = RailSpec(
@@ -260,12 +317,28 @@ SENSITIVE_DATA_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+SENSITIVE_DATA_MASK_INPUT = RailSpec(
+    name="sensitive_data_mask_input",
+    flow="mask sensitive data on input",
+    direction="input",
+    action="mask_sensitive_data",
+    interpret=_transform_if_changed_from_user_input,
+)
+
 SENSITIVE_DATA_MASK_OUTPUT = RailSpec(
     name="sensitive_data_mask_output",
     flow="mask sensitive data on output",
     direction="output",
     action="mask_sensitive_data",
     interpret=_transform_if_changed_from_normal_output,
+)
+
+SENSITIVE_DATA_MASK_RETRIEVAL = RailSpec(
+    name="sensitive_data_mask_retrieval",
+    flow="mask sensitive data on retrieval",
+    direction="retrieval",
+    action="mask_sensitive_data",
+    interpret=_transform_if_changed_from_relevant_chunks,
 )
 
 CONTENT_SAFETY_OUTPUT = RailSpec(
@@ -324,6 +397,8 @@ def _case(
     enable_rails_exceptions: bool = False,
     context: dict[str, Any] | None = None,
     expected_content: str | None = None,
+    output_vars: list[str] | None = None,
+    expected_output_data: dict[str, Any] | None = None,
 ) -> FlowEquivalenceCase:
     return FlowEquivalenceCase(
         case_id=case_id,
@@ -334,6 +409,8 @@ def _case(
         enable_rails_exceptions=enable_rails_exceptions,
         context=context,
         expected_content=expected_content,
+        output_vars=output_vars,
+        expected_output_data=expected_output_data,
     )
 
 
@@ -452,6 +529,38 @@ def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
             ObservableOutcome.TRANSFORM,
             FlowDecision.TRANSFORM,
             expected_content=transformed_output,
+        ),
+    ]
+
+
+def _output_var_transform_cases(
+    spec: RailSpec,
+    *,
+    output_var: str,
+    original_value: str,
+    transformed_value: str,
+    context: dict[str, Any] | None = None,
+) -> list[FlowEquivalenceCase]:
+    return [
+        _case(
+            f"{spec.name}_allows_unchanged_{output_var}",
+            spec,
+            original_value,
+            ObservableOutcome.ALLOW,
+            FlowDecision.ALLOW,
+            context=context,
+            output_vars=[output_var],
+            expected_output_data={output_var: original_value},
+        ),
+        _case(
+            f"{spec.name}_transforms_changed_{output_var}",
+            spec,
+            transformed_value,
+            ObservableOutcome.TRANSFORM,
+            FlowDecision.TRANSFORM,
+            context=context,
+            output_vars=[output_var],
+            expected_output_data={output_var: transformed_value},
         ),
     ]
 
@@ -710,6 +819,45 @@ FIXTURES = [
     *_output_transform_cases(PRIVATEAI_MASK_OUTPUT),
     *_output_transform_cases(GLINER_MASK_OUTPUT),
     *_output_transform_cases(SENSITIVE_DATA_MASK_OUTPUT),
+    *_output_var_transform_cases(
+        PRIVATEAI_MASK_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="privateai masked input",
+    ),
+    *_output_var_transform_cases(
+        GLINER_MASK_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="gliner masked input",
+    ),
+    *_output_var_transform_cases(
+        SENSITIVE_DATA_MASK_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="sensitive data masked input",
+    ),
+    *_output_var_transform_cases(
+        PRIVATEAI_MASK_RETRIEVAL,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="privateai masked chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    *_output_var_transform_cases(
+        GLINER_MASK_RETRIEVAL,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="gliner masked chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    *_output_var_transform_cases(
+        SENSITIVE_DATA_MASK_RETRIEVAL,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="sensitive data masked chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
         allow_return=RailOutcome.allow(policy_violations=[]),
@@ -761,27 +909,49 @@ def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str,
     return config
 
 
-def _run_flow(case: FlowEquivalenceCase) -> dict[str, Any]:
+def _run_flow(case: FlowEquivalenceCase) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    colang_content = RETRIEVAL_COLANG if case.spec.direction == "retrieval" else None
     config = RailsConfig.from_content(
+        colang_content=colang_content,
         config=_build_config(
             case.spec,
             enable_rails_exceptions=case.enable_rails_exceptions,
-        )
+        ),
     )
-    chat = TestChat(config, llm_completions=[NORMAL_OUTPUT])
+    llm_completions = ["  express greeting"] if case.spec.direction == "retrieval" else [NORMAL_OUTPUT]
+    chat = TestChat(config, llm_completions=llm_completions)
 
     async def stub_action(**kwargs):
         return case.raw_return
 
     chat.app.register_action(stub_action, case.spec.action)
-    messages: list[dict[str, Any]] = [{"role": "user", "content": "hello"}]
+    if case.spec.direction == "retrieval":
+
+        def retrieve_relevant_chunks():
+            return ActionResult(
+                return_value=RELEVANT_CHUNKS,
+                context_updates={"relevant_chunks": RELEVANT_CHUNKS},
+            )
+
+        chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+
+    messages: list[dict[str, Any]] = [{"role": "user", "content": USER_INPUT}]
     if case.context:
         messages.insert(0, {"role": "context", "content": case.context})
 
-    response = chat.app.generate(messages=messages)
+    options = {"output_vars": case.output_vars} if case.output_vars else None
+    response = chat.app.generate(messages=messages, options=options)
+    if isinstance(response, GenerationResponse):
+        message = response.response
+        if not isinstance(message, list) or len(message) != 1:
+            raise AssertionError(f"Unexpected runtime response: {response!r}")
+        if not isinstance(message[0], dict):
+            raise AssertionError(f"Unexpected runtime response: {response!r}")
+        return message[0], response.output_data
+
     if not isinstance(response, dict):
         raise AssertionError(f"Unexpected runtime response type: {response!r}")
-    return response
+    return response, None
 
 
 def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
@@ -828,11 +998,16 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
 
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
 def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
-    response = _run_flow(case)
+    response, output_data = _run_flow(case)
     observable = _classify_response(response)
+
+    if observable is ObservableOutcome.ALLOW and case.expected_decision is FlowDecision.TRANSFORM:
+        observable = ObservableOutcome.TRANSFORM
 
     assert observable is case.expected_observable
     assert _decision_from_observable(observable) is case.expected_decision
     assert _outcome_decision(case.raw_return, case.spec) is case.expected_decision
     if case.expected_content is not None:
         assert response == {"role": "assistant", "content": case.expected_content}
+    if case.expected_output_data is not None:
+        assert output_data == case.expected_output_data
