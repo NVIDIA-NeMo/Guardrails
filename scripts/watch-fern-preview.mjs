@@ -11,6 +11,7 @@ const fernRoot = path.join(repoRoot, "fern");
 const watchRoots = ["docs", "fern"];
 const ignoredDirectoryNames = new Set([".fern-cache", ".git", "_build", "node_modules"]);
 const debounceMs = 500;
+const fernDocsInstance = "nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails";
 
 const fernConfig = JSON.parse(readFileSync(path.join(fernRoot, "fern.config.json"), "utf8"));
 const trimmedFernVersion = typeof fernConfig.version === "string" ? fernConfig.version.trim() : "";
@@ -168,6 +169,8 @@ function runFernGenerate(reason) {
     "--preview",
     "--id",
     branchName,
+    "--instance",
+    fernDocsInstance,
     "--force",
   ];
 

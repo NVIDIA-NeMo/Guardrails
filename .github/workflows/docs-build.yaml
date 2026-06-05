@@ -78,10 +78,11 @@ jobs:
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
           PREVIEW_ID: pr-${{ github.event.pull_request.number }}
+          FERN_DOCS_INSTANCE: nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
         run: |
           FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
           cd fern
-          npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force
+          npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force --instance "${FERN_DOCS_INSTANCE}"
 
       - name: Comment preview URL
         uses: actions/github-script@v8
