@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import textwrap
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -42,115 +41,86 @@ class FlowDecision(Enum):
 
 
 @dataclass(frozen=True)
+class RailSpec:
+    name: str
+    flow: str
+    direction: str
+    action: str
+    model_type: str | None = None
+    task: str | None = None
+    output_parser: str | None = None
+    rails_config: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
 class FlowEquivalenceCase:
     case_id: str
-    yaml_content: str
-    action_name: str
+    spec: RailSpec
     raw_return: Any
     expected_observable: ObservableOutcome
     expected_decision: FlowDecision
     enable_rails_exceptions: bool = False
 
 
-SELF_CHECK_OUTPUT_YAML = textwrap.dedent(
-    """
-    models: []
-    rails:
-      output:
-        flows:
-          - self check output
-    prompts:
-      - task: self_check_output
-        content: ...
-    """
+JAILBREAK_RAILS_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://localhost:9999"}}
+
+SELF_CHECK_OUTPUT = RailSpec(
+    name="self_check_output",
+    flow="self check output",
+    direction="output",
+    action="self_check_output",
+    task="self_check_output",
 )
 
-
-CONTENT_SAFETY_OUTPUT_YAML = textwrap.dedent(
-    """
-    models:
-      - type: content_safety
-        engine: openai
-        model: placeholder
-    rails:
-      output:
-        flows:
-          - content safety check output $model=content_safety
-    prompts:
-      - task: content_safety_check_output $model=content_safety
-        content: ...
-        output_parser: nemoguard_parse_prompt_safety
-    """
+CONTENT_SAFETY_OUTPUT = RailSpec(
+    name="content_safety_output",
+    flow="content safety check output $model=content_safety",
+    direction="output",
+    action="content_safety_check_output",
+    model_type="content_safety",
+    task="content_safety_check_output $model=content_safety",
+    output_parser="nemoguard_parse_prompt_safety",
 )
 
-
-CONTENT_SAFETY_INPUT_YAML = textwrap.dedent(
-    """
-    models:
-      - type: content_safety
-        engine: openai
-        model: placeholder
-    rails:
-      input:
-        flows:
-          - content safety check input $model=content_safety
-    prompts:
-      - task: content_safety_check_input $model=content_safety
-        content: ...
-        output_parser: nemoguard_parse_prompt_safety
-    """
+CONTENT_SAFETY_INPUT = RailSpec(
+    name="content_safety_input",
+    flow="content safety check input $model=content_safety",
+    direction="input",
+    action="content_safety_check_input",
+    model_type="content_safety",
+    task="content_safety_check_input $model=content_safety",
+    output_parser="nemoguard_parse_prompt_safety",
 )
 
-
-TOPIC_SAFETY_INPUT_YAML = textwrap.dedent(
-    """
-    models:
-      - type: topic_control
-        engine: openai
-        model: placeholder
-    rails:
-      input:
-        flows:
-          - topic safety check input $model=topic_control
-    prompts:
-      - task: topic_safety_check_input $model=topic_control
-        content: ...
-    """
+TOPIC_SAFETY_INPUT = RailSpec(
+    name="topic_safety_input",
+    flow="topic safety check input $model=topic_control",
+    direction="input",
+    action="topic_safety_check_input",
+    model_type="topic_control",
+    task="topic_safety_check_input $model=topic_control",
 )
 
-
-JAILBREAK_HEURISTICS_INPUT_YAML = textwrap.dedent(
-    """
-    models: []
-    rails:
-      config:
-        jailbreak_detection:
-          server_endpoint: http://localhost:9999
-      input:
-        flows:
-          - jailbreak detection heuristics
-    """
+JAILBREAK_HEURISTICS_INPUT = RailSpec(
+    name="jailbreak_heuristics_input",
+    flow="jailbreak detection heuristics",
+    direction="input",
+    action="jailbreak_detection_heuristics",
+    rails_config=JAILBREAK_RAILS_CONFIG,
 )
 
-
-JAILBREAK_MODEL_INPUT_YAML = textwrap.dedent(
-    """
-    models: []
-    rails:
-      config:
-        jailbreak_detection:
-          server_endpoint: http://localhost:9999
-      input:
-        flows:
-          - jailbreak detection model
-    """
+JAILBREAK_MODEL_INPUT = RailSpec(
+    name="jailbreak_model_input",
+    flow="jailbreak detection model",
+    direction="input",
+    action="jailbreak_detection_model",
+    rails_config=JAILBREAK_RAILS_CONFIG,
 )
 
 
 def _case(
     case_id: str,
-    yaml_content: str,
-    action_name: str,
+    spec: RailSpec,
     raw_return: Any,
     expected_observable: ObservableOutcome,
     expected_decision: FlowDecision,
@@ -159,8 +129,7 @@ def _case(
 ) -> FlowEquivalenceCase:
     return FlowEquivalenceCase(
         case_id=case_id,
-        yaml_content=yaml_content,
-        action_name=action_name,
+        spec=spec,
         raw_return=raw_return,
         expected_observable=expected_observable,
         expected_decision=expected_decision,
@@ -169,9 +138,7 @@ def _case(
 
 
 def _rail_outcome_cases(
-    prefix: str,
-    yaml_content: str,
-    action_name: str,
+    spec: RailSpec,
     *,
     allow_return: RailOutcome | None = None,
     block_return: RailOutcome | None = None,
@@ -181,17 +148,15 @@ def _rail_outcome_cases(
     block_return = block_return or RailOutcome.block()
     cases = [
         _case(
-            f"{prefix}_allows_outcome_allow",
-            yaml_content,
-            action_name,
+            f"{spec.name}_allows_outcome_allow",
+            spec,
             allow_return,
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
         ),
         _case(
-            f"{prefix}_blocks_outcome_block",
-            yaml_content,
-            action_name,
+            f"{spec.name}_blocks_outcome_block",
+            spec,
             block_return,
             ObservableOutcome.REFUSAL,
             FlowDecision.BLOCK,
@@ -200,9 +165,8 @@ def _rail_outcome_cases(
     if include_exception_case:
         cases.append(
             _case(
-                f"{prefix}_blocks_outcome_block_exception",
-                yaml_content,
-                action_name,
+                f"{spec.name}_blocks_outcome_block_exception",
+                spec,
                 block_return,
                 ObservableOutcome.EXCEPTION,
                 FlowDecision.BLOCK,
@@ -213,9 +177,7 @@ def _rail_outcome_cases(
 
 
 def _legacy_cases(
-    prefix: str,
-    yaml_content: str,
-    action_name: str,
+    spec: RailSpec,
     *,
     allow_return: Any,
     block_return: Any,
@@ -223,17 +185,15 @@ def _legacy_cases(
 ) -> list[FlowEquivalenceCase]:
     cases = [
         _case(
-            f"{prefix}_allows_legacy_return",
-            yaml_content,
-            action_name,
+            f"{spec.name}_allows_legacy_return",
+            spec,
             allow_return,
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
         ),
         _case(
-            f"{prefix}_blocks_legacy_return",
-            yaml_content,
-            action_name,
+            f"{spec.name}_blocks_legacy_return",
+            spec,
             block_return,
             ObservableOutcome.REFUSAL,
             FlowDecision.BLOCK,
@@ -242,9 +202,8 @@ def _legacy_cases(
     if include_exception_case:
         cases.append(
             _case(
-                f"{prefix}_blocks_legacy_return_exception",
-                yaml_content,
-                action_name,
+                f"{spec.name}_blocks_legacy_return_exception",
+                spec,
                 block_return,
                 ObservableOutcome.EXCEPTION,
                 FlowDecision.BLOCK,
@@ -257,56 +216,44 @@ def _legacy_cases(
 FIXTURES = [
     _case(
         "self_check_output_allows_true",
-        SELF_CHECK_OUTPUT_YAML,
-        "self_check_output",
+        SELF_CHECK_OUTPUT,
         True,
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "self_check_output_blocks_false",
-        SELF_CHECK_OUTPUT_YAML,
-        "self_check_output",
+        SELF_CHECK_OUTPUT,
         False,
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     *_legacy_cases(
-        "content_safety_input",
-        CONTENT_SAFETY_INPUT_YAML,
-        "content_safety_check_input",
+        CONTENT_SAFETY_INPUT,
         allow_return={"allowed": True, "policy_violations": []},
         block_return={"allowed": False, "policy_violations": ["violence"]},
         include_exception_case=True,
     ),
     *_legacy_cases(
-        "content_safety_output",
-        CONTENT_SAFETY_OUTPUT_YAML,
-        "content_safety_check_output",
+        CONTENT_SAFETY_OUTPUT,
         allow_return={"allowed": True, "policy_violations": []},
         block_return={"allowed": False, "policy_violations": ["violence"]},
         include_exception_case=True,
     ),
     *_legacy_cases(
-        "topic_safety_input",
-        TOPIC_SAFETY_INPUT_YAML,
-        "topic_safety_check_input",
+        TOPIC_SAFETY_INPUT,
         allow_return={"on_topic": True},
         block_return={"on_topic": False},
         include_exception_case=True,
     ),
     *_legacy_cases(
-        "jailbreak_heuristics_input",
-        JAILBREAK_HEURISTICS_INPUT_YAML,
-        "jailbreak_detection_heuristics",
+        JAILBREAK_HEURISTICS_INPUT,
         allow_return=False,
         block_return=True,
         include_exception_case=True,
     ),
     *_legacy_cases(
-        "jailbreak_model_input",
-        JAILBREAK_MODEL_INPUT_YAML,
-        "jailbreak_detection_model",
+        JAILBREAK_MODEL_INPUT,
         allow_return=False,
         block_return=True,
         include_exception_case=True,
@@ -314,19 +261,47 @@ FIXTURES = [
 ]
 
 
-def _yaml_with_exception_mode(case: FlowEquivalenceCase) -> str:
-    return case.yaml_content + f"\nenable_rails_exceptions: {str(case.enable_rails_exceptions).lower()}\n"
+def _build_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str, Any]:
+    models = []
+    if spec.model_type:
+        models.append({"type": spec.model_type, "engine": "openai", "model": "placeholder"})
+
+    rails: dict[str, Any] = {spec.direction: {"flows": [spec.flow]}}
+    if spec.rails_config:
+        rails["config"] = spec.rails_config
+
+    config: dict[str, Any] = {
+        "models": models,
+        "rails": rails,
+        "enable_rails_exceptions": enable_rails_exceptions,
+    }
+
+    if spec.task:
+        prompt = {"task": spec.task, "content": "..."}
+        if spec.output_parser:
+            prompt["output_parser"] = spec.output_parser
+        config["prompts"] = [prompt]
+
+    return config
 
 
 def _run_flow(case: FlowEquivalenceCase) -> dict[str, Any]:
-    config = RailsConfig.from_content(yaml_content=_yaml_with_exception_mode(case))
+    config = RailsConfig.from_content(
+        config=_build_config(
+            case.spec,
+            enable_rails_exceptions=case.enable_rails_exceptions,
+        )
+    )
     chat = TestChat(config, llm_completions=[NORMAL_OUTPUT])
 
     async def stub_action(**kwargs):
         return case.raw_return
 
-    chat.app.register_action(stub_action, case.action_name)
-    return chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+    chat.app.register_action(stub_action, case.spec.action)
+    response = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+    if not isinstance(response, dict):
+        raise AssertionError(f"Unexpected runtime response type: {response!r}")
+    return response
 
 
 def _classify_response(response: dict[str, Any]) -> ObservableOutcome:
@@ -375,4 +350,4 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
 
     assert observable is case.expected_observable
     assert _decision_from_observable(observable) is case.expected_decision
-    assert _outcome_decision(case.raw_return, case.action_name) is case.expected_decision
+    assert _outcome_decision(case.raw_return, case.spec.action) is case.expected_decision
