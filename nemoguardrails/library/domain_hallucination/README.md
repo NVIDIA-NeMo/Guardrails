@@ -15,7 +15,7 @@ A comprehensive library for detecting and preventing domain hallucinations in LL
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │         NeMo Guardrails Flow (flows.co)         │
 └─────────────────────────────────────────────────┘
@@ -262,7 +262,7 @@ Scores are calculated by:
 
 ### External KB Structure
 
-```
+```text
 kb_root/
 ├── domains/
 │   ├── github.com.json
