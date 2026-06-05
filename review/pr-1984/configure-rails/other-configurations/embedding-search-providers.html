@@ -702,7 +702,7 @@
 <h1>Embedding Search Providers<a class="headerlink" href="#embedding-search-providers" title="Link to this heading">#</a></h1>
 <p>NeMo Guardrails utilizes embedding search, also known as vector databases, for implementing the <a class="reference internal" href="../../reference/colang-architecture-guide.html#the-guardrails-process"><span class="std std-ref">guardrails process</span></a> and for the <a class="reference internal" href="knowledge-base.html"><span class="std std-doc">knowledge base</span></a> functionality.</p>
 <p>To enhance the efficiency of the embedding search process, NeMo Guardrails can employ a caching mechanism for embeddings. This mechanism stores computed embeddings, thereby reducing the need for repeated computations and accelerating the search process. By default, the caching mechanism is disabled.</p>
-<p>The default embedding search uses FastEmbed for computing the embeddings (the <code class="docutils literal notranslate"><span class="pre">all-MiniLM-L6-v2</span></code> model) and Annoy for performing the search. The default configuration is as follows:</p>
+<p>The default embedding search uses FastEmbed for computing embeddings (the <code class="docutils literal notranslate"><span class="pre">all-MiniLM-L6-v2</span></code> model) and an exact NumPy index for similarity search. The default configuration is as follows:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">embedding_search_provider</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>

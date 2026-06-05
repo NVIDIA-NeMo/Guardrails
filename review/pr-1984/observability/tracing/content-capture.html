@@ -728,6 +728,7 @@ Only enable it when necessary, restrict access to the backend that receives the 
 <p>Content is only captured when tracing is also enabled — there is no point recording content onto spans that are never exported.</p>
 <section id="environment-variable-override">
 <h3>Environment Variable Override<a class="headerlink" href="#environment-variable-override" title="Link to this heading">#</a></h3>
+<p><em>Applies to the IORails engine only — see <a class="reference internal" href="#engine-support">Engine Support</a> below.</em></p>
 <p>The <code class="docutils literal notranslate"><span class="pre">OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</span></code> environment variable overrides the config field in <strong>both</strong> directions.
 This gives operators a single OpenTelemetry-standard switch to flip capture across all services, regardless of what each deployed <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> says.</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -754,6 +755,7 @@ This gives operators a single OpenTelemetry-standard switch to flip capture acro
 </section>
 <section id="output-format">
 <h2>Output Format<a class="headerlink" href="#output-format" title="Link to this heading">#</a></h2>
+<p><em>Applies to the IORails engine only — see <a class="reference internal" href="#engine-support">Engine Support</a> below.</em></p>
 <p>Captured content is emitted in one of two forms, selected by the <code class="docutils literal notranslate"><span class="pre">OTEL_SEMCONV_STABILITY_OPT_IN</span></code> environment variable.
 This variable holds a comma-separated list of opt-in tokens.</p>
 <div class="pst-scrollable-table-container"><table class="table">
