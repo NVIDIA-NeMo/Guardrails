@@ -320,27 +320,28 @@ def check_tls(domain: str, timeout: float = 5.0) -> Dict[str, Any]:
     try:
         addrs = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
         for addr_info in addrs:
-            ip_str = addr_info[4][0]
-            ip = ipaddress.ip_address(ip_str)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                return {
-                    "source": "tls",
-                    "domain": domain,
-                    "status": "tls_blocked",
-                    "confidence": "high",
-                    "use_in_scoring": False,
-                    "error": "blocked private or non-public IP address",
-                    "checked_at_utc": utc_now(),
-                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
-                }
-            # Save the first safe address for direct connection (no re-resolution).
-            if safe_sockaddr is None:
-                safe_sockaddr = addr_info[4]
+            try:
+                ip_str = addr_info[4][0]
+                ip = ipaddress.ip_address(ip_str)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    return {
+                        "source": "tls",
+                        "domain": domain,
+                        "status": "tls_blocked",
+                        "confidence": "high",
+                        "use_in_scoring": False,
+                        "error": "blocked private or non-public IP address",
+                        "checked_at_utc": utc_now(),
+                        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                    }
+                # Save the first safe address for direct connection (no re-resolution).
+                if safe_sockaddr is None:
+                    safe_sockaddr = addr_info[4]
+            except ValueError:
+                # ip_address() parsing failed for this address, skip it and check others
+                continue
     except socket.gaierror:
         # DNS failed, fall through to the regular exception handling below
-        pass
-    except ValueError:
-        # ip_address() parsing failed, unusual but not a blockable case
         pass
 
     try:
