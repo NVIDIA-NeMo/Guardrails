@@ -314,6 +314,9 @@ def check_tls(domain: str, timeout: float = 5.0) -> Dict[str, Any]:
     # Pre-check: validate that domain doesn't resolve to a private IP (SSRF prevention).
     # Unlike check_http_domain, socket.create_connection() doesn't validate the IP,
     # so we must do DNS resolution first and reject private-range results.
+    # Use the pre-resolved address directly to avoid TOCTOU race where socket.create_connection()
+    # re-resolves the domain and gets a different result.
+    safe_sockaddr = None
     try:
         addrs = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
         for addr_info in addrs:
@@ -330,6 +333,9 @@ def check_tls(domain: str, timeout: float = 5.0) -> Dict[str, Any]:
                     "checked_at_utc": utc_now(),
                     "latency_ms": round((time.perf_counter() - started) * 1000, 2),
                 }
+            # Save the first safe address for direct connection (no re-resolution).
+            if safe_sockaddr is None:
+                safe_sockaddr = addr_info[4]
     except socket.gaierror:
         # DNS failed, fall through to the regular exception handling below
         pass
@@ -339,7 +345,10 @@ def check_tls(domain: str, timeout: float = 5.0) -> Dict[str, Any]:
 
     try:
         context = ssl.create_default_context()
-        with socket.create_connection((domain, 443), timeout=timeout) as sock:
+        # Use the pre-validated sockaddr directly to avoid re-resolution.
+        # If we don't have a safe address, let the exception handlers catch it below.
+        target = safe_sockaddr if safe_sockaddr else (domain, 443)
+        with socket.create_connection(target, timeout=timeout) as sock:
             with context.wrap_socket(sock, server_hostname=domain) as secure_sock:
                 cert = secure_sock.getpeercert()
                 not_after = cert.get("notAfter", "")
