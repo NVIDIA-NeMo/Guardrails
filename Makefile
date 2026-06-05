@@ -32,17 +32,18 @@ docs-serve:
 
 docs-fern: docs-fern-strict
 
-docs-fern-strict:
+docs-fern-strict: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check
 
-docs-fern-live:
+docs-fern-live: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
 
-docs-fern-preview-watch:
+docs-fern-preview-watch: docs-fern-generate-sdk
 	node scripts/watch-fern-preview.mjs
 
 docs-fern-generate-sdk:
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk
+	node scripts/normalize-fern-sdk-reference.mjs
 
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs

@@ -1,11 +1,11 @@
 {
   "scripts": {
-    "docs": "npm run docs:strict",
+    "docs": "make docs-fern",
     "docs:convert": "node docs/convert-docs-to-fern.mjs && node docs/generate-fern-navigation.mjs",
     "docs:deps": "node -p \"require('./fern/fern.config.json').version\" | xargs -I {} npx --yes fern-api@{} --version",
-    "docs:preview:watch": "node scripts/watch-fern-preview.mjs",
-    "docs:strict": "FERN_VERSION=$(node -p \"require('./fern/fern.config.json').version\") && cd fern && npx --yes \"fern-api@${FERN_VERSION}\" check",
-    "docs:live": "FERN_VERSION=$(node -p \"require('./fern/fern.config.json').version\") && cd fern && npx --yes \"fern-api@${FERN_VERSION}\" docs dev"
+    "docs:preview:watch": "make docs-fern-preview-watch",
+    "docs:strict": "make docs-fern-strict",
+    "docs:live": "make docs-fern-live"
   },
   "dependencies": {
     "yaml": "^2.9.0"

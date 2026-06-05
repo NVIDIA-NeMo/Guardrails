@@ -140,6 +140,9 @@ function shouldTriggerRun(candidatePath) {
   if (relativePath === "docs/index.yml") {
     return false;
   }
+  if (relativePath.startsWith("docs/_static/python-sdk-reference/")) {
+    return false;
+  }
   return true;
 }
 
@@ -169,6 +172,13 @@ function runFernGenerate(reason) {
   ];
 
   console.log(`\n[${new Date().toLocaleTimeString()}] Running Fern (${reason})`);
+  if (!generateSdkReference()) {
+    running = false;
+    if (pending) {
+      runFernGenerate("queued file change");
+    }
+    return;
+  }
   console.log(`cd fern && npx ${args.join(" ")}`);
 
   const child = spawn("npx", args, {
@@ -199,6 +209,18 @@ function runFernGenerate(reason) {
       runFernGenerate("queued file change");
     }
   });
+}
+
+function generateSdkReference() {
+  const result = spawnSync("make", ["docs-fern-generate-sdk"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+  if (result.status === 0) {
+    return true;
+  }
+  console.error("Failed to generate Python SDK reference docs.");
+  return false;
 }
 
 function closeWatchers() {
