@@ -22,6 +22,8 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.crowdstrike_aidr.actions import GuardChatCompletionsResult
+from nemoguardrails.library.pangea.actions import TextGuardResult
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.utils import TestChat
 
@@ -122,6 +124,22 @@ def _transform_if_changed_from_user_input(raw_return: Any) -> FlowDecision:
 
 def _transform_if_changed_from_relevant_chunks(raw_return: Any) -> FlowDecision:
     return FlowDecision.TRANSFORM if raw_return != RELEVANT_CHUNKS else FlowDecision.ALLOW
+
+
+def _blocked_or_transformed(raw_return: Any) -> FlowDecision:
+    if raw_return.blocked:
+        return FlowDecision.BLOCK
+    if raw_return.transformed:
+        return FlowDecision.TRANSFORM
+    return FlowDecision.ALLOW
+
+
+def _prompt_security_decision(raw_return: Any) -> FlowDecision:
+    if raw_return["is_blocked"]:
+        return FlowDecision.BLOCK
+    if raw_return["is_modified"]:
+        return FlowDecision.TRANSFORM
+    return FlowDecision.ALLOW
 
 
 SELF_CHECK_OUTPUT = RailSpec(
@@ -386,6 +404,54 @@ JAILBREAK_MODEL_INPUT = RailSpec(
     rails_config=JAILBREAK_RAILS_CONFIG,
 )
 
+PANGEA_INPUT = RailSpec(
+    name="pangea_input",
+    flow="pangea ai guard input",
+    direction="input",
+    action="pangea_ai_guard",
+    interpret=_blocked_or_transformed,
+)
+
+PANGEA_OUTPUT = RailSpec(
+    name="pangea_output",
+    flow="pangea ai guard output",
+    direction="output",
+    action="pangea_ai_guard",
+    interpret=_blocked_or_transformed,
+)
+
+CROWDSTRIKE_AIDR_INPUT = RailSpec(
+    name="crowdstrike_aidr_input",
+    flow="crowdstrike aidr guard input",
+    direction="input",
+    action="crowdstrike_aidr_guard",
+    interpret=_blocked_or_transformed,
+)
+
+CROWDSTRIKE_AIDR_OUTPUT = RailSpec(
+    name="crowdstrike_aidr_output",
+    flow="crowdstrike aidr guard output",
+    direction="output",
+    action="crowdstrike_aidr_guard",
+    interpret=_blocked_or_transformed,
+)
+
+PROMPT_SECURITY_INPUT = RailSpec(
+    name="prompt_security_input",
+    flow="protect prompt",
+    direction="input",
+    action="protect_text",
+    interpret=_prompt_security_decision,
+)
+
+PROMPT_SECURITY_OUTPUT = RailSpec(
+    name="prompt_security_output",
+    flow="protect response",
+    direction="output",
+    action="protect_text",
+    interpret=_prompt_security_decision,
+)
+
 
 def _case(
     case_id: str,
@@ -563,6 +629,102 @@ def _output_var_transform_cases(
             expected_output_data={output_var: transformed_value},
         ),
     ]
+
+
+def _guard_result_cases(
+    spec: RailSpec,
+    *,
+    allow_return: Any,
+    block_return: Any,
+    transform_return: Any,
+    block_and_transform_return: Any,
+    transformed_value: str,
+) -> list[FlowEquivalenceCase]:
+    if spec.direction == "output":
+        transform_kwargs: dict[str, Any] = {"expected_content": transformed_value}
+        allow_kwargs: dict[str, Any] = {"expected_content": NORMAL_OUTPUT}
+    else:
+        transform_kwargs = {
+            "output_vars": ["user_message"],
+            "expected_output_data": {"user_message": transformed_value},
+        }
+        allow_kwargs = {
+            "output_vars": ["user_message"],
+            "expected_output_data": {"user_message": USER_INPUT},
+        }
+
+    return [
+        _case(
+            f"{spec.name}_allows",
+            spec,
+            allow_return,
+            ObservableOutcome.ALLOW,
+            FlowDecision.ALLOW,
+            **allow_kwargs,
+        ),
+        _case(
+            f"{spec.name}_blocks",
+            spec,
+            block_return,
+            ObservableOutcome.ANSWER_UNKNOWN,
+            FlowDecision.BLOCK,
+        ),
+        _case(
+            f"{spec.name}_blocks_exception",
+            spec,
+            block_return,
+            ObservableOutcome.EXCEPTION,
+            FlowDecision.BLOCK,
+            enable_rails_exceptions=True,
+        ),
+        _case(
+            f"{spec.name}_transforms",
+            spec,
+            transform_return,
+            ObservableOutcome.TRANSFORM,
+            FlowDecision.TRANSFORM,
+            **transform_kwargs,
+        ),
+        _case(
+            f"{spec.name}_block_wins_over_transform",
+            spec,
+            block_and_transform_return,
+            ObservableOutcome.ANSWER_UNKNOWN,
+            FlowDecision.BLOCK,
+        ),
+    ]
+
+
+def _text_guard_result(*, blocked: bool, transformed: bool, user_message: str, bot_message: str) -> TextGuardResult:
+    return TextGuardResult(
+        blocked=blocked,
+        transformed=transformed,
+        user_message=user_message,
+        bot_message=bot_message,
+    )
+
+
+def _crowdstrike_result(
+    *,
+    blocked: bool,
+    transformed: bool,
+    user_message: str,
+    bot_message: str,
+) -> GuardChatCompletionsResult:
+    return GuardChatCompletionsResult(
+        blocked=blocked,
+        transformed=transformed,
+        user_message=user_message,
+        bot_message=bot_message,
+    )
+
+
+def _prompt_security_result(*, blocked: bool, modified: bool, text: str | None = None) -> dict[str, Any]:
+    return {
+        "is_blocked": blocked,
+        "is_modified": modified,
+        "modified_text": text,
+    }
 
 
 FIXTURES = [
@@ -857,6 +1019,150 @@ FIXTURES = [
         original_value=RELEVANT_CHUNKS,
         transformed_value="sensitive data masked chunks",
         context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    *_guard_result_cases(
+        PANGEA_INPUT,
+        allow_return=_text_guard_result(
+            blocked=False,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_return=_text_guard_result(
+            blocked=True,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transform_return=_text_guard_result(
+            blocked=False,
+            transformed=True,
+            user_message="pangea transformed input",
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_and_transform_return=_text_guard_result(
+            blocked=True,
+            transformed=True,
+            user_message="pangea transformed input",
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transformed_value="pangea transformed input",
+    ),
+    *_guard_result_cases(
+        PANGEA_OUTPUT,
+        allow_return=_text_guard_result(
+            blocked=False,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_return=_text_guard_result(
+            blocked=True,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transform_return=_text_guard_result(
+            blocked=False,
+            transformed=True,
+            user_message=USER_INPUT,
+            bot_message="pangea transformed output",
+        ),
+        block_and_transform_return=_text_guard_result(
+            blocked=True,
+            transformed=True,
+            user_message=USER_INPUT,
+            bot_message="pangea transformed output",
+        ),
+        transformed_value="pangea transformed output",
+    ),
+    *_guard_result_cases(
+        CROWDSTRIKE_AIDR_INPUT,
+        allow_return=_crowdstrike_result(
+            blocked=False,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_return=_crowdstrike_result(
+            blocked=True,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transform_return=_crowdstrike_result(
+            blocked=False,
+            transformed=True,
+            user_message="crowdstrike aidr transformed input",
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_and_transform_return=_crowdstrike_result(
+            blocked=True,
+            transformed=True,
+            user_message="crowdstrike aidr transformed input",
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transformed_value="crowdstrike aidr transformed input",
+    ),
+    *_guard_result_cases(
+        CROWDSTRIKE_AIDR_OUTPUT,
+        allow_return=_crowdstrike_result(
+            blocked=False,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        block_return=_crowdstrike_result(
+            blocked=True,
+            transformed=False,
+            user_message=USER_INPUT,
+            bot_message=NORMAL_OUTPUT,
+        ),
+        transform_return=_crowdstrike_result(
+            blocked=False,
+            transformed=True,
+            user_message=USER_INPUT,
+            bot_message="crowdstrike aidr transformed output",
+        ),
+        block_and_transform_return=_crowdstrike_result(
+            blocked=True,
+            transformed=True,
+            user_message=USER_INPUT,
+            bot_message="crowdstrike aidr transformed output",
+        ),
+        transformed_value="crowdstrike aidr transformed output",
+    ),
+    *_guard_result_cases(
+        PROMPT_SECURITY_INPUT,
+        allow_return=_prompt_security_result(blocked=False, modified=False),
+        block_return=_prompt_security_result(blocked=True, modified=False),
+        transform_return=_prompt_security_result(
+            blocked=False,
+            modified=True,
+            text="prompt security transformed input",
+        ),
+        block_and_transform_return=_prompt_security_result(
+            blocked=True,
+            modified=True,
+            text="prompt security transformed input",
+        ),
+        transformed_value="prompt security transformed input",
+    ),
+    *_guard_result_cases(
+        PROMPT_SECURITY_OUTPUT,
+        allow_return=_prompt_security_result(blocked=False, modified=False),
+        block_return=_prompt_security_result(blocked=True, modified=False),
+        transform_return=_prompt_security_result(
+            blocked=False,
+            modified=True,
+            text="prompt security transformed output",
+        ),
+        block_and_transform_return=_prompt_security_result(
+            blocked=True,
+            modified=True,
+            text="prompt security transformed output",
+        ),
+        transformed_value="prompt security transformed output",
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
