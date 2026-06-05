@@ -43,10 +43,16 @@ from nemoguardrails.library.factchecking.align_score.actions import (
 from nemoguardrails.library.fiddler.actions import call_fiddler_faithfulness, call_fiddler_safety_bot
 from nemoguardrails.library.gcp_moderate_text.actions import call_gcp_text_moderation_api
 from nemoguardrails.library.gliner.actions import gliner_detect_pii, gliner_mask_pii
+from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_output
+from nemoguardrails.library.hallucination.actions import self_check_hallucination as hallucination_action
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.injection_detection.actions import injection_detection
 from nemoguardrails.library.llama_guard.actions import llama_guard_check_output
 from nemoguardrails.library.pangea.actions import TextGuardResult, pangea_ai_guard
+from nemoguardrails.library.patronusai.actions import (
+    patronus_api_check_output,
+    patronus_lynx_check_output_hallucination,
+)
 from nemoguardrails.library.policyai.actions import call_policyai_api
 from nemoguardrails.library.privateai.actions import (
     detect_pii as privateai_detect_pii,
@@ -569,3 +575,56 @@ def test_gcp_simple_output_flow_allows_detail_only_mapping_block():
 
     assert simple_flow_blocked is False
     assert mapping_blocked is True
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "flow_blocked", "mapping_blocked"),
+    [
+        ({"valid": True, "validation_result": {"validation_passed": True}}, False, True),
+        ({"valid": False, "validation_result": {"validation_passed": False}}, True, False),
+    ],
+)
+def test_guardrails_ai_output_mapping_reverses_flow_polarity(raw_return, flow_blocked, mapping_blocked):
+    assert is_output_blocked(raw_return, validate_guardrails_ai_output) is mapping_blocked
+    assert (not raw_return["valid"]) is flow_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"hallucination": False, "reasoning": ["grounded"]}, False),
+        ({"hallucination": True, "reasoning": ["unsupported"]}, True),
+    ],
+)
+def test_patronus_lynx_output_mapping_matches_hallucination_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, patronus_lynx_check_output_hallucination)
+
+    assert raw_return["hallucination"] is expected_blocked
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        ({"pass": True}, False),
+        ({"pass": False}, True),
+        ({}, False),
+    ],
+)
+def test_patronus_api_output_mapping_matches_pass_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, patronus_api_check_output)
+
+    assert mapping_blocked is expected_blocked
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (False, False),
+        (True, True),
+    ],
+)
+def test_hallucination_output_mapping_matches_blocking_flow_interpretation(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, hallucination_action)
+
+    assert mapping_blocked is expected_blocked
