@@ -83,6 +83,47 @@ class TestRiskScoring(unittest.TestCase):
         assert scoring._score_to_level(60.0) == ("L3", "High")
         assert scoring._score_to_level(80.0) == ("L4", "Critical")
 
+    def test_calculate_bonus_critical_issues(self):
+        """Test bonus calculation with critical severity issues."""
+        detection = {
+            "has_issues": True,
+            "issues": [
+                {"type": "fake_github_repo", "severity": "critical", "confidence": "high"},
+                {"type": "fake_github_repo", "severity": "critical", "confidence": "high"},
+            ],
+            "issue_summary": {"total": 2, "by_severity": {"critical": 2}},
+        }
+        result = scoring.calculate_risk_score(detection)
+        assert result["bonus"] == 20.0
+        assert result["score"] == 100.0
+
+    def test_calculate_bonus_high_issues(self):
+        """Test bonus calculation with three high severity issues."""
+        detection = {
+            "has_issues": True,
+            "issues": [
+                {"type": "recent_domain", "severity": "high", "confidence": "low"},
+                {"type": "tls_certificate_expiring_soon", "severity": "high", "confidence": "low"},
+                {"type": "no_local_kb_evidence", "severity": "high", "confidence": "low"},
+            ],
+            "issue_summary": {"total": 3, "by_severity": {"high": 3}},
+        }
+        result = scoring.calculate_risk_score(detection)
+        assert result["bonus"] == 5.0
+
+    def test_calculate_bonus_combined_types(self):
+        """Test bonus for combined GitHub and domain failures."""
+        detection = {
+            "has_issues": True,
+            "issues": [
+                {"type": "fake_github_repo", "severity": "low", "confidence": "low"},
+                {"type": "non_existent_domain", "severity": "low", "confidence": "low"},
+            ],
+            "issue_summary": {"total": 2},
+        }
+        result = scoring.calculate_risk_score(detection)
+        assert result["bonus"] == 5.0
+
 
 class TestRecalibration(unittest.TestCase):
     """Test score recalibration."""

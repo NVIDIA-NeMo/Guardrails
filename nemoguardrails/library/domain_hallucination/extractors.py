@@ -63,6 +63,14 @@ GITHUB_RESERVED_PATHS = {
     "trending",
     "new",
     "organizations",
+    "orgs",
+    "users",
+    "apps",
+    "settings",
+    "notifications",
+    "codespaces",
+    "site",
+    "contact",
 }
 
 _TLD_EXTRACTOR = None

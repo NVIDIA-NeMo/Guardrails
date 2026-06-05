@@ -107,6 +107,30 @@ class TestGitHubVerification(unittest.TestCase):
         assert result["status"] == "repo_not_found"
         assert result["exists"] is False
 
+    @patch("nemoguardrails.library.domain_hallucination.verification.urlopen", side_effect=TimeoutError("API timeout"))
+    def test_github_timeout(self, _mock_urlopen):
+        """Test checking a GitHub repo handles provider errors."""
+        result = verification.check_github_repo({"owner": "pytorch", "repo": "pytorch"})
+        assert result["source"] == "github"
+        assert result["status"] == "github_error"
+        assert result["exists"] is None
+
+    @patch(
+        "nemoguardrails.library.domain_hallucination.verification.urlopen",
+        side_effect=HTTPError(
+            url="https://api.github.com/repos/pytorch/pytorch",
+            code=500,
+            msg="Server Error",
+            hdrs=None,
+            fp=None,
+        ),
+    )
+    def test_github_http_error(self, _mock_urlopen):
+        """Test GitHub non-404 HTTP errors are structured."""
+        result = verification.check_github_repo({"owner": "pytorch", "repo": "pytorch"})
+        assert result["status"] == "github_http_error"
+        assert result["exists"] is None
+
 
 class TestHTTPVerification(unittest.TestCase):
     """Test HTTP verification."""
@@ -136,6 +160,28 @@ class TestHTTPVerification(unittest.TestCase):
         result = verification.check_http_domain("thisdomain-does-not-exist-12345.xyz")
         assert result["source"] == "http"
         assert result["status"] == "http_timeout"
+        assert result["reachable"] is False
+
+    @patch("nemoguardrails.library.domain_hallucination.verification.urlopen", side_effect=OSError("connection failed"))
+    def test_http_connection_error(self, _mock_urlopen):
+        """Test HTTP connection errors are reported."""
+        result = verification.check_http_domain("example.com")
+        assert result["source"] == "http"
+        assert result["status"] == "http_error"
+        assert result["reachable"] is False
+
+    @patch("nemoguardrails.library.domain_hallucination.verification.urlopen", side_effect=TimeoutError("timed out"))
+    def test_http_timeout_handling(self, _mock_urlopen):
+        """Test HTTP timeout is handled gracefully."""
+        result = verification.check_http_domain("slow.example.com", timeout=0.001)
+        assert result["source"] == "http"
+        assert result["status"] == "http_timeout"
+        assert result["reachable"] is False
+
+    def test_http_empty_target(self):
+        """Test empty HTTP target is invalid."""
+        result = verification.check_http_domain("")
+        assert result["status"] == "invalid_url"
         assert result["reachable"] is False
 
 
@@ -182,6 +228,42 @@ class TestTLSVerification(unittest.TestCase):
         result = verification.check_tls("github.com")
         assert result["source"] == "tls"
         assert result["status"] in {"tls_hostname_mismatch", "tls_untrusted_chain", "tls_verification_failed"}
+
+    @patch(
+        "nemoguardrails.library.domain_hallucination.verification.socket.create_connection",
+        side_effect=OSError("socket failed"),
+    )
+    def test_tls_generic_error(self, _mock_create_connection):
+        """Test TLS generic errors return a structured result."""
+        result = verification.check_tls("github.com")
+        assert result["source"] == "tls"
+        assert result["status"] == "tls_error"
+
+
+class TestWhoisVerification(unittest.TestCase):
+    """Test WHOIS/RDAP verification."""
+
+    def test_whois_empty_domain(self):
+        """Test WHOIS empty input."""
+        result = verification.check_whois("")
+        assert result["status"] == "invalid_domain"
+        assert result["enabled"] is False
+
+    @patch("nemoguardrails.library.domain_hallucination.verification._check_rdap", side_effect=ValueError("bad rdap"))
+    def test_whois_parse_error(self, _mock_check_rdap):
+        """Test WHOIS parsing errors are handled."""
+        result = verification.check_whois("example.com")
+        assert result["status"] == "whois_error"
+        assert result["enabled"] is False
+
+    @patch(
+        "nemoguardrails.library.domain_hallucination.verification._check_rdap", side_effect=TimeoutError("slow rdap")
+    )
+    def test_whois_timeout(self, _mock_check_rdap):
+        """Test WHOIS timeout is handled."""
+        result = verification.check_whois("example.com", timeout=0.001)
+        assert result["status"] == "whois_timeout"
+        assert result["enabled"] is False
 
 
 if __name__ == "__main__":

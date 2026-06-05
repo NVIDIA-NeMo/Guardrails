@@ -18,7 +18,9 @@
   "run_info": {
     "mode": "dry_run",
     "total_cases": 58,
-    "timestamp": "2026-06-02T16:00:43"
+    "timestamp": "2026-06-02T16:00:43",
+    "measured": false,
+    "note": "Heuristic dry-run artifact only; latency values are not measured network or end-to-end timings."
   },
   "overall": {
     "total_samples": 58,

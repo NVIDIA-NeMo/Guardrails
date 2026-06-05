@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-Set-Location "E:\123\Guardrails\nemoguardrails\library\domain_hallucination\files"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = (git -C $scriptDir rev-parse --show-toplevel).Trim()
+Set-Location (Join-Path $repoRoot "nemoguardrails/library/domain_hallucination/files")
 
 $required = @("DEEPSEEK_API_KEY", "QWEN_API_KEY", "GLM_API_KEY", "OPENROUTER_API_KEY")
 foreach ($name in $required) {

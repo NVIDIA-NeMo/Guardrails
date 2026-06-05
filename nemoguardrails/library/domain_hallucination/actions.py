@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, Optional
 
 try:  # pragma: no cover - available in NeMo runtime
@@ -43,22 +44,37 @@ _VERIFICATION_CACHE: Dict[str, Dict[str, Dict[str, Any]]] = {
     "whois": {},
     "github": {},
 }
+_CACHE_TTL_SECONDS = 3600
+_CACHE_MAX_ITEMS_PER_SOURCE = 512
 
 
 def _cache_get(source: str, key: str) -> Optional[Dict[str, Any]]:
     cached = _VERIFICATION_CACHE.get(source, {}).get(key)
     if cached is None:
         return None
+    cached_at = float(cached.get("_cached_at", 0.0))
+    if time.time() - cached_at > _CACHE_TTL_SECONDS:
+        _VERIFICATION_CACHE.get(source, {}).pop(key, None)
+        return None
     result = dict(cached)
+    result.pop("_cached_at", None)
     result["cache_hit"] = True
     return result
 
 
 def _cache_set(source: str, key: str, value: Dict[str, Any]) -> Dict[str, Any]:
+    bucket = _VERIFICATION_CACHE.setdefault(source, {})
+    while len(bucket) >= _CACHE_MAX_ITEMS_PER_SOURCE:
+        oldest_key = next(iter(bucket))
+        bucket.pop(oldest_key, None)
+
     stored = dict(value)
+    stored["_cached_at"] = time.time()
     stored["cache_hit"] = False
-    _VERIFICATION_CACHE.setdefault(source, {})[key] = stored
-    return dict(stored)
+    bucket[key] = stored
+    result = dict(stored)
+    result.pop("_cached_at", None)
+    return result
 
 
 def _cached_verification(source: str, key: str, fn, *args: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -176,18 +192,18 @@ async def analyze_answer(
         verification_results["tls"] = tls_results
         verification_results["whois"] = whois_results
 
-    # GitHub API verification (always enabled)
     github_results = []
-    for repo_item in extracted.get("github_repos", []):
-        repo_key = f"{repo_item.get('owner', '')}/{repo_item.get('repo', '')}"
-        result = _cached_verification(
-            "github",
-            repo_key,
-            verification.check_github_repo,
-            repo_item,
-            token=github_token,
-        )
-        github_results.append(result)
+    if verification_level == "full":
+        for repo_item in extracted.get("github_repos", []):
+            repo_key = f"{repo_item.get('owner', '')}/{repo_item.get('repo', '')}"
+            result = _cached_verification(
+                "github",
+                repo_key,
+                verification.check_github_repo,
+                repo_item,
+                token=github_token,
+            )
+            github_results.append(result)
     verification_results["github"] = github_results
 
     # Step 3: Query KB

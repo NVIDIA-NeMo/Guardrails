@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from . import config as _config_module
+
 
 class PolicyThresholds:
     """Configurable policy thresholds."""
@@ -45,8 +47,10 @@ def make_decision(
     recalibrated_score = recalibrated_score or {}
 
     # Use recalibrated score if available, otherwise use initial score
-    final_score = float(recalibrated_score.get("recalibrated_score") or risk_score.get("score", 0.0))
-    level = recalibrated_score.get("recalibrated_level") or risk_score.get("level", "L0")
+    recal_score = recalibrated_score.get("recalibrated_score")
+    final_score = float(recal_score if recal_score is not None else risk_score.get("score", 0.0))
+    recal_level = recalibrated_score.get("recalibrated_level")
+    level = recal_level if recal_level is not None else risk_score.get("level", "L0")
 
     # Determine action based on score and verification level
     if final_score >= policy.fail_threshold:
@@ -71,10 +75,6 @@ def make_decision(
         pass  # DNS-level is default
     elif verification_level == "http":
         pass  # HTTP-level requires more evidence
-    elif verification_level == "full":
-        if final_score < 80:
-            action = "pass"
-            reason = "Full verification required but score below threshold"
 
     return {
         "action": action,
@@ -91,13 +91,21 @@ def make_decision(
 def apply_decision(
     decision: Dict[str, Any],
     answer: str = "",
+    cfg=None,
 ) -> Dict[str, Any]:
     """Apply enforcement decision to answer."""
     action = str(decision.get("action", "pass")).lower()
     reason = str(decision.get("reason", ""))
+    if cfg is None:
+        cfg = _config_module.get_config()
+    enforcement = cfg.enforcement
+    append_notice = enforcement.append_verification_notice
+
+    refine_suffix = "\n\n[Refined by domain guard]" if append_notice else ""
+    warn_suffix = "\n\n[Please verify external links independently]" if append_notice else ""
 
     if action == "block":
-        modified_answer = "[BLOCKED] The response contains unverified information and has been blocked."
+        modified_answer = enforcement.block_message
         return {
             "action": "block",
             "reason": reason,
@@ -107,9 +115,7 @@ def apply_decision(
         }
 
     elif action == "refine":
-        modified_answer = (
-            f"[NOTICE] This response may contain unverified information:\n\n{answer}\n\n[Refined by domain guard]"
-        )
+        modified_answer = f"{enforcement.refine_message}\n\n{answer}{refine_suffix}"
         return {
             "action": "refine",
             "reason": reason,
@@ -119,7 +125,7 @@ def apply_decision(
         }
 
     elif action == "warn":
-        modified_answer = f"[WARNING] Potential unverified information detected:\n\n{answer}\n\n[Please verify external links independently]"
+        modified_answer = f"{enforcement.warn_message}\n\n{answer}{warn_suffix}"
         return {
             "action": "warn",
             "reason": reason,

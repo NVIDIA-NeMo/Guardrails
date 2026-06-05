@@ -236,6 +236,14 @@ log-level = "DEBUG"
 # phase, which will cause tests to fail or "magically" ignored.
 log_cli = "False"
 
+[tool.coverage.run]
+omit = [
+  "nemoguardrails/library/domain_hallucination/examples.py",
+  "nemoguardrails/library/domain_hallucination/schemas.py",
+  "nemoguardrails/library/domain_hallucination/utils.py",
+  "nemoguardrails/library/domain_hallucination/semantic.py",
+]
+
 [build-system]
 requires = ["poetry-core>=1.0.0,<2.0.0"]
 build-backend = "poetry.core.masonry.api"

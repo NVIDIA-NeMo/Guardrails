@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptDir "..\..\..\..\..\..")
+$repoRoot = (git -C $scriptDir rev-parse --show-toplevel).Trim()
 Set-Location $repoRoot
 
 Write-Host "Current branch:"
@@ -32,5 +32,10 @@ git diff --cached --name-only
 
 git commit -m "Add async domain hallucination verification and eval harness"
 
-Write-Host "Pushing to origin develop..."
-git push origin develop
+$currentBranch = (git branch --show-current).Trim()
+if (-not $currentBranch) {
+  throw "Unable to determine current branch."
+}
+
+Write-Host "Pushing to origin $currentBranch..."
+git push origin $currentBranch

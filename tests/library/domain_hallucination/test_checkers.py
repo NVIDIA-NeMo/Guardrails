@@ -83,6 +83,77 @@ class TestCheckers(unittest.TestCase):
         assert summary["by_severity"]["low"] == 2
         assert summary["highest_severity"] == "critical"
 
+    def test_check_domain_hallucination_empty_extraction(self):
+        """Test empty extraction produces no issues."""
+        result = checkers.check_domain_hallucination(
+            extracted_items={"domains": [], "urls": [], "github_repos": []},
+            verification_result={},
+            rag_result={},
+        )
+        assert result["has_issues"] is False
+        assert result["issues"] == []
+
+    def test_deduplicate_identical_issues(self):
+        """Test identical issues are deduplicated."""
+        issues = [
+            {"type": "nxdomain", "target": "fake.com", "severity": "high", "evidence_source": "dns"},
+            {"type": "nxdomain", "target": "fake.com", "severity": "high", "evidence_source": "dns"},
+            {"type": "nxdomain", "target": "fake.com", "severity": "high", "evidence_source": "dns"},
+        ]
+        dedupe = checkers._deduplicate_issues(issues)
+        assert len(dedupe) == 1
+
+    def test_summarize_issues_multiple_types(self):
+        """Test summary with multiple issue types."""
+        issues = [
+            {"type": "nxdomain", "target": "a.com", "severity": "high"},
+            {"type": "fake_github_repo", "target": "x/y", "severity": "high"},
+            {"type": "tls_certificate_expired", "target": "b.com", "severity": "high"},
+        ]
+        summary = checkers._summarize_issues(issues)
+        assert summary["total"] == 3
+        assert summary["by_type"]["fake_github_repo"] == 1
+
+    def test_check_domain_hallucination_with_github_issues(self):
+        """Test hallucination check with GitHub repo issues."""
+        result = checkers.check_domain_hallucination(
+            extracted_items={
+                "domains": [],
+                "urls": [],
+                "github_repos": [
+                    {"owner": "fake", "repo": "nonexistent", "url": "https://github.com/fake/nonexistent"}
+                ],
+            },
+            verification_result={
+                "github": [{"owner": "fake", "repo": "nonexistent", "exists": False, "status": "repo_not_found"}]
+            },
+            rag_result={},
+        )
+        assert result["has_issues"] is True
+        assert result["issues"][0]["type"] == "fake_github_repo"
+
+    def test_check_domain_hallucination_mixed_results(self):
+        """Test with both real and hallucinated domains."""
+        result = checkers.check_domain_hallucination(
+            extracted_items={
+                "domains": [
+                    {"host": "python.org"},
+                    {"host": "fakesite.xyz"},
+                ],
+                "urls": [],
+                "github_repos": [],
+            },
+            verification_result={
+                "dns": [
+                    {"domain": "python.org", "status": "resolved"},
+                    {"domain": "fakesite.xyz", "status": "nxdomain_or_no_data"},
+                ]
+            },
+            rag_result={"domain_evidence": {"python.org": [{"type": "trusted_domain"}]}},
+        )
+        assert result["has_issues"] is True
+        assert any(issue["target"] == "fakesite.xyz" for issue in result["issues"])
+
 
 if __name__ == "__main__":
     unittest.main()

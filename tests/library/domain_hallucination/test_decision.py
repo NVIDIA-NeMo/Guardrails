@@ -18,6 +18,12 @@
 import unittest
 
 from nemoguardrails.library.domain_hallucination import decision
+from nemoguardrails.library.domain_hallucination.config import (
+    DomainHallucinationGuardConfig,
+    EnforcementConfig,
+    get_config,
+    set_config,
+)
 
 
 class TestDecisionEngine(unittest.TestCase):
@@ -63,18 +69,42 @@ class TestDecisionEngine(unittest.TestCase):
         assert result["level"] == "L0"
         assert result["score"] == 15.0
 
-    def test_make_decision_full_verification_passes_below_80(self):
-        """Test full verification mode relaxes sub-80 scores."""
+    def test_make_decision_keeps_recalibrated_zero_score(self):
+        """Test recalibrated 0.0 is treated as a real score."""
         result = decision.make_decision(
-            {"score": 65.0, "level": "L3"},
-            verification_level="full",
+            {"score": 85.0, "level": "L4"},
+            recalibrated_score={"recalibrated_score": 0.0, "recalibrated_level": "L0"},
         )
         assert result["action"] == "pass"
-        assert result["reason"] == "Full verification required but score below threshold"
+        assert result["level"] == "L0"
+        assert result["score"] == 0.0
+
+    def test_make_decision_full_verification_keeps_threshold_logic(self):
+        """Test full verification mode does not bypass configured thresholds."""
+        result = decision.make_decision(
+            {"score": 70.0, "level": "L3"},
+            verification_level="full",
+        )
+        assert result["action"] == "block"
+
+    def test_make_decision_http_verification_level(self):
+        """Test HTTP verification level preserves threshold-based action."""
+        result = decision.make_decision(
+            {"score": 50.0, "level": "L2"},
+            verification_level="http",
+        )
+        assert result["action"] == "refine"
+        assert result["verification_level"] == "http"
 
 
 class TestDecisionApplication(unittest.TestCase):
     """Test answer enforcement output."""
+
+    def setUp(self):
+        self._original_config = get_config()
+
+    def tearDown(self):
+        set_config(self._original_config)
 
     def test_apply_block(self):
         """Test block output formatting."""
@@ -93,6 +123,27 @@ class TestDecisionApplication(unittest.TestCase):
         result = decision.apply_decision({"action": "warn", "reason": "review"}, answer="hello")
         assert result["enforced"] is True
         assert result["modified_answer"].startswith("[WARNING]")
+
+    def test_apply_decision_uses_enforcement_config_messages(self):
+        """Test enforcement messages are sourced from config."""
+        set_config(
+            DomainHallucinationGuardConfig(
+                enforcement=EnforcementConfig(
+                    block_message="[CUSTOM BLOCK]",
+                    refine_message="[CUSTOM REFINE]",
+                    warn_message="[CUSTOM WARN]",
+                    append_verification_notice=False,
+                )
+            )
+        )
+
+        block = decision.apply_decision({"action": "block", "reason": "unsafe"}, answer="hello")
+        refine = decision.apply_decision({"action": "refine", "reason": "review"}, answer="hello")
+        warn = decision.apply_decision({"action": "warn", "reason": "review"}, answer="hello")
+
+        assert block["modified_answer"] == "[CUSTOM BLOCK]"
+        assert refine["modified_answer"] == "[CUSTOM REFINE]\n\nhello"
+        assert warn["modified_answer"] == "[CUSTOM WARN]\n\nhello"
 
     def test_apply_pass(self):
         """Test pass keeps original answer intact."""

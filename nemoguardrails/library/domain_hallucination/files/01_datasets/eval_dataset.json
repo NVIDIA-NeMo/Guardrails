@@ -4,7 +4,7 @@
     "version": "1.0.0",
     "description": "Benchmark dataset for evaluating domain_hallucination detection performance in NeMo Guardrails",
     "created": "2026-06-02",
-    "total_samples": 120,
+    "total_samples": 58,
     "categories": {
       "real_links":       "LLM outputs containing only real, verified URLs/domains/repos → expected: pass",
       "hallucinated_links": "LLM outputs containing fabricated URLs/domains/repos → expected: block/refine",

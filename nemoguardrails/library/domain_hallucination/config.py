@@ -196,6 +196,8 @@ class DomainHallucinationGuardConfig:
             config.scoring.fail_threshold = float(os.environ[f"{prefix}FAIL_THRESHOLD"])
         if f"{prefix}REFINE_THRESHOLD" in os.environ:
             config.scoring.refine_threshold = float(os.environ[f"{prefix}REFINE_THRESHOLD"])
+        if f"{prefix}WARN_THRESHOLD" in os.environ:
+            config.scoring.warn_threshold = float(os.environ[f"{prefix}WARN_THRESHOLD"])
 
         # KB
         if f"{prefix}SEED_KB_PATH" in os.environ:

@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-Set-Location "E:\123\Guardrails\nemoguardrails\library\domain_hallucination\files"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = (git -C $scriptDir rev-parse --show-toplevel).Trim()
+Set-Location (Join-Path $repoRoot "nemoguardrails/library/domain_hallucination/files")
 
 if (-not $env:OPENROUTER_API_KEY) {
   Write-Host "OPENROUTER_API_KEY is not set."

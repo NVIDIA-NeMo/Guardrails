@@ -209,10 +209,12 @@ class GroundTruthVerifier:
         github_token: Optional[str] = None,
         timeout: float = 8.0,
         enable_http: bool = True,
+        verify_tls: bool = True,
     ) -> None:
         self.github_token = github_token or os.getenv("GITHUB_TOKEN", "")
         self.timeout = timeout
         self.enable_http = enable_http
+        self.verify_tls = verify_tls
         self._dns_cache: Dict[str, Dict[str, Any]] = {}
         self._http_cache: Dict[str, Dict[str, Any]] = {}
         self._github_cache: Dict[str, Dict[str, Any]] = {}
@@ -294,7 +296,11 @@ class GroundTruthVerifier:
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, verify=False) as client:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                follow_redirects=True,
+                verify=self.verify_tls,
+            ) as client:
                 response = await client.head(url)
                 if response.status_code in {403, 405}:
                     response = await client.get(url)
@@ -432,6 +438,8 @@ class GroundTruthVerifier:
             label = "mixed"
         elif hallucinated:
             label = "hallucinated"
+        elif unknown and not real:
+            label = "error"
         else:
             label = "clean"
 

@@ -148,6 +148,7 @@ kept in the old flat `01_datasets` dump.
 - `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json`
 - `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json`
 - `07_safe_danger_validation/safe_danger_deepseek_thresholds_vs_nemo_20260604.json`
+- `07_safe_danger_validation/safe_danger_validation_report.json`
 
 ### Historical report bundle
 
@@ -213,10 +214,70 @@ GPT-4.1-mini. Key DeepSeek full223 files:
 | DeepSeek S3 | `deepseek_expert_S3_cached_full_skip_dnsfail_no_whois_full223.json` |
 | DeepSeek S4 | `deepseek_expert_S4_http_skip_dnsfail_full223.json` |
 
+For the smaller `eval_dataset.json` sweep, expert and non-expert variants can be
+compared directly using the existing eval58 outputs:
+
+| Strategy | Non-expert output | Expert output |
+|---|---|---|
+| S1 | `opt_S1_cached_full_eval58.json` | `expert_S1_cached_full_eval58.json` |
+| S2 | `opt_S2_cached_full_skip_dnsfail_eval58.json` | `expert_S2_cached_full_skip_dnsfail_eval58_resume.json` |
+| S3 | `opt_S3_cached_full_skip_dnsfail_no_whois_eval58.json` | `expert_S3_cached_full_skip_dnsfail_no_whois_eval58_resume.json` |
+| S4 | `opt_S4_http_skip_dnsfail_eval58.json` | `expert_S4_http_skip_dnsfail_eval58_resume.json` |
+
+#### Expert vs non-expert on `eval_dataset.json`
+
+| Strategy | Mode | Accuracy | URL hallucination recall | FPR | Precision | F1 |
+|---|---|---:|---:|---:|---:|---:|
+| S1 | non-expert | 74.14% | 47.37% | 12.82% | 64.29% | 54.55% |
+| S1 | expert | 70.69% | 57.89% | 23.08% | 55.00% | 56.41% |
+| S2 | non-expert | 74.14% | 47.37% | 12.82% | 64.29% | 54.55% |
+| S2 | expert | 82.76% | 84.21% | 17.95% | 69.57% | 76.19% |
+| S3 | non-expert | 74.14% | 47.37% | 12.82% | 64.29% | 54.55% |
+| S3 | expert | 74.14% | 63.16% | 20.51% | 60.00% | 61.54% |
+| S4 | non-expert | 74.14% | 89.47% | 33.33% | 56.67% | 69.39% |
+| S4 | expert | 63.79% | 52.63% | 30.77% | 45.45% | 48.78% |
+
+Interpretation: expert review is not uniformly helpful across all strategies.
+On this eval58 sweep, expert S2 is the strongest paired configuration and
+substantially improves recall, precision, and F1 over non-expert S2. Expert S3
+also improves recall and F1, but with a higher false-positive rate. Expert S1
+provides only a small F1 gain while reducing precision. Expert S4 underperforms
+the simpler non-expert S4, suggesting that the lightest HTTP-only verifier does
+not combine well with the current expert policy on this benchmark.
+
 DeepSeek S2 is the strongest original binary detector among the DeepSeek
 strategies: high precision and low false positive rate. However, the original
 four-class mapping has weak `block` recall, which motivates risk boundary
 calibration.
+
+### Original `full_dataset.json` multi-model comparison against baseline
+
+The full per-strategy static comparison is recorded in:
+
+```text
+04_static_eval/strict_multiclass_all_models_full223.json
+```
+
+That file contains all original expert-model S1-S4 runs on `full_dataset.json`
+plus the official NeMo hallucination baseline. For the main report, we summarize
+the best original strategy observed for each model family and compare it to the
+baseline:
+
+| System | Best original strategy | Strict Acc | Balanced Acc | Macro F1 | Block Recall |
+|---|---|---:|---:|---:|---:|
+| NeMo hallucination baseline | baseline | 62.33% | 38.46% | 34.10% | 100.00% |
+| DeepSeek | S2 | 54.26% | 42.15% | 30.75% | 4.82% |
+| Qwen | S1 | 65.47% | 39.44% | 38.43% | 54.22% |
+| GLM-Air | S3 | 49.78% | 28.09% | 24.44% | 12.05% |
+| OpenRouter GPT-4.1-mini | S4 | 53.36% | 44.50% | 35.21% | 13.25% |
+
+Interpretation: before recalibration, the NeMo hallucination baseline is still
+the strongest high-recall comparator in terms of raw `block` coverage, but it
+does so by collapsing many cases into `block` and does not model `warn` or
+`refine`. Among the original domain-guard configurations, DeepSeek S2 is the
+best starting point for calibration, Qwen S1 is the strongest raw Qwen setting,
+OpenRouter GPT-4.1-mini S4 is the strongest raw GPT-family setting, and
+GLM-Air remains the weakest family before threshold optimization.
 
 ## 6. Risk Boundary Calibration
 
@@ -244,6 +305,36 @@ Result:
 Interpretation: the calibrated boundary substantially improves four-class
 quality. NeMo baseline catches nearly everything by collapsing many cases into
 `block`, but it does not model `warn` and `refine` well.
+
+### DeepSeek optimization comparison
+
+The DeepSeek S2 optimization stage compares three expert-policy settings:
+
+```text
+threshold_sweep_summary_deepseek_s2_full223.json
+threshold_sweep_summary_deepseek_s2_full223_current_expert.json
+threshold_sweep_summary_deepseek_s2_full223_preserve_block.json
+```
+
+These runs answer a narrower question than cross-model transfer: once DeepSeek
+S2 is chosen as the strongest original candidate, which thresholding policy
+produces the best four-class behavior on `full_dataset.json`?
+
+| Configuration | Threshold / policy | Strict Acc | Balanced Acc | Macro F1 | Block Recall |
+|---|---|---:|---:|---:|---:|
+| Original DeepSeek S2 | raw original mapping | 54.26% | 42.15% | 30.75% | 4.82% |
+| Recalibrated, `expert_policy=none` | 25 / 45 / 75 | 71.30% | 59.55% | 60.18% | 59.04% |
+| Recalibrated, `expert_policy=preserve_block` | 25 / 75 / 80 | 69.96% | 55.08% | 55.36% | 57.83% |
+| Recalibrated, `expert_policy=current` | 25 / 30 / 35 | 50.22% | 41.83% | 32.78% | 4.82% |
+
+Interpretation: the DeepSeek optimization stage strongly supports the final
+choice used in the rest of the report. Recalibration alone is not enough; the
+best setting is specifically the `recalibrated + none` policy with the
+25/45/75 boundary. The `preserve_block` variant is a reasonable secondary
+option when block preservation is prioritized, but it is still weaker than the
+main setting. The `current` expert policy underperforms badly on four-class
+metrics and effectively confirms that the final pipeline should treat expert
+review as advisory evidence rather than as a direct hard-decision override.
 
 ### Cross-model Transfer
 
@@ -375,6 +466,7 @@ Result files:
 | danger | `exp_A_danger_s2_expert_vs_nemo_20260604.json` |
 | safe | `exp_A_safe_s2_expert_vs_nemo_20260604.json` |
 | fixed-threshold summary | `safe_danger_deepseek_thresholds_vs_nemo_20260604.json` |
+| consolidated report | `safe_danger_validation_report.json` |
 
 ### Safe Set
 
@@ -440,6 +532,7 @@ but is not enough by itself for high-risk recall on this new danger set.
 | `07_safe_danger_validation/exp_A_danger_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Danger-set fixed DeepSeek boundary remap |
 | `07_safe_danger_validation/exp_A_safe_s2_expert_vs_nemo_20260604_deepseek_thresholds_20260604.json` | Safe-set fixed DeepSeek boundary remap |
 | `07_safe_danger_validation/safe_danger_deepseek_thresholds_vs_nemo_20260604.json` | Safe/danger summary with task-aligned metrics |
+| `07_safe_danger_validation/safe_danger_validation_report.json` | Consolidated safe/danger validation report generated from evaluation outputs |
 | `03_scripts/A/apply_deepseek_thresholds_to_new_eval.py` | Script used for fixed-boundary remapping on new eval files |
 
 ## 11. Recommended Paper Wording

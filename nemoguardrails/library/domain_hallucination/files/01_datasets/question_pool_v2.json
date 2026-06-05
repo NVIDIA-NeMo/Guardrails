@@ -2,7 +2,7 @@
   "metadata": {
     "name": "Domain Hallucination E2E Question Pool — Extended",
     "version": "2.0.0",
-    "total_questions": 250,
+    "total_questions": 265,
     "description": "精心设计的 250 个问题，用于诱导 LLM 产生幻觉域名并测试 domain_hallucination guard 性能",
     "category_summary": {
       "high_risk_api_endpoints": "诱导编造假 API 端点（钓鱼风险最高）",

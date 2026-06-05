@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-Set-Location "E:\123\Guardrails\nemoguardrails\library\domain_hallucination\files"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = (git -C $scriptDir rev-parse --show-toplevel).Trim()
+Set-Location (Join-Path $repoRoot "nemoguardrails/library/domain_hallucination/files")
 
 if (-not $env:DEEPSEEK_API_KEY) {
   Write-Host "DEEPSEEK_API_KEY is not set. The optimization stage uses --skip-baseline, so this is only required for the final comparison run."
