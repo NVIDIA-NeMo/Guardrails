@@ -82,6 +82,10 @@ def setup_sensitive_data_filter(
     if logger is None:
         logger = logging.getLogger()
 
+    for existing_filter in logger.filters:
+        if isinstance(existing_filter, SensitiveDataFilter):
+            return existing_filter
+
     filter_instance = SensitiveDataFilter(redactor=redactor)
     logger.addFilter(filter_instance)
     return filter_instance

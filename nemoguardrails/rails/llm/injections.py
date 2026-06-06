@@ -142,15 +142,13 @@ class PromptInjectionDetector:
                 if pattern:
                     if raise_error:
                         raise PromptInjectionDetectedError(
-                            f"Prompt injection detected in message {i} (role: {role}): {pattern}. "
-                            f"Message content: '{content[:100]}...'",
+                            f"Prompt injection detected in message {i} (role: {role}): {pattern}",
                             injection_pattern=pattern,
                         )
                     return {
                         'message_index': i,
                         'role': role,
                         'pattern': pattern,
-                        'content_preview': content[:100],
                     }
 
         return None

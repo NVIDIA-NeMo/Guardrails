@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Union
 DEFAULT_REDACTION_PATTERNS = {
     'email': (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]'),
     'phone': (r'\b(?:\+?1[-.]?)?(?:\(?[0-9]{3}\)?[-.]?)?[0-9]{3}[-.]?[0-9]{4}\b', '[PHONE]'),
-    'ssn': (r'\b(?:\d{3}-\d{2}-\d{4}|\d{9})\b', '[SSN]'),
+    'ssn': (r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]'),
     'credit_card': (r'\b(?:\d{4}[-\s]?){3}\d{4}\b|\b\d{16}\b', '[CREDIT_CARD]'),
     'api_key': (r'(?:api[_-]?key|apikey|api_secret|secret)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-]{20,})["\']?', '[API_KEY]'),
     'password': (r'(?:password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^"\'\s,}\]]+)["\']?', '[PASSWORD]'),
