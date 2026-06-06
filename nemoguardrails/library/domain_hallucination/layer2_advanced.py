@@ -49,6 +49,8 @@ async def verify_domain_network(
         Verification result dict with DNS status
     """
     try:
+        # Save and restore the default timeout to avoid concurrent interference
+        old_timeout = socket.getdefaulttimeout()
         socket.setdefaulttimeout(timeout)
         try:
             addrs = socket.getaddrinfo(domain, 443)
@@ -58,7 +60,7 @@ async def verify_domain_network(
                 "address_count": len(addrs),
             }
         finally:
-            socket.setdefaulttimeout(None)
+            socket.setdefaulttimeout(old_timeout)
     except socket.gaierror:
         return {
             "domain": domain,

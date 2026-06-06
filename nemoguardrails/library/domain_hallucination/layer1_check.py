@@ -183,6 +183,7 @@ async def layer1_check_domain_hallucination(
     llm_call_func,
     llm_task_manager,
     config,
+    llm=None,
 ) -> Dict[str, Any]:
     """Perform Layer 1 (fast LLM-based) domain hallucination check.
 
