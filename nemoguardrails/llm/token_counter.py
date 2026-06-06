@@ -20,6 +20,7 @@ that prompts don't exceed model context windows.
 """
 
 import logging
+import re
 from typing import List, Optional, Union
 
 log = logging.getLogger(__name__)
@@ -150,8 +151,6 @@ class TokenCounter:
     @staticmethod
     def _tokenize(s: str):
         """Split a model name into tokens on non-alphanumeric separators."""
-        import re
-
         return [t for t in re.split(r"[^a-z0-9]+", s.lower()) if t]
 
     @staticmethod
