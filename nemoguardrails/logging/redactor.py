@@ -135,24 +135,31 @@ class SensitiveDataRedactor:
 
         return redacted
 
-    def redact_list(self, data: List[Any]) -> List[Any]:
-        """Redact sensitive data in a list.
+    def redact_list(self, data: Union[List[Any], tuple]) -> Union[List[Any], tuple]:
+        """Redact sensitive data in a list or tuple.
 
         Args:
-            data: List to redact
+            data: List or tuple to redact
 
         Returns:
-            List with sensitive data redacted
+            List or tuple with sensitive data redacted
         """
-        if not isinstance(data, list):
+        if isinstance(data, tuple):
+            return tuple(
+                self.redact(item) if isinstance(item, str)
+                else self.redact_dict(item) if isinstance(item, dict)
+                else item
+                for item in data
+            )
+        elif isinstance(data, list):
+            return [
+                self.redact(item) if isinstance(item, str)
+                else self.redact_dict(item) if isinstance(item, dict)
+                else item
+                for item in data
+            ]
+        else:
             return data
-
-        return [
-            self.redact(item) if isinstance(item, str)
-            else self.redact_dict(item) if isinstance(item, dict)
-            else item
-            for item in data
-        ]
 
 
 def create_sensitive_redactor(
