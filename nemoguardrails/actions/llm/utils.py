@@ -76,11 +76,9 @@ async def llm_call(
     chat_prompt = _ensure_chat_messages(prompt)
 
     # Validate context length before sending to LLM
-    try:
-        validate_context_length(prompt, model_name=model_name or model.model_name)
-    except ContextLengthExceededError as e:
-        logger.error(f"Context length validation failed: {e}")
-        raise LLMCallException(e) from e
+    # ContextLengthExceededError is raised here if validation fails and must propagate directly
+    # (not wrapped in LLMCallException) so callers can handle it specifically
+    validate_context_length(prompt, model_name=model_name or model.model_name)
 
     if streaming_handler:
         return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
