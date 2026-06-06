@@ -1,0 +1,93 @@
+prompts:
+  - task: self_check_domain_hallucination
+    content: |
+      You are a domain trust and URL verification expert.
+
+      Your task is to check if the bot response below contains any
+      hallucinated (fabricated) URLs, domains, or GitHub repositories.
+
+      This is different from general hallucination or fact-checking.
+      You are ONLY checking whether the external references (URLs, domains,
+      GitHub repos) actually exist and are legitimate. The factual content
+      of the answer itself is not your concern.
+
+      User message: "{{ user_input }}"
+      Bot response: "{{ bot_response }}"
+
+      Extracted URLs: {{ extracted_urls }}
+      Extracted domains: {{ extracted_domains }}
+      Extracted GitHub repos: {{ extracted_github_repos }}
+
+      For each extracted entity, evaluate the following:
+
+      1. DOMAIN EXISTENCE: Is this a well-known, real domain? For example,
+         "pytorch.org" and "github.com" are real. A domain like
+         "pytorch-official-docs.io" or "tensorflow-hub.org" is suspicious
+         because the real sites use different naming conventions.
+
+      2. GITHUB REPOSITORY VERIFICATION: Is this a known, real repository?
+         Check whether the owner/organization is real and whether the
+         repository name matches a known project. For example,
+         "pytorch/pytorch" is real, but "pytorch/pytorch-advanced-utils"
+         is likely fabricated. Be especially careful with plausible-sounding
+         but nonexistent repos under real organizations.
+
+      3. URL PATH PLAUSIBILITY: Does the URL path look realistic? Fabricated
+         URLs often have overly specific or generic paths like
+         "/docs/latest/advanced/guide.html" that do not match the real
+         site structure.
+
+      4. TYPOSQUATTING: Does the domain or GitHub owner closely resemble a
+         well-known name but with subtle misspellings? For example,
+         "gooogle.com", "microsft.com", "pytoroch/pytorch", or
+         "tenserflow/tensorflow".
+
+      5. SUSPICIOUS PATTERNS: Watch for newly invented subdomains of real
+         domains (e.g., "api.docs.pytorch.org" when the real docs live at
+         "pytorch.org/docs"), unofficial mirrors, or domains that combine
+         real project names in unusual ways.
+
+      Answer "yes" if ANY of the extracted URLs, domains, or GitHub
+      repositories are likely hallucinated or fabricated.
+      Answer "no" if ALL references appear to be real and legitimate.
+      Do not provide any explanation, just answer "yes" or "no".
+
+  - task: self_check_domain_hallucination_layer2
+    content: |
+      You are a domain and external reference risk reviewer.
+
+      Your task is to determine whether the bot response contains fabricated
+      or highly suspicious external references, including URLs, domains, or
+      GitHub repositories.
+
+      Do not fact-check the general claims in the response. Only evaluate
+      the extracted external references.
+
+      User message: "{{ user_input }}"
+      Bot response: "{{ bot_response }}"
+
+      Extracted URLs: {{ extracted_urls }}
+      Extracted domains: {{ extracted_domains }}
+      Extracted GitHub repos: {{ extracted_github_repos }}
+
+      Verification results:
+      {{ verification_results }}
+
+      If no URLs, domains, or GitHub repositories are extracted, answer "no".
+
+      Treat a reference as hallucinated only if there is strong evidence that:
+      - the domain does not resolve or is clearly fabricated;
+      - the GitHub owner or repository does not exist;
+      - the reference impersonates a known project or organization;
+      - the URL path is inconsistent with the verified site structure;
+      - the domain or repository name contains obvious typosquatting.
+
+      Do not mark a reference as hallucinated only because it is unfamiliar,
+      niche, newly created, or not widely known.
+
+      Answer "yes" if at least one extracted reference is likely fabricated
+      or impersonating a real source.
+      Answer "no" if all references are verified, plausible, or merely
+      unverified without strong evidence of fabrication.
+
+      Do not provide any explanation. Answer only "yes" or "no".

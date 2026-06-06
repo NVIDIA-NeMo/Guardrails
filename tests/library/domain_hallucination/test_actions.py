@@ -13,856 +13,366 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for domain hallucination actions module."""
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
-import asyncio
-import unittest
-from unittest.mock import patch
+"""Tests for domain hallucination detection actions."""
+
+from dataclasses import dataclass
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nemoguardrails.library.domain_hallucination import actions
-from nemoguardrails.library.domain_hallucination import kb as kb_module
 
 
-class TestVerificationCache(unittest.TestCase):
-    """Test cache eviction and TTL behavior."""
+@dataclass
+class MockLLMResponse:
+    """Mock LLM response."""
 
-    def setUp(self):
-        for bucket in actions._VERIFICATION_CACHE.values():
-            bucket.clear()
+    content: str
 
-    def test_cache_entry_expires_after_ttl(self):
-        """Test expired entries are evicted on read."""
+
+class TestSelfCheckDomainHallucination:
+    """Test self_check_domain_hallucination rail action."""
+
+    @pytest.mark.asyncio
+    async def test_empty_response(self):
+        """Test action with empty response."""
+        result = await actions.self_check_domain_hallucination(
+            llm_task_manager=None,
+            context={},
+            llm=None,
+            config=None,
+        )
+        # Empty response should return True (safe)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_no_entities_in_response(self):
+        """Test action with response containing no URLs/domains."""
+        mock_llm_task_manager = MagicMock()
+        mock_config = MagicMock()
+
+        result = await actions.self_check_domain_hallucination(
+            llm_task_manager=mock_llm_task_manager,
+            context={
+                "bot_message": "Machine learning is a branch of AI.",
+                "user_message": "What is AI?",
+            },
+            llm=None,
+            config=mock_config,
+        )
+        # No entities, should return True (safe)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_context_message_extraction(self):
+        """Test extraction of messages from different context keys."""
+        mock_llm_task_manager = MagicMock()
+        mock_config = MagicMock()
+
+        # Mock the Layer 1 check to track if it was called
         with patch(
-            "nemoguardrails.library.domain_hallucination.actions.time.time",
-            return_value=1000.0,
-        ):
-            actions._cache_set("dns", "example.com", {"status": "resolved"})
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+            }
 
+            # Test with bot_message
+            await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "bot_message": "See https://github.com",
+                },
+                llm=None,
+                config=mock_config,
+            )
+            assert mock_layer1.called
+
+    @pytest.mark.asyncio
+    async def test_response_mapping_safe(self):
+        """Test output mapping for safe responses."""
+        # When is_hallucinated=False, should return True (not blocked)
         with patch(
-            "nemoguardrails.library.domain_hallucination.actions.time.time",
-            return_value=1000.0 + actions._CACHE_TTL_SECONDS + 1,
-        ):
-            assert actions._cache_get("dns", "example.com") is None
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+            }
 
-        assert "example.com" not in actions._VERIFICATION_CACHE["dns"]
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
 
-    def test_cache_hit_on_second_call(self):
-        """Test cached verification reuses the first result."""
-        calls = {"count": 0}
-
-        def fake_check(value):
-            calls["count"] += 1
-            return {"status": "ok", "value": value}
-
-        first = actions._cached_verification("dns", "example.com", fake_check, "example.com")
-        second = actions._cached_verification("dns", "example.com", fake_check, "example.com")
-
-        assert first["cache_hit"] is False
-        assert second["cache_hit"] is True
-        assert second["value"] == "example.com"
-        assert calls["count"] == 1
-
-    def test_cache_caps_bucket_size(self):
-        """Test cache size is bounded per verification source."""
-        for index in range(actions._CACHE_MAX_ITEMS_PER_SOURCE + 1):
-            actions._cache_set("dns", f"example-{index}.com", {"status": "resolved"})
-
-        bucket = actions._VERIFICATION_CACHE["dns"]
-        assert len(bucket) == actions._CACHE_MAX_ITEMS_PER_SOURCE
-        assert "example-0.com" not in bucket
-
-
-class TestAnalyzeAnswer(unittest.IsolatedAsyncioTestCase):
-    """Test verification-level behavior in analyze_answer."""
-
-    def setUp(self):
-        for bucket in actions._VERIFICATION_CACHE.values():
-            bucket.clear()
-
-    def _base_patches(self, extracted):
-        class DummyKB:
-            def query_domain_evidence(self, _domain):
-                return []
-
-            def is_blacklisted_domain(self, _domain):
-                return False
-
-        return (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-                return_value=extracted,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.kb.get_kb",
-                return_value=DummyKB(),
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.checkers.check_domain_hallucination",
-                return_value={"has_issues": False, "issues": [], "issue_summary": {}},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.calculate_risk_score",
-                return_value={"score": 0.0, "level": "L0"},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.recalibrate_score",
-                return_value={},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.make_decision",
-                return_value={
-                    "action": "pass",
-                    "reason": "safe",
-                    "level": "L0",
-                    "score": 0.0,
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "bot_message": "Visit https://pytorch.org",
                 },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
-                return_value={
-                    "action": "pass",
-                    "modified_answer": "hello",
-                    "enforced": False,
+                llm=None,
+                config=mock_config,
+            )
+            # Safe response: return True
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_response_mapping_hallucinated(self):
+        """Test output mapping for hallucinated responses."""
+        # When is_hallucinated=True, should return False (blocked)
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": True,
+                "status": "suspicious",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "bot_message": "Visit https://pytorch-fake.org",
                 },
-            ),
+                llm=None,
+                config=mock_config,
+            )
+            # Hallucinated response: return False (block)
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_kwargs_handling(self):
+        """Test that extra kwargs are ignored."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            # Should not raise with extra kwargs
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Safe text"},
+                llm=None,
+                config=mock_config,
+                extra_param="should_be_ignored",
+            )
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_alternative_context_keys(self):
+        """Test alternative context key names."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            # Test with last_bot_message
+            await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "last_bot_message": "See https://pytorch.org",
+                    "last_user_message": "Tell me about PyTorch",
+                },
+                llm=None,
+                config=mock_config,
+            )
+            assert mock_layer1.called
+
+            # Test with assistant_output
+            await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "assistant_output": "Visit https://github.com",
+                    "user_input": "What is GitHub?",
+                },
+                llm=None,
+                config=mock_config,
+            )
+            assert mock_layer1.called
+
+
+class TestActionSignature:
+    """Test rail action signature and decorators."""
+
+    def test_action_is_callable(self):
+        """Test that self_check_domain_hallucination is callable."""
+        assert callable(actions.self_check_domain_hallucination)
+
+    def test_action_is_async(self):
+        """Test that action is async."""
+        import asyncio
+
+        assert asyncio.iscoroutinefunction(actions.self_check_domain_hallucination)
+
+
+class TestActionIntegration:
+    """Integration tests with Layer 1 check."""
+
+    @pytest.mark.asyncio
+    async def test_action_calls_layer1_with_correct_args(self):
+        """Test that action calls Layer 1 with correct arguments."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+                "entities": {"has_entities": False},
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+            mock_llm = MagicMock()
+
+            bot_msg = "Check https://pytorch.org"
+            user_msg = "Tell me about PyTorch"
+
+            await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={
+                    "bot_message": bot_msg,
+                    "user_message": user_msg,
+                },
+                llm=mock_llm,
+                config=mock_config,
+            )
+
+            # Verify Layer 1 was called with correct arguments
+            assert mock_layer1.called
+            call_args = mock_layer1.call_args
+            assert call_args.kwargs["bot_response"] == bot_msg
+            assert call_args.kwargs["user_message"] == user_msg
+            assert call_args.kwargs["llm_task_manager"] == mock_llm_task_manager
+            assert call_args.kwargs["config"] == mock_config
+
+    @pytest.mark.asyncio
+    async def test_logging_on_results(self):
+        """Test that action logs Layer 1 results."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": True,
+                "status": "suspicious",
+            }
+
+            with patch("nemoguardrails.library.domain_hallucination.actions.logger") as mock_logger:
+                mock_llm_task_manager = MagicMock()
+                mock_config = MagicMock()
+
+                await actions.self_check_domain_hallucination(
+                    llm_task_manager=mock_llm_task_manager,
+                    context={"bot_message": "Visit https://fake.com"},
+                    llm=None,
+                    config=mock_config,
+                )
+
+                # Should log the result
+                assert mock_logger.info.called
+
+
+class TestActionErrorHandling:
+    """Test action error handling."""
+
+    @pytest.mark.asyncio
+    async def test_missing_context(self):
+        """Test action with missing context."""
+        result = await actions.self_check_domain_hallucination(
+            llm_task_manager=MagicMock(),
+            context=None,  # Missing context
+            llm=None,
+            config=MagicMock(),
+        )
+        # Should handle gracefully
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_empty_context(self):
+        """Test action with empty context."""
+        result = await actions.self_check_domain_hallucination(
+            llm_task_manager=MagicMock(),
+            context={},  # Empty context
+            llm=None,
+            config=MagicMock(),
+        )
+        # Should handle gracefully
+        assert result is True
+
+
+class TestFullIntegration:
+    """Full integration tests from action to Layer 1."""
+
+    @pytest.mark.asyncio
+    async def test_action_with_real_layer1_path(self):
+        """Test full action flow without LLM (fast path)."""
+        # This tests the full path: action -> layer1_check -> extract_entities
+        mock_llm_task_manager = MagicMock()
+        mock_config = MagicMock()
+
+        result = await actions.self_check_domain_hallucination(
+            llm_task_manager=mock_llm_task_manager,
+            context={"bot_message": "Talk about AI"},
+            llm=None,
+            config=mock_config,
         )
 
-    async def test_analyze_empty_answer(self):
-        """Test empty answers are skipped early."""
-        result = await actions.analyze_answer(answer="")
-        assert result["status"] == "skipped"
-        assert result["reason"] == "empty_answer"
+        # No entities, should return True (safe)
+        assert result is True
 
-    async def test_analyze_rejects_invalid_verification_level(self):
-        """Test misspelled verification levels fail closed."""
-        with self.assertRaises(ValueError):
-            await actions.analyze_answer(answer="hello", verification_level="ful")
-
-    async def test_self_check_rejects_invalid_verification_level(self):
-        """Test rail action rejects invalid verification levels."""
-        with self.assertRaises(ValueError):
-            await actions.self_check_domain_hallucination(
-                context={"bot_message": "hello"},
-                verification_level="ful",
-            )
-
-    async def test_cached_verification_async_uses_executor(self):
-        """Test blocking verification is delegated to an executor."""
-        real_loop = asyncio.get_running_loop()
-
-        class DummyLoop:
-            def __init__(self):
-                self.executor = "unset"
-
-            def run_in_executor(self, executor, func):
-                self.executor = executor
-                future = real_loop.create_future()
-                future.set_result(func())
-                return future
-
-        dummy_loop = DummyLoop()
-
+    @pytest.mark.asyncio
+    async def test_action_all_context_variants(self):
+        """Test action with all possible context key variants."""
         with patch(
-            "nemoguardrails.library.domain_hallucination.actions.asyncio.get_running_loop",
-            return_value=dummy_loop,
-        ):
-            result = await actions._cached_verification_async(
-                "dns",
-                "example.com",
-                lambda value: {"status": "ok", "value": value},
-                "example.com",
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+            }
+
+            mock_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            # Test with assistant_output and user_input
+            result1 = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_task_manager,
+                context={
+                    "assistant_output": "See https://pytorch.org",
+                    "user_input": "Query",
+                },
+                llm=None,
+                config=mock_config,
+            )
+            assert result1 is True
+
+            # Test priority: bot_message > assistant_output
+            result2 = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_task_manager,
+                context={
+                    "bot_message": "Primary",
+                    "assistant_output": "Secondary",
+                    "last_bot_message": "Tertiary",
+                },
+                llm=None,
+                config=mock_config,
             )
 
-        assert dummy_loop.executor is None
-        assert result["status"] == "ok"
-        assert result["cache_hit"] is False
-
-    async def test_analyze_no_links(self):
-        """Test link-free answers fast-pass early."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-            return_value={
-                "urls": [],
-                "domains": [],
-                "github_repos": [],
-                "no_links": True,
-            },
-        ):
-            result = await actions.analyze_answer(answer="plain text")
-        assert result["status"] == "fast_pass"
-        assert result["reason"] == "no_links_detected"
-
-    async def test_github_verification_runs_only_in_full_mode(self):
-        """Test GitHub API checks are skipped outside full verification."""
-
-        extracted = {
-            "urls": [],
-            "domains": [],
-            "github_repos": [{"owner": "octo", "repo": "hello-world"}],
-            "no_links": False,
-        }
-
-        class DummyKB:
-            def query_domain_evidence(self, _domain):
-                return {}
-
-            def is_blacklisted_domain(self, _domain):
-                return False
-
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-                return_value=extracted,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.kb.get_kb",
-                return_value=DummyKB(),
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.checkers.check_domain_hallucination",
-                return_value={"has_issues": False, "issues": [], "issue_summary": {}},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.calculate_risk_score",
-                return_value={"score": 0.0, "level": "L0"},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.recalibrate_score",
-                return_value={},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.make_decision",
-                return_value={
-                    "action": "pass",
-                    "reason": "safe",
-                    "level": "L0",
-                    "score": 0.0,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
-                return_value={
-                    "action": "pass",
-                    "modified_answer": "hello",
-                    "enforced": False,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.check_github_repo",
-                return_value={"status": "repo_exists", "exists": True},
-            ) as mock_check_github,
-        ):
-            dns_result = await actions.analyze_answer(answer="hello", verification_level="dns")
-            assert dns_result["verification_results"]["github"] == []
-            mock_check_github.assert_not_called()
-
-            full_result = await actions.analyze_answer(answer="hello", verification_level="full")
-            assert full_result["verification_results"]["github"] == [
-                {"status": "repo_exists", "exists": True, "cache_hit": False}
-            ]
-            mock_check_github.assert_called_once()
-
-    async def test_analyze_answer_with_dns_verification(self):
-        """Test DNS verification in analyze_answer."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ) as mock_dns,
-        ):
-            result = await actions.analyze_answer("Check https://example.com", verification_level="dns")
-        assert result["status"] == "analyzed"
-        assert result["verification_results"]["dns"][0]["status"] == "resolved"
-        mock_dns.assert_called_once_with("example.com", timeout=4.0)
-
-    async def test_analyze_answer_http_verification(self):
-        """Test HTTP verification level."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.check_http_domain",
-                return_value={"status": "http_ok", "reachable": True},
-            ) as mock_http,
-        ):
-            result = await actions.analyze_answer("Visit https://example.com", verification_level="http")
-        assert result["verification_results"]["http"][0]["status"] == "http_ok"
-        mock_http.assert_called_once_with("https://example.com", timeout=6.0)
-
-    async def test_analyze_answer_full_verification(self):
-        """Test full verification with TLS and WHOIS."""
-        extracted = {
-            "urls": [],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.check_tls",
-                return_value={"status": "tls_ok"},
-            ) as mock_tls,
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.check_whois",
-                return_value={"status": "ok"},
-            ) as mock_whois,
-        ):
-            result = await actions.analyze_answer("Check domain", verification_level="full")
-        assert result["verification_results"]["tls"][0]["status"] == "tls_ok"
-        assert result["verification_results"]["whois"][0]["status"] == "ok"
-        mock_tls.assert_called_once_with("example.com", timeout=5.0)
-        mock_whois.assert_called_once_with("example.com", timeout=6.0)
-
-    async def test_analyze_answer_with_semantic_check(self):
-        """Test semantic check enabled."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        semantic_result = {
-            "has_irrelevant_domains": True,
-            "irrelevant_domains": [{"domain": "example.com"}],
-        }
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.semantic.check_semantic_relevance",
-                return_value=semantic_result,
-            ) as mock_semantic,
-        ):
-            result = await actions.analyze_answer(
-                "PyTorch docs at https://example.com",
-                user_query="What is PyTorch?",
-                enable_semantic_check=True,
-            )
-        assert result["status"] == "analyzed"
-        mock_semantic.assert_called_once()
-
-    async def test_analyze_answer_semantic_check_no_irrelevant_domains(self):
-        """Test semantic check false result leaves detection unchanged."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.semantic.check_semantic_relevance",
-                return_value={
-                    "has_irrelevant_domains": False,
-                    "irrelevant_domains": [],
-                },
-            ) as mock_semantic,
-        ):
-            result = await actions.analyze_answer(
-                "Docs at https://example.com",
-                user_query="Where are the docs?",
-                enable_semantic_check=True,
-            )
-        assert result["detection"]["issues"] == []
-        mock_semantic.assert_called_once()
-
-    async def test_analyze_answer_with_advanced_verification(self):
-        """Test advanced verification enabled."""
-        extracted = {
-            "urls": [{"normalized": "https://typo-example.com", "host": "typo-example.com"}],
-            "domains": [{"host": "typo-example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        adv_result = {
-            "has_issues": True,
-            "issues": [
-                {
-                    "type": "advanced_verification_failed",
-                    "url": "https://typo-example.com",
-                }
-            ],
-        }
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "typo-example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.semantic.check_advanced_verification",
-                return_value=adv_result,
-            ) as mock_advanced,
-        ):
-            result = await actions.analyze_answer(
-                "Visit https://typo-example.com",
-                enable_advanced_verification=True,
-            )
-        assert result["status"] == "analyzed"
-        mock_advanced.assert_called_once()
-
-    async def test_analyze_answer_advanced_verification_no_issues(self):
-        """Test advanced verification false result leaves detection unchanged."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.semantic.check_advanced_verification",
-                return_value={"has_issues": False, "issues": []},
-            ) as mock_advanced,
-        ):
-            result = await actions.analyze_answer(
-                "Visit https://example.com",
-                enable_advanced_verification=True,
-            )
-        assert result["detection"]["issues"] == []
-        mock_advanced.assert_called_once()
-
-    async def test_analyze_answer_skip_secondary_checks(self):
-        """Test skip secondary checks on DNS failure."""
-        extracted = {
-            "urls": [{"normalized": "https://fake.xyz", "host": "fake.xyz"}],
-            "domains": [{"host": "fake.xyz"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[1],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "nxdomain_or_no_data",
-                    "domain": "fake.xyz",
-                    "resolves": False,
-                },
-            ),
-            patch("nemoguardrails.library.domain_hallucination.actions.verification.check_http_domain") as mock_http,
-        ):
-            result = await actions.analyze_answer(
-                "Site at https://fake.xyz",
-                skip_secondary_checks_on_dns_failure=True,
-                verification_level="http",
-            )
-        assert result["verification_results"]["http"] == []
-        mock_http.assert_not_called()
-
-    async def test_analyze_answer_custom_kb(self):
-        """Test with custom KB instance."""
-        custom_kb = kb_module.KnowledgeBase()
-        custom_kb.add_trusted_domain("trusted.com")
-        extracted = {
-            "urls": [{"normalized": "https://trusted.com", "host": "trusted.com"}],
-            "domains": [{"host": "trusted.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        patches = self._base_patches(extracted)
-        with (
-            patches[0],
-            patches[2],
-            patches[3],
-            patches[4],
-            patches[5],
-            patches[6],
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "trusted.com",
-                    "resolves": True,
-                },
-            ),
-        ):
-            result = await actions.analyze_answer(
-                "Visit https://trusted.com",
-                kb_instance=custom_kb,
-            )
-        assert result["kb_results"]["domain_evidence"]["trusted.com"]
-
-    async def test_analyze_answer_complete_return_structure(self):
-        """Test analyzed result includes the public response structure."""
-        extracted = {
-            "urls": [{"normalized": "https://example.com", "host": "example.com"}],
-            "domains": [{"host": "example.com"}],
-            "github_repos": [],
-            "no_links": False,
-        }
-        detection = {"has_issues": False, "issues": [], "issue_summary": {"total": 0}}
-        risk_score = {"score": 0.0, "level": "L0"}
-        decision = {"action": "pass", "reason": "safe", "level": "L0", "score": 0.0}
-        enforced = {"action": "pass", "modified_answer": "hello", "enforced": False}
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-                return_value=extracted,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.kb.get_kb",
-                return_value=kb_module.KnowledgeBase(),
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={
-                    "status": "resolved",
-                    "domain": "example.com",
-                    "resolves": True,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.checkers.check_domain_hallucination",
-                return_value=detection,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.calculate_risk_score",
-                return_value=risk_score,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.scoring.recalibrate_score",
-                return_value={"recalibrated_score": 0.0, "recalibrated_level": "L0"},
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.make_decision",
-                return_value=decision,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
-                return_value=enforced,
-            ),
-        ):
-            result = await actions.analyze_answer(answer="hello", verification_level="dns")
-
-        assert result["status"] == "analyzed"
-        assert result["extraction"] == extracted
-        assert result["detection"] == detection
-        assert result["risk_score"] == risk_score
-        assert result["decision"] == decision
-        assert result["enforced_answer"] == enforced
-        assert "verification_results" in result
-        assert "kb_results" in result
-
-
-class TestSelfCheckDomainHallucination(unittest.IsolatedAsyncioTestCase):
-    """Tests for the self_check_domain_hallucination rail action."""
-
-    def _mock_analyze_result(self):
-        return {
-            "status": "analyzed",
-            "extraction": {"urls": [], "domains": [], "github_repos": [], "no_links": False},
-            "detection": {"has_issues": False, "issues": []},
-            "risk_score": {"score": 0.0, "level": "L0", "label": "safe"},
-            "recalibrated_score": {"recalibrated_score": 0.0, "level": "L0"},
-            "decision": {"action": "pass", "reason": "low risk"},
-            "enforced_answer": {"action": "pass", "modified_answer": "answer", "enforced": False},
-            "verification_results": {},
-            "kb_results": {},
-        }
-
-    async def test_self_check_reads_bot_message_from_context(self):
-        """self_check_domain_hallucination extracts answer from bot_message key."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
-            return_value=self._mock_analyze_result(),
-        ) as mock_analyze:
-            result = await actions.self_check_domain_hallucination(
-                context={"bot_message": "See https://pytorch.org", "user_message": "what?"},
-                verification_level="none",
-            )
-        assert result["status"] == "analyzed"
-        call_kwargs = mock_analyze.call_args
-        assert call_kwargs.kwargs["answer"] == "See https://pytorch.org"
-        assert call_kwargs.kwargs["user_query"] == "what?"
-
-    async def test_self_check_reads_assistant_output_from_context(self):
-        """Fallback to assistant_output when bot_message is absent."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
-            return_value=self._mock_analyze_result(),
-        ) as mock_analyze:
-            await actions.self_check_domain_hallucination(
-                context={"assistant_output": "answer text"},
-                verification_level="none",
-            )
-        assert mock_analyze.call_args.kwargs["answer"] == "answer text"
-
-    async def test_self_check_with_none_context(self):
-        """None context is treated as empty dict (no crash)."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
-            return_value=self._mock_analyze_result(),
-        ) as mock_analyze:
-            result = await actions.self_check_domain_hallucination(
-                context=None,
-                verification_level="none",
-            )
-        assert result["status"] == "analyzed"
-        assert mock_analyze.call_args.kwargs["answer"] == ""
-
-    async def test_self_check_expert_review_path(self):
-        """enable_expert_review=True triggers expert_review module."""
-        analyze_result = self._mock_analyze_result()
-        analyze_result["risk_score"] = {"score": 60.0, "level": "L2", "label": "warn"}
-
-        expert_review_result = {
-            "risk": "medium",
-            "explanation": "borderline",
-            "corrected_answer": None,
-        }
-        updated_decision = {"action": "warn", "reason": "expert confirmed"}
-        enforced = {"action": "warn", "modified_answer": "answer", "enforced": False}
-
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
-                return_value=analyze_result,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.expert_review.review_with_nemo_llm",
-                return_value=expert_review_result,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.expert_review.apply_expert_decision",
-                return_value=updated_decision,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
-                return_value=enforced,
-            ),
-        ):
-            result = await actions.self_check_domain_hallucination(
-                context={"bot_message": "answer"},
-                verification_level="none",
-                enable_expert_review=True,
-                expert_review_min_level="L2",
-            )
-        assert result["expert_review"] == expert_review_result
-        assert result["decision"] == updated_decision
-
-    async def test_self_check_expert_review_with_corrected_answer(self):
-        """Corrected answer from expert review is propagated when action is refine."""
-        analyze_result = self._mock_analyze_result()
-        analyze_result["risk_score"] = {"score": 70.0, "level": "L3", "label": "block"}
-
-        expert_review_result = {
-            "risk": "high",
-            "corrected_answer": "corrected text",
-        }
-        updated_decision = {"action": "refine", "reason": "expert refined"}
-        enforced = {"action": "refine", "modified_answer": "old", "enforced": True}
-
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.analyze_answer",
-                return_value=analyze_result,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.expert_review.review_with_nemo_llm",
-                return_value=expert_review_result,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.expert_review.apply_expert_decision",
-                return_value=updated_decision,
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.decision.apply_decision",
-                return_value=enforced,
-            ),
-        ):
-            result = await actions.self_check_domain_hallucination(
-                context={"bot_message": "answer"},
-                verification_level="none",
-                enable_expert_review=True,
-            )
-        assert result["enforced_answer"]["modified_answer"] == "corrected text"
-
-
-class TestBlacklistPath(unittest.IsolatedAsyncioTestCase):
-    """Test that blacklisted domains are flagged in analyze_answer."""
-
-    async def test_blacklisted_domain_appears_in_rag_results(self):
-        """Domains on the KB blacklist are collected into blacklist_hosts."""
-        kb_instance = kb_module.KnowledgeBase()
-        kb_instance.add_blacklisted_domain("evil.com")
-
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-                return_value={
-                    "urls": [{"normalized": "https://evil.com", "host": "evil.com"}],
-                    "domains": [{"host": "evil.com"}],
-                    "github_repos": [],
-                    "no_links": False,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.verification.resolve_domain",
-                return_value={"status": "resolved", "resolves": True},
-            ),
-        ):
-            result = await actions.analyze_answer(
-                answer="check evil.com",
-                verification_level="dns",
-                kb_instance=kb_instance,
-            )
-
-        blacklist = result["kb_results"].get("blacklist_hosts", [])
-        assert any(item.get("host") == "evil.com" for item in blacklist)
-
-
-class TestSkipSecondaryChecks(unittest.IsolatedAsyncioTestCase):
-    """Test skip_secondary_checks_on_dns_failure in analyze_answer."""
-
-    async def test_tls_skipped_when_dns_fails_and_skip_enabled(self):
-        """TLS/WHOIS skipped for domains whose DNS lookup returned nxdomain."""
-        with (
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions.extractors.extract_all",
-                return_value={
-                    "urls": [],
-                    "domains": [{"host": "fake-domain.xyz"}],
-                    "github_repos": [],
-                    "no_links": False,
-                },
-            ),
-            patch(
-                "nemoguardrails.library.domain_hallucination.actions._cached_verification_async",
-                side_effect=lambda source, key, fn, *a, **kw: (
-                    {"status": "nxdomain_or_no_data", "resolves": False} if source == "dns" else {"status": "ok"}
-                ),
-            ) as mock_verify,
-        ):
-            result = await actions.analyze_answer(
-                answer="see fake-domain.xyz",
-                verification_level="full",
-                skip_secondary_checks_on_dns_failure=True,
-                enable_tls_verification=True,
-            )
-
-        sources_used = [call.args[0] for call in mock_verify.call_args_list]
-        assert "dns" in sources_used
-        assert "tls" not in sources_used
-
-
-if __name__ == "__main__":
-    unittest.main()
+            # Verify bot_message was used (check call args)
+            calls = mock_layer1.call_args_list
+            assert calls[-1].kwargs["bot_response"] == "Primary"

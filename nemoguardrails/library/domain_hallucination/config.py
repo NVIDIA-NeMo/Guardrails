@@ -13,227 +13,102 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Configuration management for domain hallucination guard."""
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Configuration management for domain hallucination guard (Layer 1)."""
 
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Dict, Optional
+from dataclasses import asdict, dataclass
+from typing import Any, Dict
 
 
 @dataclass
-class VerificationConfig:
-    """Verification settings."""
+class Layer1Config:
+    """Layer 1 (fast LLM judgment) settings."""
 
-    level: str = "dns"  # none, dns, http, full
-    dns_timeout: float = 4.0
-    http_timeout: float = 6.0
-    tls_timeout: float = 5.0
-    whois_timeout: float = 6.0
-    github_timeout: float = 6.0
-    github_token: Optional[str] = None
+    enabled: bool = True
+    temperature: float = 0.1
+    max_tokens: int = 1024
 
 
 @dataclass
-class DetectionConfig:
-    """Detection settings."""
+class Layer2Config:
+    """Layer 2 (advanced network verification) settings."""
 
-    enable_semantic_check: bool = False
-    enable_advanced_verification: bool = False
-    no_link_fast_pass: bool = True
-
-
-@dataclass
-class ScoringConfig:
-    """Scoring and threshold settings."""
-
-    fail_threshold: float = 60.0
-    refine_threshold: float = 40.0
-    warn_threshold: float = 20.0
-    issue_type_scores: Dict[str, float] = field(
-        default_factory=lambda: {
-            "fake_github_repo": 85.0,
-            "non_existent_domain": 80.0,
-            "delegated_no_address_record": 50.0,
-            "blacklisted_domain": 95.0,
-            "tls_certificate_expired": 70.0,
-            "tls_hostname_mismatch": 70.0,
-            "tls_untrusted_chain": 55.0,
-            "tls_verification_failed": 50.0,
-            "tls_certificate_expiring_soon": 15.0,
-            "recent_domain": 20.0,
-            "no_local_kb_evidence": 15.0,
-            "semantic_mismatch": 30.0,
-            "advanced_verification_failed": 40.0,
-        }
-    )
-    severity_weights: Dict[str, float] = field(
-        default_factory=lambda: {
-            "critical": 1.5,
-            "high": 1.3,
-            "medium": 1.0,
-            "low": 0.7,
-        }
-    )
-    confidence_boosts: Dict[str, float] = field(
-        default_factory=lambda: {
-            "high": 1.0,
-            "medium": 0.8,
-            "low": 0.6,
-        }
-    )
-
-
-@dataclass
-class KnowledgeBaseConfig:
-    """Knowledge base settings."""
-
-    seed_kb_path: Optional[str] = None
-    external_kb_root: Optional[str] = None
-    auto_load: bool = True
-
-
-@dataclass
-class EnforcementConfig:
-    """Enforcement action settings."""
-
-    block_message: str = "[BLOCKED] The response contains unverified information and has been blocked."
-    refine_message: str = "[NOTICE] This response may contain unverified information."
-    warn_message: str = "[WARNING] Potential unverified information detected."
-    append_verification_notice: bool = True
+    enabled: bool = False
+    temperature: float = 0.1
+    max_tokens: int = 1024
+    dns_timeout: float = 5.0
 
 
 @dataclass
 class DomainHallucinationGuardConfig:
-    """Main configuration class."""
+    """Domain hallucination guard configuration."""
 
-    verification: VerificationConfig = field(default_factory=VerificationConfig)
-    detection: DetectionConfig = field(default_factory=DetectionConfig)
-    scoring: ScoringConfig = field(default_factory=ScoringConfig)
-    kb: KnowledgeBaseConfig = field(default_factory=KnowledgeBaseConfig)
-    enforcement: EnforcementConfig = field(default_factory=EnforcementConfig)
+    layer1: Layer1Config = None
+    layer2: Layer2Config = None
     debug: bool = False
     log_level: str = "INFO"
 
+    def __post_init__(self):
+        if self.layer1 is None:
+            self.layer1 = Layer1Config()
+        if self.layer2 is None:
+            self.layer2 = Layer2Config()
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        return asdict(self)
+        return {
+            "layer1": asdict(self.layer1),
+            "layer2": asdict(self.layer2),
+            "debug": self.debug,
+            "log_level": self.log_level,
+        }
 
     def to_json(self) -> str:
         """Convert to JSON string."""
         return json.dumps(self.to_dict(), indent=2)
 
-    def save(self, path: str | Path) -> None:
-        """Save configuration to JSON file."""
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
 
-    @classmethod
-    def load(cls, path: str | Path) -> DomainHallucinationGuardConfig:
-        """Load configuration from JSON file."""
-        path = Path(path)
-        if not path.is_file():
-            raise FileNotFoundError(f"Config file not found: {path}")
+def load_config(config_path: str) -> DomainHallucinationGuardConfig:
+    """Load configuration from JSON file.
 
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    Args:
+        config_path: Path to JSON config file
 
-        return cls._from_dict(data)
+    Returns:
+        Loaded configuration object
+    """
+    with open(config_path) as f:
+        data = json.load(f)
 
-    @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> DomainHallucinationGuardConfig:
-        """Create from dictionary."""
-        verification_data = data.get("verification", {})
-        detection_data = data.get("detection", {})
-        scoring_data = data.get("scoring", {})
-        kb_data = data.get("kb", {})
-        enforcement_data = data.get("enforcement", {})
+    layer1_data = data.get("layer1", {})
+    layer1 = Layer1Config(**layer1_data) if layer1_data else Layer1Config()
 
-        return cls(
-            verification=(VerificationConfig(**verification_data) if verification_data else VerificationConfig()),
-            detection=(DetectionConfig(**detection_data) if detection_data else DetectionConfig()),
-            scoring=ScoringConfig(**scoring_data) if scoring_data else ScoringConfig(),
-            kb=KnowledgeBaseConfig(**kb_data) if kb_data else KnowledgeBaseConfig(),
-            enforcement=(EnforcementConfig(**enforcement_data) if enforcement_data else EnforcementConfig()),
-            debug=data.get("debug", False),
-            log_level=data.get("log_level", "INFO"),
-        )
+    layer2_data = data.get("layer2", {})
+    layer2 = Layer2Config(**layer2_data) if layer2_data else Layer2Config()
 
-    @classmethod
-    def from_env(cls, prefix: str = "DOMAIN_HALLUCINATION_") -> DomainHallucinationGuardConfig:
-        """Create from environment variables."""
-        config = cls()
-
-        # Verification
-        if f"{prefix}VERIFICATION_LEVEL" in os.environ:
-            config.verification.level = os.environ[f"{prefix}VERIFICATION_LEVEL"]
-        if f"{prefix}DNS_TIMEOUT" in os.environ:
-            config.verification.dns_timeout = float(os.environ[f"{prefix}DNS_TIMEOUT"])
-        if f"{prefix}HTTP_TIMEOUT" in os.environ:
-            config.verification.http_timeout = float(os.environ[f"{prefix}HTTP_TIMEOUT"])
-        if f"{prefix}TLS_TIMEOUT" in os.environ:
-            config.verification.tls_timeout = float(os.environ[f"{prefix}TLS_TIMEOUT"])
-        if f"{prefix}WHOIS_TIMEOUT" in os.environ:
-            config.verification.whois_timeout = float(os.environ[f"{prefix}WHOIS_TIMEOUT"])
-        if f"{prefix}GITHUB_TIMEOUT" in os.environ:
-            config.verification.github_timeout = float(os.environ[f"{prefix}GITHUB_TIMEOUT"])
-        if f"{prefix}GITHUB_TOKEN" in os.environ:
-            config.verification.github_token = os.environ[f"{prefix}GITHUB_TOKEN"]
-
-        # Detection
-        if f"{prefix}SEMANTIC_CHECK" in os.environ:
-            config.detection.enable_semantic_check = os.environ[f"{prefix}SEMANTIC_CHECK"].lower() == "true"
-        if f"{prefix}ADVANCED_VERIFICATION" in os.environ:
-            config.detection.enable_advanced_verification = (
-                os.environ[f"{prefix}ADVANCED_VERIFICATION"].lower() == "true"
-            )
-
-        # Scoring
-        if f"{prefix}FAIL_THRESHOLD" in os.environ:
-            config.scoring.fail_threshold = float(os.environ[f"{prefix}FAIL_THRESHOLD"])
-        if f"{prefix}REFINE_THRESHOLD" in os.environ:
-            config.scoring.refine_threshold = float(os.environ[f"{prefix}REFINE_THRESHOLD"])
-        if f"{prefix}WARN_THRESHOLD" in os.environ:
-            config.scoring.warn_threshold = float(os.environ[f"{prefix}WARN_THRESHOLD"])
-
-        # KB
-        if f"{prefix}SEED_KB_PATH" in os.environ:
-            config.kb.seed_kb_path = os.environ[f"{prefix}SEED_KB_PATH"]
-        if f"{prefix}EXTERNAL_KB_ROOT" in os.environ:
-            config.kb.external_kb_root = os.environ[f"{prefix}EXTERNAL_KB_ROOT"]
-
-        # Debug
-        if f"{prefix}DEBUG" in os.environ:
-            config.debug = os.environ[f"{prefix}DEBUG"].lower() == "true"
-
-        return config
+    return DomainHallucinationGuardConfig(
+        layer1=layer1,
+        layer2=layer2,
+        debug=data.get("debug", False),
+        log_level=data.get("log_level", "INFO"),
+    )
 
 
-# Global config instance
-_config_instance: Optional[DomainHallucinationGuardConfig] = None
+# Default config instance
+_DEFAULT_CONFIG = DomainHallucinationGuardConfig()
 
 
 def get_config() -> DomainHallucinationGuardConfig:
-    """Get or create global config instance."""
-    global _config_instance
-    if _config_instance is None:
-        _config_instance = DomainHallucinationGuardConfig()
-    return _config_instance
+    """Get default configuration."""
+    return _DEFAULT_CONFIG
 
 
 def set_config(config: DomainHallucinationGuardConfig) -> None:
-    """Set global config instance."""
-    global _config_instance
-    _config_instance = config
-
-
-def load_config(path: str | Path) -> DomainHallucinationGuardConfig:
-    """Load and set global config from file."""
-    config = DomainHallucinationGuardConfig.load(path)
-    set_config(config)
-    return config
+    """Set default configuration."""
+    global _DEFAULT_CONFIG
+    _DEFAULT_CONFIG = config
