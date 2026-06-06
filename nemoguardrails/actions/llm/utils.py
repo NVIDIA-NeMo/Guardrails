@@ -27,6 +27,7 @@ from nemoguardrails.context import (
     tool_calls_var,
 )
 from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.llm.token_counter import validate_context_length, ContextLengthExceededError
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
@@ -73,6 +74,13 @@ async def llm_call(
     _setup_llm_call_info(model, model_name, model_provider)
     _log_prompt(prompt)
     chat_prompt = _ensure_chat_messages(prompt)
+
+    # Validate context length before sending to LLM
+    try:
+        validate_context_length(prompt, model_name=model_name or model.model_name)
+    except ContextLengthExceededError as e:
+        logger.error(f"Context length validation failed: {e}")
+        raise LLMCallException(e)
 
     if streaming_handler:
         return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
