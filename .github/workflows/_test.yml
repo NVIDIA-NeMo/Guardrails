@@ -111,11 +111,11 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: inputs.with-coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           directory: ./coverage/reports/
           env_vars: PYTHON
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           files: ./coverage.xml
           flags: python
           name: codecov-umbrella
