@@ -223,3 +223,133 @@ class TestConfigValidation:
         parsed = json.loads(json_str)
         assert parsed["debug"] is True
         assert parsed["log_level"] == "DEBUG"
+
+
+class TestLayer2Config:
+    """Test Layer2Config dataclass."""
+
+    def test_layer2_config_defaults(self):
+        """Test Layer2Config default values."""
+        cfg = config.Layer2Config()
+        assert cfg.enabled is False
+        assert cfg.temperature == 0.1
+        assert cfg.max_tokens == 1024
+        assert cfg.dns_timeout == 5.0
+
+    def test_layer2_config_custom_values(self):
+        """Test Layer2Config with custom values."""
+        cfg = config.Layer2Config(
+            enabled=True,
+            temperature=0.2,
+            max_tokens=2048,
+            dns_timeout=10.0,
+        )
+        assert cfg.enabled is True
+        assert cfg.temperature == 0.2
+        assert cfg.max_tokens == 2048
+        assert cfg.dns_timeout == 10.0
+
+
+class TestConfigOptionalTypes:
+    """Test Optional type annotations in configuration."""
+
+    def test_config_layer1_optional_none(self):
+        """Test that layer1 can be None initially."""
+        # layer1=None should be accepted
+        cfg = config.DomainHallucinationGuardConfig(layer1=None)
+        # After post_init, should be initialized
+        assert cfg.layer1 is not None
+        assert isinstance(cfg.layer1, config.Layer1Config)
+
+    def test_config_layer2_optional_none(self):
+        """Test that layer2 can be None initially."""
+        # layer2=None should be accepted
+        cfg = config.DomainHallucinationGuardConfig(layer2=None)
+        # After post_init, should be initialized
+        assert cfg.layer2 is not None
+        assert isinstance(cfg.layer2, config.Layer2Config)
+
+    def test_config_both_layers_none(self):
+        """Test that both layers can be None and will be initialized."""
+        cfg = config.DomainHallucinationGuardConfig(layer1=None, layer2=None)
+        assert cfg.layer1 is not None
+        assert cfg.layer2 is not None
+        assert isinstance(cfg.layer1, config.Layer1Config)
+        assert isinstance(cfg.layer2, config.Layer2Config)
+
+    def test_config_preserves_provided_layers(self):
+        """Test that provided layer configs are preserved."""
+        layer1 = config.Layer1Config(temperature=0.5)
+        layer2 = config.Layer2Config(dns_timeout=15.0)
+
+        cfg = config.DomainHallucinationGuardConfig(
+            layer1=layer1,
+            layer2=layer2,
+        )
+
+        # Should preserve the provided instances
+        assert cfg.layer1 is layer1
+        assert cfg.layer2 is layer2
+        assert cfg.layer1.temperature == 0.5
+        assert cfg.layer2.dns_timeout == 15.0
+
+    def test_config_initialization_with_custom_layer1_none_layer2(self):
+        """Test config with custom layer1 and None layer2."""
+        layer1 = config.Layer1Config(temperature=0.3)
+        cfg = config.DomainHallucinationGuardConfig(layer1=layer1, layer2=None)
+
+        assert cfg.layer1 is layer1
+        assert cfg.layer2 is not None
+        assert cfg.layer1.temperature == 0.3
+
+    def test_config_type_hints_are_optional(self):
+        """Test that type hints are correctly marked as Optional."""
+        # This is a runtime test to verify the dataclass fields accept None
+        import inspect
+
+        # Check if the __init__ signature accepts layer1=None and layer2=None
+        sig = inspect.signature(config.DomainHallucinationGuardConfig.__init__)
+        assert sig.parameters["layer1"].default is None
+        assert sig.parameters["layer2"].default is None
+
+
+class TestConfigLayer2Integration:
+    """Test Layer2Config integration with main config."""
+
+    def test_config_to_dict_includes_layer2(self):
+        """Test that to_dict includes layer2 configuration."""
+        cfg = config.DomainHallucinationGuardConfig()
+        d = cfg.to_dict()
+
+        assert "layer2" in d
+        assert isinstance(d["layer2"], dict)
+        assert "enabled" in d["layer2"]
+        assert "dns_timeout" in d["layer2"]
+
+    def test_config_to_json_includes_layer2(self):
+        """Test that to_json includes layer2 configuration."""
+        cfg = config.DomainHallucinationGuardConfig()
+        json_str = cfg.to_json()
+        parsed = json.loads(json_str)
+
+        assert "layer2" in parsed
+        assert "dns_timeout" in parsed["layer2"]
+
+    def test_load_config_with_layer2(self):
+        """Test loading config with layer2 settings."""
+        config_dict = {
+            "layer1": {"enabled": True, "temperature": 0.1},
+            "layer2": {"enabled": True, "dns_timeout": 8.0},
+            "debug": False,
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config_dict, f)
+            temp_path = f.name
+
+        try:
+            loaded_cfg = config.load_config(temp_path)
+            assert loaded_cfg.layer2.enabled is True
+            assert loaded_cfg.layer2.dns_timeout == 8.0
+        finally:
+            Path(temp_path).unlink()
