@@ -43,10 +43,10 @@ class PromptInjectionDetector:
         # System prompt overrides (low sensitivity)
         (r"\bignore\s+(?:the\s+)?previous\b", "ignore_previous", "low"),
         (r"\bignore\s+all\s+(?:previous\s+)?instructions\b", "ignore_instructions", "low"),
-        (r"\bforget\s+(?:the\s+)?previous\b", "forget_previous", "low"),
+        (r"\bforget\s+(?:all\s+)?(?:the\s+)?previous", "forget_previous", "low"),
         (r"\bsystem\s*[:=]\s*", "system_override", "low"),
         (r"\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]", "bracket_delimiter", "low"),
-        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b", "explicit_jailbreak", "low"),
+        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?", "explicit_jailbreak", "low"),
         # Instruction delimiters (medium sensitivity)
         (r"\b[Ii]nstructions?\s*[:=]", "instruction_override", "medium"),
         (r"\b(?:system|admin|root)\s+(?:prompt|message|instruction)", "privilege_claim", "medium"),
