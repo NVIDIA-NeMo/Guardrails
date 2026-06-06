@@ -148,6 +148,13 @@ class TokenCounter:
         return total_tokens
 
     @staticmethod
+    def _tokenize(s: str):
+        """Split a model name into tokens on non-alphanumeric separators."""
+        import re
+
+        return [t for t in re.split(r"[^a-z0-9]+", s.lower()) if t]
+
+    @staticmethod
     def get_model_context_window(model_name: Optional[str]) -> int:
         """Get context window size for a model.
 
@@ -166,27 +173,36 @@ class TokenCounter:
         if model_name_lower in TokenCounter.MODEL_CONTEXT_WINDOWS:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[model_name_lower]
 
-        # Prefix matching: find keys that are prefixes or match with separator boundaries
-        # Sort keys by length descending to prefer more specific matches
-        candidates = []
+        # Token-based matching: find the key with maximum token overlap
+        # e.g., "my-claude-3-custom" tokens: [my, claude, 3, custom]
+        #       "claude-3-opus" tokens: [claude, 3, opus]
+        #       overlap: [claude, 3] -> score 2
+        model_tokens = set(TokenCounter._tokenize(model_name_lower))
+
+        best_key = None
+        best_score = 0
+        best_key_len = 0
+
         for key in TokenCounter.MODEL_CONTEXT_WINDOWS:
             if key == "default":
                 continue
 
-            key_lower = key.lower()
-            # Check if key is a prefix of model name
-            # e.g., "gpt-4" is a prefix match for "gpt-4-custom-variant"
-            if model_name_lower.startswith(key_lower + "-") or model_name_lower.startswith(key_lower):
-                candidates.append((key_lower, key))
-            # Check if key appears as a substring in model name
-            # e.g., "claude-3" appears in "my-claude-3-custom"
-            elif key_lower in model_name_lower:
-                candidates.append((key_lower, key))
+            key_tokens = set(TokenCounter._tokenize(key.lower()))
+            if not key_tokens:
+                continue
 
-        if candidates:
-            # Sort by length of key descending (more specific keys first)
-            candidates.sort(key=lambda x: len(x[0]), reverse=True)
-            best_key = candidates[0][1]
+            # Calculate token overlap
+            overlap = len(model_tokens & key_tokens)
+            if overlap == 0:
+                continue
+
+            # Prefer higher overlap, tie-break on longer key (more specific)
+            if overlap > best_score or (overlap == best_score and len(key) > best_key_len):
+                best_score = overlap
+                best_key = key
+                best_key_len = len(key)
+
+        if best_key:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[best_key]
 
         # Default fallback
