@@ -41,35 +41,33 @@ class PromptInjectionDetector:
     # All available patterns with sensitivity tiers
     INJECTION_PATTERNS = [
         # System prompt overrides (low sensitivity)
-        (r'\bignore\s+(?:the\s+)?previous\b', 'ignore_previous', 'low'),
-        (r'\bignore\s+all\s+(?:previous\s+)?instructions\b', 'ignore_instructions', 'low'),
-        (r'\bforget\s+(?:the\s+)?previous\b', 'forget_previous', 'low'),
-        (r'\bsystem\s*[:=]\s*', 'system_override', 'low'),
-        (r'\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]', 'bracket_delimiter', 'low'),
-        (r'\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b', 'explicit_jailbreak', 'low'),
-
+        (r"\bignore\s+(?:the\s+)?previous\b", "ignore_previous", "low"),
+        (r"\bignore\s+all\s+(?:previous\s+)?instructions\b", "ignore_instructions", "low"),
+        (r"\bforget\s+(?:the\s+)?previous\b", "forget_previous", "low"),
+        (r"\bsystem\s*[:=]\s*", "system_override", "low"),
+        (r"\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]", "bracket_delimiter", "low"),
+        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b", "explicit_jailbreak", "low"),
         # Instruction delimiters (medium sensitivity)
-        (r'\b[Ii]nstructions?\s*[:=]', 'instruction_override', 'medium'),
-        (r'\b(?:system|admin|root)\s+(?:prompt|message|instruction)', 'privilege_claim', 'medium'),
-        (r'^#+\s*(?:system|admin|instruction|new task)', 'delimiter_system', 'medium'),
-        (r'[-=]{3,}\s*(?:system|admin|instruction)', 'delimiter_instruction', 'medium'),
-        (r'\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)', 'role_switch', 'medium'),
-        (r'\b(?:new\s+mode|special\s+mode|secret\s+mode)', 'mode_switch', 'medium'),
-
+        (r"\b[Ii]nstructions?\s*[:=]", "instruction_override", "medium"),
+        (r"\b(?:system|admin|root)\s+(?:prompt|message|instruction)", "privilege_claim", "medium"),
+        (r"^#+\s*(?:system|admin|instruction|new task)", "delimiter_system", "medium"),
+        (r"[-=]{3,}\s*(?:system|admin|instruction)", "delimiter_instruction", "medium"),
+        (r"\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)", "role_switch", "medium"),
+        (r"\b(?:new\s+mode|special\s+mode|secret\s+mode)", "mode_switch", "medium"),
         # Advanced injection techniques (high sensitivity)
-        (r'(?:<!--.*?-->)|(?:\\[.*?\\])', 'nested_comment', 'high'),
-        (r'\$\{.*?\}|\$\(.*?\)', 'variable_expansion', 'high'),
-        (r'(?:Base64|base64)\s+(?:decode|encoded)', 'token_smuggling', 'high'),
-        (r'(?:^|\s)(?:eval|exec)\s*\(', 'code_execution', 'high'),
+        (r"(?:<!--.*?-->)|(?:\\[.*?\\])", "nested_comment", "high"),
+        (r"\$\{.*?\}|\$\(.*?\)", "variable_expansion", "high"),
+        (r"(?:Base64|base64)\s+(?:decode|encoded)", "token_smuggling", "high"),
+        (r"(?:^|\s)(?:eval|exec)\s*\(", "code_execution", "high"),
     ]
 
-    def __init__(self, sensitivity: str = 'medium'):
+    def __init__(self, sensitivity: str = "medium"):
         """Initialize the detector with specified sensitivity level.
 
         Args:
             sensitivity: 'low' (critical only), 'medium' (default, recommended), 'high' (strict)
         """
-        if sensitivity not in ('low', 'medium', 'high'):
+        if sensitivity not in ("low", "medium", "high"):
             raise ValueError(f"Invalid sensitivity: {sensitivity}. Must be 'low', 'medium', or 'high'.")
         self.sensitivity = sensitivity
         self._compile_patterns()
@@ -77,7 +75,7 @@ class PromptInjectionDetector:
     def _compile_patterns(self) -> None:
         """Compile regex patterns for faster matching, filtered by sensitivity."""
         self.compiled_patterns = []
-        sensitivity_levels = {'low': ['low'], 'medium': ['low', 'medium'], 'high': ['low', 'medium', 'high']}
+        sensitivity_levels = {"low": ["low"], "medium": ["low", "medium"], "high": ["low", "medium", "high"]}
         enabled_levels = sensitivity_levels[self.sensitivity]
 
         for pattern_str, pattern_name, pattern_level in self.INJECTION_PATTERNS:
@@ -124,9 +122,7 @@ class PromptInjectionDetector:
 
         return None
 
-    def detect_in_messages(
-        self, messages: List[dict], raise_error: bool = True
-    ) -> Optional[dict]:
+    def detect_in_messages(self, messages: List[dict], raise_error: bool = True) -> Optional[dict]:
         """Detect injection attempts in message list.
 
         Args:
@@ -143,13 +139,13 @@ class PromptInjectionDetector:
             if not isinstance(msg, dict):
                 continue
 
-            content = msg.get('content')
+            content = msg.get("content")
             if not content or not isinstance(content, str):
                 continue
 
             # Check all user-like messages for injection
-            role = msg.get('role', '').lower()
-            if role in ('user', 'human', 'input'):
+            role = msg.get("role", "").lower()
+            if role in ("user", "human", "input"):
                 pattern = self.detect(content, raise_error=False)
                 if pattern:
                     if raise_error:
@@ -158,17 +154,17 @@ class PromptInjectionDetector:
                             injection_pattern=pattern,
                         )
                     return {
-                        'message_index': i,
-                        'role': role,
-                        'pattern': pattern,
-                        'content_preview': content[:100],
+                        "message_index": i,
+                        "role": role,
+                        "pattern": pattern,
+                        "content_preview": content[:100],
                     }
 
         return None
 
 
 @lru_cache(maxsize=3)
-def _get_cached_detector(sensitivity: str) -> 'PromptInjectionDetector':
+def _get_cached_detector(sensitivity: str) -> "PromptInjectionDetector":
     """Get or create a cached detector for the given sensitivity level.
 
     Args:
@@ -183,7 +179,7 @@ def _get_cached_detector(sensitivity: str) -> 'PromptInjectionDetector':
 def validate_prompt_safety(
     prompt: Optional[str] = None,
     messages: Optional[List[dict]] = None,
-    sensitivity: str = 'medium',
+    sensitivity: str = "medium",
 ) -> None:
     """Validate prompt for injection attacks.
 

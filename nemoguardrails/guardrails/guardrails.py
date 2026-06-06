@@ -37,7 +37,7 @@ from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.injections import validate_prompt_safety, PromptInjectionDetectedError
+from nemoguardrails.rails.llm.injections import PromptInjectionDetectedError, validate_prompt_safety
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
