@@ -36,6 +36,7 @@ from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
+from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.injections import validate_prompt_safety, PromptInjectionDetectedError
 from nemoguardrails.rails.llm.llmrails import LLMRails
@@ -78,6 +79,12 @@ class Guardrails(BaseGuardrails):
             configure_logging(logging.DEBUG)
         else:
             configure_logging(logging.INFO)
+
+        # Setup sensitive data redaction in logs to prevent data leaks
+        try:
+            setup_sensitive_data_filter(logging.getLogger())
+        except Exception as e:
+            log.warning(f"Failed to setup sensitive data filter: {e}")
 
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)
