@@ -166,11 +166,39 @@ class TokenCounter:
         if model_name_lower in TokenCounter.MODEL_CONTEXT_WINDOWS:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[model_name_lower]
 
-        # Partial match: sort by key length descending to match longer keys first
-        # This prevents 'gpt-4' from matching 'gpt-4-32k'
-        for key in sorted(TokenCounter.MODEL_CONTEXT_WINDOWS.keys(), key=len, reverse=True):
-            if key != "default" and key in model_name_lower:
-                return TokenCounter.MODEL_CONTEXT_WINDOWS[key]
+        # Token-based partial matching for custom model names like "my-claude-3-custom"
+        # Split both model name and keys into tokens, find best match by overlap
+        import re
+
+        def tokenize(s: str):
+            return set(re.findall(r"\w+", s.lower()))
+
+        model_tokens = tokenize(model_name_lower)
+        best_match = None
+        best_score = 0
+        best_key_len = 0
+
+        for key, value in TokenCounter.MODEL_CONTEXT_WINDOWS.items():
+            if key == "default":
+                continue
+
+            key_tokens = tokenize(key)
+            if not key_tokens:
+                continue
+
+            # Calculate overlap score
+            overlap = len(model_tokens & key_tokens)
+            if overlap == 0:
+                continue
+
+            # Prefer higher overlap, tie-break on longer key (more specific)
+            if overlap > best_score or (overlap == best_score and len(key) > best_key_len):
+                best_score = overlap
+                best_match = value
+                best_key_len = len(key)
+
+        if best_match is not None:
+            return best_match
 
         # Default fallback
         return TokenCounter.MODEL_CONTEXT_WINDOWS["default"]

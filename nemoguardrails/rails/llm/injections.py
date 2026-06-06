@@ -30,7 +30,8 @@ class PromptInjectionDetector:
         # System prompt overrides
         (r"\bignore\s+(?:the\s+)?previous\b", "ignore_previous"),
         (r"\bignore\s+all\s+(?:previous\s+)?instructions\b", "ignore_instructions"),
-        (r"\bforget\s+(?:the\s+)?previous\b", "forget_previous"),
+        (r"\bignore\s+(?:safety\s+)?measures\b", "ignore_safety"),
+        (r"\bforget\s+(?:all\s+)?(?:the\s+)?previous", "forget_previous"),
         (r"\bsystem\s*[:=]\s*", "system_override"),
         (r"\b[Ii]nstructions?\s*[:=]", "instruction_override"),
         (r"\b(?:system|admin|root)\s+(?:prompt|message|instruction)", "privilege_claim"),
@@ -41,7 +42,8 @@ class PromptInjectionDetector:
         # Role-switching and jailbreak
         (r"\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)", "role_switch"),
         (r"\b(?:new\s+mode|special\s+mode|secret\s+mode)", "mode_switch"),
-        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b", "explicit_jailbreak"),
+        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?", "explicit_jailbreak"),
+        (r"\bjailbreak\b", "jailbreak_keyword"),
         # Nested prompt injection
         (r"(?:<!--.*?-->)|(?:\\[.*?\\])", "nested_comment"),
         (r"\$\{.*?\}|\$\(.*?\)", "variable_expansion"),
