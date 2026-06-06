@@ -80,56 +80,52 @@ class TestTokenCounter:
 
     def test_get_model_context_window_known_model(self):
         """Known model should return correct context window."""
-        assert TokenCounter.get_model_context_window('gpt-4o') == 128000
-        assert TokenCounter.get_model_context_window('claude-3-opus') == 200000
+        assert TokenCounter.get_model_context_window("gpt-4o") == 128000
+        assert TokenCounter.get_model_context_window("claude-3-opus") == 200000
 
     def test_get_model_context_window_partial_match(self):
         """Partial model name match should work."""
         # Test partial match: 'gpt-4' key matches in 'gpt-4-custom-variant'
-        assert TokenCounter.get_model_context_window('gpt-4-custom-variant') == 8192
+        assert TokenCounter.get_model_context_window("gpt-4-custom-variant") == 8192
         # Test exact match preferred over partial: 'gpt-4-turbo' is more specific than 'gpt-4'
-        assert TokenCounter.get_model_context_window('gpt-4-turbo') == 128000
+        assert TokenCounter.get_model_context_window("gpt-4-turbo") == 128000
         # Test partial match with claude
-        assert TokenCounter.get_model_context_window('my-claude-3-custom') == 200000
+        assert TokenCounter.get_model_context_window("my-claude-3-custom") == 200000
 
     def test_get_model_context_window_unknown_model(self):
         """Unknown model should return default."""
-        default_window = TokenCounter.get_model_context_window('unknown-model-xyz')
-        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS['default']
+        default_window = TokenCounter.get_model_context_window("unknown-model-xyz")
+        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
 
     def test_get_model_context_window_none(self):
         """None model should return default."""
         default_window = TokenCounter.get_model_context_window(None)
-        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS['default']
+        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
 
     def test_validate_context_length_string_prompt_valid(self):
         """Valid string prompt should not raise."""
         prompt = "What is the capital of France?"
         # Should not raise
-        TokenCounter.validate_context_length(prompt, model_name='gpt-4')
+        TokenCounter.validate_context_length(prompt, model_name="gpt-4")
 
     def test_validate_context_length_string_prompt_too_long(self):
         """String prompt exceeding limit should raise."""
         prompt = "a" * 100000  # Very long prompt
         with pytest.raises(ContextLengthExceededError) as exc_info:
-            TokenCounter.validate_context_length(prompt, model_name='gpt-3.5-turbo')
-        assert exc_info.value.model_name == 'gpt-3.5-turbo'
+            TokenCounter.validate_context_length(prompt, model_name="gpt-3.5-turbo")
+        assert exc_info.value.model_name == "gpt-3.5-turbo"
 
     def test_validate_context_length_message_list_valid(self):
         """Valid message list should not raise."""
-        messages = [
-            {"role": "user", "content": "What is the capital of France?"}
-        ]
+        messages = [{"role": "user", "content": "What is the capital of France?"}]
         # Should not raise
-        TokenCounter.validate_context_length(messages, model_name='gpt-4')
+        TokenCounter.validate_context_length(messages, model_name="gpt-4")
 
     def test_validate_context_length_message_list_too_long(self):
         """Message list exceeding limit should raise."""
-        messages = [
-            {"role": "user", "content": "a" * 100000}
-        ]
+        messages = [{"role": "user", "content": "a" * 100000}]
         with pytest.raises(ContextLengthExceededError):
-            TokenCounter.validate_context_length(messages, model_name='gpt-3.5-turbo')
+            TokenCounter.validate_context_length(messages, model_name="gpt-3.5-turbo")
 
     def test_validate_context_length_uses_safety_threshold(self):
         """Should use 90% safety threshold."""
@@ -138,7 +134,7 @@ class TestTokenCounter:
         # A prompt with ~8000 chars should exceed threshold
         prompt = "a" * 32000  # ~8000 tokens
         with pytest.raises(ContextLengthExceededError):
-            TokenCounter.validate_context_length(prompt, model_name='gpt-4')
+            TokenCounter.validate_context_length(prompt, model_name="gpt-4")
 
     def test_validate_context_length_with_custom_max_tokens(self):
         """Should respect custom max_tokens parameter."""
@@ -151,12 +147,12 @@ class TestTokenCounter:
         """Exception should contain useful debugging info."""
         prompt = "a" * 50000
         with pytest.raises(ContextLengthExceededError) as exc_info:
-            TokenCounter.validate_context_length(prompt, model_name='gpt-3.5-turbo')
+            TokenCounter.validate_context_length(prompt, model_name="gpt-3.5-turbo")
         e = exc_info.value
         assert e.prompt_tokens > 0
         assert e.max_tokens == 4096
-        assert e.model_name == 'gpt-3.5-turbo'
-        assert 'tokens' in str(e).lower()
+        assert e.model_name == "gpt-3.5-turbo"
+        assert "tokens" in str(e).lower()
 
     def test_validate_context_length_unknown_type(self):
         """Should handle unknown prompt types gracefully."""
@@ -169,13 +165,13 @@ class TestTokenCounter:
         """Convenience function should work."""
         prompt = "What is the capital of France?"
         # Should not raise
-        validate_context_length(prompt, model_name='gpt-4')
+        validate_context_length(prompt, model_name="gpt-4")
 
     def test_convenience_function_raises(self):
         """Convenience function should raise on too long prompt."""
         prompt = "a" * 100000
         with pytest.raises(ContextLengthExceededError):
-            validate_context_length(prompt, model_name='gpt-3.5-turbo')
+            validate_context_length(prompt, model_name="gpt-3.5-turbo")
 
     def test_message_with_missing_content(self):
         """Messages with missing content should be handled."""
@@ -211,22 +207,22 @@ class TestTokenCounter:
         ]
         for prompt in tiny_prompts:
             # Should not raise
-            validate_context_length(prompt, model_name='gpt-3.5-turbo')
+            validate_context_length(prompt, model_name="gpt-3.5-turbo")
 
     def test_large_context_model_allows_longer_prompts(self):
         """Large context models should accept longer prompts."""
         prompt = "a" * 50000  # ~12500 tokens
         # Claude has 200k context, should accept this
-        validate_context_length(prompt, model_name='claude-3-opus')
+        validate_context_length(prompt, model_name="claude-3-opus")
 
         # GPT-3.5 with 4k context should reject it
         with pytest.raises(ContextLengthExceededError):
-            validate_context_length(prompt, model_name='gpt-3.5-turbo')
+            validate_context_length(prompt, model_name="gpt-3.5-turbo")
 
     def test_context_length_error_inheritance(self):
         """ContextLengthExceededError should be ValueError."""
         assert issubclass(ContextLengthExceededError, ValueError)
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

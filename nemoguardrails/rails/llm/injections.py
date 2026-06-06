@@ -11,7 +11,7 @@ Detects common prompt injection attack patterns including:
 """
 
 import re
-from typing import List, Optional, Union
+from typing import List, Optional
 
 
 class PromptInjectionDetectedError(ValueError):
@@ -28,37 +28,32 @@ class PromptInjectionDetector:
     # Patterns that indicate injection attempts
     INJECTION_PATTERNS = [
         # System prompt overrides
-        (r'\bignore\s+(?:the\s+)?previous\b', 'ignore_previous'),
-        (r'\bignore\s+all\s+(?:previous\s+)?instructions\b', 'ignore_instructions'),
-        (r'\bforget\s+(?:the\s+)?previous\b', 'forget_previous'),
-        (r'\bsystem\s*[:=]\s*', 'system_override'),
-        (r'\b[Ii]nstructions?\s*[:=]', 'instruction_override'),
-        (r'\b(?:system|admin|root)\s+(?:prompt|message|instruction)', 'privilege_claim'),
-
+        (r"\bignore\s+(?:the\s+)?previous\b", "ignore_previous"),
+        (r"\bignore\s+all\s+(?:previous\s+)?instructions\b", "ignore_instructions"),
+        (r"\bforget\s+(?:the\s+)?previous\b", "forget_previous"),
+        (r"\bsystem\s*[:=]\s*", "system_override"),
+        (r"\b[Ii]nstructions?\s*[:=]", "instruction_override"),
+        (r"\b(?:system|admin|root)\s+(?:prompt|message|instruction)", "privilege_claim"),
         # Instruction delimiter injection
-        (r'^#+\s*(?:system|admin|instruction|new task)', 'delimiter_system'),
-        (r'[-=]{3,}\s*(?:system|admin|instruction)', 'delimiter_instruction'),
-        (r'\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]', 'bracket_delimiter'),
-
+        (r"^#+\s*(?:system|admin|instruction|new task)", "delimiter_system"),
+        (r"[-=]{3,}\s*(?:system|admin|instruction)", "delimiter_instruction"),
+        (r"\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]", "bracket_delimiter"),
         # Role-switching and jailbreak
-        (r'\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)', 'role_switch'),
-        (r'\b(?:new\s+mode|special\s+mode|secret\s+mode)', 'mode_switch'),
-        (r'\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b', 'explicit_jailbreak'),
-
+        (r"\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)", "role_switch"),
+        (r"\b(?:new\s+mode|special\s+mode|secret\s+mode)", "mode_switch"),
+        (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?\b", "explicit_jailbreak"),
         # Nested prompt injection
-        (r'(?:<!--.*?-->)|(?:\\[.*?\\])', 'nested_comment'),
-        (r'\$\{.*?\}|\$\(.*?\)', 'variable_expansion'),
-
+        (r"(?:<!--.*?-->)|(?:\\[.*?\\])", "nested_comment"),
+        (r"\$\{.*?\}|\$\(.*?\)", "variable_expansion"),
         # Token smuggling
-        (r'(?:Base64|base64)\s+(?:decode|encoded)', 'token_smuggling'),
-        (r'eval\s*\(|exec\s*\(', 'code_execution'),
-
+        (r"(?:Base64|base64)\s+(?:decode|encoded)", "token_smuggling"),
+        (r"eval\s*\(|exec\s*\(", "code_execution"),
         # Continuation patterns
-        (r'\"\s*(?:\+|,)\s*\"', 'string_continuation'),
-        (r"'\s*(?:\+|,)\s*'", 'string_continuation'),
+        (r"\"\s*(?:\+|,)\s*\"", "string_continuation"),
+        (r"'\s*(?:\+|,)\s*'", "string_continuation"),
     ]
 
-    def __init__(self, sensitivity: str = 'medium'):
+    def __init__(self, sensitivity: str = "medium"):
         """Initialize the detector with specified sensitivity level.
 
         Args:
@@ -111,9 +106,7 @@ class PromptInjectionDetector:
 
         return None
 
-    def detect_in_messages(
-        self, messages: List[dict], raise_error: bool = True
-    ) -> Optional[dict]:
+    def detect_in_messages(self, messages: List[dict], raise_error: bool = True) -> Optional[dict]:
         """Detect injection attempts in message list.
 
         Args:
@@ -130,13 +123,13 @@ class PromptInjectionDetector:
             if not isinstance(msg, dict):
                 continue
 
-            content = msg.get('content')
+            content = msg.get("content")
             if not content or not isinstance(content, str):
                 continue
 
             # Check all user-like messages for injection
-            role = msg.get('role', '').lower()
-            if role in ('user', 'human', 'input'):
+            role = msg.get("role", "").lower()
+            if role in ("user", "human", "input"):
                 pattern = self.detect(content, raise_error=False)
                 if pattern:
                     if raise_error:
@@ -146,10 +139,10 @@ class PromptInjectionDetector:
                             injection_pattern=pattern,
                         )
                     return {
-                        'message_index': i,
-                        'role': role,
-                        'pattern': pattern,
-                        'content_preview': content[:100],
+                        "message_index": i,
+                        "role": role,
+                        "pattern": pattern,
+                        "content_preview": content[:100],
                     }
 
         return None
@@ -158,7 +151,7 @@ class PromptInjectionDetector:
 def validate_prompt_safety(
     prompt: Optional[str] = None,
     messages: Optional[List[dict]] = None,
-    sensitivity: str = 'medium',
+    sensitivity: str = "medium",
 ) -> None:
     """Validate prompt for injection attacks.
 
