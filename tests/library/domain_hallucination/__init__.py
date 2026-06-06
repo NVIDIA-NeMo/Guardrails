@@ -12,26 +12,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
-"""NeMo Guardrails Domain Hallucination Guard Library.
-
-A lightweight, LLM-based guard for detecting hallucinated URLs, domains,
-and GitHub repositories in model-generated responses.
-
-Layer 1 (Fast): Uses LLM judgment on entity extraction (~100-200ms)
-Layer 2 (Optional): Deep network verification (DNS/HTTP/TLS) for high-risk cases
-
-Default: Layer 1 only for speed and simplicity.
-"""
-
-from . import actions, config, layer1_check, layer2_advanced
-
-__all__ = [
-    "actions",
-    "layer1_check",
-    "layer2_advanced",
-    "config",
-]
