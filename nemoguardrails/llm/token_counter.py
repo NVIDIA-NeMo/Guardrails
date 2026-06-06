@@ -143,10 +143,12 @@ class TokenCounter:
         if model_name_lower in TokenCounter.MODEL_CONTEXT_WINDOWS:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[model_name_lower]
 
-        # Partial match (first model variant)
-        for key, tokens in TokenCounter.MODEL_CONTEXT_WINDOWS.items():
+        # Partial match (longest/most-specific key first, skip 'default')
+        for key in sorted(TokenCounter.MODEL_CONTEXT_WINDOWS.keys(), key=len, reverse=True):
+            if key == 'default':
+                continue
             if key in model_name_lower:
-                return tokens
+                return TokenCounter.MODEL_CONTEXT_WINDOWS[key]
 
         # Default fallback
         return TokenCounter.MODEL_CONTEXT_WINDOWS['default']
