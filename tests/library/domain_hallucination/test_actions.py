@@ -376,3 +376,219 @@ class TestFullIntegration:
             # Verify bot_message was used (check call args)
             calls = mock_layer1.call_args_list
             assert calls[-1].kwargs["bot_response"] == "Primary"
+
+
+class TestLayerParameters:
+    """Test enable_layer1 and enable_layer2 parameter handling."""
+
+    @pytest.mark.asyncio
+    async def test_enable_layer1_true_layer2_false(self):
+        """Test enable_layer1=True, enable_layer2=False (Layer 1 only)."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+                "entities": {"urls": [], "domains": [], "github_repos": []},
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=True,
+                enable_layer2=False,
+            )
+
+            # Layer 1 should be called
+            assert mock_layer1.called
+            # Layer 2 should NOT be called
+            assert not mock_layer2.called
+            # Result should be True (safe)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_enable_layer1_false_layer2_true(self):
+        """Test enable_layer1=False, enable_layer2=True (Layer 2 only)."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.extract_entities"
+        ) as mock_extract, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2, patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1:
+            mock_extract.return_value = {
+                "urls": ["https://pytorch.org"],
+                "domains": ["pytorch.org"],
+                "github_repos": [],
+            }
+            mock_layer2.return_value = {
+                "is_hallucinated": False,
+                "status": "verified",
+                "layer": "layer2",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=False,
+                enable_layer2=True,
+            )
+
+            # Layer 1 should NOT be called
+            assert not mock_layer1.called
+            # Layer 2 should be called
+            assert mock_layer2.called
+            # Result should be True (safe)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_enable_both_layers(self):
+        """Test enable_layer1=True, enable_layer2=True (both layers)."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+                "entities": {
+                    "urls": ["https://pytorch.org"],
+                    "domains": ["pytorch.org"],
+                    "github_repos": [],
+                },
+            }
+            mock_layer2.return_value = {
+                "is_hallucinated": False,
+                "status": "verified",
+                "layer": "layer2",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=True,
+                enable_layer2=True,
+            )
+
+            # Both layers should be called
+            assert mock_layer1.called
+            assert mock_layer2.called
+            # Result should be True (safe)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_disable_both_layers(self):
+        """Test enable_layer1=False, enable_layer2=False (both disabled)."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2:
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=False,
+                enable_layer2=False,
+            )
+
+            # Neither layer should be called
+            assert not mock_layer1.called
+            assert not mock_layer2.called
+            # Result should be True (safe pass)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_layer1_hallucination_blocks_layer2(self):
+        """Test that Layer 1 hallucination prevents Layer 2 execution."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2:
+            # Layer 1 returns hallucinated
+            mock_layer1.return_value = {
+                "is_hallucinated": True,
+                "status": "suspicious",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://fake-pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=True,
+                enable_layer2=True,
+            )
+
+            # Layer 1 should be called
+            assert mock_layer1.called
+            # Layer 2 should NOT be called (Layer 1 found hallucination)
+            assert not mock_layer2.called
+            # Result should be False (blocked)
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_layer2_error_handling(self):
+        """Test Layer 2 error handling."""
+        with patch(
+            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+        ) as mock_layer1, patch(
+            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+        ) as mock_layer2:
+            mock_layer1.return_value = {
+                "is_hallucinated": False,
+                "status": "clean",
+                "entities": {
+                    "urls": ["https://pytorch.org"],
+                    "domains": ["pytorch.org"],
+                    "github_repos": [],
+                },
+            }
+            # Layer 2 encounters error but still returns result
+            mock_layer2.return_value = {
+                "is_hallucinated": False,
+                "status": "error",
+                "layer": "layer2",
+            }
+
+            mock_llm_task_manager = MagicMock()
+            mock_config = MagicMock()
+
+            result = await actions.self_check_domain_hallucination(
+                llm_task_manager=mock_llm_task_manager,
+                context={"bot_message": "Check https://pytorch.org"},
+                llm=None,
+                config=mock_config,
+                enable_layer1=True,
+                enable_layer2=True,
+            )
+
+            # Should still return a result (not block on error)
+            assert result is True
