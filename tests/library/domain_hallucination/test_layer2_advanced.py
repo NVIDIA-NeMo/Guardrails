@@ -18,7 +18,6 @@
 
 """Tests for Layer 2 advanced network verification."""
 
-import asyncio
 import json
 import socket
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -51,9 +50,7 @@ class TestVerifyDomainNetwork:
         """Test NXDOMAIN (domain not found) error."""
         with patch("socket.getaddrinfo") as mock_getaddrinfo:
             # Mock DNS resolution failure (NXDOMAIN)
-            mock_getaddrinfo.side_effect = socket.gaierror(
-                socket.EAI_NONAME, "Name or service not known"
-            )
+            mock_getaddrinfo.side_effect = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
 
             result = await layer2_advanced.verify_domain_network("nonexistent-domain-12345.com")
 
@@ -105,9 +102,7 @@ class TestVerifyDomainNetwork:
     @pytest.mark.asyncio
     async def test_verify_domain_network_uses_executor(self):
         """Test that DNS resolution runs in executor (non-blocking)."""
-        with patch("socket.getaddrinfo") as mock_getaddrinfo, patch(
-            "asyncio.get_event_loop"
-        ) as mock_get_loop:
+        with patch("socket.getaddrinfo") as mock_getaddrinfo, patch("asyncio.get_event_loop") as mock_get_loop:
             mock_getaddrinfo.return_value = []
             mock_executor = MagicMock()
             mock_loop = MagicMock()
@@ -139,9 +134,7 @@ class TestLayer2CheckWithVerification:
         mock_response.content = "no"
         mock_llm_call_func.return_value = mock_response
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             # No domains to verify
             result = await layer2_advanced.layer2_check_with_verification(
                 bot_response="Talk about AI",
@@ -170,9 +163,7 @@ class TestLayer2CheckWithVerification:
         mock_response.content = "no"
         mock_llm_call_func.return_value = mock_response
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             mock_verify.return_value = {"domain": "example.com", "status": "resolved"}
 
             result = await layer2_advanced.layer2_check_with_verification(
@@ -202,9 +193,7 @@ class TestLayer2CheckWithVerification:
         mock_response.content = "yes, this looks fabricated"
         mock_llm_call_func.return_value = mock_response
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             mock_verify.return_value = {"domain": "fake.com", "status": "nxdomain"}
 
             result = await layer2_advanced.layer2_check_with_verification(
@@ -229,9 +218,7 @@ class TestLayer2CheckWithVerification:
         mock_llm_call_func = AsyncMock(side_effect=Exception("LLM error"))
         mock_config = MagicMock()
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             mock_verify.return_value = {"domain": "example.com", "status": "resolved"}
 
             result = await layer2_advanced.layer2_check_with_verification(
@@ -261,9 +248,7 @@ class TestLayer2CheckWithVerification:
         mock_response.content = "no"
         mock_llm_call_func.return_value = mock_response
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             # Different results for each domain
             def verify_side_effect(domain, timeout=5.0):
                 if domain == "example.com":
@@ -333,9 +318,7 @@ class TestLayer2CheckWithVerification:
         mock_response.content = "no"
         mock_llm_call_func.return_value = mock_response
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             mock_verify.return_value = {"domain": "github.com", "status": "resolved"}
 
             result = await layer2_advanced.layer2_check_with_verification(
@@ -368,9 +351,7 @@ class TestLayer2CheckWithVerification:
         mock_config.model = "gpt-3.5"
         mock_config.lowest_temperature = 0.1
 
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network"
-        ) as mock_verify:
+        with patch("nemoguardrails.library.domain_hallucination.layer2_advanced.verify_domain_network") as mock_verify:
             mock_verify.return_value = {"domain": "example.com", "status": "resolved"}
 
             await layer2_advanced.layer2_check_with_verification(
@@ -409,6 +390,7 @@ class TestLayer2Async:
             call_count += 1
             # Simulate a slow DNS lookup
             import time
+
             time.sleep(0.01)  # 10ms delay
             return []
 
