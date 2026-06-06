@@ -28,6 +28,8 @@ Key features:
 - Reduced false positives compared to Layer 1
 """
 
+import asyncio
+import json
 import logging
 import socket
 from typing import Any, Dict, List
@@ -41,6 +43,8 @@ async def verify_domain_network(
 ) -> Dict[str, Any]:
     """Perform basic network verification (DNS only for now).
 
+    Uses asyncio.to_thread() to prevent blocking the event loop during DNS resolution.
+
     Args:
         domain: Domain name to verify
         timeout: Timeout in seconds
@@ -49,18 +53,24 @@ async def verify_domain_network(
         Verification result dict with DNS status
     """
     try:
-        # Save and restore the default timeout to avoid concurrent interference
-        old_timeout = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(timeout)
-        try:
-            addrs = socket.getaddrinfo(domain, 443)
-            return {
-                "domain": domain,
-                "status": "resolved",
-                "address_count": len(addrs),
-            }
-        finally:
-            socket.setdefaulttimeout(old_timeout)
+        loop = asyncio.get_event_loop()
+
+        def _getaddrinfo():
+            """Helper to perform DNS lookup with timeout."""
+            old_timeout = socket.getdefaulttimeout()
+            try:
+                socket.setdefaulttimeout(timeout)
+                return socket.getaddrinfo(domain, 443)
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+
+        # Run DNS lookup in thread pool to avoid blocking event loop
+        addrs = await loop.run_in_executor(None, _getaddrinfo)
+        return {
+            "domain": domain,
+            "status": "resolved",
+            "address_count": len(addrs),
+        }
     except socket.gaierror:
         return {
             "domain": domain,
@@ -122,7 +132,7 @@ async def layer2_check_with_verification(
             "extracted_urls": ", ".join(urls) if urls else "none",
             "extracted_domains": ", ".join(domains) if domains else "none",
             "extracted_github_repos": ", ".join(github_repos) if github_repos else "none",
-            "verification_results": str(verification_results),
+            "verification_results": json.dumps(verification_results, default=str),
         },
     )
 
