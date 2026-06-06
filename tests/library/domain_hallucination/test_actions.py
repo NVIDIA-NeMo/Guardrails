@@ -384,11 +384,14 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_enable_layer1_true_layer2_false(self):
         """Test enable_layer1=True, enable_layer2=False (Layer 1 only)."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2:
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+        ):
             mock_layer1.return_value = {
                 "is_hallucinated": False,
                 "status": "clean",
@@ -417,13 +420,15 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_enable_layer1_false_layer2_true(self):
         """Test enable_layer1=False, enable_layer2=True (Layer 2 only)."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.extract_entities"
-        ) as mock_extract, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2, patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1:
+        with (
+            patch("nemoguardrails.library.domain_hallucination.layer1_check.extract_entities") as mock_extract,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+        ):
             mock_extract.return_value = {
                 "urls": ["https://pytorch.org"],
                 "domains": ["pytorch.org"],
@@ -457,11 +462,14 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_enable_both_layers(self):
         """Test enable_layer1=True, enable_layer2=True (both layers)."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2:
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+        ):
             mock_layer1.return_value = {
                 "is_hallucinated": False,
                 "status": "clean",
@@ -498,11 +506,14 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_disable_both_layers(self):
         """Test enable_layer1=False, enable_layer2=False (both disabled)."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2:
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+        ):
             mock_llm_task_manager = MagicMock()
             mock_config = MagicMock()
 
@@ -524,11 +535,14 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_layer1_hallucination_blocks_layer2(self):
         """Test that Layer 1 hallucination prevents Layer 2 execution."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2:
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+        ):
             # Layer 1 returns hallucinated
             mock_layer1.return_value = {
                 "is_hallucinated": True,
@@ -557,11 +571,14 @@ class TestLayerParameters:
     @pytest.mark.asyncio
     async def test_layer2_error_handling(self):
         """Test Layer 2 error handling."""
-        with patch(
-            "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
-        ) as mock_layer1, patch(
-            "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
-        ) as mock_layer2:
+        with (
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer1_check.layer1_check_domain_hallucination"
+            ) as mock_layer1,
+            patch(
+                "nemoguardrails.library.domain_hallucination.layer2_advanced.layer2_check_with_verification"
+            ) as mock_layer2,
+        ):
             mock_layer1.return_value = {
                 "is_hallucinated": False,
                 "status": "clean",
