@@ -1,0 +1,196 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "description": "Schemas for anonymous NeMo events.",
+    "schemaMeta": {
+        "clientName": "NeMo_Anonymous_Telemetry_Client",
+        "definitionVersion": "1.0",
+        "schemaVersion": "1.7",
+        "clientId": "184482118588404",
+        "personalization": ""
+    },
+    "definitions": {
+        "types": {
+            "NemoSourceEnum": {
+                "type": "string",
+                "description": "The NeMo product that created the event.",
+                "enum": [
+                    "inference",
+                    "auditor",
+                    "datadesigner",
+                    "evaluator",
+                    "guardrails",
+                    "safe-synthesizer",
+                    "anonymizer",
+                    "agent_toolkit",
+                    "undefined"
+                ]
+            },
+            "DeploymentTypeEnum": {
+                "type": "string",
+                "description": "The deployment type the event came from.",
+                "enum": [
+                    "library",
+                    "api",
+                    "cli",
+                    "sdk",
+                    "nmp",
+                    "undefined"
+                ]
+            },
+            "RestrictedTelemetryInteger": {
+                "type": "integer",
+                "description": "Numeric count (bytes, tokens, milliseconds, exit codes), restricted to signed 64-bit integer range.",
+                "maximum": 9223372036854775807,
+                "minimum": -9223372036854775808
+            },
+            "RailsEngineEnum": {
+                "type": "string",
+                "description": "Which rails engine class NeMo Guardrails is running.",
+                "enum": [
+                    "LLMRails",
+                    "IORails",
+                    "undefined"
+                ]
+            },
+            "EventTypeEnum": {
+                "type": "string",
+                "description": "Lifecycle type for the guardrails usage event: the initial census or a periodic heartbeat.",
+                "enum": [
+                    "startup",
+                    "heartbeat"
+                ]
+            }
+        },
+        "events": {
+            "guardrails_usage_event": {
+                "description": "Usage event for NeMo Guardrails, emitted at each LLMRails or Guardrails instantiation and as periodic heartbeats from a single daemon thread per process. Contains no user content, model names, prompts, completions, token counts, or per-request data.",
+                "type": "object",
+                "eventMeta": {
+                    "service": "telemetry",
+                    "gdpr": {
+                        "category": "functional",
+                        "description": "Technical metadata about a NeMo Guardrails deployment: package version, OS, active rail categories, built-in feature names, and configuration flags. No user content, model names, prompts, completions, token counts, file paths, or per-request data are included.",
+                        "personalization": ""
+                    }
+                },
+                "properties": {
+                    "nemoSource": {
+                        "description": "The NeMo product that created the event. Always 'guardrails' for this event type.",
+                        "$ref": "#/definitions/types/NemoSourceEnum"
+                    },
+                    "sessionId": {
+                        "type": "string",
+                        "description": "Random UUID4 generated in memory at process start; acts as the session ID. Held only for the process lifetime, never persisted to disk. Not traceable to any user or machine."
+                    },
+                    "nemoguardrailsVersion": {
+                        "type": "string",
+                        "description": "Installed NeMo Guardrails package version (e.g. '0.21.0'). 'unknown' if unavailable."
+                    },
+                    "pythonVersion": {
+                        "type": "string",
+                        "description": "Python interpreter version (e.g. '3.13.7')."
+                    },
+                    "platform": {
+                        "type": "string",
+                        "description": "OS and architecture string (e.g. 'Linux-5.15.0-x86_64-with-glibc2.35')."
+                    },
+                    "osName": {
+                        "type": "string",
+                        "description": "Operating system name ('Darwin', 'Linux', 'Windows')."
+                    },
+                    "colangVersion": {
+                        "type": "string",
+                        "description": "Colang language version in use ('1.0' or '2.x')."
+                    },
+                    "llmProviders": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": ""
+                        },
+                        "description": "LLM engine names, sorted (e.g. ['nim', 'openai']). Engine identifiers from the user's RailsConfig, never model names or credentials."
+                    },
+                    "numRailsConfigured": {
+                        "description": "Total count of configured rail flows across all rail types.",
+                        "$ref": "#/definitions/types/RestrictedTelemetryInteger"
+                    },
+                    "railTypesInUse": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": ""
+                        },
+                        "description": "Active rail categories from the set: 'input', 'output', 'retrieval', 'tool_input', 'tool_output', 'dialog'."
+                    },
+                    "tracingEnabled": {
+                        "type": "boolean",
+                        "description": "Whether the per-request tracing subsystem is enabled."
+                    },
+                    "deploymentType": {
+                        "description": "How guardrails was deployed. 'library' for direct LLMRails use in user code, 'api' when running the FastAPI server, 'cli' for the interactive chat command. Default reads from NEMO_DEPLOYMENT_TYPE env var.",
+                        "$ref": "#/definitions/types/DeploymentTypeEnum"
+                    },
+                    "railsEngine": {
+                        "description": "Which rails engine class is in use ('LLMRails' or 'IORails').",
+                        "$ref": "#/definitions/types/RailsEngineEnum"
+                    },
+                    "hasKnowledgeBase": {
+                        "type": "boolean",
+                        "description": "Whether a knowledge base (document set) is configured."
+                    },
+                    "streamingConfigured": {
+                        "type": "boolean",
+                        "description": "Whether streaming output is enabled."
+                    },
+                    "builtinFeatures": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": ""
+                        },
+                        "description": "Active built-in library features, sorted (e.g. ['content_safety', 'jailbreak_detection']). Only feature names from the library, never user-defined flow names or contents."
+                    },
+                    "numCustomFlows": {
+                        "description": "Count of user-defined Colang flows. Indicates dialog/topical rail usage without exposing flow names or content.",
+                        "$ref": "#/definitions/types/RestrictedTelemetryInteger"
+                    },
+                    "timestamp": {
+                        "type": "number",
+                        "description": "Unix timestamp (seconds since epoch) when the event was collected."
+                    },
+                    "event": {
+                        "description": "Event type. 'startup' for the initial report, 'heartbeat' for periodic pings.",
+                        "$ref": "#/definitions/types/EventTypeEnum"
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "nemoSource",
+                    "sessionId",
+                    "nemoguardrailsVersion",
+                    "pythonVersion",
+                    "platform",
+                    "osName",
+                    "colangVersion",
+                    "llmProviders",
+                    "numRailsConfigured",
+                    "railTypesInUse",
+                    "tracingEnabled",
+                    "deploymentType",
+                    "railsEngine",
+                    "hasKnowledgeBase",
+                    "streamingConfigured",
+                    "builtinFeatures",
+                    "numCustomFlows",
+                    "timestamp",
+                    "event"
+                ]
+            }
+        }
+    },
+    "oneOf": [
+        {
+            "$ref": "#/definitions/events/guardrails_usage_event"
+        }
+    ]
+}
