@@ -1758,6 +1758,20 @@ class RailsConfig(BaseModel):
         description="Configuration for OTEL metrics emission (independent of tracing).",
     )
 
+    injection_detection_enabled: bool = Field(
+        default=True,
+        description="Whether to enable prompt injection detection. When disabled, no injection checks are performed.",
+    )
+
+    injection_detection_sensitivity: Literal["low", "medium", "high"] = Field(
+        default="medium",
+        description="Sensitivity level for prompt injection detection. "
+        "'low': catches critical patterns only, "
+        "'medium': catches moderate and critical patterns, "
+        "'high': catches all patterns including advanced techniques. "
+        "Use 'low' to reduce false positives in coding/developer-facing contexts.",
+    )
+
     @root_validator(pre=True)
     def check_model_exists_for_input_rails(cls, values):
         """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""

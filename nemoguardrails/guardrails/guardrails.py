@@ -211,12 +211,17 @@ class Guardrails(BaseGuardrails):
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
-        # Validate input for prompt injection attempts
-        try:
-            validate_prompt_safety(prompt=prompt, messages=messages)
-        except PromptInjectionDetectedError as e:
-            log.warning(f"Prompt injection attempt blocked: {e}")
-            raise
+        # Validate input for prompt injection attempts if enabled
+        if self.config.injection_detection_enabled:
+            try:
+                validate_prompt_safety(
+                    prompt=prompt,
+                    messages=messages,
+                    sensitivity=self.config.injection_detection_sensitivity,
+                )
+            except PromptInjectionDetectedError as e:
+                log.warning(f"Prompt injection attempt blocked: {e}")
+                raise
 
         generate_messages = self._convert_to_messages(prompt, messages)
         return self.rails_engine.generate(messages=generate_messages, **kwargs)
@@ -245,12 +250,17 @@ class Guardrails(BaseGuardrails):
         """Generate an LLM response asynchronously with guardrails applied.
         Supported by both LLMRails and IORails
         """
-        # Validate input for prompt injection attempts
-        try:
-            validate_prompt_safety(prompt=prompt, messages=messages)
-        except PromptInjectionDetectedError as e:
-            log.warning(f"Prompt injection attempt blocked: {e}")
-            raise
+        # Validate input for prompt injection attempts if enabled
+        if self.config.injection_detection_enabled:
+            try:
+                validate_prompt_safety(
+                    prompt=prompt,
+                    messages=messages,
+                    sensitivity=self.config.injection_detection_sensitivity,
+                )
+            except PromptInjectionDetectedError as e:
+                log.warning(f"Prompt injection attempt blocked: {e}")
+                raise
 
         await self._ensure_started()
 
@@ -261,12 +271,17 @@ class Guardrails(BaseGuardrails):
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
         """Generate an LLM response asynchronously with streaming support."""
-        # Validate input for prompt injection attempts
-        try:
-            validate_prompt_safety(prompt=prompt, messages=messages)
-        except PromptInjectionDetectedError as e:
-            log.warning(f"Prompt injection attempt blocked: {e}")
-            raise
+        # Validate input for prompt injection attempts if enabled
+        if self.config.injection_detection_enabled:
+            try:
+                validate_prompt_safety(
+                    prompt=prompt,
+                    messages=messages,
+                    sensitivity=self.config.injection_detection_sensitivity,
+                )
+            except PromptInjectionDetectedError as e:
+                log.warning(f"Prompt injection attempt blocked: {e}")
+                raise
 
         stream_messages = self._convert_to_messages(prompt, messages)
 
