@@ -39,7 +39,7 @@ from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.types import LLMModel
 
-from . import layer1_check
+from . import layer1_check, layer2_advanced
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +51,14 @@ async def self_check_domain_hallucination(
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     enable_layer1: bool = True,
+    enable_layer2: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Domain hallucination detection using Layer 1 (LLM-based) judgment.
+    """Domain hallucination detection using configurable Layer 1 and/or Layer 2.
 
-    This is a lightweight, fast check that uses LLM to evaluate whether
-    URLs, domains, and GitHub repos in the bot response are real or hallucinated.
+    Supports two-layer architecture:
+    - Layer 1: Fast LLM-based judgment (~100-200ms, zero network)
+    - Layer 2: Advanced network verification (optional, DNS/HTTP/TLS)
 
     Args:
         llm_task_manager: Task manager for rendering prompts
@@ -64,9 +66,10 @@ async def self_check_domain_hallucination(
         llm: LLM model for inference
         config: Rails configuration
         enable_layer1: If True (default), use Layer 1 LLM judgment
+        enable_layer2: If True, use Layer 2 network verification (only if Layer 1 is clean)
 
     Returns:
-        True if output is safe (no hallucinated domains), False otherwise.
+        True if output is safe (no hallucinated domains), False if hallucinated.
     """
     context = context or {}
     bot_response = (
@@ -77,17 +80,50 @@ async def self_check_domain_hallucination(
     if not bot_response:
         return True  # Nothing to check
 
-    # Layer 1: Fast LLM judgment
-    result = await layer1_check.layer1_check_domain_hallucination(
-        bot_response=bot_response,
-        user_message=user_message,
-        llm_call_func=llm_call,
-        llm_task_manager=llm_task_manager,
-        config=config,
-        llm=llm,
-    )
+    # If both layers disabled, fast pass
+    if not enable_layer1 and not enable_layer2:
+        logger.info("Both Layer 1 and Layer 2 disabled, passing")
+        return True
 
-    logger.info(f"Layer 1 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
+    result = None
 
-    # Return True if safe (no hallucination), False if hallucinated
+    # Layer 1: Fast LLM judgment (if enabled)
+    if enable_layer1:
+        result = await layer1_check.layer1_check_domain_hallucination(
+            bot_response=bot_response,
+            user_message=user_message,
+            llm_call_func=llm_call,
+            llm_task_manager=llm_task_manager,
+            config=config,
+            llm=llm,
+        )
+        logger.info(f"Layer 1 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
+
+        # If Layer 1 found hallucination, return immediately
+        if result["is_hallucinated"]:
+            return False
+
+    # Layer 2: Network verification (if enabled and Layer 1 passed or was skipped)
+    if enable_layer2:
+        # Extract entities for Layer 2 if Layer 1 was skipped
+        if result is None:
+            entities = layer1_check.extract_entities(bot_response)
+        else:
+            entities = result.get("entities", {})
+
+        result = await layer2_advanced.layer2_check_with_verification(
+            bot_response=bot_response,
+            user_message=user_message,
+            urls=entities.get("urls", []),
+            domains=entities.get("domains", []),
+            github_repos=entities.get("github_repos", []),
+            llm_call_func=llm_call,
+            llm_task_manager=llm_task_manager,
+            config=config,
+        )
+        logger.info(f"Layer 2 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
+
+        return not result["is_hallucinated"]
+
+    # Return Layer 1 result if Layer 2 was not enabled
     return not result["is_hallucinated"]

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -48,8 +48,8 @@ class Layer2Config:
 class DomainHallucinationGuardConfig:
     """Domain hallucination guard configuration."""
 
-    layer1: Layer1Config = None
-    layer2: Layer2Config = None
+    layer1: Optional[Layer1Config] = None
+    layer2: Optional[Layer2Config] = None
     debug: bool = False
     log_level: str = "INFO"
 
