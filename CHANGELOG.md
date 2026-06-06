@@ -20,6 +20,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(llm)* Add LangChain adapter and framework registry ([#1759](https://github.com/NVIDIA-NeMo/Guardrails/issues/1759))
 - *(llm)* Add streaming tool call accumulation and LLMResponse parity ([#1789](https://github.com/NVIDIA-NeMo/Guardrails/issues/1789))
 - *(llm)* Add default framework with OpenAI-compatible client ([#1797](https://github.com/NVIDIA-NeMo/Guardrails/issues/1797))
+- *(llm)* Add context length validation before LLM inference ([#1983](https://github.com/NVIDIA-NeMo/Guardrails/issues/1983))
 - *(llm/frameworks)* Validate framework on registration ([#1863](https://github.com/NVIDIA-NeMo/Guardrails/issues/1863))
 - *(types)* Add framework-agnostic LLM type system ([#1745](https://github.com/NVIDIA-NeMo/Guardrails/issues/1745))
 - *(compat)* Transitional compat layer to migrate from 0.21 to 0.22+ ([#1841](https://github.com/NVIDIA-NeMo/Guardrails/issues/1841))
