@@ -594,3 +594,6 @@ navigation:
       - page: Telemetry and Privacy
         path: telemetry.mdx
         slug: telemetry
+      - page: Research
+        path: resources/research.mdx
+        slug: research
