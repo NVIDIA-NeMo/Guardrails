@@ -73,8 +73,12 @@ class TestTokenCounter:
 
     def test_get_model_context_window_partial_match(self):
         """Partial model name match should work."""
-        assert TokenCounter.get_model_context_window('gpt-4') == 8192
-        assert TokenCounter.get_model_context_window('claude-3') == 200000
+        # Test partial match: 'gpt-4' key matches in 'gpt-4-custom-variant'
+        assert TokenCounter.get_model_context_window('gpt-4-custom-variant') == 8192
+        # Test exact match preferred over partial: 'gpt-4-turbo' is more specific than 'gpt-4'
+        assert TokenCounter.get_model_context_window('gpt-4-turbo') == 128000
+        # Test partial match with claude
+        assert TokenCounter.get_model_context_window('my-claude-3-custom') == 200000
 
     def test_get_model_context_window_unknown_model(self):
         """Unknown model should return default."""
@@ -134,14 +138,13 @@ class TestTokenCounter:
     def test_validate_context_length_exception_details(self):
         """Exception should contain useful debugging info."""
         prompt = "a" * 50000
-        try:
+        with pytest.raises(ContextLengthExceededError) as exc_info:
             TokenCounter.validate_context_length(prompt, model_name='gpt-3.5-turbo')
-            assert False, "Should have raised"
-        except ContextLengthExceededError as e:
-            assert e.prompt_tokens > 0
-            assert e.max_tokens == 4096
-            assert e.model_name == 'gpt-3.5-turbo'
-            assert 'tokens' in str(e).lower()
+        e = exc_info.value
+        assert e.prompt_tokens > 0
+        assert e.max_tokens == 4096
+        assert e.model_name == 'gpt-3.5-turbo'
+        assert 'tokens' in str(e).lower()
 
     def test_validate_context_length_unknown_type(self):
         """Should handle unknown prompt types gracefully."""

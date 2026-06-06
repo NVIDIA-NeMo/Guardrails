@@ -72,28 +72,39 @@ class TokenCounter:
     }
 
     @staticmethod
-    def estimate_tokens(text: str) -> int:
+    def estimate_tokens(text: str, model_name: Optional[str] = None) -> int:
         """Estimate token count for text.
 
         Args:
             text: The text to estimate tokens for
+            model_name: Optional model name for family-specific estimation
 
         Returns:
             Approximate token count
         """
         if not text:
             return 0
-        # Conservative estimate: average ~3.7 characters per token
-        return max(1, len(text) // 4)
+
+        # Determine ratio based on model family
+        ratio = TokenCounter.TOKENS_PER_CHAR.get('default', 0.27)
+        if model_name:
+            model_lower = model_name.lower()
+            for family, family_ratio in TokenCounter.TOKENS_PER_CHAR.items():
+                if family in model_lower:
+                    ratio = family_ratio
+                    break
+
+        return max(1, int(len(text) * ratio))
 
     @staticmethod
-    def estimate_message_tokens(messages: List[dict]) -> int:
+    def estimate_message_tokens(messages: List[dict], model_name: Optional[str] = None) -> int:
         """Estimate total token count for message list.
 
         Accounts for message structure overhead.
 
         Args:
             messages: List of message dicts with 'role' and 'content' keys
+            model_name: Optional model name for family-specific estimation
 
         Returns:
             Approximate total token count including formatting
@@ -109,13 +120,13 @@ class TokenCounter:
             if isinstance(msg, dict):
                 content = msg.get('content', '')
                 if isinstance(content, str):
-                    total_tokens += TokenCounter.estimate_tokens(content)
+                    total_tokens += TokenCounter.estimate_tokens(content, model_name)
                 elif isinstance(content, list):
                     # For multimodal content
                     for item in content:
                         if isinstance(item, dict):
                             if item.get('type') == 'text':
-                                total_tokens += TokenCounter.estimate_tokens(item.get('text', ''))
+                                total_tokens += TokenCounter.estimate_tokens(item.get('text', ''), model_name)
                             elif item.get('type') == 'image_url':
                                 # Image tokens vary; rough estimate
                                 total_tokens += 85
@@ -143,10 +154,11 @@ class TokenCounter:
         if model_name_lower in TokenCounter.MODEL_CONTEXT_WINDOWS:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[model_name_lower]
 
-        # Partial match (first model variant)
-        for key, tokens in TokenCounter.MODEL_CONTEXT_WINDOWS.items():
-            if key in model_name_lower:
-                return tokens
+        # Partial match: sort by key length descending to match longer keys first
+        # This prevents 'gpt-4' from matching 'gpt-4-32k'
+        for key in sorted(TokenCounter.MODEL_CONTEXT_WINDOWS.keys(), key=len, reverse=True):
+            if key != 'default' and key in model_name_lower:
+                return TokenCounter.MODEL_CONTEXT_WINDOWS[key]
 
         # Default fallback
         return TokenCounter.MODEL_CONTEXT_WINDOWS['default']
@@ -168,9 +180,9 @@ class TokenCounter:
             ContextLengthExceededError: If prompt exceeds context window
         """
         if isinstance(prompt, str):
-            prompt_tokens = TokenCounter.estimate_tokens(prompt)
+            prompt_tokens = TokenCounter.estimate_tokens(prompt, model_name)
         elif isinstance(prompt, list):
-            prompt_tokens = TokenCounter.estimate_message_tokens(prompt)
+            prompt_tokens = TokenCounter.estimate_message_tokens(prompt, model_name)
         else:
             return  # Can't validate unknown type
 
