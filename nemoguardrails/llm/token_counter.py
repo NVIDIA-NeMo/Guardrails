@@ -56,13 +56,15 @@ class TokenCounter:
         "default": 0.27,
     }
 
-    # Model context window limits (in tokens)
+    # Model context window limits (in tokens).
+    # Callers should pass max_tokens explicitly for deployment-specific variants
+    # not listed here, as partial-name matching may resolve to a conservative value.
     MODEL_CONTEXT_WINDOWS = {
         # OpenAI
         "gpt-4o": 128000,
         "gpt-4-turbo": 128000,
         "gpt-4": 8192,
-        "gpt-3.5-turbo": 4096,
+        "gpt-3.5-turbo": 16385,
         # Anthropic
         "claude-3-opus": 200000,
         "claude-3-sonnet": 200000,
@@ -74,6 +76,8 @@ class TokenCounter:
         "llama-2-70b": 4096,
         "llama-3": 8192,
         "llama-3-70b": 8192,
+        "llama-3.1": 128000,
+        "llama-3.1-70b": 128000,
         # Mistral
         "mistral-7b": 32768,
         "mistral-large": 32768,
@@ -172,14 +176,16 @@ class TokenCounter:
         if model_name_lower in TokenCounter.MODEL_CONTEXT_WINDOWS:
             return TokenCounter.MODEL_CONTEXT_WINDOWS[model_name_lower]
 
-        # Token-based matching: find the key with maximum token overlap
-        # e.g., "my-claude-3-custom" tokens: [my, claude, 3, custom]
-        #       "claude-3-opus" tokens: [claude, 3, opus]
-        #       overlap: [claude, 3] -> score 2
+        # Token-based matching using coverage ratio.
+        # Coverage ratio = overlap / key_token_count prevents longer irrelevant keys
+        # from beating shorter fully-matching keys.
+        # e.g., "gpt-4-custom-variant" vs keys "gpt-4" and "gpt-4-turbo":
+        #   "gpt-4"       tokens {gpt,4}:        overlap=2, ratio=2/2=1.00 -> wins
+        #   "gpt-4-turbo" tokens {gpt,4,turbo}:  overlap=2, ratio=2/3=0.67
         model_tokens = set(TokenCounter._tokenize(model_name_lower))
 
         best_key = None
-        best_score = 0
+        best_ratio = 0.0
         best_key_len = 0
 
         for key in TokenCounter.MODEL_CONTEXT_WINDOWS:
@@ -190,14 +196,16 @@ class TokenCounter:
             if not key_tokens:
                 continue
 
-            # Calculate token overlap
             overlap = len(model_tokens & key_tokens)
             if overlap == 0:
                 continue
 
-            # Prefer higher overlap, tie-break on longer key (more specific)
-            if overlap > best_score or (overlap == best_score and len(key) > best_key_len):
-                best_score = overlap
+            # Coverage ratio: fraction of key's tokens present in the model name
+            ratio = overlap / len(key_tokens)
+
+            # Prefer higher ratio; tie-break on longer key (more specific)
+            if ratio > best_ratio or (ratio == best_ratio and len(key) > best_key_len):
+                best_ratio = ratio
                 best_key = key
                 best_key_len = len(key)
 
