@@ -144,7 +144,12 @@ class SensitiveDataRedactor:
             return False
 
         key_lower = key.lower()
-        return any(keyword in key_lower for keyword in SENSITIVE_KEYWORDS)
+        # Split on separators so 'prompt_tokens' → {'prompt','tokens'} which does not
+        # match the 'token' keyword; the unsplit key is also included to catch
+        # multi-word keywords like 'api_key' and 'access_token'.
+        parts = set(re.split(r"[_\-\s]+", key_lower))
+        parts.add(key_lower)
+        return any(keyword in parts for keyword in SENSITIVE_KEYWORDS)
 
     def redact_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Redact sensitive values in a dictionary.

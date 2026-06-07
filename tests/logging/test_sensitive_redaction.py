@@ -168,9 +168,37 @@ class TestSensitiveDataRedactor:
 
     def test_should_redact_value_non_sensitive_keys(self, redactor):
         """Non-sensitive keys should not be redacted."""
-        non_sensitive_keys = ["username", "email_address", "phone_number"]
+        non_sensitive_keys = [
+            "username",
+            "email_address",
+            "phone_number",
+            # False-positive regression: 'tokens' (plural) is not the 'token' keyword
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            # False-positive regression: 'auth' substring must not match these
+            "authenticated",
+            "authentication_method",
+            "is_authorized",
+        ]
         for key in non_sensitive_keys:
-            assert redactor.should_redact_value(key, "some_value") is False
+            assert redactor.should_redact_value(key, "some_value") is False, f"key '{key}' should NOT be redacted"
+
+    def test_should_redact_value_true_positives_still_work(self, redactor):
+        """Keys that genuinely contain sensitive segments are still redacted."""
+        sensitive_keys = [
+            "auth_token",
+            "access_token",
+            "bearer_token",
+            "user_password",
+            "my_secret",
+            "private_key",
+            "api_key",
+            "auth",
+            "token",
+        ]
+        for key in sensitive_keys:
+            assert redactor.should_redact_value(key, "value") is True, f"key '{key}' SHOULD be redacted"
 
     def test_redact_none_values(self, redactor):
         """None values should be handled gracefully."""
