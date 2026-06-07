@@ -20,29 +20,58 @@ Supports custom redaction patterns and configurable masking strategies.
 """
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
-# Default sensitive patterns to redact
+# Default sensitive patterns to redact.
+# ORDER MATTERS — patterns are applied sequentially; more specific patterns must come first
+# to prevent partial matches by broader patterns (e.g. credit-card digits being swallowed by
+# the phone pattern, or URL credentials being matched as an email address).
 DEFAULT_REDACTION_PATTERNS = {
-    'email': (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]'),
-    'phone': (r'\b(?:\+?1[-.]?)?(?:\(?[0-9]{3}\)?[-.]?)?[0-9]{3}[-.]?[0-9]{4}\b', '[PHONE]'),
-    'ssn': (r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]'),
-    'credit_card': (r'\b(?:\d{4}[-\s]?){3}\d{4}\b|\b\d{16}\b', '[CREDIT_CARD]'),
-    'api_key': (r'(?:api[_-]?key|apikey|api_secret|secret)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-]{20,})["\']?', '[API_KEY]'),
-    'password': (r'(?:password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^"\'\s,}\]]+)["\']?', '[PASSWORD]'),
-    'token': (r'(?:token|auth_token|access_token|bearer)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-\.]+)["\']?', '[TOKEN]'),
-    'aws_key': (r'AKIA[0-9A-Z]{16}', '[AWS_KEY]'),
-    'ip_address': (r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b', '[IP_ADDRESS]'),
-    'url_with_creds': (r'(?:https?://)?(?:[a-zA-Z0-9_-]+):(?:[a-zA-Z0-9_-]+)@[^\s]+', '[URL_WITH_CREDS]'),
+    # URL-with-creds must precede email: "password@host.example.com" would otherwise be
+    # treated as an email address before the full credential URL is matched.
+    "url_with_creds": (r"(?:https?://)?(?:[a-zA-Z0-9_-]+):(?:[a-zA-Z0-9_-]+)@[^\s]+", "[URL_WITH_CREDS]"),
+    "email": (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]"),
+    "ssn": (r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]"),
+    # Credit-card must precede phone: the phone pattern can partially match the first
+    # 8 digits of a 16-digit card number (e.g. "1234-5678" in "1234-5678-9012-3456").
+    "credit_card": (r"\b(?:\d{4}[-\s]?){3}\d{4}\b|\b\d{16}\b", "[CREDIT_CARD]"),
+    "phone": (r"\b(?:\+?1[-.]?)?(?:\(?[0-9]{3}\)?[-.]?)?[0-9]{3}[-.]?[0-9]{4}\b", "[PHONE]"),
+    "api_key": (
+        r'(?:api[_-]?key|apikey|api_secret|secret)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-]{8,})["\']?',
+        "[API_KEY]",
+    ),
+    "password": (r'(?:password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^"\'\s,}\]]+)["\']?', "[PASSWORD]"),
+    "token": (r'(?:token|auth_token|access_token|bearer)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-\.]+)["\']?', "[TOKEN]"),
+    "aws_key": (r"AKIA[0-9A-Z]{16}", "[AWS_KEY]"),
+    "ip_address": (
+        r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
+        "[IP_ADDRESS]",
+    ),
 }
 
 # Sensitive keywords that indicate sensitive content
 SENSITIVE_KEYWORDS = {
-    'password', 'secret', 'token', 'key', 'credential', 'private',
-    'ssn', 'social_security', 'credit_card', 'card_number',
-    'api_key', 'auth', 'authorization', 'access_token',
-    'bearer', 'api_secret', 'client_secret', 'private_key',
-    'aws_secret', 'gcp_key', 'azure_key',
+    "password",
+    "secret",
+    "token",
+    "key",
+    "credential",
+    "private",
+    "ssn",
+    "social_security",
+    "credit_card",
+    "card_number",
+    "api_key",
+    "auth",
+    "authorization",
+    "access_token",
+    "bearer",
+    "api_secret",
+    "client_secret",
+    "private_key",
+    "aws_secret",
+    "gcp_key",
+    "azure_key",
 }
 
 
@@ -138,10 +167,7 @@ class SensitiveDataRedactor:
             elif isinstance(value, dict):
                 redacted[key] = self.redact_dict(value)
             elif isinstance(value, (list, tuple)):
-                redacted[key] = type(value)(
-                    self.redact(item) if isinstance(item, str) else item
-                    for item in value
-                )
+                redacted[key] = type(value)(self.redact(item) if isinstance(item, str) else item for item in value)
             else:
                 redacted[key] = value
 
@@ -158,15 +184,19 @@ class SensitiveDataRedactor:
         """
         if isinstance(data, tuple):
             return tuple(
-                self.redact(item) if isinstance(item, str)
-                else self.redact_dict(item) if isinstance(item, dict)
+                self.redact(item)
+                if isinstance(item, str)
+                else self.redact_dict(item)
+                if isinstance(item, dict)
                 else item
                 for item in data
             )
         elif isinstance(data, list):
             return [
-                self.redact(item) if isinstance(item, str)
-                else self.redact_dict(item) if isinstance(item, dict)
+                self.redact(item)
+                if isinstance(item, str)
+                else self.redact_dict(item)
+                if isinstance(item, dict)
                 else item
                 for item in data
             ]

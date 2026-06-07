@@ -20,7 +20,7 @@ sensitive information from all log messages.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from nemoguardrails.logging.redactor import SensitiveDataRedactor, get_redactor
 
@@ -58,10 +58,15 @@ class SensitiveDataFilter(logging.Filter):
             if isinstance(record.args, dict):
                 record.args = self.redactor.redact_dict(record.args)
             elif isinstance(record.args, (tuple, list)):
-                record.args = tuple(
-                    self.redactor.redact(arg) if isinstance(arg, str) else arg
-                    for arg in record.args
-                )
+                new_args = []
+                for arg in record.args:
+                    if isinstance(arg, str):
+                        new_args.append(self.redactor.redact(arg))
+                    elif isinstance(arg, dict):
+                        new_args.append(self.redactor.redact_dict(arg))
+                    else:
+                        new_args.append(arg)
+                record.args = tuple(new_args)
 
         # Redact exception information if present
         if record.exc_info:
@@ -113,6 +118,6 @@ def setup_all_loggers(redactor: Optional[SensitiveDataRedactor] = None) -> None:
     setup_sensitive_data_filter(root_logger, redactor=redactor)
 
     # Also add to commonly used loggers
-    for logger_name in ['nemoguardrails', 'langchain', 'llama_index', 'openai']:
+    for logger_name in ["nemoguardrails", "langchain", "llama_index", "openai"]:
         logger = logging.getLogger(logger_name)
         setup_sensitive_data_filter(logger, redactor=redactor)

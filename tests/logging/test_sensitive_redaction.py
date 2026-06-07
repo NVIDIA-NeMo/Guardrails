@@ -1,16 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests for sensitive data redaction in logging."""
 
 import logging
+
 import pytest
 
 from nemoguardrails.logging.redactor import (
     SensitiveDataRedactor,
+    get_redactor,
     redact_text,
     redact_value,
-    get_redactor,
 )
 from nemoguardrails.logging.sensitive_filter import SensitiveDataFilter
 
@@ -193,11 +209,7 @@ class TestSensitiveDataRedactor:
 
     def test_redact_multiple_patterns_in_text(self, redactor):
         """Multiple sensitive patterns should be redacted."""
-        text = (
-            "User: john@example.com, "
-            "Phone: 555-123-4567, "
-            "API Key: sk_live_xyz"
-        )
+        text = "User: john@example.com, Phone: 555-123-4567, API Key: sk_live_xyz"
         redacted = redactor.redact(text)
         assert "[EMAIL]" in redacted
         assert "[PHONE]" in redacted
@@ -247,7 +259,7 @@ class TestSensitiveDataFilter:
         assert "[EMAIL]" in record.args[0]
 
     def test_filter_redacts_dict_args(self):
-        """Filter should redact dict arguments."""
+        """Filter should redact dict arguments passed as a tuple element."""
         filter_instance = SensitiveDataFilter()
         record = logging.LogRecord(
             name="test",
@@ -255,11 +267,11 @@ class TestSensitiveDataFilter:
             pathname="test.py",
             lineno=1,
             msg="Config: %s",
-            args={"api_key": "secret"},
+            args=({"api_key": "secret"},),
             exc_info=None,
         )
         filter_instance.filter(record)
-        assert record.args["api_key"] == "[API_KEY]"
+        assert record.args[0]["api_key"] == "[API_KEY]"
 
     def test_filter_returns_true(self):
         """Filter should always return True to allow logging."""
@@ -292,5 +304,5 @@ class TestSensitiveDataFilter:
         assert result is True
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
