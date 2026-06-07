@@ -225,6 +225,80 @@ class TestSensitiveDataRedactor:
         assert redacted1 == redacted2 or "[" in redacted1
 
 
+    def test_custom_patterns_in_constructor(self):
+        """Custom patterns are merged into self.patterns (line 96)."""
+        custom = {"zip_code": (r"\b\d{5}(?:-\d{4})?\b", "[ZIP]")}
+        r = SensitiveDataRedactor(custom_patterns=custom)
+        result = r.redact("Zip: 90210")
+        assert "[ZIP]" in result
+
+    def test_invalid_regex_raises_value_error(self):
+        """Invalid regex in patterns dict raises ValueError (lines 108-109)."""
+        bad_patterns = {"bad": (r"[invalid(", "[BAD]")}
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            SensitiveDataRedactor(patterns=bad_patterns)
+
+    def test_redact_non_string_input_returns_input(self):
+        """Non-string passed to redact() returns unchanged (line 121)."""
+        r = SensitiveDataRedactor()
+        assert r.redact(42) == 42
+        assert r.redact(None) is None
+        assert r.redact([]) == []
+
+    def test_custom_redactor_applied(self, redactor):
+        """Custom redactor function is applied after pattern redaction (line 129)."""
+        marker = []
+        custom_fn = lambda text: (marker.append(True), text.replace("foo", "[FOO]"))[1]
+        r = SensitiveDataRedactor(custom_redactor=custom_fn)
+        result = r.redact("foo bar")
+        assert "[FOO]" in result
+        assert marker  # custom_fn was called
+
+    def test_should_redact_non_string_key_returns_false(self, redactor):
+        """Non-string key returns False (line 144)."""
+        assert redactor.should_redact_value(123, "secret") is False
+        assert redactor.should_redact_value(None, "token") is False
+
+    def test_redact_dict_list_value_with_nested_dict(self, redactor):
+        """Dict elements inside list values are recursively redacted (line 170)."""
+        data = {
+            "items": [
+                {"password": "secret", "name": "alice"},
+                "plain text",
+            ]
+        }
+        result = redactor.redact_dict(data)
+        assert result["items"][0]["password"] == "[PASSWORD]"
+        assert result["items"][1] == "plain text"
+
+    def test_redact_list_tuple_input_returns_tuple(self, redactor):
+        """redact_list with tuple input returns a tuple (line 193)."""
+        data = ("john@example.com", "normal")
+        result = redactor.redact_list(data)
+        assert isinstance(result, tuple)
+        assert "[EMAIL]" in result[0]
+        assert result[1] == "normal"
+
+    def test_redact_list_non_iterable_returns_as_is(self, redactor):
+        """redact_list with non-list/tuple returns unchanged (line 211)."""
+        result = redactor.redact_list(42)
+        assert result == 42
+
+    def test_create_sensitive_redactor_factory(self):
+        """create_sensitive_redactor factory function (line 227)."""
+        from nemoguardrails.logging.redactor import create_sensitive_redactor
+
+        r = create_sensitive_redactor()
+        assert isinstance(r, SensitiveDataRedactor)
+
+    def test_redact_value_non_redactable_type(self):
+        """redact_value with int/etc returns value unchanged (line 274)."""
+        result = redact_value(42)
+        assert result == 42
+        result = redact_value(3.14)
+        assert result == 3.14
+
+
 class TestSensitiveDataFilter:
     """Test suite for SensitiveDataFilter logging filter."""
 
@@ -305,6 +379,133 @@ class TestSensitiveDataFilter:
         )
         result = filter_instance.filter(record)
         assert result is True
+
+    def test_filter_redacts_dict_msg(self):
+        """Filter should redact sensitive values when record.msg is a dict (lines 53-54)."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg={"password": "supersecret", "user": "alice"},
+            args=None,
+            exc_info=None,
+        )
+        filter_instance.filter(record)
+        assert record.msg["password"] == "[PASSWORD]"
+        assert record.msg["user"] == "alice"
+
+    def test_filter_tuple_args_with_dict_item(self):
+        """Filter should redact dicts inside tuple args (lines 65-66)."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="Log entry: %s and %s",
+            args=({"password": "secret123", "env": "prod"}, {"user": "alice", "env": "dev"}),
+            exc_info=None,
+        )
+        filter_instance.filter(record)
+        assert record.args[0]["password"] == "[PASSWORD]"
+        assert record.args[1]["user"] == "alice"
+
+    def test_filter_tuple_args_with_non_string_item(self):
+        """Non-string, non-dict args items are passed through unchanged (line 68)."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="Count: %s",
+            args=(42,),
+            exc_info=None,
+        )
+        filter_instance.filter(record)
+        assert record.args[0] == 42
+
+    def test_filter_exc_info_redacts_exception_string(self):
+        """Filter should redact sensitive data in exception args (lines 73-76)."""
+        filter_instance = SensitiveDataFilter()
+        exc = ValueError("password=supersecret connection failed")
+        record = logging.LogRecord(
+            name="test",
+            level=logging.ERROR,
+            pathname="test.py",
+            lineno=1,
+            msg="An error occurred",
+            args=None,
+            exc_info=(type(exc), exc, None),
+        )
+        filter_instance.filter(record)
+        # The exception args should be updated with redacted string
+        assert "supersecret" not in str(exc.args[0])
+        assert "[PASSWORD]" in str(exc.args[0])
+
+    def test_filter_exc_info_frozen_args_handled(self):
+        """Filter handles exc_value.args assignment failure gracefully (lines 78-81)."""
+        filter_instance = SensitiveDataFilter()
+
+        class _FrozenArgsExc:
+            """Exception-like object with read-only args property."""
+
+            def __str__(self):
+                return "password=topsecret"
+
+            @property
+            def args(self):
+                return ("password=topsecret",)
+
+            @args.setter
+            def args(self, value):
+                raise AttributeError("args is read-only")
+
+            def __bool__(self):
+                return True
+
+        frozen_exc = _FrozenArgsExc()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.ERROR,
+            pathname="test.py",
+            lineno=1,
+            msg="Error",
+            args=None,
+            exc_info=(Exception, frozen_exc, None),
+        )
+        # Should not raise even though args assignment fails
+        result = filter_instance.filter(record)
+        assert result is True
+
+
+class TestSetupSensitiveDataFilter:
+    """Tests for setup_sensitive_data_filter and setup_all_loggers."""
+
+    def test_setup_sensitive_data_filter_returns_existing(self):
+        """When filter already exists on logger, return it without adding another (line 100)."""
+        from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
+
+        test_logger = logging.getLogger("test.setup_filter.idempotent")
+        test_logger.filters = []
+        try:
+            first = setup_sensitive_data_filter(test_logger)
+            second = setup_sensitive_data_filter(test_logger)
+            assert second is first
+            assert len([f for f in test_logger.filters if isinstance(f, SensitiveDataFilter)]) == 1
+        finally:
+            test_logger.filters = []
+
+    def test_setup_all_loggers_adds_filters(self):
+        """setup_all_loggers adds filter to root and named loggers (lines 117-123)."""
+        from nemoguardrails.logging.sensitive_filter import setup_all_loggers
+
+        # Just verify it runs without error and the root logger gets a filter
+        setup_all_loggers()
+        root_logger = logging.getLogger()
+        assert any(isinstance(f, SensitiveDataFilter) for f in root_logger.filters)
 
 
 if __name__ == "__main__":

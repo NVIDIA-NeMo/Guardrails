@@ -250,6 +250,29 @@ class TestTokenCounter:
         with pytest.raises(ContextLengthExceededError):
             TokenCounter.validate_context_length(messages, model_name="gpt-3.5-turbo")
 
+    def test_estimate_message_tokens_skips_unknown_type_items(self):
+        """Non-dict, non-dataclass items in message list are skipped via continue (line 132)."""
+        messages = [
+            "a plain string",
+            42,
+            {"role": "user", "content": "Hello"},
+        ]
+        tokens = TokenCounter.estimate_message_tokens(messages)
+        # Only the dict message contributes content tokens; the string/int are skipped
+        dict_only_tokens = TokenCounter.estimate_message_tokens([{"role": "user", "content": "Hello"}])
+        # Overhead: 3 messages * 4 tokens vs 1 message * 4 tokens
+        assert tokens == dict_only_tokens + 2 * 4
+
+    def test_get_model_context_window_partial_match_via_loop(self):
+        """Partial match returns context window via the loop branch (line 172)."""
+        # "gpt-4-custom" is not an exact key but "gpt-4" is a partial match
+        window = TokenCounter.get_model_context_window("gpt-4-custom-variant")
+        assert window == TokenCounter.MODEL_CONTEXT_WINDOWS["gpt-4"]
+
+        # "claude-3-custom" is not an exact key but "claude-3" is a partial match
+        window2 = TokenCounter.get_model_context_window("claude-3-custom-variant")
+        assert window2 == TokenCounter.MODEL_CONTEXT_WINDOWS["claude-3"]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

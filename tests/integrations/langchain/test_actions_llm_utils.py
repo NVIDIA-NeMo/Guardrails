@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from nemoguardrails.actions.llm.utils import (
+    _extract_user_text_from_event,
     _log_completion,
     _store_reasoning_traces,
     _store_tool_calls,
@@ -679,3 +680,70 @@ class TestWarnIfTruncated:
             result = warn_if_truncated(response, "self_check_input")
         assert result is False
         assert not caplog.records
+
+
+class TestExtractUserTextFromEvent:
+    """Tests for _extract_user_text_from_event covering multimodal content paths."""
+
+    def test_string_input_returned_unchanged(self):
+        result = _extract_user_text_from_event("plain string input")
+        assert result == "plain string input"
+
+    def test_text_only_parts_joined(self):
+        parts = [{"type": "text", "text": "Hello"}, {"type": "text", "text": "world"}]
+        result = _extract_user_text_from_event(parts)
+        assert result == "Hello world"
+
+    def test_text_and_image_appends_marker(self):
+        parts = [
+            {"type": "text", "text": "Look at this"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/img.jpg"}},
+        ]
+        result = _extract_user_text_from_event(parts)
+        assert "[+ image]" in result
+        assert "Look at this" in result
+
+    def test_image_only_returns_marker(self):
+        """Image-only multimodal message: text is empty, marker is the full result."""
+        parts = [{"type": "image_url", "image_url": {"url": "https://example.com/img.jpg"}}]
+        result = _extract_user_text_from_event(parts)
+        assert result == "[+ image]"
+
+    def test_non_string_text_field_skipped(self):
+        """Content parts with non-string or falsy text fields are silently skipped."""
+        parts = [
+            {"type": "text", "text": None},
+            {"type": "text", "text": ""},
+            {"type": "text", "text": "valid text"},
+        ]
+        result = _extract_user_text_from_event(parts)
+        assert result == "valid text"
+
+
+class TestLlmCallContextLengthValidation:
+    """Tests for the validate_context_length guard inside llm_call (lines 79-83)."""
+
+    @pytest.mark.asyncio
+    async def test_llm_call_context_length_exceeded_raises_llm_call_exception(self):
+        """ContextLengthExceededError from validate_context_length is wrapped in LLMCallException."""
+        from nemoguardrails.exceptions import LLMCallException
+        from nemoguardrails.llm.token_counter import ContextLengthExceededError
+
+        class _TinyContextModel:
+            model_name = "gpt-3.5-turbo"
+            provider_name = None
+            provider_url = None
+
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
+                return LLMResponse(content="ok")
+
+            async def stream_async(self, prompt, *, stop=None, **kwargs):
+                yield LLMResponseChunk(delta_content="ok")
+
+        model = _TinyContextModel()
+        long_prompt = "a" * 100000  # ~25000 tokens, far exceeds 4096 gpt-3.5-turbo limit
+
+        with pytest.raises(LLMCallException) as exc_info:
+            await llm_call(model, long_prompt, model_name="gpt-3.5-turbo")
+
+        assert isinstance(exc_info.value.inner_exception, ContextLengthExceededError)
