@@ -167,7 +167,14 @@ class SensitiveDataRedactor:
             elif isinstance(value, dict):
                 redacted[key] = self.redact_dict(value)
             elif isinstance(value, (list, tuple)):
-                redacted[key] = type(value)(self.redact(item) if isinstance(item, str) else item for item in value)
+                redacted[key] = type(value)(
+                    self.redact(item)
+                    if isinstance(item, str)
+                    else self.redact_dict(item)
+                    if isinstance(item, dict)
+                    else item
+                    for item in value
+                )
             else:
                 redacted[key] = value
 
