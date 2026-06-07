@@ -273,6 +273,18 @@ class TestTokenCounter:
         window2 = TokenCounter.get_model_context_window("claude-3-custom-variant")
         assert window2 == TokenCounter.MODEL_CONTEXT_WINDOWS["claude-3"]
 
+    def test_gpt35_turbo_variants_use_16k_window(self):
+        """gpt-3.5-turbo-0125/1106/16k resolve to 16384, not the legacy 4096."""
+        assert TokenCounter.get_model_context_window("gpt-3.5-turbo-0125") == 16384
+        assert TokenCounter.get_model_context_window("gpt-3.5-turbo-1106") == 16384
+        assert TokenCounter.get_model_context_window("gpt-3.5-turbo-16k") == 16384
+        # Generic key still maps to legacy 4096
+        assert TokenCounter.get_model_context_window("gpt-3.5-turbo") == 4096
+
+    def test_gpt4_32k_context_window(self):
+        """gpt-4-32k resolves to 32768."""
+        assert TokenCounter.get_model_context_window("gpt-4-32k") == 32768
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

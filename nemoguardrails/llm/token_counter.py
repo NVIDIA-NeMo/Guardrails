@@ -64,7 +64,13 @@ class TokenCounter:
         # OpenAI
         "gpt-4o": 128000,
         "gpt-4-turbo": 128000,
+        "gpt-4-32k": 32768,
         "gpt-4": 8192,
+        # gpt-3.5-turbo-* variants must precede the generic key so the partial-match
+        # loop (sorted longest-first) finds the specific 16k entry before "gpt-3.5-turbo"
+        "gpt-3.5-turbo-16k": 16384,
+        "gpt-3.5-turbo-0125": 16384,
+        "gpt-3.5-turbo-1106": 16384,
         "gpt-3.5-turbo": 4096,
         # Anthropic
         "claude-3-opus": 200000,
