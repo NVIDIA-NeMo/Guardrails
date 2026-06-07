@@ -282,6 +282,12 @@ class TestSensitiveDataRedactor:
         assert "[EMAIL]" in result[0]
         assert result[1] == "normal"
 
+    def test_redact_dict_non_dict_input_returns_unchanged(self, redactor):
+        """redact_dict with a non-dict argument returns it unchanged (line 159)."""
+        assert redactor.redact_dict("a string") == "a string"
+        assert redactor.redact_dict(42) == 42
+        assert redactor.redact_dict(None) is None
+
     def test_redact_list_non_iterable_returns_as_is(self, redactor):
         """redact_list with non-list/tuple returns unchanged (line 211)."""
         result = redactor.redact_list(42)
@@ -487,8 +493,17 @@ class TestSensitiveDataFilter:
 class TestSetupSensitiveDataFilter:
     """Tests for setup_sensitive_data_filter and setup_all_loggers."""
 
+    def test_setup_sensitive_data_filter_defaults_to_root_logger(self):
+        """When logger=None, setup_sensitive_data_filter uses the root logger (line 100)."""
+        from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
+
+        f = setup_sensitive_data_filter()
+        assert isinstance(f, SensitiveDataFilter)
+        root = logging.getLogger()
+        assert any(isinstance(fl, SensitiveDataFilter) for fl in root.filters)
+
     def test_setup_sensitive_data_filter_returns_existing(self):
-        """When filter already exists on logger, return it without adding another (line 100)."""
+        """When filter already exists on logger, return the same instance (line 104)."""
         from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
 
         test_logger = logging.getLogger("test.setup_filter.idempotent")
