@@ -259,19 +259,22 @@ class TestSensitiveDataFilter:
         assert "[EMAIL]" in record.args[0]
 
     def test_filter_redacts_dict_args(self):
-        """Filter should redact dict arguments passed as a tuple element."""
+        """Filter should redact sensitive values in dict-style log record args."""
         filter_instance = SensitiveDataFilter()
+        # Use dict-style args with named % placeholders — the canonical Python
+        # logging pattern for dict args. Two keys avoids a Python 3.13 edge case
+        # where LogRecord crashes on a single-key dict via args[0] access.
         record = logging.LogRecord(
             name="test",
             level=logging.INFO,
             pathname="test.py",
             lineno=1,
-            msg="Config: %s",
-            args=({"api_key": "secret"},),
+            msg="Config: %(api_key)s (env: %(env)s)",
+            args={"api_key": "secret", "env": "prod"},
             exc_info=None,
         )
         filter_instance.filter(record)
-        assert record.args[0]["api_key"] == "[API_KEY]"
+        assert record.args["api_key"] == "[API_KEY]"
 
     def test_filter_returns_true(self):
         """Filter should always return True to allow logging."""

@@ -37,7 +37,7 @@ DEFAULT_REDACTION_PATTERNS = {
     "credit_card": (r"\b(?:\d{4}[-\s]?){3}\d{4}\b|\b\d{16}\b", "[CREDIT_CARD]"),
     "phone": (r"\b(?:\+?1[-.]?)?(?:\(?[0-9]{3}\)?[-.]?)?[0-9]{3}[-.]?[0-9]{4}\b", "[PHONE]"),
     "api_key": (
-        r'(?:api[_-]?key|apikey|api_secret|secret)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-]{8,})["\']?',
+        r'(?:api[\s_-]?key|apikey|api_secret|secret)["\']?\s*[:=]\s*["\']?([A-Za-z0-9_\-]{8,})["\']?',
         "[API_KEY]",
     ),
     "password": (r'(?:password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^"\'\s,}\]]+)["\']?', "[PASSWORD]"),
