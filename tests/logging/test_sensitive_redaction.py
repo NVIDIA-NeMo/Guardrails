@@ -224,7 +224,6 @@ class TestSensitiveDataRedactor:
         # Both should be redacted (patterns are case-insensitive)
         assert redacted1 == redacted2 or "[" in redacted1
 
-
     def test_custom_patterns_in_constructor(self):
         """Custom patterns are merged into self.patterns (line 96)."""
         custom = {"zip_code": (r"\b\d{5}(?:-\d{4})?\b", "[ZIP]")}
