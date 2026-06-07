@@ -248,7 +248,11 @@ class TestSensitiveDataRedactor:
     def test_custom_redactor_applied(self, redactor):
         """Custom redactor function is applied after pattern redaction (line 129)."""
         marker = []
-        custom_fn = lambda text: (marker.append(True), text.replace("foo", "[FOO]"))[1]
+
+        def custom_fn(text):
+            marker.append(True)
+            return text.replace("foo", "[FOO]")
+
         r = SensitiveDataRedactor(custom_redactor=custom_fn)
         result = r.redact("foo bar")
         assert "[FOO]" in result
