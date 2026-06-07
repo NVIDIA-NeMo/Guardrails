@@ -223,6 +223,28 @@ class TestTokenCounter:
         """ContextLengthExceededError should be ValueError."""
         assert issubclass(ContextLengthExceededError, ValueError)
 
+    def test_estimate_message_tokens_image_type(self):
+        """Multimodal content with 'image' type should be counted as ~85 tokens."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "data": "..."}},
+                ],
+            }
+        ]
+        tokens = TokenCounter.estimate_message_tokens(messages)
+        assert tokens >= 85
+
+    def test_get_model_context_window_empty_key_tokens_skipped(self):
+        """Keys that tokenize to empty should be skipped during partial matching."""
+        TokenCounter.MODEL_CONTEXT_WINDOWS["---"] = 1000
+        try:
+            result = TokenCounter.get_model_context_window("completely-unknown-xyz-999")
+            assert result == TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
+        finally:
+            TokenCounter.MODEL_CONTEXT_WINDOWS.pop("---", None)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
