@@ -64,7 +64,7 @@ class TokenCounter:
         "gpt-4o": 128000,
         "gpt-4-turbo": 128000,
         "gpt-4": 8192,
-        "gpt-3.5-turbo": 16385,
+        "gpt-3.5-turbo": 4096,
         # Anthropic
         "claude-3-opus": 200000,
         "claude-3-sonnet": 200000,
@@ -76,8 +76,6 @@ class TokenCounter:
         "llama-2-70b": 4096,
         "llama-3": 8192,
         "llama-3-70b": 8192,
-        "llama-3.1": 128000,
-        "llama-3.1-70b": 128000,
         # Mistral
         "mistral-7b": 32768,
         "mistral-large": 32768,
