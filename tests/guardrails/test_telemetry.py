@@ -258,7 +258,7 @@ class TestRecordSpanError:
         """A broken span/exporter that raises while being annotated must not
         propagate — ``record_span_error`` is best-effort so the span helpers
         can call it from an ``except`` branch handling a cancellation without
-        the telemetry failure masking the original exception (NGUARD-810).
+        the telemetry failure masking the original exception.
         """
         broken_span = MagicMock()
         broken_span.set_attribute.side_effect = RuntimeError("exporter down")

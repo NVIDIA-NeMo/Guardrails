@@ -316,7 +316,7 @@ class TestLLMOperationDuration:
         a ``BaseException`` subclass — inside the context manager.  The
         duration record must still carry ``error.type=CancelledError``
         so dashboards can distinguish cancelled streams from successful
-        ones (NGUARD-776 plan #6).
+        ones.
         """
         with pytest.raises(asyncio.CancelledError):
             with llm_operation_duration("model-x", "openai", "chat"):
@@ -359,7 +359,7 @@ class TestLLMOperationDuration:
 class TestLLMOperationDurationBestEffort:
     """The ``finally`` emission must be best-effort: a meter SDK that raises
     while recording the duration must never mask the original exception, nor
-    turn a successful call into a failure (NGUARD-810)."""
+    turn a successful call into a failure"""
 
     def test_finally_record_failure_does_not_mask_original_exception(self):
         broken = Mock()
@@ -574,7 +574,7 @@ class TestRequestMetricsBestEffort:
     the original exception, nor turn a successful request into a failure.
     Each emit is guarded independently so a failure in one still attempts the
     other — the active-gauge decrement must run to avoid leaking the gauge
-    (NGUARD-810)."""
+    """
 
     @staticmethod
     def _broken_instruments():
@@ -734,7 +734,7 @@ class TestRecordRequestError:
         """A meter SDK that raises while bumping the errors counter must not
         propagate — ``record_request_error`` is best-effort so it can be
         called from an ``except`` branch handling a cancellation without
-        masking it (NGUARD-810).
+        masking it.
         """
         broken = Mock()
         broken.errors.add.side_effect = RuntimeError("meter SDK down")
