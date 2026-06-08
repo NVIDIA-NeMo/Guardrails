@@ -104,7 +104,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: inputs.with-coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           directory: ./coverage/reports/
           env_vars: PYTHON
