@@ -87,6 +87,13 @@ class TestSensitiveDataRedactor:
         redacted = redactor.redact(text)
         assert "[TOKEN]" in redacted
 
+    def test_redact_bearer_token_space_separated(self, redactor):
+        """Authorization: Bearer <token> (space separator) should be redacted."""
+        text = "Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig"
+        redacted = redactor.redact(text)
+        assert "eyJhbGciOiJSUzI1NiJ9" not in redacted
+        assert "[TOKEN]" in redacted
+
     def test_redact_aws_key(self, redactor):
         """AWS keys should be redacted."""
         text = "AWS Key: AKIAIOSFODNN7EXAMPLE"
