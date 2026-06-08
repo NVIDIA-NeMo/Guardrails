@@ -654,6 +654,20 @@ class TestSetupSensitiveDataFilter:
             root_logger.removeHandler(handler)
             handler.filters.clear()
 
+    def test_setup_all_loggers_covers_named_logger_with_own_handler(self):
+        """setup_all_loggers attaches the filter to a named logger that owns its own handler (line 150)."""
+        from nemoguardrails.logging.sensitive_filter import setup_all_loggers
+
+        named_logger = logging.getLogger("nemoguardrails")
+        handler = logging.StreamHandler()
+        named_logger.addHandler(handler)
+        try:
+            setup_all_loggers()
+            assert any(isinstance(f, SensitiveDataFilter) for f in handler.filters)
+        finally:
+            named_logger.removeHandler(handler)
+            handler.filters.clear()
+
     def test_child_logger_records_are_redacted(self):
         """Filter on root handler intercepts records propagated from child loggers."""
         import io
