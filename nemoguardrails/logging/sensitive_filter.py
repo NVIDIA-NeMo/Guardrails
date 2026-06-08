@@ -112,7 +112,8 @@ def setup_sensitive_data_filter(
     # Attach to handlers, not the logger itself. Logger.filter() is never
     # invoked for records propagated from child loggers, so a logger-level
     # filter silently bypasses every named logger in the codebase.
-    handlers = logger.handlers or [logging.lastResort]
+    _fallback = logging.lastResort
+    handlers: list[logging.Handler] = logger.handlers or ([_fallback] if _fallback is not None else [])
 
     # Reuse an existing instance so multiple setup calls share the same
     # redactor state, but still add to every handler that lacks it.
