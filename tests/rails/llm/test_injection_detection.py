@@ -357,6 +357,18 @@ class TestIntegrationValidatePromptSafety:
         except PublicError as exc:
             assert exc.injection_pattern == "test_pattern"
 
+    def test_nested_comment_multiline_detected(self):
+        """HTML/C-style comment payloads split across newlines must still be detected."""
+        high = PromptInjectionDetector(sensitivity="high")
+        assert high.detect("<!--\nhidden payload\n-->", raise_error=False) == "nested_comment"
+        assert high.detect("/*\nhidden payload\n*/", raise_error=False) == "nested_comment"
+
+    def test_variable_expansion_multiline_detected(self):
+        """Variable-expansion payloads split across newlines must still be detected."""
+        high = PromptInjectionDetector(sensitivity="high")
+        assert high.detect("${\ncommand\n}", raise_error=False) == "variable_expansion"
+        assert high.detect("$(\ncommand\n)", raise_error=False) == "variable_expansion"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

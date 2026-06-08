@@ -86,7 +86,8 @@ class PromptInjectionDetector:
             if pattern_level not in enabled_levels:
                 continue
 
-            flags = re.IGNORECASE | re.MULTILINE
+            # re.DOTALL so '.' in nested_comment / variable_expansion matches newlines
+            flags = re.IGNORECASE | re.MULTILINE | re.DOTALL
             try:
                 compiled = re.compile(pattern_str, flags)
                 self.compiled_patterns.append((compiled, pattern_name))
