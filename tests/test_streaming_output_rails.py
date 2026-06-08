@@ -501,9 +501,7 @@ async def test_streaming_action_params_not_stale_across_chunks():
     ):
         pass
 
-    assert len(received_chunks) >= 2, (
-        f"Expected at least 2 action invocations (one per chunk), got {received_chunks}"
-    )
+    assert len(received_chunks) >= 2, f"Expected at least 2 action invocations (one per chunk), got {received_chunks}"
     assert "alpha" in received_chunks[0], f"First chunk unexpected: {received_chunks[0]!r}"
     assert "beta" in received_chunks[1], (
         f"Stale action_params bug: second batch got {received_chunks[1]!r} instead of 'beta'"
