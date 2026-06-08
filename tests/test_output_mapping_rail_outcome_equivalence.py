@@ -20,7 +20,7 @@ from nemoguardrails.actions.output_mapping import (
     is_output_blocked,
     outcome_from_output_mapping,
 )
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.activefence.actions import call_activefence_api
 from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
 from nemoguardrails.library.autoalign.actions import (
@@ -46,7 +46,7 @@ from nemoguardrails.library.hallucination.actions import self_check_hallucinatio
 from nemoguardrails.library.hf_classifier.actions import hf_classifier_check_output
 from nemoguardrails.library.injection_detection.actions import injection_detection
 from nemoguardrails.library.llama_guard.actions import llama_guard_check_output
-from nemoguardrails.library.pangea.actions import TextGuardResult, pangea_ai_guard
+from nemoguardrails.library.pangea.actions import pangea_ai_guard
 from nemoguardrails.library.patronusai.actions import (
     patronus_api_check_output,
     patronus_lynx_check_output_hallucination,
@@ -318,26 +318,38 @@ def test_mask_output_default_mapping_cannot_express_transform(action_func, raw_r
 
 
 @pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (RailOutcome.allow(blocked=False, transformed=False), False),
+        (RailOutcome.block(blocked=True, transformed=False), True),
+        (
+            RailOutcome.transform(
+                [
+                    (TransformTarget.USER_MESSAGE, "hello"),
+                    (TransformTarget.BOT_MESSAGE, "MASKED OUTPUT"),
+                ],
+                blocked=False,
+                transformed=True,
+            ),
+            False,
+        ),
+    ],
+)
+def test_pangea_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, pangea_ai_guard)
+    outcome = outcome_from_output_mapping(raw_return, pangea_ai_guard)
+
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_pangea_output_action_has_no_legacy_output_mapping():
+    assert getattr(pangea_ai_guard, "action_meta")["output_mapping"] is None
+
+
+@pytest.mark.parametrize(
     ("action_func", "raw_return", "interpreted_blocked", "is_transform"),
     [
-        (
-            pangea_ai_guard,
-            TextGuardResult(blocked=False, transformed=False, bot_message="NORMAL OUTPUT"),
-            False,
-            False,
-        ),
-        (
-            pangea_ai_guard,
-            TextGuardResult(blocked=True, transformed=False, bot_message="NORMAL OUTPUT"),
-            True,
-            False,
-        ),
-        (
-            pangea_ai_guard,
-            TextGuardResult(blocked=False, transformed=True, bot_message="MASKED OUTPUT"),
-            False,
-            True,
-        ),
         (
             crowdstrike_aidr_guard,
             GuardChatCompletionsResult(blocked=False, transformed=False, bot_message="NORMAL OUTPUT"),

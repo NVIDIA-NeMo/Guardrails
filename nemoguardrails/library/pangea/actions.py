@@ -24,6 +24,7 @@ from pydantic_core import to_json
 from typing_extensions import Literal, cast
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.config import PangeaRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -60,6 +61,27 @@ def get_pangea_config(config: RailsConfig) -> PangeaRailConfig:
     return cast(PangeaRailConfig, config.rails.config.pangea)
 
 
+def _pangea_outcome(result: TextGuardResult) -> RailOutcome:
+    metadata = {
+        "blocked": bool(result.blocked),
+        "transformed": bool(result.transformed),
+        "prompt_messages": result.prompt_messages,
+        "user_message": result.user_message,
+        "bot_message": result.bot_message,
+    }
+    if result.blocked:
+        return RailOutcome.block(**metadata)
+    if result.transformed:
+        return RailOutcome.transform(
+            [
+                (TransformTarget.USER_MESSAGE, result.user_message or ""),
+                (TransformTarget.BOT_MESSAGE, result.bot_message or ""),
+            ],
+            **metadata,
+        )
+    return RailOutcome.allow(**metadata)
+
+
 @action(is_system_action=True)
 async def pangea_ai_guard(
     mode: Literal["input", "output"],
@@ -67,7 +89,7 @@ async def pangea_ai_guard(
     context: Mapping[str, Any] = {},
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
-) -> TextGuardResult:
+) -> RailOutcome:
     pangea_base_url_template = os.getenv("PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud")
     pangea_api_token = os.getenv("PANGEA_API_TOKEN")
 
@@ -116,12 +138,14 @@ async def pangea_ai_guard(
             text_guard_response = TextGuardResponse(**response.json())
         except Exception as e:
             log.error("Error calling Pangea AI Guard API: %s", e)
-            return TextGuardResult(
-                prompt_messages=messages,
-                blocked=False,
-                transformed=False,
-                bot_message=bot_message,
-                user_message=user_message,
+            return _pangea_outcome(
+                TextGuardResult(
+                    prompt_messages=messages,
+                    blocked=False,
+                    transformed=False,
+                    bot_message=bot_message,
+                    user_message=user_message,
+                )
             )
 
         result = text_guard_response.result
@@ -130,4 +154,4 @@ async def pangea_ai_guard(
         result.bot_message = next((m.content for m in prompt_messages if m.role == "assistant"), bot_message)
         result.user_message = next((m.content for m in prompt_messages if m.role == "user"), user_message)
 
-        return result
+        return _pangea_outcome(result)

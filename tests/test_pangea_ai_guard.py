@@ -17,6 +17,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.pangea.actions import TextGuardResult, _pangea_outcome, pangea_ai_guard
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -37,6 +39,80 @@ output_rail_config = RailsConfig.from_content(
               - pangea ai guard output
     """
 )
+
+
+@pytest.mark.unit
+def test_pangea_outcome_allows():
+    result = TextGuardResult(blocked=False, transformed=False, user_message="Hi", bot_message="Hello")
+
+    assert _pangea_outcome(result) == RailOutcome.allow(
+        blocked=False,
+        transformed=False,
+        prompt_messages=None,
+        user_message="Hi",
+        bot_message="Hello",
+    )
+
+
+@pytest.mark.unit
+def test_pangea_outcome_blocks():
+    result = TextGuardResult(blocked=True, transformed=False, user_message="Hi", bot_message="Hello")
+
+    assert _pangea_outcome(result) == RailOutcome.block(
+        blocked=True,
+        transformed=False,
+        prompt_messages=None,
+        user_message="Hi",
+        bot_message="Hello",
+    )
+
+
+@pytest.mark.unit
+def test_pangea_outcome_transforms_both_messages():
+    result = TextGuardResult(
+        blocked=False,
+        transformed=True,
+        user_message="masked user",
+        bot_message="masked bot",
+    )
+
+    outcome = _pangea_outcome(result)
+
+    assert outcome == RailOutcome.transform(
+        [
+            (TransformTarget.USER_MESSAGE, "masked user"),
+            (TransformTarget.BOT_MESSAGE, "masked bot"),
+        ],
+        blocked=False,
+        transformed=True,
+        prompt_messages=None,
+        user_message="masked user",
+        bot_message="masked bot",
+    )
+    assert outcome.transform_text == {
+        "user_message": "masked user",
+        "bot_message": "masked bot",
+    }
+
+
+@pytest.mark.unit
+def test_pangea_outcome_block_wins_over_transform():
+    result = TextGuardResult(
+        blocked=True,
+        transformed=True,
+        user_message="masked user",
+        bot_message="masked bot",
+    )
+
+    outcome = _pangea_outcome(result)
+
+    assert outcome == RailOutcome.block(
+        blocked=True,
+        transformed=True,
+        prompt_messages=None,
+        user_message="masked user",
+        bot_message="masked bot",
+    )
 
 
 @pytest.mark.unit
@@ -136,6 +212,29 @@ def test_pangea_ai_guard_error(httpx_mock: HTTPXMock, monkeypatch: pytest.Monkey
 
     chat >> "Hi!"
     chat << "Hello!"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pangea_ai_guard_api_error_returns_allow_outcome(
+    httpx_mock: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
+    httpx_mock.add_response(status_code=500, json={"result": {}})
+
+    outcome = await pangea_ai_guard(
+        mode="output",
+        config=output_rail_config,
+        context={"user_message": "Hi", "bot_message": "Hello"},
+    )
+
+    assert outcome.is_blocked is False
+    assert outcome.is_transform is False
+    assert outcome.metadata["blocked"] is False
+    assert outcome.metadata["transformed"] is False
+    assert outcome.metadata["user_message"] == "Hi"
+    assert outcome.metadata["bot_message"] == "Hello"
 
 
 @pytest.mark.unit

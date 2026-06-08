@@ -21,9 +21,8 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.crowdstrike_aidr.actions import GuardChatCompletionsResult
-from nemoguardrails.library.pangea.actions import TextGuardResult
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
@@ -511,7 +510,6 @@ PANGEA_INPUT = RailSpec(
     flow="pangea ai guard input",
     direction="input",
     action="pangea_ai_guard",
-    interpret=_blocked_or_transformed,
 )
 
 PANGEA_OUTPUT = RailSpec(
@@ -519,7 +517,6 @@ PANGEA_OUTPUT = RailSpec(
     flow="pangea ai guard output",
     direction="output",
     action="pangea_ai_guard",
-    interpret=_blocked_or_transformed,
 )
 
 CROWDSTRIKE_AIDR_INPUT = RailSpec(
@@ -986,13 +983,25 @@ def _guard_result_cases(
     ]
 
 
-def _text_guard_result(*, blocked: bool, transformed: bool, user_message: str, bot_message: str) -> TextGuardResult:
-    return TextGuardResult(
-        blocked=blocked,
-        transformed=transformed,
-        user_message=user_message,
-        bot_message=bot_message,
-    )
+def _pangea_outcome(*, blocked: bool, transformed: bool, user_message: str, bot_message: str) -> RailOutcome:
+    metadata = {
+        "blocked": blocked,
+        "transformed": transformed,
+        "prompt_messages": None,
+        "user_message": user_message,
+        "bot_message": bot_message,
+    }
+    if blocked:
+        return RailOutcome.block(**metadata)
+    if transformed:
+        return RailOutcome.transform(
+            [
+                (TransformTarget.USER_MESSAGE, user_message),
+                (TransformTarget.BOT_MESSAGE, bot_message),
+            ],
+            **metadata,
+        )
+    return RailOutcome.allow(**metadata)
 
 
 def _crowdstrike_result(
@@ -1415,25 +1424,25 @@ FIXTURES = [
     ),
     *_guard_result_cases(
         PANGEA_INPUT,
-        allow_return=_text_guard_result(
+        allow_return=_pangea_outcome(
             blocked=False,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        block_return=_text_guard_result(
+        block_return=_pangea_outcome(
             blocked=True,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        transform_return=_text_guard_result(
+        transform_return=_pangea_outcome(
             blocked=False,
             transformed=True,
             user_message="pangea transformed input",
             bot_message=NORMAL_OUTPUT,
         ),
-        block_and_transform_return=_text_guard_result(
+        block_and_transform_return=_pangea_outcome(
             blocked=True,
             transformed=True,
             user_message="pangea transformed input",
@@ -1443,25 +1452,25 @@ FIXTURES = [
     ),
     *_guard_result_cases(
         PANGEA_OUTPUT,
-        allow_return=_text_guard_result(
+        allow_return=_pangea_outcome(
             blocked=False,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        block_return=_text_guard_result(
+        block_return=_pangea_outcome(
             blocked=True,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        transform_return=_text_guard_result(
+        transform_return=_pangea_outcome(
             blocked=False,
             transformed=True,
             user_message=USER_INPUT,
             bot_message="pangea transformed output",
         ),
-        block_and_transform_return=_text_guard_result(
+        block_and_transform_return=_pangea_outcome(
             blocked=True,
             transformed=True,
             user_message=USER_INPUT,
@@ -2258,7 +2267,9 @@ def _decision_from_observable(observable: ObservableOutcome) -> FlowDecision:
 
 def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
     if isinstance(raw_return, RailOutcome):
-        blocked = raw_return.is_blocked
+        if raw_return.is_transform:
+            return FlowDecision.TRANSFORM
+        return FlowDecision.BLOCK if raw_return.is_blocked else FlowDecision.ALLOW
     elif spec.interpret:
         return spec.interpret(raw_return)
     elif isinstance(raw_return, bool):
