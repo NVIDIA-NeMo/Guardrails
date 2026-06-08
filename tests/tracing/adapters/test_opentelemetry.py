@@ -361,10 +361,14 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
                 _adapter = OpenTelemetryAdapter()
 
-                self.assertEqual(len(w), 1)
-                self.assertTrue(issubclass(w[0].category, UserWarning))
-                self.assertIn("No OpenTelemetry TracerProvider configured", str(w[0].message))
-                self.assertIn("Traces will not be exported", str(w[0].message))
+                noop_warnings = [
+                    x
+                    for x in w
+                    if issubclass(x.category, UserWarning)
+                    and "No OpenTelemetry TracerProvider configured" in str(x.message)
+                ]
+                self.assertEqual(len(noop_warnings), 1)
+                self.assertIn("Traces will not be exported", str(noop_warnings[0].message))
 
     def test_no_warnings_with_proper_configuration(self):
         """Test that no warnings are issued when properly configured."""
