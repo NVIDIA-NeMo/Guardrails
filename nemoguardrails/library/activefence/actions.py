@@ -15,62 +15,66 @@
 import json
 import logging
 import os
-from typing import Optional
+from typing import Literal, Optional
 
 import aiohttp
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
 
+ACTIVEFENCE_DETAILED_THRESHOLDS = {
+    "abusive_or_harmful.harassment_or_bullying": 0.8,
+    "abusive_or_harmful.profanity": 0.7,
+    "abusive_or_harmful.hate_speech": 0.6,
+    "abusive_or_harmful.child_grooming": 0.4,
+    "abusive_or_harmful.general_violence": 0.7,
+    "self_harm.general": 0.8,
+    "adult_content.general": 0.3,
+    "privacy_violation.pii": 0.8,
+}
 
-def call_activefence_api_mapping(result: dict) -> bool:
-    """
-    Mapping for call_activefence_api.
 
-    Expects result to be a dict with:
-      - "max_risk_score": a float representing the overall risk.
-      - "violations": a dict mapping violation type (str) to risk score (float).
+def _activefence_simple_blocked(max_risk_score: float) -> bool:
+    return max_risk_score > 0.7
 
-    Block (return True) if any of the following conditions are met:
-      1. Overall max risk score > 0.7.
-      2. Individual thresholds are exceeded:
-         - "abusive_or_harmful.harassment_or_bullying" > 0.8
-         - "abusive_or_harmful.profanity" > 0.7
-         - "abusive_or_harmful.hate_speech" > 0.6
-         - "abusive_or_harmful.child_grooming" > 0.4
-         - "abusive_or_harmful.general_violence" > 0.7
-         - "self_harm.general" > 0.8
-         - "adult_content.general" > 0.3
-         - "privacy_violation.pii" > 0.8
-    """
-    max_risk = result.get("max_risk_score", 0.0)
-    if max_risk > 0.7:
-        return True
 
-    violations = result.get("violations", {})
+def _activefence_detailed_blocked(violations: dict[str, float]) -> bool:
+    return any(
+        violations.get(violation_type, 0) > threshold
+        for violation_type, threshold in ACTIVEFENCE_DETAILED_THRESHOLDS.items()
+    )
 
-    thresholds = {
-        "abusive_or_harmful.harassment_or_bullying": 0.8,
-        "abusive_or_harmful.profanity": 0.7,
-        "abusive_or_harmful.hate_speech": 0.6,
-        "abusive_or_harmful.child_grooming": 0.4,
-        "abusive_or_harmful.general_violence": 0.7,
-        "self_harm.general": 0.8,
-        "adult_content.general": 0.3,
-        "privacy_violation.pii": 0.8,
+
+def _activefence_outcome(
+    max_risk_score: float,
+    violations: dict[str, float],
+    threshold_mode: Literal["simple", "detailed"] = "simple",
+) -> RailOutcome:
+    metadata = {
+        "max_risk_score": max_risk_score,
+        "violations": violations,
+        "threshold_mode": threshold_mode,
     }
+    blocked = (
+        _activefence_detailed_blocked(violations)
+        if threshold_mode == "detailed"
+        else _activefence_simple_blocked(max_risk_score)
+    )
 
-    for violation_type, threshold in thresholds.items():
-        if violations.get(violation_type, 0) > threshold:
-            return True
-
-    return False
+    if blocked:
+        return RailOutcome.block(**metadata)
+    return RailOutcome.allow(**metadata)
 
 
-@action(is_system_action=True, output_mapping=call_activefence_api_mapping)
-async def call_activefence_api(text: Optional[str] = None, **kwargs):
+@action(is_system_action=True)
+async def call_activefence_api(
+    text: Optional[str] = None,
+    threshold_mode: Literal["simple", "detailed"] = "simple",
+    **kwargs,
+) -> RailOutcome:
     api_key = os.environ.get("ACTIVEFENCE_API_KEY")
 
     if api_key is None:
@@ -104,4 +108,4 @@ async def call_activefence_api(text: Optional[str] = None, **kwargs):
                     max_risk_score = violation["risk_score"]
                 violations_dict[violation["violation_type"]] = violation["risk_score"]
 
-            return {"max_risk_score": max_risk_score, "violations": violations_dict}
+            return _activefence_outcome(max_risk_score, violations_dict, threshold_mode)

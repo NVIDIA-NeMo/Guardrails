@@ -15,9 +15,9 @@ Privacy Violation	PII
 
 flow activefence moderation on input
   """Guardrail based on the maximum risk score."""
-  $result = await  CallActivefenceApiAction(text=$user_message)
+  $result = await  CallActivefenceApiAction(text=$user_message, threshold_mode="simple")
 
-  if $result.max_risk_score > 0.7
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send ActiveFenceModerationRailException(message="ActiveFence moderation triggered. The maximum risk score exceeded the threshold.")
     else
@@ -26,9 +26,9 @@ flow activefence moderation on input
 
 flow activefence moderation on output
   """Guardrail based on the maximum risk score."""
-  $result = await  CallActivefenceApiAction(text=$bot_message)
+  $result = await  CallActivefenceApiAction(text=$bot_message, threshold_mode="simple")
 
-  if $result.max_risk_score > 0.7
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send ActiveFenceModerationRailException(message="ActiveFence moderation triggered. The maximum risk score exceeded the threshold.")
     else
@@ -37,58 +37,58 @@ flow activefence moderation on output
 
 flow activefence moderation on input detailed
   """Guardrail based on individual risk scores."""
-  $result = await  CallActivefenceApiAction(text=$user_message)
+  $result = await  CallActivefenceApiAction(text=$user_message, threshold_mode="detailed")
 
-  if $result.violations.get("abusive_or_harmful.harassment_or_bullying", 0) > 0.8
+  if $result.metadata["violations"].get("abusive_or_harmful.harassment_or_bullying", 0) > 0.8
     if $system.config.enable_rails_exceptions
       send ActiveFenceHarassmentRailException(message="ActiveFence moderation triggered. The harassment or bullying risk score exceeded the threshold.")
     else
       bot inform cannot engage in abusive_or_harmful behavior
     abort
 
-  if $result.violations.get("abusive_or_harmful.profanity", 0) > 0.7
+  if $result.metadata["violations"].get("abusive_or_harmful.profanity", 0) > 0.7
     if $system.config.enable_rails_exceptions
       send ActiveFenceProfanityRailException(message="ActiveFence moderation triggered. The profanity risk score exceeded the threshold.")
     else
       bot inform cannot engage in abusive_or_harmful behavior
     abort
 
-  if $result.violations.get("abusive_or_harmful.hate_speech", 0) > 0.6
+  if $result.metadata["violations"].get("abusive_or_harmful.hate_speech", 0) > 0.6
     if $system.config.enable_rails_exceptions
       send ActiveFenceHateSpeechRailException(message="ActiveFence moderation triggered. The hate speech risk score exceeded the threshold.")
     else
       bot inform cannot engage in abusive_or_harmful behavior
     abort
 
-  if $result.violations.get("abusive_or_harmful.child_grooming", 0) > 0.4
+  if $result.metadata["violations"].get("abusive_or_harmful.child_grooming", 0) > 0.4
     if $system.config.enable_rails_exceptions
       send ActiveFenceChildGroomingRailException(message="ActiveFence moderation triggered. The child grooming risk score exceeded the threshold.")
     else
       bot inform cannot engage in abusive_or_harmful behavior
     abort
 
-  if $result.violations.get("abusive_or_harmful.general_violence", 0) > 0.7
+  if $result.metadata["violations"].get("abusive_or_harmful.general_violence", 0) > 0.7
     if $system.config.enable_rails_exceptions
       send ActiveFenceGeneralViolenceRailException(message="ActiveFence moderation triggered. The general violence risk score exceeded the threshold.")
     else
       bot inform cannot engage in abusive_or_harmful behavior
     abort
 
-  if $result.violations.get("self_harm.general", 0) > 0.8
+  if $result.metadata["violations"].get("self_harm.general", 0) > 0.8
     if $system.config.enable_rails_exceptions
       send ActiveFenceSelfHarmRailException(message="ActiveFence moderation triggered. The self harm risk score exceeded the threshold.")
     else
       bot inform cannot engage in self harm behavior
     abort
 
-  if $result.violations.get("adult_content.general", 0) > 0.3
+  if $result.metadata["violations"].get("adult_content.general", 0) > 0.3
     if $system.config.enable_rails_exceptions
       send ActiveFenceAdultContentRailException(message="ActiveFence moderation triggered. The adult content risk score exceeded the threshold.")
     else
       bot inform cannot engage with inappropriate content
     abort
 
-  if $result.violations.get("privacy_violation.pii", 0) > 0.8
+  if $result.metadata["violations"].get("privacy_violation.pii", 0) > 0.8
     if $system.config.enable_rails_exceptions
       send ActiveFencePrivacyViolationRailException(message="ActiveFence moderation triggered. The privacy violation risk score exceeded the threshold.")
     else

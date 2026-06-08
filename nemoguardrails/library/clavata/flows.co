@@ -6,7 +6,7 @@ flow clavata check for $text $policy $labels=""
   """Check if the input text is benign."""
   $is_match = await ClavataCheckAction(text=$text, policy=$policy, labels=$labels)
 
-  if $is_match
+  if $is_match.is_blocked
     if $system.config.enable_rails_exceptions
       global $msg
       $msg = "Interaction blocked by clavata check with policy={$policy} and text={$text}"

@@ -593,7 +593,6 @@ CLAVATA_INPUT = RailSpec(
     flow="clavata check input",
     direction="input",
     action="ClavataCheckAction",
-    interpret=_blocked_if_true,
 )
 
 CLAVATA_OUTPUT = RailSpec(
@@ -601,7 +600,6 @@ CLAVATA_OUTPUT = RailSpec(
     flow="clavata check output",
     direction="output",
     action="ClavataCheckAction",
-    interpret=_blocked_if_true,
 )
 
 FIDDLER_USER_SAFETY = RailSpec(
@@ -609,7 +607,6 @@ FIDDLER_USER_SAFETY = RailSpec(
     flow="fiddler user safety",
     direction="input",
     action="call fiddler safety on user message",
-    interpret=_blocked_if_true,
 )
 
 FIDDLER_BOT_SAFETY = RailSpec(
@@ -617,7 +614,6 @@ FIDDLER_BOT_SAFETY = RailSpec(
     flow="fiddler bot safety",
     direction="output",
     action="call fiddler safety on bot message",
-    interpret=_blocked_if_true,
 )
 
 FIDDLER_BOT_FAITHFULNESS = RailSpec(
@@ -625,7 +621,6 @@ FIDDLER_BOT_FAITHFULNESS = RailSpec(
     flow="fiddler bot faithfulness",
     direction="output",
     action="call fiddler faithfulness",
-    interpret=_blocked_if_true,
 )
 
 ACTIVEFENCE_INPUT = RailSpec(
@@ -633,7 +628,6 @@ ACTIVEFENCE_INPUT = RailSpec(
     flow="activefence moderation on input",
     direction="input",
     action="call_activefence_api",
-    interpret=_blocked_if_activefence_simple,
 )
 
 ACTIVEFENCE_OUTPUT = RailSpec(
@@ -641,7 +635,6 @@ ACTIVEFENCE_OUTPUT = RailSpec(
     flow="activefence moderation on output",
     direction="output",
     action="call_activefence_api",
-    interpret=_blocked_if_activefence_simple,
 )
 
 ACTIVEFENCE_INPUT_DETAILED = RailSpec(
@@ -649,7 +642,6 @@ ACTIVEFENCE_INPUT_DETAILED = RailSpec(
     flow="activefence moderation on input detailed",
     direction="input",
     action="call_activefence_api",
-    interpret=_blocked_if_activefence_detailed,
 )
 
 GCP_MODERATION_OUTPUT = RailSpec(
@@ -657,7 +649,6 @@ GCP_MODERATION_OUTPUT = RailSpec(
     flow="gcpnlp moderation",
     direction="output",
     action="call gcpnlp api",
-    interpret=_blocked_if_gcp_simple,
 )
 
 GCP_MODERATION_OUTPUT_DETAILED = RailSpec(
@@ -665,7 +656,6 @@ GCP_MODERATION_OUTPUT_DETAILED = RailSpec(
     flow="gcpnlp moderation detailed",
     direction="output",
     action="call gcpnlp api",
-    interpret=_blocked_if_gcp_detailed,
 )
 
 GUARDRAILS_AI_INPUT = RailSpec(
@@ -737,7 +727,6 @@ AI_DEFENSE_INPUT = RailSpec(
     flow="ai defense inspect prompt",
     direction="input",
     action="ai_defense_inspect",
-    interpret=_blocked_if_is_blocked,
 )
 
 AI_DEFENSE_OUTPUT = RailSpec(
@@ -745,7 +734,6 @@ AI_DEFENSE_OUTPUT = RailSpec(
     flow="ai defense inspect response",
     direction="output",
     action="ai_defense_inspect",
-    interpret=_blocked_if_is_blocked,
 )
 
 
@@ -1061,6 +1049,23 @@ def _fact_check_outcome(accuracy: float) -> RailOutcome:
 
 def _risk_result(max_risk_score: float, violations: dict[str, float] | None = None) -> dict[str, Any]:
     return {"max_risk_score": max_risk_score, "violations": violations or {}}
+
+
+def _risk_outcome(
+    max_risk_score: float,
+    *,
+    blocked: bool,
+    threshold_mode: str,
+    violations: dict[str, float] | None = None,
+) -> RailOutcome:
+    metadata = {
+        "max_risk_score": max_risk_score,
+        "violations": violations or {},
+        "threshold_mode": threshold_mode,
+    }
+    if blocked:
+        return RailOutcome.block(**metadata)
+    return RailOutcome.allow(**metadata)
 
 
 FIXTURES = [
@@ -1821,35 +1826,35 @@ FIXTURES = [
     _case(
         "ai_defense_input_allows_false",
         AI_DEFENSE_INPUT,
-        {"is_blocked": False},
+        RailOutcome.allow(is_blocked=False),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "ai_defense_input_blocks_true",
         AI_DEFENSE_INPUT,
-        {"is_blocked": True},
+        RailOutcome.block(is_blocked=True),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "ai_defense_output_allows_false",
         AI_DEFENSE_OUTPUT,
-        {"is_blocked": False},
+        RailOutcome.allow(is_blocked=False),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "ai_defense_output_blocks_true",
         AI_DEFENSE_OUTPUT,
-        {"is_blocked": True},
+        RailOutcome.block(is_blocked=True),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "ai_defense_input_blocks_true_exception",
         AI_DEFENSE_INPUT,
-        {"is_blocked": True},
+        RailOutcome.block(is_blocked=True),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1857,89 +1862,59 @@ FIXTURES = [
     _case(
         "ai_defense_output_blocks_true_exception",
         AI_DEFENSE_OUTPUT,
-        {"is_blocked": True},
+        RailOutcome.block(is_blocked=True),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         CLAVATA_INPUT,
-        block_observable=ObservableOutcome.REFUSAL,
+        allow_return=RailOutcome.allow(policy_matched=False),
+        block_return=RailOutcome.block(policy_matched=True),
+        include_exception_case=True,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         CLAVATA_OUTPUT,
-        block_observable=ObservableOutcome.REFUSAL,
+        allow_return=RailOutcome.allow(policy_matched=False),
+        block_return=RailOutcome.block(policy_matched=True),
+        include_exception_case=True,
     ),
-    _case(
-        "clavata_input_blocks_true_exception",
-        CLAVATA_INPUT,
-        True,
-        ObservableOutcome.EXCEPTION,
-        FlowDecision.BLOCK,
-        enable_rails_exceptions=True,
-    ),
-    _case(
-        "clavata_output_blocks_true_exception",
-        CLAVATA_OUTPUT,
-        True,
-        ObservableOutcome.EXCEPTION,
-        FlowDecision.BLOCK,
-        enable_rails_exceptions=True,
-    ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         FIDDLER_USER_SAFETY,
-        block_observable=ObservableOutcome.REFUSAL,
+        allow_return=RailOutcome.allow(blocked=False),
+        block_return=RailOutcome.block(blocked=True),
+        include_exception_case=True,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         FIDDLER_BOT_SAFETY,
-        block_observable=ObservableOutcome.REFUSAL,
+        allow_return=RailOutcome.allow(blocked=False),
+        block_return=RailOutcome.block(blocked=True),
+        include_exception_case=True,
     ),
-    *_boolean_flag_cases(
+    *_rail_outcome_cases(
         FIDDLER_BOT_FAITHFULNESS,
-        block_observable=ObservableOutcome.REFUSAL,
-    ),
-    _case(
-        "fiddler_user_safety_blocks_true_exception",
-        FIDDLER_USER_SAFETY,
-        True,
-        ObservableOutcome.EXCEPTION,
-        FlowDecision.BLOCK,
-        enable_rails_exceptions=True,
-    ),
-    _case(
-        "fiddler_bot_safety_blocks_true_exception",
-        FIDDLER_BOT_SAFETY,
-        True,
-        ObservableOutcome.EXCEPTION,
-        FlowDecision.BLOCK,
-        enable_rails_exceptions=True,
-    ),
-    _case(
-        "fiddler_bot_faithfulness_blocks_true_exception",
-        FIDDLER_BOT_FAITHFULNESS,
-        True,
-        ObservableOutcome.EXCEPTION,
-        FlowDecision.BLOCK,
-        enable_rails_exceptions=True,
+        allow_return=RailOutcome.allow(blocked=False),
+        block_return=RailOutcome.block(blocked=True),
+        include_exception_case=True,
     ),
     _case(
         "activefence_input_allows_at_simple_threshold",
         ACTIVEFENCE_INPUT,
-        _risk_result(0.7),
+        _risk_outcome(0.7, blocked=False, threshold_mode="simple"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "activefence_input_blocks_above_simple_threshold",
         ACTIVEFENCE_INPUT,
-        _risk_result(0.71),
+        _risk_outcome(0.71, blocked=True, threshold_mode="simple"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "activefence_input_blocks_above_simple_threshold_exception",
         ACTIVEFENCE_INPUT,
-        _risk_result(0.71),
+        _risk_outcome(0.71, blocked=True, threshold_mode="simple"),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1947,21 +1922,21 @@ FIXTURES = [
     _case(
         "activefence_output_allows_at_simple_threshold",
         ACTIVEFENCE_OUTPUT,
-        _risk_result(0.7),
+        _risk_outcome(0.7, blocked=False, threshold_mode="simple"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "activefence_output_blocks_above_simple_threshold",
         ACTIVEFENCE_OUTPUT,
-        _risk_result(0.71),
+        _risk_outcome(0.71, blocked=True, threshold_mode="simple"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "activefence_output_blocks_above_simple_threshold_exception",
         ACTIVEFENCE_OUTPUT,
-        _risk_result(0.71),
+        _risk_outcome(0.71, blocked=True, threshold_mode="simple"),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1969,14 +1944,24 @@ FIXTURES = [
     _case(
         "activefence_input_detailed_allows_at_adult_content_threshold",
         ACTIVEFENCE_INPUT_DETAILED,
-        _risk_result(0.3, {"adult_content.general": 0.3}),
+        _risk_outcome(
+            0.3,
+            blocked=False,
+            threshold_mode="detailed",
+            violations={"adult_content.general": 0.3},
+        ),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "activefence_input_detailed_blocks_above_adult_content_threshold",
         ACTIVEFENCE_INPUT_DETAILED,
-        _risk_result(0.31, {"adult_content.general": 0.31}),
+        _risk_outcome(
+            0.31,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"adult_content.general": 0.31},
+        ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content="I will not engage with inappropriate content.",
@@ -1984,7 +1969,12 @@ FIXTURES = [
     _case(
         "activefence_input_detailed_blocks_above_adult_content_threshold_exception",
         ACTIVEFENCE_INPUT_DETAILED,
-        _risk_result(0.31, {"adult_content.general": 0.31}),
+        _risk_outcome(
+            0.31,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"adult_content.general": 0.31},
+        ),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1992,28 +1982,28 @@ FIXTURES = [
     _case(
         "gcp_moderation_output_allows_at_simple_threshold",
         GCP_MODERATION_OUTPUT,
-        _risk_result(0.8),
+        _risk_outcome(0.8, blocked=False, threshold_mode="simple"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "gcp_moderation_output_blocks_above_simple_threshold",
         GCP_MODERATION_OUTPUT,
-        _risk_result(0.81),
+        _risk_outcome(0.81, blocked=True, threshold_mode="simple"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "gcp_moderation_output_detailed_allows_at_derogatory_threshold",
         GCP_MODERATION_OUTPUT_DETAILED,
-        _risk_result(0.4, {"Derogatory": 0.4}),
+        _risk_outcome(0.4, blocked=False, threshold_mode="detailed", violations={"Derogatory": 0.4}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "gcp_moderation_output_detailed_blocks_above_derogatory_threshold",
         GCP_MODERATION_OUTPUT_DETAILED,
-        _risk_result(0.41, {"Derogatory": 0.41}),
+        _risk_outcome(0.41, blocked=True, threshold_mode="detailed", violations={"Derogatory": 0.41}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content="I will not engage in any abusive or harmful behavior.",

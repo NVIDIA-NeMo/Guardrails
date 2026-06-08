@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, FrozenSet, Optional
+from typing import Any, Dict, FrozenSet, Optional, cast
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 
 def _get_reasoning_enabled(llm_task_manager: LLMTaskManager) -> bool:
-    return llm_task_manager.config.rails.config.content_safety.reasoning.enabled
+    return cast(Any, llm_task_manager.config).rails.config.content_safety.reasoning.enabled
 
 
 @action()
@@ -105,7 +105,7 @@ async def content_safety_check_input(
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
     warn_if_truncated(llm_response, task)
-    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)  # type: ignore[reportArgumentType]
 
     is_safe, *violated_policies = result
 
@@ -128,19 +128,7 @@ async def content_safety_check_input(
     return final_result
 
 
-def content_safety_check_output_mapping(result: RailOutcome) -> bool:
-    """
-    Mapping function for content_safety_check_output.
-
-    Reads the neutral RailOutcome the action returns.
-
-    Returns:
-        True if the content should be blocked, False if the content is safe.
-    """
-    return result.is_blocked
-
-
-@action(output_mapping=content_safety_check_output_mapping)
+@action()
 async def content_safety_check_output(
     llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
@@ -209,7 +197,7 @@ async def content_safety_check_output(
         llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
     )
     warn_if_truncated(llm_response, task)
-    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)  # type: ignore[reportArgumentType]
 
     is_safe, *violated_policies = result
 
@@ -253,7 +241,7 @@ def _detect_language(text: str) -> Optional[str]:
 
         result = detect(text, k=1)
         if result and len(result) > 0:
-            return result[0].get("lang")
+            return cast(Optional[str], result[0].get("lang"))
         return None
     except ImportError:
         log.warning("fast-langdetect not installed, skipping")
@@ -276,7 +264,7 @@ def _get_refusal_message(lang: str, custom_messages: Optional[Dict[str, str]]) -
 @action()
 async def detect_language(
     context: Optional[dict] = None,
-    config: Optional[dict] = None,
+    config: Optional[Any] = None,
 ) -> dict:
     user_message = ""
     if context is not None:

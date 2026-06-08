@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.content_safety.actions import (
     DEFAULT_REFUSAL_MESSAGES,
     SUPPORTED_LANGUAGES,
@@ -28,7 +27,6 @@ from nemoguardrails.library.content_safety.actions import (
     _get_refusal_message,
     content_safety_check_input,
     content_safety_check_output,
-    content_safety_check_output_mapping,
     detect_language,
 )
 from tests.utils import FakeLLMModel
@@ -137,27 +135,6 @@ async def test_content_safety_check_input_model_not_found():
             model_name="test_model",
             context={},
         )
-
-
-def test_content_safety_check_output_mapping_allowed():
-    """Test content_safety_check_output_mapping returns False when content is allowed."""
-    result = RailOutcome.allow(policy_violations=[])
-    assert content_safety_check_output_mapping(result) is False
-
-
-def test_content_safety_check_output_mapping_blocked():
-    """Test content_safety_check_output_mapping returns True when content should be blocked."""
-
-    result = RailOutcome.block(policy_violations=["violence"])
-    assert content_safety_check_output_mapping(result) is True
-
-
-def test_content_safety_check_output_mapping_blocked_policy_violations_only():
-    """Test content_safety_check_output_mapping returns True when content should be blocked."""
-
-    # TODO:@trebedea is this the expected behavior?
-    result = RailOutcome.allow(policy_violations=["violence"])
-    assert content_safety_check_output_mapping(result) is False
 
 
 class TestDetectLanguageUnit:

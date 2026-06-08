@@ -30,9 +30,7 @@ from nemoguardrails.library.autoalign.actions import (
 )
 from nemoguardrails.library.clavata.actions import clavata_check
 from nemoguardrails.library.cleanlab.actions import call_cleanlab_api
-from nemoguardrails.library.content_safety.actions import (
-    content_safety_check_output_mapping,
-)
+from nemoguardrails.library.content_safety.actions import content_safety_check_output
 from nemoguardrails.library.crowdstrike_aidr.actions import (
     GuardChatCompletionsResult,
     crowdstrike_aidr_guard,
@@ -129,14 +127,23 @@ def test_boolean_semantics_are_pinned_on_both_sides():
     assert is_output_blocked(False, detect_only_action) is True
 
 
-@action(output_mapping=content_safety_check_output_mapping)
-def content_safety_action(result):
-    return result
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (RailOutcome.allow(policy_violations=[]), False),
+        (RailOutcome.block(policy_violations=["violence"]), True),
+    ],
+)
+def test_content_safety_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, content_safety_check_output)
+    outcome = outcome_from_output_mapping(raw_return, content_safety_check_output)
+
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
-def test_content_safety_mapping_characterization_for_p3_golden():
-    assert is_output_blocked(RailOutcome.block(), content_safety_action) is True
-    assert is_output_blocked(RailOutcome.allow(), content_safety_action) is False
+def test_content_safety_output_action_has_no_legacy_output_mapping():
+    assert getattr(content_safety_check_output, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
@@ -520,89 +527,48 @@ def test_cleanlab_action_has_no_legacy_output_mapping():
 
 
 @pytest.mark.parametrize(
-    ("raw_return", "expected_blocked"),
+    "action_func",
     [
-        ({"is_blocked": False}, False),
-        ({"is_blocked": True}, True),
-        ({}, True),
-        (None, True),
+        ai_defense_inspect,
+        clavata_check,
+        call_fiddler_safety_bot,
+        call_fiddler_faithfulness,
+        call_activefence_api,
+        call_gcp_text_moderation_api,
     ],
 )
-def test_ai_defense_output_mapping_matches_fail_closed_interpretation(raw_return, expected_blocked):
-    mapping_blocked = is_output_blocked(raw_return, ai_defense_inspect)
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (RailOutcome.allow(), False),
+        (RailOutcome.block(), True),
+    ],
+)
+def test_vendor_block_output_bypass_reads_rail_outcome(
+    action_func,
+    raw_return,
+    expected_blocked,
+):
+    mapping_blocked = is_output_blocked(raw_return, action_func)
+    outcome = outcome_from_output_mapping(raw_return, action_func)
 
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
 @pytest.mark.parametrize(
     "action_func",
     [
+        ai_defense_inspect,
         clavata_check,
         call_fiddler_safety_bot,
         call_fiddler_faithfulness,
+        call_activefence_api,
+        call_gcp_text_moderation_api,
     ],
 )
-@pytest.mark.parametrize(
-    ("raw_return", "flow_blocked", "mapping_blocked"),
-    [
-        (False, False, True),
-        (True, True, False),
-    ],
-)
-def test_boolean_flag_actions_without_output_mapping_invert_output_bypass(
-    action_func,
-    raw_return,
-    flow_blocked,
-    mapping_blocked,
-):
-    assert is_output_blocked(raw_return, action_func) is mapping_blocked
-    assert raw_return is flow_blocked
-
-
-@pytest.mark.parametrize(
-    ("raw_return", "expected_blocked"),
-    [
-        ({"max_risk_score": 0.7, "violations": {}}, False),
-        ({"max_risk_score": 0.71, "violations": {}}, True),
-        ({"max_risk_score": 0.31, "violations": {"adult_content.general": 0.31}}, True),
-    ],
-)
-def test_activefence_output_mapping_matches_max_and_detailed_thresholds(raw_return, expected_blocked):
-    mapping_blocked = is_output_blocked(raw_return, call_activefence_api)
-
-    assert mapping_blocked is expected_blocked
-
-
-def test_activefence_simple_output_flow_allows_detail_only_mapping_block():
-    raw_return = {"max_risk_score": 0.31, "violations": {"adult_content.general": 0.31}}
-    simple_flow_blocked = raw_return["max_risk_score"] > 0.7
-    mapping_blocked = is_output_blocked(raw_return, call_activefence_api)
-
-    assert simple_flow_blocked is False
-    assert mapping_blocked is True
-
-
-@pytest.mark.parametrize(
-    ("raw_return", "expected_blocked"),
-    [
-        ({"max_risk_score": 0.8, "violations": {}}, False),
-        ({"max_risk_score": 0.81, "violations": {}}, True),
-        ({"max_risk_score": 0.41, "violations": {"Derogatory": 0.41}}, True),
-    ],
-)
-def test_gcp_text_moderation_output_mapping_matches_max_and_detailed_thresholds(raw_return, expected_blocked):
-    mapping_blocked = is_output_blocked(raw_return, call_gcp_text_moderation_api)
-
-    assert mapping_blocked is expected_blocked
-
-
-def test_gcp_simple_output_flow_allows_detail_only_mapping_block():
-    raw_return = {"max_risk_score": 0.41, "violations": {"Derogatory": 0.41}}
-    simple_flow_blocked = raw_return["max_risk_score"] > 0.8
-    mapping_blocked = is_output_blocked(raw_return, call_gcp_text_moderation_api)
-
-    assert simple_flow_blocked is False
-    assert mapping_blocked is True
+def test_vendor_block_actions_have_no_legacy_output_mapping(action_func):
+    assert getattr(action_func, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
