@@ -594,14 +594,15 @@ def _stop_sequences(params: dict) -> Optional[list]:
     * Anthropic: ``stop_sequences``
 
     A bare string is wrapped into a single-element list
-    (``gen_ai.request.stop_sequences`` is a string[]); a list is returned
-    unchanged.  Any other type yields ``None`` so a malformed value is
-    skipped rather than recorded.
+    (``gen_ai.request.stop_sequences`` is a string[]); a non-empty list is
+    returned unchanged.  An empty or missing value, or any other type,
+    yields ``None`` — an empty ``stop`` is skipped rather than recorded as
+    a misleading empty span attribute.
     """
     raw = params.get("stop")
     if raw is None:
         raw = params.get("stop_sequences")
-    if raw is None:
+    if not raw:
         return None
     if isinstance(raw, str):
         return [raw]

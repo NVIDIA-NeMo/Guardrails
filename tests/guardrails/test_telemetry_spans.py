@@ -400,6 +400,20 @@ class TestSetLlmRequestAttributes:
         )
         assert list(attrs["gen_ai.request.stop_sequences"]) == ["x"]
 
+    def test_malformed_stop_value_skipped(self, otel_provider):
+        """A ``stop`` that is neither a string nor a list is skipped, not recorded."""
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": 123}))
+        assert "gen_ai.request.stop_sequences" not in attrs
+
+    def test_empty_stop_value_skipped(self, otel_provider):
+        """An empty ``stop`` list or string is skipped, not recorded as an empty
+        ``gen_ai.request.stop_sequences`` (which would falsely imply stop tokens
+        were configured)."""
+        empty_list_attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": []}))
+        assert "gen_ai.request.stop_sequences" not in empty_list_attrs
+        empty_str_attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": ""}))
+        assert "gen_ai.request.stop_sequences" not in empty_str_attrs
+
     def test_unknown_kwargs_ignored(self, otel_provider):
         """Kwargs with no gen_ai.request.* mapping are silently ignored."""
         attrs = _span_attrs(
