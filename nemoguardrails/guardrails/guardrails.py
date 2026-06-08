@@ -412,6 +412,9 @@ class Guardrails(BaseGuardrails):
         """Process a sequence of events in a given state.
         Only supported for LLMRails.
         """
+        if self.config.injection_detection_enabled:
+            self._scan_events_for_injection(events)
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support process_events_async()")
 
@@ -427,6 +430,9 @@ class Guardrails(BaseGuardrails):
         """Synchronous version of process_events_async.
         Only supported for LLMRails.
         """
+        if self.config.injection_detection_enabled:
+            self._scan_events_for_injection(events)
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support process_events()")
 
