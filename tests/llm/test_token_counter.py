@@ -92,14 +92,19 @@ class TestTokenCounter:
         assert TokenCounter.get_model_context_window("claude-3") == 200000
 
     def test_get_model_context_window_unknown_model(self):
-        """Unknown model should return default."""
-        default_window = TokenCounter.get_model_context_window("unknown-model-xyz")
-        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
+        """Unknown model should return None."""
+        assert TokenCounter.get_model_context_window("unknown-model-xyz") is None
 
     def test_get_model_context_window_none(self):
-        """None model should return default."""
-        default_window = TokenCounter.get_model_context_window(None)
-        assert default_window == TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
+        """None model should return None."""
+        assert TokenCounter.get_model_context_window(None) is None
+
+    def test_validate_context_length_skips_unknown_model(self):
+        """Validation is skipped for unrecognised models rather than using a silent fallback."""
+        long_prompt = "a" * 50000
+        # Should not raise — context window is unknown so validation is skipped
+        TokenCounter.validate_context_length(long_prompt, model_name="my-custom-ollama-model")
+        TokenCounter.validate_context_length(long_prompt, model_name=None)
 
     def test_validate_context_length_string_prompt_valid(self):
         """Valid string prompt should not raise."""

@@ -152,17 +152,17 @@ class TokenCounter:
         return total_tokens
 
     @staticmethod
-    def get_model_context_window(model_name: Optional[str]) -> int:
+    def get_model_context_window(model_name: Optional[str]) -> Optional[int]:
         """Get context window size for a model.
 
         Args:
             model_name: Name of the model
 
         Returns:
-            Context window in tokens, or default if unknown
+            Context window in tokens, or None if the model is not recognised
         """
         if not model_name:
-            return TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
+            return None
 
         model_name_lower = model_name.lower()
 
@@ -177,8 +177,8 @@ class TokenCounter:
             if key in model_name_lower:
                 return TokenCounter.MODEL_CONTEXT_WINDOWS[key]
 
-        # Default fallback
-        return TokenCounter.MODEL_CONTEXT_WINDOWS["default"]
+        # Unknown model — return None so callers can skip validation
+        return None
 
     @staticmethod
     def validate_context_length(
@@ -206,6 +206,9 @@ class TokenCounter:
         # Determine context window
         if max_tokens is None:
             max_tokens = TokenCounter.get_model_context_window(model_name)
+            if max_tokens is None:
+                log.debug("Skipping context-length check: unrecognised model '%s'", model_name)
+                return
 
         # Validate (reserve 10% for safety margin and output tokens)
         safety_threshold = int(max_tokens * 0.9)
