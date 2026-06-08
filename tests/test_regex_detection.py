@@ -901,6 +901,7 @@ def test_regex_redact_input_e2e():
               input:
                 flows:
                   - regex redact input
+                  - check user message
         """,
         colang_content="""
             define user express greeting
@@ -909,6 +910,9 @@ def test_regex_redact_input_e2e():
             define flow
               user express greeting
               bot express greeting
+
+            define flow check user message
+              execute check_user_message(user_message=$user_message)
         """,
     )
 
@@ -916,6 +920,13 @@ def test_regex_redact_input_e2e():
         config,
         llm_completions=["  express greeting", '  "Got it, your SSN is on file."'],
     )
+
+    @action()
+    def check_user_message(user_message: str):
+        assert "123-45-6789" not in user_message
+        assert "<REDACTED>" in user_message
+
+    chat.app.register_action(check_user_message)
 
     chat >> "My SSN is 123-45-6789"
     chat << "Got it, your SSN is on file."
