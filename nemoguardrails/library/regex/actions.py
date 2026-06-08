@@ -127,6 +127,7 @@ async def redact_regex_pattern(
         if compiled.search(redacted):
             log.info("Regex pattern redacted: %s", pcfg.pattern)
             mask = pcfg.mask_token
-            redacted = compiled.sub(lambda m, _mask=mask: _mask, redacted)
+            # use a lambda to ensure the mask token is treated as a literal string, not a regex
+            redacted = compiled.sub(lambda _: mask, redacted)
 
     return redacted
