@@ -548,9 +548,9 @@ class TestSensitiveDataFilter:
             exc_info=None,
         )
         filter_instance.filter(record)
-        assert "[PASSWORD]" in record.args[0]          # str arg redacted  (lines 73-74)
+        assert "[PASSWORD]" in record.args[0]  # str arg redacted  (lines 73-74)
         assert record.args[1]["api_key"] == "[API_KEY]"  # dict arg redacted  (lines 75-76)
-        assert record.args[2] == 42                    # int arg unchanged  (lines 78-79)
+        assert record.args[2] == 42  # int arg unchanged  (lines 78-79)
 
     def test_filter_exc_info_redacts_exception_string(self):
         """Filter should redact sensitive data in exception args (lines 73-76)."""
