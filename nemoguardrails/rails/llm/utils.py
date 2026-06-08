@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Tuple, Union
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 
 
-def get_content_text(content) -> str:
+def get_content_text(content: Any) -> str:
     """Normalize an OpenAI message ``content`` field to a plain string.
 
     The OpenAI API allows ``content`` to be a plain string **or** a list of
@@ -27,16 +27,17 @@ def get_content_text(content) -> str:
         [{"type": "text", "text": "..."}, {"type": "image_url", ...}]
 
     All ``type: text`` parts are extracted and joined with a single space so
-    the rest of the pipeline always receives a ``str``.  Non-list values are
-    returned unchanged.
+    the rest of the pipeline always receives a ``str``.  ``None`` is
+    normalised to an empty string; any other non-list value is converted via
+    ``str()``.
     """
     if isinstance(content, list):
         return " ".join(
-            part.get("text", "")
-            for part in content
-            if isinstance(part, dict) and part.get("type") == "text"
+            str(part.get("text", "") or "") for part in content if isinstance(part, dict) and part.get("type") == "text"
         )
-    return content
+    if content is None:
+        return ""
+    return str(content)
 
 
 def get_history_cache_key(messages: List[dict]) -> str:

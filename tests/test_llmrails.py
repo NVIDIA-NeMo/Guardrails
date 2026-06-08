@@ -1627,8 +1627,11 @@ class TestGetContentText:
     def test_plain_string_passthrough(self):
         assert get_content_text("Hello") == "Hello"
 
-    def test_none_passthrough(self):
-        assert get_content_text(None) is None
+    def test_none_returns_empty_string(self):
+        assert get_content_text(None) == ""
+
+    def test_non_string_non_list_converted_via_str(self):
+        assert get_content_text(42) == "42"
 
     def test_single_text_part(self):
         content = [{"type": "text", "text": "Hello"}]
@@ -1663,9 +1666,7 @@ def simple_rails_config():
         {
             "models": [{"type": "main", "engine": "fake", "model": "fake"}],
             "user_messages": {"express greeting": ["Hello!"]},
-            "flows": [
-                {"elements": [{"user": "express greeting"}, {"bot": "express greeting"}]}
-            ],
+            "flows": [{"elements": [{"user": "express greeting"}, {"bot": "express greeting"}]}],
             "bot_messages": {"express greeting": ["Hi there!"]},
         }
     )
@@ -1735,9 +1736,7 @@ def test_tool_message_with_multipart_user_content(simple_rails_config):
         {
             "role": "assistant",
             "content": None,
-            "tool_calls": [
-                {"id": "call_abc", "function": {"name": "get_weather", "arguments": "{}"}}
-            ],
+            "tool_calls": [{"id": "call_abc", "function": {"name": "get_weather", "arguments": "{}"}}],
         },
         {
             "role": "tool",
