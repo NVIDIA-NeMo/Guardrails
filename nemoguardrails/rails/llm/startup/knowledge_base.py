@@ -49,12 +49,12 @@ async def build_knowledge_base_for_docs(
 
 def init_knowledge_base(rails) -> None:
     """Initialize and register the LLMRails knowledge base."""
-    rails.kb = None
+    rails._kb = None
 
     async def _init_kb():
-        rails.kb = await build_knowledge_base_for_docs(
+        rails._kb = await build_knowledge_base_for_docs(
             config=rails.config,
-            get_embedding_search_provider_instance=rails.embedding_search.get_provider_instance,
+            get_embedding_search_provider_instance=rails._get_embeddings_search_provider_instance,
         )
 
     # There are still some edge cases not covered by nest_asyncio.
@@ -67,4 +67,4 @@ def init_knowledge_base(rails) -> None:
     else:
         loop.run_until_complete(_init_kb())
 
-    rails.runtime.register_action_param("kb", rails.kb)
+    rails.runtime.register_action_param("kb", rails._kb)

@@ -40,7 +40,7 @@ class FakeRails:
         self.config = config
         self.llm = llm
         self.runtime = runtime
-        self.llm_generation_actions = MagicMock()
+        self._llm_generation_actions = MagicMock()
 
 
 def test_model_kwargs_from_config_adds_api_key_from_environment():
@@ -162,5 +162,5 @@ def test_sync_update_llm_bindings_updates_llm_generation_actions_and_runtime_par
     sync_update_llm_bindings(rails, updated_llm)
 
     assert rails.llm is updated_llm
-    assert rails.llm_generation_actions.llm is updated_llm
+    assert rails._llm_generation_actions.llm is updated_llm
     assert rails.runtime.registered_action_params["llm"] is updated_llm

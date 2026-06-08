@@ -43,7 +43,7 @@ class LLMActionRuntime(Protocol):
 
 class LLMActionRails(Protocol):
     llm: Any
-    llm_generation_actions: Any
+    _llm_generation_actions: Any
 
     @property
     def config(self) -> Any: ...
@@ -67,7 +67,7 @@ def model_kwargs_from_config(model_config: Any) -> Dict[str, Any]:
 def sync_update_llm_bindings(rails: LLMActionRails, llm: LLMModel) -> None:
     """Synchronize the main LLM bindings after a public update."""
     rails.llm = llm
-    rails.llm_generation_actions.llm = llm
+    rails._llm_generation_actions.llm = llm
     rails.runtime.register_action_param("llm", llm)
 
 

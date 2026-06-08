@@ -18,7 +18,11 @@
 import importlib.resources as resources
 import logging
 from collections.abc import Iterator
-from importlib.abc import Traversable
+
+try:
+    from importlib.resources.abc import Traversable
+except ImportError:
+    from importlib.abc import Traversable
 
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id

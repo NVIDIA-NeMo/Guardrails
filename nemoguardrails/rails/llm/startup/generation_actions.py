@@ -38,7 +38,7 @@ class GenerationActionRuntime(Protocol):
 
 
 class GenerationActionRails(Protocol):
-    llm_generation_actions: Any
+    _llm_generation_actions: Any
 
     @property
     def config(self) -> Any: ...
@@ -49,8 +49,7 @@ class GenerationActionRails(Protocol):
     @property
     def runtime(self) -> GenerationActionRuntime: ...
 
-    @property
-    def embedding_search(self) -> Any: ...
+    def _get_embeddings_search_provider_instance(self, esp_config: Any = None) -> Any: ...
 
 
 def generation_actions_class_for_colang_version(colang_version: str) -> Type[Any]:
@@ -61,12 +60,12 @@ def generation_actions_class_for_colang_version(colang_version: str) -> Type[Any
 def register_llm_generation_actions(rails: GenerationActionRails, verbose: bool) -> None:
     """Create and register the LLM generation actions for an LLMRails instance."""
     llm_generation_actions_class = generation_actions_class_for_colang_version(rails.config.colang_version)
-    rails.llm_generation_actions = llm_generation_actions_class(
+    rails._llm_generation_actions = llm_generation_actions_class(
         config=rails.config,
         llm=rails.llm,
         llm_task_manager=rails.runtime.llm_task_manager,
-        get_embedding_search_provider_instance=rails.embedding_search.get_provider_instance,
+        get_embedding_search_provider_instance=rails._get_embeddings_search_provider_instance,
         verbose=verbose,
     )
 
-    rails.runtime.register_actions(rails.llm_generation_actions, override=False)
+    rails.runtime.register_actions(rails._llm_generation_actions, override=False)

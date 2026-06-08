@@ -36,6 +36,7 @@ from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
+from nemoguardrails.rails.llm.startup.embedding_search import EmbeddingSearchState
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 
 
@@ -69,21 +70,12 @@ def iorails_guardrails(_content_safety_config):
 
 
 class TestLLMRailsDeprecatedAliases:
-    """Deprecated property aliases on LLMRails.
-
-    Each public name is a thin getter (and, for default_embedding_*, also a
-    setter) that warns and forwards to the underscored attribute. Tests
-    verify both the warning and the forwarded value/assignment.
-    """
+    """Deprecated property aliases on LLMRails."""
 
     @pytest.mark.parametrize(
         "public_name, private_name",
         [
             ("kb", "_kb"),
-            ("embedding_search_providers", "_embedding_search_providers"),
-            ("default_embedding_model", "_default_embedding_model"),
-            ("default_embedding_engine", "_default_embedding_engine"),
-            ("default_embedding_params", "_default_embedding_params"),
             ("llm_generation_actions", "_llm_generation_actions"),
         ],
     )
@@ -99,26 +91,40 @@ class TestLLMRailsDeprecatedAliases:
         assert value is sentinel
 
     @pytest.mark.parametrize(
-        "public_name, private_name",
+        "public_name, state_name, sentinel",
         [
-            ("default_embedding_model", "_default_embedding_model"),
-            ("default_embedding_engine", "_default_embedding_engine"),
-            ("default_embedding_params", "_default_embedding_params"),
+            ("embedding_search_providers", "providers", {}),
+            ("default_embedding_model", "default_model", "model"),
+            ("default_embedding_engine", "default_engine", "engine"),
+            ("default_embedding_params", "default_params", {"device": "cpu"}),
         ],
     )
-    def test_write_emits_deprecation_warning(self, public_name, private_name):
-        """Writing a deprecated default_embedding_* alias warns and forwards to the underscored attribute.
-
-        These have setters (unlike kb / embedding_search_providers / llm_generation_actions)
-        because they were previously plain instance attributes that downstream code may have
-        written to. The setter preserves that write path during deprecation.
-        """
-        # Bypass __init__: testing only the @setter descriptor.
+    def test_embedding_read_emits_deprecation_warning(self, public_name, state_name, sentinel):
         rails = LLMRails.__new__(LLMRails)
+        rails.embedding_search = EmbeddingSearchState.default()
+        setattr(rails.embedding_search, state_name, sentinel)
+
+        with pytest.warns(DeprecationWarning, match=rf"LLMRails\.{public_name}.*deprecated"):
+            value = getattr(rails, public_name)
+
+        assert value is sentinel
+
+    @pytest.mark.parametrize(
+        "public_name, state_name",
+        [
+            ("default_embedding_model", "default_model"),
+            ("default_embedding_engine", "default_engine"),
+            ("default_embedding_params", "default_params"),
+        ],
+    )
+    def test_write_emits_deprecation_warning(self, public_name, state_name):
+        """Writing a deprecated default_embedding_* alias warns and updates embedding_search state."""
+        rails = LLMRails.__new__(LLMRails)
+        rails.embedding_search = EmbeddingSearchState.default()
         sentinel = object()
         with pytest.warns(DeprecationWarning, match=rf"Setting LLMRails\.{public_name}.*deprecated"):
             setattr(rails, public_name, sentinel)
-        assert getattr(rails, private_name) is sentinel
+        assert getattr(rails.embedding_search, state_name) is sentinel
 
 
 class TestLLMRailsExplainInfoDeprecation:

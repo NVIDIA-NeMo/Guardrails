@@ -58,8 +58,8 @@ class FakeRails:
         self.config = config
         self.llm = llm
         self.runtime = runtime
-        self.embedding_search = SimpleNamespace(get_provider_instance=get_embedding_search_provider_instance)
-        self.llm_generation_actions = None
+        self._get_embeddings_search_provider_instance = get_embedding_search_provider_instance
+        self._llm_generation_actions = None
 
 
 def test_generation_actions_class_for_colang_version_uses_v1_actions(monkeypatch):
@@ -97,11 +97,13 @@ def test_register_llm_generation_actions_registers_without_overriding(monkeypatc
 
     register_llm_generation_actions(rails, verbose=True)
 
-    assert isinstance(rails.llm_generation_actions, FakeGenerationActions)
-    assert rails.llm_generation_actions.config is config
-    assert rails.llm_generation_actions.llm is llm
-    assert rails.llm_generation_actions.llm_task_manager is runtime.llm_task_manager
-    assert rails.llm_generation_actions.get_embedding_search_provider_instance is get_embedding_search_provider_instance
-    assert rails.llm_generation_actions.verbose is True
-    assert runtime.registered_actions is rails.llm_generation_actions
+    assert isinstance(rails._llm_generation_actions, FakeGenerationActions)
+    assert rails._llm_generation_actions.config is config
+    assert rails._llm_generation_actions.llm is llm
+    assert rails._llm_generation_actions.llm_task_manager is runtime.llm_task_manager
+    assert (
+        rails._llm_generation_actions.get_embedding_search_provider_instance is get_embedding_search_provider_instance
+    )
+    assert rails._llm_generation_actions.verbose is True
+    assert runtime.registered_actions is rails._llm_generation_actions
     assert runtime.override is False

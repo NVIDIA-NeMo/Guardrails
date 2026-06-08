@@ -100,7 +100,7 @@ def test_init_knowledge_base_uses_thread_path_and_registers_kb(monkeypatch):
     calls = {"thread_started": False, "thread_joined": False}
 
     async def fake_build_knowledge_base_for_docs(config, get_embedding_search_provider_instance):
-        assert rails.kb is None
+        assert rails._kb is None
         assert config is rails.config
         assert get_embedding_search_provider_instance is get_provider_instance
         return built_kb
@@ -125,9 +125,9 @@ def test_init_knowledge_base_uses_thread_path_and_registers_kb(monkeypatch):
             models=[],
             docs=[Document(format="md", content="# Alpha\n\nA")],
         ),
-        kb="existing",
+        _kb="existing",
         runtime=RuntimeWithActionParams(),
-        embedding_search=SimpleNamespace(get_provider_instance=get_provider_instance),
+        _get_embeddings_search_provider_instance=get_provider_instance,
     )
     monkeypatch.setattr(
         knowledge_base,
@@ -139,6 +139,6 @@ def test_init_knowledge_base_uses_thread_path_and_registers_kb(monkeypatch):
 
     init_knowledge_base(rails)
 
-    assert rails.kb is built_kb
+    assert rails._kb is built_kb
     assert rails.runtime.registered_action_params["kb"] is built_kb
     assert calls == {"thread_started": True, "thread_joined": True}
