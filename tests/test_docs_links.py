@@ -99,6 +99,7 @@ def test_resolves_guardrails_fern_routes(tmp_path: Path) -> None:
                 "",
                 "[Install](/get-started/installation-guide)",
                 '<Card title="Configure" href="/configure-guardrails/configure-rails">',
+                "[SDK](/guardrails-python-sdk/nemoguardrails)",
                 "",
             ]
         ),

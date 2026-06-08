@@ -979,7 +979,7 @@ Documentation:
 ### Added
 
 - [Event-based API](./docs/run-rails/using-python-apis/event-based-api.mdx) for guardrails.
-- Support for message with type "event" in [`LLMRails.generate_async`](./docs/_static/python-sdk-reference/guardrails-python-sdk/nemoguardrails/rails/llm/llmrails.mdx#nemoguardrails-rails-llm-llmrails-LLMRails).
+- Support for message with type "event" in [`LLMRails.generate_async`](/guardrails-python-sdk/nemoguardrails/rails/llm/llmrails#nemoguardrails-rails-llm-llmrails-LLMRails).
 - Support for [bot message instructions](./docs/configure-rails/colang/usage-examples/bot-message-instructions.mdx).
 - Support for [using variables inside bot message definitions](./docs/configure-rails/colang/colang-1/colang-language-syntax-guide.mdx#bot-messages-with-variables).
 - Support for `vicuna-7b-v1.3` and `mpt-7b-instruct`.

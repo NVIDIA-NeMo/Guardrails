@@ -468,6 +468,9 @@ check_local_ref() {
   fi
 
   if [[ "$stripped" == /* ]]; then
+    if [[ "$stripped" == /guardrails-python-sdk/* ]]; then
+      return 0
+    fi
     local _fern_rc
     if fern_route_exists "$stripped"; then
       _fern_rc=0
