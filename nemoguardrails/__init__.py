@@ -64,6 +64,7 @@ from nemoguardrails.llm.frameworks import (  # noqa: E402
     set_default_framework,
 )
 from nemoguardrails.llm.providers import register_provider  # noqa: E402
+from nemoguardrails.rails.llm.injections import PromptInjectionDetectedError  # noqa: E402
 from nemoguardrails.types import (  # noqa: E402
     ChatMessage,
     FinishReason,
@@ -92,6 +93,7 @@ __all__ = [
     "ToolCall",
     "ToolCallFunction",
     "UsageInfo",
+    "PromptInjectionDetectedError",
     "get_default_framework",
     "register_framework",
     "register_provider",

@@ -331,6 +331,32 @@ class TestIntegrationValidatePromptSafety:
         assert med.detect("<!-- hidden payload -->", raise_error=False) is None
         assert med.detect("/* hidden payload */", raise_error=False) is None
 
+    def test_jailbreak_keyword_no_false_positive_at_medium(self):
+        """'jailbreak' as a topic (iOS jailbreak, security research) must not raise at the
+        default medium sensitivity — the bare keyword is too broad for critical-tier detection."""
+        med = PromptInjectionDetector(sensitivity="medium")
+        assert med.detect("What are the risks of an iOS jailbreak?", raise_error=False) is None
+        assert med.detect("Tell me about phone jailbreak history", raise_error=False) is None
+        assert med.detect("Is a jailbreak legal in my country?", raise_error=False) is None
+
+    def test_jailbreak_keyword_detected_at_high_sensitivity(self):
+        """At high sensitivity (opt-in strict mode), bare 'jailbreak' is caught."""
+        high = PromptInjectionDetector(sensitivity="high")
+        assert high.detect("iOS jailbreak", raise_error=False) == "jailbreak_keyword"
+        assert high.detect("jailbreak the system", raise_error=False) == "jailbreak_keyword"
+
+    def test_prompt_injection_error_importable_from_public_package(self):
+        """PromptInjectionDetectedError must be importable from the top-level nemoguardrails
+        package so callers can catch it without depending on internal module paths."""
+        from nemoguardrails import PromptInjectionDetectedError as PublicError
+
+        assert PublicError is PromptInjectionDetectedError
+        # Verify it can be used in a try/except as documented
+        try:
+            raise PublicError("test", injection_pattern="test_pattern")
+        except PublicError as exc:
+            assert exc.injection_pattern == "test_pattern"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

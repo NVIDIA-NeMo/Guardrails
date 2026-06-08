@@ -48,7 +48,9 @@ class PromptInjectionDetector:
         (r"\bsystem\s*[:=]\s*", "system_override", "low"),
         (r"\[(?:SYSTEM|ADMIN|INSTRUCTION|JAILBREAK)\]", "bracket_delimiter", "low"),
         (r"\b(?:jailbreak|bypass|override)\s+(?:the\s+)?guardrails?", "explicit_jailbreak", "low"),
-        (r"\bjailbreak\b", "jailbreak_keyword", "low"),
+        # bare "jailbreak" word matches topic discussions (iOS jailbreak, etc.) at medium;
+        # keep it high-tier so only opt-in strict deployments block the keyword alone
+        (r"\bjailbreak\b", "jailbreak_keyword", "high"),
         # Instruction delimiters (medium sensitivity)
         (r"\b[Ii]nstructions?\s*[:=]", "instruction_override", "medium"),
         (r"\b(?:system|admin|root)\s+(?:prompt|message|instruction)", "privilege_claim", "medium"),
