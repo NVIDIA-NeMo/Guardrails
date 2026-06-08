@@ -17,6 +17,11 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.crowdstrike_aidr.actions import (
+    GuardChatCompletionsResult,
+    _crowdstrike_aidr_outcome,
+)
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -37,6 +42,68 @@ output_rail_config = RailsConfig.from_content(
               - crowdstrike aidr guard output
     """
 )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+            RailOutcome.allow(
+                blocked=False,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+        ),
+        (
+            GuardChatCompletionsResult(
+                blocked=True,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+            RailOutcome.block(
+                blocked=True,
+                transformed=False,
+                guard_output={"messages": []},
+                user_message="hello",
+                bot_message="normal",
+            ),
+        ),
+        (
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=True,
+                guard_output={"messages": []},
+                user_message="masked user",
+                bot_message="masked bot",
+            ),
+            RailOutcome.transform(
+                [
+                    (TransformTarget.USER_MESSAGE, "masked user"),
+                    (TransformTarget.BOT_MESSAGE, "masked bot"),
+                ],
+                blocked=False,
+                transformed=True,
+                guard_output={"messages": []},
+                user_message="masked user",
+                bot_message="masked bot",
+            ),
+        ),
+    ],
+)
+def test_crowdstrike_aidr_outcome(result, expected):
+    assert _crowdstrike_aidr_outcome(result) == expected
 
 
 @pytest.mark.unit

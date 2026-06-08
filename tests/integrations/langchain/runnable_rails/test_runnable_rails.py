@@ -30,6 +30,7 @@ from langchain_core.runnables.utils import Input, Output
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 from nemoguardrails.logging.verbose import set_verbose
 from tests.integrations.langchain.utils import FakeLLM
@@ -558,7 +559,7 @@ def test_mocked_rag_with_fact_checking():
         assert "The price is $50" in evidence
         assert "The price is $45" in response
 
-        return 0.0
+        return RailOutcome.block(accuracy=0.0)
 
     guardrails.rails.register_action(self_check_facts)
 

@@ -22,7 +22,6 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.library.crowdstrike_aidr.actions import GuardChatCompletionsResult
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
@@ -867,7 +866,7 @@ def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
         _case(
             f"{spec.name}_allows_unchanged_output",
             spec,
-            NORMAL_OUTPUT,
+            RailOutcome.allow(text=NORMAL_OUTPUT, masked_text=NORMAL_OUTPUT),
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
             expected_content=NORMAL_OUTPUT,
@@ -875,7 +874,11 @@ def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
         _case(
             f"{spec.name}_transforms_changed_output",
             spec,
-            transformed_output,
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, transformed_output)],
+                text=NORMAL_OUTPUT,
+                masked_text=transformed_output,
+            ),
             ObservableOutcome.TRANSFORM,
             FlowDecision.TRANSFORM,
             expected_content=transformed_output,
@@ -891,11 +894,17 @@ def _output_var_transform_cases(
     transformed_value: str,
     context: dict[str, Any] | None = None,
 ) -> list[FlowEquivalenceCase]:
+    target_by_output_var = {
+        "user_message": TransformTarget.USER_MESSAGE,
+        "bot_message": TransformTarget.BOT_MESSAGE,
+        "relevant_chunks": TransformTarget.RELEVANT_CHUNKS,
+    }
+    target = target_by_output_var[output_var]
     return [
         _case(
             f"{spec.name}_allows_unchanged_{output_var}",
             spec,
-            original_value,
+            RailOutcome.allow(text=original_value, masked_text=original_value),
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
             context=context,
@@ -906,7 +915,11 @@ def _output_var_transform_cases(
         _case(
             f"{spec.name}_transforms_changed_{output_var}",
             spec,
-            transformed_value,
+            RailOutcome.transform(
+                [(target, transformed_value)],
+                text=original_value,
+                masked_text=transformed_value,
+            ),
             ObservableOutcome.TRANSFORM,
             FlowDecision.TRANSFORM,
             context=context,
@@ -1004,50 +1017,89 @@ def _pangea_outcome(*, blocked: bool, transformed: bool, user_message: str, bot_
     return RailOutcome.allow(**metadata)
 
 
-def _crowdstrike_result(
+def _crowdstrike_outcome(
     *,
     blocked: bool,
     transformed: bool,
     user_message: str,
     bot_message: str,
-) -> GuardChatCompletionsResult:
-    return GuardChatCompletionsResult(
-        blocked=blocked,
-        transformed=transformed,
-        user_message=user_message,
-        bot_message=bot_message,
-    )
+) -> RailOutcome:
+    metadata = {
+        "blocked": blocked,
+        "transformed": transformed,
+        "guard_output": None,
+        "user_message": user_message,
+        "bot_message": bot_message,
+    }
+    if blocked:
+        return RailOutcome.block(**metadata)
+    if transformed:
+        return RailOutcome.transform(
+            [
+                (TransformTarget.USER_MESSAGE, user_message),
+                (TransformTarget.BOT_MESSAGE, bot_message),
+            ],
+            **metadata,
+        )
+    return RailOutcome.allow(**metadata)
 
 
-def _prompt_security_result(*, blocked: bool, modified: bool, text: str | None = None) -> dict[str, Any]:
-    return {
+def _prompt_security_outcome(
+    *,
+    blocked: bool,
+    modified: bool,
+    target: TransformTarget,
+    text: str | None = None,
+) -> RailOutcome:
+    metadata = {
         "is_blocked": blocked,
         "is_modified": modified,
         "modified_text": text,
     }
+    if blocked:
+        return RailOutcome.block(**metadata)
+    if modified:
+        return RailOutcome.transform([(target, text or "")], **metadata)
+    return RailOutcome.allow(**metadata)
 
 
-def _autoalign_result(
+def _autoalign_outcome(
     *,
     guardrails_triggered: bool,
     pii_guarded: bool,
     pii_response: str,
-) -> dict[str, Any]:
-    return {
+    target: TransformTarget,
+) -> RailOutcome:
+    metadata = {
         "guardrails_triggered": guardrails_triggered,
         "combined_response": "AutoAlign guardrail response",
         "pii": {"guarded": pii_guarded, "response": pii_response},
     }
+    if guardrails_triggered:
+        return RailOutcome.block(**metadata)
+    if pii_guarded:
+        return RailOutcome.transform([(target, pii_response)], **metadata)
+    return RailOutcome.allow(**metadata)
 
 
-def _injection_detection_result(
-    *, is_injection: bool, text: str, detections: list[str] | None = None
-) -> dict[str, Any]:
-    return {
+def _injection_detection_outcome(
+    *,
+    is_injection: bool,
+    text: str,
+    action: str,
+    detections: list[str] | None = None,
+) -> RailOutcome:
+    metadata = {
         "is_injection": is_injection,
         "text": text,
         "detections": detections or [],
+        "action": action,
     }
+    if action == "reject" and is_injection:
+        return RailOutcome.block(**metadata)
+    if text != NORMAL_OUTPUT:
+        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)], **metadata)
+    return RailOutcome.allow(**metadata)
 
 
 def _fact_check_outcome(accuracy: float) -> RailOutcome:
@@ -1185,7 +1237,7 @@ FIXTURES = [
     _case(
         "hf_classifier_retrieval_allows_true",
         HF_CLASSIFIER_RETRIEVAL,
-        True,
+        RailOutcome.allow(),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"relevant_chunks": RELEVANT_CHUNKS},
@@ -1196,7 +1248,7 @@ FIXTURES = [
     _case(
         "hf_classifier_retrieval_transforms_false",
         HF_CLASSIFIER_RETRIEVAL,
-        False,
+        RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")]),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
         context={"relevant_chunks": RELEVANT_CHUNKS},
@@ -1309,35 +1361,35 @@ FIXTURES = [
     _case(
         "regex_input_allows_no_match",
         REGEX_INPUT,
-        {"is_match": False, "text": "hello", "detections": []},
+        RailOutcome.allow(is_match=False, text="hello", detections=[], source="input"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "regex_input_blocks_match",
         REGEX_INPUT,
-        {"is_match": True, "text": "secret", "detections": ["secret"]},
+        RailOutcome.block(is_match=True, text="secret", detections=["secret"], source="input"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "regex_output_allows_no_match",
         REGEX_OUTPUT,
-        {"is_match": False, "text": "hello", "detections": []},
+        RailOutcome.allow(is_match=False, text="hello", detections=[], source="output"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "regex_output_blocks_match",
         REGEX_OUTPUT,
-        {"is_match": True, "text": "secret", "detections": ["secret"]},
+        RailOutcome.block(is_match=True, text="secret", detections=["secret"], source="output"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "regex_retrieval_allows_no_match",
         REGEX_RETRIEVAL,
-        {"is_match": False, "text": RELEVANT_CHUNKS, "detections": []},
+        RailOutcome.allow(is_match=False, text=RELEVANT_CHUNKS, detections=[], source="retrieval"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"relevant_chunks": RELEVANT_CHUNKS},
@@ -1348,7 +1400,13 @@ FIXTURES = [
     _case(
         "regex_retrieval_transforms_match",
         REGEX_RETRIEVAL,
-        {"is_match": True, "text": RELEVANT_CHUNKS, "detections": ["secret"]},
+        RailOutcome.transform(
+            [(TransformTarget.RELEVANT_CHUNKS, "")],
+            is_match=True,
+            text=RELEVANT_CHUNKS,
+            detections=["secret"],
+            source="retrieval",
+        ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
         context={"relevant_chunks": RELEVANT_CHUNKS},
@@ -1480,25 +1538,25 @@ FIXTURES = [
     ),
     *_guard_result_cases(
         CROWDSTRIKE_AIDR_INPUT,
-        allow_return=_crowdstrike_result(
+        allow_return=_crowdstrike_outcome(
             blocked=False,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        block_return=_crowdstrike_result(
+        block_return=_crowdstrike_outcome(
             blocked=True,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        transform_return=_crowdstrike_result(
+        transform_return=_crowdstrike_outcome(
             blocked=False,
             transformed=True,
             user_message="crowdstrike aidr transformed input",
             bot_message=NORMAL_OUTPUT,
         ),
-        block_and_transform_return=_crowdstrike_result(
+        block_and_transform_return=_crowdstrike_outcome(
             blocked=True,
             transformed=True,
             user_message="crowdstrike aidr transformed input",
@@ -1508,25 +1566,25 @@ FIXTURES = [
     ),
     *_guard_result_cases(
         CROWDSTRIKE_AIDR_OUTPUT,
-        allow_return=_crowdstrike_result(
+        allow_return=_crowdstrike_outcome(
             blocked=False,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        block_return=_crowdstrike_result(
+        block_return=_crowdstrike_outcome(
             blocked=True,
             transformed=False,
             user_message=USER_INPUT,
             bot_message=NORMAL_OUTPUT,
         ),
-        transform_return=_crowdstrike_result(
+        transform_return=_crowdstrike_outcome(
             blocked=False,
             transformed=True,
             user_message=USER_INPUT,
             bot_message="crowdstrike aidr transformed output",
         ),
-        block_and_transform_return=_crowdstrike_result(
+        block_and_transform_return=_crowdstrike_outcome(
             blocked=True,
             transformed=True,
             user_message=USER_INPUT,
@@ -1536,32 +1594,52 @@ FIXTURES = [
     ),
     *_guard_result_cases(
         PROMPT_SECURITY_INPUT,
-        allow_return=_prompt_security_result(blocked=False, modified=False),
-        block_return=_prompt_security_result(blocked=True, modified=False),
-        transform_return=_prompt_security_result(
+        allow_return=_prompt_security_outcome(
+            blocked=False,
+            modified=False,
+            target=TransformTarget.USER_MESSAGE,
+        ),
+        block_return=_prompt_security_outcome(
+            blocked=True,
+            modified=False,
+            target=TransformTarget.USER_MESSAGE,
+        ),
+        transform_return=_prompt_security_outcome(
             blocked=False,
             modified=True,
+            target=TransformTarget.USER_MESSAGE,
             text="prompt security transformed input",
         ),
-        block_and_transform_return=_prompt_security_result(
+        block_and_transform_return=_prompt_security_outcome(
             blocked=True,
             modified=True,
+            target=TransformTarget.USER_MESSAGE,
             text="prompt security transformed input",
         ),
         transformed_value="prompt security transformed input",
     ),
     *_guard_result_cases(
         PROMPT_SECURITY_OUTPUT,
-        allow_return=_prompt_security_result(blocked=False, modified=False),
-        block_return=_prompt_security_result(blocked=True, modified=False),
-        transform_return=_prompt_security_result(
+        allow_return=_prompt_security_outcome(
+            blocked=False,
+            modified=False,
+            target=TransformTarget.BOT_MESSAGE,
+        ),
+        block_return=_prompt_security_outcome(
+            blocked=True,
+            modified=False,
+            target=TransformTarget.BOT_MESSAGE,
+        ),
+        transform_return=_prompt_security_outcome(
             blocked=False,
             modified=True,
+            target=TransformTarget.BOT_MESSAGE,
             text="prompt security transformed output",
         ),
-        block_and_transform_return=_prompt_security_result(
+        block_and_transform_return=_prompt_security_outcome(
             blocked=True,
             modified=True,
+            target=TransformTarget.BOT_MESSAGE,
             text="prompt security transformed output",
         ),
         transformed_value="prompt security transformed output",
@@ -1569,10 +1647,11 @@ FIXTURES = [
     _case(
         "autoalign_input_allows",
         AUTOALIGN_INPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=False,
             pii_guarded=False,
             pii_response=USER_INPUT,
+            target=TransformTarget.USER_MESSAGE,
         ),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
@@ -1583,10 +1662,11 @@ FIXTURES = [
     _case(
         "autoalign_input_blocks_guardrail",
         AUTOALIGN_INPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=False,
             pii_response=USER_INPUT,
+            target=TransformTarget.USER_MESSAGE,
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -1594,10 +1674,11 @@ FIXTURES = [
     _case(
         "autoalign_input_blocks_guardrail_exception",
         AUTOALIGN_INPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=False,
             pii_response=USER_INPUT,
+            target=TransformTarget.USER_MESSAGE,
         ),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
@@ -1606,10 +1687,11 @@ FIXTURES = [
     _case(
         "autoalign_input_transforms_pii",
         AUTOALIGN_INPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=False,
             pii_guarded=True,
             pii_response="autoalign transformed input",
+            target=TransformTarget.USER_MESSAGE,
         ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
@@ -1620,10 +1702,11 @@ FIXTURES = [
     _case(
         "autoalign_input_block_wins_over_pii_transform",
         AUTOALIGN_INPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=True,
             pii_response="autoalign transformed input",
+            target=TransformTarget.USER_MESSAGE,
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -1631,10 +1714,11 @@ FIXTURES = [
     _case(
         "autoalign_output_allows",
         AUTOALIGN_OUTPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=False,
             pii_guarded=False,
             pii_response=NORMAL_OUTPUT,
+            target=TransformTarget.BOT_MESSAGE,
         ),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
@@ -1643,10 +1727,11 @@ FIXTURES = [
     _case(
         "autoalign_output_blocks_guardrail",
         AUTOALIGN_OUTPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=False,
             pii_response=NORMAL_OUTPUT,
+            target=TransformTarget.BOT_MESSAGE,
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -1654,10 +1739,11 @@ FIXTURES = [
     _case(
         "autoalign_output_blocks_guardrail_exception",
         AUTOALIGN_OUTPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=False,
             pii_response=NORMAL_OUTPUT,
+            target=TransformTarget.BOT_MESSAGE,
         ),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
@@ -1666,10 +1752,11 @@ FIXTURES = [
     _case(
         "autoalign_output_transforms_pii",
         AUTOALIGN_OUTPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=False,
             pii_guarded=True,
             pii_response="autoalign transformed output",
+            target=TransformTarget.BOT_MESSAGE,
         ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
@@ -1678,10 +1765,11 @@ FIXTURES = [
     _case(
         "autoalign_output_block_wins_over_pii_transform",
         AUTOALIGN_OUTPUT,
-        _autoalign_result(
+        _autoalign_outcome(
             guardrails_triggered=True,
             pii_guarded=True,
             pii_response="autoalign transformed output",
+            target=TransformTarget.BOT_MESSAGE,
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -1689,7 +1777,7 @@ FIXTURES = [
     _case(
         "injection_detection_reject_allows_unchanged_output",
         INJECTION_DETECTION_REJECT,
-        _injection_detection_result(is_injection=False, text=NORMAL_OUTPUT),
+        _injection_detection_outcome(is_injection=False, text=NORMAL_OUTPUT, action="reject"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         expected_content=NORMAL_OUTPUT,
@@ -1697,7 +1785,11 @@ FIXTURES = [
     _case(
         "injection_detection_reject_transforms_non_injection_text",
         INJECTION_DETECTION_REJECT,
-        _injection_detection_result(is_injection=False, text="injection detection transformed output"),
+        _injection_detection_outcome(
+            is_injection=False,
+            text="injection detection transformed output",
+            action="reject",
+        ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
         expected_content="injection detection transformed output",
@@ -1705,7 +1797,12 @@ FIXTURES = [
     _case(
         "injection_detection_reject_blocks_injection",
         INJECTION_DETECTION_REJECT,
-        _injection_detection_result(is_injection=True, text=NORMAL_OUTPUT, detections=["sqli"]),
+        _injection_detection_outcome(
+            is_injection=True,
+            text=NORMAL_OUTPUT,
+            action="reject",
+            detections=["sqli"],
+        ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content=f"{INJECTION_DETECTION_REFUSAL_PREFIX}sqli.",
@@ -1713,7 +1810,12 @@ FIXTURES = [
     _case(
         "injection_detection_reject_blocks_injection_exception",
         INJECTION_DETECTION_REJECT,
-        _injection_detection_result(is_injection=True, text=NORMAL_OUTPUT, detections=["sqli"]),
+        _injection_detection_outcome(
+            is_injection=True,
+            text=NORMAL_OUTPUT,
+            action="reject",
+            detections=["sqli"],
+        ),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1721,9 +1823,10 @@ FIXTURES = [
     _case(
         "injection_detection_reject_block_wins_over_text_transform",
         INJECTION_DETECTION_REJECT,
-        _injection_detection_result(
+        _injection_detection_outcome(
             is_injection=True,
             text="injection detection transformed output",
+            action="reject",
             detections=["sqli"],
         ),
         ObservableOutcome.REFUSAL,
@@ -1733,7 +1836,7 @@ FIXTURES = [
     _case(
         "injection_detection_omit_allows_unchanged_output",
         INJECTION_DETECTION_OMIT,
-        _injection_detection_result(is_injection=False, text=NORMAL_OUTPUT),
+        _injection_detection_outcome(is_injection=False, text=NORMAL_OUTPUT, action="omit"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         expected_content=NORMAL_OUTPUT,
@@ -1741,7 +1844,11 @@ FIXTURES = [
     _case(
         "injection_detection_omit_transforms_non_injection_text",
         INJECTION_DETECTION_OMIT,
-        _injection_detection_result(is_injection=False, text="injection detection normalized output"),
+        _injection_detection_outcome(
+            is_injection=False,
+            text="injection detection normalized output",
+            action="omit",
+        ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
         expected_content="injection detection normalized output",
@@ -1749,9 +1856,10 @@ FIXTURES = [
     _case(
         "injection_detection_omit_transforms_injection_text",
         INJECTION_DETECTION_OMIT,
-        _injection_detection_result(
+        _injection_detection_outcome(
             is_injection=True,
             text="injection detection omitted output",
+            action="omit",
             detections=["sqli"],
         ),
         ObservableOutcome.TRANSFORM,

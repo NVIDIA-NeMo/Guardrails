@@ -19,7 +19,7 @@ flow hf classifier check output $classifier
     abort
 
 flow hf classifier check retrieval $classifier
-  $allowed = await HfClassifierCheckRetrievalAction(classifier=$classifier)
+  $response = await HfClassifierCheckRetrievalAction(classifier=$classifier)
 
-  if not $allowed
-    $relevant_chunks = ""
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

@@ -23,7 +23,7 @@ from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.config import GLiNERDetection
 from tests.utils import TestChat
 
@@ -137,11 +137,19 @@ def create_mock_gliner_detect_pii(entities_to_detect: Optional[List[str]] = None
 
 def create_mock_gliner_mask_pii(entities_to_detect: Optional[List[str]] = None):
     """Create a mock gliner_mask_pii action that masks PII in text."""
+    target_by_source = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
 
     async def mock_gliner_mask_pii(source: str, text: str, config, **kwargs):
         response = create_gliner_mock_response(text, entities_to_detect)
         entities = response.get("entities", [])
-        return _mask_text_with_entities(text, entities)
+        masked_text = _mask_text_with_entities(text, entities)
+        if masked_text != text:
+            return RailOutcome.transform([(target_by_source[source], masked_text)])
+        return RailOutcome.allow()
 
     return mock_gliner_mask_pii
 

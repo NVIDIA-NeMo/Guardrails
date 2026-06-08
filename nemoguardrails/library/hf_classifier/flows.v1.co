@@ -22,7 +22,7 @@ define subflow hf classifier check output
     stop
 
 define subflow hf classifier check retrieval
-  $allowed = execute hf_classifier_check_retrieval(classifier=$classifier)
+  $response = execute hf_classifier_check_retrieval(classifier=$classifier)
 
-  if not $allowed
-    $relevant_chunks = ""
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

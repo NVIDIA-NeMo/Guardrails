@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
@@ -32,6 +32,22 @@ def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
     if has_pii:
         return RailOutcome.block(has_pii=has_pii)
     return RailOutcome.allow(has_pii=has_pii)
+
+
+def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
+    target_by_source = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+    metadata = {
+        "source": source,
+        "text": original_text,
+        "masked_text": masked_text,
+    }
+    if masked_text != original_text:
+        return RailOutcome.transform([(target_by_source[source], masked_text)], **metadata)
+    return RailOutcome.allow(**metadata)
 
 
 @action(is_system_action=False)
@@ -85,7 +101,7 @@ async def detect_pii(
 
 
 @action(is_system_action=False)
-async def mask_pii(source: str, text: str, config: RailsConfig):
+async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
     """Masks any detected PII in the provided text.
 
     Args:
@@ -94,7 +110,7 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
         config (RailsConfig): The rails configuration object.
 
     Returns:
-        str: The altered text with PII masked.
+        RailOutcome.transform() with the altered text if it changed, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
@@ -126,6 +142,6 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
         raise ValueError("Invalid response received from Private AI service. The response is not a list.")
 
     try:
-        return private_ai_response[0]["processed_text"]
+        return _mask_pii_outcome(source, text, private_ai_response[0]["processed_text"])
     except (IndexError, KeyError) as e:
         raise ValueError(f"Invalid response from Private AI service: {str(e)}")

@@ -1,20 +1,20 @@
 flow autoalign check input
   $input_result = await AutoalignInputApiAction(show_autoalign_message=True)
-  if $input_result["guardrails_triggered"]
+  if $input_result.is_blocked
     global $autoalign_input_response
-    $autoalign_input_response = $input_result['combined_response']
+    $autoalign_input_response = $input_result.metadata["combined_response"]
     if $system.config.enable_rails_exceptions
       send AutoAlignInputRailException(message="AutoAlign input guardrail triggered")
     else
       bot refuse to respond
     abort
-  else if $input_result["pii"] and $input_result["pii"]["guarded"]:
+  else if $input_result.is_transform:
     global $user_message
-    $user_message = $input_result["pii"]["response"]
+    $user_message = $input_result.transform_text["user_message"]
 
 flow autoalign check output
   $output_result = await AutoalignOutputApiAction(show_autoalign_message=True)
-  if $output_result["guardrails_triggered"]
+  if $output_result.is_blocked
     if $system.config.enable_rails_exceptions
       send AutoAlignOutputRailException(message="AutoAlign guardrail triggered")
     else
@@ -22,10 +22,10 @@ flow autoalign check output
     abort
   else
     global $pii_message_output
-    $pii_message_output = $output_result["pii"]["response"]
-    if $output_result["pii"]["guarded"]
+    $pii_message_output = $output_result.metadata["pii"]["response"]
+    if $output_result.is_transform
       global $bot_message
-      $bot_message = $pii_message_output
+      $bot_message = $output_result.transform_text["bot_message"]
 
 flow autoalign groundedness output
   if $check_facts == True

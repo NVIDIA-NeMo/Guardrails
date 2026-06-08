@@ -31,10 +31,7 @@ from nemoguardrails.library.autoalign.actions import (
 from nemoguardrails.library.clavata.actions import clavata_check
 from nemoguardrails.library.cleanlab.actions import call_cleanlab_api
 from nemoguardrails.library.content_safety.actions import content_safety_check_output
-from nemoguardrails.library.crowdstrike_aidr.actions import (
-    GuardChatCompletionsResult,
-    crowdstrike_aidr_guard,
-)
+from nemoguardrails.library.crowdstrike_aidr.actions import crowdstrike_aidr_guard
 from nemoguardrails.library.factchecking.align_score.actions import (
     alignscore_check_facts,
 )
@@ -256,16 +253,20 @@ def test_policyai_output_bypass_reads_rail_outcome(raw_return, expected_blocked)
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"is_match": False, "text": "hello", "detections": []}, False),
-        ({"is_match": True, "text": "secret", "detections": ["secret"]}, True),
+        (RailOutcome.allow(is_match=False, text="hello", detections=[]), False),
+        (RailOutcome.block(is_match=True, text="secret", detections=["secret"]), True),
     ],
 )
-def test_regex_output_mapping_matches_interpretation(raw_return, expected_blocked):
-    interpreted_blocked = raw_return["is_match"]
+def test_regex_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, detect_regex_pattern)
+    outcome = outcome_from_output_mapping(raw_return, detect_regex_pattern)
 
-    assert interpreted_blocked is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_regex_action_has_no_legacy_output_mapping():
+    assert getattr(detect_regex_pattern, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
@@ -305,16 +306,30 @@ def test_detect_pii_actions_have_no_legacy_output_mapping(action_func):
     ],
 )
 @pytest.mark.parametrize(
-    "raw_return",
+    ("raw_return", "expected_blocked"),
     [
-        "NORMAL OUTPUT",
-        "MASKED OUTPUT",
+        (RailOutcome.allow(text="NORMAL OUTPUT", masked_text="NORMAL OUTPUT"), False),
+        (
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "MASKED OUTPUT")],
+                text="NORMAL OUTPUT",
+                masked_text="MASKED OUTPUT",
+            ),
+            False,
+        ),
     ],
 )
-def test_mask_output_default_mapping_cannot_express_transform(action_func, raw_return):
+def test_mask_output_bypass_reads_rail_outcome(action_func, raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, action_func)
+    outcome = outcome_from_output_mapping(raw_return, action_func)
 
-    assert mapping_blocked is False
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+@pytest.mark.parametrize("action_func", [privateai_mask_pii, gliner_mask_pii, mask_sensitive_data])
+def test_mask_actions_have_no_legacy_output_mapping(action_func):
+    assert getattr(action_func, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
@@ -348,97 +363,91 @@ def test_pangea_output_action_has_no_legacy_output_mapping():
 
 
 @pytest.mark.parametrize(
-    ("action_func", "raw_return", "interpreted_blocked", "is_transform"),
-    [
-        (
-            crowdstrike_aidr_guard,
-            GuardChatCompletionsResult(blocked=False, transformed=False, bot_message="NORMAL OUTPUT"),
-            False,
-            False,
-        ),
-        (
-            crowdstrike_aidr_guard,
-            GuardChatCompletionsResult(blocked=True, transformed=False, bot_message="NORMAL OUTPUT"),
-            True,
-            False,
-        ),
-        (
-            crowdstrike_aidr_guard,
-            GuardChatCompletionsResult(blocked=False, transformed=True, bot_message="MASKED OUTPUT"),
-            False,
-            True,
-        ),
-    ],
-)
-def test_vendor_object_default_mapping_cannot_express_block_or_transform(
-    action_func,
-    raw_return,
-    interpreted_blocked,
-    is_transform,
-):
-    mapping_blocked = is_output_blocked(raw_return, action_func)
-
-    assert mapping_blocked is False
-    assert interpreted_blocked is bool(raw_return.blocked)
-    assert is_transform is (not raw_return.blocked and bool(raw_return.transformed))
-
-
-@pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"is_blocked": False, "is_modified": False, "modified_text": None}, False),
-        ({"is_blocked": True, "is_modified": False, "modified_text": None}, True),
-        ({"is_blocked": True, "is_modified": True, "modified_text": "MASKED OUTPUT"}, True),
+        (RailOutcome.allow(blocked=False, transformed=False), False),
+        (RailOutcome.block(blocked=True, transformed=False), True),
+        (
+            RailOutcome.transform(
+                [
+                    (TransformTarget.USER_MESSAGE, "hello"),
+                    (TransformTarget.BOT_MESSAGE, "MASKED OUTPUT"),
+                ],
+                blocked=False,
+                transformed=True,
+            ),
+            False,
+        ),
     ],
 )
-def test_prompt_security_output_mapping_matches_block_interpretation(raw_return, expected_blocked):
-    mapping_blocked = is_output_blocked(raw_return, protect_text)
+def test_crowdstrike_aidr_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, crowdstrike_aidr_guard)
+    outcome = outcome_from_output_mapping(raw_return, crowdstrike_aidr_guard)
 
-    assert raw_return["is_blocked"] is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
 
 
-def test_prompt_security_output_mapping_cannot_express_transform():
-    raw_return = {"is_blocked": False, "is_modified": True, "modified_text": "MASKED OUTPUT"}
-    mapping_blocked = is_output_blocked(raw_return, protect_text)
-
-    assert mapping_blocked is False
-    assert raw_return["is_modified"] is True
+def test_crowdstrike_aidr_action_has_no_legacy_output_mapping():
+    assert getattr(crowdstrike_aidr_guard, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
+        (RailOutcome.allow(is_blocked=False, is_modified=False, modified_text=None), False),
+        (RailOutcome.block(is_blocked=True, is_modified=False, modified_text=None), True),
         (
-            {"guardrails_triggered": False, "pii": {"guarded": False, "response": "NORMAL OUTPUT"}},
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "MASKED OUTPUT")],
+                is_blocked=False,
+                is_modified=True,
+                modified_text="MASKED OUTPUT",
+            ),
             False,
-        ),
-        (
-            {"guardrails_triggered": True, "pii": {"guarded": False, "response": "NORMAL OUTPUT"}},
-            True,
-        ),
-        (
-            {"guardrails_triggered": True, "pii": {"guarded": True, "response": "MASKED OUTPUT"}},
-            True,
         ),
     ],
 )
-def test_autoalign_output_mapping_matches_block_interpretation(
+def test_prompt_security_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, protect_text)
+    outcome = outcome_from_output_mapping(raw_return, protect_text)
+
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_prompt_security_action_has_no_legacy_output_mapping():
+    assert getattr(protect_text, "action_meta")["output_mapping"] is None
+
+
+@pytest.mark.parametrize(
+    ("raw_return", "expected_blocked"),
+    [
+        (RailOutcome.allow(guardrails_triggered=False, pii={"guarded": False, "response": "NORMAL OUTPUT"}), False),
+        (RailOutcome.block(guardrails_triggered=True, pii={"guarded": False, "response": "NORMAL OUTPUT"}), True),
+        (
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "MASKED OUTPUT")],
+                guardrails_triggered=False,
+                pii={"guarded": True, "response": "MASKED OUTPUT"},
+            ),
+            False,
+        ),
+    ],
+)
+def test_autoalign_output_bypass_reads_rail_outcome(
     raw_return,
     expected_blocked,
 ):
     mapping_blocked = is_output_blocked(raw_return, autoalign_output_api)
+    outcome = outcome_from_output_mapping(raw_return, autoalign_output_api)
 
     assert mapping_blocked is expected_blocked
-    assert raw_return["guardrails_triggered"] is expected_blocked
+    assert outcome is raw_return
 
 
-def test_autoalign_output_mapping_cannot_express_transform():
-    raw_return = {"guardrails_triggered": False, "pii": {"guarded": True, "response": "MASKED OUTPUT"}}
-    mapping_blocked = is_output_blocked(raw_return, autoalign_output_api)
-
-    assert mapping_blocked is False
-    assert raw_return["pii"]["guarded"] is True
+def test_autoalign_output_action_has_no_legacy_output_mapping():
+    assert getattr(autoalign_output_api, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
@@ -463,40 +472,34 @@ def test_autoalign_score_output_mappings_block_below_threshold(action_func, raw_
 
 
 @pytest.mark.parametrize(
-    ("raw_return", "reject_blocks", "omit_transforms"),
+    ("raw_return", "expected_blocked"),
     [
+        (RailOutcome.allow(is_injection=False, text="NORMAL OUTPUT", detections=[]), False),
+        (RailOutcome.block(is_injection=True, text="NORMAL OUTPUT", detections=["sqli"]), True),
         (
-            {"is_injection": False, "text": "NORMAL OUTPUT", "detections": []},
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "OMITTED OUTPUT")],
+                is_injection=True,
+                text="OMITTED OUTPUT",
+                detections=["sqli"],
+            ),
             False,
-            False,
-        ),
-        (
-            {"is_injection": True, "text": "NORMAL OUTPUT", "detections": ["sqli"]},
-            True,
-            False,
-        ),
-        (
-            {"is_injection": False, "text": "NORMALIZED OUTPUT", "detections": []},
-            False,
-            True,
-        ),
-        (
-            {"is_injection": True, "text": "OMITTED OUTPUT", "detections": ["sqli"]},
-            True,
-            True,
         ),
     ],
 )
-def test_injection_detection_default_mapping_cannot_express_block_or_transform(
+def test_injection_detection_output_bypass_reads_rail_outcome(
     raw_return,
-    reject_blocks,
-    omit_transforms,
+    expected_blocked,
 ):
     mapping_blocked = is_output_blocked(raw_return, injection_detection)
+    outcome = outcome_from_output_mapping(raw_return, injection_detection)
 
-    assert mapping_blocked is False
-    assert reject_blocks is raw_return["is_injection"]
-    assert omit_transforms is (raw_return["text"] != "NORMAL OUTPUT")
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_injection_detection_action_has_no_legacy_output_mapping():
+    assert getattr(injection_detection, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(

@@ -19,7 +19,7 @@ import logging
 from typing import Any, List, Optional, Tuple
 
 from nemoguardrails.actions import action
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.hf_classifier.backends import get_backend
 
 log = logging.getLogger(__name__)
@@ -88,6 +88,12 @@ def _hf_classifier_outcome(allowed: bool) -> RailOutcome:
     return RailOutcome.block()
 
 
+def _hf_classifier_retrieval_outcome(allowed: bool) -> RailOutcome:
+    if allowed:
+        return RailOutcome.allow()
+    return RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")])
+
+
 @action()
 async def hf_classifier_check_input(
     classifier: str,
@@ -122,5 +128,6 @@ async def hf_classifier_check_retrieval(
     config: Any | None = None,
     context: Optional[dict] = None,
     **kwargs,
-) -> bool:
-    return await _classify_and_check(classifier, _extract_text(context, "relevant_chunks"), config)
+) -> RailOutcome:
+    allowed = await _classify_and_check(classifier, _extract_text(context, "relevant_chunks"), config)
+    return _hf_classifier_retrieval_outcome(allowed)

@@ -30,10 +30,11 @@ from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails.actions.output_mapping import is_output_blocked
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
     _classify_and_check,
+    _hf_classifier_retrieval_outcome,
     hf_classifier_check_input,
     hf_classifier_check_output,
     hf_classifier_check_retrieval,
@@ -517,6 +518,14 @@ class TestOutputMapping:
     def test_has_no_explicit_output_mapping(self):
         meta = getattr(hf_classifier_check_output, "action_meta", {})
         assert meta.get("output_mapping") is None
+
+
+class TestRetrievalOutcome:
+    def test_allowed_retrieval_maps_to_allow(self):
+        assert _hf_classifier_retrieval_outcome(True) == RailOutcome.allow()
+
+    def test_blocked_retrieval_maps_to_transform(self):
+        assert _hf_classifier_retrieval_outcome(False) == RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")])
 
 
 class TestStreamingOutputFallback:

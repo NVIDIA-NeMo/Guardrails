@@ -30,7 +30,7 @@ except ImportError:
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.config import (
     SensitiveDataDetection,
     SensitiveDataDetectionOptions,
@@ -100,6 +100,22 @@ def _sensitive_data_detection_outcome(has_sensitive_data: bool) -> RailOutcome:
     return RailOutcome.allow(has_sensitive_data=has_sensitive_data)
 
 
+def _mask_sensitive_data_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
+    target_by_source = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+    metadata = {
+        "source": source,
+        "text": original_text,
+        "masked_text": masked_text,
+    }
+    if masked_text != original_text:
+        return RailOutcome.transform([(target_by_source[source], masked_text)], **metadata)
+    return RailOutcome.allow(**metadata)
+
+
 @action(is_system_action=True)
 async def detect_sensitive_data(
     source: str,
@@ -143,7 +159,7 @@ async def detect_sensitive_data(
 
 
 @action(is_system_action=True)
-async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
+async def mask_sensitive_data(source: str, text: str, config: RailsConfig) -> RailOutcome:
     """Checks whether the provided text contains any sensitive data.
 
     Args
@@ -152,7 +168,7 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
         config: The rails configuration object.
 
     Returns
-        The altered text, if applicable.
+        RailOutcome.transform() with the altered text if it changed, RailOutcome.allow() otherwise.
     """
     sdd_config = config.rails.config.sensitive_data_detection
     if sdd_config is None:
@@ -161,7 +177,7 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
     options: SensitiveDataDetectionOptions = getattr(sdd_config, source)
 
     if len(options.entities) == 0:
-        return text
+        return _mask_sensitive_data_outcome(source, text, text)
 
     analyzer = _get_analyzer()
     if OperatorConfig is None or AnonymizerEngine is None:
@@ -182,4 +198,4 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
     anonymizer = AnonymizerEngine()
     masked_results = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
 
-    return masked_results.text
+    return _mask_sensitive_data_outcome(source, text, masked_results.text)

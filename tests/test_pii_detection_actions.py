@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.gliner import actions as gliner_actions
 from nemoguardrails.library.gliner.actions import gliner_detect_pii
 from nemoguardrails.library.privateai import actions as privateai_actions
@@ -129,3 +129,30 @@ async def test_sensitive_data_detect_returns_rail_outcome(monkeypatch, analyzer_
     outcome = await detect_sensitive_data(source="input", text="hello", config=_sensitive_data_config())
 
     assert outcome == expected
+
+
+@pytest.mark.parametrize(
+    "outcome_func",
+    [
+        privateai_actions._mask_pii_outcome,
+        gliner_actions._mask_pii_outcome,
+        sensitive_data_actions._mask_sensitive_data_outcome,
+    ],
+)
+@pytest.mark.parametrize(
+    ("masked_text", "expected"),
+    [
+        ("hello", RailOutcome.allow(source="input", text="hello", masked_text="hello")),
+        (
+            "masked",
+            RailOutcome.transform(
+                [(TransformTarget.USER_MESSAGE, "masked")],
+                source="input",
+                text="hello",
+                masked_text="masked",
+            ),
+        ),
+    ],
+)
+def test_mask_helpers_return_rail_outcome(outcome_func, masked_text, expected):
+    assert outcome_func("input", "hello", masked_text) == expected
