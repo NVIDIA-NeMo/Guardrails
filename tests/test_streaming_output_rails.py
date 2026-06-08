@@ -507,7 +507,7 @@ async def test_streaming_action_params_not_stale_across_chunks():
         f"Stale action_params bug: second batch got {received_chunks[1]!r} instead of 'beta'"
     )
 
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()}, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -566,7 +566,7 @@ async def test_streaming_action_params_original_flow_config_not_mutated():
         f"'$bot_message' was replaced with {original_params.get('chunk')!r}"
     )
 
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()}, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -618,8 +618,8 @@ async def test_streaming_user_message_param_substituted():
 
     assert len(received_user_messages) >= 1
     received = received_user_messages[0]
-    assert isinstance(received, dict) and received.get("content") == "hello there" or received == "hello there", (
+    assert (isinstance(received, dict) and received.get("content") == "hello there") or received == "hello there", (
         f"$user_message was not substituted correctly: {received!r}"
     )
 
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()}, return_exceptions=True)
