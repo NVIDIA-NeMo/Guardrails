@@ -97,8 +97,12 @@ async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):
         assert outcome == expected
 
 
-def test_llama_guard_output_action_has_no_legacy_output_mapping():
-    assert getattr(llama_guard_check_output, "action_meta")["output_mapping"] is None
+def test_llama_guard_output_action_metadata_is_registration_only():
+    assert set(getattr(llama_guard_check_output, "action_meta")) == {
+        "name",
+        "is_system_action",
+        "execute_async",
+    }
 
 
 def test_llama_guard_check_all_safe():

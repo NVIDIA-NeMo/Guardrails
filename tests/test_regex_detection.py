@@ -684,18 +684,11 @@ async def test_regex_action_accepts_extra_kwargs():
 
 
 @pytest.mark.unit
-def test_regex_output_mapping_blocks_on_match():
-    from nemoguardrails.actions.output_mapping import is_output_blocked
+def test_regex_output_verdict_blocks_on_match():
     from nemoguardrails.actions.rail_outcome import RailOutcome
 
     matched = RailOutcome.block(is_match=True, text="fight club", detections=["\\bfight\\s+club\\b"])
     no_match = RailOutcome.allow(is_match=False, text="hello", detections=[])
 
-    assert is_output_blocked(matched, detect_regex_pattern) is True
-    assert is_output_blocked(no_match, detect_regex_pattern) is False
-
-
-@pytest.mark.unit
-def test_regex_output_mapping_is_registered():
-    meta = getattr(detect_regex_pattern, "action_meta", {})
-    assert meta.get("output_mapping") is None
+    assert matched.is_blocked is True
+    assert no_match.is_blocked is False

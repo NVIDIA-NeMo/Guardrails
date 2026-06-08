@@ -49,7 +49,7 @@ from nemoguardrails.actions.llm.utils import (
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
-from nemoguardrails.actions.output_mapping import outcome_from_output_mapping
+from nemoguardrails.actions.rail_outcome import require_rail_outcome
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
@@ -2039,10 +2039,7 @@ class LLMRails(BaseGuardrails):
                         yield json.dumps(error_data)
                         return
 
-                    action_func = self.runtime.action_dispatcher.get_action(action_name)
-
-                    # Use the mapping to decide if the result indicates blocked content.
-                    if outcome_from_output_mapping(result, action_func).is_blocked:
+                    if require_rail_outcome(result).is_blocked:
                         reason = f"Blocked by {flow_id} rails."
 
                         # return the error as a plain JSON string (not in SSE format)

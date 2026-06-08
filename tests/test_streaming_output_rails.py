@@ -104,7 +104,7 @@ async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     )
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 def self_check_output(**params):
     """A dummy self check action that checks if the bot message contains the BLOCK keyword."""
 
@@ -112,9 +112,9 @@ def self_check_output(**params):
         bot_message_chunk = params.get("context", {}).get("bot_message")
         print(f"bot_message_chunk: {bot_message_chunk}")
         if "BLOCK" in bot_message_chunk:
-            return False
+            return RailOutcome.block()
 
-    return True
+    return RailOutcome.allow()
 
 
 async def run_self_check_test(config, llm_completions):
@@ -186,7 +186,7 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
 
 
 @pytest.mark.asyncio
-async def test_streaming_output_rails_blocks_rail_outcome_without_output_mapping(output_rails_streaming_config):
+async def test_streaming_output_rails_blocks_rail_outcome(output_rails_streaming_config):
     llm_completions = [
         '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
         '  "This is a [BLOCK] joke that should be blocked."',
@@ -323,7 +323,7 @@ async def test_external_generator_with_output_rails_allowed():
 
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -462,8 +462,8 @@ async def test_external_generator_with_output_rails_blocked():
         bot_message = kwargs.get("bot_message", kwargs.get("context", {}).get("bot_message", ""))
         # block if message contains "offensive" or "idiot"
         if "offensive" in bot_message.lower() or "idiot" in bot_message.lower():
-            return False
-        return True
+            return RailOutcome.block()
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -581,7 +581,7 @@ async def test_external_generator_single_chunk():
 
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 

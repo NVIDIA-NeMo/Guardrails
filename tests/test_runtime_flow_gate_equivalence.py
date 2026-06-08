@@ -2407,16 +2407,10 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
         if raw_return.is_transform:
             return FlowDecision.TRANSFORM
         return FlowDecision.BLOCK if raw_return.is_blocked else FlowDecision.ALLOW
-    elif spec.interpret:
+    if spec.interpret:
         return spec.interpret(raw_return)
-    elif isinstance(raw_return, bool):
-        blocked = not raw_return
-    elif isinstance(raw_return, (int, float)):
-        blocked = raw_return < 0.5
-    else:
-        blocked = False
 
-    return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
+    raise AssertionError(f"Rail spec {spec.name!r} must use RailOutcome or an explicit interpreter")
 
 
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])

@@ -29,20 +29,6 @@ def test_action_decorator():
     assert sample_action.action_meta["execute_async"] is True
 
 
-def test_action_decorator_with_output_mapping():
-    def sample_output_mapping(result):
-        return result == "blocked"
-
-    @action(output_mapping=sample_output_mapping)
-    def sample_action():
-        return "blocked"
-
-    assert hasattr(sample_action, "action_meta")
-    assert sample_action.action_meta["output_mapping"] is not None
-    assert sample_action.action_meta["output_mapping"]("blocked") is True
-    assert sample_action.action_meta["output_mapping"]("not_blocked") is False
-
-
 def test_action_decorator_requires_name_for_callable_instance():
     class CallableAction:
         def __call__(self):

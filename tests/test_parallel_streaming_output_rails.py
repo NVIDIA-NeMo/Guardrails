@@ -24,6 +24,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from tests.utils import TestChat
 
@@ -167,8 +168,8 @@ def self_check_output_safety(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "UNSAFE" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -177,8 +178,8 @@ def self_check_output_compliance(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "VIOLATION" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -187,8 +188,8 @@ def self_check_output_quality(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "LOWQUALITY" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 @action(is_system_action=True)
@@ -197,25 +198,25 @@ def self_check_output(context=None, **params):
     if context and context.get("bot_message"):
         bot_message_chunk = context.get("bot_message")
         if "BLOCK" in bot_message_chunk:
-            return False
-    return True
+            return RailOutcome.block()
+    return RailOutcome.allow()
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_safety(**params):
     """Slow safety check for timing tests."""
     await asyncio.sleep(0.1)
     return self_check_output_safety(**params)
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_compliance(**params):
     """Slow compliance check for timing tests."""
     await asyncio.sleep(0.1)
     return self_check_output_compliance(**params)
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 async def slow_self_check_output_quality(**params):
     """Slow quality check for timing tests."""
     await asyncio.sleep(0.1)
@@ -611,13 +612,13 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
 async def test_parallel_streaming_output_rails_error_handling():
     """Tests error handling in parallel streaming when rails fail"""
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def failing_rail(**params):
         raise Exception("Simulated rail failure")
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def working_rail(**params):
-        return True
+        return RailOutcome.allow()
 
     config = RailsConfig.from_content(
         config={
@@ -797,15 +798,15 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     using identical content and configurations, except for the parallel flag.
     """
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def test_self_check_output(context=None, **params):
         """Test check that blocks content containing BLOCK keyword."""
 
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "BLOCK" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],
@@ -906,14 +907,14 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
 async def test_sequential_vs_parallel_streaming_blocking_comparison():
     """Test that both sequential and parallel handle blocking scenarios identically"""
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     def test_self_check_output_blocking(context=None, **params):
         """Test check that blocks content containing BLOCK keyword."""
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "BLOCK" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],
@@ -1020,7 +1021,7 @@ async def _run_slow_actions_sequential_and_parallel():
 
     import time
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_safety_check(context=None, **params):
         """Slow safety check that simulates real processing time."""
         # simulate 100ms of processing
@@ -1028,28 +1029,28 @@ async def _run_slow_actions_sequential_and_parallel():
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "UNSAFE" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_compliance_check(context=None, **params):
         """Slow compliance check that simulates real processing time."""
         await asyncio.sleep(0.1)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "VIOLATION" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
-    @action(is_system_action=True, output_mapping=lambda result: not result)
+    @action(is_system_action=True)
     async def slow_quality_check(context=None, **params):
         """Slow quality check that simulates real processing time."""
         await asyncio.sleep(0.1)
         if context and context.get("bot_message"):
             bot_message_chunk = context.get("bot_message")
             if "LOWQUALITY" in bot_message_chunk:
-                return False
-        return True
+                return RailOutcome.block()
+        return RailOutcome.allow()
 
     base_config = {
         "models": [],

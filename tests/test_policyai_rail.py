@@ -599,8 +599,12 @@ async def test_unsafe_with_missing_fields(monkeypatch):
         assert result.reason == "Policy violation detected"
 
 
-def test_policyai_action_has_no_legacy_output_mapping():
-    assert getattr(call_policyai_api, "action_meta")["output_mapping"] is None
+def test_policyai_action_metadata_is_registration_only():
+    assert set(getattr(call_policyai_api, "action_meta")) == {
+        "name",
+        "is_system_action",
+        "execute_async",
+    }
 
 
 def test_policyai_fixture_metadata_matches_action_shape():

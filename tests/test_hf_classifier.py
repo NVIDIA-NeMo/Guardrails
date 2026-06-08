@@ -29,7 +29,6 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
-from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
@@ -504,20 +503,16 @@ class TestActionContextKeys:
         assert result == RailOutcome.allow()
 
 
-class TestOutputMapping:
-    def test_allow_outcome_maps_to_not_blocked(self):
+class TestOutputVerdict:
+    def test_allow_outcome_is_not_blocked(self):
         outcome = RailOutcome.allow()
 
-        assert is_output_blocked(outcome, hf_classifier_check_output) is False
+        assert outcome.is_blocked is False
 
-    def test_block_outcome_maps_to_blocked(self):
+    def test_block_outcome_is_blocked(self):
         outcome = RailOutcome.block()
 
-        assert is_output_blocked(outcome, hf_classifier_check_output) is True
-
-    def test_has_no_explicit_output_mapping(self):
-        meta = getattr(hf_classifier_check_output, "action_meta", {})
-        assert meta.get("output_mapping") is None
+        assert outcome.is_blocked is True
 
 
 class TestRetrievalOutcome:
