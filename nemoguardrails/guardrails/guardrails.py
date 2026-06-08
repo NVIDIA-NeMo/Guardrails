@@ -355,6 +355,9 @@ class Guardrails(BaseGuardrails):
         """Generate the next events based on the provided history.
         Only supported for LLMRails.
         """
+        if self.config.injection_detection_enabled:
+            self._scan_events_for_injection(events)
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support generate_events_async()")
 
@@ -365,11 +368,40 @@ class Guardrails(BaseGuardrails):
         """Synchronous version of generate_events_async.
         Only supported for LLMRails.
         """
+        if self.config.injection_detection_enabled:
+            self._scan_events_for_injection(events)
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support generate_events()")
 
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.generate_events(events)
+
+    def _scan_events_for_injection(self, events: List[dict]) -> None:
+        """Scan user-input events for prompt injection and raise if one is found.
+
+        Inspects UserMessage (Colang 1.0) and UtteranceUserActionFinished (Colang 2.x)
+        events, which carry raw user text that could contain injection payloads.
+        """
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            event_type = event.get("type", "")
+            if event_type == "UserMessage":
+                text = event.get("text")
+            elif event_type == "UtteranceUserActionFinished":
+                text = event.get("final_transcript")
+            else:
+                continue
+            if text and isinstance(text, str):
+                try:
+                    validate_prompt_safety(
+                        prompt=text,
+                        sensitivity=self.config.injection_detection_sensitivity,
+                    )
+                except PromptInjectionDetectedError as e:
+                    log.warning(f"Prompt injection attempt blocked: {e}")
+                    raise
 
     async def process_events_async(
         self,
