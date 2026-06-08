@@ -33,9 +33,7 @@ runtime, public-API, and provider-integration rules.
 ## Repository Map
 
 - Main package: `nemoguardrails/`
-- Tests: `tests/`, plus doctest/example coverage from
-  `docs/configure-rails/colang/colang-2/examples` and `benchmark/tests` through
-  `pytest.ini`
+- Tests: `tests/` and `benchmark/tests` (the `testpaths` in `pytest.ini`)
 - Schemas and validation snapshots: `schemas/`
 - Default development branch: `develop`
 

@@ -70,7 +70,6 @@ provider-integration specifics that matter when editing this package.
 - Keep observability signals independently configurable. Tracing, metrics, logs,
   and anonymous usage telemetry have different contracts and should not be
   enabled, disabled, or configured as a single implicit bundle.
-- When touching rails execution, action dispatch, generation, streaming, state,
 - Mark experimental behavior clearly in docs and keep it isolated from stable
   contracts.
 
