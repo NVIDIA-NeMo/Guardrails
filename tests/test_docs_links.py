@@ -23,9 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECK_DOCS_LINKS = REPO_ROOT / "scripts" / "check-docs-links.sh"
 
 
-def run_link_check(
-    file_path: Path, env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
+def run_link_check(file_path: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
@@ -99,8 +97,8 @@ def test_resolves_guardrails_fern_routes(tmp_path: Path) -> None:
             [
                 "# Guide",
                 "",
-                "[Install](/getting-started/installation-guide)",
-                '<Card title="Configure" href="/configure-rails">',
+                "[Install](/get-started/installation-guide)",
+                '<Card title="Configure" href="/configure-guardrails/configure-rails">',
                 "",
             ]
         ),
@@ -114,9 +112,7 @@ def test_resolves_guardrails_fern_routes(tmp_path: Path) -> None:
 
 
 def test_rejects_mdx_suffixes_for_links_that_resolve_as_fern_routes() -> None:
-    temp_dir = Path(
-        tempfile.mkdtemp(prefix="check-docs-route-suffix-", dir=REPO_ROOT / "docs")
-    )
+    temp_dir = Path(tempfile.mkdtemp(prefix="check-docs-route-suffix-", dir=REPO_ROOT / "docs"))
     try:
         temp_path = temp_dir / "temp.mdx"
         target_path = temp_dir / "target.mdx"
@@ -158,9 +154,7 @@ def test_rejects_mdx_suffixes_for_links_that_resolve_as_fern_routes() -> None:
         output = f"{result.stdout}{result.stderr}"
 
         assert result.returncode == 1
-        assert (
-            f"route-style link should omit .md/.mdx extension in {temp_path}:5 -> target.mdx"
-        ) in output
+        assert (f"route-style link should omit .md/.mdx extension in {temp_path}:5 -> target.mdx") in output
         assert f"broken local link in {temp_path}:6 -> target" not in output
     finally:
         shutil.rmtree(temp_dir)
@@ -169,9 +163,7 @@ def test_rejects_mdx_suffixes_for_links_that_resolve_as_fern_routes() -> None:
 def test_fails_loudly_on_malformed_html_comments(tmp_path: Path) -> None:
     md_path = tmp_path / "guide.md"
     md_path.write_text(
-        "\n".join(
-            ["# Guide", "<!-- missing close", "[ignored](./inside-comment.md)", ""]
-        ),
+        "\n".join(["# Guide", "<!-- missing close", "[ignored](./inside-comment.md)", ""]),
         encoding="utf-8",
     )
 
