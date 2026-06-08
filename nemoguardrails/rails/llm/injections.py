@@ -115,8 +115,7 @@ class PromptInjectionDetector:
                 if raise_error:
                     raise PromptInjectionDetectedError(
                         f"Prompt injection detected: {pattern_name}. "
-                        f"User input contains instructions that attempt to override guardrails. "
-                        f"Pattern: '{match.group()}'",
+                        f"User input contains instructions that attempt to override guardrails.",
                         injection_pattern=pattern_name,
                     )
                 return pattern_name
