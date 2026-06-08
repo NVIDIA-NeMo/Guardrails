@@ -303,15 +303,13 @@ class TestLlmCallIntegration:
 
     @pytest.mark.asyncio
     async def test_context_window_tokens_override_allows_large_prompt(self):
-        """context_window_tokens overrides the table look-up so a large prompt passes."""
+        """context_window_tokens activates validation with a caller-supplied window so the prompt fits."""
         from nemoguardrails.actions.llm.utils import llm_call
 
         model = self._make_model(["response"])
-        long_prompt = "a" * 20000  # ~5 000 tokens — exceeds default 4 096 fallback
+        long_prompt = "a" * 20000  # ~5 000 tokens
 
-        # Without override this would raise ContextLengthExceededError for an unknown model
-        # (fallback = 4 096, 90% threshold = 3 686).
-        # context_window_tokens=32768 widens the validation window so the prompt fits.
+        # context_window_tokens=32768 enables validation and widens the window so the prompt fits.
         result = await llm_call(model, long_prompt, context_window_tokens=32768)
         assert result.content == "response"
 
@@ -368,6 +366,32 @@ class TestLlmCallIntegration:
         model = self._make_model(["hello"])
         result = await llm_call(model, "What is the capital of France?", check_prompt_injection=True)
         assert result.content == "hello"
+
+    @pytest.mark.asyncio
+    async def test_context_length_off_by_default(self):
+        """Context-length validation is skipped when check_context_length is not set.
+
+        An unknown model with a very long prompt must not raise ContextLengthExceededError
+        by default, preserving backward compatibility for custom/Ollama deployments.
+        """
+        from nemoguardrails.actions.llm.utils import llm_call
+
+        model = self._make_model(["ok"])
+        long_prompt = "a" * 50000  # ~12 500 tokens — far exceeds any 4 096 fallback
+        result = await llm_call(model, long_prompt)
+        assert result.content == "ok"
+
+    @pytest.mark.asyncio
+    async def test_check_context_length_raises_for_long_prompt(self):
+        """check_context_length=True enables validation; a prompt too long for the model raises."""
+        from nemoguardrails.actions.llm.utils import llm_call
+        from nemoguardrails.llm.token_counter import ContextLengthExceededError
+
+        model = self._make_model(["ok"])
+        # gpt-3.5-turbo has a 4 096-token window; this prompt far exceeds it
+        long_prompt = "a" * 50000
+        with pytest.raises(ContextLengthExceededError):
+            await llm_call(model, long_prompt, model_name="gpt-3.5-turbo", check_context_length=True)
 
 
 if __name__ == "__main__":

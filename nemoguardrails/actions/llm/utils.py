@@ -61,6 +61,7 @@ async def llm_call(
     streaming_handler: Optional["StreamingHandler"] = None,
     context_window_tokens: Optional[int] = None,
     check_prompt_injection: bool = False,
+    check_context_length: bool = False,
 ) -> LLMResponse:
     """Call the LLM with the given prompt.
 
@@ -80,9 +81,15 @@ async def llm_call(
             for pre-call length validation (i.e. passed to
             ``validate_context_length``).  This value is *not* forwarded to the
             model.  To cap the number of output tokens, include ``max_tokens``
-            inside ``llm_params`` instead.
+            inside ``llm_params`` instead.  Passing this implicitly enables
+            context-length validation even when ``check_context_length`` is
+            False.
         check_prompt_injection: When True, scan the prompt for injection
             patterns before calling the model.
+        check_context_length: When True, validate that the assembled prompt
+            fits within the model's context window before calling the model.
+            Defaults to False to preserve backward compatibility with
+            deployments that use custom or unlisted model names.
     """
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
@@ -100,10 +107,13 @@ async def llm_call(
     _log_prompt(prompt)
     chat_prompt = _ensure_chat_messages(prompt)
 
-    # Validate context length before sending to LLM
-    # ContextLengthExceededError is raised here if validation fails and must propagate directly
-    # (not wrapped in LLMCallException) so callers can handle it specifically
-    validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=context_window_tokens)
+    # Validate context length only when explicitly requested or when a caller-supplied
+    # window override is present.  The check is opt-in (False by default) so that
+    # deployments using custom/unlisted model names are not broken by the conservative
+    # 4096-token fallback.  ContextLengthExceededError must propagate directly (not
+    # wrapped in LLMCallException) so callers can handle it specifically.
+    if check_context_length or context_window_tokens is not None:
+        validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=context_window_tokens)
 
     if check_prompt_injection:
         if isinstance(prompt, list):
