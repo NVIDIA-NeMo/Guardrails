@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.rails.llm.llmrails import (
+from nemoguardrails.rails.llm.checks.rails_check import (
     _determine_rails_from_messages,
     _get_blocking_rail,
     _get_last_content_by_role,

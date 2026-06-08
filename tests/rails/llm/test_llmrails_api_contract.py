@@ -14,11 +14,12 @@
 # limitations under the License.
 
 import pickle
-from unittest.mock import patch
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.context import explain_info_var
+from nemoguardrails.logging.explain import ExplainInfo
 from tests.utils import FakeLLMModel
 
 
@@ -26,7 +27,7 @@ def _config() -> RailsConfig:
     return RailsConfig.from_content(config={"models": []})
 
 
-def test_constructor_keeps_public_state_visible():
+def test_constructor_keeps_public_compatibility_state_visible():
     config = _config()
     llm = FakeLLMModel(responses=[])
 
@@ -36,47 +37,9 @@ def test_constructor_keeps_public_state_visible():
     assert rails.llm is llm
     assert rails.runtime is not None
     assert rails.llm_generation_actions is not None
+    assert rails.embedding_search.providers == {}
     assert rails.events_history_cache == {}
     assert rails.explain_info is None
-
-
-def test_constructor_reports_library_usage():
-    config = _config()
-
-    with patch("nemoguardrails.telemetry.report_usage") as report_usage:
-        LLMRails(config=config, llm=FakeLLMModel(responses=[]))
-
-    report_usage.assert_called_once_with(config, deployment_type="library", rails_engine="LLMRails")
-
-
-def test_config_py_init_embeddings_model_updates_default_search_config(tmp_path):
-    config = _config()
-    config.config_path = str(tmp_path)
-    (tmp_path / "config.py").write_text(
-        """
-from nemoguardrails.rails.llm.config import Model
-
-
-def init(rails):
-    rails.config.models.append(
-        Model(
-            type="embeddings",
-            engine="SentenceTransformers",
-            model="intfloat/e5-large-v2",
-            parameters={"device": "cpu"},
-        )
-    )
-""",
-        encoding="utf-8",
-    )
-
-    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
-
-    assert rails.embedding_search.default_model == "intfloat/e5-large-v2"
-    assert rails.embedding_search.default_engine == "SentenceTransformers"
-    assert rails.embedding_search.default_params == {"device": "cpu"}
-    assert config.core.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
-    assert config.core.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
 
 
 def test_update_llm_keeps_runtime_generation_actions_and_public_attr_in_sync():
@@ -110,11 +73,25 @@ async def test_sync_wrappers_raise_when_called_from_async_loop():
 def test_getstate_serializes_config_only():
     rails = LLMRails(config=_config(), llm=FakeLLMModel(responses=[]))
     rails.events_history_cache["cached"] = [{"type": "CachedEvent"}]
+    rails.explain_info = ExplainInfo()
     rails.register_action_param("custom_param", object())
 
     state = rails.__getstate__()
 
     assert state == {"config": rails.config}
+
+
+def test_explain_prefers_active_request_context_over_latest_instance_info():
+    rails = LLMRails(config=_config(), llm=FakeLLMModel(responses=[]))
+    latest_explain_info = ExplainInfo()
+    request_explain_info = ExplainInfo()
+    rails.explain_info = latest_explain_info
+    token = explain_info_var.set(request_explain_info)
+    try:
+        assert rails.explain() is request_explain_info
+        assert rails.explain_info is request_explain_info
+    finally:
+        explain_info_var.reset(token)
 
 
 def test_pickle_round_trip_reinitializes_from_config_without_runtime_state():

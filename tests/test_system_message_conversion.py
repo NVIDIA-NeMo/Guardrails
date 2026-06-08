@@ -16,6 +16,7 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.rails.llm.conversation.conversation_events import events_for_messages
 from tests.utils import FakeLLMModel
 
 
@@ -44,7 +45,7 @@ async def test_system_message_conversion_v1():
         {"role": "user", "content": "Hello!"},
     ]
 
-    events = llm_rails._get_events_for_messages(messages, None)
+    events = events_for_messages(llm_rails, messages, None)
 
     system_messages = [event for event in events if event["type"] == "SystemMessage"]
     assert len(system_messages) == 1
@@ -76,7 +77,7 @@ async def test_system_message_conversion_v2x():
         {"role": "user", "content": "Hello!"},
     ]
 
-    events = llm_rails._get_events_for_messages(messages, None)
+    events = events_for_messages(llm_rails, messages, None)
 
     system_messages = [event for event in events if event["type"] == "SystemMessage"]
     assert len(system_messages) == 1
@@ -108,7 +109,7 @@ async def test_system_message_conversion_multiple():
         {"role": "user", "content": "Hello!"},
     ]
 
-    events = llm_rails._get_events_for_messages(messages, None)
+    events = events_for_messages(llm_rails, messages, None)
 
     system_messages = [event for event in events if event["type"] == "SystemMessage"]
     assert len(system_messages) == 2

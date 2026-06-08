@@ -605,6 +605,9 @@ navigation:
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root
+      - page: Migrating to 0.23
+        path: migration/0.23.mdx
+        slug: 0-23
       - page: Migrating to 0.22
         path: migration/0.22.mdx
         slug: 0-22
