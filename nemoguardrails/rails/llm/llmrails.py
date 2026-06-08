@@ -1847,7 +1847,7 @@ class LLMRails(BaseGuardrails):
             bot_response_chunk: str,
             prompt: Optional[str] = None,
             messages: Optional[List[dict]] = None,
-            action_params: Dict[str, Any] = {},
+            action_params: Optional[Dict[str, Any]] = None,
         ):
             context_message = _get_last_context_message(messages)
             user_message = prompt or _get_latest_user_message(messages)
@@ -1862,9 +1862,12 @@ class LLMRails(BaseGuardrails):
 
             model_name = flow_id.split("$")[-1].split("=")[-1].strip('"')
 
-            # we pass action params that are defined in the flow
-            # caveate, e.g. prmpt_security uses bot_response=$bot_message
-            # to resolve replace placeholders in action_params
+            # Shallow-copy before substituting placeholders so we never mutate
+            # the original dict returned by get_action_details_from_flow_id.
+            # Without this copy, "$bot_message" gets replaced by the first
+            # chunk's text and every subsequent chunk receives the stale value.
+            action_params = dict(action_params or {})
+
             for key, value in action_params.items():
                 if value == "$bot_message":
                     action_params[key] = bot_response_chunk
