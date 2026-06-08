@@ -41,7 +41,7 @@ DEFAULT_REDACTION_PATTERNS = {
         "[API_KEY]",
     ),
     "password": (r'(?:password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^"\'\s,}\]]+)["\']?', "[PASSWORD]"),
-    "token": (r'(?:token|auth_token|access_token|bearer)["\']?\s*[:= ]\s*["\']?([A-Za-z0-9_\-\.]+)["\']?', "[TOKEN]"),
+    "token": (r'(?:token|auth_token|access_token|bearer)["\']?\s*[:=\s]\s*["\']?([A-Za-z0-9_\-\.]+)["\']?', "[TOKEN]"),
     "aws_key": (r"AKIA[0-9A-Z]{16}", "[AWS_KEY]"),
     "ip_address": (
         r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b",
