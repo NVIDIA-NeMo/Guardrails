@@ -25,42 +25,42 @@ The `config.py` file contains initialization code that runs once at startup, bef
 
 <Cards>
 
-<Card title="Init Function" href="/configure-rails/custom-initialization/init-function">
+<Card title="Init Function" href="/configure-guardrails/custom-initialization/init-function">
 
 Define the init() function to initialize resources and register action parameters at startup.
 
 <Badge intent="tip" minimal outlined>How To</Badge>
 </Card>
 
-<Card title="LLM Providers" href="/configure-rails/custom-initialization/custom-llm-providers">
+<Card title="LLM Providers" href="/configure-guardrails/custom-initialization/custom-llm-providers">
 
 Register custom text completion and chat models. Use the `LLMModel` Protocol for the built-in client, or LangChain `BaseLLM`/`BaseChatModel` when running with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
 
 <Badge intent="tip" minimal outlined>How To</Badge>
 </Card>
 
-<Card title="Custom LLM Model" href="/configure-rails/custom-initialization/custom-llm-model">
+<Card title="Custom LLM Model" href="/configure-guardrails/custom-initialization/custom-llm-model">
 
 Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain.
 
 <Badge intent="tip" minimal outlined>How To</Badge>
 </Card>
 
-<Card title="Custom LLM Framework" href="/configure-rails/custom-initialization/custom-llm-framework">
+<Card title="Custom LLM Framework" href="/configure-guardrails/custom-initialization/custom-llm-framework">
 
 Replace the LLM framework layer to connect LiteLLM, an in-house orchestrator, or any non-default LLM stack to the NVIDIA NeMo Guardrails library.
 
 <Badge intent="tip" minimal outlined>How To</Badge>
 </Card>
 
-<Card title="Embedding Providers" href="/configure-rails/custom-initialization/custom-embedding-providers">
+<Card title="Embedding Providers" href="/configure-guardrails/custom-initialization/custom-embedding-providers">
 
 Register custom embedding providers for vector similarity search in the NVIDIA NeMo Guardrails library.
 
 <Badge intent="tip" minimal outlined>How To</Badge>
 </Card>
 
-<Card title="Custom Data" href="/configure-rails/custom-initialization/custom-data">
+<Card title="Custom Data" href="/configure-guardrails/custom-initialization/custom-data">
 
 Pass and access custom data from config.yml in your initialization code and actions.
 
@@ -71,5 +71,5 @@ Pass and access custom data from config.yml in your initialization code and acti
 
 ## Related Topics
 
-- [Custom Actions](/configure-rails/actions) - Define callable actions in `actions.py`
-- [Model Configuration](/configure-rails/yaml-schema/model-configuration) - Configure LLM models in `config.yml`
+- [Custom Actions](/configure-guardrails/actions) - Define callable actions in `actions.py`
+- [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) - Configure LLM models in `config.yml`

@@ -18,8 +18,8 @@ There are three options for connecting a backend to the NVIDIA NeMo Guardrails l
 
 | Backend shape | Recommended path | Where it lives |
 | --- | --- | --- |
-| OpenAI-compatible HTTP endpoint, such as vLLM, TGI, OpenRouter, self-hosted, NIM, and other endpoints | Use `engine: openai` (or the matching built-in engine) and set `parameters.base_url` | [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) and the configuration reference |
-| You already have a LangChain `BaseChatModel` or `BaseLLM` | Use `engine: langchain` and register the LangChain class with `register_chat_provider` | [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) |
+| OpenAI-compatible HTTP endpoint, such as vLLM, TGI, OpenRouter, self-hosted, NIM, and other endpoints | Use `engine: openai` (or the matching built-in engine) and set `parameters.base_url` | [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) and the configuration reference |
+| You already have a LangChain `BaseChatModel` or `BaseLLM` | Use `engine: langchain` and register the LangChain class with `register_chat_provider` | [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) |
 | Custom HTTP API that is not OpenAI-shaped, and you do not want a LangChain dependency | Implement `LLMModel` and register it with the active framework | This guide |
 
 Concretely, choose a custom `LLMModel` when:
@@ -237,7 +237,7 @@ class EchoLLMModel:
 register_provider("echo", EchoLLMModel)
 ```
 
-The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default, that is `DefaultFramework`. For the framework layer, refer to [Custom LLM Framework](/configure-rails/custom-initialization/custom-llm-framework).
+The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default, that is `DefaultFramework`. For the framework layer, refer to [Custom LLM Framework](/configure-guardrails/custom-initialization/custom-llm-framework).
 
 `my_config/config.yml`:
 
@@ -295,7 +295,7 @@ from nemoguardrails.testing import FakeLLMModel
 The two recommended approaches:
 
 1. Write unit tests for your `LLMModel` class in isolation: instantiate it, call `await model.generate_async(prompt)`, and assert on the returned `LLMResponse`. No framework needed.
-2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Guardrails Configuration](/configure-rails/custom-initialization/testing-your-config).
+2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Guardrails Configuration](/configure-guardrails/custom-initialization/testing-your-config).
 
 The contract is small enough that property-based tests are straightforward: any string `prompt` and any list of `ChatMessage` objects must produce a non-`None` `LLMResponse.content`, and `stream_async` must always yield a final chunk with a non-`None` `finish_reason`.
 
@@ -309,7 +309,7 @@ The contract is small enough that property-based tests are straightforward: any 
 
 ## Related Topics
 
-- [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
-- [Custom LLM Framework](/configure-rails/custom-initialization/custom-llm-framework) - Replace the framework layer wholesale, not just one engine.
-- [Init Function](/configure-rails/custom-initialization/init-function) - Where `register_provider` calls usually go.
-- [Configuration Reference](/configure-rails/configuration-reference) - `config.yml` schema, including `engine`, `model`, and `parameters`.
+- [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
+- [Custom LLM Framework](/configure-guardrails/custom-initialization/custom-llm-framework) - Replace the framework layer wholesale, not just one engine.
+- [Init Function](/configure-guardrails/custom-initialization/init-function) - Where `register_provider` calls usually go.
+- [Configuration Reference](/configure-guardrails/configuration-reference) - `config.yml` schema, including `engine`, `model`, and `parameters`.

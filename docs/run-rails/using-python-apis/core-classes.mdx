@@ -13,7 +13,7 @@ This guide covers the two fundamental classes in the NeMo Guardrails library: `R
 
 ## RailsConfig
 
-The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [About Configuring Guardrails](/configure-rails).
+The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [About Configuring Guardrails](/configure-guardrails/configure-rails).
 
 ### Loading Configuration from a Directory
 
@@ -236,7 +236,7 @@ async def check_permissions(context: Optional[dict] = None):
     return user_role == "admin"
 ```
 
-For detailed information about context variables, see [Action Parameters: The Context Parameter](/configure-rails/actions/action-parameters#the-context-parameter) and [Colang 1.0 Language Syntax: Variables](/configure-rails/colang/colang-1/colang-language-syntax-guide#variables).
+For detailed information about context variables, see [Action Parameters: The Context Parameter](/configure-guardrails/actions/action-parameters#the-context-parameter) and [Colang 1.0 Language Syntax: Variables](/configure-guardrails/colang/colang-1/colang-language-syntax-guide#variables).
 
 ### Asynchronous Generation
 
@@ -273,7 +273,7 @@ async def stream_response():
         print(chunk, end="", flush=True)
 ```
 
-For detailed streaming configuration, refer to [Streaming](/run-rails/using-python-apis/streaming).
+For detailed streaming configuration, refer to [Streaming](/run-guardrailed-inference/using-python-apis/streaming).
 
 ### Event-based Generation
 
@@ -292,7 +292,7 @@ for event in events:
         print(f"Bot says: {event['script']}")
 ```
 
-For detailed event-based API usage, refer to [Event-Based API](/run-rails/using-python-apis/event-based-api).
+For detailed event-based API usage, refer to [Event-Based API](/run-guardrailed-inference/using-python-apis/event-based-api).
 
 ### Generation Options
 
@@ -312,7 +312,7 @@ response = rails.generate(
 )
 ```
 
-For detailed options, refer to [Generation Options](/run-rails/using-python-apis/generation-options).
+For detailed options, refer to [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options).
 
 ---
 
@@ -342,7 +342,7 @@ result = await rails.check_async(
 )
 ```
 
-For detailed usage, method signatures, and examples, refer to [Check Messages](/run-rails/using-python-apis/check-messages).
+For detailed usage, method signatures, and examples, refer to [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
 
 ---
 
@@ -364,7 +364,7 @@ rails = LLMRails(config)
 rails.register_action(get_weather, name="get_weather")
 ```
 
-For detailed action registration, refer to [Custom Actions](/configure-rails/actions).
+For detailed action registration, refer to [Custom Actions](/configure-guardrails/actions).
 
 ---
 
@@ -459,9 +459,9 @@ asyncio.run(main())
 
 ## Related Resources
 
-- [Generation Options](/run-rails/using-python-apis/generation-options) - Fine-grained control over generation
-- [Check Messages](/run-rails/using-python-apis/check-messages) - Validate messages against rails
-- [Streaming](/run-rails/using-python-apis/streaming) - Real-time token streaming
-- [Event-Based API](/run-rails/using-python-apis/event-based-api) - Low-level event control
-- [Tools Integration](/integration/tools-integration) - Integrating LangChain tools
-- [About Configuring Guardrails](/configure-rails) - Complete configuration reference
+- [Generation Options](/run-guardrailed-inference/using-python-apis/generation-options) - Fine-grained control over generation
+- [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages) - Validate messages against rails
+- [Streaming](/run-guardrailed-inference/using-python-apis/streaming) - Real-time token streaming
+- [Event-Based API](/run-guardrailed-inference/using-python-apis/event-based-api) - Low-level event control
+- [Tools Integration](/integration-with-third-party-libraries/tools-integration) - Integrating LangChain tools
+- [About Configuring Guardrails](/configure-guardrails/configure-rails) - Complete configuration reference

@@ -28,7 +28,7 @@ async for chunk in rails.stream_async(messages=messages):
 
 ## Streaming With Output Rails
 
-When using output rails with streaming, you must configure [output rail streaming](/configure-rails/yaml-schema/streaming/output-rail-streaming):
+When using output rails with streaming, you must configure [output rail streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming):
 
 ```yaml
 rails:
@@ -97,7 +97,7 @@ nemoguardrails chat path/to/config --streaming
 
 ## Streaming Metadata
 
-Use `include_metadata=True` in `stream_async()` to receive per-chunk metadata (token usage, finish reason). See [Streaming Metadata](/run-rails/using-python-apis/streaming#streaming-metadata) for details.
+Use `include_metadata=True` in `stream_async()` to receive per-chunk metadata (token usage, finish reason). See [Streaming Metadata](/run-guardrailed-inference/using-python-apis/streaming#streaming-metadata) for details.
 
 ## Token Usage Tracking
 
@@ -147,5 +147,5 @@ This example uses NeMo Guardrails' LangChain HuggingFace pipeline adapter, which
 
 ## Related Topics
 
-- [Output Rail Streaming](/configure-rails/yaml-schema/streaming/output-rail-streaming) - Configure streaming for output rails
-- [Model Configuration](/configure-rails/yaml-schema/model-configuration) - Configure the main LLM
+- [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming) - Configure streaming for output rails
+- [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) - Configure the main LLM

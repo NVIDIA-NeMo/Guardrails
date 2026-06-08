@@ -65,7 +65,7 @@ rails:
             - mask sensitive data on input # PII masking
 ```
 
-For a complete list of available input flows, refer to the [YAML Schema Reference: Input Rails](/configure-rails/configuration-reference#input-rails).
+For a complete list of available input flows, refer to the [YAML Schema Reference: Input Rails](/configure-guardrails/configuration-reference#input-rails).
 
 ## Output Rails
 
@@ -81,7 +81,7 @@ rails:
             - mask sensitive data on output # PII masking
 ```
 
-For a complete list of available output flows, refer to the [YAML Schema Reference: Output Rails](/configure-rails/configuration-reference#output-rails).
+For a complete list of available output flows, refer to the [YAML Schema Reference: Output Rails](/configure-guardrails/configuration-reference#output-rails).
 
 ## Retrieval Rails
 
@@ -94,7 +94,7 @@ rails:
             - check retrieval sensitive data
 ```
 
-For a complete list of available retrieval flows, refer to the [YAML Schema Reference: Retrieval Rails](/configure-rails/configuration-reference#retrieval-rails).
+For a complete list of available retrieval flows, refer to the [YAML Schema Reference: Retrieval Rails](/configure-guardrails/configuration-reference#retrieval-rails).
 
 ## Dialog Rails
 
@@ -111,7 +111,7 @@ rails:
             embeddings_only: false
 ```
 
-For a complete list of available dialog flows, refer to the [YAML Schema Reference: Dialog Rails](/configure-rails/configuration-reference#dialog-rails).
+For a complete list of available dialog flows, refer to the [YAML Schema Reference: Dialog Rails](/configure-guardrails/configuration-reference#dialog-rails).
 
 ## Execution Rails
 
@@ -369,7 +369,7 @@ Speculative generation does not change the output-rail path.
 ### Configuration Example
 
 To enable speculative generation, set `speculative_generation: True` under `rails.input` in the `config.yml` file.
-Speculative generation requires the IORails engine; see [IORails Engine](/configure-rails/yaml-schema/guardrails-configuration/parallel-rails#iorails-engine) for how to enable it.
+Speculative generation requires the IORails engine; see [IORails Engine](/configure-guardrails/yaml-schema/guardrails-configuration#iorails-engine) for how to enable it.
 
 ```yaml
 models:

@@ -44,11 +44,11 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 | `vllm_openai`, `deepseek` | LangChain (opt-in) | yes | yes | yes | Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
 | `<provider_name>` | LangChain (opt-in) | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
 
-For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](/migration/0.22).
+For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](/reference/0-22).
 
 ## LangChain-Backed Providers
 
-The library supports LLM providers from the LangChain Community, including text completion and chat completion providers. Refer to [Chat model integrations](https://python.langchain.com/docs/integrations/chat/) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](find-providers-command) CLI command to discover available providers.
+The library supports LLM providers from the LangChain Community, including text completion and chat completion providers. Refer to [Chat model integrations](https://python.langchain.com/docs/integrations/chat/) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](/reference/cli#find-providers-command) CLI command to discover available providers.
 
 ## Embedding Model Providers
 
@@ -65,4 +65,4 @@ The library uses embedding models for vector similarity search in dialog rails, 
 | SentenceTransformers | `sentence_transformers` | SentenceTransformers embedding model provider |
 | Google | `google` | Google embedding model provider |
 
-For more information about configuring embedding providers, refer to [Embedding Search Providers](/configure-rails/other-configurations/embedding-search-providers).
+For more information about configuring embedding providers, refer to [Embedding Search Providers](/configure-guardrails/other-configurations/embedding-search-providers).

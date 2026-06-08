@@ -8,7 +8,7 @@ content:
   type: "reference"
 ---
 
-In this page, learn how to configure the `models` section in your Guardrails `config.yml` file. For a complete reference of all configuration options, refer to the [Configuration YAML Schema Reference](/configure-rails/configuration-reference).
+In this page, learn how to configure the `models` section in your Guardrails `config.yml` file. For a complete reference of all configuration options, refer to the [Configuration YAML Schema Reference](/configure-guardrails/configuration-reference).
 
 ## NVIDIA NIM Configuration
 
@@ -101,7 +101,7 @@ Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the mode
 
 <Note>
 
-Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/migration/0.22#azure-openai) for both alternatives.
+Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/reference/0-22#azure-openai) for both alternatives.
 
 </Note>
 
@@ -118,7 +118,7 @@ models:
 
 <Note>
 
-Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/migration/0.22#using-langchain).
+Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
 
 </Note>
 
@@ -188,7 +188,7 @@ models:
 
 <Note>
 
-Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](/migration/0.22#using-langchain).
+Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
 
 </Note>
 

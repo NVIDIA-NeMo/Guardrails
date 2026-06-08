@@ -13,7 +13,7 @@ By following this tutorial, you learn how to configure a set of allowed topics a
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](/getting-started/installation-guide) with the `nvidia` extra.
+- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `nvidia` extra.
 - A personal NVIDIA API key generated on [https://build.nvidia.com/](https://build.nvidia.com/).
 
 ## Configure Guardrails
@@ -45,7 +45,7 @@ By following this tutorial, you learn how to configure a set of allowed topics a
    The `config.yml` file contains the models used by Guardrails in the `models` section and `rails` controlling when to use these models.
    The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
    The `rails` section configures `input` and `output` rails. Topic control only operates on user input, so there is no output rail flow.
-   For more information about guardrail configurations, refer to [Configure Rails](/configure-rails/overview).
+   For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
 1. Create a `config/prompts.yml` file with the topic control prompt template.
 
@@ -165,7 +165,7 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
 
 This section shows how to run the NemoGuard 8B TopicControl model locally while still using the main model hosted on [build.nvidia.com](https://build.nvidia.com). The prerequisites are:
 
-- The NeMo Guardrails library [installed](/getting-started/installation-guide).
+- The NeMo Guardrails library [installed](/get-started/installation-guide).
 - A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
   For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
 - Docker [installed](https://docs.docker.com/engine/install/).
@@ -259,7 +259,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
 
 ## Next Steps
 
-- [Topic Safety overview](/configure-rails/guardrail-catalog/topic-control)
+- [Topic Safety overview](/configure-guardrails/guardrail-catalog/topic-control)
 - [Topic safety example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/topic_safety)
 - [Topic Control research paper (EMNLP 2024)](https://arxiv.org/abs/2404.03820)
-- [NeMo Guardrails Library Configuration Guide](/configure-rails/overview)
+- [NeMo Guardrails Library Configuration Guide](/configure-guardrails/overview)

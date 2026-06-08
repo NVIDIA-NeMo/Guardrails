@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+landing-page:
+  page: "Home"
+  path: index.mdx
+
 navigation:
-  - page: Home
-    path: index.mdx
-    slug: home
   - section: About NeMo Guardrails Library
     slug: about-nemo-guardrails-library
     collapsed: open-by-default

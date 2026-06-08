@@ -42,7 +42,7 @@ To use the content safety check, you should:
 
     <Note>
 
-    The vLLM example above uses NeMo Guardrails' built-in OpenAI-compatible client. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it directly with no LangChain dependency. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For background, see [Migrating to 0.22](/migration/0.22).
+    The vLLM example above uses NeMo Guardrails' built-in OpenAI-compatible client. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it directly with no LangChain dependency. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For background, see [Migrating to 0.22](/reference/0-22).
 
     </Note>
 
@@ -119,7 +119,7 @@ The `content safety check input` and `content safety check output` rails execute
 
 ## Reasoning Models as Content Safety Guards
 
-Reasoning guard models such as [Nemotron Content Safety Reasoning](/getting-started/tutorials/nemotron-content-safety-reasoning-deployment), and OpenAI `gpt-oss-safeguard` spend output tokens on internal reasoning before emitting the safety verdict. If the configured `max_tokens` is too small, the budget can be exhausted by the reasoning phase and the model returns empty content with `finish_reason="length"`. The content safety actions log a warning in that case and continue with empty output, which the parser typically treats as unsafe.
+Reasoning guard models such as [Nemotron Content Safety Reasoning](/get-started/tutorials/nemotron-content-safety-reasoning-deployment), and OpenAI `gpt-oss-safeguard` spend output tokens on internal reasoning before emitting the safety verdict. If the configured `max_tokens` is too small, the budget can be exhausted by the reasoning phase and the model returns empty content with `finish_reason="length"`. The content safety actions log a warning in that case and continue with empty output, which the parser typically treats as unsafe.
 
 To use a reasoning guard, set `max_tokens` on the corresponding prompt task in `prompts.yml` to a value that fits both the reasoning trace and the verdict:
 
@@ -274,19 +274,19 @@ rails:
       - llama guard check output
 ```
 
-For more details, check out the [Llama-Guard Integration](/configure-rails/guardrail-catalog/community/llama-guard) page.
+For more details, check out the [Llama-Guard Integration](/configure-guardrails/guardrail-catalog/third-party/llama-guard) page.
 
 # Third-party Content Safety APIs
 
 NeMo Guardrails integrates with a collection of third-party managed services which offer content safety guardrails. These include:
 
-- [ActiveFence](/configure-rails/guardrail-catalog/community/active-fence)
-- [AutoAlign](/configure-rails/guardrail-catalog/community/auto-align)
-- [Clavata](/configure-rails/guardrail-catalog/community/clavata)
-- [GCP Text Moderation](/configure-rails/guardrail-catalog/community/gcp-text-moderations)
-- [Guardrails AI](/configure-rails/guardrail-catalog/community/guardrails-ai)
-- [Fiddler Guardrails](/configure-rails/guardrail-catalog/community/fiddler)
-- [Prompt Security](/configure-rails/guardrail-catalog/community/prompt-security)
-- [Pangea (Crowdstrike) AI Guard](/configure-rails/guardrail-catalog/community/pangea)
+- [ActiveFence](/configure-guardrails/guardrail-catalog/third-party/active-fence)
+- [AutoAlign](/configure-guardrails/guardrail-catalog/third-party/auto-align)
+- [Clavata](/configure-guardrails/guardrail-catalog/third-party/clavata)
+- [GCP Text Moderation](/configure-guardrails/guardrail-catalog/third-party/gcp-text-moderations)
+- [Guardrails AI](/configure-guardrails/guardrail-catalog/third-party/guardrails-ai)
+- [Fiddler Guardrails](/configure-guardrails/guardrail-catalog/third-party/fiddler)
+- [Prompt Security](/configure-guardrails/guardrail-catalog/third-party/prompt-security)
+- [Pangea (Crowdstrike) AI Guard](/configure-guardrails/guardrail-catalog/third-party/pangea)
 
-See the above reference pages or [Third-Party APIs](/configure-rails/guardrail-catalog/third-party) for more information.
+See the above reference pages or [Third-Party APIs](/configure-guardrails/guardrail-catalog/third-party) for more information.

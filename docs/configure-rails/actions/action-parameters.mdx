@@ -4,9 +4,15 @@
 title: "Action Parameters Reference"
 sidebar-title: "Action Parameters"
 description: "Reference for special parameters like context, llm, and config provided to actions."
-keywords: ["nemo guardrails action parameters", "guardrails context parameter", "guardrails llm parameter", "action events parameter"]
+keywords:
+    [
+        "nemo guardrails action parameters",
+        "guardrails context parameter",
+        "guardrails llm parameter",
+        "action events parameter",
+    ]
 content:
-  type: "reference"
+    type: "reference"
 ---
 
 This section describes the special parameters automatically provided to actions by the NeMo Guardrails library.
@@ -15,14 +21,14 @@ This section describes the special parameters automatically provided to actions 
 
 When you include these parameters in your action's function signature, they are automatically populated:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `context` | `dict` | Context data available to the action |
-| `events` | `List[dict]` | History of events in the conversation |
-| `llm` | `BaseLLM` | Access to the LLM instance |
-| `config` | `RailsConfig` | The full configuration instance |
+| Parameter          | Type             | Description                                         |
+| ------------------ | ---------------- | --------------------------------------------------- |
+| `context`          | `dict`           | Context data available to the action                |
+| `events`           | `List[dict]`     | History of events in the conversation               |
+| `llm`              | `BaseLLM`        | Access to the LLM instance                          |
+| `config`           | `RailsConfig`    | The full configuration instance                     |
 | `llm_task_manager` | `LLMTaskManager` | Access to the LLM task manager for prompt rendering |
-| `state` | `State` | The runtime state object (Colang 2.x only) |
+| `state`            | `State`          | The runtime state object (Colang 2.x only)          |
 
 <Info>
 
@@ -50,14 +56,14 @@ async def my_action(context: Optional[dict] = None):
 
 ### Common Context Variables
 
-| Variable | Description | Availability |
-|----------|-------------|--------------|
-| `last_user_message` | The most recent user message | Always available after user input |
-| `bot_message` | The current bot message (in output rails) | Available in output rails |
-| `last_bot_message` | The previous bot message | Available after first bot response |
-| `relevant_chunks` | Retrieved knowledge base chunks | Only after `retrieve_relevant_chunks` runs |
-| `user_intent` | The canonical user intent | Only after `generate_user_intent` runs |
-| `bot_intent` | The canonical bot intent | Only after `generate_next_steps` runs |
+| Variable            | Description                               | Availability                               |
+| ------------------- | ----------------------------------------- | ------------------------------------------ |
+| `last_user_message` | The most recent user message              | Always available after user input          |
+| `bot_message`       | The current bot message (in output rails) | Available in output rails                  |
+| `last_bot_message`  | The previous bot message                  | Available after first bot response         |
+| `relevant_chunks`   | Retrieved knowledge base chunks           | Only after `retrieve_relevant_chunks` runs |
+| `user_intent`       | The canonical user intent                 | Only after `generate_user_intent` runs     |
+| `bot_intent`        | The canonical bot intent                  | Only after `generate_next_steps` runs      |
 
 ### Accessing Custom Context
 
@@ -97,15 +103,15 @@ async def analyze_conversation(events: Optional[List[dict]] = None):
 
 ### Event Types
 
-| Event Type | Description |
-|------------|-------------|
-| `UtteranceUserActionFinished` | User sent a message |
-| `StartUtteranceBotAction` | Bot started responding |
-| `UtteranceBotActionFinished` | Bot finished responding |
-| `StartInternalSystemAction` | System action started |
-| `InternalSystemActionFinished` | System action completed |
-| `UserIntent` | User intent was determined |
-| `BotIntent` | Bot intent was determined |
+| Event Type                     | Description                |
+| ------------------------------ | -------------------------- |
+| `UtteranceUserActionFinished`  | User sent a message        |
+| `StartUtteranceBotAction`      | Bot started responding     |
+| `UtteranceBotActionFinished`   | Bot finished responding    |
+| `StartInternalSystemAction`    | System action started      |
+| `InternalSystemActionFinished` | System action completed    |
+| `UserIntent`                   | User intent was determined |
+| `BotIntent`                    | Bot intent was determined  |
 
 ### Event Structure Example
 

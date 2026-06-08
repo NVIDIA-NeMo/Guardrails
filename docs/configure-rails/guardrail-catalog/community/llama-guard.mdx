@@ -5,13 +5,13 @@ title: "Llama-Guard Integration"
 ---
 NeMo Guardrails provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://ai.meta.com/research/publications/llama-guard-llm-based-input-output-safeguard-for-human-ai-conversations/) model.
 
-In our testing, we observe significantly improved input and output content moderation performance compared to the [self-check method](/configure-rails/guardrail-catalog/self-check). Please see the [performance evaluation](llamaguard-based-moderation-rails-performance) for benchmark numbers.
+In our testing, we observe significantly improved input and output content moderation performance compared to the [self-check method](/configure-guardrails/guardrail-catalog/self-check). Please see the [performance evaluation](/evaluation/evaluate-guardrails#llamaguard-based-moderation-rails-performance) for benchmark numbers.
 
 ## Usage
 
 To configure your bot to use Llama Guard for input/output checking, follow the below steps:
 
-1. Add a model of type `llama_guard` to the models section of the `config.yml` file. The example below serves Llama Guard with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](/migration/0.22).
+1. Add a model of type `llama_guard` to the models section of the `config.yml` file. The example below serves Llama Guard with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](/reference/0-22).
 
     ```yaml
     models:

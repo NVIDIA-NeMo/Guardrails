@@ -10,7 +10,7 @@ content:
 
 This tutorial demonstrates how to use jailbreak detection heuristics in a guardrails configuration to detect malicious prompts.
 
-We will use the guardrails configuration for the ABC Bot defined in the [topical rails tutorial](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README).
+We will use the guardrails configuration for the ABC Bot defined in the [topical rails tutorial](/configure-guardrails/colang/colang-1/tutorials/6-topical-rails).
 
 ```bash
 # From the repository root, copy the ABC bot configuration.
@@ -70,12 +70,12 @@ The `self check input` rail can be expensive to run for all input prompts, so yo
 
 NeMo Guardrails supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
 
-1. [Length per Perplexity](/configure-rails/guardrail-catalog/jailbreak-protection#length-per-perplexity)
-2. [Prefix and Suffix Perplexity](/configure-rails/guardrail-catalog/jailbreak-protection#prefix-and-suffix-perplexity)
+1. [Length per Perplexity](/configure-guardrails/guardrail-catalog/jailbreak-protection#length-per-perplexity)
+2. [Prefix and Suffix Perplexity](/configure-guardrails/guardrail-catalog/jailbreak-protection#prefix-and-suffix-perplexity)
 
 To compute the perplexity of a string, the current implementation uses the `gpt2-large` model.
 
-More information about these heuristics can be found in the [Jailbreak Protection](/configure-rails/guardrail-catalog/jailbreak-protection) reference.
+More information about these heuristics can be found in the [Jailbreak Protection](/configure-guardrails/guardrail-catalog/jailbreak-protection) reference.
 
 ### Activate Jailbreak Detection Heuristics
 
@@ -100,7 +100,7 @@ rails:
 ```
 
 The thresholds for length perplexity and prefix/suffix perplexity are derived from a combination of malicious and benign prompts.
-More information about these thresholds can be found in the [Jailbreak Protection](/configure-rails/guardrail-catalog/jailbreak-protection) reference.
+More information about these thresholds can be found in the [Jailbreak Protection](/configure-guardrails/guardrail-catalog/jailbreak-protection) reference.
 
 ## Test the Input Rail
 
@@ -185,7 +185,7 @@ We see that the prompt was not filtered out by the jailbreak detection heuristic
 ### Use the Heuristics Server in Production
 
 For production deployments, run the jailbreak detection heuristics server separately.
-The server listens on port `1337` by default. See [Jailbreak Detection Heuristics with Docker](/deployment/using-docker#jailbreak-detection-heuristics) for the Docker build and run commands.
+The server listens on port `1337` by default. See [Jailbreak Detection Heuristics with Docker](/more-deployment-options/using-docker#jailbreak-detection-heuristics) for the Docker build and run commands.
 
 After the server is running, configure the guardrails configuration to use it:
 

@@ -30,7 +30,7 @@ agent = create_agent(model, tools=[...], middleware=[guardrails])
 result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
 ```
 
-For more details, check out the [Agent Middleware Guide](/integration/langchain/agent-middleware).
+For more details, check out the [Agent Middleware Guide](/integration-with-third-party-libraries/langchain/agent-middleware).
 
 ## Add Guardrails to a Chain
 
@@ -53,7 +53,7 @@ chain_with_guardrails = guardrails | some_chain
 chain_with_guardrails = RunnableRails(config, runnable=some_chain)
 ```
 
-For more details, check out the [RunnableRails Guide](/integration/langchain/runnable-rails) and the [Chain with Guardrails Guide](/integration/langchain/chain-with-guardrails).
+For more details, check out the [RunnableRails Guide](/integration-with-third-party-libraries/langchain/runnable-rails) and the [Chain with Guardrails Guide](/integration-with-third-party-libraries/langchain/chain-with-guardrails).
 
 ## Using a Chain inside Guardrails
 
@@ -77,7 +77,7 @@ define flow
   ...
 ```
 
-For a complete example, check out the [Runnable as Action Guide](/integration/langchain/runnable-as-action).
+For a complete example, check out the [Runnable as Action Guide](/integration-with-third-party-libraries/langchain/runnable-as-action).
 
 ## LangSmith Integration
 

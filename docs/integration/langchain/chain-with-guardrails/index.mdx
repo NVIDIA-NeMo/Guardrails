@@ -75,7 +75,7 @@ As we can see, the LLM complied with the request and returned the system prompt.
 
 ## Adding Guardrails
 
-To protect against such attempts, we can use a guardrails configuration. In the configuration below, we use the [self-check input rails](/configure-rails/guardrail-catalog/self-check#self-check-input).
+To protect against such attempts, we can use a guardrails configuration. In the configuration below, we use the [self-check input rails](/configure-guardrails/guardrail-catalog/self-check#self-check-input).
 
 ```yaml
 models:
@@ -147,4 +147,4 @@ chain_with_guardrails = RunnableRails(config, runnable=chain)
 
 ## Conclusion
 
-In this guide, you learned how to apply a guardrails configuration to an existing LangChain chain (or `Runnable`). For more details, check out the [RunnableRails guide](/integration/langchain/runnable-rails).
+In this guide, you learned how to apply a guardrails configuration to an existing LangChain chain (or `Runnable`). For more details, check out the [RunnableRails guide](/integration-with-third-party-libraries/langchain/runnable-rails).

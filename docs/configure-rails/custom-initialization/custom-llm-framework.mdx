@@ -25,7 +25,7 @@ Framework Layer (system-wide, swappable)
       '-- <your providers>
 ```
 
-A *provider* is a name a user types as `engine:` in `config.yml`: a label your framework dispatches on. In `DefaultFramework`, `openai`, `nim`, and `ollama` are provider names that all dispatch to the same `OpenAIChatModel` runtime. They differ only in default base URLs and small per-provider conventions. In `LangChainFramework`, each provider name dispatches to its own LangChain class. Your framework decides whether multiple provider names share one runtime or each name has its own. Adding a provider is the right move when you want to plug in one new backend and the surrounding framework's behavior is fine. For details, refer to [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) and [Custom LLM Model](/configure-rails/custom-initialization/custom-llm-model).
+A *provider* is a name a user types as `engine:` in `config.yml`: a label your framework dispatches on. In `DefaultFramework`, `openai`, `nim`, and `ollama` are provider names that all dispatch to the same `OpenAIChatModel` runtime. They differ only in default base URLs and small per-provider conventions. In `LangChainFramework`, each provider name dispatches to its own LangChain class. Your framework decides whether multiple provider names share one runtime or each name has its own. Adding a provider is the right move when you want to plug in one new backend and the surrounding framework's behavior is fine. For details, refer to [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) and [Custom LLM Model](/configure-guardrails/custom-initialization/custom-llm-model).
 
 A *framework* owns the entire LLM stack: how models are constructed, how providers are looked up, and how resources are released at shutdown. Adding a framework is the right move when you want to replace the entire stack (for example, route everything through LiteLLM, a proprietary in-house orchestrator, or a service mesh).
 
@@ -70,7 +70,7 @@ class MyFramework:
 
 ### `create_model`
 
-Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the value of `model:`, `provider_name` is the value of `engine:`, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Your framework decides what `provider_name` means. Typically, you use it to dispatch to a specific `LLMModel` class or to pick provider-specific defaults. Return any object that implements `LLMModel`. For details, refer to [Custom LLM Model](/configure-rails/custom-initialization/custom-llm-model).
+Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the value of `model:`, `provider_name` is the value of `engine:`, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Your framework decides what `provider_name` means. Typically, you use it to dispatch to a specific `LLMModel` class or to pick provider-specific defaults. Return any object that implements `LLMModel`. For details, refer to [Custom LLM Model](/configure-guardrails/custom-initialization/custom-llm-model).
 
 The framework owns construction. It can cache and reuse expensive resources, such as HTTP clients, gRPC channels, and auth tokens. It can also inject defaults for headers, timeouts, and retries, or short-circuit on a registered custom provider. Review `DefaultFramework` and `LangChainFramework` for two contrasting implementations.
 
@@ -281,7 +281,7 @@ The two built-in names always appear in this hint because the registry knows the
 
 ## Related Topics
 
-- [Custom LLM Model](/configure-rails/custom-initialization/custom-llm-model) - Implement the `LLMModel` protocol that your framework constructs.
-- [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
-- [Init Function](/configure-rails/custom-initialization/init-function) - Where `register_framework` and `set_default_framework` calls usually go.
-- [Configuration Reference](/configure-rails/configuration-reference) - `config.yml` schema and the `engine`, `model`, and `parameters` fields.
+- [Custom LLM Model](/configure-guardrails/custom-initialization/custom-llm-model) - Implement the `LLMModel` protocol that your framework constructs.
+- [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
+- [Init Function](/configure-guardrails/custom-initialization/init-function) - Where `register_framework` and `set_default_framework` calls usually go.
+- [Configuration Reference](/configure-guardrails/configuration-reference) - `config.yml` schema and the `engine`, `model`, and `parameters` fields.

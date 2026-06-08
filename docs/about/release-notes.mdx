@@ -29,9 +29,9 @@ For a complete record of changes in a release, refer to the
   LangChain when you opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and
   install the matching provider package. Most 0.21 configurations keep working
   unchanged; some shapes need a YAML rewrite. For recipes, refer to
-  [Migrating to v0.22.0](/migration/0.22), the
-  [Supported LLMs](/about/supported-llms) matrix, and
-  [Model Configuration](/configure-rails/yaml-schema/model-configuration).
+  [Migrating to v0.22.0](/reference/0-22), the
+  [Supported LLMs](/about-nemo-guardrails-library/supported-llms) matrix, and
+  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration).
 
 - OpenAI-compatible service support is improved in the default framework.
   The default framework now supports OpenAI-compatible providers directly,
@@ -39,10 +39,10 @@ For a complete record of changes in a release, refer to the
   `engine: azure_openai`, and documents how to migrate provider-specific
   LangChain parameters to the new `base_url`-based configuration shape. For
   more information, refer to
-  [Migrating to v0.22.0](/migration/0.22),
-  [Model Configuration](/configure-rails/yaml-schema/model-configuration),
-  [Configuration Reference](/configure-rails/configuration-reference), and
-  [Using Docker](/deployment/using-docker).
+  [Migrating to v0.22.0](/reference/0-22),
+  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration),
+  [Configuration Reference](/configure-guardrails/configuration-reference), and
+  [Using Docker](/more-deployment-options/using-docker).
 
 - `IORails` adds streaming support, reasoning-model support, and speculative
   generation support. The optimized input and output rails engine now supports
@@ -50,16 +50,16 @@ For a complete record of changes in a release, refer to the
   non-streaming and streaming reasoning-model responses, and speculative
   generation for non-streaming `generate_async()` calls. For more information,
   refer to
-  [Parallel Rails](/configure-rails/yaml-schema/guardrails-configuration/parallel-rails),
-  [Streaming](/run-rails/using-python-apis/streaming), and
-  [Speculative Generation](/configure-rails/yaml-schema/guardrails-configuration/speculative-generation).
+  [Parallel Rails](/configure-guardrails/yaml-schema/guardrails-configuration#iorails-engine),
+  [Streaming](/run-guardrailed-inference/using-python-apis/streaming), and
+  [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation).
 
 - `IORails` adds OpenTelemetry observability with logging, tracing, and
   metrics support. The documentation covers OTLP setup, Prometheus client
   installation, request-level and token-level metrics, and the recommended
   `Guardrails` entry point for the optimized input and output rails engine. For
   more information, refer to
-  [Observability](/observability),
+  [Observability](/observability/observability),
   [OpenTelemetry Logs](/observability/tracing/opentelemetry-logs),
   [OpenTelemetry Tracing](/observability/tracing/opentelemetry-integration),
   [OpenTelemetry Metrics](/observability/metrics/opentelemetry-integration),
@@ -71,7 +71,7 @@ For a complete record of changes in a release, refer to the
   what data is excluded, how local audit files work, and how to opt out with
   `NEMO_GUARDRAILS_NO_USAGE_STATS=1`, `DO_NOT_TRACK=1`, or the
   `~/.config/nemoguardrails/do_not_track` file. For more information, refer to
-  [Telemetry](/telemetry).
+  [Telemetry](/resources/telemetry).
 
 <a id="v0-22-0-breaking-changes"></a>
 ### Breaking Changes
@@ -87,16 +87,16 @@ For a complete record of changes in a release, refer to the
 - The GLiNER PII connector documentation and notebook are updated for the new
   GLiNER PII NIM. The examples cover both remote and local deployment modes
   and API key configuration for the connector. For more information, refer to
-  [GLiNER](/configure-rails/guardrail-catalog/community/gliner) and
-  [PII Detection](/configure-rails/guardrail-catalog/pii-detection).
+  [GLiNER](/configure-guardrails/guardrail-catalog/third-party/gliner) and
+  [PII Detection](/configure-guardrails/guardrail-catalog/pii-detection).
 
 - Public extension points for LLM integration. Two new protocols, `LLMModel`
   and `LLMFramework` in `nemoguardrails.types`, let you plug in a custom
   backend or a whole alternative framework without touching internals. For more
   information, refer to
-  [Custom LLM Models](/configure-rails/custom-initialization/custom-llm-model)
+  [Custom LLM Models](/configure-guardrails/custom-initialization/custom-llm-model)
   and
-  [Custom LLM Frameworks](/configure-rails/custom-initialization/custom-llm-framework).
+  [Custom LLM Frameworks](/configure-guardrails/custom-initialization/custom-llm-framework).
 
 - Public testing surface. The `nemoguardrails.testing` module exposes
   `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
@@ -108,13 +108,13 @@ For a complete record of changes in a release, refer to the
 - Fixed the example query and expected output in the Guardrails Agent
   Middleware integration guide so the example matches the configured blocked
   response behavior. For more information, refer to
-  [Guardrails Agent Middleware](/integration/langchain/agent-middleware).
+  [Guardrails Agent Middleware](/integration-with-third-party-libraries/langchain/agent-middleware).
 - A warning about a missing main LLM is now emitted only when generation is
   actually attempted and the generation path needs the main LLM. Check-only
   configurations no longer emit the warning during initialization. For more
   information, refer to
-  [Check Messages](/run-rails/using-python-apis/check-messages).
-- Fixed issues in the [Colang 1.0 Hello World tutorial](/configure-rails/colang/colang-1/tutorials/1-hello-world/README) and companion notebook.
+  [Check Messages](/run-guardrailed-inference/using-python-apis/check-messages).
+- Fixed issues in the [Colang 1.0 Hello World tutorial](/configure-guardrails/colang/colang-1/tutorials/1-hello-world) and companion notebook.
 
 ---
 

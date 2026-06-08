@@ -139,7 +139,7 @@ Results on _banking_ dataset, metric used is accuracy.
 
 ### Fact-checking Rails
 
-In the [Guardrails library](/configure-rails/guardrail-catalog/fact-checking), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [fact-checking guide](/configure-rails/guardrail-catalog/fact-checking).
+In the [Guardrails library](/configure-guardrails/guardrail-catalog/fact-checking), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [fact-checking guide](/configure-guardrails/guardrail-catalog/fact-checking).
 
 #### Self-Check
 
@@ -153,7 +153,7 @@ This approach is based on the AlignScore model [Zha et al. 2023](https://aclanth
 2. None of the information in the predicted answer contradicts the evidence passage.
    The response is a value between 0.0 and 1.0. In our testing, the best average accuracies were observed with a threshold of 0.7.
 
-Please see the [AlignScore Integration](/configure-rails/guardrail-catalog/community/alignscore) for detailed steps on how to configure your deployment to use AlignScore.
+Please see the [AlignScore Integration](/configure-guardrails/guardrail-catalog/third-party/alignscore) for detailed steps on how to configure your deployment to use AlignScore.
 
 #### Evaluation
 
@@ -216,7 +216,7 @@ The moderation involves two components: input and output moderation.
 
 This rail will prompt the LLM using a custom prompt for input (jailbreak) and output moderation.
 Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.
-For more details, consult the [LLM Self-Check](/configure-rails/guardrail-catalog/self-check) guide.
+For more details, consult the [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check) guide.
 
 #### Evaluation
 
@@ -261,7 +261,7 @@ We want the models to block as many harmful prompts as possible and allow as man
 
 #### Moderation Rails Performance
 
-These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [LLM Self-Check](/configure-rails/guardrail-catalog/self-check) guide.
+These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check) guide.
 
 | Model                  | % of harmful prompts blocked | % harmful prompts triggering model errors | % of helpful prompts allowed |
 | ---------------------- | ---------------------------- | ----------------------------------------- | ---------------------------- |
@@ -319,7 +319,7 @@ For general questions that the model uses parametric knowledge to answer, we can
 #### Self-Check
 
 This rail will use the LLM for self-checking with a custom prompt if the answers are inconsistent. The custom prompt can be similar to an NLI task.
-For more details, consult the [LLM Self-Check](/configure-rails/guardrail-catalog/self-check) guide.
+For more details, consult the [LLM Self-Check](/configure-guardrails/guardrail-catalog/self-check) guide.
 
 #### Evaluation
 

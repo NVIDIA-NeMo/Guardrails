@@ -60,7 +60,7 @@ The self-check fact-checking rail executes the [`self_check_facts` action](https
 
 <Note>
 
-If the LLM hits its `max_tokens` budget before producing a verdict (`finish_reason="length"` with empty content), the action fail-closes and returns `0.0` so the response is blocked. This typically happens with reasoning models that consume output tokens on internal reasoning. Set `max_tokens` on the `self_check_facts` prompt task to fit both the reasoning trace and the yes/no verdict; if unset, the action falls back to `1024` tokens. See [Reasoning Models as Self-Check LLMs](/configure-rails/guardrail-catalog/self-check#reasoning-models-as-self-check-llms).
+If the LLM hits its `max_tokens` budget before producing a verdict (`finish_reason="length"` with empty content), the action fail-closes and returns `0.0` so the response is blocked. This typically happens with reasoning models that consume output tokens on internal reasoning. Set `max_tokens` on the `self_check_facts` prompt task to fit both the reasoning trace and the yes/no verdict; if unset, the action falls back to `1024` tokens. See [Reasoning Models as Self-Check LLMs](/configure-guardrails/guardrail-catalog/self-check#reasoning-models-as-self-check-llms).
 
 </Note>
 
@@ -219,7 +219,7 @@ rails:
       - alignscore check facts
 ```
 
-For more details, check out the [AlignScore Integration](/configure-rails/guardrail-catalog/community/alignscore) page.
+For more details, check out the [AlignScore Integration](/configure-guardrails/guardrail-catalog/third-party/alignscore) page.
 
 ## Patronus Lynx-based RAG Hallucination Detection
 
@@ -234,4 +234,4 @@ rails:
       - patronus lynx check output hallucination
 ```
 
-For more details, check out the [Patronus Lynx Integration](/configure-rails/guardrail-catalog/community/patronus-lynx) page.
+For more details, check out the [Patronus Lynx Integration](/configure-guardrails/guardrail-catalog/third-party/patronus-lynx) page.

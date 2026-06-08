@@ -37,7 +37,7 @@ See the full [Model Architecture](https://huggingface.co/nvidia/Nemotron-Content
 ## Prerequisites
 
 - Python 3.10 or later
-- [NeMo Guardrails installed](/getting-started/installation-guide)
+- [NeMo Guardrails installed](/get-started/installation-guide)
 - GPU with at least 16GB VRAM (see [Hardware Requirements](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#hardware-and-software-requirements) on HuggingFace)
 - vLLM installed:
 
@@ -111,7 +111,7 @@ rails:
       - content safety check output $model=content_safety_reasoning
 ```
 
-You can use any LLM provider for the main model (OpenAI, NIM, Anthropic, etc.). See the [Model Configuration](/configure-rails/yaml-schema/model-configuration) guide for available engines.
+You can use any LLM provider for the main model (OpenAI, NIM, Anthropic, etc.). See the [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) guide for available engines.
 
 ### Step 3: Create prompts.yml
 
@@ -393,5 +393,5 @@ output_parser: parse_custom_safety
 ## Next Steps
 
 - Explore how to use [custom safety policies](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-3-topic-following-for-custom-safety-reasoning-on-mode) to adapt the model to your specific use case
-- Learn about [topic following](/getting-started/tutorials/nemoguard-topiccontrol-deployment) for dialogue moderation
+- Learn about [topic following](/get-started/tutorials/nemoguard-topiccontrol-deployment) for dialogue moderation
 - Read the [paper](https://arxiv.org/abs/2505.20087) that describes how we built Nemotron-Content-Safety-Reasoning-4B: "Safety Through Reasoning: An Empirical Study of Reasoning Guardrail Models"

@@ -106,8 +106,8 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 
 | Extra          | Description                                                                                                                                                                                                       |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server`       | [Guardrails API server](/run-rails/using-fastapi-server/overview) dependencies (aiofiles for async file handling, openai for API schemas). FastAPI is a core dependency. Required to run `nemoguardrails server`. |
-| `sdd`          | [Sensitive data detection](/configure-rails/guardrail-catalog/pii-detection#presidio-based-sensitive-data-detection) using Presidio                                                                               |
+| `server`       | [Guardrails API server](/run-guardrailed-inference/using-fastapi-server/overview) dependencies (aiofiles for async file handling, openai for API schemas). FastAPI is a core dependency. Required to run `nemoguardrails server`. |
+| `sdd`          | [Sensitive data detection](/configure-guardrails/guardrail-catalog/pii-detection#presidio-based-sensitive-data-detection) using Presidio                                                                               |
 | `eval`         | [Policy-based evaluation tools](/evaluation/evaluate-configuration) for testing guardrails                                                                                                                        |
 | `tracing`      | OpenTelemetry tracing support                                                                                                                                                                                     |
 | `gcp`          | Google Cloud Platform language services                                                                                                                                                                           |
@@ -115,11 +115,11 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 | `multilingual` | Language detection for multilingual content                                                                                                                                                                       |
 | `all`          | All optional packages                                                                                                                                                                                             |
 
-Some features such as [AlignScore](/configure-rails/guardrail-catalog/community/alignscore) have additional requirements. See the feature documentation for details.
+Some features such as [AlignScore](/configure-guardrails/guardrail-catalog/third-party/alignscore) have additional requirements. See the feature documentation for details.
 
 ## Docker
 
-You can run the NeMo Guardrails library in a Docker container. For containerized deployment, see [NeMo Guardrails with Docker](/deployment/using-docker).
+You can run the NeMo Guardrails library in a Docker container. For containerized deployment, see [NeMo Guardrails with Docker](/more-deployment-options/using-docker).
 
 ## Troubleshooting Installation Issues
 

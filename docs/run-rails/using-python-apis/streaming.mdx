@@ -13,8 +13,8 @@ If the application LLM supports streaming, the NeMo Guardrails library can strea
 
 For information about configuring streaming with output guardrails, refer to the following:
 
-- For configuration, refer to [Output Rail Streaming](/configure-rails/yaml-schema/streaming/output-rail-streaming).
-- For sample Python client code, refer to [Tutorials](/getting-started/tutorials).
+- For configuration, refer to [Output Rail Streaming](/configure-guardrails/yaml-schema/streaming/output-rail-streaming).
+- For sample Python client code, refer to [Tutorials](/get-started/tutorials).
 
 ## Usage
 
@@ -203,11 +203,11 @@ info = rails.explain()
 info.print_llm_calls_summary()
 ```
 
-For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options: Detailed Logging Information](/run-rails/using-python-apis/generation-options#detailed-logging-information) and [Logging](/observability/logging).
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options: Detailed Logging Information](/run-guardrailed-inference/using-python-apis/generation-options#detailed-logging-information) and [Logging](/observability/logging).
 
 <Note>
 
-For streaming while using the Guardrails API server, refer to [Chat Completions: Streaming Responses](/run-rails/using-fastapi-server/chat-with-guardrailed-model#streaming-responses).
+For streaming while using the Guardrails API server, refer to [Chat Completions: Streaming Responses](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#streaming-responses).
 
 </Note>
 

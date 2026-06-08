@@ -42,7 +42,7 @@ models:
 | `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
-| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards `parameters` to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For engines served by LangChain, opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`; the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, refer to [Inference Providers](/about/supported-llms#inference-providers). |
+| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards `parameters` to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For engines served by LangChain, opt in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`; the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, refer to [Inference Providers](/about-nemo-guardrails-library/supported-llms#inference-providers). |
 | `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
 
 ### Model Types
@@ -89,7 +89,7 @@ The runtime validates that any `$model=<type>` reference in flows has a matching
 
 ### Engines
 
-Starting with v0.22, the library serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping, refer to [Inference Providers](/about/supported-llms#inference-providers). For migration recipes, refer to [Migrating to 0.22](/migration/0.22).
+Starting with v0.22, the library serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping, refer to [Inference Providers](/about-nemo-guardrails-library/supported-llms#inference-providers). For migration recipes, refer to [Migrating to 0.22](/reference/0-22).
 
 #### Built-in Engines
 
@@ -485,7 +485,7 @@ The multilingual feature supports the following languages:
 | Spanish | `es` |
 | Thai | `th` |
 
-If the detected language is not in this list, English is used as the fallback. For more information, refer to [Multilingual Content Safety](/configure-rails/guardrail-catalog/content-safety#multilingual-refusal-messages).
+If the detected language is not in this list, English is used as the fallback. For more information, refer to [Multilingual Content Safety](/configure-guardrails/guardrail-catalog/content-safety#multilingual-refusal-messages).
 
 #### Third-Party Integrations
 
@@ -502,7 +502,7 @@ rails:
         guardrails_config: {}
 ```
 
-For more information, refer to [AutoAlign Integration](/configure-rails/guardrail-catalog/community/auto-align).
+For more information, refer to [AutoAlign Integration](/configure-guardrails/guardrail-catalog/third-party/auto-align).
 
 ##### Patronus
 
@@ -520,7 +520,7 @@ rails:
           params: {}
 ```
 
-For more information, refer to [Patronus Evaluate API Integration](/configure-rails/guardrail-catalog/community/patronus-evaluate-api).
+For more information, refer to [Patronus Evaluate API Integration](/configure-guardrails/guardrail-catalog/third-party/patronus-evaluate-api).
 
 ##### Clavata
 
@@ -539,7 +539,7 @@ rails:
         labels: []
 ```
 
-For more information, refer to [Clavata Integration](/configure-rails/guardrail-catalog/community/clavata).
+For more information, refer to [Clavata Integration](/configure-guardrails/guardrail-catalog/third-party/clavata).
 
 ##### Pangea AI Guard
 
@@ -553,7 +553,7 @@ rails:
         recipe: "recipe_key"
 ```
 
-For more information, refer to [Pangea AI Guard Integration](/configure-rails/guardrail-catalog/community/pangea).
+For more information, refer to [Pangea AI Guard Integration](/configure-guardrails/guardrail-catalog/third-party/pangea).
 
 ##### Trend Micro
 
@@ -565,7 +565,7 @@ rails:
       api_key_env_var: "TREND_MICRO_API_KEY"
 ```
 
-For more information, refer to [Trend Micro Integration](/configure-rails/guardrail-catalog/community/trend-micro).
+For more information, refer to [Trend Micro Integration](/configure-guardrails/guardrail-catalog/third-party/trend-micro).
 
 ##### Cisco AI Defense
 
@@ -577,7 +577,7 @@ rails:
       fail_open: false
 ```
 
-For more information, refer to [Cisco AI Defense Integration](/configure-rails/guardrail-catalog/community/ai-defense).
+For more information, refer to [Cisco AI Defense Integration](/configure-guardrails/guardrail-catalog/third-party/ai-defense).
 
 ##### Private AI
 
@@ -594,7 +594,7 @@ rails:
         entities: []
 ```
 
-For more information, refer to [Private AI Integration](/configure-rails/guardrail-catalog/community/privateai).
+For more information, refer to [Private AI Integration](/configure-guardrails/guardrail-catalog/third-party/privateai).
 
 ##### Fiddler Guardrails
 
@@ -607,7 +607,7 @@ rails:
       faithfulness_threshold: 0.05
 ```
 
-For more information, refer to [Fiddler Guardrails Integration](/configure-rails/guardrail-catalog/community/fiddler).
+For more information, refer to [Fiddler Guardrails Integration](/configure-guardrails/guardrail-catalog/third-party/fiddler).
 
 ##### Guardrails AI
 
@@ -627,7 +627,7 @@ rails:
             parameters: {}
 ```
 
-For more information, refer to [Guardrails AI Integration](/configure-rails/guardrail-catalog/community/guardrails-ai).
+For more information, refer to [Guardrails AI Integration](/configure-guardrails/guardrail-catalog/third-party/guardrails-ai).
 
 ---
 

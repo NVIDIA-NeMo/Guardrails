@@ -13,7 +13,7 @@ By following this tutorial, you learn how to use the NeMo Guardrails library wit
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](/getting-started/installation-guide) with the `nvidia` extra.
+- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `nvidia` extra.
 - A personal NVIDIA API key generated on [build.nvidia.com](https://build.nvidia.com/).
 
 ## Configure Guardrails
@@ -51,7 +51,7 @@ Follow these steps to prepare the guardrails configuration.
    The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
    The `rails` section configures `input` and `output` rails.
    The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
-   For more information about guardrail configurations, refer to [Configure Rails](/configure-rails/overview).
+   For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
 1. Save the following as `config/prompts.yml`.
 
@@ -151,7 +151,7 @@ Follow these steps to prepare the guardrails configuration.
    The `prompts.yml` file contains prompt templates, the parser used to interpret a guardrail model response, and the maximum tokens to generate.
    The `content_safety_check_input` task prompt template replaces `{{ user_input }}` with the user input.
    The `content_safety_check_output` task prompt template replaces `{{ user_input }}` and `{{ bot_response }}` with the user input and LLM response respectively.
-   For more information about guardrail configurations, refer to [Configure Rails](/configure-rails/overview).
+   For more information about guardrail configurations, refer to [Configure Rails](/configure-guardrails/overview).
 
 ## Run the Guardrails chat application
 
@@ -238,7 +238,7 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
 
 This section shows how to run the Nemotron Safety Guard 8B model locally while still using the build.nvidia.com hosted main model. The prerequisites are:
 
-- The NeMo Guardrails library [installed](/getting-started/installation-guide).
+- The NeMo Guardrails library [installed](/get-started/installation-guide).
 - A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
   For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
 - Docker [installed](https://docs.docker.com/engine/install/).
@@ -337,4 +337,4 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
 ## Next Steps
 
 - [Nemotron Content Safety NIM documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest)
-- [Customize safety categories](/configure-rails/yaml-schema/prompt-configuration) in the prompts
+- [Customize safety categories](/configure-guardrails/yaml-schema/prompt-configuration) in the prompts

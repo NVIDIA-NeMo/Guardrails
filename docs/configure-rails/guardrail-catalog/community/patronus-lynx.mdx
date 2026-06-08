@@ -43,7 +43,7 @@ Because Patronus Lynx is completely open source, you have the flexibility to dep
     }'
     ```
 
-4. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the [Patronus Lynx Integration](/configure-rails/guardrail-catalog/community/patronus-lynx) guide for more information.
+4. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the [Patronus Lynx Integration](/configure-guardrails/guardrail-catalog/third-party/patronus-lynx) guide for more information.
 
 ## Ollama
 
@@ -93,7 +93,7 @@ You can also run Patronus Lynx 8B on your personal computer using Ollama!
 
 Here is how to configure your bot to use Patronus Lynx to check for RAG hallucinations in your bot output:
 
-1. Add a model of type `patronus_lynx` in `config.yml`. The example below serves Lynx with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](/migration/0.22).
+1. Add a model of type `patronus_lynx` in `config.yml`. The example below serves Lynx with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](/reference/0-22).
 
     ```yaml
     models:

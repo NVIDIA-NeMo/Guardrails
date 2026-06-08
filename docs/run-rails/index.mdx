@@ -9,7 +9,7 @@ content:
   type: "get_started"
 ---
 
-After you [configure your guardrails](/configure-rails), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the Guardrails API server.
+After you [configure your guardrails](/configure-guardrails/configure-rails), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the Guardrails API server.
 
 These tools enable you to interact with your application's main LLM as usual by sending prompts and receiving responses while the guardrails system monitors and controls all communication in the background.
 The guardrails intercept inputs and outputs between uses and the LLM and the execution of actions done by the LLM. The tools apply your configured guardrails and ensure that any inputs, generated responses, or actions remain within the boundaries you defined.
@@ -18,7 +18,7 @@ The guardrails intercept inputs and outputs between uses and the LLM and the exe
 
 ## Install the NeMo Guardrails Library
 
-To use the Python API or the Guardrails API server, you need to install the NeMo Guardrails library. See [Installation](/getting-started/installation-guide) for instructions.
+To use the Python API or the Guardrails API server, you need to install the NeMo Guardrails library. See [Installation](/get-started/installation-guide) for instructions.
 
 ---
 
@@ -71,14 +71,14 @@ After choosing the right tool for your implementation model, proceed to the corr
 
 <Cards>
 
-<Card title="Python API" href="/run-rails/using-python-apis">
+<Card title="Python API" href="/run-guardrailed-inference/using-python-apis">
 
 Run guardrailed inference using the NeMo Guardrails Python API.
 
 <Badge intent="tip" minimal outlined>Get Started</Badge>
 </Card>
 
-<Card title="Guardrails API Server" href="/run-rails/using-fastapi-server">
+<Card title="Guardrails API Server" href="/run-guardrailed-inference/using-fastapi-server">
 
 Expose guardrails through an HTTP API using the Guardrails API server.
 

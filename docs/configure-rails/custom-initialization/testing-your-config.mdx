@@ -5,7 +5,7 @@ title: "Testing Your Guardrails Configuration"
 sidebar-title: "Testing"
 description: "Write fast, deterministic tests for your NeMo Guardrails configuration using the public testing surface."
 content:
-  type: "how_to"
+    type: "how_to"
 ---
 
 Guardrails configurations encode safety-critical behavior. As soon as you have
@@ -255,8 +255,8 @@ If you have written a custom action or a custom rail, the patterns above still
 apply: bind a `FakeLLMModel` so the action's LLM calls are deterministic, then
 assert on the side effects (events emitted, generated responses, custom
 logging, etc.). For deeper extensibility hooks, see the
-[Python API reference](/reference/python-api) and the
-[custom initialization topics](/configure-rails/custom-initialization) for examples.
+[Python API reference](/run-guardrailed-inference/using-python-apis) and the
+[custom initialization topics](/configure-guardrails/custom-initialization) for examples.
 
 ## Tips
 

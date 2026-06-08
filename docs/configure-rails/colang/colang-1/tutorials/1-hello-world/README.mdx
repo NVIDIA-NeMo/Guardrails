@@ -5,7 +5,7 @@ title: "Hello World"
 description: "Create your first guardrails configuration to control greeting behavior with Colang 1.0."
 ---
 
-This guide shows you how to create a "Hello World" guardrails configuration that controls the greeting behavior. Before you begin, make sure you have [installed NeMo Guardrails](/getting-started/installation-guide).
+This guide shows you how to create a "Hello World" guardrails configuration that controls the greeting behavior. Before you begin, make sure you have [installed NeMo Guardrails](/get-started/installation-guide).
 
 ## Prerequisites
 
@@ -49,7 +49,7 @@ Every guardrails configuration must be stored in a folder. The standard folder s
 │   ├── ...
 ```
 
-See the [Configuration Reference](/configure-rails/configuration-reference) for information about the contents of these files as well as the components of NeMo Guardrails (rail kinds, supported model providers, and how user and bot intents are matched).
+See the [Configuration Reference](/configure-guardrails/configuration-reference) for information about the contents of these files as well as the components of NeMo Guardrails (rail kinds, supported model providers, and how user and bot intents are matched).
 
 1. From the root directory of your project, create a folder, such as *config*, for your configuration:
 
@@ -66,7 +66,7 @@ models:
    model: gpt-4o-mini
 ```
 
-The `models` key in the *config.yml* file configures the LLM model. For a complete list of supported LLM models, see [Supported LLM Models](/about/supported-llms).
+The `models` key in the *config.yml* file configures the LLM model. For a complete list of supported LLM models, see [Supported LLM Models](/about-nemo-guardrails-library/supported-llms).
 
 ## Step 2: load the guardrails configuration
 
@@ -116,7 +116,7 @@ The format for the input `messages` array as well as the response follow the [Op
 
 ## Step 4: add your first guardrail
 
-To control the greeting response, define the user and bot messages, and the flow that connects the two together. See [Core Colang Concepts](/configure-rails/colang/colang-1/tutorials/2-core-colang-concepts/README) for definitions of *messages* and *flows*.
+To control the greeting response, define the user and bot messages, and the flow that connects the two together. See [Core Colang Concepts](/configure-guardrails/colang/colang-1/tutorials/2-core-colang-concepts) for definitions of *messages* and *flows*.
 
 1. Define the `greeting` user message by creating a *config/rails.co* file with the following content:
 
@@ -232,5 +232,5 @@ The Chat UI interface is now available at `http://localhost:8000`:
 
 ## Next
 
-- [Core Colang Concepts](/configure-rails/colang/colang-1/tutorials/2-core-colang-concepts/README) explains the Colang concepts *messages* and *flows*.
-- [Configuration Reference](/configure-rails/configuration-reference) covers the full set of configuration options, supported model providers, and the available rail types. Reading it next will give you the foundation you need before adding more complex rails.
+- [Core Colang Concepts](/configure-guardrails/colang/colang-1/tutorials/2-core-colang-concepts) explains the Colang concepts *messages* and *flows*.
+- [Configuration Reference](/configure-guardrails/configuration-reference) covers the full set of configuration options, supported model providers, and the available rail types. Reading it next will give you the foundation you need before adding more complex rails.

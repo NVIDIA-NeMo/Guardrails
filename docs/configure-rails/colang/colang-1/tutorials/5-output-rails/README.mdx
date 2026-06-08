@@ -5,7 +5,7 @@ title: "Output Rails"
 description: "Add output rails to filter and validate LLM responses before returning to users."
 ---
 
-This guide describes how to add output rails to a guardrails configuration. This guide builds on the previous guide, [Input Rails](/configure-rails/colang/colang-1/tutorials/4-input-rails/README), developing further the demo ABC Bot.
+This guide describes how to add output rails to a guardrails configuration. This guide builds on the previous guide, [Input Rails](/configure-guardrails/colang/colang-1/tutorials/4-input-rails), developing further the demo ABC Bot.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ nest_asyncio.apply()
 
 ## Output Moderation
 
-NeMo Guardrails comes with a built-in [output self-checking rail](/configure-rails/guardrail-catalog/self-check#self-check-output). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
+NeMo Guardrails comes with a built-in [output self-checking rail](/configure-guardrails/guardrail-catalog/self-check#self-check-output). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
 
 Activating the `self check output` rail is similar to the `self check input` rail:
 
@@ -219,7 +219,7 @@ You can enable streaming to provide asynchronous responses and reduce the time t
    ```
 
 For reference information about the related `config.yaml` file fields,
-refer to the [Configuration Reference](/configure-rails/configuration-reference#output-rails).
+refer to the [Configuration Reference](/configure-guardrails/configuration-reference#output-rails).
 
 ## Custom Output Rail
 
@@ -349,4 +349,4 @@ I cannot talk about proprietary technology.
 
 ## Next
 
-The next guide, [Topical Rails](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README), adds a topical rails to the ABC bot, to make sure it only responds to questions related to the employment situation.
+The next guide, [Topical Rails](/configure-guardrails/colang/colang-1/tutorials/6-topical-rails), adds a topical rails to the ABC bot, to make sure it only responds to questions related to the employment situation.

@@ -12,7 +12,7 @@ Personally Identifiable Information (PII) detection helps protect user privacy b
 
 ## GLiNER-based PII Detection
 
-The NeMo Guardrails library supports PII detection and masking using the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the [GLiNER Integration](/configure-rails/guardrail-catalog/community/gliner) page. The examples below assume each configuration lives in its own subdirectory under `config/` (NeMo Guardrails merges every `.yml` / `.yaml` file it finds in a `--config` directory, so detection and masking rule sets need separate folders).
+The NeMo Guardrails library supports PII detection and masking using the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the [GLiNER Integration](/configure-guardrails/guardrail-catalog/third-party/gliner) page. The examples below assume each configuration lives in its own subdirectory under `config/` (NeMo Guardrails merges every `.yml` / `.yaml` file it finds in a `--config` directory, so detection and masking rule sets need separate folders).
 
 ### NVIDIA-Hosted Endpoint
 
@@ -110,7 +110,7 @@ To run both NIMs locally, pull the Docker containers and point each endpoint to 
 > docker run ... -e NGC_API_KEY="$NVIDIA_API_KEY" ...
 > ```
 >
-> See the [GLiNER Integration — Deploy NIMs Locally](/configure-rails/guardrail-catalog/community/gliner#start-the-containers) section for full `docker run` instructions.
+> See the [GLiNER Integration — Deploy NIMs Locally](/configure-guardrails/guardrail-catalog/third-party/gliner#start-the-containers) section for full `docker run` instructions.
 
 **PII detection** (update `config/pii_detection/config.yml`):
 
@@ -179,7 +179,7 @@ rails:
       - gliner mask pii on output
 ```
 
-See the [GLiNER Integration](/configure-rails/guardrail-catalog/community/gliner) page for Docker pull and run instructions.
+See the [GLiNER Integration](/configure-guardrails/guardrail-catalog/third-party/gliner) page for Docker pull and run instructions.
 
 ## Presidio-based Sensitive Data Detection
 
@@ -213,7 +213,7 @@ rails:
       - mask sensitive data on retrieval
 ```
 
-For more details, check out the [Presidio Integration](/configure-rails/guardrail-catalog/community/presidio) page.
+For more details, check out the [Presidio Integration](/configure-guardrails/guardrail-catalog/third-party/presidio) page.
 
 ## Private AI PII Detection
 
@@ -255,4 +255,4 @@ rails:
       - detect pii on retrieval
 ```
 
-For more details, check out the [Private AI Integration](/configure-rails/guardrail-catalog/community/privateai) page.
+For more details, check out the [Private AI Integration](/configure-guardrails/guardrail-catalog/third-party/privateai) page.

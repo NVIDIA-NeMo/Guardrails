@@ -30,7 +30,7 @@ The following table summarizes the migration instructions by engine type.
 | `engine: azure` or `azure_openai` | No action required. Set `AZURE_OPENAI_API_KEY` and keep the v0.21 config shape. Refer to [Azure OpenAI](#azure-openai). |
 | Custom provider registered in `config.py` | Match the provider class to the active framework. Refer to [Custom providers](#custom-providers). |
 
-For the engine-by-engine matrix, refer to [Supported LLMs](/about/supported-llms).
+For the engine-by-engine matrix, refer to [Supported LLMs](/about-nemo-guardrails-library/supported-llms).
 
 ## OpenAI-Compatible Providers
 
@@ -231,7 +231,7 @@ Custom provider migration depends on which framework the provider class targets.
 The registration call applies to the active framework for the process.
 A LangChain provider class does not become a default-framework provider automatically.
 
-For LangChain provider examples, refer to [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers).
+For LangChain provider examples, refer to [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers).
 For the default framework interface, refer to the `LLMModel` and `LLMFramework` protocols in `nemoguardrails.types`.
 
 ## What Did Not Change
@@ -243,8 +243,8 @@ For the default framework interface, refer to the `LLMModel` and `LLMFramework` 
 
 ## Related Topics
 
-- [Troubleshooting](/troubleshooting) covers common errors.
-- [Supported LLMs](/about/supported-llms) lists every engine and how it routes.
-- [Configuration YAML Schema Reference](/configure-rails/configuration-reference) covers `models.*` field semantics for both modes.
-- [Custom LLM Providers](/configure-rails/custom-initialization/custom-llm-providers) covers LangChain custom provider registration.
-- [Release Notes](/about/release-notes) lists everything that shipped in 0.22.
+- [Troubleshooting](/troubleshooting/troubleshooting) covers common errors.
+- [Supported LLMs](/about-nemo-guardrails-library/supported-llms) lists every engine and how it routes.
+- [Configuration YAML Schema Reference](/configure-guardrails/configuration-reference) covers `models.*` field semantics for both modes.
+- [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) covers LangChain custom provider registration.
+- [Release Notes](/about-nemo-guardrails-library/release-notes) lists everything that shipped in 0.22.

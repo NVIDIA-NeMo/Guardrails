@@ -23,7 +23,7 @@ rails.generate(messages=messages, options={...})
 
 <Note>
 
-Generation options are also available through [Chat Completions: Control Generation Options](/run-rails/using-fastapi-server/chat-with-guardrailed-model#control-generation-options).
+Generation options are also available through [Chat Completions: Control Generation Options](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model#control-generation-options).
 
 </Note>
 
@@ -107,7 +107,7 @@ For receive details on what rails are triggered, use the `log.activated_rails` g
 
 #### Worked Example: Compare All Rails to Input and Output Rails
 
-The [topical rails tutorial](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README) uses an ABC bot configuration with input, dialog, generation, and output rails.
+The [topical rails tutorial](/configure-guardrails/colang/colang-1/tutorials/6-topical-rails) uses an ABC bot configuration with input, dialog, generation, and output rails.
 When all rails are enabled, a simple greeting can activate several rails and trigger multiple LLM calls:
 
 ```text
@@ -133,7 +133,7 @@ Summary: 5 LLM call(s) took 3.54 seconds and used 1621 tokens.
 If you only need to validate an already-generated assistant message, provide both the user and assistant messages and set `options={"rails": ["input", "output"]}`.
 This skips dialog, retrieval, and generation rails while still applying the configured input and output checks.
 
-For validation-only use cases, prefer the [`check()` and `check_async()` APIs](/run-rails/using-python-apis/check-messages), which run input and output rails without invoking full generation.
+For validation-only use cases, prefer the [`check()` and `check_async()` APIs](/run-guardrailed-inference/using-python-apis/check-messages), which run input and output rails without invoking full generation.
 
 ### Output Rails Only
 
@@ -214,7 +214,7 @@ res.log.print_summary()
 
 ## Output Variables
 
-Some rails can store additional information in [Colang 1.0 Language Syntax: Variables](/configure-rails/colang/colang-1/colang-language-syntax-guide#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
+Some rails can store additional information in [Colang 1.0 Language Syntax: Variables](/configure-guardrails/colang/colang-1/colang-language-syntax-guide#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
 
 ```python
 rails.generate(messages=messages, options={
