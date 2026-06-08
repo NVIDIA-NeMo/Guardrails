@@ -28,6 +28,7 @@ from nemoguardrails.context import (
 )
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.llm.token_counter import validate_context_length
+from nemoguardrails.rails.llm.injections import validate_prompt_safety
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
@@ -58,6 +59,8 @@ async def llm_call(
     stop: Optional[List[str]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
+    max_tokens: Optional[int] = None,
+    check_prompt_injection: bool = False,
 ) -> LLMResponse:
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
@@ -78,7 +81,13 @@ async def llm_call(
     # Validate context length before sending to LLM
     # ContextLengthExceededError is raised here if validation fails and must propagate directly
     # (not wrapped in LLMCallException) so callers can handle it specifically
-    validate_context_length(prompt, model_name=model_name or model.model_name)
+    validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=max_tokens)
+
+    if check_prompt_injection:
+        if isinstance(prompt, list):
+            validate_prompt_safety(messages=prompt)
+        elif isinstance(prompt, str):
+            validate_prompt_safety(prompt=prompt)
 
     if streaming_handler:
         return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
