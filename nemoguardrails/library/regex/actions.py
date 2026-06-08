@@ -76,9 +76,11 @@ async def detect_regex_pattern(
             - detections (List[str]): List of pattern strings that matched.
     """
     options = _get_regex_options(source, config)
-    if options is None or not text:
-        if not text:
-            log.debug("Empty text provided, skipping regex check.")
+    if options is None:
+        return RegexDetectionResult(is_match=False, text=text, detections=[])
+
+    if not text:
+        log.debug("Empty text provided, skipping regex check.")
         return RegexDetectionResult(is_match=False, text=text, detections=[])
 
     # Match against pre-compiled patterns and collect all matches.
@@ -113,15 +115,18 @@ async def redact_regex_pattern(
         the mask_token (default ``<REDACTED>``).
     """
     options = _get_regex_options(source, config)
-    if options is None or not text:
-        if not text:
-            log.debug("Empty text provided, skipping regex redaction.")
+    if options is None:
+        return text
+
+    if not text:
+        log.debug("Empty text provided, skipping regex redaction.")
         return text
 
     redacted = text
     for compiled, pcfg in zip(options.compiled_patterns, options.normalized_patterns):
         if compiled.search(redacted):
             log.info("Regex pattern redacted: %s", pcfg.pattern)
-            redacted = compiled.sub(pcfg.mask_token, redacted)
+            mask = pcfg.mask_token
+            redacted = compiled.sub(lambda m, _mask=mask: _mask, redacted)
 
     return redacted
