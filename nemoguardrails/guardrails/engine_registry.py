@@ -33,6 +33,8 @@ from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
     set_llm_call_content,
+    set_llm_request_attributes,
+    set_llm_response_attributes,
 )
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.tracing.constants import (
@@ -204,11 +206,22 @@ class EngineRegistry:
             else nullcontext()
         )
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
+            # Request params are known before the call, so set them first —
+            # they land on the span even if the call raises.
+            set_llm_request_attributes(span, kwargs)
             with duration_ctx:
                 result = await engine.chat_completion(messages, **kwargs)
-            # Capture content inside the span context so the helper sees
-            # the live LLM CLIENT span (not None even on the success path)
-            # and the attributes/events land before the span closes.
+            # Set response/usage and content attrs inside the span context so
+            # the helpers see the live LLM CLIENT span and the attributes land
+            # before it closes.  Both are skipped on exception, which never
+            # reaches here.
+            set_llm_response_attributes(
+                span,
+                model=result.model,
+                response_id=result.request_id,
+                finish_reason=result.finish_reason,
+                usage=result.usage,
+            )
             if self._content_capture_enabled:
                 set_llm_call_content(span, messages, result.content)
 
