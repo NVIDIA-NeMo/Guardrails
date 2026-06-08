@@ -1136,3 +1136,94 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
         assert "gen_ai.client.operation.time_per_output_chunk" not in points
         assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"
+
+
+class TestEngineRegistryStreamModelCallSpanAttributes:
+    """``stream_model_call`` sets gen_ai.request.* (including stream=True) and
+    the accumulated gen_ai.response.* / usage.* attributes on the LLM CLIENT
+    span, independent of metrics and content capture (both off here)."""
+
+    @pytest.mark.asyncio
+    async def test_accumulates_response_attributes_across_chunks(self, manager_with_tracer, span_exporter):
+        """Response fields arrive on different chunks (model + id early,
+        finish_reason + usage on the terminal chunk); the span carries the
+        accumulated values plus the request params and stream=True."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(
+                delta_content="Hello",
+                model="meta/llama-3.3-70b-instruct",
+                request_id="chatcmpl-stream",
+            ),
+            LLMResponseChunk(delta_content=" world"),
+            LLMResponseChunk(
+                finish_reason="stop",
+                usage=UsageInfo(input_tokens=8, output_tokens=4, total_tokens=12, reasoning_tokens=2),
+            ),
+        )
+
+        async for _ in manager_with_tracer.stream_model_call(
+            "main", [{"role": "user", "content": "hi"}], temperature=0.3, stop=["X"]
+        ):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.3
+        assert list(attrs["gen_ai.request.stop_sequences"]) == ["X"]
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-stream"
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.usage.input_tokens"] == 8
+        assert attrs["gen_ai.usage.output_tokens"] == 4
+        assert attrs["gen_ai.usage.reasoning.output_tokens"] == 2
+        assert "gen_ai.usage.total_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_stream_attribute_set_even_without_usage(self, manager_with_tracer, span_exporter):
+        """gen_ai.request.stream=True is set before the first chunk, so it is
+        present even when no chunk carries usage; usage attrs are then absent."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
+
+        async for _ in manager_with_tracer.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert "gen_ai.usage.output_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_request_attributes_present_on_provider_error(self, manager_with_tracer, span_exporter):
+        """Provider errors mid-stream → request attrs (incl. stream) survive on
+        the span; the post-loop response/usage attrs are never set (even though
+        a chunk carried ``model``), and the span is marked ERROR."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello", model="meta/llama-3.3-70b-instruct"),
+            error=RuntimeError("provider died"),
+        )
+
+        with pytest.raises(RuntimeError, match="provider died"):
+            async for _ in manager_with_tracer.stream_model_call(
+                "main", [{"role": "user", "content": "hi"}], temperature=0.9
+            ):
+                pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.9
+        # Captured during iteration but not written — response attrs are set
+        # only after natural exhaustion, which the error skips.
+        assert "gen_ai.response.model" not in attrs
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert attrs["error.type"] == "RuntimeError"
