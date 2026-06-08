@@ -2319,7 +2319,12 @@ def _run_flow(case: FlowEquivalenceCase) -> tuple[dict[str, Any], dict[str, Any]
             enable_rails_exceptions=case.enable_rails_exceptions,
         ),
     )
-    llm_completions = ["  express greeting"] if case.spec.direction == "retrieval" else [NORMAL_OUTPUT]
+    if case.spec.direction == "retrieval":
+        llm_completions = ["  express greeting"]
+    elif case.spec.name == AUTOALIGN_GROUNDEDNESS_OUTPUT.name:
+        llm_completions = [NORMAL_OUTPUT, NORMAL_OUTPUT]
+    else:
+        llm_completions = [NORMAL_OUTPUT]
     chat = TestChat(config, llm_completions=llm_completions)
 
     async def stub_action(**kwargs):

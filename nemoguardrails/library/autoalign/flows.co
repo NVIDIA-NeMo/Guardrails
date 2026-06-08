@@ -37,6 +37,7 @@ flow autoalign groundedness output
     if $output_result.is_blocked
       bot inform answer unknown
       abort
+    bot provide response
 
 flow autoalign factcheck output
   $threshold = 0.5
