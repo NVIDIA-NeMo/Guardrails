@@ -20,7 +20,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.library.autoalign.actions import _autoalign_outcome
+from nemoguardrails.library.autoalign.actions import _autoalign_outcome, _autoalign_score_outcome
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
@@ -80,6 +80,18 @@ def wrap_autoalign_action(action_func, target: TransformTarget):
 )
 def test_autoalign_outcome(result, expected):
     assert _autoalign_outcome(result, TransformTarget.USER_MESSAGE) == expected
+
+
+@pytest.mark.parametrize(
+    ("score", "threshold", "expected"),
+    [
+        (0.49, 0.5, RailOutcome.block(score=0.49, threshold=0.5)),
+        (0.5, 0.5, RailOutcome.allow(score=0.5, threshold=0.5)),
+        (0.51, 0.5, RailOutcome.allow(score=0.51, threshold=0.5)),
+    ],
+)
+def test_autoalign_score_outcome(score, threshold, expected):
+    assert _autoalign_score_outcome(score, threshold) == expected
 
 
 @pytest.mark.asyncio

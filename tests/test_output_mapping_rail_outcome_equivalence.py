@@ -460,15 +460,28 @@ def test_autoalign_output_action_has_no_legacy_output_mapping():
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (0.49, True),
-        (0.5, False),
-        (0.51, False),
+        (RailOutcome.block(score=0.49, threshold=0.5), True),
+        (RailOutcome.allow(score=0.5, threshold=0.5), False),
+        (RailOutcome.allow(score=0.51, threshold=0.5), False),
     ],
 )
-def test_autoalign_score_output_mappings_block_below_threshold(action_func, raw_return, expected_blocked):
+def test_autoalign_score_output_bypass_reads_rail_outcome(action_func, raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, action_func)
+    outcome = outcome_from_output_mapping(raw_return, action_func)
 
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+@pytest.mark.parametrize(
+    "action_func",
+    [
+        autoalign_groundedness_output_api,
+        autoalign_factcheck_output_api,
+    ],
+)
+def test_autoalign_score_actions_have_no_legacy_output_mapping(action_func):
+    assert getattr(action_func, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
@@ -587,53 +600,82 @@ def test_vendor_block_actions_have_no_legacy_output_mapping(action_func):
 
 
 @pytest.mark.parametrize(
-    ("raw_return", "flow_blocked", "mapping_blocked"),
+    ("raw_return", "expected_blocked"),
     [
-        ({"valid": True, "validation_result": {"validation_passed": True}}, False, False),
-        ({"valid": False, "validation_result": {"validation_passed": False}}, True, True),
+        (
+            RailOutcome.allow(valid=True, validation_result={"validation_passed": True}),
+            False,
+        ),
+        (
+            RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
+            True,
+        ),
     ],
 )
-def test_guardrails_ai_output_mapping_matches_flow_polarity(raw_return, flow_blocked, mapping_blocked):
-    assert is_output_blocked(raw_return, validate_guardrails_ai_output) is mapping_blocked
-    assert (not raw_return["valid"]) is flow_blocked
+def test_guardrails_ai_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
+    mapping_blocked = is_output_blocked(raw_return, validate_guardrails_ai_output)
+    outcome = outcome_from_output_mapping(raw_return, validate_guardrails_ai_output)
+
+    assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_guardrails_ai_output_action_has_no_legacy_output_mapping():
+    assert getattr(validate_guardrails_ai_output, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"hallucination": False, "reasoning": ["grounded"]}, False),
-        ({"hallucination": True, "reasoning": ["unsupported"]}, True),
+        (RailOutcome.allow(hallucination=False, reasoning=["grounded"]), False),
+        (RailOutcome.block(hallucination=True, reasoning=["unsupported"]), True),
     ],
 )
-def test_patronus_lynx_output_mapping_matches_hallucination_interpretation(raw_return, expected_blocked):
+def test_patronus_lynx_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, patronus_lynx_check_output_hallucination)
+    outcome = outcome_from_output_mapping(raw_return, patronus_lynx_check_output_hallucination)
 
-    assert raw_return["hallucination"] is expected_blocked
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_patronus_lynx_action_has_no_legacy_output_mapping():
+    assert getattr(patronus_lynx_check_output_hallucination, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        ({"pass": True}, False),
-        ({"pass": False}, True),
-        ({}, False),
+        (RailOutcome.allow(**{"pass": True}), False),
+        (RailOutcome.block(**{"pass": False}), True),
     ],
 )
-def test_patronus_api_output_mapping_matches_pass_interpretation(raw_return, expected_blocked):
+def test_patronus_api_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, patronus_api_check_output)
+    outcome = outcome_from_output_mapping(raw_return, patronus_api_check_output)
 
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_patronus_api_action_has_no_legacy_output_mapping():
+    assert getattr(patronus_api_check_output, "action_meta")["output_mapping"] is None
 
 
 @pytest.mark.parametrize(
     ("raw_return", "expected_blocked"),
     [
-        (False, False),
-        (True, True),
+        (RailOutcome.allow(is_hallucination=False), False),
+        (RailOutcome.block(is_hallucination=True), True),
     ],
 )
-def test_hallucination_output_mapping_matches_blocking_flow_interpretation(raw_return, expected_blocked):
+def test_hallucination_output_bypass_reads_rail_outcome(raw_return, expected_blocked):
     mapping_blocked = is_output_blocked(raw_return, hallucination_action)
+    outcome = outcome_from_output_mapping(raw_return, hallucination_action)
 
     assert mapping_blocked is expected_blocked
+    assert outcome is raw_return
+
+
+def test_hallucination_action_has_no_legacy_output_mapping():
+    assert getattr(hallucination_action, "action_meta")["output_mapping"] is None

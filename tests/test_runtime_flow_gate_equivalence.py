@@ -159,18 +159,6 @@ def _blocked_if_gcp_detailed(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
 
 
-def _blocked_if_not_valid(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if not raw_return["valid"] else FlowDecision.ALLOW
-
-
-def _blocked_if_hallucination(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return["hallucination"] else FlowDecision.ALLOW
-
-
-def _blocked_if_not_passed(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if not raw_return["pass"] else FlowDecision.ALLOW
-
-
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
     return FlowDecision.TRANSFORM if raw_return != NORMAL_OUTPUT else FlowDecision.ALLOW
 
@@ -566,6 +554,20 @@ AUTOALIGN_OUTPUT = RailSpec(
     interpret=_autoalign_decision,
 )
 
+AUTOALIGN_GROUNDEDNESS_OUTPUT = RailSpec(
+    name="autoalign_groundedness_output_api",
+    flow="autoalign groundedness output",
+    direction="output",
+    action="autoalign_groundedness_output_api",
+)
+
+AUTOALIGN_FACTCHECK_OUTPUT = RailSpec(
+    name="autoalign_factcheck_output_api",
+    flow="autoalign factcheck output",
+    direction="output",
+    action="autoalign_factcheck_output_api",
+)
+
 INJECTION_DETECTION_REJECT = RailSpec(
     name="injection_detection_reject",
     flow="injection detection",
@@ -659,7 +661,6 @@ GUARDRAILS_AI_INPUT = RailSpec(
     flow='guardrailsai check input $validator="regex_match"',
     direction="input",
     action="validate_guardrails_ai_input",
-    interpret=_blocked_if_not_valid,
     rails_config=GUARDRAILS_AI_RAILS_CONFIG,
 )
 
@@ -668,7 +669,6 @@ GUARDRAILS_AI_OUTPUT = RailSpec(
     flow='guardrailsai check output $validator="regex_match"',
     direction="output",
     action="validate_guardrails_ai_output",
-    interpret=_blocked_if_not_valid,
     rails_config=GUARDRAILS_AI_RAILS_CONFIG,
 )
 
@@ -677,7 +677,6 @@ PATRONUS_LYNX_OUTPUT = RailSpec(
     flow="patronus lynx check output hallucination",
     direction="output",
     action="patronus_lynx_check_output_hallucination",
-    interpret=_blocked_if_hallucination,
     task="patronus_lynx_check_output_hallucination",
 )
 
@@ -686,7 +685,6 @@ PATRONUS_API_OUTPUT = RailSpec(
     flow="patronus api check output",
     direction="output",
     action="patronus_api_check_output",
-    interpret=_blocked_if_not_passed,
 )
 
 SELF_CHECK_HALLUCINATION = RailSpec(
@@ -694,7 +692,6 @@ SELF_CHECK_HALLUCINATION = RailSpec(
     flow="self check hallucination",
     direction="output",
     action="self_check_hallucination",
-    interpret=_blocked_if_true,
 )
 
 TREND_MICRO_INPUT = RailSpec(
@@ -1775,6 +1772,38 @@ FIXTURES = [
         FlowDecision.BLOCK,
     ),
     _case(
+        "autoalign_groundedness_output_allows_at_threshold",
+        AUTOALIGN_GROUNDEDNESS_OUTPUT,
+        RailOutcome.allow(score=0.5, threshold=0.5),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        context={"check_facts": True},
+        expected_content=NORMAL_OUTPUT,
+    ),
+    _case(
+        "autoalign_groundedness_output_blocks_below_threshold",
+        AUTOALIGN_GROUNDEDNESS_OUTPUT,
+        RailOutcome.block(score=0.49, threshold=0.5),
+        ObservableOutcome.ANSWER_UNKNOWN,
+        FlowDecision.BLOCK,
+        context={"check_facts": True},
+    ),
+    _case(
+        "autoalign_factcheck_output_allows_at_threshold",
+        AUTOALIGN_FACTCHECK_OUTPUT,
+        RailOutcome.allow(score=0.5, threshold=0.5),
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+        expected_content=NORMAL_OUTPUT,
+    ),
+    _case(
+        "autoalign_factcheck_output_blocks_below_threshold",
+        AUTOALIGN_FACTCHECK_OUTPUT,
+        RailOutcome.block(score=0.49, threshold=0.5),
+        ObservableOutcome.ANSWER_UNKNOWN,
+        FlowDecision.BLOCK,
+    ),
+    _case(
         "injection_detection_reject_allows_unchanged_output",
         INJECTION_DETECTION_REJECT,
         _injection_detection_outcome(is_injection=False, text=NORMAL_OUTPUT, action="reject"),
@@ -2128,21 +2157,21 @@ FIXTURES = [
     _case(
         "guardrails_ai_input_allows_valid",
         GUARDRAILS_AI_INPUT,
-        {"valid": True, "validation_result": {"validation_passed": True}},
+        RailOutcome.allow(valid=True, validation_result={"validation_passed": True}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "guardrails_ai_input_blocks_invalid",
         GUARDRAILS_AI_INPUT,
-        {"valid": False, "validation_result": {"validation_passed": False}},
+        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "guardrails_ai_input_blocks_invalid_exception",
         GUARDRAILS_AI_INPUT,
-        {"valid": False, "validation_result": {"validation_passed": False}},
+        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2150,21 +2179,21 @@ FIXTURES = [
     _case(
         "guardrails_ai_output_allows_valid",
         GUARDRAILS_AI_OUTPUT,
-        {"valid": True, "validation_result": {"validation_passed": True}},
+        RailOutcome.allow(valid=True, validation_result={"validation_passed": True}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "guardrails_ai_output_blocks_invalid",
         GUARDRAILS_AI_OUTPUT,
-        {"valid": False, "validation_result": {"validation_passed": False}},
+        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "guardrails_ai_output_blocks_invalid_exception",
         GUARDRAILS_AI_OUTPUT,
-        {"valid": False, "validation_result": {"validation_passed": False}},
+        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2172,21 +2201,21 @@ FIXTURES = [
     _case(
         "patronus_lynx_output_allows_no_hallucination",
         PATRONUS_LYNX_OUTPUT,
-        {"hallucination": False, "reasoning": ["grounded"]},
+        RailOutcome.allow(hallucination=False, reasoning=["grounded"]),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "patronus_lynx_output_blocks_hallucination",
         PATRONUS_LYNX_OUTPUT,
-        {"hallucination": True, "reasoning": ["unsupported"]},
+        RailOutcome.block(hallucination=True, reasoning=["unsupported"]),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
     ),
     _case(
         "patronus_lynx_output_blocks_hallucination_exception",
         PATRONUS_LYNX_OUTPUT,
-        {"hallucination": True, "reasoning": ["unsupported"]},
+        RailOutcome.block(hallucination=True, reasoning=["unsupported"]),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2194,21 +2223,21 @@ FIXTURES = [
     _case(
         "patronus_api_output_allows_passed",
         PATRONUS_API_OUTPUT,
-        {"pass": True},
+        RailOutcome.allow(**{"pass": True}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "patronus_api_output_blocks_failed",
         PATRONUS_API_OUTPUT,
-        {"pass": False},
+        RailOutcome.block(**{"pass": False}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
     ),
     _case(
         "self_check_hallucination_allows_false",
         SELF_CHECK_HALLUCINATION,
-        False,
+        RailOutcome.allow(is_hallucination=False),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_hallucination": True},
@@ -2216,7 +2245,7 @@ FIXTURES = [
     _case(
         "self_check_hallucination_blocks_true",
         SELF_CHECK_HALLUCINATION,
-        True,
+        RailOutcome.block(is_hallucination=True),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
         context={"check_hallucination": True},
@@ -2224,7 +2253,7 @@ FIXTURES = [
     _case(
         "self_check_hallucination_blocks_true_exception",
         SELF_CHECK_HALLUCINATION,
-        True,
+        RailOutcome.block(is_hallucination=True),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,

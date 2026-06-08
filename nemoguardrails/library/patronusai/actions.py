@@ -22,6 +22,7 @@ import aiohttp
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
@@ -59,25 +60,20 @@ def parse_patronus_lynx_response(
     return hallucination, reasoning
 
 
-def patronus_lynx_check_output_hallucination_mapping(result: dict) -> bool:
-    """
-    Mapping for patronus_lynx_check_output_hallucination.
-
-    Expects result to be a dict with:
-        "hallucination": a boolean where True indicates a hallucination was detected.
-
-    Block (return True) if "hallucination" is True.
-    """
-    return result.get("hallucination", False)
+def _patronus_lynx_outcome(hallucination: bool, reasoning: Union[List[str], None]) -> RailOutcome:
+    metadata = {"hallucination": hallucination, "reasoning": reasoning}
+    if hallucination:
+        return RailOutcome.block(**metadata)
+    return RailOutcome.allow(**metadata)
 
 
-@action(output_mapping=patronus_lynx_check_output_hallucination_mapping)
+@action()
 async def patronus_lynx_check_output_hallucination(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     patronus_lynx_llm: Optional[LLMModel] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     """
     Check the bot response for hallucinations based on the given chunks
     using the configured Patronus Lynx model.
@@ -88,7 +84,7 @@ async def patronus_lynx_check_output_hallucination(
 
     if not provided_context or not isinstance(provided_context, str) or not provided_context.strip():
         log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
-        return {"hallucination": False, "reasoning": None}
+        return _patronus_lynx_outcome(False, None)
 
     check_output_hallucination_prompt = llm_task_manager.render_task_prompt(
         task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
@@ -114,7 +110,7 @@ async def patronus_lynx_check_output_hallucination(
     ).content
 
     hallucination, reasoning = parse_patronus_lynx_response(result)
-    return {"hallucination": hallucination, "reasoning": reasoning}
+    return _patronus_lynx_outcome(hallucination, reasoning)
 
 
 def check_guardrail_pass(response: Optional[dict], success_strategy: Literal["all_pass", "any_pass"]) -> bool:
@@ -211,25 +207,11 @@ async def patronus_evaluate_request(
             return response_json
 
 
-def patronus_api_check_output_mapping(result: dict) -> bool:
-    """
-    Mapping for patronus_api_check_output.
-
-    Expects result to be a dict with:
-        "pass": a boolean where True means the output passed the check.
-
-    Block (return True) if "pass" is False.
-    """
-    # Default to True (pass) if the key is missing
-    passed = result.get("pass", True)
-    return not passed
-
-
-@action(name="patronus_api_check_output", output_mapping=patronus_api_check_output_mapping)
+@action(name="patronus_api_check_output")
 async def patronus_api_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-) -> dict:
+) -> RailOutcome:
     """
     Check the user message, bot response, and/or provided context
     for issues based on the Patronus Evaluate API
@@ -248,4 +230,8 @@ async def patronus_api_check_output(
         bot_response=bot_response,
         provided_context=provided_context,
     )
-    return {"pass": check_guardrail_pass(response=response, success_strategy=success_strategy)}
+    passed = check_guardrail_pass(response=response, success_strategy=success_strategy)
+    metadata = {"pass": passed}
+    if passed:
+        return RailOutcome.allow(**metadata)
+    return RailOutcome.block(**metadata)

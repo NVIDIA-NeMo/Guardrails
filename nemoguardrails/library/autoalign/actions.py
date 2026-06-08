@@ -80,28 +80,6 @@ DEFAULT_CONFIG = {
 default_groundedness_config = {"groundedness_checker": {"verify_response": False}}
 
 
-def autoalign_groundedness_output_api_mapping(result: float) -> bool:
-    """
-    Mapping for autoalign_groundedness_output_api.
-
-    Expects result to be a numeric score.
-    Returns True (block) if the score is below the default groundedness threshold.
-    """
-    DEFAULT_GROUNDEDNESS_THRESHOLD = 0.5
-    return result < DEFAULT_GROUNDEDNESS_THRESHOLD
-
-
-def autoalign_factcheck_output_api_mapping(result: float) -> bool:
-    """
-    Mapping for autoalign_factcheck_output_api.
-
-    Expects result to be a numeric score.
-    Returns True (block) if the score is below the default factcheck threshold.
-    """
-    DEFAULT_FACTCHECK_THRESHOLD = 0.5
-    return result < DEFAULT_FACTCHECK_THRESHOLD
-
-
 def process_autoalign_output(responses: List[Any], show_toxic_phrases: bool = False):
     """Processes the output provided AutoAlign API"""
 
@@ -156,6 +134,13 @@ def _autoalign_outcome(result: dict, target: TransformTarget) -> RailOutcome:
     pii = result.get("pii") or {}
     if pii.get("guarded", False):
         return RailOutcome.transform([(target, pii.get("response") or "")], **metadata)
+    return RailOutcome.allow(**metadata)
+
+
+def _autoalign_score_outcome(score: float, threshold: float) -> RailOutcome:
+    metadata = {"score": score, "threshold": threshold}
+    if score < threshold:
+        return RailOutcome.block(**metadata)
     return RailOutcome.allow(**metadata)
 
 
@@ -349,17 +334,14 @@ async def autoalign_output_api(
     return _autoalign_outcome(autoalign_response, TransformTarget.BOT_MESSAGE)
 
 
-@action(
-    name="autoalign_groundedness_output_api",
-    output_mapping=autoalign_groundedness_output_api_mapping,
-)
+@action(name="autoalign_groundedness_output_api")
 async def autoalign_groundedness_output_api(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
     **kwargs,
-):
+) -> RailOutcome:
     """Calls AutoAlign groundedness check API and checks whether the bot message is factually grounded according to given
     documents"""
 
@@ -382,19 +364,16 @@ async def autoalign_groundedness_output_api(
         log.warning(
             f"Groundedness violation in llm response has been detected by AutoAlign with fact check score {score}"
         )
-    return score
+    return _autoalign_score_outcome(score, factcheck_threshold)
 
 
-@action(
-    name="autoalign_factcheck_output_api",
-    output_mapping=autoalign_factcheck_output_api_mapping,
-)
+@action(name="autoalign_factcheck_output_api")
 async def autoalign_factcheck_output_api(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
-):
+) -> RailOutcome:
     """Calls Autoalign Factchecker API and checks if the user message is factually answered by the bot message"""
 
     user_message = context.get("user_message")
@@ -416,4 +395,4 @@ async def autoalign_factcheck_output_api(
 
     if score < factcheck_threshold and show_autoalign_message:
         log.warning(f"Factcheck violation in llm response has been detected by AutoAlign with fact check score {score}")
-    return score
+    return _autoalign_score_outcome(score, factcheck_threshold)

@@ -36,6 +36,7 @@ except ImportError:
 
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.guardrails_ai.errors import GuardrailsAIValidationError
 from nemoguardrails.library.guardrails_ai.registry import get_validator_info
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -60,11 +61,6 @@ def _guardrails_ai_validation_passed(result: Dict[str, Any]) -> bool:
     return False
 
 
-def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> bool:
-    """Map Guardrails AI validation result to NeMo Guardrails blocked semantics."""
-    return not _guardrails_ai_validation_passed(result)
-
-
 # TODO: we need to do this
 # from guardrails.hub import RegexMatch, ValidLength
 # from guardrails import Guard
@@ -87,7 +83,6 @@ def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> bool:
 
 @action(
     name="validate_guardrails_ai_input",
-    output_mapping=guardrails_ai_validation_mapping,
     is_system_action=False,
 )
 def validate_guardrails_ai_input(
@@ -105,7 +100,7 @@ def validate_guardrails_ai_input(
         context: Optional context dictionary
 
     Returns:
-        Dict with validation_result and valid (bool derived from validation_passed).
+        RailOutcome with validation_result and valid in metadata.
     """
 
     context = context or {}
@@ -129,13 +124,14 @@ def validate_guardrails_ai_input(
     result = validate_guardrails_ai(validator, text, **joined_parameters)
     valid = _guardrails_ai_validation_passed(result)
 
-    # Return both validation_result and valid for backward compatibility with Colang flows
-    return {**result, "valid": valid}
+    metadata = {**result, "valid": valid}
+    if valid:
+        return RailOutcome.allow(**metadata)
+    return RailOutcome.block(**metadata)
 
 
 @action(
     name="validate_guardrails_ai_output",
-    output_mapping=guardrails_ai_validation_mapping,
     is_system_action=False,
 )
 def validate_guardrails_ai_output(
@@ -153,7 +149,7 @@ def validate_guardrails_ai_output(
         context: Optional context dictionary
 
     Returns:
-        Dict with validation_result and valid (bool derived from validation_passed).
+        RailOutcome with validation_result and valid in metadata.
     """
 
     context = context or {}
@@ -181,8 +177,10 @@ def validate_guardrails_ai_output(
     result = validate_guardrails_ai(validator, text, **joined_parameters)
     valid = _guardrails_ai_validation_passed(result)
 
-    # Return both validation_result and valid for backward compatibility with Colang flows
-    return {**result, "valid": valid}
+    metadata = {**result, "valid": valid}
+    if valid:
+        return RailOutcome.allow(**metadata)
+    return RailOutcome.block(**metadata)
 
 
 def validate_guardrails_ai(validator_name: str, text: str, **kwargs) -> Dict[str, Any]:
