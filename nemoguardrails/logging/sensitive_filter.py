@@ -46,6 +46,16 @@ class SensitiveDataFilter(logging.Filter):
         Returns:
             True (always allow the record to be logged)
         """
+        # Pre-format %-style records before redacting so that a sensitive keyword
+        # in the template (e.g. "password: %s") cannot corrupt the format spec,
+        # which would cause TypeError in getMessage() called by the log handler.
+        if isinstance(record.msg, str) and record.args:
+            try:
+                record.msg = record.getMessage()
+                record.args = None
+            except Exception:
+                pass
+
         # Redact the main message
         if record.msg:
             if isinstance(record.msg, str):
@@ -53,7 +63,7 @@ class SensitiveDataFilter(logging.Filter):
             elif isinstance(record.msg, dict):
                 record.msg = self.redactor.redact_dict(record.msg)
 
-        # Redact message arguments
+        # Redact message arguments (fallback when pre-formatting was skipped or failed)
         if record.args:
             if isinstance(record.args, dict):
                 record.args = self.redactor.redact_dict(record.args)
