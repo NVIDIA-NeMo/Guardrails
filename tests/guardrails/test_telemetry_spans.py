@@ -379,40 +379,28 @@ class TestSetLlmRequestAttributes:
         )
         assert attrs["gen_ai.request.max_tokens"] == 128
 
-    def test_stop_string_wrapped_in_list(self, otel_provider):
-        """A bare ``stop`` string is wrapped into the spec's string[] shape."""
-        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": "END"}))
-        assert list(attrs["gen_ai.request.stop_sequences"]) == ["END"]
-
-    def test_stop_list_passed_through(self, otel_provider):
-        """A ``stop`` list is recorded unchanged."""
-        attrs = _span_attrs(
-            otel_provider,
-            lambda s: set_llm_request_attributes(s, {"stop": ["a", "b"]}),
-        )
-        assert list(attrs["gen_ai.request.stop_sequences"]) == ["a", "b"]
-
-    def test_stop_sequences_key_accepted(self, otel_provider):
-        """The spec-aligned ``stop_sequences`` key is accepted alongside ``stop``."""
-        attrs = _span_attrs(
-            otel_provider,
-            lambda s: set_llm_request_attributes(s, {"stop_sequences": ["x"]}),
-        )
-        assert list(attrs["gen_ai.request.stop_sequences"]) == ["x"]
-
-    def test_malformed_stop_value_skipped(self, otel_provider):
-        """A ``stop`` that is neither a string nor a list is skipped, not recorded."""
-        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": 123}))
-        assert "gen_ai.request.stop_sequences" not in attrs
-
-    def test_empty_stop_value_skipped(self, otel_provider):
-        """An empty ``stop`` list or string is skipped, not recorded as an empty
-        ``gen_ai.request.stop_sequences`` (which would falsely imply stop tokens
-        were configured)."""
-        empty_list_attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": []}))
-        assert "gen_ai.request.stop_sequences" not in empty_list_attrs
-        empty_str_attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {"stop": ""}))
-        assert "gen_ai.request.stop_sequences" not in empty_str_attrs
+    @pytest.mark.parametrize(
+        "params, expected",
+        [
+            ({"stop": "END"}, ["END"]),
+            ({"stop": ["a", "b"]}, ["a", "b"]),
+            ({"stop_sequences": ["x"]}, ["x"]),
+            ({"stop": 123}, None),  # malformed type → skipped
+            ({"stop": []}, None),  # empty list → skipped
+            ({"stop": ""}, None),  # empty string → skipped
+        ],
+        ids=["string", "list", "stop_sequences_key", "malformed", "empty_list", "empty_string"],
+    )
+    def test_stop_sequences_normalization(self, otel_provider, params, expected):
+        """``stop`` / ``stop_sequences`` normalize to gen_ai.request.stop_sequences:
+        a string wraps to a one-element list, a list passes through, and
+        empty/malformed values are skipped entirely (no empty attribute, which
+        would falsely imply stop tokens were configured)."""
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, params))
+        if expected is None:
+            assert "gen_ai.request.stop_sequences" not in attrs
+        else:
+            assert list(attrs["gen_ai.request.stop_sequences"]) == expected
 
     def test_unknown_kwargs_ignored(self, otel_provider):
         """Kwargs with no gen_ai.request.* mapping are silently ignored."""
@@ -440,7 +428,8 @@ class TestSetLlmRequestAttributes:
 
 class TestSetLlmResponseAttributes:
     def test_sets_all_response_and_usage_attributes(self, otel_provider):
-        """A fully-populated response sets every response + usage attr, including reasoning tokens."""
+        """A fully-populated response sets every response + usage attr, including
+        reasoning tokens, and never emits the spec-removed total_tokens."""
         usage = UsageInfo(input_tokens=12, output_tokens=34, total_tokens=46, reasoning_tokens=7)
         attrs = _span_attrs(
             otel_provider,
@@ -458,6 +447,7 @@ class TestSetLlmResponseAttributes:
         assert attrs["gen_ai.usage.input_tokens"] == 12
         assert attrs["gen_ai.usage.output_tokens"] == 34
         assert attrs["gen_ai.usage.reasoning.output_tokens"] == 7
+        assert "gen_ai.usage.total_tokens" not in attrs
 
     def test_finish_reason_wrapped_in_list(self, otel_provider):
         """The single finish_reason is wrapped into the spec's finish_reasons string[]."""
@@ -466,12 +456,6 @@ class TestSetLlmResponseAttributes:
             lambda s: set_llm_response_attributes(s, finish_reason="length"),
         )
         assert list(attrs["gen_ai.response.finish_reasons"]) == ["length"]
-
-    def test_total_tokens_never_emitted(self, otel_provider):
-        """``total_tokens`` is dropped (removed from the spec) even when present on UsageInfo."""
-        usage = UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3)
-        attrs = _span_attrs(otel_provider, lambda s: set_llm_response_attributes(s, usage=usage))
-        assert "gen_ai.usage.total_tokens" not in attrs
 
     def test_reasoning_tokens_omitted_when_none(self, otel_provider):
         """Reasoning tokens are recorded only when present; input/output still set."""
