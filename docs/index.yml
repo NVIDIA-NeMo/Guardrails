@@ -47,6 +47,9 @@ navigation:
           - page: Detect Jailbreak Attempts
             path: getting-started/tutorials/nemoguard-jailbreakdetect-deployment.mdx
             slug: nemoguard-jailbreakdetect-deployment
+          - page: Use Jailbreak Detection Heuristics
+            path: getting-started/tutorials/jailbreak-detection-heuristics.mdx
+            slug: jailbreak-detection-heuristics
           - page: Add Multimodal Content Safety
             path: getting-started/tutorials/multimodal.mdx
             slug: multimodal
@@ -216,6 +219,9 @@ navigation:
           - page: Custom LLM Model
             path: configure-rails/custom-initialization/custom-llm-model.mdx
             slug: custom-llm-model
+          - page: Testing Your Guardrails Configuration
+            path: configure-rails/custom-initialization/testing-your-config.mdx
+            slug: testing-your-config
           - page: Custom LLM Framework
             path: configure-rails/custom-initialization/custom-llm-framework.mdx
             slug: custom-llm-framework
@@ -443,6 +449,12 @@ navigation:
     slug: evaluation
     collapsed: open-by-default
     contents:
+      - page: Evaluate Configuration
+        path: evaluation/evaluate-configuration.mdx
+        slug: evaluate-configuration
+      - page: Evaluation Methodology
+        path: evaluation/evaluation-methodology.mdx
+        slug: evaluation-methodology
       - page: Evaluate Guardrails
         path: evaluation/evaluate-guardrails.mdx
         slug: evaluate-guardrails

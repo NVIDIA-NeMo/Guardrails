@@ -131,3 +131,24 @@ rails:
         # Point to a running instance of the AlignScore server
         endpoint: "http://localhost:5000/alignscore_base"
 ```
+
+## Jailbreak Detection Heuristics
+
+If one of your configurations uses the jailbreak detection heuristics server, run the heuristics server in a separate container:
+
+```bash
+docker run -p 1337:1337 jailbreak_detection_heuristics
+```
+
+This command starts the jailbreak detection heuristics server on port `1337`. You can then specify the server URL in your configuration file:
+
+```yaml
+rails:
+  config:
+    jailbreak_detection:
+      server_endpoint: "http://localhost:1337/heuristics"
+      length_per_perplexity_threshold: 89.79
+      prefix_suffix_perplexity_threshold: 1845.65
+```
+
+For a hands-on configuration walkthrough, see [Use Jailbreak Detection Heuristics](/getting-started/tutorials/jailbreak-detection-heuristics).

@@ -1,16 +1,21 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Using Jailbreak Detection Heuristics"
+title: "Use Jailbreak Detection Heuristics"
+sidebar-title: "Jailbreak Heuristics"
+description: "Add jailbreak detection heuristics to the ABC bot configuration and test malicious and benign prompts."
+content:
+  type: "tutorial"
 ---
-This guide demonstrates how to use jailbreak detection heuristics in a guardrails configuration to detect malicious prompts.
 
-We will use the guardrails configuration for the ABC Bot defined for the [topical rails example](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README) part of the [Getting Started Guide](/getting-started/installation-guide).
+This tutorial demonstrates how to use jailbreak detection heuristics in a guardrails configuration to detect malicious prompts.
+
+We will use the guardrails configuration for the ABC Bot defined in the [topical rails tutorial](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README).
 
 ```bash
-# Init: remove any existing configuration and copy the ABC bot from topical rails example
-!rm -r config
-!cp -r ../../getting-started/6-topical-rails/config .
+# From the repository root, copy the ABC bot configuration.
+rm -rf config
+cp -r docs/configure-rails/colang/colang-1/tutorials/6-topical-rails/config .
 ```
 
 ## Prerequisites
@@ -19,19 +24,19 @@ Make sure to check that the prerequisites for the ABC bot are satisfied.
 
 1. Install the `openai` package:
 
-```sh
+```bash
 pip install openai
 ```
 
 1. Set the `OPENAI_API_KEY` environment variable:
 
-```sh
+```bash
 export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 ```
 
 1. Install the following packages to test the jailbreak detection heuristics locally:
 
-```sh
+```bash
 pip install transformers torch
 ```
 
@@ -48,7 +53,7 @@ nest_asyncio.apply()
 The guardrails configuration for the ABC bot that we are using has the following input rails defined:
 
 ```bash
-awk '/rails:/,0' ../../../docs/getting-started/6-topical-rails/config/config.yml
+awk '/rails:/,0' config/config.yml
 ```
 
 ```yaml
@@ -58,7 +63,8 @@ rails:
       - self check input
 ```
 
-The 'self check input' rail [prompts](../../getting-started/6-topical-rails/config/prompts.yml) an LLM model to check if the input is safe for the bot to process. The 'self check input' rail can expensive to run for all input prompts, so we can use jailbreak detection heuristics as a low-latency and low-cost alternative to filter out malicious prompts.
+The `self check input` rail [prompts](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/configure-rails/colang/colang-1/tutorials/6-topical-rails/config/prompts.yml) an LLM model to check if the input is safe for the bot to process.
+The `self check input` rail can be expensive to run for all input prompts, so you can use jailbreak detection heuristics as a low-latency and low-cost alternative to filter out malicious prompts.
 
 ## Jailbreak Detection Heuristics
 
@@ -71,20 +77,21 @@ To compute the perplexity of a string, the current implementation uses the `gpt2
 
 More information about these heuristics can be found in the [Jailbreak Protection](/configure-rails/guardrail-catalog/jailbreak-protection) reference.
 
-### Activating Jailbreak Detection Heuristics
+### Activate Jailbreak Detection Heuristics
 
-To activate the jailbreak detection heuristics, we first need to include the `jailbreak detection heuristics` flow as an input rail in our guardrails configuration. We can do this by adding the following to the `config.yml` of the ABC bot:
+To activate the jailbreak detection heuristics, include the `jailbreak detection heuristics` flow as an input rail in your guardrails configuration.
+Add the following to the `config.yml` file of the ABC bot:
 
-```text
+```yaml
 rails:
   input:
     flows:
       - jailbreak detection heuristics
 ```
 
-To the same file we need to configure the jailbreak detection heuristics. We can do this by adding the following to `config.yml`
+In the same file, configure the jailbreak detection thresholds:
 
-```text
+```yaml
 rails:
   config:
     jailbreak_detection:
@@ -92,16 +99,18 @@ rails:
       prefix_suffix_perplexity_threshold: 1845.65
 ```
 
-The thresholds for the length perplexity and prefix/suffix perplexity are derived from a combination of malicious and benign prompts. More information about these thresholds can be found in the [Jailbreak Protection](/configure-rails/guardrail-catalog/jailbreak-protection) reference.
+The thresholds for length perplexity and prefix/suffix perplexity are derived from a combination of malicious and benign prompts.
+More information about these thresholds can be found in the [Jailbreak Protection](/configure-rails/guardrail-catalog/jailbreak-protection) reference.
 
-## Testing the Input Rail with Jailbreak Detection Heuristics
+## Test the Input Rail
 
-To test the bot with the jailbreak detection heuristics as the input rail, we need to create an LLMRails object given the current configuration. We can then prompt the LLM with a GCG-style message and check the response.
+To test the bot with the jailbreak detection heuristics as the input rail, create an `LLMRails` object from the current configuration.
+Then prompt the LLM with a GCG-style message and check the response.
 
 ```python
-from nemoguardrails import RailsConfig, LLMRails
+from nemoguardrails import LLMRails, RailsConfig
 
-config = RailsConfig.from_path("../../configure-rails/colang/colang-1/tutorials/6-topical-rails/config/")
+config = RailsConfig.from_path("config")
 rails = LLMRails(config)
 messages = [{
     "role": "user",
@@ -112,13 +121,14 @@ response = rails.generate(messages=messages)
 print(response["content"])
 ```
 
-The response returned is
+The response returned is:
 
-```
+```text
 I'm sorry, I can't respond to that.
 ```
 
-To investigate which rails were activated, we can use the `log` parameter for the generation options. We can also print all LLM calls that were made to generate the response.
+To investigate which rails were activated, use the `log` parameter for the generation options.
+You can also print all LLM calls that were made to generate the response.
 
 ```python
 response = rails.generate(messages=messages, options={
@@ -134,14 +144,15 @@ info = rails.explain()
 info.print_llm_calls_summary()
 ```
 
-```
+```text
 {'type': 'input', 'name': 'jailbreak detection heuristics'}
 No LLM calls were made.
 ```
 
-The logs indicate that the `jailbreak detection heuristics` rail was activated and no LLM calls were made. This means that the jailbreak detection heuristics were able to filter out the malicious prompt without having to make any LLM calls.
+The logs indicate that the `jailbreak detection heuristics` rail was activated and no LLM calls were made.
+This means that the jailbreak detection heuristics were able to filter out the malicious prompt without making any LLM calls.
 
-To test the bot with a benign prompt, we can use the following message:
+To test the bot with a benign prompt, use the following message:
 
 ```python
 messages = [{
@@ -158,9 +169,9 @@ for rail in response.log.activated_rails:
     print({key: getattr(rail, key) for key in ["type", "name"] if hasattr(rail, key)})
 ```
 
-The response returned is
+The response returned is:
 
-```
+```text
 I am equipped to answer questions about the company policies, benefits, and employee handbook. I can also assist with setting performance goals and providing development opportunities. Is there anything specific you would like me to check in the employee handbook for you?
 {'type': 'input', 'name': 'jailbreak detection heuristics'}
 {'type': 'dialog', 'name': 'generate user intent'}
@@ -171,15 +182,18 @@ I am equipped to answer questions about the company policies, benefits, and empl
 
 We see that the prompt was not filtered out by the jailbreak detection heuristics and the response was generated by the bot.
 
-### Using the Jailbreak Detection Heuristics in Production
+### Use the Heuristics Server in Production
 
-The recommended way for using the jailbreak detection heuristics is to [deploy the jailbreak detection heuristics server](/getting-started/tutorials/nemoguard-jailbreakdetect-deployment) separately. This would spin up a server that by default listens on port 1337. You can then configure the guardrails configuration to use the jailbreak detection heuristics server by adding the following to the `config.yml` of the ABC bot:
+For production deployments, run the jailbreak detection heuristics server separately.
+The server listens on port `1337` by default. See [Jailbreak Detection Heuristics with Docker](/deployment/using-docker#jailbreak-detection-heuristics) for the Docker build and run commands.
 
-```text
+After the server is running, configure the guardrails configuration to use it:
+
+```yaml
 rails:
   config:
     jailbreak_detection:
-      server_endpoint: "http://0.0.0.0:1337/heuristics"
+      server_endpoint: "http://localhost:1337/heuristics"
       length_per_perplexity_threshold: 89.79
       prefix_suffix_perplexity_threshold: 1845.65
 ```

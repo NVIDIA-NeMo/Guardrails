@@ -1,28 +1,33 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Evaluation Tooling"
+title: "Evaluate Configuration"
+description: "Evaluate a guardrails configuration with policies, interactions, LLM-as-a-judge checks, and the Eval UI."
 ---
-NeMo Guardrails provides a set of tools for evaluating the performance of a guardrail configuration.
+
+NeMo Guardrails provides tools for evaluating the performance of a guardrails configuration.
+This page covers the policy-based `nemoguardrails eval` workflow.
+For per-rail benchmark tasks such as topical, moderation, fact-checking, and hallucination evaluation, see [Evaluate Guardrails](/evaluation/evaluate-guardrails).
 
 ## Introduction
 
-A guardrail configuration evaluation has three main components:
+A guardrails configuration evaluation has three main components:
 
-1. Compliance Rate: how well do the LLM responses comply with the defined policies?
-2. Resource Usage: how many LLM calls and tokens are used?
-3. Latency Impact: what's the impact on the latency?
+1. Compliance rate: how well do the LLM responses comply with the defined policies?
+2. Resource usage: how many LLM calls and tokens are used?
+3. Latency impact: what's the impact on the latency?
 
-To evaluate a guardrail configuration, you must:
+To evaluate a guardrails configuration, you must:
 
 1. Create a dataset of interactions and policies.
-2. Run the interactions through the guardrail configuration.
+2. Run the interactions through the guardrails configuration.
 3. Check the compliance of the LLM outputs, either manually or by using LLM-as-a-judge.
 4. Analyze the results.
 
 ## Evaluation Configuration
 
 An evaluation configuration includes the following:
+
 - **Policies**
 - **Interactions**
 - **Expected Latencies**
@@ -30,7 +35,7 @@ An evaluation configuration includes the following:
 
 The typical structure of an evaluation configuration is:
 
-```
+```text
 .
 ├── config
 │   ├── policies.yaml
@@ -142,7 +147,7 @@ expected_latencies:
 
 The expected latency for an LLM call is:
 
-```
+```text
 Fixed_Latency + Prompt_Tokens * Prompt_Token_Latency + Completion_Tokens * Completion_Token_Latency
 ```
 
@@ -152,7 +157,7 @@ The expected latencies can be used for reporting in the Eval UI.
 
 To use an LLM as a judge, you must configure one or more models, as well as the prompt templates to be used.
 
-To configure the models, add a top level `models` key with the content similar to the one used by a guardrail configuration. The only difference is setting the type to `llm-judge`.
+To configure the models, add a top level `models` key with the content similar to the one used by a guardrails configuration. The only difference is setting the type to `llm-judge`.
 
 ```yaml
 # Configure the models that can be used as judges
@@ -192,7 +197,7 @@ prompts:
       ---
 ```
 
-The templating syntax is the same as for the rest of the toolkit.
+The templating syntax is the same as for the rest of the library.
 The available context variables are:
 
 - `policy`: The policy that is being evaluated.
@@ -215,17 +220,20 @@ prompts:
 You can run evaluations and inspect the results using the CLI `nemoguardrails eval`.
 
 Usage:
+
 ```bash
 nemoguardrails eval [OPTIONS] COMMAND [ARGS]...
 ```
 
 ### Commands
 
-- `run`: Run a set of interactions through a guardrail configuration.
+- `run`: Run a set of interactions through a guardrails configuration.
 - `check-compliance`: Check compliance against the policies using LLM-as-a-judge.
 - `ui`: Launch the Eval UI for reviewing and analyzing the results.
-- `rail`: Run a rail evaluation task.**
+- `rail`: Run a rail evaluation task. For rail-specific benchmark tasks, see [Evaluate Guardrails](/evaluation/evaluate-guardrails).
 
 ## Analyze the Results
 
-To analyze the results of a guardrail configuration evaluation, use the Eval UI, which you can launch using `nemoguardrails eval ui`.
+To analyze the results of a guardrails configuration evaluation, use the Eval UI, which you can launch using `nemoguardrails eval ui`.
+
+For guidance on defining policies and interpreting compliance results, see [Evaluation Methodology](/evaluation/evaluation-methodology).

@@ -105,6 +105,36 @@ The response will be the exact bot message provided, if allowed, an altered vers
 
 For receive details on what rails are triggered, use the `log.activated_rails` generation option.
 
+#### Worked Example: Compare All Rails to Input and Output Rails
+
+The [topical rails tutorial](/configure-rails/colang/colang-1/tutorials/6-topical-rails/README) uses an ABC bot configuration with input, dialog, generation, and output rails.
+When all rails are enabled, a simple greeting can activate several rails and trigger multiple LLM calls:
+
+```text
+{'type': 'input', 'name': 'self check input'}
+{'type': 'dialog', 'name': 'generate user intent'}
+{'type': 'dialog', 'name': 'generate next step'}
+{'type': 'generation', 'name': 'generate bot message'}
+{'type': 'output', 'name': 'self check output'}
+{'type': 'output', 'name': 'check blocked terms'}
+```
+
+The `explain()` method can show the corresponding LLM call count:
+
+```python
+info = rails.explain()
+info.print_llm_calls_summary()
+```
+
+```text
+Summary: 5 LLM call(s) took 3.54 seconds and used 1621 tokens.
+```
+
+If you only need to validate an already-generated assistant message, provide both the user and assistant messages and set `options={"rails": ["input", "output"]}`.
+This skips dialog, retrieval, and generation rails while still applying the configured input and output checks.
+
+For validation-only use cases, prefer the [`check()` and `check_async()` APIs](/run-rails/using-python-apis/check-messages), which run input and output rails without invoking full generation.
+
 ### Output Rails Only
 
 To apply output rails exclusively to an LLM response, disable the input rails and provide an empty input.
