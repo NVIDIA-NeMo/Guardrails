@@ -28,9 +28,9 @@ from nemoguardrails.context import (
 )
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.llm.token_counter import validate_context_length
-from nemoguardrails.rails.llm.injections import validate_prompt_safety
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
+from nemoguardrails.rails.llm.injections import validate_prompt_safety
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
 
 if TYPE_CHECKING:
