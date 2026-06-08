@@ -409,6 +409,17 @@ class Guardrails(BaseGuardrails):
         """Run rails on messages based on their content (asynchronous).
         Only supported for LLMRails.
         """
+        # Validate input for prompt injection attempts if enabled
+        if self.config.injection_detection_enabled:
+            try:
+                validate_prompt_safety(
+                    messages=messages,
+                    sensitivity=self.config.injection_detection_sensitivity,
+                )
+            except PromptInjectionDetectedError as e:
+                log.warning(f"Prompt injection attempt blocked: {e}")
+                raise
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support check_async()")
 
@@ -423,6 +434,17 @@ class Guardrails(BaseGuardrails):
         """Synchronous version of check_async.
         Only supported for LLMRails.
         """
+        # Validate input for prompt injection attempts if enabled
+        if self.config.injection_detection_enabled:
+            try:
+                validate_prompt_safety(
+                    messages=messages,
+                    sensitivity=self.config.injection_detection_sensitivity,
+                )
+            except PromptInjectionDetectedError as e:
+                log.warning(f"Prompt injection attempt blocked: {e}")
+                raise
+
         if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support check()")
 
