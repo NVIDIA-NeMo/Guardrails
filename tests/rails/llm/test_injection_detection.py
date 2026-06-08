@@ -278,7 +278,7 @@ class TestIntegrationValidatePromptSafety:
 
 
 class TestLlmCallIntegration:
-    """Integration tests for max_tokens pass-through and injection detection in llm_call."""
+    """Integration tests for context_window_tokens override and injection detection in llm_call."""
 
     def _make_model(self, responses=None):
         from nemoguardrails.types import LLMResponse
@@ -302,8 +302,8 @@ class TestLlmCallIntegration:
         return FakeModel()
 
     @pytest.mark.asyncio
-    async def test_max_tokens_override_allows_large_prompt(self):
-        """Passing max_tokens overrides the table look-up so a large prompt passes."""
+    async def test_context_window_tokens_override_allows_large_prompt(self):
+        """context_window_tokens overrides the table look-up so a large prompt passes."""
         from nemoguardrails.actions.llm.utils import llm_call
 
         model = self._make_model(["response"])
@@ -311,14 +311,14 @@ class TestLlmCallIntegration:
 
         # Without override this would raise ContextLengthExceededError for an unknown model
         # (fallback = 4 096, 90% threshold = 3 686).
-        # Passing max_tokens=32768 allows it through.
-        result = await llm_call(model, long_prompt, max_tokens=32768)
+        # context_window_tokens=32768 widens the validation window so the prompt fits.
+        result = await llm_call(model, long_prompt, context_window_tokens=32768)
         assert result.content == "response"
 
     @pytest.mark.asyncio
-    async def test_max_tokens_override_blocks_at_custom_limit(self):
-        """max_tokens is respected: a prompt that fits the table limit is blocked when
-        a tighter caller-supplied max_tokens is given."""
+    async def test_context_window_tokens_override_blocks_at_custom_limit(self):
+        """context_window_tokens narrows the validation window: a prompt that fits the
+        table limit is blocked when a tighter caller-supplied window is given."""
         from nemoguardrails.actions.llm.utils import llm_call
         from nemoguardrails.llm.token_counter import ContextLengthExceededError
 
@@ -326,7 +326,7 @@ class TestLlmCallIntegration:
         prompt = "word " * 200  # ~200 tokens — well within the default table entry
 
         with pytest.raises(ContextLengthExceededError):
-            await llm_call(model, prompt, max_tokens=50)
+            await llm_call(model, prompt, context_window_tokens=50)
 
     @pytest.mark.asyncio
     async def test_injection_detection_raises_on_injected_prompt(self):

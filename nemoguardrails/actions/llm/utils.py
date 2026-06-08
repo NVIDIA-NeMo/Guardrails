@@ -59,9 +59,31 @@ async def llm_call(
     stop: Optional[List[str]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
-    max_tokens: Optional[int] = None,
+    context_window_tokens: Optional[int] = None,
     check_prompt_injection: bool = False,
 ) -> LLMResponse:
+    """Call the LLM with the given prompt.
+
+    Args:
+        llm: The LLM model instance.
+        prompt: The prompt string or list of message dicts.
+        model_name: Model name used for context-length look-up; falls back to
+            the model's own ``model_name`` attribute when omitted.
+        model_provider: Optional provider identifier for logging.
+        stop: Optional list of stop sequences.
+        llm_params: Extra keyword arguments forwarded verbatim to the model
+            call (e.g. ``{"temperature": 0.2, "max_tokens": 512}`` to cap
+            output length at 512 tokens).
+        streaming_handler: If provided, the response is streamed through this
+            handler instead of being returned as a single object.
+        context_window_tokens: Override the context-window size used **only**
+            for pre-call length validation (i.e. passed to
+            ``validate_context_length``).  This value is *not* forwarded to the
+            model.  To cap the number of output tokens, include ``max_tokens``
+            inside ``llm_params`` instead.
+        check_prompt_injection: When True, scan the prompt for injection
+            patterns before calling the model.
+    """
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
 
@@ -81,7 +103,7 @@ async def llm_call(
     # Validate context length before sending to LLM
     # ContextLengthExceededError is raised here if validation fails and must propagate directly
     # (not wrapped in LLMCallException) so callers can handle it specifically
-    validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=max_tokens)
+    validate_context_length(prompt, model_name=model_name or model.model_name, max_tokens=context_window_tokens)
 
     if check_prompt_injection:
         if isinstance(prompt, list):
