@@ -13,13 +13,6 @@ const ignoredDirectoryNames = new Set([".fern-cache", ".git", "_build", "node_mo
 const debounceMs = 500;
 const fernDocsInstance = "nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails";
 
-const fernConfig = JSON.parse(readFileSync(path.join(fernRoot, "fern.config.json"), "utf8"));
-const trimmedFernVersion = typeof fernConfig.version === "string" ? fernConfig.version.trim() : "";
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(trimmedFernVersion)) {
-  throw new Error("fern.config.json must contain an exact semver version");
-}
-const fernVersion = trimmedFernVersion;
-
 const branchName = currentBranchName();
 let running = false;
 let pending = false;
@@ -61,6 +54,15 @@ function currentBranchName() {
   }
 
   return branch;
+}
+
+function readFernVersion() {
+  const fernConfig = JSON.parse(readFileSync(path.join(fernRoot, "fern.config.json"), "utf8"));
+  const trimmedFernVersion = typeof fernConfig.version === "string" ? fernConfig.version.trim() : "";
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(trimmedFernVersion)) {
+    throw new Error("fern.config.json must contain an exact semver version");
+  }
+  return trimmedFernVersion;
 }
 
 function watchDirectoryTree(directory) {
@@ -160,6 +162,17 @@ function runFernGenerate(reason) {
 
   running = true;
   pending = false;
+  let fernVersion;
+  try {
+    fernVersion = readFernVersion();
+  } catch (error) {
+    running = false;
+    console.error(error instanceof Error ? error.message : String(error));
+    if (pending) {
+      runFernGenerate("queued file change");
+    }
+    return;
+  }
 
   const args = [
     "--yes",

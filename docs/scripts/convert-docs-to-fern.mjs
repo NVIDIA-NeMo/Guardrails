@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
 
-const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const repoRoot = path.resolve(new URL("../..", import.meta.url).pathname);
 const docsRoot = path.join(repoRoot, "docs");
 
 const skipFiles = new Set(["CONTRIBUTING.md", "index.md"]);
