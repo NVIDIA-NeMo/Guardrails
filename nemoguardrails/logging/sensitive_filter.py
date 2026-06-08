@@ -97,10 +97,10 @@ def setup_sensitive_data_filter(
     logger: Optional[logging.Logger] = None,
     redactor: Optional[SensitiveDataRedactor] = None,
 ) -> SensitiveDataFilter:
-    """Add sensitive data filter to a logger.
+    """Add sensitive data filter to a logger's handlers.
 
     Args:
-        logger: Logger to add filter to (root logger if None)
+        logger: Logger whose handlers to protect (root logger if None)
         redactor: Optional custom redactor instance
 
     Returns:
@@ -109,17 +109,31 @@ def setup_sensitive_data_filter(
     if logger is None:
         logger = logging.getLogger()
 
-    for existing_filter in logger.filters:
-        if isinstance(existing_filter, SensitiveDataFilter):
-            return existing_filter
+    # Attach to handlers, not the logger itself. Logger.filter() is never
+    # invoked for records propagated from child loggers, so a logger-level
+    # filter silently bypasses every named logger in the codebase.
+    handlers = logger.handlers or [logging.lastResort]
 
-    filter_instance = SensitiveDataFilter(redactor=redactor)
-    logger.addFilter(filter_instance)
+    # Reuse an existing instance so multiple setup calls share the same
+    # redactor state, but still add to every handler that lacks it.
+    existing: Optional[SensitiveDataFilter] = None
+    for handler in handlers:
+        for f in handler.filters:
+            if isinstance(f, SensitiveDataFilter):
+                existing = f
+                break
+        if existing:
+            break
+
+    filter_instance = existing or SensitiveDataFilter(redactor=redactor)
+    for handler in handlers:
+        if not any(isinstance(f, SensitiveDataFilter) for f in handler.filters):
+            handler.addFilter(filter_instance)
     return filter_instance
 
 
 def setup_all_loggers(redactor: Optional[SensitiveDataRedactor] = None) -> None:
-    """Add sensitive data filter to all active loggers.
+    """Add sensitive data filter to the root logger's handlers.
 
     Args:
         redactor: Optional custom redactor instance
@@ -127,7 +141,9 @@ def setup_all_loggers(redactor: Optional[SensitiveDataRedactor] = None) -> None:
     root_logger = logging.getLogger()
     setup_sensitive_data_filter(root_logger, redactor=redactor)
 
-    # Also add to commonly used loggers
+    # For loggers that own their own handlers (propagate=False or extra
+    # handlers attached), also protect those directly.
     for logger_name in ["nemoguardrails", "langchain", "llama_index", "openai"]:
         logger = logging.getLogger(logger_name)
-        setup_sensitive_data_filter(logger, redactor=redactor)
+        if logger.handlers:
+            setup_sensitive_data_filter(logger, redactor=redactor)

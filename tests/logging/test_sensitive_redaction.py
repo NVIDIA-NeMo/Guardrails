@@ -502,6 +502,56 @@ class TestSensitiveDataFilter:
         assert record.args is None
         assert "42" in record.msg
 
+    def test_filter_preformat_typeerror_hits_except_branch(self):
+        """When getMessage() raises, the except branch (lines 56-57) is taken and args are kept."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="%d",  # integer format spec
+            args=("not-a-number",),  # causes TypeError in %d % ("not-a-number",)
+            exc_info=None,
+        )
+        result = filter_instance.filter(record)
+        assert result is True
+        # getMessage() raised, so args were NOT cleared by the pre-format block
+        assert record.args is not None
+
+    def test_filter_dict_args_direct_redaction(self):
+        """Dict args are redacted via the args branch (lines 68-69) when pre-format is skipped."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg=1,  # non-string msg skips the pre-format branch at line 52
+            args={"password": "hunter2", "user": "alice"},
+            exc_info=None,
+        )
+        filter_instance.filter(record)
+        assert record.args["password"] == "[PASSWORD]"
+        assert record.args["user"] == "alice"
+
+    def test_filter_tuple_args_direct_redaction_mixed(self):
+        """Mixed tuple args (str, dict, int) hit all sub-branches of lines 70-79."""
+        filter_instance = SensitiveDataFilter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg=1,  # non-string msg skips the pre-format branch at line 52
+            args=("password=hunter2", {"api_key": "sk_live_abc12345"}, 42),
+            exc_info=None,
+        )
+        filter_instance.filter(record)
+        assert "[PASSWORD]" in record.args[0]          # str arg redacted  (lines 73-74)
+        assert record.args[1]["api_key"] == "[API_KEY]"  # dict arg redacted  (lines 75-76)
+        assert record.args[2] == 42                    # int arg unchanged  (lines 78-79)
+
     def test_filter_exc_info_redacts_exception_string(self):
         """Filter should redact sensitive data in exception args (lines 73-76)."""
         filter_instance = SensitiveDataFilter()
@@ -560,36 +610,74 @@ class TestSetupSensitiveDataFilter:
     """Tests for setup_sensitive_data_filter and setup_all_loggers."""
 
     def test_setup_sensitive_data_filter_defaults_to_root_logger(self):
-        """When logger=None, setup_sensitive_data_filter uses the root logger (line 100)."""
+        """When logger=None, filter is attached to the root logger's handlers."""
         from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
 
-        f = setup_sensitive_data_filter()
-        assert isinstance(f, SensitiveDataFilter)
         root = logging.getLogger()
-        assert any(isinstance(fl, SensitiveDataFilter) for fl in root.filters)
+        handler = logging.StreamHandler()
+        root.addHandler(handler)
+        try:
+            f = setup_sensitive_data_filter()
+            assert isinstance(f, SensitiveDataFilter)
+            assert any(isinstance(fl, SensitiveDataFilter) for fl in handler.filters)
+        finally:
+            root.removeHandler(handler)
+            handler.filters.clear()
 
     def test_setup_sensitive_data_filter_returns_existing(self):
-        """When filter already exists on logger, return the same instance (line 104)."""
+        """When filter already exists on a handler, return the same instance."""
         from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
 
         test_logger = logging.getLogger("test.setup_filter.idempotent")
-        test_logger.filters = []
+        handler = logging.StreamHandler()
+        test_logger.addHandler(handler)
         try:
             first = setup_sensitive_data_filter(test_logger)
             second = setup_sensitive_data_filter(test_logger)
             assert second is first
-            assert len([f for f in test_logger.filters if isinstance(f, SensitiveDataFilter)]) == 1
+            assert len([f for f in handler.filters if isinstance(f, SensitiveDataFilter)]) == 1
         finally:
-            test_logger.filters = []
+            test_logger.removeHandler(handler)
+            handler.filters.clear()
 
     def test_setup_all_loggers_adds_filters(self):
-        """setup_all_loggers adds filter to root and named loggers (lines 117-123)."""
+        """setup_all_loggers adds filter to the root logger's handlers."""
         from nemoguardrails.logging.sensitive_filter import setup_all_loggers
 
-        # Just verify it runs without error and the root logger gets a filter
-        setup_all_loggers()
         root_logger = logging.getLogger()
-        assert any(isinstance(f, SensitiveDataFilter) for f in root_logger.filters)
+        handler = logging.StreamHandler()
+        root_logger.addHandler(handler)
+        try:
+            setup_all_loggers()
+            assert any(isinstance(f, SensitiveDataFilter) for f in handler.filters)
+        finally:
+            root_logger.removeHandler(handler)
+            handler.filters.clear()
+
+    def test_child_logger_records_are_redacted(self):
+        """Filter on root handler intercepts records propagated from child loggers."""
+        import io
+
+        from nemoguardrails.logging.sensitive_filter import setup_sensitive_data_filter
+
+        root = logging.getLogger()
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+        root.addHandler(handler)
+        original_level = root.level
+        root.setLevel(logging.DEBUG)
+        try:
+            setup_sensitive_data_filter(root)
+            child = logging.getLogger("test.child.propagation.redact")
+            child.debug("password=supersecret123")
+            output = stream.getvalue()
+            assert "supersecret123" not in output
+            assert "[PASSWORD]" in output
+        finally:
+            root.removeHandler(handler)
+            handler.filters.clear()
+            root.setLevel(original_level)
 
 
 if __name__ == "__main__":
