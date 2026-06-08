@@ -57,7 +57,7 @@ class PromptInjectionDetector:
         (r"\b(?:you\s+are\s+now|pretend\s+(?:you\s+)?are|act\s+as|playing\s+the\s+role)", "role_switch", "medium"),
         (r"\b(?:new\s+mode|special\s+mode|secret\s+mode)", "mode_switch", "medium"),
         # Advanced injection techniques (high sensitivity)
-        (r"(?:<!--.*?-->)|(?:\\[.*?\\])", "nested_comment", "high"),
+        (r"(?:<!--.*?-->)|(?:/\*.*?\*/)", "nested_comment", "high"),
         (r"\$\{.*?\}|\$\(.*?\)", "variable_expansion", "high"),
         (r"(?:Base64|base64)\s+(?:decode|encoded)", "token_smuggling", "high"),
         (r"(?:^|\s)(?:eval|exec)\s*\(", "code_execution", "high"),
