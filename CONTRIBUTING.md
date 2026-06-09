@@ -113,6 +113,8 @@ Use the following targets for common Fern documentation tasks:
 | `make docs-fern-preview-watch` | Watch local changes and publish a Fern preview for the current branch. |
 | `make docs-fern-generate-sdk` | Regenerate the Python SDK reference pages with Fern's library docs generator. |
 
+For pull requests that modify documentation, the docs build workflow checks the Fern docs and publishes a PR preview for same-repository branches. When docs-related changes land on `develop`, including by merging a documentation pull request, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
+
 The Fern CLI version is pinned in `fern/fern.config.json`. Do not run `fern upgrade` as part of normal documentation changes.
 
 When editing the migrated docs:

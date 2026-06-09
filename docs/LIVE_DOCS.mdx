@@ -53,6 +53,10 @@ make docs-fern-strict
 
 This regenerates the SDK reference, normalizes it, and runs `fern check`.
 
+### CI Publishing
+
+The docs build workflow checks Fern docs on documentation pull requests and publishes a Fern preview for same-repository branches. When docs-related changes land on `develop`, including by merging a documentation pull request, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
+
 ### Direct Fern Command
 
 ```bash
