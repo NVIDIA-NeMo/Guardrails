@@ -15,7 +15,7 @@ Using Colang, you can describe complex patterns of interaction. However, as a de
 The [Dialog Rails](dialog-rails#colang_2_getting_started_dialog_rails) and the [Input Rails](input-rails#colang_2_getting_started_input_rails) examples show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs the LLM to generate the bot response directly. Note, the quality of the response depends on the configured LLM model and can vary.
 
 
-**examples/v2_x/tutorial/llm_flows/main.co**
+**examples/v2_x/tutorial/llm_flows/rails.co**
 
 ```text
 import core
@@ -43,7 +43,7 @@ Context variables can be included in the NLD (Natural Language Description) of a
 ## Testing
 
 ```text
-$ nemoguardrails chat --config=examples/v2_x/other/llm_flow
+$ nemoguardrails chat --config=examples/v2_x/tutorial/llm_flows
 
 > hi
 

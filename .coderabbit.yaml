@@ -45,6 +45,22 @@ reviews:
   # Post review details on each review. Additionally, post a review status when a review is skipped in certain cases.
   # Default: true
   review_status: false # current: true
+  path_instructions:
+    - path: "docs/**/*.mdx"
+      instructions: |
+        Internal absolute documentation links in Fern MDX pages must use the rendered Fern route, not the source file path.
+        Derive routes from the slug hierarchy in docs/index.yml. For example:
+        - docs/configure-rails/index.mdx renders at /configure-guardrails/configure-rails, not /configure-rails.
+        - docs/configure-rails/colang/index.mdx renders at /configure-guardrails/colang, not /configure-rails/colang.
+        - docs/run-rails/index.mdx renders at /run-guardrailed-inference/run-rails, not /run-rails.
+        - docs/getting-started/installation-guide.mdx renders at /get-started/installation-guide, not /getting-started/installation-guide.
+        Before flagging or suggesting fixes for internal docs links, verify them with scripts/check-docs-links.sh or docs/index.yml.
+        Do not suggest changing valid Fern routes back to source-path-style links.
+    - path: "docs/**/*.ipynb"
+      instructions: |
+        Markdown links in documentation notebooks should match the rendered Fern routes when they point to docs pages.
+        Use docs/index.yml slug hierarchy as the source of truth for internal documentation routes.
+        Do not suggest changing valid Fern routes such as /configure-guardrails/... to source file paths such as /configure-rails/....
   # Configuration for pre merge checks
   # Default: {}
   pre_merge_checks:
