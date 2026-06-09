@@ -49,7 +49,8 @@ async def run_output_rails_in_streaming(
     """
     buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
     output_rails_flows_id = rails.config.rails.output.flows
-    stream_first = stream_first or output_rails_streaming_config.stream_first
+    if stream_first is None:
+        stream_first = output_rails_streaming_config.stream_first
     get_action_details = partial(get_action_details_from_flow_id, flows=rails.config.flows)
 
     parallel_mode = getattr(rails.config.rails.output, "parallel", False)
@@ -146,7 +147,10 @@ async def _run_parallel_output_rails(
         result, status = result_tuple
 
         if status != "success":
-            log.error(f"Parallel rails execution failed with status: {status}")
+            error_message = f"Parallel rails execution failed with status: {status}"
+            log.error(error_message)
+            yield _internal_rail_error("output rails", error_message)
+            return
         else:
             # if there are any stop events, content was blocked or internal error occurred
             result_events = getattr(result, "events", None)
@@ -155,7 +159,10 @@ async def _run_parallel_output_rails(
                 return
 
     except Exception as e:
-        log.error(f"Error in parallel rail execution: {e}")
+        error_message = f"Error in parallel rail execution: {e}"
+        log.error(error_message)
+        yield _internal_rail_error("output rails", error_message)
+        return
 
     # update explain info for parallel mode
     rails._explain_info = rails._ensure_explain_info()
@@ -186,9 +193,16 @@ async def _run_sequential_output_rails(
         action_result = await rails.runtime.action_dispatcher.execute_action(action_name, params)
         rails._explain_info = rails._ensure_explain_info()
 
-        # Use the mapping to decide if the result indicates blocked content.
         action_func = rails.runtime.action_dispatcher.get_action(action_name)
-        if is_output_blocked(action_result, action_func):
+        result, status = _sequential_action_result(action_result)
+        if status != "success":
+            error_message = f"Action {action_name} failed with status: {status}"
+            log.error(error_message)
+            yield _internal_rail_error(flow_id, error_message)
+            return
+
+        # Use the mapping to decide if the result indicates blocked content.
+        if is_output_blocked(result, action_func):
             yield _blocked_output_error(flow_id)
             return
 
@@ -320,6 +334,17 @@ def _internal_rail_error(flow_id: str, error_message: str) -> str:
         }
     }
     return json.dumps(error_data)
+
+
+def _sequential_action_result(action_result: Any) -> tuple[Any, str]:
+    if (
+        isinstance(action_result, tuple)
+        and len(action_result) == 2
+        and isinstance(action_result[1], str)
+        and action_result[1] in {"success", "failed"}
+    ):
+        return action_result
+    return action_result, "success"
 
 
 def _parallel_stop_error(stop_event: dict) -> str:

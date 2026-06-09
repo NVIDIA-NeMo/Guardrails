@@ -298,7 +298,7 @@ async def test_output_rails_stream_yields_block_error_for_sequential_rails(monke
 
 
 @pytest.mark.asyncio
-async def test_output_rails_stream_uses_config_stream_first_when_explicit_false(monkeypatch):
+async def test_output_rails_stream_honors_explicit_stream_first_false(monkeypatch):
     _patch_buffer_strategy(
         monkeypatch,
         [ChunkBatch(processing_context=["blocked"], user_output_chunks=["blocked"])],
@@ -316,9 +316,8 @@ async def test_output_rails_stream_uses_config_stream_first_when_explicit_false(
         )
     )
 
-    assert len(chunks) == 2
-    assert chunks[0] == "blocked"
-    assert json.loads(chunks[1])["error"]["code"] == "content_blocked"
+    assert len(chunks) == 1
+    assert json.loads(chunks[0])["error"]["code"] == "content_blocked"
 
 
 @pytest.mark.asyncio
@@ -359,7 +358,7 @@ async def test_output_rails_stream_closes_external_generator_when_consumer_close
 
 
 @pytest.mark.asyncio
-async def test_output_rails_stream_continues_for_sequential_action_failure(monkeypatch):
+async def test_output_rails_stream_yields_internal_error_for_sequential_action_failure(monkeypatch):
     _patch_buffer_strategy(
         monkeypatch,
         [ChunkBatch(processing_context=["unsafe"], user_output_chunks=["unsafe"])],
@@ -376,7 +375,15 @@ async def test_output_rails_stream_continues_for_sequential_action_failure(monke
         )
     )
 
-    assert chunks == ["unsafe"]
+    assert len(chunks) == 1
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": "Internal error in self check output rail: Action self_check_output failed with status: failed",
+            "type": "internal_error",
+            "param": "self check output",
+            "code": "rail_execution_failure",
+        }
+    }
     assert rails._explain_info == {"ensured": 1}
 
 
@@ -437,7 +444,7 @@ async def test_output_rails_stream_yields_parallel_stop_event_error(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_output_rails_stream_continues_for_parallel_action_failure(monkeypatch):
+async def test_output_rails_stream_yields_internal_error_for_parallel_action_failure(monkeypatch):
     _patch_buffer_strategy(
         monkeypatch,
         [ChunkBatch(processing_context=["unsafe"], user_output_chunks=["unsafe"])],
@@ -454,12 +461,19 @@ async def test_output_rails_stream_continues_for_parallel_action_failure(monkeyp
         )
     )
 
-    assert chunks == ["unsafe"]
-    assert rails._explain_info == {"ensured": 1}
+    assert len(chunks) == 1
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": "Internal error in output rails rail: Parallel rails execution failed with status: failed",
+            "type": "internal_error",
+            "param": "output rails",
+            "code": "rail_execution_failure",
+        }
+    }
 
 
 @pytest.mark.asyncio
-async def test_output_rails_stream_continues_for_parallel_exception(monkeypatch):
+async def test_output_rails_stream_yields_internal_error_for_parallel_exception(monkeypatch):
     _patch_buffer_strategy(
         monkeypatch,
         [ChunkBatch(processing_context=["unsafe"], user_output_chunks=["unsafe"])],
@@ -476,5 +490,12 @@ async def test_output_rails_stream_continues_for_parallel_exception(monkeypatch)
         )
     )
 
-    assert chunks == ["unsafe"]
-    assert rails._explain_info == {"ensured": 1}
+    assert len(chunks) == 1
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": "Internal error in output rails rail: Error in parallel rail execution: parallel boom",
+            "type": "internal_error",
+            "param": "output rails",
+            "code": "rail_execution_failure",
+        }
+    }

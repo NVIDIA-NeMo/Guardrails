@@ -326,39 +326,27 @@ async def test_generation_token_stream_pushes_error_payload_when_generation_fail
 
 
 @pytest.mark.asyncio
-async def test_generation_token_stream_waits_for_generation_when_consumer_closes_early():
+async def test_generation_token_stream_cancels_generation_when_consumer_closes_early():
     rails = SlowFakeRails()
     stream = generation_token_stream(rails, messages=[{"role": "user", "content": "Hi"}])
 
     assert await stream.__anext__() == "hello"
-    close_task = asyncio.create_task(cast(Any, stream).aclose())
+    await asyncio.wait_for(cast(Any, stream).aclose(), timeout=1)
+    await asyncio.wait_for(rails.cancelled.wait(), timeout=1)
     await asyncio.sleep(0)
 
-    assert not close_task.done()
-    assert not rails.cancelled.is_set()
-
-    rails.release.set()
-    await asyncio.wait_for(close_task, timeout=1)
-
-    assert not rails.cancelled.is_set()
     assert cast(set, getattr(rails, "_active_tasks")) == set()
 
 
 @pytest.mark.asyncio
-async def test_generation_token_stream_waits_for_generation_after_output_rail_error():
+async def test_generation_token_stream_cancels_generation_after_output_rail_error():
     rails = BlockingOutputRailsFakeRails()
     stream = generation_token_stream(rails, messages=[{"role": "user", "content": "Hi"}])
 
-    collect_task = asyncio.create_task(_collect(stream))
+    chunks = await asyncio.wait_for(_collect(stream), timeout=1)
+    await asyncio.wait_for(rails.cancelled.wait(), timeout=1)
     await asyncio.sleep(0)
-
-    assert not collect_task.done()
-    assert not rails.cancelled.is_set()
-
-    rails.release.set()
-    chunks = await asyncio.wait_for(collect_task, timeout=1)
 
     assert len(chunks) == 1
     assert json.loads(chunks[0])["error"]["code"] == "content_blocked"
-    assert not rails.cancelled.is_set()
     assert cast(set, getattr(rails, "_active_tasks")) == set()
