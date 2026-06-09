@@ -13,16 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Tests for GitHub issue #936: NeMo-Guardrails responses breaking on line breaks.
-
-When an LLM response contains newlines within a `bot say "..."` quoted string
-(e.g., multi-paragraph answers), the `get_first_bot_action()` function must
-collect the full multi-line string and convert actual newlines to `\\n` escape
-sequences so the result is a valid single-line Colang statement.
-
-See: https://github.com/NVIDIA/NeMo-Guardrails/issues/936
-"""
+"""Tests for multi-line bot say quoted string handling in get_first_bot_action."""
 
 from nemoguardrails.actions.llm.utils import _has_unclosed_quote, get_first_bot_action
 
@@ -52,8 +43,8 @@ class TestHasUnclosedQuote:
         assert _has_unclosed_quote('""') is False
 
 
-class TestGetFirstBotActionLineBreakFix:
-    """Tests verifying the fix for issue #936."""
+class TestGetFirstBotActionMultiline:
+    """Tests for multi-line quoted string handling in get_first_bot_action."""
 
     def test_single_line_bot_action(self):
         """Single-line bot say continues to work correctly."""
@@ -78,7 +69,6 @@ class TestGetFirstBotActionLineBreakFix:
         result = get_first_bot_action(lines)
 
         assert result is not None
-        # The full content is preserved with newlines escaped
         expected = (
             "bot say \"Let's break down the differences."
             "\\n"
@@ -89,10 +79,8 @@ class TestGetFirstBotActionLineBreakFix:
             '**Price:** The RTX 4090 has a higher price tag."'
         )
         assert result == expected
-        # All paragraphs are present
         assert "Performance" in result
         assert "Price" in result
-        # The closing quote is present
         assert result.endswith('"')
 
     def test_multiline_response_produces_valid_colang(self):
@@ -106,16 +94,13 @@ class TestGetFirstBotActionLineBreakFix:
         lines = llm_completion.splitlines()
         bot_action = get_first_bot_action(lines)
 
-        # Construct the flow body the same way generation.py does (line 712)
         bot_intent = "bot respond provide information about NVIDIA GPU comparison"
         flow_name = f"_dynamic_test {bot_intent}"
         flow_body = f'@meta(bot_intent="{bot_intent}")\n' + f"flow {flow_name}\n" + f"  {bot_action}"
 
-        # The flow body should be valid single-line Colang
         assert "\\n" in flow_body
         assert flow_body.endswith('"')
 
-        # Parse as Colang - should succeed now
         from nemoguardrails.colang.v2_x.lang.parser import parse_colang_file
 
         parsed = parse_colang_file(
@@ -123,13 +108,12 @@ class TestGetFirstBotActionLineBreakFix:
             content=flow_body,
             include_source_mapping=True,
         )
-        # Parsing succeeds without exception
         assert parsed is not None
         assert "flows" in parsed
         assert len(parsed["flows"]) == 1
 
-    def test_full_issue_reproduction(self):
-        """Full reproduction using the exact pattern from the issue's output logs."""
+    def test_full_multiline_reproduction(self):
+        """Full reproduction using a multi-paragraph LLM response."""
         llm_completion = (
             "user intent: user asked about NVIDIA GPU comparison\n"
             "bot intent: bot respond provide information about NVIDIA GPU comparison\n"
@@ -150,16 +134,12 @@ class TestGetFirstBotActionLineBreakFix:
         lines = llm_completion.splitlines()
         result = get_first_bot_action(lines)
 
-        # All paragraphs are preserved
         assert "Price per Performance" in result
         assert "Performance" in result
         assert "Price" in result
         assert "$1,599" in result
-        # Properly closed quote
         assert result.endswith('"')
-        # Newlines are escaped
         assert "\\n" in result
-        # No actual newlines in the result
         assert "\n" not in result
 
     def test_single_paragraph_response_unchanged(self):
@@ -179,7 +159,6 @@ class TestGetFirstBotActionLineBreakFix:
         assert result.startswith('bot say "The main difference')
         assert result.endswith('lower cost."')
         assert "80-90%" in result
-        # No newline escaping needed for single-line responses
         assert "\\n" not in result
 
     def test_bot_action_with_trailing_text_after_quote(self):
@@ -206,8 +185,6 @@ class TestGetFirstBotActionLineBreakFix:
             'bot action: bot say "Second action."',
         ]
         result = get_first_bot_action(lines)
-        # Multiple bot actions are joined with actual newlines (not escaped),
-        # because these newlines are between separate actions, not inside a quote.
         assert 'bot say "First action."' in result
         assert 'bot say "Second action."' in result
 

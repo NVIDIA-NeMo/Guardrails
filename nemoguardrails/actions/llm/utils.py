@@ -911,20 +911,8 @@ def get_first_bot_intent(strings: List[str]) -> Optional[str]:
 
 
 def _has_unclosed_quote(s: str) -> bool:
-    """Check if a string contains an unclosed double quote.
-
-    Tracks whether we are inside a double-quoted string by scanning
-    character by character, skipping escaped quotes (``\\\"``)."""
-    in_quote = False
-    i = 0
-    while i < len(s):
-        if s[i] == "\\" and i + 1 < len(s) and s[i + 1] == '"':
-            i += 2  # Skip escaped quote
-            continue
-        if s[i] == '"':
-            in_quote = not in_quote
-        i += 1
-    return in_quote
+    """Check if a string has an unclosed double quote (ignoring escaped quotes)."""
+    return s.replace('\\"', "").count('"') % 2 == 1
 
 
 def get_first_bot_action(strings: List[str]) -> Optional[str]:
@@ -932,12 +920,8 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
     action_started = False
     action: str = ""
     for string in strings:
-        # If we're inside an unclosed quoted string (e.g. a multi-paragraph
-        # bot say "..." that spans multiple lines), keep collecting lines
-        # until the closing quote is found.  We join with escaped newlines
-        # so the result stays a valid single-line Colang statement.
-        # The Colang runtime (via simpleeval) interprets \n as a real
-        # newline, so the rendered bot message preserves the line breaks.
+        # Collect continuation lines for multi-line quoted strings,
+        # joining with escaped newlines to keep the Colang statement valid.
         if action and _has_unclosed_quote(action):
             action += "\\n" + string
             if _has_unclosed_quote(action):
