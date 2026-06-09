@@ -251,7 +251,7 @@ async def layer1_check_domain_hallucination(
         llm_call_info_var.set(LLMCallInfo(task=task_name))
 
         llm_response = await llm_call_func(
-            config.model,
+            llm,
             prompt,
             stop=stop,
             llm_params={
