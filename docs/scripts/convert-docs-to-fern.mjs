@@ -99,7 +99,34 @@ function stripSpdxComment(body) {
 }
 
 function convertHtmlComments(body) {
-  return body.replace(/<!--([\s\S]*?)-->/g, (_match, comment) => `{/*${comment}*/}`);
+  return mapOutsideFences(body, (line) =>
+    line.replace(/<!--([\s\S]*?)-->/g, (_match, comment) => `{/*${comment}*/}`),
+  );
+}
+
+function mapOutsideFences(body, transform) {
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLength = 0;
+  return body
+    .split("\n")
+    .map((line) => {
+      const fence = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+      if (fence) {
+        const char = fence[1][0];
+        const length = fence[1].length;
+        if (inFence && char === fenceChar && length >= fenceLength && fence[2].trim() === "") {
+          inFence = false;
+        } else if (!inFence) {
+          inFence = true;
+          fenceChar = char;
+          fenceLength = length;
+        }
+        return line;
+      }
+      return inFence ? line : transform(line);
+    })
+    .join("\n");
 }
 
 function resolveInclude(sourcePath, includeTarget, optionsText) {
@@ -297,30 +324,34 @@ function routeForLink(sourcePath, target) {
 }
 
 function convertLinks(sourcePath, body) {
-  return body.replace(
-    /(!?)\[([^\]]*)\]\(([^)\s]+)(\s+["'][^)"']*["'])?\)/g,
-    (match, bang, label, target, title) => {
-      if (
-        bang ||
-        target.startsWith("http://") ||
-        target.startsWith("https://") ||
-        target.startsWith("mailto:") ||
-        target.startsWith("#")
-      ) {
-        return match;
-      }
-      return `[${label}](${routeForLink(sourcePath, target)})${title ?? ""}`;
-    },
+  return mapOutsideFences(body, (line) =>
+    line.replace(
+      /(!?)\[([^\]]*)\]\(([^)\s]+)(\s+["'][^)"']*["'])?\)/g,
+      (match, bang, label, target, title) => {
+        if (
+          bang ||
+          target.startsWith("http://") ||
+          target.startsWith("https://") ||
+          target.startsWith("mailto:") ||
+          target.startsWith("#")
+        ) {
+          return match;
+        }
+        return `[${label}](${routeForLink(sourcePath, target)})${title ?? ""}`;
+      },
+    ),
   );
 }
 
 function convertSphinxReferences(body) {
-  return body
-    .replaceAll(/<pr:(\d+)>/g, "[PR #$1](https://github.com/NVIDIA/NeMo-Guardrails/pull/$1)")
-    .replaceAll(
-      /<issue:(\d+)>/g,
-      "[Issue #$1](https://github.com/NVIDIA/NeMo-Guardrails/issues/$1)",
-    );
+  return mapOutsideFences(body, (line) =>
+    line
+      .replaceAll(/<pr:(\d+)>/g, "[PR #$1](https://github.com/NVIDIA/NeMo-Guardrails/pull/$1)")
+      .replaceAll(
+        /<issue:(\d+)>/g,
+        "[Issue #$1](https://github.com/NVIDIA/NeMo-Guardrails/issues/$1)",
+      ),
+  );
 }
 
 function convertAngleAutolinks(body) {
@@ -351,7 +382,9 @@ function convert(sourcePath) {
   body = convertSphinxReferences(body);
   body = convertAngleAutolinks(body);
   body = convertHtmlComments(body);
-  body = body.replace(/^\(([A-Za-z0-9_-]+)\)=\s*$/gm, '<a id="$1"></a>');
+  body = mapOutsideFences(body, (line) =>
+    line.replace(/^\(([A-Za-z0-9_-]+)\)=\s*$/, '<a id="$1"></a>'),
+  );
   body = body.replace(/\n{3,}/g, "\n\n").trimEnd();
   return `${frontmatterFor(sourcePath, metadata, rawBody)}${body}\n`;
 }
