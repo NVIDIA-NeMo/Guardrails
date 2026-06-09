@@ -112,11 +112,12 @@ Use the following targets for common Fern documentation tasks:
 | `make docs-fern-live` | Serve the Fern docs locally. |
 | `make docs-fern-preview-watch` | Watch local changes and publish a Fern preview for the current branch. |
 | `make docs-fern-generate-sdk` | Regenerate the Python SDK reference pages with Fern's library docs generator. |
-| `make docs-fern-publish-public` | Publish the Fern docs to the public instance. |
+| `make docs-fern-publish-staging` | Publish the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails). |
+| `make docs-fern-publish-public` | Publish the Fern docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails), which is used for the [public documentation site](https://docs.nvidia.com/nemo/guardrails). |
 
 For pull requests that modify documentation, the docs build workflow checks the Fern docs and publishes a PR preview for same-repository branches. When docs-related changes land on `develop`, including by merging a documentation pull request, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
 
-To publish the staged docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails), run `make docs-fern-publish-public`.
+Publishing the Fern docs to the public instance is done by the maintainers.
 
 The Fern CLI version is pinned in `fern/fern.config.json`. Do not run `fern upgrade` as part of normal documentation changes.
 
@@ -170,7 +171,7 @@ To get started quickly, follow the steps below.
    poetry --version
    ```
 
-6. Install the dev dependencies:
+1. Install the dev dependencies:
 
    ```bash
    poetry install --with dev
@@ -179,7 +180,7 @@ To get started quickly, follow the steps below.
    The preceding command installs pre-commit, pytest, and other development tools.
    Specify `--with dev,docs` to add the dependencies for building the documentation.
 
-7. If needed, you can install extra dependencies as below:
+2. If needed, you can install extra dependencies as below:
 
     ```bash
     poetry install --extras "openai tracing"
@@ -196,7 +197,7 @@ To get started quickly, follow the steps below.
 
 > **Note**: `dev` is not part of the extras but it is an optional dependency group, so you need to install it as instructed above.
 
-7. Set up pre-commit hooks:
+1. Set up pre-commit hooks:
 
    ```
    pre-commit install
@@ -204,7 +205,7 @@ To get started quickly, follow the steps below.
 
    This will ensure that the pre-commit checks, including Black, are run before each commit.
 
-8. Run the tests:
+2. Run the tests:
 
    ```bash
    poetry run pytest
@@ -365,7 +366,7 @@ To install a dependency using Poetry without adding it to the `pyproject.toml` f
 
 > **Note**: If you don't want to activate the virtual environment, you can use `poetry run` to run commands within the virtual environment.
 
-2. **Install the package using `pip`**:
+1. **Install the package using `pip`**:
    - Once inside the virtual environment, you can use `pip` to install the package without affecting the `pyproject.toml`. For example:
 
      ```bash
