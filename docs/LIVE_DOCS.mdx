@@ -57,6 +57,12 @@ This regenerates the SDK reference, normalizes it, and runs `fern check`.
 
 The docs build workflow checks Fern docs on documentation pull requests and publishes a Fern preview for same-repository branches. When docs-related changes land on `develop`, including by merging a documentation pull request, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
 
+To publish the staged docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails), run:
+
+```bash
+make docs-fern-publish-public
+```
+
 ### Direct Fern Command
 
 ```bash
