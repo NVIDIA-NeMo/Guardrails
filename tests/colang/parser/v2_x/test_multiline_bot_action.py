@@ -15,7 +15,11 @@
 
 """Tests for multi-line bot say quoted string handling in get_first_bot_action."""
 
-from nemoguardrails.actions.llm.utils import _has_unclosed_quote, get_first_bot_action
+from nemoguardrails.actions.llm.utils import (
+    _MAX_QUOTE_CONTINUATION_LINES,
+    _has_unclosed_quote,
+    get_first_bot_action,
+)
 
 
 class TestHasUnclosedQuote:
@@ -201,3 +205,71 @@ class TestGetFirstBotActionMultiline:
         ]
         result = get_first_bot_action(lines)
         assert result == ""
+
+    def test_permanently_unclosed_quote_has_safety_bound(self):
+        """Permanently unclosed quote stops collecting after max continuation lines."""
+        lines = ['bot action: bot say "This never closes'] + [
+            f"line {i}" for i in range(_MAX_QUOTE_CONTINUATION_LINES + 10)
+        ]
+        result = get_first_bot_action(lines)
+        # Should not absorb all lines — safety bound kicks in
+        assert result is not None
+        assert f"line {_MAX_QUOTE_CONTINUATION_LINES + 5}" not in result
+
+    def test_unclosed_quote_does_not_absorb_subsequent_actions(self):
+        """Unclosed quote with safety bound doesn't consume later bot actions."""
+        lines = (
+            ['bot action: bot say "Never closed']
+            + [f"line {i}" for i in range(_MAX_QUOTE_CONTINUATION_LINES + 5)]
+            + ['bot action: bot say "Next action"']
+        )
+        result = get_first_bot_action(lines)
+        assert "Next action" not in result
+
+    def test_whitespace_continuation_lines(self):
+        """Whitespace-only lines inside a quoted string are preserved."""
+        lines = [
+            'bot action: bot say "Hello',
+            "   ",
+            'world"',
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "Hello\\n   \\nworld"'
+
+    def test_closing_quote_on_own_line(self):
+        """A closing quote on its own line properly closes the string."""
+        lines = [
+            'bot action: bot say "Hello',
+            '"',
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "Hello\\n"'
+        assert not _has_unclosed_quote(result)
+
+    def test_multiline_with_leading_and_in_content(self):
+        """Multi-line content starting with '  and' should not be double-appended."""
+        lines = [
+            'bot action: bot say "You can choose option A',
+            '  and option B"',
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "You can choose option A\\n  and option B"'
+        assert result.count("and option B") == 1, "Content should not be duplicated"
+
+    def test_multiline_with_leading_or_in_content(self):
+        """Multi-line content starting with '  or' should not be double-appended."""
+        lines = [
+            'bot action: bot say "Choose option A',
+            '  or option B"',
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "Choose option A\\n  or option B"'
+        assert result.count("or option B") == 1, "Content should not be duplicated"
+
+    def test_escaped_backslash_before_closing_quote(self):
+        """Escaped backslash before closing quote is correctly treated as closed."""
+        # \\\\" means escaped backslash + real closing quote
+        assert _has_unclosed_quote('bot say "path C:\\\\"') is False
+        assert _has_unclosed_quote('bot say "test\\\\"') is False
+        # But \\\" is still an escaped quote (unclosed)
+        assert _has_unclosed_quote('bot say "test\\"') is True
