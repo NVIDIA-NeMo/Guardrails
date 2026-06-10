@@ -26,7 +26,7 @@ def test_config_preparation_startup_module_exports_public_helpers():
     ]
 
 
-def test_prepare_llmrails_config_loads_colang_flows_each_time_in_place():
+def test_prepare_llmrails_config_deduplicates_loaded_colang_flows():
     config = RailsConfig(models=[])
 
     first = prepare_llmrails_config(
@@ -41,7 +41,30 @@ def test_prepare_llmrails_config_loads_colang_flows_each_time_in_place():
     assert first is config
     assert second is config
     assert first_flow_count > 0
-    assert len(config.flows) > first_flow_count
+    assert len(config.flows) == first_flow_count
+
+
+def test_prepare_llmrails_config_can_reload_flows_after_caller_clears_them():
+    config = RailsConfig(models=[])
+
+    prepare_llmrails_config(config=config)
+    flow_count = len(config.flows)
+    config.flows = []
+
+    prepare_llmrails_config(config=config)
+
+    assert len(config.flows) == flow_count
+
+
+def test_prepare_llmrails_config_copy_does_not_duplicate_loaded_flows():
+    config = RailsConfig(models=[])
+
+    prepare_llmrails_config(config=config)
+    flow_count = len(config.flows)
+    prepared = prepare_llmrails_config(config=config, in_place=False)
+
+    assert prepared is not config
+    assert len(prepared.flows) == flow_count
 
 
 def test_prepare_llmrails_config_marks_rail_flows_each_time():
