@@ -19,6 +19,8 @@ from nemoguardrails.rails.llm.options import (
     GenerationOptions,
     GenerationRailsOptions,
     GenerationResponse,
+    Tool,
+    ToolCallingOptions,
 )
 
 
@@ -242,3 +244,117 @@ def test_generation_response_with_all_fields():
     assert response.tool_calls == test_tool_calls
     assert response.reasoning_content == test_reasoning
     assert response.llm_output["token_usage"]["total_tokens"] == 100
+
+
+def test_tool_calling_options_parses_chat_completions_payload():
+    """A full OpenAI /chat/completions tool payload parses into typed models."""
+    options = ToolCallingOptions(
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather for a city.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                },
+            }
+        ],
+        tool_choice="auto",
+        parallel_tool_calls=True,
+    )
+
+    assert len(options.tools) == 1
+    assert options.tools[0].type == "function"
+    assert options.tools[0].function.name == "get_weather"
+    assert options.tools[0].function.parameters["required"] == ["city"]
+    assert options.tool_choice == "auto"
+    assert options.parallel_tool_calls is True
+
+
+@pytest.mark.parametrize("mode", ["none", "auto", "required"])
+def test_tool_calling_options_tool_choice_modes(mode):
+    """The string tool_choice modes are accepted."""
+    options = ToolCallingOptions(tool_choice=mode)
+    assert options.tool_choice == mode
+
+
+def test_tool_calling_options_named_tool_choice():
+    """A named tool choice parses into the nested /chat/completions shape."""
+    options = ToolCallingOptions(
+        tool_choice={"type": "function", "function": {"name": "get_weather"}},
+    )
+    assert options.tool_choice.type == "function"
+    assert options.tool_choice.function.name == "get_weather"
+
+
+def test_tool_calling_options_invalid_tool_choice_string_rejected():
+    """An unknown tool_choice string is rejected by the typed union."""
+    with pytest.raises(ValueError):
+        ToolCallingOptions(tool_choice="sometimes")
+
+
+def test_tool_function_requires_function_definition():
+    """A function-type tool without a function definition is rejected."""
+    with pytest.raises(ValueError):
+        Tool(type="function")
+
+
+def test_tool_allows_non_function_type_for_responses_forward_compat():
+    """Non-function tool types and unknown fields are preserved for future /responses support."""
+    tool = Tool.model_validate({"type": "web_search_preview", "search_context_size": "high"})
+
+    assert tool.type == "web_search_preview"
+    assert tool.function is None
+
+    dumped = tool.model_dump(exclude_none=True)
+    assert dumped["type"] == "web_search_preview"
+    assert dumped["search_context_size"] == "high"
+
+
+def test_tool_calling_options_round_trip_matches_chat_completions_body():
+    """model_dump(exclude_none=True) reproduces the /chat/completions request fragment verbatim."""
+    payload = {
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather for a city.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                },
+            }
+        ],
+        "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
+        "parallel_tool_calls": False,
+    }
+
+    options = ToolCallingOptions(**payload)
+    assert options.model_dump(exclude_none=True) == payload
+
+
+def test_generation_options_tool_calling_defaults_to_none():
+    """tool_calling is absent by default so existing behavior is unchanged."""
+    options = GenerationOptions()
+    assert options.tool_calling is None
+
+
+def test_generation_options_accepts_tool_calling_from_dict():
+    """GenerationOptions parses a nested tool_calling dict into ToolCallingOptions."""
+    options = GenerationOptions(
+        tool_calling={
+            "tools": [{"type": "function", "function": {"name": "lookup"}}],
+            "tool_choice": "required",
+        }
+    )
+
+    assert isinstance(options.tool_calling, ToolCallingOptions)
+    assert options.tool_calling.tools[0].function.name == "lookup"
+    assert options.tool_calling.tool_choice == "required"
