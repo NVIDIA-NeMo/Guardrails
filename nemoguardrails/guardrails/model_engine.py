@@ -39,7 +39,7 @@ from nemoguardrails.guardrails._http import (
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, UsageInfo
 
 log = logging.getLogger(__name__)
 
@@ -82,8 +82,12 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     """Convert a /v1/chat/completions response dict into an LLMResponse.
 
     Reasoning is read from ``message.reasoning_content`` when the provider
-    exposes it (NIM, DeepSeek-style). Tool calls are out of scope for this
-    PR series and are not currently surfaced.
+    exposes it (NIM, DeepSeek-style). Tool calls are parsed from
+    ``message.tool_calls`` (OpenAI shape) into ``LLMResponse.tool_calls`` via
+    ``ChatMessage.from_dict``, which normalizes JSON-string arguments into a
+    dict. ``content`` is ``None`` on a tool-call-only response and is
+    normalized to an empty string; a ``None`` content with no tool calls is
+    treated as a malformed response.
     """
     try:
         choice = response["choices"][0]
@@ -92,12 +96,18 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     except (KeyError, IndexError, TypeError) as exc:
         raise ValueError(f"Unexpected /v1/chat/completions response shape: {exc}") from exc
 
-    if not isinstance(content, str):
-        if content is None and message.get("tool_calls"):
-            raise ValueError(
-                "Tool-call-only responses are not yet supported by IORails (message contains tool_calls but no content)"
-            )
+    raw_tool_calls = message.get("tool_calls")
+
+    if content is None:
+        # A tool-call-only response legitimately carries content=None; a null
+        # content with no tool calls is malformed.
+        if not raw_tool_calls:
+            raise ValueError("Expected string content, got NoneType")
+        content = ""
+    elif not isinstance(content, str):
         raise ValueError(f"Expected string content, got {type(content).__name__}")
+
+    tool_calls = ChatMessage.from_dict(message).tool_calls if raw_tool_calls else None
 
     reasoning = message.get("reasoning_content") or None
 
@@ -106,6 +116,7 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     return LLMResponse(
         content=content,
         reasoning=reasoning,
+        tool_calls=tool_calls,
         model=response.get("model"),
         finish_reason=choice.get("finish_reason"),
         request_id=response.get("id"),

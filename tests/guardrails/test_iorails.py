@@ -26,8 +26,8 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.rails.llm.options import GenerationOptions, ToolCallingOptions
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -186,6 +186,105 @@ class TestGenerateAsync:
 
         with pytest.raises(RuntimeError, match="LLM internal error"):
             await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+
+class TestToolCalling:
+    """Test tool-call forwarding (request body) and return (assistant message)."""
+
+    @pytest.mark.asyncio
+    async def test_tool_calling_options_forwarded_to_model(self, iorails):
+        """tools / tool_choice / parallel_tool_calls from options.tool_calling reach model_call."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
+        options = GenerationOptions(
+            tool_calling=ToolCallingOptions(tools=[tool], tool_choice="auto", parallel_tool_calls=True)
+        )
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails.generate_async(messages, options=options)
+
+        iorails.engine_registry.model_call.assert_called_once_with(
+            "main", messages, tools=[tool], tool_choice="auto", parallel_tool_calls=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_calling_takes_precedence_over_llm_params(self, iorails):
+        """tool_calling overrides tools in llm_params while other llm_params are preserved."""
+        messages = [{"role": "user", "content": "hi"}]
+        options = GenerationOptions(
+            llm_params={"tools": [{"type": "function", "function": {"name": "old"}}], "temperature": 0.5},
+            tool_calling=ToolCallingOptions(tools=[{"type": "function", "function": {"name": "new"}}]),
+        )
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails.generate_async(messages, options=options)
+
+        iorails.engine_registry.model_call.assert_called_once_with(
+            "main", messages, tools=[{"type": "function", "function": {"name": "new"}}], temperature=0.5
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_returned_on_assistant_message(self, iorails):
+        """Tool calls from the model are serialized OpenAI-native (JSON-string arguments)."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [
+            ToolCall(
+                id="call_1",
+                type="function",
+                function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+            )
+        ]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        assert result["role"] == "assistant"
+        assert result["content"] is None
+        assert result["tool_calls"] == [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_output_rails_skipped_for_tool_call_only_response(self, iorails):
+        """A tool-call-only response (no text) skips the content output rails."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_not_called()
+        assert result["tool_calls"][0]["function"]["name"] == "f"
+
+    @pytest.mark.asyncio
+    async def test_text_with_tool_calls_runs_output_rails_and_returns_both(self, iorails):
+        """When a response has text and tool calls, output rails run on the text and both are returned."""
+        messages = [{"role": "user", "content": "hi"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="some text", tool_calls=tool_calls)
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "some text")
+        assert result["content"] == "some text"
+        assert result["tool_calls"][0]["function"]["name"] == "f"
 
 
 class TestIORailsLifecycle:

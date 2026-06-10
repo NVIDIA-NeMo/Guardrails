@@ -18,9 +18,10 @@ import secrets
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
-LLMMessage: TypeAlias = dict[str, str]  # e.g. {"role": "user", "content": "What can you do?"}
+# LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
+LLMMessage: TypeAlias = dict[str, Any]
 LLMMessages: TypeAlias = list[LLMMessage]
 
 

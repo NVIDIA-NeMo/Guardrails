@@ -1137,7 +1137,7 @@ class TestModelEngineChatCompletion:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """chat_completion() raises ModelEngineError for unsupported tool-calls"""
+        """content=None with no tool_calls is malformed; chat_completion() raises ModelEngineError."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
@@ -1146,8 +1146,8 @@ class TestModelEngineChatCompletion:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_raises_clearer_error_for_tool_call_only_response(self):
-        """Tool-call-only responses (content=None, tool_calls set) get a scope-specific error."""
+    async def test_parses_tool_call_only_response(self):
+        """Tool-call-only responses (content=None, tool_calls set) are parsed, not rejected."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(
             return_value={
@@ -1160,17 +1160,25 @@ class TestModelEngineChatCompletion:
                                 {
                                     "id": "call_abc",
                                     "type": "function",
-                                    "function": {"name": "calculate", "arguments": '{"expr":"2+2"}'},
+                                    "function": {"name": "calculate", "arguments": '{"expr": "2+2"}'},
                                 }
                             ],
-                        }
+                        },
+                        "finish_reason": "tool_calls",
                     }
                 ]
             }
         )
 
-        with pytest.raises(ModelEngineError, match="Tool-call-only responses are not yet supported"):
-            await engine.chat_completion([{"role": "user", "content": "Hi"}])
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_abc"
+        assert result.tool_calls[0].function.name == "calculate"
+        assert result.tool_calls[0].function.arguments == {"expr": "2+2"}
 
 
 class TestParseChatCompletion:
@@ -1211,27 +1219,118 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Expected string content"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
 
-    def test_raises_specific_error_for_tool_call_only_response(self):
-        """When content is None and tool_calls is set, raise a scope-specific error.
+    def test_parses_tool_calls_when_content_none(self):
+        """content=None with tool_calls parses the calls and normalizes content to ''.
 
-        OpenAI returns this shape for tool_choice='required'. Tool-call support is out of
-        scope for this PR series; the error message should make that clear rather than
-        suggesting malformed data.
+        OpenAI returns this shape for tool_choice='required'; arguments arrive as a JSON
+        string on the wire and are normalized into a dict.
         """
-        with pytest.raises(ValueError, match="Tool-call-only responses are not yet supported"):
-            _parse_chat_completion(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "role": "assistant",
-                                "content": None,
-                                "tool_calls": [{"id": "x", "type": "function", "function": {"name": "f"}}],
-                            }
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {"id": "x", "type": "function", "function": {"name": "f", "arguments": '{"a": 1}'}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "x"
+        assert result.tool_calls[0].function.name == "f"
+        assert result.tool_calls[0].function.arguments == {"a": 1}
+
+    def test_parses_tool_calls_alongside_text_content(self):
+        """A response may carry both text content and tool calls; both are surfaced."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Let me look that up.",
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "search", "arguments": "{}"}}
+                            ],
                         }
-                    ]
-                }
-            )
+                    }
+                ]
+            }
+        )
+        assert result.content == "Let me look that up."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "search"
+        assert result.tool_calls[0].function.arguments == {}
+
+    def test_parses_parallel_tool_calls(self):
+        """Multiple tool calls in one response are all parsed into the list, in order."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                },
+                                {
+                                    "id": "c2",
+                                    "type": "function",
+                                    "function": {"name": "get_time", "arguments": '{"city": "Paris"}'},
+                                },
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert [tc.function.name for tc in result.tool_calls] == ["get_weather", "get_time"]
+        assert [tc.id for tc in result.tool_calls] == ["c1", "c2"]
+
+    def test_reasoning_preserved_alongside_tool_calls(self):
+        """NIM-style responses carry reasoning_content together with tool calls."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "The user wants the weather.",
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.reasoning == "The user wants the weather."
+        assert result.content == ""
+        assert len(result.tool_calls) == 1
+
+    def test_text_response_has_no_tool_calls(self):
+        """A normal text response leaves tool_calls as None."""
+        result = _parse_chat_completion({"choices": [{"message": {"content": "hi"}}]})
+        assert result.tool_calls is None
 
 
 class TestParseChatCompletionChunk:
