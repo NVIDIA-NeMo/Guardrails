@@ -249,6 +249,8 @@ class StreamingHandler(AsyncIterator):
                         elif self.current_metadata:
                             chunk_dict["metadata"] = self.current_metadata.copy()
                         await self.queue.put(chunk_dict)
+                        if chunk is not END_OF_STREAM and "usage" in chunk_dict.get("metadata", {}):
+                            self.current_metadata.pop("usage", None)
                     else:
                         await self.queue.put(chunk)
 
