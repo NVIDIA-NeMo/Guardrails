@@ -30,9 +30,9 @@ rails:
     flows:
       - regex check input
       - self check input
+      - jailbreak detection model
       - content safety check input $model=content_safety
       - topic safety check input $model=topic_control
-      - jailbreak detection model
   output:
     flows:
       - regex check output
