@@ -231,6 +231,19 @@ interactions:
     assert cassette_request_jsons(cassette)[0]["model"] == "gpt-5.4-nano"
 
 
+def test_cassette_request_jsons_handles_null_interactions(tmp_path):
+    cassette = tmp_path / "example.yaml"
+    cassette.write_text(
+        """
+version: 1
+interactions:
+""",
+        encoding="utf-8",
+    )
+
+    assert cassette_request_jsons(cassette) == []
+
+
 def test_stream_payloads_from_body_skips_malformed_raw_sse_lines():
     body = {"string": 'data: not-json\n\ndata: {"choices":[]}\n\ndata: [DONE]\n\n'}
 

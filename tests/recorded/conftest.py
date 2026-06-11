@@ -125,7 +125,7 @@ def _scrub_json(value: Any, *, normalize_response_metadata: bool = False) -> Any
         return [
             _scrub_json(
                 item,
-                normalize_response_metadata=False,
+                normalize_response_metadata=normalize_response_metadata,
             )
             for item in value
         ]
