@@ -1,7 +1,7 @@
 name: Refactor Proposal
 description: Propose a maintainer-led refactor for discussion
 title: "refactor: "
-labels: ["enhancement", "status: needs triage"]
+labels: ["refactoring", "status: needs triage"]
 body:
   - type: markdown
     attributes:

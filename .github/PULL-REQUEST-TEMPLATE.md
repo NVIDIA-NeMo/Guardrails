@@ -20,8 +20,8 @@
 
 ## AI Assistance
 
-<!-- If AI tools helped create or substantially modify this PR, disclose the tool
-  used and the extent of assistance. If not applicable, write "Not used." -->
+- [ ] No AI tools were used.
+- [ ] AI tools were used; a human reviewed and can explain every change (tool: ___).
 
 ## Checklist
 
@@ -33,5 +33,4 @@
 - [ ] I've noted any verification beyond CI and any checks I couldn't run.
 - [ ] I did not update generated changelog files manually.
 - [ ] I addressed all CodeRabbit, Greptile, and other review comments, or replied with why no change is needed.
-- [ ] If AI tools assisted this contribution, I reviewed and edited their output and can explain every change.
 - [ ] @mentions of the person or team responsible for reviewing proposed changes.
