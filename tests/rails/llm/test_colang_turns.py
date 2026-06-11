@@ -23,12 +23,12 @@ import pytest
 from nemoguardrails.context import llm_stats_var, streaming_handler_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.rails.llm import llmrails as llmrails_module
-from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.runtime.colang_turns import (
+from nemoguardrails.rails.llm.colang_turns.colang_turns import (
     generate_colang_events,
     process_colang_events,
     run_colang_turn,
 )
+from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.streaming import END_OF_STREAM
 
 

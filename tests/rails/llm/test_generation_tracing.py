@@ -17,8 +17,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from nemoguardrails.rails.llm.generation import generation_tracing
-from nemoguardrails.rails.llm.generation.generation_tracing import (
+from nemoguardrails.rails.llm.generation import tracing as generation_tracing
+from nemoguardrails.rails.llm.generation.tracing import (
     export_generation_trace,
     prepare_generation_tracing,
     restore_generation_trace_log,
@@ -35,6 +35,7 @@ from nemoguardrails.rails.llm.options import (
 def test_generation_tracing_exports():
     assert generation_tracing.__all__ == [
         "GenerationTracingState",
+        "create_startup_tracing_adapters",
         "export_generation_trace",
         "prepare_generation_tracing",
         "restore_generation_trace_log",

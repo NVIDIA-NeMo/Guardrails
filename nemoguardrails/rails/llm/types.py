@@ -177,7 +177,7 @@ class ConversationEventSurface(HasConfig, HasEventsHistoryCache, Protocol):
 
 
 class ColangTurnSurface(HasConfig, HasRuntime, HasVerbose, Protocol):
-    """Surface used by ``runtime.colang_turns`` to run a Colang turn."""
+    """Surface used by ``colang_turns.colang_turns`` to run a Colang turn."""
 
 
 class StandardGenerationSurface(ConversationEventSurface, ColangTurnSurface, HasExplainInfo, HasLogAdapters, Protocol):

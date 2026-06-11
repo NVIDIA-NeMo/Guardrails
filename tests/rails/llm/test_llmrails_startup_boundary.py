@@ -18,8 +18,8 @@ from types import ModuleType, SimpleNamespace
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.rails.llm import llmrails
 from nemoguardrails.rails.llm.config import RailsConfig, TracingConfig
-from nemoguardrails.rails.llm.startup.embedding_search import DEFAULT_EMBEDDING_ENGINE, DEFAULT_EMBEDDING_MODEL
-from nemoguardrails.rails.llm.startup.tracing import create_startup_tracing_adapters
+from nemoguardrails.rails.llm.embedding.embedding_search import DEFAULT_EMBEDDING_ENGINE, DEFAULT_EMBEDDING_MODEL
+from nemoguardrails.rails.llm.generation.tracing import create_startup_tracing_adapters
 
 
 class RuntimeWithRegistries:

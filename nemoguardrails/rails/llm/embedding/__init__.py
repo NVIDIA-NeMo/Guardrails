@@ -13,16 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
-
-__all__ = ["create_startup_tracing_adapters"]
-
-
-def create_startup_tracing_adapters(config: RailsConfig) -> list[InteractionLogAdapter] | None:
-    if not config.tracing:
-        return None
-
-    from nemoguardrails.tracing import create_log_adapters
-
-    return create_log_adapters(config.tracing)
+__all__ = []

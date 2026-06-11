@@ -18,15 +18,15 @@ import pytest
 from nemoguardrails.colang.v1_0.runtime.runtime import RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.exceptions import InvalidRailsConfigurationError
-from nemoguardrails.rails.llm import runtime as runtime_package
+from nemoguardrails.rails.llm import colang_turns as colang_turns_package
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.runtime import colang_runtime
-from nemoguardrails.rails.llm.runtime.colang_runtime import runtime_for_colang_version
+from nemoguardrails.rails.llm.startup import colang_runtime
+from nemoguardrails.rails.llm.startup.colang_runtime import runtime_for_colang_version
 
 
-def test_runtime_package_has_no_star_exports():
-    assert runtime_package.__all__ == []
+def test_colang_turns_package_has_no_star_exports():
+    assert colang_turns_package.__all__ == []
 
 
 def test_runtime_for_colang_version_uses_v1_runtime():

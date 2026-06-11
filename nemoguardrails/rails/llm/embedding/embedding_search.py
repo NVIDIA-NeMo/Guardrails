@@ -16,10 +16,10 @@
 """Embedding search provider setup."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, Optional, Type
 
 from nemoguardrails.embeddings.index import EmbeddingsIndex
-from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
+from nemoguardrails.rails.llm.config import EmbeddingSearchProvider
 
 DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 DEFAULT_EMBEDDING_ENGINE = "FastEmbed"
@@ -28,7 +28,6 @@ __all__ = [
     "DEFAULT_EMBEDDING_ENGINE",
     "DEFAULT_EMBEDDING_MODEL",
     "EmbeddingSearchState",
-    "apply_embedding_model_config",
     "get_embedding_search_provider_instance",
 ]
 
@@ -74,37 +73,6 @@ class EmbeddingSearchState:
             default_embedding_params=self.default_params,
             esp_config=esp_config,
         )
-
-
-def apply_embedding_model_config(
-    config: RailsConfig,
-    default_embedding_model: Optional[str],
-    default_embedding_engine: Optional[str],
-    default_embedding_params: Dict[str, Any],
-) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
-    """Apply an embeddings model config to the default embedding search settings."""
-    for model in config.models:
-        if model.type != "embeddings":
-            continue
-
-        default_embedding_model = model.model
-        default_embedding_engine = model.engine
-        default_embedding_params = model.parameters or {}
-
-        for esp in [
-            config.core.embedding_search_provider,
-            config.knowledge_base.embedding_search_provider,
-        ]:
-            if esp.name != "default":
-                continue
-            if "embedding_model" not in esp.parameters and model.model is not None:
-                esp.parameters["embedding_model"] = model.model
-            if "embedding_engine" not in esp.parameters and model.engine is not None:
-                esp.parameters["embedding_engine"] = model.engine
-
-        break
-
-    return default_embedding_model, default_embedding_engine, default_embedding_params
 
 
 def get_embedding_search_provider_instance(
