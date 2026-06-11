@@ -13,32 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
-from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
-
-
-class SimpleEmbeddingSearchProvider(EmbeddingsIndex):
-    @property
-    def embedding_size(self):
-        return 0
-
-    def __init__(self):
-        self.items: List[IndexItem] = []
-
-    async def add_item(self, item: IndexItem):
-        self.items.append(item)
-
-    async def add_items(self, items: List[IndexItem]):
-        self.items.extend(items)
-
-    async def build(self):
-        return None
-
-    async def search(self, text: str, max_results: int, threshold=None):
-        normalized = text.lower()
-        matches = [item for item in self.items if item.text.lower() in normalized or normalized in item.text.lower()]
-        return matches[:max_results] or self.items[:max_results]
+from tests.recorded.rails.public_api.simple_embedding_provider import SimpleEmbeddingSearchProvider
 
 
 def init(app):
