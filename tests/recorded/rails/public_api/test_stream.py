@@ -144,8 +144,8 @@ async def test_stream_async_matches_recorded_chat_completion_metadata(
         assert content == expected.content
 
         usage_chunks = [chunk for chunk in chunks if chunk.get("metadata", {}).get("usage")]
-        assert usage_chunks
-        assert usage_chunks[-1]["metadata"]["usage"] == {
+        assert len(usage_chunks) == 1
+        assert usage_chunks[0]["metadata"]["usage"] == {
             "input_tokens": expected.usage["input_tokens"],
             "output_tokens": expected.usage["output_tokens"],
             "total_tokens": expected.usage["total_tokens"],
@@ -170,7 +170,7 @@ async def test_stream_async_matches_recorded_chat_completion_metadata(
                 {"text": " 👋"},
                 {"text": ""},
                 {"text": "", "usage": {"input_tokens": 13, "output_tokens": 8, "total_tokens": 21}},
-                {"text": "", "usage": {"input_tokens": 13, "output_tokens": 8, "total_tokens": 21}},
+                {"text": ""},
             ],
             "errors": [],
         }
