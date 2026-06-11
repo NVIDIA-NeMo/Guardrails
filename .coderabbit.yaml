@@ -83,4 +83,9 @@ reviews:
     # Review draft PRs/MRs.
     # Default: false
     drafts: false
+    # Only auto-review PRs labeled `status: triaged` (auto-applied for maintainers
+    # / NVIDIA-NeMo org members; a maintainer adds it after triage for external
+    # contributors). Gates review noise on agent/external PRs.
+    labels:
+      - "status: triaged"
     # Base branches (other than the default branch) to review. Accepts regex patterns. Use '.*' to match all branches.
