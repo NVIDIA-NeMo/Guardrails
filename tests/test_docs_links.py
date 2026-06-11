@@ -14,10 +14,13 @@
 # limitations under the License.
 
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECK_DOCS_LINKS = REPO_ROOT / "scripts" / "check-docs-links.sh"
@@ -38,6 +41,7 @@ def run_link_check(file_path: Path, env: dict[str, str] | None = None) -> subpro
     )
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="bash script not available on Windows")
 def test_reports_broken_local_markdown_links_with_source_line_numbers(
     tmp_path: Path,
 ) -> None:
@@ -67,6 +71,7 @@ def test_reports_broken_local_markdown_links_with_source_line_numbers(
     assert "inside-code-fence.md" not in output
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="bash script not available on Windows")
 def test_ignores_links_inside_inline_code_and_html_comments(tmp_path: Path) -> None:
     md_path = tmp_path / "guide.md"
     md_path.write_text(
@@ -90,6 +95,7 @@ def test_ignores_links_inside_inline_code_and_html_comments(tmp_path: Path) -> N
     assert "inside-comment.md" not in output
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="bash script not available on Windows")
 def test_resolves_guardrails_fern_routes(tmp_path: Path) -> None:
     md_path = tmp_path / "guide.mdx"
     md_path.write_text(
@@ -112,6 +118,7 @@ def test_resolves_guardrails_fern_routes(tmp_path: Path) -> None:
     assert result.returncode == 0, output
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="bash script not available on Windows")
 def test_rejects_mdx_suffixes_for_links_that_resolve_as_fern_routes() -> None:
     temp_dir = Path(tempfile.mkdtemp(prefix="check-docs-route-suffix-", dir=REPO_ROOT / "docs"))
     try:
@@ -161,6 +168,7 @@ def test_rejects_mdx_suffixes_for_links_that_resolve_as_fern_routes() -> None:
         shutil.rmtree(temp_dir)
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="bash script not available on Windows")
 def test_fails_loudly_on_malformed_html_comments(tmp_path: Path) -> None:
     md_path = tmp_path / "guide.md"
     md_path.write_text(
