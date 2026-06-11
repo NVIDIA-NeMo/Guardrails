@@ -112,6 +112,12 @@ Use the following targets for common Fern documentation tasks:
 | `make docs-fern-live` | Serve the Fern docs locally. |
 | `make docs-fern-preview-watch` | Watch local changes and publish a Fern preview for the current branch. |
 | `make docs-fern-generate-sdk` | Regenerate the Python SDK reference pages with Fern's library docs generator. |
+| `make docs-fern-publish-staging` | Publish the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails). Only NeMo Guardrails maintainers can run this target. |
+| `make docs-fern-publish-public` | Publish the Fern docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails), which is used for the [public documentation site](https://docs.nvidia.com/nemo/guardrails). Only NeMo Guardrails maintainers can run this target. |
+
+For pull requests that modify documentation, the docs build workflow checks the Fern docs and publishes a PR preview for same-repository branches. When a documentation pull request merges into `develop`, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
+
+Publishing the Fern docs to the public instance is a manual maintainer action after staging verification.
 
 The Fern CLI version is pinned in `fern/fern.config.json`. Do not run `fern upgrade` as part of normal documentation changes.
 
@@ -157,15 +163,15 @@ To get started quickly, follow the steps below.
 
 4. we use `Poetry` to manage the project dependencies. To install Poetry follow the instructions [here](https://python-poetry.org/docs/#installation):
 
-> Note: This project requires Poetry version >=1.8,<2.0. Please ensure you are using a compatible version before running any Poetry commands.
+   > Note: This project requires Poetry version >=1.8,<2.0. Please ensure you are using a compatible version before running any Poetry commands.
 
-  Ensure you have `poetry` installed:
+   Ensure you have `poetry` installed:
 
    ```bash
    poetry --version
    ```
 
-6. Install the dev dependencies:
+5. Install the dev dependencies:
 
    ```bash
    poetry install --with dev
@@ -174,7 +180,7 @@ To get started quickly, follow the steps below.
    The preceding command installs pre-commit, pytest, and other development tools.
    Specify `--with dev,docs` to add the dependencies for building the documentation.
 
-7. If needed, you can install extra dependencies as below:
+6. If needed, you can install extra dependencies as below:
 
     ```bash
     poetry install --extras "openai tracing"
@@ -183,13 +189,13 @@ To get started quickly, follow the steps below.
 
     ```
 
-    to install all the extras:
+   to install all the extras:
 
-    ```bash
-    poetry install --all-extras
-    ```
+   ```bash
+   poetry install --all-extras
+   ```
 
-> **Note**: `dev` is not part of the extras but it is an optional dependency group, so you need to install it as instructed above.
+   > **Note**: `dev` is not part of the extras but it is an optional dependency group, so you need to install it as instructed above.
 
 7. Set up pre-commit hooks:
 
@@ -358,7 +364,7 @@ To install a dependency using Poetry without adding it to the `pyproject.toml` f
 1. **Activate the Poetry virtual environment**:
    - Run `poetry shell` to activate the virtual environment managed by Poetry.
 
-> **Note**: If you don't want to activate the virtual environment, you can use `poetry run` to run commands within the virtual environment.
+   > **Note**: If you don't want to activate the virtual environment, you can use `poetry run` to run commands within the virtual environment.
 
 2. **Install the package using `pip`**:
    - Once inside the virtual environment, you can use `pip` to install the package without affecting the `pyproject.toml`. For example:

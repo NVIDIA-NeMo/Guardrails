@@ -53,6 +53,16 @@ make docs-fern-strict
 
 This regenerates the SDK reference, normalizes it, and runs `fern check`.
 
+### CI Publishing
+
+The docs build workflow checks Fern docs on documentation pull requests and publishes a Fern preview for same-repository branches. When a documentation pull request merges into `develop`, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
+
+After staging verification, maintainers with NVIDIA Fern admin access can publish the staged docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails):
+
+```bash
+make docs-fern-publish-public
+```
+
 ### Direct Fern Command
 
 ```bash
