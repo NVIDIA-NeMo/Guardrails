@@ -79,7 +79,11 @@ def normalize_stream_chunks(chunks: list[Any]) -> dict[str, Any]:
                 content_parts.append(chunk)
             normalized_chunks.append(chunk)
         elif isinstance(chunk, dict):
-            text = chunk.get("text") if isinstance(chunk.get("text"), str) else chunk.get("content")
+            text_value = chunk.get("text")
+            content_value = chunk.get("content")
+            text = (
+                text_value if isinstance(text_value, str) else content_value if isinstance(content_value, str) else None
+            )
             if isinstance(text, str):
                 content_parts.append(text)
             metadata = chunk.get("metadata") or {}

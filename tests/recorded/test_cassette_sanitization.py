@@ -278,6 +278,37 @@ def test_recorded_cassette_serializer_keeps_sse_bodies_parseable():
     assert "data: [DONE]" in ReadableYamlSerializer.deserialize(text)["interactions"][0]["response"]["body"]["string"]
 
 
+def test_recorded_cassette_serializer_preserves_non_strict_sse_bodies():
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["text/event-stream"]},
+            "body": {"string": 'event: message\ndata: {"id":"chatcmpl-123","created":1770000000,"choices":[]}\n\n'},
+        }
+    )
+    cassette = {
+        "interactions": [
+            {
+                "request": {
+                    "body": '{"stream":true}',
+                    "headers": {},
+                    "method": "POST",
+                    "uri": "https://api.openai.com/v1/chat/completions",
+                },
+                "response": response,
+            }
+        ],
+        "version": 1,
+    }
+
+    text = ReadableYamlSerializer.serialize(cassette)
+    response_body = yaml.safe_load(text)["interactions"][0]["response"]["body"]
+
+    assert "parsed_body" not in response_body
+    assert response_body["string"] == (
+        'event: message\ndata: {"id":"[RECORDED_RESPONSE_ID]","created":0,"choices":[]}\n\n'
+    )
+
+
 def test_recorded_response_metadata_normalization_preserves_nested_ids():
     response = before_record_response(
         {
@@ -342,6 +373,35 @@ def test_recorded_jailbreak_score_normalization_allows_extra_fields():
     assert parsed_body == {"jailbreak": True, "score": 0.0, "model": "jailbreak-detect"}
 
 
+def test_recorded_sse_jailbreak_score_normalization_allows_extra_fields():
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["text/event-stream"]},
+            "body": {"string": 'data: {"jailbreak":true,"score":0.873,"model":"jailbreak-detect"}\n\n'},
+        }
+    )
+    cassette = {
+        "interactions": [
+            {
+                "request": {
+                    "body": '{"stream":true}',
+                    "headers": {},
+                    "method": "POST",
+                    "uri": "https://api.nvidia.com",
+                },
+                "response": response,
+            }
+        ],
+        "version": 1,
+    }
+
+    parsed_body = yaml.safe_load(ReadableYamlSerializer.serialize(cassette))["interactions"][0]["response"]["body"][
+        "parsed_body"
+    ]
+
+    assert parsed_body == [{"jailbreak": True, "score": 0.0, "model": "jailbreak-detect"}]
+
+
 def test_recorded_request_sanitizer_strips_volatile_headers():
     request = Request(
         method="POST",
@@ -355,6 +415,20 @@ def test_recorded_request_sanitizer_strips_volatile_headers():
 
     assert "Content-Length" not in sanitized.headers
     assert "hello" in body
+
+
+def test_recorded_request_sanitizer_redacts_non_object_json_body():
+    request = Request(
+        method="POST",
+        uri="https://api.openai.com/v1/chat/completions",
+        body='[{"accessToken":"request-access-token-1234567890"}]',
+        headers={"Content-Type": "application/json"},
+    )
+
+    sanitized = before_record_request(request)
+    body = sanitized.body.decode("utf-8") if isinstance(sanitized.body, bytes) else sanitized.body
+
+    assert json.loads(body) == [{"accessToken": "[REDACTED]"}]
 
 
 def test_recorded_request_sanitizer_redacts_raw_non_json_body():

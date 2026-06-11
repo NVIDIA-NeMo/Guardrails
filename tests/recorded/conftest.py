@@ -246,7 +246,7 @@ def _scrub_sse_body(body: Any) -> Any:
                 except json.JSONDecodeError:
                     lines.append(line)
                     continue
-                data = _scrub_json(data, normalize_response_metadata=True)
+                data = _scrub_response_json(data)
                 lines.append("data: " + json.dumps(data, separators=(",", ":")))
             else:
                 lines.append(line)
@@ -265,7 +265,7 @@ def before_record_request(request: Any) -> Any:
         request.body = _scrub_raw_body(request.body)
         return request
 
-    if isinstance(data, dict):
+    if data is not None:
         request.body = _encode_body_like(request.body, _scrub_request_json(data))
     return request
 
@@ -306,8 +306,8 @@ def pytest_recording_configure(config: pytest.Config, vcr: Any) -> None:
 
 @pytest.fixture(scope="module")
 def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
-    module = request.node.fspath
-    return str(Path(module.dirname) / "cassettes" / module.purebasename)
+    module = request.node.path
+    return str(module.parent / "cassettes" / module.stem)
 
 
 @pytest.fixture

@@ -71,6 +71,14 @@ record -> fill-snapshots -> verify loop is wrapped in a make target:
 OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-tests
 ```
 
+The full target requires `OPENAI_API_KEY` and `NVIDIA_API_KEY` before it starts
+recording. For a focused refresh that only touches one provider, override the
+preflight list:
+
+```bash
+OPENAI_API_KEY=... make record-tests RECORDED_TESTS=path::test_name RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
+```
+
 Or run the recording step alone:
 
 ```bash
@@ -116,6 +124,10 @@ poetry run pytest tests/recorded/rails --block-network --inline-snapshot=review
 ```
 
 Snapshot formatting uses `ruff format` through `[tool.inline-snapshot]` in `pyproject.toml`.
+Snapshot create/fix/review runs must be serial. Use `make record-tests` or a
+direct `poetry run pytest ... --inline-snapshot=<mode>` command; the default
+`make test` path uses xdist, where inline-snapshot disables update and report
+modes.
 
 Volatile response fields (ids, timestamps, fingerprints) are scrubbed to fixed sentinels in the cassette, so snapshots assert them directly without needing loose matchers.
 
