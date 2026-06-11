@@ -23,6 +23,7 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
+from nemoguardrails.rails.llm.types import KnowledgeBaseSurface
 from nemoguardrails.utils import get_or_create_event_loop
 
 __all__ = ["build_knowledge_base_for_docs", "init_knowledge_base"]
@@ -47,7 +48,7 @@ async def build_knowledge_base_for_docs(
     return kb
 
 
-def init_knowledge_base(rails) -> None:
+def init_knowledge_base(rails: KnowledgeBaseSurface) -> None:
     """Initialize and register the LLMRails knowledge base."""
     rails._kb = None
 

@@ -110,8 +110,10 @@ class LLMRails(BaseGuardrails):
     embedding_search: EmbeddingSearchState
     _explain_info: Optional[ExplainInfo]
     _kb: Any
+    _log_adapters: Any
     _llm_generation_actions: Any
     _verbose: bool
+    events_history_cache: dict[str, list[dict]]
     llm: Optional[LLMModel]
     runtime: Runtime
 

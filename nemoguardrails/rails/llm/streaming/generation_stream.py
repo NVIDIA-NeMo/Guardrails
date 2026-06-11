@@ -19,36 +19,24 @@ import asyncio
 import json
 import logging
 import warnings
-from typing import Any, AsyncIterator, Optional, Protocol, Union, cast
+from typing import Any, AsyncIterator, Optional, Union, cast
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.rails.llm.streaming.streaming_output_rails import (
-    StreamingOutputRails,
     run_output_rails_in_streaming,
 )
+from nemoguardrails.rails.llm.types import GenerationStreamSurface
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.utils import extract_error_json
 
 log = logging.getLogger(__name__)
 
 __all__ = [
-    "GenerationStreamRails",
+    "GenerationStreamSurface",
     "generation_token_stream",
     "validate_streaming_with_output_rails",
 ]
-
-
-class GenerationStreamRails(StreamingOutputRails, Protocol):
-    async def generate_async(
-        self,
-        *,
-        prompt: Optional[str] = None,
-        messages: Optional[list[dict]] = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        state: Optional[Any] = None,
-        streaming_handler: Optional[StreamingHandler] = None,
-    ) -> object: ...
 
 
 def validate_streaming_with_output_rails(config: Any) -> None:
@@ -64,7 +52,7 @@ def validate_streaming_with_output_rails(config: Any) -> None:
 
 
 def generation_token_stream(
-    rails: GenerationStreamRails,
+    rails: GenerationStreamSurface,
     *,
     prompt: Optional[str] = None,
     messages: Optional[list[dict]] = None,
@@ -149,7 +137,7 @@ def generation_token_stream(
     return wrapped_iterator()
 
 
-def _track_generation_task(rails: GenerationStreamRails, task: asyncio.Task) -> None:
+def _track_generation_task(rails: GenerationStreamSurface, task: asyncio.Task) -> None:
     """Track background stream tasks so they are not garbage collected."""
     task_holder = cast(Any, rails)
     if not hasattr(task_holder, "_active_tasks"):

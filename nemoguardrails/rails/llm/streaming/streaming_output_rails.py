@@ -18,57 +18,24 @@
 import json
 import logging
 from functools import partial
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Protocol
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
+from nemoguardrails.rails.llm.types import StreamingOutputSurface
 from nemoguardrails.rails.llm.utils import get_action_details_from_flow_id
 
 log = logging.getLogger(__name__)
 
 __all__ = [
-    "StreamingOutputActionDispatcher",
-    "StreamingOutputRails",
-    "StreamingOutputRuntime",
+    "StreamingOutputSurface",
     "run_output_rails_in_streaming",
 ]
 
 
-class StreamingOutputActionDispatcher(Protocol):
-    async def execute_action(self, action_name: str, params: Dict[str, Any]) -> Any: ...
-
-    def get_action(self, name: str, /) -> Any: ...
-
-
-class StreamingOutputRuntime(Protocol):
-    @property
-    def action_dispatcher(self) -> StreamingOutputActionDispatcher: ...
-
-    @property
-    def llm_task_manager(self) -> Any: ...
-
-    @property
-    def registered_action_params(self) -> Dict[str, Any]: ...
-
-
-class StreamingOutputRails(Protocol):
-    _explain_info: Any
-
-    @property
-    def config(self) -> Any: ...
-
-    @property
-    def runtime(self) -> StreamingOutputRuntime: ...
-
-    @property
-    def llm(self) -> Any: ...
-
-    def _ensure_explain_info(self) -> Any: ...
-
-
 async def run_output_rails_in_streaming(
-    rails: StreamingOutputRails,
+    rails: StreamingOutputSurface,
     streaming_handler: AsyncIterator[str],
     output_rails_streaming_config: OutputRailsStreamingConfig,
     prompt: Optional[str] = None,
@@ -139,7 +106,7 @@ async def run_output_rails_in_streaming(
 
 async def _run_parallel_output_rails(
     *,
-    rails: StreamingOutputRails,
+    rails: StreamingOutputSurface,
     output_rails_flows_id: List[str],
     get_action_details: Callable[[str], tuple[str, Dict[str, Any]]],
     bot_response_chunk: str,
@@ -196,7 +163,7 @@ async def _run_parallel_output_rails(
 
 async def _run_sequential_output_rails(
     *,
-    rails: StreamingOutputRails,
+    rails: StreamingOutputSurface,
     output_rails_flows_id: List[str],
     get_action_details: Callable[[str], tuple[str, Dict[str, Any]]],
     bot_response_chunk: str,
@@ -279,7 +246,7 @@ def _create_events_for_chunk(chunk_str: str, context: dict) -> List[dict]:
 
 def _prepare_params(
     *,
-    rails: StreamingOutputRails,
+    rails: StreamingOutputSurface,
     flow_id: str,
     action_name: str,
     bot_response_chunk: str,

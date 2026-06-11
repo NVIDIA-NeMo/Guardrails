@@ -17,39 +17,24 @@
 
 import logging
 import os
-from typing import Any, Callable, Dict, Protocol
+from typing import Any, Callable, Dict
 
 from nemoguardrails.exceptions import InvalidModelConfigurationError
 from nemoguardrails.llm.models.initializer import ModelInitializationError
+from nemoguardrails.rails.llm.types import LLMActionModelsSurface
 from nemoguardrails.types import LLMModel
 
-log = logging.getLogger("nemoguardrails.rails.llm.llmrails")
+log = logging.getLogger(__name__)
 
 InitLLM = Callable[..., LLMModel]
 
 __all__ = [
     "InitLLM",
-    "LLMActionRails",
-    "LLMActionRuntime",
+    "LLMActionModelsSurface",
     "load_llm_action_models",
     "model_kwargs_from_config",
     "sync_update_llm_bindings",
 ]
-
-
-class LLMActionRuntime(Protocol):
-    def register_action_param(self, name: str, value: Any) -> None: ...
-
-
-class LLMActionRails(Protocol):
-    llm: Any
-    _llm_generation_actions: Any
-
-    @property
-    def config(self) -> Any: ...
-
-    @property
-    def runtime(self) -> LLMActionRuntime: ...
 
 
 def model_kwargs_from_config(model_config: Any) -> Dict[str, Any]:
@@ -64,14 +49,14 @@ def model_kwargs_from_config(model_config: Any) -> Dict[str, Any]:
     return kwargs
 
 
-def sync_update_llm_bindings(rails: LLMActionRails, llm: LLMModel) -> None:
+def sync_update_llm_bindings(rails: LLMActionModelsSurface, llm: LLMModel) -> None:
     """Synchronize the main LLM bindings after a public update."""
     rails.llm = llm
     rails._llm_generation_actions.llm = llm
     rails.runtime.register_action_param("llm", llm)
 
 
-def load_llm_action_models(rails: LLMActionRails, init_llm: InitLLM) -> None:
+def load_llm_action_models(rails: LLMActionModelsSurface, init_llm: InitLLM) -> None:
     """Load the main and action LLMs configured for an LLMRails instance."""
     from nemoguardrails._compat.langchain_kwargs import check_langchain_kwargs
     from nemoguardrails.llm.frameworks import get_default_framework

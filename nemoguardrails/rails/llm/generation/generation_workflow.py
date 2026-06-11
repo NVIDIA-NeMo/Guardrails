@@ -15,7 +15,7 @@
 
 import logging
 import time
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from nemoguardrails.actions.llm.utils import get_colang_history
 from nemoguardrails.colang.v2_x.runtime.flows import State
@@ -36,15 +36,16 @@ from nemoguardrails.rails.llm.generation.generation_tracing import (
 )
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.rails.llm.runtime.colang_turns import run_colang_turn
+from nemoguardrails.rails.llm.types import StandardGenerationSurface
 from nemoguardrails.rails.llm.utils import get_history_cache_key
 
 __all__ = ["generate_standard_async"]
 
-log = logging.getLogger("nemoguardrails.rails.llm.llmrails")
+log = logging.getLogger(__name__)
 
 
 async def generate_standard_async(
-    rails: Any,
+    rails: StandardGenerationSurface,
     *,
     prompt: Optional[str],
     messages: list[dict],

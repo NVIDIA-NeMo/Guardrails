@@ -39,7 +39,7 @@ def make_rails(config: RailsConfig):
 
 def test_conversation_events_public_exports():
     assert conversation_events.__all__ == [
-        "ConversationEventRails",
+        "ConversationEventSurface",
         "events_for_messages",
         "events_history_cache_prefix",
     ]

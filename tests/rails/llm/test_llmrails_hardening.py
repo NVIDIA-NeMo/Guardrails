@@ -59,13 +59,15 @@ def _rails(config: RailsConfig | None = None) -> LLMRails:
 
 
 @pytest.mark.asyncio
-async def test_generate_standard_info_logs_keep_llmrails_logger_name(caplog):
+async def test_generate_standard_info_logs_use_generation_workflow_logger(caplog):
     with caplog.at_level(logging.INFO):
         await _rails().generate_async(messages=[{"role": "user", "content": "hi"}])
 
     total_processing_logs = [record for record in caplog.records if "--- :: Total processing took" in record.message]
 
-    assert [record.name for record in total_processing_logs] == ["nemoguardrails.rails.llm.llmrails"]
+    assert [record.name for record in total_processing_logs] == [
+        "nemoguardrails.rails.llm.generation.generation_workflow"
+    ]
 
 
 @pytest.mark.asyncio

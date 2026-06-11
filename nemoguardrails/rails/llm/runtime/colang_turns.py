@@ -19,13 +19,14 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, List, Optional, Protocol, Tuple, Union, cast
+from typing import Any, List, Optional, Tuple, Union, cast
 
 from nemoguardrails.actions.llm.utils import get_colang_history
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.context import llm_stats_var, streaming_handler_var
 from nemoguardrails.logging.stats import LLMStats
+from nemoguardrails.rails.llm.types import ColangTurnSurface
 from nemoguardrails.streaming import END_OF_STREAM
 from nemoguardrails.utils import extract_error_json
 
@@ -34,7 +35,7 @@ log = logging.getLogger(__name__)
 process_events_semaphore = asyncio.Semaphore(1)
 
 __all__ = [
-    "ColangTurnRails",
+    "ColangTurnSurface",
     "generate_colang_events",
     "process_colang_events",
     "process_events_semaphore",
@@ -42,19 +43,8 @@ __all__ = [
 ]
 
 
-class ColangTurnRails(Protocol):
-    @property
-    def config(self) -> Any: ...
-
-    @property
-    def runtime(self) -> Any: ...
-
-    @property
-    def verbose(self) -> bool: ...
-
-
 async def run_colang_turn(
-    rails: ColangTurnRails,
+    rails: ColangTurnSurface,
     events: List[dict],
     state: Any,
     processing_log: List[dict],
@@ -66,7 +56,7 @@ async def run_colang_turn(
 
 
 async def _run_colang_1_turn(
-    rails: ColangTurnRails,
+    rails: ColangTurnSurface,
     events: List[dict],
     state: Any,
     processing_log: List[dict],
@@ -94,7 +84,7 @@ async def _run_colang_1_turn(
 
 
 async def _run_colang_2_turn(
-    rails: ColangTurnRails,
+    rails: ColangTurnSurface,
     events: List[dict],
     state: Any,
 ) -> List[dict]:
@@ -113,7 +103,7 @@ async def _run_colang_2_turn(
     return new_events
 
 
-async def generate_colang_events(rails: ColangTurnRails, events: List[dict]) -> List[dict]:
+async def generate_colang_events(rails: ColangTurnSurface, events: List[dict]) -> List[dict]:
     """Generate the next Colang 1.0 events for an event history."""
     t0 = time.time()
 
@@ -138,7 +128,7 @@ async def generate_colang_events(rails: ColangTurnRails, events: List[dict]) -> 
 
 
 async def process_colang_events(
-    rails: ColangTurnRails,
+    rails: ColangTurnSurface,
     events: List[dict],
     state: Union[Optional[dict], State] = None,
     blocking: bool = False,
