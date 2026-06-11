@@ -28,7 +28,7 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, STREAM_MAX_CONCURRENCY, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.rails.llm.options import GenerationOptions, ToolCallingOptions
 from nemoguardrails.types import LLMResponseChunk
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -208,6 +208,29 @@ class TestStreamAsyncValidation:
 
         matching_warnings = [warning for warning in caught if str(warning.message) == _SPECULATIVE_STREAM_WARNING]
         assert len(matching_warnings) == 1
+
+    @pytest.mark.asyncio
+    async def test_tool_calling_warns_on_stream_async(self, iorails_input_only):
+        """stream_async warns (rather than silently dropping) when given options.tool_calling.
+
+        Streaming tool calling is not yet wired (only generate_async forwards tool_calling),
+        so the field must surface a warning instead of being silently ignored.
+        """
+        options = GenerationOptions(
+            tool_calling=ToolCallingOptions(
+                tools=[{"type": "function", "function": {"name": "get_weather"}}],
+                tool_choice="auto",
+            )
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("default")
+            # The warning fires in the synchronous body of stream_async, so the
+            # returned iterator does not need to be consumed.
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], options=options)
+
+        matching = [w for w in caught if "options.tool_calling is ignored by IORails stream_async" in str(w.message)]
+        assert len(matching) == 1
 
 
 class TestStreamAsyncNoOutputRails:

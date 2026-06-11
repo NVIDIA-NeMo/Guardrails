@@ -227,8 +227,7 @@ class ToolCallingOptions(BaseModel):
     Modeled directly on /chat/completions so that ``model_dump(exclude_none=True)``
     yields the request-body fragment ``{"tools": ..., "tool_choice": ...,
     "parallel_tool_calls": ...}``. The open ``Tool.type`` keeps the model
-    translatable to the /responses API later. Carried on
-    ``GenerationOptions.tool_calling``; not yet consumed by any engine.
+    translatable to the /responses API later.
     """
 
     tools: Optional[List[Tool]] = Field(

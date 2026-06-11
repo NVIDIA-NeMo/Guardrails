@@ -408,8 +408,11 @@ class IORails(BaseGuardrails):
         reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
         response_text = response.content
 
-        # Tool-call rails defined separately to prompt/response rails.
-        # Responses carrying text still run output rails.
+        # Output rails check the final answer, not reasoning traces.
+        # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
+        # rails, matching LLMRails.
+        # A tool-call-only response skips output rails (no text to check)
+        # Tool calls have their own `ToolOutputRails` set of rails separate to `OutputRails`
         is_tool_call_only = bool(response.tool_calls) and not response_text
         if not is_tool_call_only:
             log.info("[%s] Running output rails", req_id)
@@ -598,8 +601,18 @@ class IORails(BaseGuardrails):
         llm_kwargs: dict = {}
         if options and isinstance(options, dict):
             options = GenerationOptions(**options)
-        if isinstance(options, GenerationOptions) and options.llm_params:
-            llm_kwargs = options.llm_params
+        if isinstance(options, GenerationOptions):
+            if options.llm_params:
+                llm_kwargs = options.llm_params
+            if options.tool_calling is not None:
+                # Streaming tool calling is not wired yet (only generate_async forwards
+                # tool_calling). Warn rather than silently dropping the field.
+                warnings.warn(
+                    "options.tool_calling is ignored by IORails stream_async; tool calling "
+                    "is currently supported only on the non-streaming path (generate_async). "
+                    "The tools/tool_choice will not be forwarded to the model.",
+                    stacklevel=2,
+                )
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
