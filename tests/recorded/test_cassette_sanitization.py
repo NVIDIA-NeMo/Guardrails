@@ -344,6 +344,35 @@ def test_recorded_response_metadata_normalization_preserves_nested_ids():
     assert parsed_body["choices"][0]["message"]["tool_calls"][0]["id"] == "call_123"
 
 
+def test_recorded_response_metadata_normalization_handles_top_level_arrays():
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["application/json"]},
+            "body": {"string": '[{"id":"chatcmpl-123","created":1770000000,"choices":[]}]'},
+        }
+    )
+    cassette = {
+        "interactions": [
+            {
+                "request": {
+                    "body": '{"messages":[]}',
+                    "headers": {},
+                    "method": "POST",
+                    "uri": "https://api.openai.com",
+                },
+                "response": response,
+            }
+        ],
+        "version": 1,
+    }
+
+    parsed_body = yaml.safe_load(ReadableYamlSerializer.serialize(cassette))["interactions"][0]["response"]["body"][
+        "parsed_body"
+    ]
+
+    assert parsed_body == [{"id": "[RECORDED_RESPONSE_ID]", "created": 0, "choices": []}]
+
+
 def test_recorded_jailbreak_score_normalization_allows_extra_fields():
     response = before_record_response(
         {

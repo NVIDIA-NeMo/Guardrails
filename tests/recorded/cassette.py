@@ -217,7 +217,7 @@ def _cached_cassette_interactions(cassette_path: Path) -> list[dict[str, Any]]:
     data = yaml.safe_load(cassette_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         return []
-    return data.get("interactions", [])
+    return data.get("interactions") or []
 
 
 def _cassette_interactions(cassette_path: Path) -> list[dict[str, Any]]:
