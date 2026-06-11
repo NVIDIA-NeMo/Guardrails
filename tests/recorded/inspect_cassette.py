@@ -51,7 +51,8 @@ def _response_body_text(interaction: dict[str, Any]) -> str | None:
 def cassette_summary(path: Path) -> list[dict[str, Any]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     rows = []
-    for index, interaction in enumerate(data.get("interactions", [])):
+    interactions = data.get("interactions", []) if isinstance(data, dict) else []
+    for index, interaction in enumerate(interactions):
         request = interaction.get("request", {})
         response = interaction.get("response", {})
         request_payload = _request_payload(interaction)

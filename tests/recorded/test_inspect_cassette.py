@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import pytest
 
-from tests.recorded.cassette import cassette_request_jsons, recorded_chat_response
+from tests.recorded.cassette import cassette_request_jsons, recorded_chat_response, stream_payloads_from_body
 from tests.recorded.inspect_cassette import cassette_summary
+from tests.recorded.normalization import normalize_stream_chunks
 
 pytestmark = [pytest.mark.recorded]
 
@@ -103,6 +104,13 @@ interactions:
             "stream_events": 0,
         }
     ]
+
+
+def test_cassette_summary_handles_empty_files(tmp_path):
+    cassette = tmp_path / "example.yaml"
+    cassette.write_text("# empty\n", encoding="utf-8")
+
+    assert cassette_summary(cassette) == []
 
 
 def test_recorded_chat_response_normalizes_zero_and_nullable_usage(tmp_path):
@@ -221,3 +229,15 @@ interactions:
     cassette_request_jsons(cassette)[0]["model"] = "mutated"
 
     assert cassette_request_jsons(cassette)[0]["model"] == "gpt-5.4-nano"
+
+
+def test_stream_payloads_from_body_skips_malformed_raw_sse_lines():
+    body = {"string": 'data: not-json\n\ndata: {"choices":[]}\n\ndata: [DONE]\n\n'}
+
+    assert stream_payloads_from_body(body) == [{"choices": []}]
+
+
+def test_normalize_stream_chunks_ignores_non_string_content_fallback():
+    result = normalize_stream_chunks([{"content": {"not": "text"}}, {"content": "ok"}])
+
+    assert result["content"] == "ok"

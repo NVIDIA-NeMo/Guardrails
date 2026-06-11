@@ -121,11 +121,23 @@ def _json_body(value: Any) -> Any:
 
 
 def _sse_body_payloads(text: str) -> list[Any] | None:
+    if not text.endswith("\n\n"):
+        return None
+
+    parts = text.split("\n\n")
+    if parts[-1] != "" or any(not event for event in parts[:-1]):
+        return None
+
     payloads = []
-    for line in text.splitlines():
-        line = line.strip()
+    for event in parts[:-1]:
+        lines = event.splitlines()
+        if len(lines) != 1:
+            return None
+
+        line = lines[0]
         if not line.startswith("data: "):
-            continue
+            return None
+
         payload = line.removeprefix("data: ")
         if payload == "[DONE]":
             payloads.append("[DONE]")
@@ -134,7 +146,7 @@ def _sse_body_payloads(text: str) -> list[Any] | None:
             payloads.append(json.loads(payload))
         except json.JSONDecodeError:
             return None
-    return payloads or None
+    return payloads
 
 
 def _sse_payloads_body(payloads: list[Any]) -> str:
@@ -203,6 +215,8 @@ def cassette_with_rehydrated_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
 @lru_cache(maxsize=None)
 def _cached_cassette_interactions(cassette_path: Path) -> list[dict[str, Any]]:
     data = yaml.safe_load(cassette_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return []
     return data.get("interactions", [])
 
 
@@ -253,7 +267,12 @@ def _stream_payloads(text: str) -> list[dict[str, Any]]:
         payload = line.removeprefix("data: ")
         if payload == "[DONE]":
             continue
-        payloads.append(json.loads(payload))
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            payloads.append(payload)
     return payloads
 
 
