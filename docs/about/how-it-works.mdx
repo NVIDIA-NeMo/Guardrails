@@ -1,24 +1,71 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Architecture Overview"
+title: "How It Works"
 sidebar-title: "How It Works"
-description: "High level explanation of how Guardrails works."
+description: "Understand the request flow, runtime layers, and integration points in the NVIDIA NeMo Guardrails library."
 keywords:
     ["guardrails architecture", "event-driven runtime", "llmrails", "colang"]
 content:
     type: "concept"
 ---
 
-The NeMo Guardrails library acts as an intermediary between application code and LLM requests and responses. Once Guardrails is integrated in an application, all LLM inference requests are first checked by Guardrails to ensure user requests are safe and not malicious. If they are, the request is passed to the LLM for inference. Guardrails also checks the LLM response once it's available, making sure it's appropriate before being passed back to the user.
+The NVIDIA NeMo Guardrails library sits between your application and the LLM, tool, or retrieval systems that the application uses. It loads a guardrails configuration, evaluates incoming user messages against the configured rails, orchestrates any required LLM calls or custom actions, and returns either an approved response or a configured safe alternative.
 
-![Programmable Guardrails Flow](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
+Use this page to understand the main request path. For deeper event-level details, refer to [Colang Architecture Guide](/reference/colang-architecture-guide).
 
-Each application can configure its own set of guardrails, depending on the use-case. Guardrails requests can trigger calls to third-party APIs, LLMs fine-tuned to implement Guardrail functionality, or to the Application LLM. Guardrails hides this complexity from clients, orchestrating the workflows behind-the-scenes so applications can focus on their business logic.
+## High-Level Architecture Diagram
+
+The following diagram shows how a user message moves through the major guardrail stages. Each stage is optional and runs only when your configuration enables the corresponding rail type.
+
+![Sequence diagram showing the NVIDIA NeMo Guardrails library request flow from user input through input rails, retrieval rails, dialog rails, execution rails, output rails, LLM calls, custom actions, and the final application response.](../_static/puml/master_rails_flow.png "NVIDIA NeMo Guardrails library request flow")
+
+## Functional Layers
+
+The NVIDIA NeMo Guardrails library separates application integration, policy configuration, runtime orchestration, and external systems. This separation lets your application call one guardrailed interface while the library handles the configured checks and workflows.
+
+| Layer | Role |
+| --- | --- |
+| **Application integration** | Sends messages through the Python SDK or the guardrails server and receives the final response. |
+| **Guardrails configuration** | Defines models, prompts, rails, Colang flows, knowledge base settings, and custom actions. |
+| **Runtime orchestration** | Loads the configuration, processes events, executes rails, calls actions, and coordinates LLM requests. |
+| **External systems** | Provide LLM inference, retrieval content, moderation services, tool calls, or other custom validation logic. |
+
+## Request Flow
+
+When an application sends a user message, the NVIDIA NeMo Guardrails library evaluates the message in the configured order:
+
+1. **Input rails** inspect the user message before the application LLM is called. These rails can allow, alter, or reject the message.
+2. **Retrieval rails** run when the configuration uses a knowledge base or retrieved context. These rails can filter or transform retrieved chunks before they enter the prompt.
+3. **Dialog rails** use Colang flows and runtime events to guide the conversation, choose the next step, or decide whether the bot should respond or execute an action.
+4. **Execution rails** validate and control custom actions or tools, including their inputs and outputs.
+5. **Output rails** inspect the generated response before it returns to the user. These rails can allow, edit, or block the response.
+
+For more information about where each rail type runs, refer to [Guardrail Types](/about-nemo-guardrails-library/rail-types).
+
+## Runtime Behavior
+
+The runtime uses an event-driven design. A user message becomes an event, and the runtime processes that event through the active Colang flows and configured rails. Depending on the configuration, the runtime can generate a canonical user intent, decide the next step, execute a custom action, retrieve knowledge base chunks, call the application LLM, or generate the final bot message.
+
+Applications do not need to implement this orchestration themselves. They call the NVIDIA NeMo Guardrails library through the SDK or server, and the library coordinates the underlying workflow.
+
+## External Integration Points
+
+The NVIDIA NeMo Guardrails library can work with several external systems.
+
+| Integration | Details |
+| --- | --- |
+| **Application LLM** | The model that generates responses for your application. |
+| **Guardrail models and services** | Specialized models, NVIDIA NIM microservices, or third-party APIs that perform safety, jailbreak, topic, PII, or other checks. |
+| **Knowledge bases** | Documents or chunks that support retrieval-augmented generation workflows. |
+| **Custom actions and tools** | Python functions, LangChain tools, or external APIs that add application-specific logic. |
 
 ## Related Resources
 
-Use the following resources to learn more about the Guardrails library:
+Use the following resources to learn more about the NVIDIA NeMo Guardrails library:
 
 - [Guardrail Types](/about-nemo-guardrails-library/rail-types)
+- [Colang Architecture Guide](/reference/colang-architecture-guide)
+- [Guardrails Sequence Diagrams](/reference/guardrails-sequence-diagrams)
+- [About Configuring Guardrails](/configure-guardrails)
 - [Get Started](/get-started/installation-guide)
