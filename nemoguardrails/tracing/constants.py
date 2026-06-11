@@ -263,8 +263,12 @@ class MetricNames:
     # prefix separate to ``guardrails`` metrics above.
     GEN_AI_CLIENT_TOKEN_USAGE = "gen_ai.client.token.usage"
     GEN_AI_CLIENT_OPERATION_DURATION = "gen_ai.client.operation.duration"
-    GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
-    GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK = "gen_ai.client.operation.time_per_output_chunk"
+    GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK = (
+        "gen_ai.client.operation.time_to_first_chunk"
+    )
+    GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK = (
+        "gen_ai.client.operation.time_per_output_chunk"
+    )
 
 
 class TokenType:
@@ -300,7 +304,7 @@ class EventNames:
     """Standard event names for OpenTelemetry GenAI semantic conventions.
 
     Based on official spec at:
-    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
+    https://opentelemetry.io/docs/concepts/semantic-conventions/
     """
 
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
