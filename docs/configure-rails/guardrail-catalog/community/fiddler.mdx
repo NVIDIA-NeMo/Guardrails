@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Fiddler Guardrails Integration"
 ---
-Fiddler Guardrails utilizes [Fiddler Trust Models](https://docs.fiddler.ai/product-guide/llm-monitoring/llm-based-metrics#fiddler-fast-trust-metrics) in a specialized low-latency, high-throughput configuration. Guardrails can be used to guard Large Language Model (LLM) applications against user threats, such as prompt injection or harmful and inappropriate content, and LLM hallucinations.
+Fiddler Guardrails utilizes [Fiddler Trust Models](https://docs.fiddler.ai/reference/glossary/centor-models) in a specialized low-latency, high-throughput configuration. Guardrails can be used to guard Large Language Model (LLM) applications against user threats, such as prompt injection or harmful and inappropriate content, and LLM hallucinations.
 
-Currently, only Fiddler Trust Models ([Faithfulness](https://docs.fiddler.ai/product-guide/llm-monitoring/enrichments-private-preview#fast-faithfulness-private-preview) and [Safety](https://docs.fiddler.ai/product-guide/llm-monitoring/enrichments-private-preview#fast-safety-private-preview)) - Fiddler's in-house, purpose-built SLMs - are available for guardrail use. Future model releases and model updates/improvements will also be available for guardrail use.
+Currently, only Fiddler Trust Models ([Faithfulness](https://docs.fiddler.ai/protection/guardrails) and [Safety](https://docs.fiddler.ai/protection/guardrails)) - Fiddler's in-house, purpose-built SLMs - are available for guardrail use. Future model releases and model updates/improvements will also be available for guardrail use.
 
 ## Setup
 
 1. Ensure that you have access to a valid Fiddler environment. To obtain one, please [contact us](https://www.fiddler.ai/contact-sales).
 
-2. Create a new [Fiddler environment key](https://docs.fiddler.ai/ui-guide/administration-ui/settings#credentials) and set the `FIDDLER_API_KEY` environment variable to this key to authenticate into the Fiddler service.
+2. Create a new [Fiddler environment key](https://docs.fiddler.ai/protection/guardrails) and set the `FIDDLER_API_KEY` environment variable to this key to authenticate into the Fiddler service.
 
 Update your `config.yml` file to include the following settings:
 
@@ -49,4 +49,4 @@ Fiddler Guardrails will not block inputs in the event of any API failure.
 
 ## Notes
 
-For more information about Fiddler Guardrails, please visit the Fiddler Guardrails [documentation](https://docs.fiddler.ai/product-guide/llm-monitoring/guardrails).
+For more information about Fiddler Guardrails, please visit the Fiddler Guardrails [documentation](https://docs.fiddler.ai/protection/guardrails).

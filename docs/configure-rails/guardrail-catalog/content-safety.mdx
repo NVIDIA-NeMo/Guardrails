@@ -8,7 +8,7 @@ content:
   type: "Reference"
 ---
 
-The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [Nemotron Content Safety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://www.llama.com/docs/model-cards-and-prompt-formats/llama-guard-3/), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
+The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [Nemotron Content Safety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://github.com/meta-llama/PurpleLlama/blob/main/Llama-Guard3/8B/MODEL_CARD.md), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
 
 To use the content safety check, you should:
 
@@ -115,7 +115,7 @@ To use the content safety check, you should:
 
 The above is an example prompt that you can use with the *content safety check input $model=shieldgemma*. The prompt has one input variable: `{{ user_input }}`, which includes user input that should be moderated. The completion must be "yes" if the response is not safe and "no" otherwise. Optionally, some models may return a set of policy violations.
 
-The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../../nemoguardrails/library/content_safety/actions.py) actions respectively.
+The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/content_safety/actions.py) actions respectively.
 
 ## Reasoning Models as Content Safety Guards
 
@@ -260,7 +260,7 @@ Language detection accuracy was benchmarked on two datasets:
 
 TODO: is this covered by the general content safety abstraction?
 
-The NeMo Guardrails library provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://ai.meta.com/research/publications/llama-guard-llm-based-input-output-safeguard-for-human-ai-conversations/) model.
+The NeMo Guardrails library provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://arxiv.org/abs/2312.06674) model.
 
 ### Example usage
 

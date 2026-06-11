@@ -105,7 +105,7 @@ flow input rails $input_text
     clavata check for ($input_text, Toxicity, ["Hate Speech","Harassment"])
 ```
 
-> The same is true for `output` flows, of course. See [our example](../../../../examples/configs/clavata_v2/rails.co) for more.
+> The same is true for `output` flows, of course. See [our example](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/examples/configs/clavata_v2/rails.co) for more.
 
 ### 2. Programmatic Usage
 
@@ -141,4 +141,4 @@ If the Clavata API request fails, the system will raise a `ClavataPluginAPIError
 - You can configure different policies and label requirements for input and output flows
 - If no labels are specified for a policy, any label match will be considered a hit
 
-For more information on Clavata and its capabilities, please refer to the [Clavata documentation](https://clavata.helpscoutdocs.com).
+For more information on Clavata and its capabilities, please refer to the [Clavata documentation](https://docs.clavata.ai/).

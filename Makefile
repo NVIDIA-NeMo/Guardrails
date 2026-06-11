@@ -1,6 +1,6 @@
 .PHONY: help
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile warm-fastembed-cache
-.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-links docs-check-redirects
+.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-redirects
 .PHONY: pre-commit
 
 .DEFAULT_GOAL := help
@@ -66,9 +66,6 @@ docs-fern-generate-sdk:
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
-docs-check-links:
-	bash scripts/check-docs-links.sh --local-only
-
 docs-check-redirects:
 	cd docs && poetry run python scripts/validate_redirects.py
 
@@ -104,7 +101,6 @@ help:
 		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
 		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
-		'  docs-check-links     Validate Markdown and MDX links locally' \
 		'  docs-check-redirects  Validate docs redirects' \
 		'' \
 		'Maintenance:' \

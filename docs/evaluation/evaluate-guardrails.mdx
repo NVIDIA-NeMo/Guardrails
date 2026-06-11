@@ -78,7 +78,7 @@ Important lessons to be learned from the evaluation results:
 - Each step in the three-step approach (user intent, next step/bot intent, bot message) used by Guardrails offers an improvement in performance.
 - It is important to have at least k=3 samples in the vector database for each user intent (canonical form) to achieve good performance.
 - Some models (e.g., gpt-3.5-turbo) produce a wider variety of canonical forms, even with the few-shot prompting used by Guardrails. In these cases, it is useful to add a similarity match instead of exact match for user intents. In this case, the similarity threshold becomes an important inference parameter.
-- Initial results show that even small models, e.g. [dolly-v2-3b](https://huggingface.co/databricks/dolly-v2-3b), [vicuna-7b-v1.3](https://huggingface.co/lmsys/vicuna-7b-v1.3), [mpt-7b-instruct](https://huggingface.co/mosaicml/mpt-7b-instruct), [falcon-7b-instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) have good performance for topical rails.
+- Initial results show that even small models, e.g. dolly-v2-3b, [vicuna-7b-v1.3](https://huggingface.co/lmsys/vicuna-7b-v1.3), mpt-7b-instruct, [falcon-7b-instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) have good performance for topical rails.
 - Using a single call for topical rails shows similar results to the default method (which uses up to 3 LLM calls for generating the final bot message) in most cases for `text-davinci-003` model.
 - Initial experiments show that using compact prompts has similar or even better performance on these two datasets compared to using the longer prompts.
 
@@ -189,7 +189,7 @@ More details on how to set up the data in the right format and run the evaluatio
 
 Evaluation Date - Nov 23, 2023 (Mar 7 2024 for `gemini-1.0-pro`).
 
-We evaluate the performance of the fact-checking rail on the [MSMARCO](https://huggingface.co/datasets/ms_marco) dataset using the Self-Check and the AlignScore approaches. To build the dataset, we randomly sample 100 (question, correct answer, evidence) triples, and then, for each triple, build a non-factual or incorrect answer to yield 100 (question, incorrect answer, evidence) triples.
+We evaluate the performance of the fact-checking rail on the [MSMARCO](https://huggingface.co/datasets/microsoft/ms_marco) dataset using the Self-Check and the AlignScore approaches. To build the dataset, we randomly sample 100 (question, correct answer, evidence) triples, and then, for each triple, build a non-factual or incorrect answer to yield 100 (question, incorrect answer, evidence) triples.
 
 We breakdown the performance into positive entailment accuracy and negative entailment accuracy. Positive entailment accuracy is the accuracy of the model in correctly identifying answers that are grounded in the evidence passage. Negative entailment accuracy is the accuracy of the model in correctly identifying answers that are **not** supported in the evidence. Details on how to create synthetic negative examples can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/factchecking/README.md).
 
@@ -343,7 +343,7 @@ To evaluate the hallucination rail on your own dataset, you can follow the creat
 
 #### Evaluation Results
 
-To evaluate the hallucination rail, we manually curate a set of [questions](../../nemoguardrails/evaluate/data/hallucination/sample.txt) which mainly consists of questions with a false premise, i.e., questions that cannot have a correct answer.
+To evaluate the hallucination rail, we manually curate a set of [questions](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/evaluate/data/hallucination/sample.txt) which mainly consists of questions with a false premise, i.e., questions that cannot have a correct answer.
 
 For example, the question "What is the capital of the moon?" has a false premise since the moon does not have a capital. Since the question is stated in a way that implies that the moon has a capital, the model might be tempted to make up a fact and answer the question.
 

@@ -42,14 +42,14 @@ flow bot express greeting
 ```
 <Note>
 
-The recommended practice is to use past tense for matching external actions, like the user saying something, and present for bot actions that must be executed. See [Defining Flows](../language-reference/defining-flows#flow-naming-conventions) for more details.
+The recommended practice is to use past tense for matching external actions, like the user saying something, and present for bot actions that must be executed. See [Defining Flows](/configure-guardrails/colang/colang-2/language-reference/defining-flows#flow-naming-conventions) for more details.
 
 </Note>
 ## LLM Integration
 
 While the example above has more structure, it is still rigid in the sense that it only works with the exact inputs "hi" and "hello".
 
-To enable the use of the LLM to drive the interaction for inputs that are not matched exactly by flows, you have to *activate* the `llm continuation` flow, which is part of the `llm` module in the [Colang Standard Library (CSL)](../language-reference/the-standard-library#the-standard-library).
+To enable the use of the LLM to drive the interaction for inputs that are not matched exactly by flows, you have to *activate* the `llm continuation` flow, which is part of the `llm` module in the [Colang Standard Library (CSL)](/configure-guardrails/colang/colang-2/language-reference/the-standard-library#the-standard-library).
 
 **examples/v2_x/tutorial/hello_world_3/main.co**
 

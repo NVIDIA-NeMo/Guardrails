@@ -10,7 +10,7 @@ description: "At its core, Colang does not require a Large Language Model (LLM) 
 
 ## Introduction
 
-At its core, Colang does not require a Large Language Model (LLM) as backend. However, many of the more advanced mechanisms in the [Colang Standard Library](the-standard-library#the-standard-library) (CSL) depend on one.
+At its core, Colang does not require a Large Language Model (LLM) as backend. However, many of the more advanced mechanisms in the [Colang Standard Library](/configure-guardrails/colang/colang-2/language-reference/the-standard-library#the-standard-library) (CSL) depend on one.
 
 To enable the LLM backend, you first have to configure the LLM access in the `config.yml` by adding a `models` section like this:
 
@@ -22,7 +22,7 @@ models:
 ```
 Make sure to also define the required API access key. For example, for OpenAI you will have to set the `OPENAI_API_KEY` environment variable.
 
-Every LLM prompt contains a default context that can be modified if needed to adapt to the use case. See this [example configuration](../../../../../tests/test_configs/multi_modal_demo_v2_x/demo.yml) to get started. This will heavily influence all the LLM invocations.
+Every LLM prompt contains a default context that can be modified if needed to adapt to the use case. See this [example configuration](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/tests/test_configs/multi_modal_demo_v2_x/demo.yml) to get started. This will heavily influence all the LLM invocations.
 
 <a id="make-use-of-llms-supported-models"></a>
 
@@ -47,7 +47,7 @@ model: meta/llama3-70b-instruct
 model: meta/llama-3.1-8b-instruct
 model: meta/llama-3.1-70b-instruct
 ```
-To support other models, you would need to create a set of new [template prompts](../../../../../nemoguardrails/llm/prompts) that consider the specific capabilities and the API of the model and add them to your bot configuration.
+To support other models, you would need to create a set of new [template prompts](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/llm/prompts) that consider the specific capabilities and the API of the model and add them to your bot configuration.
 
 ## Natural Language Description (NLD)
 
@@ -88,7 +88,7 @@ flow main
     $question = await user said something
     ...
 ```
-See the example in [LLM Flows](../getting-started/llm-flows#colang_2_getting_started_llm_flows) for more details on how this works.
+See the example in [LLM Flows](/configure-guardrails/colang/colang-2/getting-started/llm-flows#colang_2_getting_started_llm_flows) for more details on how this works.
 
 
 Note that there is no explicit control over the NLD response format and sometimes it will fail to generate the expected result. Usually you can improve it by providing more explicit instructions in the NLD, e.g. "Welcome the user with a short sentence that is wrapped in quotation marks like this: 'Hi there!'". Another way is to check the returned value by using for example the `is_str()` function to make sure that it is of the expected format.
@@ -97,7 +97,7 @@ Note that there is no explicit control over the NLD response format and sometime
 
 ## User Intent Matching
 
-In section [Defining Flows](defining-flows#action-like-and-intent-like-flows), we have already seen how we can define user intent flows. The limitation was that they did not generalize to variations of the given user intent examples. With the help of an LLM, we can overcome this issue and use its reasoning power by importing the `llm` standard library module and activating the flows `automating intent detection` and `generating user intent for unhandled user utterance` ([GitHub link](../../../../../nemoguardrails/colang/v2_x/library/llm.co)) to match unexpected user utterances to currently active user intent flows.
+In section [Defining Flows](/configure-guardrails/colang/colang-2/language-reference/defining-flows#action-like-and-intent-like-flows), we have already seen how we can define user intent flows. The limitation was that they did not generalize to variations of the given user intent examples. With the help of an LLM, we can overcome this issue and use its reasoning power by importing the `llm` standard library module and activating the flows `automating intent detection` and `generating user intent for unhandled user utterance` ([GitHub link](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/colang/v2_x/library/llm.co)) to match unexpected user utterances to currently active user intent flows.
 
 **llm/user_intent_match_example/main.co**
 
@@ -237,4 +237,4 @@ This loop will take care of matching user utterances to predefined user intents 
 
 ## Guardrailing
 
-Checkout the examples in the [Getting Started](../getting-started/index#getting_started) section or refer to the [NeMo Guardrails documentation](https://github.com/NVIDIA-NeMo/Guardrails) to learn more about how Colang can be used to guardrail LLM responses and user inputs.
+Checkout the examples in the [Getting Started](/configure-guardrails/colang/colang-2/getting-started#getting_started) section or refer to the [NeMo Guardrails documentation](https://github.com/NVIDIA-NeMo/Guardrails) to learn more about how Colang can be used to guardrail LLM responses and user inputs.

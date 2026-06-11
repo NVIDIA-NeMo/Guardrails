@@ -54,7 +54,7 @@ reviews:
         - docs/configure-rails/colang/index.mdx renders at /configure-guardrails/colang, not /configure-rails/colang.
         - docs/run-rails/index.mdx renders at /run-guardrailed-inference/run-rails, not /run-rails.
         - docs/getting-started/installation-guide.mdx renders at /get-started/installation-guide, not /getting-started/installation-guide.
-        Before flagging or suggesting fixes for internal docs links, verify them with scripts/check-docs-links.sh or docs/index.yml.
+        Before flagging or suggesting fixes for internal docs links, verify them with docs/index.yml.
         Do not suggest changing valid Fern routes back to source-path-style links.
     - path: "docs/**/*.ipynb"
       instructions: |

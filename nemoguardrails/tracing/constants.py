@@ -300,7 +300,7 @@ class EventNames:
     """Standard event names for OpenTelemetry GenAI semantic conventions.
 
     Based on official spec at:
-    https://github.com/open-telemetry/semantic-conventions/blob/main/model/gen-ai/events.yaml
+    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
     """
 
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
