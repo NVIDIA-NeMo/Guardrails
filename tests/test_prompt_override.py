@@ -42,5 +42,6 @@ def test_load_prompts_sorts_files_for_deterministic_overrides(tmp_path, monkeypa
 
     monkeypatch.setattr(prompts_module, "CURRENT_DIR", str(tmp_path))
     monkeypatch.setattr(prompts_module.os, "walk", walk)
+    monkeypatch.delenv("PROMPTS_DIR", raising=False)
 
     assert [prompt.content for prompt in prompts_module._load_prompts()] == ["a", "z"]
