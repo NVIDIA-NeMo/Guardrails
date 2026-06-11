@@ -22,7 +22,6 @@ from tests.recorded.assertions import assert_rails_result
 from tests.recorded.normalization import normalize_rails_result
 from tests.recorded.rails.library.configs import (
     FULL_STACK_CONFIG,
-    FULL_STACK_NO_TOPIC_CONFIG,
     JAILBREAK_PROMPT,
     OPENAI_INPUT_STACK_CONFIG,
     OPENAI_OUTPUT_STACK_CONFIG,
@@ -99,7 +98,7 @@ async def test_input_topic_control_runs_after_content_safety_passes(openai_api_k
 @pytest.mark.vcr
 async def test_input_jailbreak_runs_before_content_safety(openai_api_key, nvidia_api_key):
     result = await check_rails(
-        FULL_STACK_NO_TOPIC_CONFIG,
+        FULL_STACK_CONFIG,
         [{"role": "user", "content": JAILBREAK_PROMPT}],
         rail_types=(RailType.INPUT,),
     )
