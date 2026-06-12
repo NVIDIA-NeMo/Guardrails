@@ -32,13 +32,13 @@ Input and output rails are the most common. For the full list of rail types and 
 
 ## Data Flow
 
-When Guardrails is integrated into an application, each LLM interaction flows through the configured rails:
+When Guardrails is integrated into an application, a user message passes through a sequence of stages, depending on which rails are configured:
 
-1. The application sends a user request to Guardrails rather than directly to the LLM.
-2. **Input rails** check the request to confirm it is safe and not malicious; unsafe requests can be blocked or modified before proceeding.
-3. If the request passes, it is sent to the LLM for inference. Depending on the configuration, Guardrails may also apply **retrieval rails** (for RAG context), **dialog rails** (for conversation flow), and **execution rails** (for tool calls) at this stage.
-4. **Output rails** check the LLM response once it is available, filtering or editing it as needed to ensure it is appropriate.
-5. The validated response is returned to the user.
+1. **Input stage** — the user input is first processed by the **input rails**, which decide whether it is allowed, altered, or rejected.
+2. **Retrieval stage** — if a knowledge base is configured, relevant context is retrieved and processed by **retrieval rails** to validate, filter, and transform it before it is injected into the prompt.
+3. **Dialog stage** — if dialog rails are configured, the message is processed by the dialog flows, which steer the conversation and ultimately produce a bot message.
+4. **Execution stage** — if custom actions or tools are defined, they run under the control of **execution rails**, which govern which actions can execute and validate their inputs and outputs. Results may be incorporated back into the response, supporting the multi-step (agentic) flows that return to the LLM.
+5. **Output stage** — the **output rails** decide whether the final response is allowed, altered, or rejected before it is returned to the user.
 
 ## Related Resources
 
