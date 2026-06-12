@@ -380,6 +380,22 @@ class TestModelEngineBodyParamDefaults:
         assert engine.body_param_defaults == {"max_tokens": 64}
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_client_only_keys(self):
+        """default_headers / default_query configure the OpenAI-compatible
+        client, not the chat-completion body, so they never reach the body
+        defaults; a sampling param alongside them is kept."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "default_headers": {"X-Tenant": "acme"},
+                    "default_query": {"api-version": "2024-02-01"},
+                    "temperature": 0.5,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     def test_excludes_identity_keys_defensively(self):
         """model / model_name / messages are stripped even when present in
         parameters. The Model validator normally lifts model/model_name into

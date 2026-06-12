@@ -82,6 +82,13 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         # be used in streaming or non-streaming mode. Defer to inference-time
         # `llm_params`.
         "stream_options",
+        # client-only options — these configure the OpenAI-compatible client
+        # (constructor kwargs), not the chat-completion request body.  IORails
+        # doesn't wire the shared client yet; reserve them so they're never
+        # forwarded as body fields, leaving proper client support to a future
+        # refactor.
+        "default_headers",
+        "default_query",
     }
 )
 
