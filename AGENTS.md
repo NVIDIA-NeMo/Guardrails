@@ -75,7 +75,7 @@ as tox and package coverage.
 | Serial, deterministic run | `make test WORKERS=1` (no parallelism, still unsets live keys) |
 | Coverage | `make test-coverage` |
 | Pre-commit hooks | `poetry run pre-commit run --all-files` |
-| Docs build | `poetry run sphinx-build -b html docs _build/docs` |
+| Docs check | `make docs-fern` |
 | Ruff diagnosis | `poetry run ruff check path/to/file.py` |
 | Ruff formatting diagnosis | `poetry run ruff format path/to/file.py` |
 | Pyright diagnosis | `poetry run pyright` |

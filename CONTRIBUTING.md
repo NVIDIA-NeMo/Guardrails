@@ -164,7 +164,7 @@ Run Python commands through Poetry.
 | Full test suite | `poetry run pytest` |
 | Supported Python versions | `poetry run tox` |
 | Pre-commit hooks | `poetry run pre-commit run --all-files` |
-| Docs build | `poetry run sphinx-build -b html docs _build/docs` |
+| Docs check | `make docs-fern` |
 | Package coverage | `poetry run pytest --cov=nemoguardrails --cov-report=term-missing tests/` |
 
 Run the smallest meaningful test set first, then broaden validation when the
@@ -183,8 +183,13 @@ and Pyright.
 ## Documentation and Notebooks
 
 Update documentation when changing user-visible behavior, public APIs,
-configuration syntax, examples, or installation requirements. Use the docs build
-command above before submitting docs changes when practical.
+configuration syntax, examples, or installation requirements.
+
+Documentation lives in `docs/` as MDX and is built with Fern. Edit the `.mdx`
+files directly and check changes with `make docs-fern` (`make docs-fern-live`
+serves locally; `make docs-check-links` validates links). The Fern CLI version
+is pinned in `fern/fern.config.json`; do not run `fern upgrade` as part of normal
+documentation changes.
 
 For notebook documentation, place the notebook in its own folder and generate a
 matching `README.md` with:
