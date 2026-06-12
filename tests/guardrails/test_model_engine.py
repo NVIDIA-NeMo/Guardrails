@@ -1306,9 +1306,17 @@ class TestParseChatCompletionChunk:
         assert result is not None
         assert result.usage is None
 
-    def test_finish_only_delta_returns_none(self):
-        """Finish-only deltas (no content/reasoning) are skipped, matching prior behavior."""
-        assert _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]}) is None
+    def test_finish_only_delta_returns_chunk_with_finish_reason(self):
+        """Finish-only frames (empty delta, no usage) are preserved so the
+        ``finish_reason`` reaches the LLM span's ``gen_ai.response.finish_reasons``.
+        Real OpenAI-compatible providers deliver ``finish_reason`` in a terminal
+        frame with an empty delta and no usage."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]})
+        assert result is not None
+        assert result.delta_content is None
+        assert result.delta_reasoning is None
+        assert result.usage is None
+        assert result.finish_reason == "stop"
 
     def test_passes_through_metadata(self):
         """model, request id, and finish_reason flow into the chunk when content is present."""
