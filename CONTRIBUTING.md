@@ -160,12 +160,12 @@ Run Python commands through Poetry.
 
 | Task | Command |
 | --- | --- |
-| Focused tests | `poetry run pytest path/to/test_file.py` |
-| Full test suite | `poetry run pytest` |
+| Focused tests | `make test TEST=path/to/test_file.py::test_name` |
+| Full test suite | `make test` |
 | Supported Python versions | `poetry run tox` |
 | Pre-commit hooks | `poetry run pre-commit run --all-files` |
 | Docs check | `make docs-fern` |
-| Package coverage | `poetry run pytest --cov=nemoguardrails --cov-report=term-missing tests/` |
+| Package coverage | `make test-coverage` |
 
 Run the smallest meaningful test set first, then broaden validation when the
 change touches shared runtime behavior, public APIs, packaging, server behavior,
