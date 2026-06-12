@@ -51,6 +51,36 @@ _ENGINE_BASE_URLS = {
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 
+# Parameter keys the engine reserves and handles itself, so they are NOT
+# forwarded into the /v1/chat/completions request body.  Everything else in
+# a model's ``parameters`` config block becomes a per-request default via
+# ``ModelEngine.body_param_defaults``.
+_RESERVED_LLM_PARAMETERS = frozenset(
+    {
+        # transport / retry — consumed by ModelEngine.__init__ and
+        # _resolve_base_url, never part of the request body
+        "base_url",
+        "timeout",
+        "timeout_connect",
+        "max_attempts",
+        # secret — carried in the Authorization header, never echoed into the body
+        "api_key",
+        # model identity / positional — set explicitly by _prepare_request;
+        # would collide with the "model" body field set there.  After Model
+        # validation these never appear in parameters, but exclude them
+        # defensively against direct construction.
+        "model",
+        "model_name",
+        "messages",
+        # streaming control — owned by the engine.  "stream" in particular
+        # collides with the explicit stream=True kwarg that stream_call()
+        # passes into _prepare_request(), which would raise TypeError on a
+        # duplicate keyword argument.
+        "stream",
+        "stream_options",
+    }
+)
+
 
 class _RequestParams(NamedTuple):
     """Pre-built parameters for an HTTP request to the completions endpoint."""
@@ -189,6 +219,12 @@ class ModelEngine(BaseEngine):
             timeout_connect=float(params.get("timeout_connect") or DEFAULT_TIMEOUT_CONNECT),
             max_attempts=int(params.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
         )
+
+        # Default `llm_params` used on inference are the subset of Model.parameters after
+        # filtering out keys in _RESERVED_LLM_PARAMETERS.
+        self.body_param_defaults: dict[str, Any] = {
+            key: value for key, value in params.items() if key not in _RESERVED_LLM_PARAMETERS
+        }
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type.

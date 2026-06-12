@@ -195,6 +195,10 @@ class EngineRegistry:
         provider_name = engine.model_config.engine or "unknown"
         operation_name = "chat"
 
+        # Merge the model's config parameters with per-call kwargs (GenerationOptions.llm_params)
+        # Per-call kwargs have priority.
+        merged_params = {**engine.body_param_defaults, **kwargs}
+
         # Compose: span (always created — no-op when tracer is None) and
         # duration metric (only when metrics enabled).  Token usage is
         # emitted after the call returns since it depends on
@@ -208,9 +212,9 @@ class EngineRegistry:
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
             # Request params are known before the call, so set them first —
             # they land on the span even if the call raises.
-            set_llm_request_attributes(span, kwargs)
+            set_llm_request_attributes(span, merged_params)
             with duration_ctx:
-                result = await engine.chat_completion(messages, **kwargs)
+                result = await engine.chat_completion(messages, **merged_params)
             # Set response/usage and content attrs inside the span context so
             # the helpers see the live LLM CLIENT span and the attributes land
             # before it closes.  Both are skipped on exception, which never
@@ -270,6 +274,13 @@ class EngineRegistry:
         provider_name = engine.model_config.engine or "unknown"
         operation_name = "chat"
 
+        # Merge the model's configured parameter defaults with the per-call
+        # kwargs (per-call wins), above set_llm_request_attributes, so the span
+        # reflects the request body.  Excluding "stream"/"stream_options" from
+        # body_param_defaults also prevents a duplicate-keyword TypeError when
+        # stream_call() passes its own stream=True into _prepare_request().
+        merged_params = {**engine.body_param_defaults, **kwargs}
+
         # Capture the latest non-None response fields from the stream so we
         # can set the LLM span's response/usage attrs and emit the token
         # metric after the stream completes.  Providers spread these across
@@ -295,7 +306,7 @@ class EngineRegistry:
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
             # Set request params + stream=True before the first chunk so they
             # land on the span even if the stream errors mid-flight.
-            set_llm_request_attributes(span, kwargs, stream=True)
+            set_llm_request_attributes(span, merged_params, stream=True)
             with duration_ctx:
                 # Gate timing-state setup on ``_metrics_enabled`` so the
                 # cold path skips ``time.monotonic()`` and the per-chunk
@@ -304,7 +315,7 @@ class EngineRegistry:
                 # — it's never read in that branch.
                 t0 = time.monotonic() if self._metrics_enabled else 0.0
                 last_chunk_time: Optional[float] = None
-                async for chunk in engine.stream_chat_completion(messages, **kwargs):
+                async for chunk in engine.stream_chat_completion(messages, **merged_params):
                     if self._metrics_enabled:
                         # Per OTEL semconv, "first chunk" / "output chunk"
                         # mean content-bearing chunks — gate on

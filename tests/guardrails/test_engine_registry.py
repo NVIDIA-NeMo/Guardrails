@@ -154,6 +154,28 @@ def _mock_sse_response(raw_chunks: list[dict]):
     return mock_response
 
 
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def _registry_with_main_params(parameters: dict, tracer):
+    """Build an EngineRegistry whose ``main`` model carries ``parameters``,
+    wired to ``tracer`` so model_call / stream_model_call produce real spans we
+    can read back. Used by the parameter-defaults merge tests, which need a
+    model with non-empty ``parameters`` (the shared NEMOGUARDS_CONFIG models
+    have none)."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "model": "meta/llama-3.3-70b-instruct",
+                    "parameters": parameters,
+                }
+            ]
+        }
+    )
+    return EngineRegistry(config.models, config.rails.config, tracer=tracer)
+
+
 class TestEngineRegistryInit:
     """Test EngineRegistry creates engines from config."""
 
@@ -503,6 +525,192 @@ class TestEngineRegistryModelCallSpanAttributes:
         assert "gen_ai.usage.input_tokens" not in attrs
         assert "gen_ai.response.model" not in attrs
         assert attrs["error.type"] == "RuntimeError"
+
+
+class TestEngineRegistryParameterDefaults:
+    """``model_call`` / ``stream_model_call`` merge ModelEngine.body_param_defaults
+    (the model's ``parameters`` config minus transport/secret/streaming keys)
+    under the per-call kwargs. Both the request body and the gen_ai.request.*
+    span attrs reflect the defaults, with per-call llm_params overriding."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_applies_config_defaults(self, span_exporter):
+        """No per-call kwargs → the model's parameter defaults populate both the
+        request body and the request span attrs."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}])
+
+        body = engine.chat_completion.call_args[1]
+        assert body["temperature"] == 0.7
+        assert body["max_tokens"] == 256
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.7
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_per_call_kwargs_override_defaults(self, span_exporter):
+        """A per-call kwarg overrides the config default for that key; the other
+        defaults are retained, in both body and span."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}], temperature=0.1)
+
+        body = engine.chat_completion.call_args[1]
+        assert body["temperature"] == 0.1  # per-call override wins
+        assert body["max_tokens"] == 256  # config default retained
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.1
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_llm_params_take_precedence_over_config_parameters(self, span_exporter):
+        """Precedence guard: when the same key is set in BOTH the static
+        Model.parameters config AND the per-call llm_params, the per-call value
+        must win in the request body actually sent to the engine. Reversing the
+        merge order ({**kwargs, **defaults}, config winning) flips the sent
+        temperature back to the config value and fails this test."""
+        config_temperature = 0.7
+        per_call_temperature = 0.1
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": config_temperature}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}], temperature=per_call_temperature)
+
+        sent_body = engine.chat_completion.call_args[1]
+        assert sent_body["temperature"] == per_call_temperature
+        assert sent_body["temperature"] != config_temperature  # the static config default must not win
+        # The span reflects the same value that was sent.
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == per_call_temperature
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_excludes_non_body_keys(self, span_exporter):
+        """Transport (base_url/timeout) and streaming-control (stream) keys in
+        parameters never reach the request body; only the sampling param does."""
+        tracer, _ = span_exporter
+        registry = _registry_with_main_params(
+            {"base_url": "https://custom.example.com", "timeout": 5, "stream": True, "temperature": 0.5},
+            tracer,
+        )
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}])
+
+        body = engine.chat_completion.call_args[1]
+        assert body == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_model_call_applies_defaults_and_override(self, span_exporter):
+        """Streaming path merges the same way: defaults populate the body
+        (captured off the engine call) and the span attrs (with stream=True),
+        and a per-call kwarg overrides its default."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+
+        captured: dict = {}
+
+        async def _capturing_stream(messages, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+            captured.update(kwargs)
+            yield LLMResponseChunk(delta_content="hi", finish_reason="stop")
+
+        engine.stream_chat_completion = _capturing_stream
+
+        async for _ in registry.stream_model_call("main", [{"role": "user", "content": "hi"}], temperature=0.1):
+            pass
+
+        assert captured["temperature"] == 0.1  # per-call override wins
+        assert captured["max_tokens"] == 256  # config default retained
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.1
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_llm_params_take_precedence_over_config_parameters(self, span_exporter):
+        """Streaming precedence guard: when the same key is set in BOTH the
+        static Model.parameters config AND the per-call llm_params, the per-call
+        value must win in what stream_model_call forwards to the engine.
+        Reversing the merge order ({**kwargs, **defaults}, config winning) flips
+        the streamed temperature back to the config value and fails this test."""
+        config_temperature = 0.7
+        per_call_temperature = 0.1
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": config_temperature}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+
+        captured: dict = {}
+
+        async def _capturing_stream(messages, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+            captured.update(kwargs)
+            yield LLMResponseChunk(delta_content="hi", finish_reason="stop")
+
+        engine.stream_chat_completion = _capturing_stream
+
+        async for _ in registry.stream_model_call(
+            "main", [{"role": "user", "content": "hi"}], temperature=per_call_temperature
+        ):
+            pass
+
+        assert captured["temperature"] == per_call_temperature
+        assert captured["temperature"] != config_temperature  # the static config default must not win
+        # The span reflects the same value that was forwarded.
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == per_call_temperature
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_model_call_with_stream_param_does_not_raise_type_error(self, span_exporter):
+        """A model whose parameters include ``stream`` drives the real
+        stream_call/_prepare_request path without a duplicate-keyword TypeError
+        (stream is excluded from body_param_defaults). Only the sampling param
+        reaches the sent body; transport/streaming keys are dropped."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params(
+            {"stream": True, "base_url": "https://custom.example.com", "temperature": 0.5}, tracer
+        )
+        engine = registry._get_engine("main", ModelEngine)
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(
+            return_value=_mock_sse_response(
+                [
+                    {
+                        "id": "chatcmpl-stream",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "choices": [{"delta": {"content": "hi"}, "finish_reason": "stop"}],
+                    },
+                ]
+            )
+        )
+        engine._running = True
+
+        # Must not raise TypeError("got multiple values for keyword argument 'stream'").
+        async for _ in registry.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        sent_body = engine._client.post.call_args.kwargs["json"]
+        assert sent_body["temperature"] == 0.5
+        assert sent_body["stream"] is True  # set explicitly by stream_call, not from parameters
+        assert "base_url" not in sent_body
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.5
+        assert attrs["gen_ai.request.stream"] is True
 
 
 class TestEngineRegistryStartErrors:

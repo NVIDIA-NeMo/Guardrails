@@ -328,6 +328,77 @@ class TestModelEngineConfig:
         assert engine._client is None
 
 
+class TestModelEngineBodyParamDefaults:
+    """Test ModelEngine.body_param_defaults: sampling params from a model's
+    ``parameters`` config become per-request body defaults, while transport,
+    secret, identity, and streaming-control keys are excluded."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_keeps_sampling_params(self):
+        """Sampling/body params (temperature, max_tokens, seed, top_p, ...) all
+        pass through to body_param_defaults unchanged."""
+        engine = ModelEngine(_make_model(parameters={"temperature": 0.3, "max_tokens": 256, "seed": 42, "top_p": 0.9}))
+        assert engine.body_param_defaults == {
+            "temperature": 0.3,
+            "max_tokens": 256,
+            "seed": 42,
+            "top_p": 0.9,
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_transport_and_retry_keys(self):
+        """Transport/retry keys consumed by __init__ and _resolve_base_url are
+        not echoed into the body; a sampling param alongside them is kept."""
+        engine = ModelEngine(
+            _make_model(
+                engine="nim",
+                parameters={
+                    "base_url": "https://custom.example.com",
+                    "timeout": 120,
+                    "timeout_connect": 30,
+                    "max_attempts": 5,
+                    "temperature": 0.5,
+                },
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_secret_and_streaming_keys(self):
+        """api_key (secret, header-only) and stream/stream_options (engine-owned)
+        never reach the body defaults."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "api_key": "sk-should-not-leak",
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "max_tokens": 64,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"max_tokens": 64}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_identity_keys_defensively(self):
+        """model / model_name / messages are stripped even when present in
+        parameters. The Model validator normally lifts model/model_name into
+        the model field, so these only leak via direct construction — mutate
+        parameters after build to simulate that path."""
+        model = _make_model(parameters={"temperature": 0.2})
+        model.parameters.update(
+            {"model": "shadow", "model_name": "shadow", "messages": [{"role": "user", "content": "x"}]}
+        )
+        engine = ModelEngine(model)
+        assert engine.body_param_defaults == {"temperature": 0.2}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_empty_parameters_yields_empty_defaults(self):
+        """A model with no parameters has empty body_param_defaults."""
+        engine = ModelEngine(_make_model(parameters={}))
+        assert engine.body_param_defaults == {}
+
+
 class TestModelEngineLifecycle:
     """Test the ModelEngine start() and stop() client lifecycle."""
 
