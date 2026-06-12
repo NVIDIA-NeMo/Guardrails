@@ -15,8 +15,9 @@
 
 """Unit tests for engine_registry module."""
 
+import json
 from typing import Optional
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from opentelemetry.sdk.metrics import MeterProvider
@@ -125,6 +126,32 @@ def _mock_stream(*chunks: LLMResponseChunk, error: Optional[Exception] = None):
             raise error
 
     return _gen
+
+
+def _mock_sse_response(raw_chunks: list[dict]):
+    """Build a mock aiohttp streaming response that emits ``raw_chunks`` as
+    SSE ``data:`` frames followed by ``[DONE]``.
+
+    Drives ModelEngine.stream_call's real ``_parse_chat_completion_chunk``
+    path (rather than ``_mock_stream``'s pre-parsed chunks), so a finish-only
+    SSE frame is parsed end-to-end. readline() returns one ``\\n``-terminated
+    line at a time, matching aiohttp's StreamReader.
+    """
+    lines = [f"data: {json.dumps(chunk)}\n".encode() for chunk in raw_chunks]
+    lines.append(b"data: [DONE]\n")
+    line_iter = iter(lines)
+
+    async def _readline():
+        return next(line_iter, b"")
+
+    mock_content = MagicMock()
+    mock_content.readline = _readline
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = 200
+    mock_response.content = mock_content
+    return mock_response
 
 
 class TestEngineRegistryInit:
@@ -1181,6 +1208,47 @@ class TestEngineRegistryStreamModelCallSpanAttributes:
         assert attrs["gen_ai.usage.output_tokens"] == 4
         assert attrs["gen_ai.usage.reasoning.output_tokens"] == 2
         assert "gen_ai.usage.total_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_finish_only_sse_frame_lands_finish_reasons_on_span(self, manager_with_tracer, span_exporter):
+        """End-to-end regression for the dropped finish-only frame. A real
+        OpenAI-style stream delivers ``finish_reason`` in a frame with an empty
+        delta and no usage, then usage in a separate empty-``choices`` frame.
+        Driving the actual ``_parse_chat_completion_chunk`` (not a pre-parsed
+        ``_mock_stream``), the span must still carry
+        ``gen_ai.response.finish_reasons`` — restoring the ``is None``-only
+        parser guard would drop the finish frame and fail this assertion."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(
+            return_value=_mock_sse_response(
+                [
+                    {
+                        "id": "chatcmpl-stream",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "choices": [{"delta": {"content": "Hello"}, "finish_reason": None}],
+                    },
+                    {"choices": [{"delta": {"content": " world"}, "finish_reason": None}]},
+                    # Finish-only frame: empty delta, no usage — previously dropped.
+                    {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                    # Usage arrives on a separate empty-choices frame.
+                    {"choices": [], "usage": {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12}},
+                ]
+            )
+        )
+        engine._running = True
+
+        async for _ in manager_with_tracer.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-stream"
+        assert attrs["gen_ai.usage.input_tokens"] == 8
+        assert attrs["gen_ai.usage.output_tokens"] == 4
+        assert attrs["gen_ai.request.stream"] is True
 
     @pytest.mark.asyncio
     async def test_stream_attribute_set_even_without_usage(self, manager_with_tracer, span_exporter):
