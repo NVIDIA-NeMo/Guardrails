@@ -114,6 +114,12 @@ as tox and package coverage.
   and has an agreed approach recorded in the thread), stop at a proposal or
   implementation plan (an issue comment, or a throwaway `PLAN.md` PR maintainers
   can review) rather than implementing.
+- Before preparing PR-shaped work, check for duplicate or in-flight effort with
+  read-only `gh` (distinct from the no-`gh`-submission rule above):
+  `gh issue view <issue> --comments`, `gh pr list --state open --search "<issue>
+  in:body"`, and `gh pr list --state open --search "<area keywords>"`. If an open
+  PR already covers the change, do not prepare a duplicate; if your approach
+  differs materially, surface that difference in the issue draft for a maintainer.
 - If work is exploratory, draft an issue comment with the branch and relevant
   files instead of opening a PR.
 - Use the Conventional Commit-style titles described in `CONTRIBUTING.md`.
