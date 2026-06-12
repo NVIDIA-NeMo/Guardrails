@@ -117,9 +117,18 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     """Build an LLMResponseChunk from an SSE chunk dict.
 
     Returns None for chunks without one of: content delta, reasoning delta,
-    or a usage payload.
-    Role-only first events and finish-only events with empty deltas
-    map to None.
+    a usage payload, or a finish_reason.
+    Role-only first events map to None.
+
+    Finish-only frames are preserved: a delta with no content/reasoning
+    (OpenAI sends ``delta: {}``, NIM sends ``delta: {"content": ""}``) and no
+    usage, carrying only a ``finish_reason``. Dropping them would strip
+    ``gen_ai.response.finish_reasons`` from the LLM span. (Some providers
+    instead attach ``finish_reason`` to the final content chunk — that case is
+    already captured, since content keeps the chunk alive.) When
+    ``stream_options.include_usage=true`` the usage payload arrives in a
+    *separate* later frame with empty ``choices`` — so finish_reason and usage
+    do not share a frame.
 
     Last chunk from OpenAI-compatible providers has a ``usage`` field when
     ``stream_options.include_usage=true``. This is passed through to capture
@@ -138,7 +147,7 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
         delta_reasoning = delta.get("reasoning_content") or None
         finish_reason = choice.get("finish_reason")
 
-    if not delta_content and not delta_reasoning and not usage_dict:
+    if not delta_content and not delta_reasoning and not usage_dict and not finish_reason:
         return None
 
     return LLMResponseChunk(

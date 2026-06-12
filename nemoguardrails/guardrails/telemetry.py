@@ -83,6 +83,7 @@ if TYPE_CHECKING:
 
     from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
+    from nemoguardrails.types import UsageInfo
 
     _OTEL_AVAILABLE = True
 else:
@@ -574,6 +575,125 @@ def set_llm_call_content(
         _set_llm_call_content_json(span, input_messages, output_text)
     else:
         _set_llm_call_content_events(span, input_messages, output_text)
+
+
+# Maps an LLM request kwarg (as forwarded into the provider request body)
+# to the OTEL GenAI span attribute that records it.  Both ``max_tokens``
+# and the OpenAI ``max_completion_tokens`` alias map to the same attribute.
+# ``stop`` / ``stop_sequences`` is handled separately by
+# :func:`_stop_sequences` because it needs list normalization.
+_GENAI_REQUEST_PARAMS = {
+    "temperature": GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
+    "max_tokens": GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
+    "max_completion_tokens": GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
+    "top_p": GenAIAttributes.GEN_AI_REQUEST_TOP_P,
+    "top_k": GenAIAttributes.GEN_AI_REQUEST_TOP_K,
+    "frequency_penalty": GenAIAttributes.GEN_AI_REQUEST_FREQUENCY_PENALTY,
+    "presence_penalty": GenAIAttributes.GEN_AI_REQUEST_PRESENCE_PENALTY,
+}
+
+
+def _stop_sequences(params: dict) -> Optional[list]:
+    """Return the request's stop sequences as a list, or ``None`` if unset.
+
+    Reads the provider-specific request field that carries them:
+
+    * OpenAI: ``stop``
+    * Anthropic: ``stop_sequences``
+
+    A bare string is wrapped into a single-element list
+    (``gen_ai.request.stop_sequences`` is a string[]); a non-empty list is
+    returned unchanged.  An empty or missing value, or any other type,
+    yields ``None`` — an empty ``stop`` is skipped rather than recorded as
+    a misleading empty span attribute.
+    """
+    raw = params.get("stop")
+    if raw is None:
+        raw = params.get("stop_sequences")
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return raw
+    return None
+
+
+def set_llm_request_attributes(
+    span: Optional["Span"],
+    params: dict,
+    *,
+    stream: bool = False,
+) -> None:
+    """Set ``gen_ai.request.*`` attributes on an LLM CLIENT span.
+
+    *params* is the kwargs dict forwarded to the model engine
+    (``GenerationOptions.llm_params``); only the known request-parameter
+    keys are mapped — any other kwargs are ignored.  ``stop`` /
+    ``stop_sequences`` is normalized to a list via :func:`_stop_sequences`.
+    ``gen_ai.request.stream`` is set only when *stream* is True (omitted
+    otherwise, per the spec's conditionally-required-iff-streaming rule).
+
+    These are non-sensitive sampling parameters (Recommended by spec), so
+    unlike message content they are recorded whenever the span exists —
+    there is no content-capture gate.  Safe to call with ``span=None``
+    (no-op) so callers don't have to branch on whether tracing is enabled.
+    """
+    if span is None:
+        return
+    for key, attr in _GENAI_REQUEST_PARAMS.items():
+        value = params.get(key)
+        if value is not None:
+            span.set_attribute(attr, value)
+    stop_sequences = _stop_sequences(params)
+    if stop_sequences is not None:
+        span.set_attribute(GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES, stop_sequences)
+    if stream:
+        span.set_attribute(GenAIAttributes.GEN_AI_REQUEST_STREAM, True)
+
+
+def set_llm_response_attributes(
+    span: Optional["Span"],
+    *,
+    model: Optional[str] = None,
+    response_id: Optional[str] = None,
+    finish_reason: Optional[str] = None,
+    usage: Optional["UsageInfo"] = None,
+) -> None:
+    """Set ``gen_ai.response.*`` and ``gen_ai.usage.*`` attrs on an LLM CLIENT span.
+
+    Each attribute is set only when its source value is non-``None`` so
+    backends can distinguish an absent value from a real zero.
+    *finish_reason* is a single value wrapped into a one-element list to
+    match the spec's ``gen_ai.response.finish_reasons`` string[] shape.
+    Reasoning tokens are recorded only when the provider returned them.
+    ``gen_ai.usage.total_tokens`` is intentionally never emitted — it was
+    removed from the current spec.
+
+    Callers feed the values from whatever source they have: the
+    non-streaming path reads them off the returned ``LLMResponse``; the
+    streaming path passes the fields accumulated across chunks (model and
+    id arrive early, finish_reason and usage on the terminal chunk).  Like
+    :func:`set_llm_request_attributes`, these are non-sensitive telemetry
+    recorded whenever the span exists — no content-capture gate.  Safe to
+    call with ``span=None`` (no-op).
+    """
+    if span is None:
+        return
+    if model is not None:
+        span.set_attribute(GenAIAttributes.GEN_AI_RESPONSE_MODEL, model)
+    if response_id is not None:
+        span.set_attribute(GenAIAttributes.GEN_AI_RESPONSE_ID, response_id)
+    if finish_reason is not None:
+        span.set_attribute(GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS, [finish_reason])
+    if usage is not None:
+        span.set_attribute(GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS, usage.input_tokens)
+        span.set_attribute(GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS, usage.output_tokens)
+        if usage.reasoning_tokens is not None:
+            span.set_attribute(
+                GenAIAttributes.GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+                usage.reasoning_tokens,
+            )
 
 
 def set_request_content(

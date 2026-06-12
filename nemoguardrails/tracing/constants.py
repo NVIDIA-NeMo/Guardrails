@@ -130,6 +130,10 @@ class GenAIAttributes:
     GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
     GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 
+    # Conditionally Required per spec: set if and only if the request is
+    # streaming (omit entirely on non-streaming calls).
+    GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+
     GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
     GEN_AI_RESPONSE_ID = "gen_ai.response.id"
     GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -137,6 +141,10 @@ class GenAIAttributes:
     GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
+
+    # Recommended span attribute (when applicable, e.g. reasoning models).
+    # Span-only — NOT a valid ``gen_ai.token.type`` metric label value.
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
 
     # Required label on the ``gen_ai.client.token.usage`` metric.
     # Allowed values (from spec): "input" or "output" only.  Reasoning

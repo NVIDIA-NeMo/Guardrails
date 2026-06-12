@@ -33,6 +33,8 @@ from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
     set_llm_call_content,
+    set_llm_request_attributes,
+    set_llm_response_attributes,
 )
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.tracing.constants import (
@@ -204,11 +206,22 @@ class EngineRegistry:
             else nullcontext()
         )
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
+            # Request params are known before the call, so set them first —
+            # they land on the span even if the call raises.
+            set_llm_request_attributes(span, kwargs)
             with duration_ctx:
                 result = await engine.chat_completion(messages, **kwargs)
-            # Capture content inside the span context so the helper sees
-            # the live LLM CLIENT span (not None even on the success path)
-            # and the attributes/events land before the span closes.
+            # Set response/usage and content attrs inside the span context so
+            # the helpers see the live LLM CLIENT span and the attributes land
+            # before it closes.  Both are skipped on exception, which never
+            # reaches here.
+            set_llm_response_attributes(
+                span,
+                model=result.model,
+                response_id=result.request_id,
+                finish_reason=result.finish_reason,
+                usage=result.usage,
+            )
             if self._content_capture_enabled:
                 set_llm_call_content(span, messages, result.content)
 
@@ -237,6 +250,14 @@ class EngineRegistry:
         observation is emitted on early consumer cancellation or on
         provider error mid-stream.
 
+        The LLM CLIENT span receives ``gen_ai.request.*`` attributes
+        (including ``gen_ai.request.stream=True``) before the first chunk,
+        and ``gen_ai.response.*`` / ``gen_ai.usage.*`` attributes
+        accumulated across the chunks after natural exhaustion.  Like the
+        token metric, the response attrs are skipped on cancellation or a
+        mid-stream provider error.  These span attrs are independent of
+        whether metrics are enabled.
+
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
@@ -249,11 +270,17 @@ class EngineRegistry:
         provider_name = engine.model_config.engine or "unknown"
         operation_name = "chat"
 
-        # Capture the most recent chunk's ``usage`` field so we can emit
-        # token metrics after the stream completes — providers (e.g.
-        # OpenAI-compatible) only populate ``usage`` on the terminal
-        # chunk when ``stream_options.include_usage=true``.
+        # Capture the latest non-None response fields from the stream so we
+        # can set the LLM span's response/usage attrs and emit the token
+        # metric after the stream completes.  Providers spread these across
+        # the SSE chunks — OpenAI-compatible engines only populate ``usage``
+        # on the terminal chunk (when ``stream_options.include_usage=true``)
+        # and finish_reason likewise arrives last — so each field keeps its
+        # latest non-None value.
         captured_usage: Optional["UsageInfo"] = None
+        captured_model: Optional[str] = None
+        captured_response_id: Optional[str] = None
+        captured_finish_reason: Optional[str] = None
         # Accumulate streamed delta_content here when content capture is on;
         # joined and recorded onto the LLM span at stream end.  The list is
         # allocated unconditionally (cost: one empty list per stream); the
@@ -266,6 +293,9 @@ class EngineRegistry:
             else nullcontext()
         )
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
+            # Set request params + stream=True before the first chunk so they
+            # land on the span even if the stream errors mid-flight.
+            set_llm_request_attributes(span, kwargs, stream=True)
             with duration_ctx:
                 # Gate timing-state setup on ``_metrics_enabled`` so the
                 # cold path skips ``time.monotonic()`` and the per-chunk
@@ -290,16 +320,33 @@ class EngineRegistry:
                                     engine.model_name, provider_name, operation_name, now - last_chunk_time
                                 )
                             last_chunk_time = now
-                        if chunk.usage is not None:
-                            captured_usage = chunk.usage
+                    # Keep the latest non-None response field from each chunk.
+                    # Captured regardless of ``_metrics_enabled`` because they
+                    # feed the span's response/usage attrs (set after the loop)
+                    # as well as the token-usage metric.
+                    if chunk.model is not None:
+                        captured_model = chunk.model
+                    if chunk.request_id is not None:
+                        captured_response_id = chunk.request_id
+                    if chunk.finish_reason is not None:
+                        captured_finish_reason = chunk.finish_reason
+                    if chunk.usage is not None:
+                        captured_usage = chunk.usage
                     if self._content_capture_enabled and chunk.delta_content:
                         content_parts.append(chunk.delta_content)
                     yield chunk
-            # Capture accumulated stream content inside the span context so
-            # the helper sees the live LLM CLIENT span before it closes.
-            # Reached only on natural exhaustion — consumer cancellation or
-            # provider error raises out of the ``with`` blocks above, in
-            # which case partial content is intentionally not recorded.
+            # Set response/usage attrs and (when enabled) content inside the
+            # span context so the helpers see the live LLM CLIENT span before
+            # it closes.  Reached only on natural exhaustion — consumer
+            # cancellation or provider error raises out of the ``with`` blocks
+            # above, so partial response data is intentionally not recorded.
+            set_llm_response_attributes(
+                span,
+                model=captured_model,
+                response_id=captured_response_id,
+                finish_reason=captured_finish_reason,
+                usage=captured_usage,
+            )
             # Empty ``content_parts`` -> output_text=None so we don't claim
             # an empty assistant response (matches iorails.py's request-span
             # streaming path).
