@@ -22,7 +22,7 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -163,6 +163,22 @@ class TestGenerateAsync:
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_records_block_metric_when_metrics_enabled(self, iorails):
+        """When metrics are enabled, an output-rails block records an OUTPUT block metric."""
+        iorails._metrics_enabled = True
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="unsafe"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await iorails.generate_async(messages)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_blocked.assert_called_once_with(RailDirection.OUTPUT)
 
     @pytest.mark.asyncio
     async def test_dict_options_forwarded(self, iorails):

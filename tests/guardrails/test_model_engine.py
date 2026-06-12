@@ -1214,10 +1214,15 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Unexpected /v1/chat/completions response shape"):
             _parse_chat_completion({})
 
-    def test_raises_on_non_string_content(self):
-        """Non-string content raises ValueError."""
-        with pytest.raises(ValueError, match="Expected string content"):
+    def test_raises_on_null_content_without_tool_calls(self):
+        """content=None with no tool_calls is malformed and raises ValueError."""
+        with pytest.raises(ValueError, match="Expected string content, got NoneType"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
+
+    def test_raises_on_non_string_content(self):
+        """Content that is neither a string nor None (e.g. an int) raises ValueError with its type."""
+        with pytest.raises(ValueError, match="Expected string content, got int"):
+            _parse_chat_completion({"choices": [{"message": {"content": 123}}]})
 
     def test_parses_tool_calls_when_content_none(self):
         """content=None with tool_calls parses the calls and normalizes content to ''.
