@@ -12,9 +12,33 @@ content:
 
 The NeMo Guardrails library acts as an intermediary between application code and LLM requests and responses. Once Guardrails is integrated in an application, all LLM inference requests are first checked by Guardrails to ensure user requests are safe and not malicious. If they are, the request is passed to the LLM for inference. Guardrails also checks the LLM response once it's available, making sure it's appropriate before being passed back to the user.
 
+## High-Level Architecture Diagram
+
 ![Programmable Guardrails Flow](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
 
 Each application can configure its own set of guardrails, depending on the use-case. Guardrails requests can trigger calls to third-party APIs, LLMs fine-tuned to implement Guardrail functionality, or to the Application LLM. Guardrails hides this complexity from clients, orchestrating the workflows behind-the-scenes so applications can focus on their business logic.
+
+## Component Layers
+
+NeMo Guardrails applies guardrails at multiple stages of the LLM interaction. Each stage uses a different *rail type*:
+
+- **Input rails** validate and sanitize user inputs before the LLM is called — for example, content safety, jailbreak detection, topic control, and PII masking.
+- **Retrieval rails** filter and validate retrieved knowledge (documents and chunks) so that only trusted context is provided to the LLM in RAG pipelines.
+- **Dialog rails** steer and constrain the multi-turn conversation, enforcing flow logic and policies across turns.
+- **Execution rails** control and validate tool and function calls — their arguments and results — to safely interact with external systems.
+- **Output rails** evaluate and post-process model responses, filtering, editing, or blocking unsafe or off-policy content before it reaches users.
+
+Input and output rails are the most common. For the full list of rail types and the use cases each one applies to, see [Guardrail Types](/about-nemo-guardrails-library/rail-types).
+
+## Data Flow
+
+When Guardrails is integrated into an application, each LLM interaction flows through the configured rails:
+
+1. The application sends a user request to Guardrails rather than directly to the LLM.
+2. **Input rails** check the request to confirm it is safe and not malicious; unsafe requests can be blocked or modified before proceeding.
+3. If the request passes, it is sent to the LLM for inference. Depending on the configuration, Guardrails may also apply **retrieval rails** (for RAG context), **dialog rails** (for conversation flow), and **execution rails** (for tool calls) at this stage.
+4. **Output rails** check the LLM response once it is available, filtering or editing it as needed to ensure it is appropriate.
+5. The validated response is returned to the user.
 
 ## Related Resources
 
