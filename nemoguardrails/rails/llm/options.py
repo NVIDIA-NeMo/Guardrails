@@ -78,9 +78,9 @@ To get more details on the LLM calls that were executed, including the raw respo
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator, root_validator
+from pydantic import BaseModel, Field, root_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -158,92 +158,6 @@ class GenerationRailsOptions(BaseModel):
     )
 
 
-class FunctionDefinition(BaseModel):
-    """A function tool definition, following the OpenAI /chat/completions schema."""
-
-    name: str = Field(description="The name of the function to call.")
-    description: Optional[str] = Field(
-        default=None,
-        description="A description of what the function does, used by the model to decide when and how to call it.",
-    )
-    parameters: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="The parameters the function accepts, described as a JSON Schema object.",
-    )
-    strict: Optional[bool] = Field(
-        default=None,
-        description="Whether to enforce strict schema adherence when generating the function arguments.",
-    )
-
-
-class Tool(BaseModel):
-    """A tool the model may call, following the OpenAI /chat/completions schema.
-
-    ``type`` is an open string (defaulting to ``"function"``) and unknown fields
-    are preserved, so hosted/built-in tool types from the /responses API (e.g.
-    ``web_search``, ``file_search``) can be carried through unchanged once
-    translation support is added. Only ``"function"`` tools are exercised today.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    type: str = Field(
-        default="function",
-        description="The type of the tool. Only 'function' is exercised today.",
-    )
-    function: Optional[FunctionDefinition] = Field(
-        default=None,
-        description="The function definition. Required when 'type' is 'function'.",
-    )
-
-    @model_validator(mode="after")
-    def require_function_for_function_type(self) -> "Tool":
-        """Require a function definition for function-type tools."""
-        if self.type == "function" and self.function is None:
-            raise ValueError("A 'function' definition is required when the tool type is 'function'.")
-        return self
-
-
-class NamedToolChoiceFunction(BaseModel):
-    """The function selected by a named tool choice."""
-
-    name: str = Field(description="The name of the function the model must call.")
-
-
-class NamedToolChoice(BaseModel):
-    """Force the model to call a specific function (OpenAI /chat/completions shape)."""
-
-    type: str = Field(default="function", description="The type of the named tool choice.")
-    function: NamedToolChoiceFunction = Field(description="The function the model is forced to call.")
-
-
-# A string selects the calling mode ("none"/"auto"/"required"); a NamedToolChoice forces one function.
-ToolChoice = Union[Literal["none", "auto", "required"], NamedToolChoice]
-
-
-class ToolCallingOptions(BaseModel):
-    """Tool-calling parameters forwarded to the main LLM, following the OpenAI /chat/completions schema.
-
-    Modeled directly on /chat/completions so that ``model_dump(exclude_none=True)``
-    yields the request-body fragment ``{"tools": ..., "tool_choice": ...,
-    "parallel_tool_calls": ...}``. The open ``Tool.type`` keeps the model
-    translatable to the /responses API later.
-    """
-
-    tools: Optional[List[Tool]] = Field(
-        default=None,
-        description="The list of tools the model may call.",
-    )
-    tool_choice: Optional[ToolChoice] = Field(
-        default=None,
-        description="Controls which (if any) tool is called: 'none', 'auto', 'required', or a named function.",
-    )
-    parallel_tool_calls: Optional[bool] = Field(
-        default=None,
-        description="Whether the model may request multiple tool calls in parallel.",
-    )
-
-
 class GenerationOptions(BaseModel):
     """A set of options that should be applied during a generation.
 
@@ -280,10 +194,6 @@ class GenerationOptions(BaseModel):
     log: GenerationLogOptions = Field(
         default_factory=GenerationLogOptions,
         description="Options about what to include in the log. By default, nothing is included. ",
-    )
-    tool_calling: Optional[ToolCallingOptions] = Field(
-        default=None,
-        description="Tool-calling parameters (tools, tool_choice, parallel_tool_calls) for the main LLM call.",
     )
 
     @root_validator(pre=True, allow_reuse=True)

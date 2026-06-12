@@ -26,7 +26,7 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import GenerationOptions, ToolCallingOptions
+from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
@@ -192,13 +192,11 @@ class TestToolCalling:
     """Test tool-call forwarding (request body) and return (assistant message)."""
 
     @pytest.mark.asyncio
-    async def test_tool_calling_options_forwarded_to_model(self, iorails):
-        """tools / tool_choice / parallel_tool_calls from options.tool_calling reach model_call."""
+    async def test_tools_in_llm_params_forwarded_to_model(self, iorails):
+        """Tool definitions in options.llm_params are forwarded to model_call unchanged."""
         messages = [{"role": "user", "content": "weather?"}]
         tool = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
-        options = GenerationOptions(
-            tool_calling=ToolCallingOptions(tools=[tool], tool_choice="auto", parallel_tool_calls=True)
-        )
+        options = GenerationOptions(llm_params={"tools": [tool], "tool_choice": "auto", "parallel_tool_calls": True})
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
@@ -208,25 +206,6 @@ class TestToolCalling:
 
         iorails.engine_registry.model_call.assert_called_once_with(
             "main", messages, tools=[tool], tool_choice="auto", parallel_tool_calls=True
-        )
-
-    @pytest.mark.asyncio
-    async def test_tool_calling_takes_precedence_over_llm_params(self, iorails):
-        """tool_calling overrides tools in llm_params while other llm_params are preserved."""
-        messages = [{"role": "user", "content": "hi"}]
-        options = GenerationOptions(
-            llm_params={"tools": [{"type": "function", "function": {"name": "old"}}], "temperature": 0.5},
-            tool_calling=ToolCallingOptions(tools=[{"type": "function", "function": {"name": "new"}}]),
-        )
-
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
-
-        await iorails.generate_async(messages, options=options)
-
-        iorails.engine_registry.model_call.assert_called_once_with(
-            "main", messages, tools=[{"type": "function", "function": {"name": "new"}}], temperature=0.5
         )
 
     @pytest.mark.asyncio

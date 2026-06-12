@@ -383,13 +383,9 @@ class IORails(BaseGuardrails):
         options = kwargs.get("options")
         if options and isinstance(options, dict):
             options = GenerationOptions(**options)
-        if isinstance(options, GenerationOptions):
-            if options.llm_params:
-                # Copy so merging tool_calling below never mutates the caller's options.
-                llm_kwargs = dict(options.llm_params)
-            if options.tool_calling is not None:
-                # First-class tool params win over any tools passed via llm_params.
-                llm_kwargs.update(options.tool_calling.model_dump(exclude_none=True))
+        if isinstance(options, GenerationOptions) and options.llm_params:
+            # Pass llm_params (including tool definitions) unchanged
+            llm_kwargs = options.llm_params
 
         if self._speculative_generation:
             response = await self._do_generate_speculative(messages, req_id, llm_kwargs, request_span)
@@ -601,18 +597,9 @@ class IORails(BaseGuardrails):
         llm_kwargs: dict = {}
         if options and isinstance(options, dict):
             options = GenerationOptions(**options)
-        if isinstance(options, GenerationOptions):
-            if options.llm_params:
-                llm_kwargs = options.llm_params
-            if options.tool_calling is not None:
-                # Streaming tool calling is not wired yet (only generate_async forwards
-                # tool_calling). Warn rather than silently dropping the field.
-                warnings.warn(
-                    "options.tool_calling is ignored by IORails stream_async; tool calling "
-                    "is currently supported only on the non-streaming path (generate_async). "
-                    "The tools/tool_choice will not be forwarded to the model.",
-                    stacklevel=2,
-                )
+        if isinstance(options, GenerationOptions) and options.llm_params:
+            # Pass llm_params (including tool definitions) unchanged
+            llm_kwargs = options.llm_params
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
