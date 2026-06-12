@@ -24,7 +24,8 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
+from types import MappingProxyType
 from typing import Any, NamedTuple, Optional, cast
 
 import aiohttp
@@ -77,6 +78,9 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         # passes into _prepare_request(), which would raise TypeError on a
         # duplicate keyword argument.
         "stream",
+        # Can't set Model-level `stream_options` because the same model can
+        # be used in streaming or non-streaming mode. Defer to inference-time
+        # `llm_params`.
         "stream_options",
     }
 )
@@ -221,10 +225,11 @@ class ModelEngine(BaseEngine):
         )
 
         # Default `llm_params` used on inference are the subset of Model.parameters after
-        # filtering out keys in _RESERVED_LLM_PARAMETERS.
-        self.body_param_defaults: dict[str, Any] = {
-            key: value for key, value in params.items() if key not in _RESERVED_LLM_PARAMETERS
-        }
+        # filtering out keys in _RESERVED_LLM_PARAMETERS.  Exposed as a read-only
+        # MappingProxyType view so callers can't mutate the shared per-engine defaults.
+        self.body_param_defaults: Mapping[str, Any] = MappingProxyType(
+            {key: value for key, value in params.items() if key not in _RESERVED_LLM_PARAMETERS}
+        )
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type.
