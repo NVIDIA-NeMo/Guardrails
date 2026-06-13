@@ -56,6 +56,33 @@ def _make_model(
     )
 
 
+def _mock_streaming_response(raw_lines, status=200):
+    """Create a mock aiohttp response with a readline()-based content mock.
+
+    Splits each raw_line on ``\\n`` boundaries so that readline() returns
+    one line at a time, matching real aiohttp StreamReader behaviour.
+    """
+    all_lines = []
+    for raw in raw_lines:
+        for part in raw.split(b"\n"):
+            if part:
+                all_lines.append(part + b"\n")
+
+    line_iter = iter(all_lines)
+
+    async def _readline():
+        return next(line_iter, b"")
+
+    mock_content = MagicMock()
+    mock_content.readline = _readline
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.content = mock_content
+    return mock_response
+
+
 class TestModelEngineError:
     """Test the ModelEngineError Exception type fields."""
 
@@ -668,34 +695,6 @@ class TestModelEngineStreamCall:
         lines.append(b"data: [DONE]\n\n")
         return lines
 
-    @staticmethod
-    def _mock_streaming_response(raw_lines, status=200):
-        """Create a mock aiohttp response with a readline()-based content mock.
-
-        Splits each raw_line on ``\\n`` boundaries so that readline() returns
-        one line at a time, matching real aiohttp StreamReader behaviour.
-        """
-        # Flatten raw_lines into individual \n-terminated lines
-        all_lines = []
-        for raw in raw_lines:
-            for part in raw.split(b"\n"):
-                if part:
-                    all_lines.append(part + b"\n")
-
-        line_iter = iter(all_lines)
-
-        async def _readline():
-            return next(line_iter, b"")
-
-        mock_content = MagicMock()
-        mock_content.readline = _readline
-
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = status
-        mock_response.content = mock_content
-        return mock_response
-
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_stream_call_yields_content_chunks(self):
@@ -703,7 +702,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["Hello", " world", "!"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -730,7 +729,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"reasoning_content": " more"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -757,7 +756,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "answer", "reasoning_content": "thought"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -779,7 +778,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -799,7 +798,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -849,7 +848,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["ok"])
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -878,7 +877,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -904,7 +903,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -928,7 +927,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -966,7 +965,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
             b"data: [DONE]\n\n",
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -989,7 +988,7 @@ class TestModelEngineStreamCall:
             b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n',
             # No "data: [DONE]" — readline() will return b"" next
         ]
-        mock_response = self._mock_streaming_response(raw_lines)
+        mock_response = _mock_streaming_response(raw_lines)
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -1038,6 +1037,229 @@ class TestModelEngineStreamCall:
             chunks.append(chunk)
 
         assert [c.delta_content for c in chunks] == ["Hi", "!"]
+
+
+class TestStreamCallToolCalls:
+    """stream_call() tool-call accumulation: fragment assembly and finalization."""
+
+    @staticmethod
+    def _make_sse_lines(chunk_dicts):
+        """Encode a list of chunk dicts as SSE byte lines, terminated with [DONE]."""
+        lines = []
+        for d in chunk_dicts:
+            lines.append(f"data: {json.dumps(d)}\n".encode())
+        lines.append(b"data: [DONE]\n")
+        return lines
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_nim_style_single_chunk_tool_call(self):
+        """NIM-style: complete args in one delta on the finish_reason chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                    }
+                                ]
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
+                },
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        assert chunks[0].finish_reason == "tool_calls"
+        assert chunks[0].delta_tool_calls is not None
+        assert len(chunks[0].delta_tool_calls) == 1
+        tc = chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_openai_style_fragmented_args_assembled(self):
+        """OpenAI-style: args fragment across multiple chunks, finalized on empty finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": ""},
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"city"'}}]}}]},
+                {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": ': "Paris"}'}}]}}]},
+                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        assert chunks[0].finish_reason == "tool_calls"
+        tc = chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_multiple_tool_calls_assembled_by_index(self):
+        """Multiple parallel tool calls (different indices) are both present in delta_tool_calls."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "fn_a", "arguments": '{"x": 1}'},
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 1,
+                                        "id": "c2",
+                                        "type": "function",
+                                        "function": {"name": "fn_b", "arguments": '{"y": 2}'},
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert len(chunks) == 1
+        tcs = chunks[0].delta_tool_calls
+        assert len(tcs) == 2
+        assert tcs[0].function.name == "fn_a"
+        assert tcs[0].function.arguments == {"x": 1}
+        assert tcs[1].function.name == "fn_b"
+        assert tcs[1].function.arguments == {"y": 2}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_reasoning_then_tool_calls(self):
+        """NIM-style: reasoning preamble chunks followed by a single tool-call finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {"choices": [{"delta": {"reasoning_content": "let me think"}}]},
+                {"choices": [{"delta": {"reasoning_content": " about this"}}]},
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                    }
+                                ]
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
+                },
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        reasoning_chunks = [c for c in chunks if c.delta_reasoning]
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(reasoning_chunks) == 2
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].delta_tool_calls[0].function.name == "get_weather"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_malformed_args_degrade_to_empty_dict(self):
+        """Truncated or invalid JSON arguments produce an empty arguments dict."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "f", "arguments": '{"city": "Par'},
+                                    }
+                                ]
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
+                },
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert chunks[0].delta_tool_calls[0].function.arguments == {}
 
 
 class TestModelEngineConstants:

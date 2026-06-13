@@ -602,6 +602,9 @@ class IORails(BaseGuardrails):
             llm_kwargs = options.llm_params
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
+        # Assembled tool calls from the stream — populated by _generation_task
+        # and consumed by _wrapped_iterator after the content stream ends.
+        accumulated_tool_calls: list[ToolCall] = []
 
         async def _generation_task(request_span):
             """Background task: input rails → stream LLM chunks → push to handler.
@@ -629,14 +632,19 @@ class IORails(BaseGuardrails):
                     return
 
                 # Step 2: Stream main LLM content from structured response.
-                # Only delta_content is forwarded. Reasoning is dropped for compatibility
-                # with LLMRails. Tool-calls are not yet supported by IORails
+                # delta_content is forwarded as text chunks; delta_tool_calls are
+                # accumulated and surfaced as a terminal JSON chunk after the text
+                # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
                     if chunk.delta_content:
                         content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content)
+                    if chunk.delta_tool_calls:
+                        # Slice-assign to mutate the shared list in place so
+                        # _wrapped_iterator sees the update without nonlocal.
+                        accumulated_tool_calls[:] = chunk.delta_tool_calls
 
                 # While LLMResponseChunk.delta_reasoning is dropped explicitly,
                 # think-tags embedded in delta_content are not. Give a warning
@@ -649,6 +657,9 @@ class IORails(BaseGuardrails):
                         "(output rails will process reasoning tokens)",
                         req_id,
                     )
+
+                if accumulated_tool_calls and not content_parts:
+                    log.info("[%s] Tool-call-only stream: output rails skipped", req_id)
 
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             except Exception as e:
@@ -756,6 +767,11 @@ class IORails(BaseGuardrails):
                                                     if isinstance(text, str) and text:
                                                         delivered.append(text)
                                             yield chunk
+                                    # Yield assembled tool calls as a terminal JSON chunk
+                                    # after all text content (and output rails) have
+                                    # finished.
+                                    if accumulated_tool_calls:
+                                        yield json.dumps({"tool_calls": _serialize_tool_calls(accumulated_tool_calls)})
                                 finally:
                                     if not task.done():
                                         task.cancel()
@@ -821,8 +837,15 @@ class IORails(BaseGuardrails):
                 for chunk in user_output_chunks:
                     yield chunk
 
-            # Run output rails on the accumulated context
+            # Run output rails on the accumulated context. Skip when content is empty
+            # (e.g. tool-call-only response) to avoid a pointless is_output_safe("") call.
             req_id = get_request_id()
+            if not bot_response_chunk:
+                if not stream_first:
+                    for chunk in user_output_chunks:
+                        yield chunk
+                continue
+
             log.info("[%s] Running output rails", req_id)
             output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk)
             if not output_result.is_safe:

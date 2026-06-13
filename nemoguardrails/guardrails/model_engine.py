@@ -40,7 +40,7 @@ from nemoguardrails.guardrails._http import (
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
 log = logging.getLogger(__name__)
 
@@ -210,6 +210,65 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
         request_id=chunk.get("id"),
         usage=_parse_usage(usage_dict) if usage_dict else None,
     )
+
+
+def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) -> None:
+    """Update the tool-call accumulator with any tool_call deltas from a raw SSE chunk.
+
+    OpenAI streams argument JSON as fragments across many chunks; NIM delivers
+    complete arguments in one delta. Both are handled uniformly: ``tool_calls``
+    is keyed by the OpenAI ``index`` field and mutated in place on every call.
+    Finalize with ``_finalize_tool_calls`` once ``finish_reason=="tool_calls"``.
+    """
+    choices = raw_chunk.get("choices") or []
+    if not choices:
+        return
+    delta = choices[0].get("delta") or {}
+    for tool_call_delta in delta.get("tool_calls") or []:
+        index = tool_call_delta.get("index", 0)
+        if index not in tool_calls:
+            tool_calls[index] = {
+                "id": tool_call_delta.get("id") or "",
+                "name": (tool_call_delta.get("function") or {}).get("name") or "",
+                "arguments_buffer": "",
+            }
+        else:
+            if tool_call_delta.get("id"):
+                tool_calls[index]["id"] = tool_call_delta["id"]
+            name = (tool_call_delta.get("function") or {}).get("name")
+            if name:
+                tool_calls[index]["name"] = name
+        arguments_fragment = (tool_call_delta.get("function") or {}).get("arguments") or ""
+        if arguments_fragment:
+            tool_calls[index]["arguments_buffer"] += arguments_fragment
+
+
+def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
+    """Assemble accumulated tool-call fragments into ToolCall objects.
+
+    Called once when the stream emits finish_reason='tool_calls'. Arguments
+    are parsed from the accumulated JSON buffer; malformed or empty buffers
+    degrade gracefully to an empty dict (matching openai_chat.py behaviour).
+    """
+    result = []
+    for index in sorted(tool_calls.keys()):
+        entry = tool_calls[index]
+        raw_arguments = entry.get("arguments_buffer", "")
+        try:
+            arguments = json.loads(raw_arguments) if raw_arguments else {}
+        except json.JSONDecodeError:
+            arguments = {}
+        result.append(
+            ToolCall(
+                id=entry.get("id", ""),
+                type="function",
+                function=ToolCallFunction(
+                    name=entry.get("name", ""),
+                    arguments=arguments,
+                ),
+            )
+        )
+    return result
 
 
 class ModelEngineError(Exception):
@@ -453,6 +512,7 @@ class ModelEngine(BaseEngine):
                 # response.content uses readany() which returns arbitrary byte
                 # chunks — multiple SSE events in one TCP segment would be merged
                 # into one unparseable blob.  readline() splits on \n correctly.
+                tool_calls: dict[int, dict] = {}
                 while True:
                     raw_line = await response.content.readline()
                     if not raw_line:
@@ -474,7 +534,23 @@ class ModelEngine(BaseEngine):
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
+                    _accumulate_tool_call_delta(tool_calls, raw_chunk)
+
                     parsed_chunk = _parse_chat_completion_chunk(raw_chunk)
+
+                    # Finalize accumulated tool calls onto the finish_reason chunk.
+                    # _parse_chat_completion_chunk returns None for empty-delta finish
+                    # chunks (no content/reasoning/usage), so create a bare chunk to
+                    # carry delta_tool_calls when needed.
+                    choices = raw_chunk.get("choices") or []
+                    if tool_calls and choices and choices[0].get("finish_reason") == "tool_calls":
+                        if parsed_chunk is None:
+                            parsed_chunk = LLMResponseChunk(
+                                finish_reason="tool_calls",
+                                request_id=raw_chunk.get("id"),
+                            )
+                        parsed_chunk.delta_tool_calls = _finalize_tool_calls(tool_calls)
+
                     if parsed_chunk is not None:
                         yield parsed_chunk
 

@@ -570,3 +570,174 @@ class TestStreamAsyncEndToEnd:
 
         assert "".join(chunks) == "The answer is 42"
         assert "think" not in "".join(chunks)
+
+
+def _build_tool_call_sse_mock(*, content_deltas=None, tool_call_chunks, finish_chunk=None):
+    """Build an aiohttp mock that streams optional content then tool-call SSE chunks.
+
+    ``tool_call_chunks`` is a list of raw SSE body dicts (already shaped as
+    ``{"choices": [{"delta": {"tool_calls": [...]}, "finish_reason": ...}]}``)
+    appended after any ``content_deltas``.  ``finish_chunk`` is an optional
+    explicit terminal chunk dict; defaults to a bare ``finish_reason`` chunk
+    when omitted (OpenAI style).
+    """
+    lines = []
+    for text in content_deltas or []:
+        payload = json.dumps({"choices": [{"delta": {"content": text}}]})
+        lines.append(f"data: {payload}\n".encode())
+    for chunk_body in tool_call_chunks:
+        lines.append(f"data: {json.dumps(chunk_body)}\n".encode())
+    if finish_chunk is not None:
+        lines.append(f"data: {json.dumps(finish_chunk)}\n".encode())
+    lines.append(b"data: [DONE]\n")
+
+    line_iter = iter(lines)
+
+    async def _readline():
+        return next(line_iter, b"")
+
+    mock_content = MagicMock()
+    mock_content.readline = _readline
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = 200
+    mock_response.content = mock_content
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    return mock_client
+
+
+# Single NIM-style chunk: complete args on the finish_reason chunk.
+_NIM_TOOL_CALL_CHUNK = {
+    "choices": [
+        {
+            "delta": {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_nim",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                    }
+                ]
+            },
+            "finish_reason": "tool_calls",
+        }
+    ]
+}
+
+
+class TestStreamAsyncToolCalling:
+    """Tool calling in the IORails streaming path."""
+
+    @pytest.mark.asyncio
+    async def test_tools_in_llm_params_forwarded_to_stream_model_call(self, iorails_input_only):
+        """Tools provided via llm_params are forwarded unchanged to stream_model_call."""
+        tool = {"type": "function", "function": {"name": "get_weather", "parameters": {}}}
+        options = GenerationOptions(llm_params={"tools": [tool], "tool_choice": "auto"})
+
+        captured_kwargs: dict = {}
+
+        async def _capturing_stream(model_type, messages, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield LLMResponseChunk(delta_content="ok")
+
+        iorails_input_only.engine_registry.stream_model_call = _capturing_stream
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True, reason=None))
+
+        await _collect(
+            iorails_input_only.stream_async(
+                messages=[{"role": "user", "content": "hi"}],
+                options=options,
+            )
+        )
+
+        assert captured_kwargs.get("tools") == [tool]
+        assert captured_kwargs.get("tool_choice") == "auto"
+
+    @pytest.mark.asyncio
+    async def test_tool_call_only_yields_terminal_json(self, iorails_input_only):
+        """A tool-call-only response yields a single terminal JSON chunk containing tool_calls."""
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
+        main_engine._running = True
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert len(chunks) == 1
+        parsed = json.loads(chunks[0])
+        assert "tool_calls" in parsed
+        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+
+    @pytest.mark.asyncio
+    async def test_text_and_tool_calls_text_first_then_terminal_json(self, iorails_input_only):
+        """Content chunks come first; terminal tool-call JSON follows after all text."""
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(
+            content_deltas=["Checking", " weather"],
+            tool_call_chunks=[_NIM_TOOL_CALL_CHUNK],
+        )
+        main_engine._running = True
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        tool_json_chunks = [c for c in chunks if isinstance(c, str) and '"tool_calls"' in c]
+        text_chunks = [c for c in chunks if c not in tool_json_chunks]
+        assert "".join(text_chunks) == "Checking weather"
+        assert len(tool_json_chunks) == 1
+        assert json.loads(tool_json_chunks[0])["tool_calls"][0]["function"]["name"] == "get_weather"
+
+    @pytest.mark.asyncio
+    async def test_fragmented_args_assembled_into_complete_json_string(self, iorails_input_only):
+        """OpenAI-style argument fragments are concatenated and parsed into a complete JSON string."""
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+
+        frag1 = {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "c1",
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": ""},
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        frag2 = {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"city"'}}]}}]}
+        frag3 = {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": ': "Paris"}'}}]}}]}
+        finish = {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}
+
+        main_engine._client = _build_tool_call_sse_mock(
+            tool_call_chunks=[frag1, frag2, frag3],
+            finish_chunk=finish,
+        )
+        main_engine._running = True
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert len(chunks) == 1
+        parsed = json.loads(chunks[0])
+        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+
+    @pytest.mark.asyncio
+    async def test_tool_call_only_does_not_invoke_output_rails(self, iorails_stream_first):
+        """Tool-call-only stream skips is_output_safe (no text content to check)."""
+        iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_stream_first.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
+        main_engine._running = True
+
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        iorails_stream_first.rails_manager.is_output_safe.assert_not_called()
+        assert any('"tool_calls"' in c for c in chunks if isinstance(c, str))
