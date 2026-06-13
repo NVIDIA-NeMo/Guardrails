@@ -523,6 +523,10 @@ class ModelEngine(BaseEngine):
                     line = raw_line.decode("utf-8").strip()
                     if not line:
                         continue
+
+                    # Debug-log raw SSE line before any processing
+                    log.debug("[%s] SSE line: %s", req_id, line)
+
                     if not line.startswith("data: "):
                         continue
 
