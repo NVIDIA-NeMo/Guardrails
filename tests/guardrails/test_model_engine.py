@@ -1261,6 +1261,83 @@ class TestStreamCallToolCalls:
 
         assert chunks[0].delta_tool_calls[0].function.arguments == {}
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_forced_tool_choice_finish_reason_stop(self):
+        """Forced tool_choice makes providers send finish_reason='stop' (not 'tool_calls').
+
+        Regression: the finalizer must surface accumulated tool calls on ANY
+        finish_reason, otherwise a forced tool call never reaches the caller.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        tc = tool_chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {"city": "Paris"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_tool_calls_finalized_without_finish_reason_chunk(self):
+        """Safety net: tool calls surface even if the stream ends ([DONE]) with no finish chunk."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        assert tool_chunks[0].delta_tool_calls[0].function.arguments == {"city": "Paris"}
+
 
 class TestModelEngineConstants:
     """Test values of model-engine-specific constants."""

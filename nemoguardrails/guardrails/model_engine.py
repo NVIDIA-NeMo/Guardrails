@@ -513,6 +513,8 @@ class ModelEngine(BaseEngine):
                 # chunks — multiple SSE events in one TCP segment would be merged
                 # into one unparseable blob.  readline() splits on \n correctly.
                 tool_calls: dict[int, dict] = {}
+                tool_calls_emitted = False
+                last_chunk_id = None
                 while True:
                     raw_line = await response.content.readline()
                     if not raw_line:
@@ -534,25 +536,40 @@ class ModelEngine(BaseEngine):
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
+                    last_chunk_id = raw_chunk.get("id") or last_chunk_id
                     _accumulate_tool_call_delta(tool_calls, raw_chunk)
 
                     parsed_chunk = _parse_chat_completion_chunk(raw_chunk)
 
-                    # Finalize accumulated tool calls onto the finish_reason chunk.
-                    # _parse_chat_completion_chunk returns None for empty-delta finish
-                    # chunks (no content/reasoning/usage), so create a bare chunk to
-                    # carry delta_tool_calls when needed.
+                    # Finalize accumulated tool calls onto the terminating chunk.
+                    # A streamed tool call ends with a finish_reason — "tool_calls"
+                    # when the model chose freely, but "stop" when tool_choice forced
+                    # a specific function. Gate on *any* finish_reason (with tool calls
+                    # accumulated), not the literal "tool_calls", or forced calls never
+                    # surface. _parse_chat_completion_chunk returns None for empty-delta
+                    # finish chunks, so synthesize a carrier chunk to hold the calls.
                     choices = raw_chunk.get("choices") or []
-                    if tool_calls and choices and choices[0].get("finish_reason") == "tool_calls":
+                    finish_reason = choices[0].get("finish_reason") if choices else None
+                    if tool_calls and not tool_calls_emitted and finish_reason:
                         if parsed_chunk is None:
                             parsed_chunk = LLMResponseChunk(
-                                finish_reason="tool_calls",
+                                finish_reason=finish_reason,
                                 request_id=raw_chunk.get("id"),
                             )
                         parsed_chunk.delta_tool_calls = _finalize_tool_calls(tool_calls)
+                        tool_calls_emitted = True
 
                     if parsed_chunk is not None:
                         yield parsed_chunk
+
+                # Safety net: a provider that ends the stream with [DONE]/EOF and no
+                # finish_reason chunk still gets its accumulated tool calls surfaced.
+                if tool_calls and not tool_calls_emitted:
+                    yield LLMResponseChunk(
+                        finish_reason="tool_calls",
+                        request_id=last_chunk_id,
+                        delta_tool_calls=_finalize_tool_calls(tool_calls),
+                    )
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.debug("[%s] Stream completed time=%.1fms", req_id, elapsed_ms)

@@ -734,3 +734,39 @@ class TestStreamAsyncToolCalling:
 
         iorails_stream_first.rails_manager.is_output_safe.assert_not_called()
         assert any('"tool_calls"' in c for c in chunks if isinstance(c, str))
+
+    @pytest.mark.asyncio
+    async def test_forced_tool_choice_finish_reason_stop_surfaces_terminal_json(self, iorails_input_only):
+        """Forced tool_choice yields finish_reason='stop'; the tool call must still surface.
+
+        Regression for the e2e failure where forced tool calls returned zero
+        chunks because finalization was gated on finish_reason=='tool_calls'.
+        """
+        forced_chunk = {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_forced",
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                            }
+                        ]
+                    },
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[forced_chunk])
+        main_engine._running = True
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert len(chunks) == 1
+        parsed = json.loads(chunks[0])
+        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
