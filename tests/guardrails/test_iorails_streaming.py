@@ -30,6 +30,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk
+from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -121,36 +122,28 @@ def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stre
 @pytest_asyncio.fixture
 async def iorails():
     """IORails with output rails but streaming NOT enabled."""
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
-    async with iorails:
+    async with started_iorails(NEMOGUARDS_CONFIG) as iorails:
         yield iorails
 
 
 @pytest_asyncio.fixture
 async def iorails_stream_first():
     """IORails with output rails and streaming enabled (stream_first=True)."""
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        iorails = IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=True)))
-    async with iorails:
+    async with started_iorails(_make_streaming_config(stream_first=True)) as iorails:
         yield iorails
 
 
 @pytest_asyncio.fixture
 async def iorails_stream_check_first():
     """IORails with output rails and streaming enabled (stream_first=False)."""
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        iorails = IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=False)))
-    async with iorails:
+    async with started_iorails(_make_streaming_config(stream_first=False)) as iorails:
         yield iorails
 
 
 @pytest_asyncio.fixture
 async def iorails_input_only():
     """IORails with input rails only, no output rails."""
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_CONFIG))
-    async with iorails:
+    async with started_iorails(_INPUT_ONLY_CONFIG) as iorails:
         yield iorails
 
 
