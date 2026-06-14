@@ -33,13 +33,12 @@ SDD_SETUP_PRESENT = (
     and check_optional_dependency("spacy")
 )
 
-if SDD_SETUP_PRESENT:
-    import spacy  # referenced by `setup_module` below; only importable when the SDD extras are installed
-
 
 def setup_module(module):
     if not SDD_SETUP_PRESENT:
         pytest.skip("Required dependencies not found")
+
+    import spacy
 
     try:
         # check if the model is already downloaded
@@ -427,51 +426,7 @@ def test_high_score_threshold_disables_rails():
 
 @pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_mask_sensitive_data_honors_configured_score_threshold(monkeypatch):
-    """Regression: ``mask_sensitive_data`` must honor ``options.score_threshold``.
-
-    The masking path previously called ``_get_analyzer()`` with no arguments,
-    so the analyzer was built (and ``lru_cache``-d) at the default 0.4
-    regardless of what the user configured. ``_get_analyzer`` is the only
-    place ``default_score_threshold`` is set on the underlying Presidio
-    ``AnalyzerEngine``, so values between the configured threshold and 0.4
-    were still masked even though ``detect_sensitive_data`` (which already
-    passed the threshold through) reported them as non-sensitive.
-    """
-    from nemoguardrails.library.sensitive_data_detection import actions as sdd
-
-    captured: dict = {}
-
-    class _StubAnalyzer:
-        """Stand-in for ``presidio_analyzer.AnalyzerEngine`` that records no matches."""
-
-        def analyze(self, text, language, entities, ad_hoc_recognizers):
-            """Return an empty match list, simulating ``AnalyzerEngine.analyze``."""
-            return []
-
-    def _fake_get_analyzer(score_threshold: float = 0.4):
-        """Replacement for ``_get_analyzer`` that captures the threshold it was given."""
-        captured["score_threshold"] = score_threshold
-        return _StubAnalyzer()
-
-    class _StubAnonymizer:
-        """Stand-in for ``presidio_anonymizer.AnonymizerEngine`` that returns text unchanged."""
-
-        def anonymize(self, text, analyzer_results, operators):
-            """Return a result object with the original text, simulating no-op masking."""
-
-            class _R:
-                """Minimal result container exposing the ``.text`` attribute the caller reads."""
-
-            r = _R()
-            r.text = text
-            return r
-
-    monkeypatch.setattr(sdd, "_get_analyzer", _fake_get_analyzer)
-    monkeypatch.setattr(sdd, "AnonymizerEngine", _StubAnonymizer)
-    monkeypatch.setattr(sdd, "OperatorConfig", lambda *a, **kw: object())
-
+def test_mask_sensitive_data_honors_configured_score_threshold():
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
@@ -479,12 +434,27 @@ async def test_mask_sensitive_data_honors_configured_score_threshold(monkeypatch
               config:
                 sensitive_data_detection:
                   input:
-                    score_threshold: 0.85
+                    score_threshold: 1.0
                     entities:
                       - PERSON
+              input:
+                flows:
+                  - mask sensitive data on input
+                  - check user message
+        """,
+        colang_content="""
+            define flow check user message
+              execute check_user_message(user_message=$user_message)
         """,
     )
 
-    await sdd.mask_sensitive_data(source="input", text="My name is John", config=config)
+    chat = TestChat(config, llm_completions=["Hello there! My name is Michael!"])
 
-    assert captured["score_threshold"] == 0.85
+    @action()
+    def check_user_message(user_message):
+        assert user_message == "Hi! I am Mr. John!"
+
+    chat.app.register_action(check_user_message)
+
+    chat >> "Hi! I am Mr. John!"
+    chat << "Hello there! My name is Michael!"
