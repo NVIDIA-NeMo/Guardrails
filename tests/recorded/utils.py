@@ -22,6 +22,7 @@ DUMMY_NVIDIA_API_KEY = "nvapi-recorded-replay"
 
 
 def api_key_for_record_mode(env_name: str, dummy_value: str, record_mode: str) -> str:
+    """Return dummy replay credentials, but require real credentials to record."""
     if record_mode == "none":
         return dummy_value
 
@@ -36,4 +37,4 @@ def set_api_key_for_record_mode(
 ) -> str:
     value = api_key_for_record_mode(env_name, dummy_value, record_mode)
     monkeypatch.setenv(env_name, value)
-    return value
+    return dummy_value

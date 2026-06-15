@@ -62,10 +62,12 @@ _ReadableCassetteDumper.add_representer(str, _represent_readable_string)
 class ReadableYamlSerializer:
     @staticmethod
     def deserialize(cassette_string: str) -> Any:
+        """Restore readable cassette bodies to the raw shape VCR expects."""
         return cassette_with_rehydrated_bodies(yaml.safe_load(cassette_string))
 
     @staticmethod
     def serialize(cassette_dict: dict[str, Any]) -> str:
+        """Write cassettes with parsed JSON bodies and stable YAML formatting."""
         return yaml.dump(
             cassette_with_parsed_bodies(cassette_dict),
             Dumper=_ReadableCassetteDumper,
@@ -160,6 +162,12 @@ def _normalize_raw_match_body(body: Any) -> Any:
 
 
 def recorded_body_matcher(request_1: Any, request_2: Any) -> None:
+    """Compare recorded and replay requests after applying the same scrubbing rules.
+
+    This keeps replay strict about semantic request changes while ignoring
+    redacted secrets and normalization that are intentionally applied at record
+    time.
+    """
     body_1 = read_body(request_1)
     body_2 = read_body(request_2)
     json_body_1 = _decode_match_body_json(body_1)
@@ -256,6 +264,7 @@ def _scrub_sse_body(body: Any) -> Any:
 
 
 def before_record_request(request: Any) -> Any:
+    """Redact request headers and bodies before VCR writes a cassette."""
     _replace_case_insensitive(request.headers, FILTERED_HEADERS)
     _filter_headers_by_prefix(request.headers)
 
@@ -271,6 +280,7 @@ def before_record_request(request: Any) -> Any:
 
 
 def before_record_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Redact volatile response headers and bodies before VCR writes a cassette."""
     headers = response.get("headers", {})
     _replace_case_insensitive(headers, FILTERED_HEADERS | VOLATILE_RESPONSE_HEADERS)
     _filter_headers_by_prefix(headers)
@@ -316,6 +326,7 @@ def recorded_cassette_path(vcr_cassette_dir: str, default_cassette_name: str) ->
 
 
 def build_vcr_config() -> Dict[str, Any]:
+    """Build the shared VCR config used by all recorded tests."""
     return {
         "decode_compressed_response": True,
         "filter_headers": [(name, None) for name in FILTERED_HEADERS],
