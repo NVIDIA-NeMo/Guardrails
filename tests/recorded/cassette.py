@@ -41,10 +41,12 @@ SMART_CHAR_TRANS = str.maketrans(SMART_CHAR_MAP)
 
 
 def normalize_smart_chars(text: str) -> str:
+    """Map smart punctuation to stable ASCII forms before cassette storage."""
     return unicodedata.normalize("NFKC", text.translate(SMART_CHAR_TRANS))
 
 
 def normalize_body(value: Any) -> Any:
+    """Normalize JSON-like payloads so record and replay compare the same text."""
     if isinstance(value, str):
         return normalize_smart_chars(value)
     if isinstance(value, dict):
@@ -121,6 +123,12 @@ def _json_body(value: Any) -> Any:
 
 
 def _sse_body_payloads(text: str) -> list[Any] | None:
+    """Parse only lossless single-line ``data:`` SSE streams.
+
+    Returning ``None`` leaves the original body untouched, which avoids rewriting
+    event ids, comments, multi-line data blocks, or other SSE features this
+    serializer cannot round-trip exactly.
+    """
     if not text.endswith("\n\n"):
         return None
 
@@ -150,6 +158,7 @@ def _sse_body_payloads(text: str) -> list[Any] | None:
 
 
 def _sse_payloads_body(payloads: list[Any]) -> str:
+    """Rehydrate parsed SSE payloads using the strict format accepted above."""
     events = []
     for payload in payloads:
         if payload == "[DONE]":
@@ -164,6 +173,12 @@ def _json_body_text(data: Any) -> str:
 
 
 def cassette_with_parsed_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
+    """Store JSON bodies as readable ``parsed_body`` blocks in committed cassettes.
+
+    Requests and JSON responses are normalized before writing. SSE responses are
+    converted only when they match the strict format that can be rehydrated
+    without changing stream semantics.
+    """
     cassette = deepcopy(cassette)
     for interaction in cassette.get("interactions", []):
         request = interaction.get("request", {})
@@ -192,6 +207,7 @@ def cassette_with_parsed_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
 
 
 def cassette_with_rehydrated_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
+    """Convert readable cassette bodies back to raw strings for VCR replay."""
     cassette = deepcopy(cassette)
     for interaction in cassette.get("interactions", []):
         request = interaction.get("request", {})
@@ -277,6 +293,7 @@ def _stream_payloads(text: str) -> list[dict[str, Any]]:
 
 
 def stream_payloads_from_body(body: Any) -> list[dict[str, Any]]:
+    """Return parsed streaming payloads from either readable or raw cassette bodies."""
     if isinstance(body, dict) and isinstance(body.get("parsed_body"), list):
         return [payload for payload in body["parsed_body"] if isinstance(payload, dict)]
     return _stream_payloads(decode_body_text(body))
