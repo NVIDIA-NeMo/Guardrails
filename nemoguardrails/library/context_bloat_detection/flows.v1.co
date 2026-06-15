@@ -1,18 +1,4 @@
 
-# EXECUTION RAILS
-
-define subflow context bloat detection on tool output
-  """Detect oversized or padded tool responses before they reach the LLM."""
-  $bloat_result = execute context_bloat_detection(text=$action_output)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
-    bot inform tool output bloated
-    stop
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $action_output = $bloat_result.text
-
-define bot inform tool output bloated
-  "The tool response appeared oversized or padded with repetitive content. I'm not using it to avoid context manipulation."
-
 # RETRIEVAL RAILS
 
 define subflow context bloat detection on retrieval

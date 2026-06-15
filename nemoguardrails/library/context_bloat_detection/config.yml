@@ -6,10 +6,6 @@ rails:
     flows:
       - context bloat detection on retrieval
 
-  execution:
-    flows:
-      - context bloat detection on tool output
-
   input:
     flows:
       - context bloat detection on input
