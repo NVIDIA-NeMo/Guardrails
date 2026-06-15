@@ -371,6 +371,35 @@ def close_owned_http_clients(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         asyncio.run(_close_all())
 
 
+_PROXY_ENV_VARS = (
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "FTP_PROXY",
+    "ftp_proxy",
+    "NO_PROXY",
+    "no_proxy",
+)
+
+
+@pytest.fixture(autouse=True)
+def strip_proxy_env_during_replay(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> None:
+    """Make replay independent of the ambient proxy configuration.
+
+    Under ``--block-network`` a proxy is useless, and a SOCKS proxy is fatal:
+    httpx raises ``ImportError`` when ``socksio`` is not installed, turning a
+    cassette hit into an error that depends only on the developer or CI shell.
+    Strip proxy variables during replay so a hit is deterministic everywhere.
+    Recording keeps the ambient proxy so real provider calls can still egress.
+    """
+    if record_mode == "none":
+        for name in _PROXY_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def openai_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
     return set_api_key_for_record_mode(monkeypatch, "OPENAI_API_KEY", DUMMY_OPENAI_API_KEY, record_mode)
