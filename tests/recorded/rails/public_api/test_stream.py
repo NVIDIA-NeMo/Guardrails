@@ -234,3 +234,34 @@ async def test_streaming_output_rails_disabled_validation():
             generator=_chunks(["Hello"]),
         ):
             pass
+
+
+@pytest.mark.vcr
+async def test_nim_stream_async_reasoning_not_inlined_in_streamed_text(
+    nvidia_api_key, record_mode, recorded_cassette_path
+):
+    """A3.10: while streaming, the NIM provider sends ``reasoning_content`` deltas, but the
+    user-facing streamed text is the answer only, the reasoning is NOT inlined as a ``<think>``
+    block the way it is in non-streaming ``generate`` (see ``test_nim_generate_async_public_contract``).
+
+    KNOWN LIMITATION flagged for follow-up: a streaming consumer cannot access the model's
+    reasoning at all, ``reasoning_content`` arrives in the deltas (parsed into
+    ``LLMResponseChunk.delta_reasoning``) but is dropped rather than surfaced (IORails drops it
+    explicitly; the standard StreamingHandler has no reasoning channel). Non-streaming ``generate``
+    does expose it, so this is an asymmetry. This test pins the *current* behavior so the
+    decomposition is held to it; surfacing reasoning while streaming is a separate fix.
+    """
+    rails = LLMRails(load_config(NIM_BASELINE_CONFIG), verbose=False)
+
+    chunks = []
+    async for chunk in rails.stream_async(messages=[{"role": "user", "content": "Say hello in one short sentence."}]):
+        chunks.append(chunk)
+
+    assert_no_stream_error(chunks)
+    content = normalize_stream_chunks(chunks)["content"]
+    assert "<think>" not in content
+    if record_mode == "none":
+        assert "reasoning_content" in recorded_cassette_path.read_text(encoding="utf-8")
+    assert normalize_stream_chunks(chunks) == snapshot(
+        {"content": "Hello!", "chunks": ["", "", "", "", "", "", "", "", "Hello!", ""], "errors": []}
+    )

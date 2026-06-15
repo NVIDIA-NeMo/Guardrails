@@ -29,6 +29,7 @@ from tests.recorded.assertions import (
 from tests.recorded.cassette import recorded_chat_response
 from tests.recorded.normalization import normalize_generation_response
 from tests.recorded.rails.public_api.configs import (
+    DIALOG_CONFIG,
     NEMOGUARDS_FULL_CONFIG,
     NIM_BASELINE_CONFIG,
     NIM_MODEL,
@@ -399,3 +400,194 @@ async def test_generate_async_with_prompt_and_messages_raises():
 
     with pytest.raises(ValueError, match="Only one of prompt or messages can be provided"):
         await rails.generate_async(prompt="hi", messages=[{"role": "user", "content": "hi"}])
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr
+async def test_openai_generate_async_options_returns_generation_response(openai_api_key):
+    """A1.3: passing ``options`` switches the return type to a ``GenerationResponse``.
+
+    Pins the full assembled shape (response + activated_rails + llm_calls) the
+    generation_response module produces when log options are requested.
+    """
+    rails = LLMRails(load_config(OPENAI_BASELINE_CONFIG), verbose=False)
+
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "Say a short safe greeting."}],
+        options={"log": {"activated_rails": True, "llm_calls": True}},
+    )
+
+    assert isinstance(result, GenerationResponse)
+    assert normalize_generation_response(result) == snapshot(
+        {
+            "response": [{"role": "assistant", "content": "Hello! How can I help you today?"}],
+            "activated_rails": [
+                {
+                    "type": "generation",
+                    "name": "generate user intent",
+                    "decisions": ["execute generate_user_intent"],
+                    "stop": False,
+                }
+            ],
+            "llm_calls": [
+                {
+                    "task": "general",
+                    "provider": "openai",
+                    "model": "gpt-5.4-nano",
+                    "completion": "Hello! How can I help you today?",
+                    "prompt_tokens": 12,
+                    "completion_tokens": 12,
+                    "total_tokens": 24,
+                }
+            ],
+        }
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr
+async def test_dialog_generate_async_llm_output_is_none(openai_api_key):
+    """B1.9: ``llm_output=True`` is currently a no-op, ``llm_output`` stays ``None``.
+
+    FINDING (pre-existing, not a refactor regression): ``GenerationResponse.llm_output``
+    is assembled from each generation LLM call's ``LLMCallInfo.raw_response``, but
+    ``raw_response`` is never populated anywhere in the codebase, so ``llm_output`` is
+    always ``None`` even when ``llm_output=True`` and a ``generation``-type rail ran. We
+    pin this actual behavior so the decomposition must preserve it; surface the gap for
+    separate triage (wire ``raw_response`` if ``llm_output`` is meant to carry it).
+    """
+    rails = LLMRails(load_config(DIALOG_CONFIG), verbose=False)
+
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "hello"}],
+        options={"llm_output": True, "log": {"activated_rails": True, "llm_calls": True}},
+    )
+
+    assert isinstance(result, GenerationResponse)
+    assert result.llm_output is None
+    assert normalize_generation_response(result) == snapshot(
+        {
+            "response": [{"role": "assistant", "content": "Hello! How can I assist you today?"}],
+            "activated_rails": [
+                {
+                    "type": "dialog",
+                    "name": "generate user intent",
+                    "decisions": ["execute generate_user_intent"],
+                    "stop": False,
+                },
+                {
+                    "type": "dialog",
+                    "name": "generate next step",
+                    "decisions": ["execute generate_next_steps"],
+                    "stop": False,
+                },
+                {
+                    "type": "generation",
+                    "name": "generate bot message",
+                    "decisions": ["execute retrieve_relevant_chunks", "execute generate_bot_message"],
+                    "stop": False,
+                },
+            ],
+            "llm_calls": [
+                {
+                    "task": "generate_user_intent",
+                    "provider": "openai",
+                    "model": "gpt-5.4-nano",
+                    "completion": "Hello! How can I assist you today?",
+                    "prompt_tokens": 568,
+                    "completion_tokens": 12,
+                    "total_tokens": 580,
+                },
+                {
+                    "task": "generate_next_steps",
+                    "provider": "openai",
+                    "model": "gpt-5.4-nano",
+                    "completion": "Hello! 👋 How can I assist you today?",
+                    "prompt_tokens": 228,
+                    "completion_tokens": 14,
+                    "total_tokens": 242,
+                },
+                {
+                    "task": "generate_bot_message",
+                    "provider": "openai",
+                    "model": "gpt-5.4-nano",
+                    "completion": "Hello! How can I assist you today?",
+                    "prompt_tokens": 677,
+                    "completion_tokens": 12,
+                    "total_tokens": 689,
+                },
+            ],
+        }
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr
+async def test_nim_generate_async_options_surfaces_reasoning_content(nvidia_api_key):
+    """B6.1: reasoning is split out of the response into ``reasoning_content``.
+
+    With ``options`` the result is a ``GenerationResponse``; the NIM thinking trace
+    is extracted into ``reasoning_content`` rather than prepended to the response as
+    a ``<think>`` block (the no-options behavior).
+    """
+    rails = LLMRails(load_config(NIM_BASELINE_CONFIG), verbose=False)
+
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "Say hello in one short sentence."}],
+        options={"log": {"llm_calls": True}},
+    )
+
+    assert isinstance(result, GenerationResponse)
+    assert isinstance(result.reasoning_content, str)
+    assert result.reasoning_content.strip()
+    assert result.reasoning_content == snapshot(
+        'The user asks: "Say hello in one short sentence." We need to respond with a short sentence that says hello. Something like "Hello!" That\'s a short sentence. Probably they want a friendly greeting. Provide a short sentence: "Hello there!" That\'s fine. Provide only the response, no extra text.\n'
+    )
+    assert normalize_generation_response(result) == snapshot(
+        {
+            "response": [{"role": "assistant", "content": "Hello there!"}],
+            "activated_rails": [],
+            "llm_calls": [
+                {
+                    "task": "general",
+                    "provider": "nim",
+                    "model": "nvidia/nemotron-3-nano-30b-a3b",
+                    "completion": "Hello there!",
+                    "prompt_tokens": 23,
+                    "completion_tokens": 70,
+                    "total_tokens": 93,
+                }
+            ],
+        }
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr
+async def test_openai_generate_async_log_stats_token_counts(openai_api_key):
+    """B1.14: ``log.stats`` carries the per-generation token and call counts.
+
+    Only token/call counts are asserted, wall-clock durations in ``stats`` are
+    non-deterministic and deliberately excluded.
+    """
+    rails = LLMRails(load_config(OPENAI_BASELINE_CONFIG), verbose=False)
+
+    result = await rails.generate_async(prompt="Say a short safe greeting.", options={"log": {"llm_calls": True}})
+
+    assert isinstance(result, GenerationResponse)
+    assert result.log is not None
+    stats = result.log.stats
+    token_stats = {
+        "llm_calls_count": stats.llm_calls_count,
+        "llm_calls_total_prompt_tokens": stats.llm_calls_total_prompt_tokens,
+        "llm_calls_total_completion_tokens": stats.llm_calls_total_completion_tokens,
+        "llm_calls_total_tokens": stats.llm_calls_total_tokens,
+    }
+    assert token_stats == snapshot(
+        {
+            "llm_calls_count": 1,
+            "llm_calls_total_prompt_tokens": 12,
+            "llm_calls_total_completion_tokens": 12,
+            "llm_calls_total_tokens": 24,
+        }
+    )
