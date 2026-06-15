@@ -49,6 +49,22 @@ def assert_generation_response(result: Any) -> GenerationResponse:
     return result
 
 
+def assert_blocked_generation(result: Any, *, refusal: str | None = None) -> GenerationResponse:
+    """Assert a generate-surface result was blocked by a rail.
+
+    Unlike ``assert_generation_response`` (which only checks the assistant message is
+    non-empty), this asserts the block semantics: a rail decided to ``stop``, and the
+    assistant message carries the refusal text (matched exactly when ``refusal`` is given).
+    """
+    result = assert_generation_response(result)
+    assert result.log is not None
+    assert any(rail.stop for rail in result.log.activated_rails)
+    message = result.response[-1]["content"] if isinstance(result.response, list) else result.response
+    if refusal is not None:
+        assert message == refusal
+    return result
+
+
 def assert_activated_rails(result: GenerationResponse, expected: set[str]) -> None:
     assert result.log is not None
     activated = {rail.name for rail in result.log.activated_rails}
