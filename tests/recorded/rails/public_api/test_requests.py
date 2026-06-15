@@ -20,15 +20,17 @@ from typing import Any
 
 import pytest
 
-from nemoguardrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.recorded.assertions import (
     assert_generated_message,
+    assert_generation_response,
+    assert_llm_tasks,
     assert_request_payload,
     assert_stream_contract,
 )
 from tests.recorded.conftest import provider_key
 from tests.recorded.normalization import normalize_generation_response, normalize_stream_chunks
+from tests.recorded.rails.helpers import build_rails
 from tests.recorded.rails.public_api.configs import (
     NIM_BASELINE_CONFIG,
     NIM_MODEL,
@@ -36,7 +38,7 @@ from tests.recorded.rails.public_api.configs import (
     OPENAI_MODEL,
     TASK_MODELS_CONFIG,
 )
-from tests.recorded.rails_config import RailsConfigSource, load_config
+from tests.recorded.rails_config import RailsConfigSource
 from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
@@ -89,7 +91,7 @@ NIM_SCENARIO = SCENARIOS[1]
 
 async def _run_generate_request(request, record_mode, recorded_cassette_path, scenario):
     provider_key(request, scenario.provider)
-    rails = LLMRails(load_config(scenario.config), verbose=False)
+    rails = build_rails(scenario.config)
 
     result = await rails.generate_async(
         messages=[{"role": "user", "content": "Reply with one short greeting."}],
@@ -123,7 +125,7 @@ async def test_nim_llm_params_generate_async_request(request, record_mode, recor
 
 async def _run_stream_request(request, record_mode, recorded_cassette_path, scenario):
     provider_key(request, scenario.provider)
-    rails = LLMRails(load_config(scenario.config), verbose=False)
+    rails = build_rails(scenario.config)
 
     chunks = []
     async for chunk in rails.stream_async(
@@ -157,19 +159,15 @@ async def test_nim_llm_params_stream_async_request(request, record_mode, recorde
 
 
 async def test_task_specific_models_generate_async(openai_api_key, record_mode, recorded_cassette_path):
-    rails = LLMRails(load_config(TASK_MODELS_CONFIG), verbose=False)
+    rails = build_rails(TASK_MODELS_CONFIG)
 
     result = await rails.generate_async(
         messages=[{"role": "user", "content": "hello"}],
         options={"log": {"llm_calls": True}},
     )
 
-    assert isinstance(result, GenerationResponse)
-    assert result.response
-    assert result.log is not None
-    assert result.log.llm_calls is not None
-    tasks = {call.task for call in result.log.llm_calls}
-    assert "generate_user_intent" in tasks
+    assert_generation_response(result)
+    assert_llm_tasks(result, {"generate_user_intent"})
     if record_mode == "none":
         assert_request_payload(recorded_cassette_path, model=OPENAI_MODEL)
     assert normalize_generation_response(result) == snapshot(
