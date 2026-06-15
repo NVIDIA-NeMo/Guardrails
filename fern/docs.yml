@@ -27,6 +27,10 @@ favicon: ./assets/NVIDIA_symbol.svg
 css:
   - ./main.css
 
+experimental:
+  mdx-components:
+    - ../docs/_components
+
 navbar-links:
   - type: github
     value: https://github.com/NVIDIA-NeMo/Guardrails

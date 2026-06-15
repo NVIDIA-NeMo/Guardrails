@@ -6,6 +6,19 @@ assignment, pull requests, refactors, changelogs, validation, commits, and DCO.
 
 When working inside `nemoguardrails/`, also follow `nemoguardrails/AGENTS.md` for
 runtime, public-API, and provider-integration rules.
+When working inside `docs/`, also follow `docs/AGENTS.md` for documentation
+authoring and AI-agent documentation rules.
+
+## Agent Skills
+
+Agent skills live under `.agents/skills/`.
+Start with `guardrails-skills-guide` when choosing a task-specific skill.
+Use `guardrails-docs` for product-usage questions and docs routing.
+Use `guardrails-contributor-dev-setup` for local contributor setup and
+validation workflow.
+Use `guardrails-contributor-docs` for Fern docs edits, previews, validation, and
+docs-agent entry points.
+Use `guardrails-contributor-create-pr` for draft-only PR materials.
 
 ## Quick Rules
 

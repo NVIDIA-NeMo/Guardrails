@@ -32,6 +32,9 @@ navigation:
       - page: Installation
         path: getting-started/installation-guide.mdx
         slug: installation-guide
+      - page: Use with AI Agents
+        path: getting-started/use-with-ai-agent.mdx
+        slug: use-with-ai-agent
       - section: Tutorials
         path: getting-started/tutorials/index.mdx
         slug: tutorials
