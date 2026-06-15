@@ -7,6 +7,13 @@ Recorded tests replay provider traffic through pytest-recording cassettes and mu
 Markers are applied once per module via `pytestmark`; do not stack `@pytest.mark.recorded` / `vcr` / `asyncio` on each test. Use a module-level list, and fold in `vcr`/`asyncio` only when every test in the module needs them:
 
 ```python
+import pytest
+
+from nemoguardrails import LLMRails
+from tests.recorded.rails.public_api.configs import OPENAI_BASELINE_CONFIG
+from tests.recorded.rails_config import load_config
+from tests.recorded.snapshots import snapshot
+
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
 
@@ -15,6 +22,10 @@ async def test_my_case(openai_api_key):
     result = await rails.generate_async(prompt="...")
     assert result == snapshot()
 ```
+
+Config constants (``OPENAI_BASELINE_CONFIG`` and friends) live in the suite-local
+``configs.py`` next to the tests; ``snapshot`` is the suite-local re-export in
+``tests/recorded/snapshots.py``, not ``inline_snapshot`` directly.
 
 Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`) rather than calling `request.getfixturevalue(...)`. In modules that mix sync/async tests or vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply `@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then record once with credentials, fill the snapshot offline, and verify the replay:
 
