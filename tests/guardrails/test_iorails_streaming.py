@@ -770,3 +770,54 @@ class TestStreamAsyncToolCalling:
         parsed = json.loads(chunks[0])
         assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
         assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_suppressed_after_output_rails_block(self, iorails_stream_first):
+        """A blocked output rail suppresses the terminal tool-call chunk.
+
+        Regression (PR #2024 review): a mixed text+tool-call response that gets
+        blocked must not emit tool_calls after the guardrails_violation error —
+        the caller must never receive a tool-call after a block.
+        """
+        iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_stream_first.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="blocked")
+        )
+        main_engine = iorails_stream_first.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(
+            content_deltas=["Some text"],
+            tool_call_chunks=[_NIM_TOOL_CALL_CHUNK],
+        )
+        main_engine._running = True
+
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        # The block surfaces a guardrails_violation error chunk ...
+        assert any(isinstance(c, str) and "guardrails_violation" in c for c in chunks)
+        # ... and the terminal tool-call chunk must NOT follow it.
+        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+
+    @pytest.mark.asyncio
+    async def test_include_metadata_tool_call_only_yields_dict_frame(self, iorails_input_only):
+        """With include_metadata=True the terminal tool-call chunk is a dict frame.
+
+        Regression (PR #2024 review): metadata mode must stay shape-consistent —
+        every chunk is a ``{"text": ...}`` dict, including the terminal tool-call
+        payload, never a bare JSON string.
+        """
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
+        main_engine._running = True
+
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+
+        # No raw-string tool-call chunk leaked into a metadata stream.
+        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        # The tool calls arrive as a dict frame with the payload under "text".
+        tool_frames = [c for c in chunks if isinstance(c, dict) and '"tool_calls"' in (c.get("text") or "")]
+        assert len(tool_frames) == 1
+        parsed = json.loads(tool_frames[0]["text"])
+        assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"

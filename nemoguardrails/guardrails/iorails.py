@@ -89,6 +89,25 @@ STREAM_MAX_CONCURRENCY = 256
 _GENERATION_ERROR_TYPE = "generation_error"
 
 
+def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
+    """True when a streamed chunk is an error/violation payload.
+
+    Covers both the ``generation_error`` payload pushed on a generation failure
+    and the ``guardrails_violation`` payload emitted when output rails block.
+    Handles plain-string chunks and the ``{"text": ...}`` frames produced when
+    ``include_metadata=True``. The cheap ``"error"`` substring guard keeps the
+    per-chunk hot path from JSON-parsing ordinary text tokens.
+    """
+    text = chunk.get("text") if isinstance(chunk, dict) else chunk
+    if not isinstance(text, str) or '"error"' not in text:
+        return False
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(parsed, dict) and "error" in parsed
+
+
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
     """Serialize ToolCall objects to OpenAI /chat/completions shape.
 
@@ -737,6 +756,10 @@ class IORails(BaseGuardrails):
                             # the caller (including any output-rails error JSON
                             # injected on block).
                             delivered: list[str] = []
+                            # Set if an error / guardrails-violation payload reaches
+                            # the consumer, so the terminal tool-call chunk is
+                            # suppressed (never surface tool calls after a failure/block).
+                            error_emitted = False
                             try:
                                 log.info("[%s] stream_async called", req_id)
                                 log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
@@ -754,6 +777,8 @@ class IORails(BaseGuardrails):
 
                                     async for chunk in base_iterator:
                                         if chunk is not None:
+                                            if _is_stream_error_chunk(chunk):
+                                                error_emitted = True
                                             if self._content_capture_enabled:
                                                 # Plain strings are the normal path.
                                                 # Dicts arrive when include_metadata=True;
@@ -767,11 +792,24 @@ class IORails(BaseGuardrails):
                                                     if isinstance(text, str) and text:
                                                         delivered.append(text)
                                             yield chunk
-                                    # Yield assembled tool calls as a terminal JSON chunk
-                                    # after all text content (and output rails) have
-                                    # finished.
-                                    if accumulated_tool_calls:
-                                        yield json.dumps({"tool_calls": _serialize_tool_calls(accumulated_tool_calls)})
+                                    # Yield assembled tool calls as a terminal chunk after
+                                    # all text content (and output rails) have finished —
+                                    # but only on a clean stream. If an error or guardrails
+                                    # violation was already surfaced, suppress the tool calls
+                                    # so the caller never receives a tool-call after a
+                                    # failure/block.
+                                    if accumulated_tool_calls and not error_emitted:
+                                        tool_calls_payload = json.dumps(
+                                            {"tool_calls": _serialize_tool_calls(accumulated_tool_calls)}
+                                        )
+                                        if self._content_capture_enabled:
+                                            delivered.append(tool_calls_payload)
+                                        # Match the stream's chunk shape: a {"text": ...}
+                                        # frame under include_metadata, a raw string otherwise.
+                                        if include_metadata:
+                                            yield {"text": tool_calls_payload}
+                                        else:
+                                            yield tool_calls_payload
                                 finally:
                                     if not task.done():
                                         task.cancel()
