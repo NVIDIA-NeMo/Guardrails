@@ -1,0 +1,169 @@
+version: 1
+interactions:
+- request:
+    method: POST
+    uri: https://integrate.api.nvidia.com/v1/chat/completions
+    headers:
+      Host:
+      - integrate.api.nvidia.com
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-httpx/0.28.1
+      Content-Type:
+      - application/json
+    parsed_body:
+      model: nvidia/nemotron-3-nano-30b-a3b
+      messages:
+      - role: user
+        content: Say hello in one short sentence.
+      stream: true
+      stream_options:
+        include_usage: true
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Access-Control-Expose-Headers:
+      - nvcf-reqid
+      Nvcf-Status:
+      - fulfilled
+      Server:
+      - uvicorn
+      Vary:
+      - Origin
+    body:
+      parsed_body:
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            role: assistant
+            content: ''
+          logprobs: null
+          finish_reason: null
+        prompt_token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: We
+            reasoning_content: We
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' need to respond: user wants "Say hello in'
+            reasoning_content: ' need to respond: user wants "Say hello in'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' one short sentence." So output a short sentence that'
+            reasoning_content: ' one short sentence." So output a short sentence that'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' says hello. Probably "Hello!" But maybe we'
+            reasoning_content: ' says hello. Probably "Hello!" But maybe we'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' need to output a greeting in one short sentence.'
+            reasoning_content: ' need to output a greeting in one short sentence.'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' So "Hello!" is one short sentence. Keep'
+            reasoning_content: ' So "Hello!" is one short sentence. Keep'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            reasoning: ' it short. Probably "Hello!" is okay.'
+            reasoning_content: ' it short. Probably "Hello!" is okay.'
+          logprobs: null
+          finish_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices:
+        - index: 0
+          delta:
+            content: Hello!
+            reasoning: |2
+               Provide exactly that.
+            reasoning_content: |2
+               Provide exactly that.
+          logprobs: null
+          finish_reason: stop
+          stop_reason: null
+          token_ids: null
+      - id: '[RECORDED_RESPONSE_ID]'
+        object: chat.completion.chunk
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
+        choices: []
+        usage:
+          prompt_tokens: 23
+          total_tokens: 93
+          completion_tokens: 70
+      - '[DONE]'

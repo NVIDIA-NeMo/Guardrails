@@ -1,0 +1,10 @@
+import core
+
+flow greeting
+  user said "hi"
+  bot say "Hello!"
+  user said "hi"
+  bot say "Hello again!"
+
+flow main
+  activate greeting
