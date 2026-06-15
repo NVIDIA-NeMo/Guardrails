@@ -20,8 +20,8 @@ import pytest
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.recorded.assertions import (
+    assert_blocked_generation,
     assert_blocked_stream_error,
-    assert_generation_response,
     assert_rails_result,
 )
 from tests.recorded.normalization import normalize_generation_response, normalize_rails_result, normalize_stream_chunks
@@ -89,7 +89,7 @@ async def test_content_safety_output_blocks_fake_main_generation(nvidia_api_key)
         [{"role": "user", "content": "hello"}],
     )
 
-    result = assert_generation_response(result)
+    result = assert_blocked_generation(result, refusal="I'm sorry, I can't respond to that.")
 
     assert normalize_generation_response(result) == snapshot(
         {
