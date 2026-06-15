@@ -69,7 +69,7 @@ interactions:
             role: assistant
             content: null
             tool_calls:
-            - id: call_LDX0jyFYDciLYVDRG4HyXr9Y
+            - id: call_qOIyw3cmenGpsFnt2SMSUgNG
               type: function
               function:
                 name: get_weather

@@ -84,10 +84,10 @@ async def test_openai_generate_async_surfaces_tool_calls(openai_api_key, record_
             expected_params={"tools": WEATHER_TOOLS, "tool_choice": WEATHER_TOOL_CHOICE},
         )
 
-    assert result.tool_calls == snapshot(
+    assert json.loads(serialized) == snapshot(
         [
             {
-                "id": "call_LDX0jyFYDciLYVDRG4HyXr9Y",
+                "id": "call_qOIyw3cmenGpsFnt2SMSUgNG",
                 "type": "function",
                 "function": {"name": "get_weather", "arguments": {"city": "Paris"}},
             }

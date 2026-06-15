@@ -23,14 +23,13 @@ assistant message; embeddings retrieval works), not exact content (which drifts)
 They are a **maintainer / periodic** job, NOT part of the default run:
 
     # default run — these auto-skip (no real keys) and never touch the network
-    pytest -m "not live" --block-network
+    pytest tests/rails/llm/test_live_smoke.py -m "not live" --block-network
 
     # maintainer / scheduled CI — real keys, no network block
-    OPENAI_API_KEY=sk-... NVIDIA_API_KEY=nvapi-... pytest -m live
+    OPENAI_API_KEY=sk-... NVIDIA_API_KEY=nvapi-... pytest tests/rails/llm/test_live_smoke.py -m live
 
 Each test auto-skips when its real key is absent or is the replay dummy, so the default
-suite (and CI without secrets) stays green without special handling. See
-``tests/recorded/README.md`` for cadence guidance.
+suite (and CI without secrets) stays green without special handling.
 """
 
 from __future__ import annotations
@@ -55,21 +54,20 @@ pytestmark = [pytest.mark.live]
 KB_MARKER = "guardrails-kb-marker-7f3a"
 
 
-def _require_real_key(env_name: str, dummy_value: str) -> str:
+def _require_real_key(env_name: str, dummy_value: str) -> None:
     value = os.environ.get(env_name)
     if not value or value == dummy_value:
         pytest.skip(f"{env_name} (a real key) is required for live tests")
-    return value
 
 
 @pytest.fixture
-def live_openai_key() -> str:
-    return _require_real_key("OPENAI_API_KEY", DUMMY_OPENAI_API_KEY)
+def live_openai_key() -> None:
+    _require_real_key("OPENAI_API_KEY", DUMMY_OPENAI_API_KEY)
 
 
 @pytest.fixture
-def live_nvidia_key() -> str:
-    return _require_real_key("NVIDIA_API_KEY", DUMMY_NVIDIA_API_KEY)
+def live_nvidia_key() -> None:
+    _require_real_key("NVIDIA_API_KEY", DUMMY_NVIDIA_API_KEY)
 
 
 def _assert_nonempty_assistant_message(result: GenerationResponse) -> None:

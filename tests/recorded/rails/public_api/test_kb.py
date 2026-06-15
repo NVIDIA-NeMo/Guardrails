@@ -88,14 +88,14 @@ requests.\
                 {
                     "role": "assistant",
                     "content": """\
-NeMo Guardrails (often shortened to "Guardrails") is an open-source toolkit for adding programmable **guardrails** to **LLM-based conversational applications**.
-In practice, it helps you control and shape the model's behavior so it can:
-- **Stay on topic / follow a dialog flow** (conversational control)
-- **Enforce safety or policy rules** (e.g., refuse certain requests, avoid unsafe outputs)
-- **Apply consistent structured behavior** using predefined logic
-- **React to the conversation context** (so the bot can behave differently depending on what's happening in the chat)
-So instead of relying on the LLM alone to "behave," Guardrails gives you additional mechanisms to constrain and manage the responses--making the chatbot more reliable and safer in real-world use.
-If you tell me what kind of chatbot you're building (support bot, booking assistant, internal QA, etc.), I can suggest a typical way to use Guardrails.\
+NVIDIA **NeMo Guardrails** is an open-source toolkit you can use to add **programmable "guardrails"** to LLM-based chat or conversational applications. The goal is to make the assistant's behavior **more reliable and safer**, and to reduce unwanted outputs.
+In practice, NeMo Guardrails can help you:
+- **Keep the model on topic** (based on what's appropriate for the conversation)
+- **Constrain dialog flows** (so the bot follows certain paths/steps when needed)
+- **Refuse unsafe or disallowed requests** (according to rules you define)
+- **Control output formatting or policies** in a structured way
+Instead of relying only on prompting, you define rules--often expressed as a combination of configurations and logic--so the system can intercept or correct the model's responses when they don't meet your criteria.
+If you tell me what kind of chatbot you're building (support bot, booking assistant, internal policy bot, etc.), I can suggest which guardrails you'd likely want to start with.\
 """,
                 }
             ],
@@ -125,64 +125,65 @@ If you tell me what kind of chatbot you're building (support bot, booking assist
                     "provider": "openai",
                     "model": "gpt-5.4-nano",
                     "completion": """\
-NeMo Guardrails (often shortened to "Guardrails") is an open-source framework for adding safety, policy enforcement, and conversational control to AI chatbots--especially those built with large language models (LLMs).
+NeMo Guardrails (often written as **NVIDIA NeMo Guardrails**) is a framework for building **more reliable, safer conversational AI**--especially chatbots and assistants.
 
-In practice, it helps you define what the assistant **should** and **shouldn't** do, and it can:
-- **Block or rewrite unsafe responses** (content moderation / safety constraints)
-- **Enforce conversation rules** (e.g., "ask for missing info before giving instructions")
-- **Handle edge cases** with predictable behaviors (fallbacks, refusals, escalation)
-- Support **intent- and topic-based behaviors** using rails like flows, prompts, and policies
+In practice, it helps you control an AI model's behavior by adding guardrails such as:
 
-It's commonly used when you want more reliability than "prompting alone," because you can implement guardrails as structured rules rather than hoping the model follows instructions correctly every time.
+- **Safety and policy constraints:** Define rules to prevent disallowed content or risky instructions.
+- **Intent- and topic-based flows:** Steer the conversation using scripted or structured logic.
+- **Response validation:** Check or constrain what the model is allowed to say.
+- **Fallback behavior:** If the model is unsure or a request violates rules, it can follow a safe fallback response.
+- **Grounding and consistency checks (depending on setup):** Ensure responses align with expected formats or provided knowledge.
 
-If you tell me your use case (customer support bot, internal assistant, healthcare/finance, etc.), I can suggest how Guardrails would typically be set up.\
+A common use case is preventing a general LLM from straying off-topic, revealing sensitive data, or giving instructions you don't want--by enforcing guardrails around the conversation.
+
+If you tell me what you're building (customer support bot, internal assistant, coding helper, etc.), I can explain which kinds of guardrails you'd typically use.\
 """,
                     "prompt_tokens": 583,
-                    "completion_tokens": 213,
-                    "total_tokens": 796,
+                    "completion_tokens": 228,
+                    "total_tokens": 811,
                 },
                 {
                     "task": "generate_next_steps",
                     "provider": "openai",
                     "model": "gpt-5.4-nano",
                     "completion": """\
-Hello! 👋
+Yes--**NVIDIA NeMo Guardrails** (often written as **NeMo Guardrails**) is a framework you can use to make conversational AI **more reliable and safer**, particularly for **chatbots and assistants**.
 
-NeMo Guardrails (often shortened to "Guardrails") is an open-source framework for adding **safety**, **policy enforcement**, and **conversational control** to AI chatbots--especially those built with **large language models (LLMs)**.
+In practice, it helps you add "guardrails" around an LLM so it follows rules such as:
 
-In practice, it helps you define things like:
-- **What the assistant is allowed to do** (and what it must refuse)
-- **When to block or redirect** certain requests
-- **How the conversation should flow** (e.g., required steps, fallback behavior)
-- **How to handle disallowed content** with consistent responses
-- **Integration with tools/actions** under controlled conditions
+- **Refusing unsafe requests** (e.g., harmful content)
+- **Staying within policy boundaries** (industry or internal rules)
+- **Enforcing conversation structure** (required steps, formats, or workflows)
+- **Handling missing context** (asking clarifying questions instead of guessing)
+- **Managing fallback behavior** when the model is uncertain or off-track
 
-If you tell me what you're trying to accomplish (e.g., "block PII," "enforce a company policy," "add refusal templates," "control tool use"), I can explain how Guardrails typically sets that up.\
+If you tell me what you want to achieve (e.g., compliance filtering, refusal rules, tool-use constraints, or keeping a specific tone/format), I can explain how NeMo Guardrails would fit and what a typical setup looks like.\
 """,
-                    "prompt_tokens": 266,
-                    "completion_tokens": 187,
-                    "total_tokens": 453,
+                    "prompt_tokens": 259,
+                    "completion_tokens": 193,
+                    "total_tokens": 452,
                 },
                 {
                     "task": "generate_bot_message",
                     "provider": "openai",
                     "model": "gpt-5.4-nano",
                     "completion": """\
-NeMo Guardrails (often shortened to "Guardrails") is an open-source toolkit for adding programmable **guardrails** to **LLM-based conversational applications**.
+NVIDIA **NeMo Guardrails** is an open-source toolkit you can use to add **programmable "guardrails"** to LLM-based chat or conversational applications. The goal is to make the assistant's behavior **more reliable and safer**, and to reduce unwanted outputs.
 
-In practice, it helps you control and shape the model's behavior so it can:
-- **Stay on topic / follow a dialog flow** (conversational control)
-- **Enforce safety or policy rules** (e.g., refuse certain requests, avoid unsafe outputs)
-- **Apply consistent structured behavior** using predefined logic
-- **React to the conversation context** (so the bot can behave differently depending on what's happening in the chat)
+In practice, NeMo Guardrails can help you:
+- **Keep the model on topic** (based on what's appropriate for the conversation)
+- **Constrain dialog flows** (so the bot follows certain paths/steps when needed)
+- **Refuse unsafe or disallowed requests** (according to rules you define)
+- **Control output formatting or policies** in a structured way
 
-So instead of relying on the LLM alone to "behave," Guardrails gives you additional mechanisms to constrain and manage the responses--making the chatbot more reliable and safer in real-world use.  \n\
+Instead of relying only on prompting, you define rules--often expressed as a combination of configurations and logic--so the system can intercept or correct the model's responses when they don't meet your criteria.
 
-If you tell me what kind of chatbot you're building (support bot, booking assistant, internal QA, etc.), I can suggest a typical way to use Guardrails.\
+If you tell me what kind of chatbot you're building (support bot, booking assistant, internal policy bot, etc.), I can suggest which guardrails you'd likely want to start with.\
 """,
-                    "prompt_tokens": 817,
-                    "completion_tokens": 200,
-                    "total_tokens": 1017,
+                    "prompt_tokens": 810,
+                    "completion_tokens": 215,
+                    "total_tokens": 1025,
                 },
             ],
         }

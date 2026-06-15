@@ -94,7 +94,7 @@ async def test_openai_generate_async_untraced_request(openai_api_key):
     assert isinstance(result, GenerationResponse)
     assert normalize_generation_response(result) == snapshot(
         {
-            "response": [{"role": "assistant", "content": "Hello! Hope you're having a great day."}],
+            "response": [{"role": "assistant", "content": "Hello! How are you today?"}],
             "activated_rails": [
                 {
                     "type": "generation",
@@ -108,10 +108,10 @@ async def test_openai_generate_async_untraced_request(openai_api_key):
                     "task": "general",
                     "provider": "openai",
                     "model": "gpt-5.4-nano",
-                    "completion": "Hello! Hope you're having a great day.",
+                    "completion": "Hello! How are you today?",
                     "prompt_tokens": 12,
-                    "completion_tokens": 13,
-                    "total_tokens": 25,
+                    "completion_tokens": 10,
+                    "total_tokens": 22,
                 }
             ],
         }

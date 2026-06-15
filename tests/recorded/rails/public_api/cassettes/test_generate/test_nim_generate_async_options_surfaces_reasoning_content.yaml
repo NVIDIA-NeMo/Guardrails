@@ -34,41 +34,32 @@ interactions:
       - nvcf-reqid
       Nvcf-Status:
       - fulfilled
-      Server:
-      - uvicorn
       Vary:
       - Origin
     body:
       parsed_body:
         id: '[RECORDED_RESPONSE_ID]'
-        object: chat.completion
-        created: 0
-        model: nvidia/nemotron-3-nano-30b-a3b
         choices:
         - index: 0
           message:
+            content: Hello!
             role: assistant
-            content: Hello there!
-            refusal: null
-            annotations: null
-            audio: null
-            function_call: null
-            tool_calls: []
-            reasoning: |
-              The user asks: "Say hello in one short sentence." We need to respond with a short sentence that says hello. Something like "Hello!" That's a short sentence. Probably they want a friendly greeting. Provide a short sentence: "Hello there!" That's fine. Provide only the response, no extra text.
-            reasoning_content: |
-              The user asks: "Say hello in one short sentence." We need to respond with a short sentence that says hello. Something like "Hello!" That's a short sentence. Probably they want a friendly greeting. Provide a short sentence: "Hello there!" That's fine. Provide only the response, no extra text.
-          logprobs: null
+            reasoning_content: "Okay, user just wants a super short \"hello\" in one sentence. Hmm, seems like they're testing\
+              \ if I can follow simple instructions precisely. \n\nLet me keep it minimal - no extra words, just the bare\
+              \ minimum to say hello. \"Hello!\" feels too abrupt though... \"Hi there!\" is warmer but still short. Wait,\
+              \ \"Hello!\" alone is actually perfect - it's the standard one-word greeting. \n\n*checks instructions again*\
+              \ \"One short sentence\" - so even if it's just \"Hello\" that's technically a sentence. And it's exactly what\
+              \ they asked for. \n\nUser probably wants to see if I'll overcomplicate things. Nah, they said \"one short sentence\"\
+              \ so I'll just give the simplest possible greeting. No fluff. \n\n*double-checks* Yep, \"Hello!\" is one word,\
+              \ one sentence, meets all requirements. Done.\n"
           finish_reason: stop
-          stop_reason: null
-          token_ids: null
+          logprobs: null
+        created: 0
+        model: nvidia/nemotron-3-nano-30b-a3b
         service_tier: null
         system_fingerprint: null
+        object: chat.completion
         usage:
           prompt_tokens: 23
-          total_tokens: 93
-          completion_tokens: 70
-          prompt_tokens_details: null
-        prompt_logprobs: null
-        prompt_token_ids: null
-        kv_transfer_params: null
+          completion_tokens: 193
+          total_tokens: 216

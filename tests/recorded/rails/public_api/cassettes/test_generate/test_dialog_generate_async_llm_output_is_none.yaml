@@ -191,14 +191,17 @@ interactions:
         - index: 0
           message:
             role: assistant
-            content: Hello! 👋 How can I assist you today?
+            content: |-
+              Hello! 👋 How can I assist you today?
+
+              If you tell me what you’re trying to do (write something, answer a question, plan a project, learn a topic, etc.), I’ll jump in.
             refusal: null
             annotations: []
           finish_reason: stop
         usage:
           prompt_tokens: 228
-          completion_tokens: 14
-          total_tokens: 242
+          completion_tokens: 47
+          total_tokens: 275
           prompt_tokens_details:
             cached_tokens: 0
             audio_tokens: 0
@@ -318,14 +321,14 @@ interactions:
         - index: 0
           message:
             role: assistant
-            content: Hello! How can I assist you today?
+            content: Hello! 👋 How can I help you today?
             refusal: null
             annotations: []
           finish_reason: stop
         usage:
           prompt_tokens: 677
-          completion_tokens: 12
-          total_tokens: 689
+          completion_tokens: 14
+          total_tokens: 691
           prompt_tokens_details:
             cached_tokens: 0
             audio_tokens: 0
