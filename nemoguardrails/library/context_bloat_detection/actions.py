@@ -16,9 +16,9 @@
 """Context bloat detection action
 
 Detects context-manipulation attacks where attacker-controlled content
-(retrieved chunks, tool outputs, or user input) is padded, oversized,
-or repetitively structured to cause system prompt forgetting, bury instructions
-mid-context (harder to detect), or exhaust token budget.
+(retrieved chunks or user input) is padded, oversized, or repetitively
+structured to cause system prompt forgetting, bury instructions mid-context
+(harder to detect), or exhaust token budget.
 
 Checks:
     * Size cap
@@ -27,7 +27,7 @@ Checks:
     * Repeated n-grams
     * Check order:  size > entropy > run > repetition
 
-Wire as execution rail (tool output), retrieval rail (RAG chunks), or input rail.
+Wire as retrieval rail (RAG chunks) or input rail.
 """
 
 import logging
@@ -115,7 +115,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
     Check order is cheapest first to enable early-exit
 
     Args:
-        text: The text to inspect (tool output, joined chunks, or user message).
+        text: The text to inspect (joined chunks or user message).
         config: RailsConfig with rails.config.context_bloat_detection settings.
 
     Returns:
@@ -155,7 +155,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
                 log.info(f"context bloat detected: low_entropy | entropy={entropy:.3f}")
                 return ContextBloatResult(
                     is_bloat=True,
-                    action=cfg.action,
+                    action="reject",
                     text=text,
                     reason="low_entropy",
                     detections=detections,
@@ -171,7 +171,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
                 log.info(f"context bloat detected: long_run | run_ratio={run_ratio:.3f}")
                 return ContextBloatResult(
                     is_bloat=True,
-                    action=cfg.action,
+                    action="reject",
                     text=text,
                     reason="long_run",
                     detections=detections,
@@ -187,7 +187,7 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
                 log.info(f"context bloat detected: high_repetition | rep_ratio={rep_ratio:.3f}")
                 return ContextBloatResult(
                     is_bloat=True,
-                    action=cfg.action,
+                    action="reject",
                     text=text,
                     reason="high_repetition",
                     detections=detections,

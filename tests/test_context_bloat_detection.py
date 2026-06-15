@@ -243,8 +243,9 @@ class TestDetectRepetition:
 class TestTruncateMode:
     @pytest.mark.asyncio
     async def test_truncates_to_max_chars(self):
+        text = ("The quick brown fox jumps over the lazy dog. " * 10)[:200]
         config = _make_config(max_chars=50, action="truncate")
-        result = await context_bloat_detection("x" * 200, config)
+        result = await context_bloat_detection(text, config)
         assert result["is_bloat"] is True
         assert result["action"] == "truncate"
         assert len(result["text"]) == 50
@@ -254,7 +255,7 @@ class TestTruncateMode:
         config = _make_config(max_chars=50000, min_entropy=5.0, action="truncate")
         result = await context_bloat_detection("ab" * 500, config)
         assert result["is_bloat"] is True
-        assert result["action"] == "truncate"
+        assert result["action"] == "reject"
         assert "low_entropy" in result["detections"]
         assert "longest_run_ratio" not in result["metrics"]
 

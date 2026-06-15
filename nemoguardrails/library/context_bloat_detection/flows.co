@@ -1,22 +1,9 @@
 
-# EXECUTION RAILS
-
-flow context bloat detection on tool output
-  """Detect oversized or padded tool responses before they reach the LLM."""
-  $bloat_result = await ContextBloatDetectionAction(text=$action_output)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
-    bot inform tool output bloated
-    abort
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $action_output = $bloat_result.text
-
-flow bot inform tool output bloated
-  bot say "The tool response appeared oversized or padded with repetitive content. I'm not using it to avoid context manipulation."
-
 # RETRIEVAL RAILS
 
 flow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
+  global $relevant_chunks
   $bloat_result = await ContextBloatDetectionAction(text=$relevant_chunks)
   if $bloat_result.is_bloat and $bloat_result.action == "reject"
     bot inform retrieval bloated
@@ -31,6 +18,7 @@ flow bot inform retrieval bloated
 
 flow context bloat detection on input
   """Detect bloated or padded user-supplied content."""
+  global $user_message
   $bloat_result = await ContextBloatDetectionAction(text=$user_message)
   if $bloat_result.is_bloat and $bloat_result.action == "reject"
     bot refuse bloated input
