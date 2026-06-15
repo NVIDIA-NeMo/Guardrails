@@ -131,7 +131,7 @@ class HasEventsHistoryCache(Protocol):
 
 
 class HasVerbose(Protocol):
-    """Reads the verbose flag (a ``property`` on the concrete class)."""
+    """Reads the verbose flag."""
 
     @property
     def verbose(self) -> bool: ...

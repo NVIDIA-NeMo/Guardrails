@@ -57,6 +57,7 @@ from nemoguardrails.rails.llm.generation.generation_context import (
 )
 from nemoguardrails.rails.llm.generation.generation_request import (
     prepare_generation_request_for_runtime,
+    validate_prompt_or_messages,
     validate_public_state,
 )
 from nemoguardrails.rails.llm.generation.generation_workflow import generate_standard_async
@@ -113,7 +114,7 @@ class LLMRails(BaseGuardrails):
     _kb: Any
     _log_adapters: Any
     _llm_generation_actions: Any
-    _verbose: bool
+    verbose: bool
     events_history_cache: dict[str, list[dict]]
     llm: Optional[LLMModel]
     runtime: Runtime
@@ -230,14 +231,6 @@ class LLMRails(BaseGuardrails):
     @passthrough_fn.setter
     def passthrough_fn(self, fn):
         self._llm_generation_actions._passthrough_fn = fn
-
-    @property
-    def verbose(self) -> bool:
-        return self._verbose
-
-    @verbose.setter
-    def verbose(self, verbose: bool) -> None:
-        self._verbose = verbose
 
     def __init__(
         self,
@@ -398,12 +391,7 @@ class LLMRails(BaseGuardrails):
             The completion (when a prompt is provided) or the next message.
 
         System messages are not yet supported."""
-        if prompt is None and messages is None:
-            raise ValueError("Either prompt or messages must be provided.")
-
-        if prompt is not None and messages is not None:
-            raise ValueError("Only one of prompt or messages can be provided.")
-
+        validate_prompt_or_messages(prompt, messages)
         validate_public_state(self.config, state)
         prepared_request = prepare_generation_request_for_runtime(
             prompt=prompt,
