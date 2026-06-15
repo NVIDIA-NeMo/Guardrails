@@ -1,0 +1,4 @@
+define flow input rail
+  if $user_message == "block input"
+    bot refuse to respond
+    stop

@@ -1,0 +1,4 @@
+models: []
+core:
+  embedding_search_provider:
+    name: simple

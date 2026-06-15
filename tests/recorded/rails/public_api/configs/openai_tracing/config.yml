@@ -1,0 +1,12 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5.4-nano
+    parameters:
+      max_retries: 0
+passthrough: true
+tracing:
+  enabled: true
+  # No adapters: the tracing code path runs (spans built, log options forced and
+  # restored) but nothing is exported, so the test stays offline and writes no files.
+  adapters: []

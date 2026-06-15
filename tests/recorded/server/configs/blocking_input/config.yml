@@ -1,0 +1,11 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5.4-nano
+    parameters:
+      max_retries: 0
+
+rails:
+  input:
+    flows:
+      - input rail

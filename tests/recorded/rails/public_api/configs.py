@@ -23,6 +23,7 @@ CONFIGS_DIR = Path(__file__).parent / "configs"
 OPENAI_MODEL = "gpt-5.4-nano"
 NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b"
 OPENAI_INVALID_MODEL = "gpt-nonexistent-test-model"
+OPENAI_TOOLS_MODEL = "gpt-4o"
 
 OPENAI_BASELINE_CONFIG = RailsConfigSource.from_content(
     name="openai_baseline",
@@ -143,5 +144,65 @@ STREAMING_DISABLED_CONFIG = RailsConfigSource.from_content(
       if $bot_message == "BLOCK"
         bot refuse to respond
         stop
+    """,
+)
+
+STATE_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "state")
+OPENAI_TOOLS_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_tools")
+OPENAI_KB_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_kb")
+OPENAI_TRACING_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_tracing")
+COLANG_V2_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "colang_v2")
+COLANG_V2_SELF_CHECK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "colang_v2_self_check")
+
+TWO_INPUT_RAILS_CONFIG = RailsConfigSource.from_content(
+    name="two_input_rails",
+    yaml_content="""
+    rails:
+      input:
+        flows:
+          - first input rail
+          - second input rail
+    """,
+    colang_content="""
+    define flow first input rail
+      if $user_message == "block first"
+        bot refuse to respond
+        stop
+
+    define flow second input rail
+      if $user_message == "block second"
+        bot refuse to respond
+        stop
+    """,
+)
+
+INPUT_RAIL_STREAMING_CONFIG = RailsConfigSource.from_content(
+    name="input_rail_streaming",
+    yaml_content="""
+    rails:
+      input:
+        flows:
+          - block stream input
+    streaming: true
+    """,
+    colang_content="""
+    define flow block stream input
+      if $user_message == "block input"
+        bot refuse to respond
+        stop
+    """,
+)
+
+STREAMING_PASSTHROUGH_CONFIG = RailsConfigSource.from_content(
+    name="streaming_passthrough",
+    yaml_content=f"""
+    models:
+      - type: main
+        engine: openai
+        model: {OPENAI_MODEL}
+        parameters:
+          max_retries: 0
+    passthrough: true
+    streaming: true
     """,
 )
