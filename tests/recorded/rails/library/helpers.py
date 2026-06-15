@@ -17,15 +17,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from nemoguardrails import LLMRails
 from nemoguardrails.rails.llm.options import RailType
-from tests.recorded.rails_config import RailsConfigSource, enable_streaming, load_config
+from tests.recorded.rails.helpers import async_chunks, build_rails
+from tests.recorded.rails_config import RailsConfigSource
 from tests.utils import FakeLLMModel
-
-
-async def _chunks(values: list[str]):
-    for value in values:
-        yield value
 
 
 async def check_rails(
@@ -34,7 +29,7 @@ async def check_rails(
     *,
     rail_types: tuple[RailType, ...] | None = None,
 ):
-    rails = LLMRails(load_config(config), verbose=False)
+    rails = build_rails(config)
     return await rails.check_async(messages, rail_types=list(rail_types) if rail_types is not None else None)
 
 
@@ -43,7 +38,7 @@ async def generate_with_fake_main(
     main_output: str,
     messages: list[dict[str, Any]],
 ):
-    rails = LLMRails(load_config(config), llm=FakeLLMModel(responses=[main_output]), verbose=False)
+    rails = build_rails(config, llm=FakeLLMModel(responses=[main_output]))
     return await rails.generate_async(
         messages=messages,
         options={"log": {"activated_rails": True, "llm_calls": True}},
@@ -55,11 +50,11 @@ async def stream_with_fake_main(
     main_output: str,
     messages: list[dict[str, Any]],
 ):
-    rails = LLMRails(enable_streaming(load_config(config)), verbose=False)
+    rails = build_rails(config, streaming=True)
     chunks = []
     async for chunk in rails.stream_async(
         messages=messages,
-        generator=_chunks([main_output]),
+        generator=async_chunks([main_output]),
         options={"rails": ["output"]},
     ):
         chunks.append(chunk)
