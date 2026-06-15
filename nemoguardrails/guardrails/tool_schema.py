@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Internal canonical tool types for IORails tool-calling rails.
+
+These engine-internal dataclasses are the normalized, provider-neutral shape the
+tool rails validate against. They are NOT part of the public API and NOT carried
+on ``GenerationOptions``: the request surface stays the provider-native
+``llm_params`` block, which ``ModelEngine`` canonicalizes into a ``Toolset`` (and
+incoming tool results into ``ToolResult`` objects) per inference call.
+
+``Tool`` is a declared tool definition (what the caller offers); ``ToolCall`` (in
+``nemoguardrails.types``) is an invocation the model emitted. Field names are
+provider-neutral so OpenAI Chat Completions (the engine implemented today), OpenAI
+Responses, Anthropic, Gemini, and Bedrock all canonicalize into the same shape:
+``arguments_schema`` is OpenAI ``parameters`` / Anthropic ``input_schema`` / Gemini
+``parameters``; ``ToolResult.call_id`` is the OpenAI ``tool_call_id`` / Responses
+``call_id`` / Anthropic ``tool_use_id`` / Gemini function-call ``id``.
+"""
+
+from dataclasses import dataclass, field
+
+import jsonschema
+
+
+@dataclass(frozen=True, slots=True)
+class Tool:
+    """A declared tool definition the caller offered to the model.
+
+    ``name`` is set for function tools and ``None`` for hosted/server tools that
+    are identified only by ``type`` (e.g. web_search). ``arguments_schema`` is the
+    JSON Schema for the call arguments, or ``None`` for hosted tools (and any
+    function tool that declares no parameters), in which case argument validation
+    is skipped and only the allowlist applies.
+    """
+
+    name: str | None = None
+    type: str = "function"
+    description: str | None = None
+    arguments_schema: dict | None = None
+    strict: bool | None = None
+
+    @property
+    def key(self) -> str:
+        """Allowlist / lookup identifier: the function ``name``, else the ``type``."""
+        return self.name or self.type
+
+
+@dataclass(slots=True)
+class Toolset:
+    """The canonical set of tools declared on a request, with a lookup index."""
+
+    tools: list[Tool] = field(default_factory=list)
+    by_key: dict[str, Tool] = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Index the tools by their ``key`` for allowlist + argument-schema lookup."""
+        self.by_key = {tool.key: tool for tool in self.tools if tool.key}
+
+
+@dataclass(frozen=True, slots=True)
+class ToolResult:
+    """A normalized tool result extracted from incoming messages by the engine.
+
+    The ToolResultRail consumes a list of these; the per-provider extraction (e.g.
+    OpenAI ``role:"tool"`` messages) lives in the engine adapter, so the rail never
+    sees provider wire shapes. ``content`` is a string or a list of content blocks
+    (the latter covers multimodal results). ``is_error`` flags a failed result
+    where the provider exposes one (e.g. Anthropic ``is_error`` / Bedrock
+    ``status:"error"``).
+    """
+
+    call_id: str | None = None
+    name: str | None = None
+    content: str | list[dict] | None = None
+    is_error: bool = False
+
+
+def validate_arguments(tool: Tool, arguments: dict) -> str | None:
+    """Validate model-supplied tool-call arguments against the tool's schema.
+
+    Returns ``None`` when the arguments are valid or the tool declares no schema.
+    Returns a human-readable reason when the arguments violate the schema, or when
+    the declared schema itself is not valid JSON Schema (e.g. a non-JSON-Schema
+    dialect reaching this validator before its engine adapter normalizes it).
+    """
+    if tool.arguments_schema is None:
+        return None
+    try:
+        jsonschema.validate(instance=arguments, schema=tool.arguments_schema)
+    except jsonschema.ValidationError as exc:
+        return f"arguments for tool '{tool.key}' do not match its schema: {exc.message}"
+    except jsonschema.SchemaError as exc:
+        return f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}"
+    return None
