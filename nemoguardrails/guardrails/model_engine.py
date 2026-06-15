@@ -225,6 +225,11 @@ def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) ->
         return
     delta = choices[0].get("delta") or {}
     for tool_call_delta in delta.get("tool_calls") or []:
+        # ``index`` ties fragmented argument deltas back to their tool call (only
+        # the first delta per call carries id/name; later ones carry just args +
+        # the same index). It defaults to 0 for single-call streams that omit it;
+        # OpenAI/NIM always send it for parallel calls. The collision check below
+        # flags the rare case where a provider omits it for parallel calls.
         index = tool_call_delta.get("index", 0)
         if index not in tool_calls:
             tool_calls[index] = {
@@ -233,8 +238,25 @@ def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) ->
                 "arguments_buffer": "",
             }
         else:
-            if tool_call_delta.get("id"):
-                tool_calls[index]["id"] = tool_call_delta["id"]
+            incoming_id = tool_call_delta.get("id")
+            if incoming_id:
+                existing_id = tool_calls[index]["id"]
+                if existing_id and incoming_id != existing_id:
+                    # A distinct tool call (different id) landed on an existing
+                    # accumulator slot — happens when a provider omits ``index`` for
+                    # parallel calls, collapsing them into one slot (id/name
+                    # overwritten, arguments concatenated into invalid JSON). Warn
+                    # rather than silently corrupt; strict per-provider validation
+                    # is the canonicalization layer's job.
+                    log.warning(
+                        "[%s] tool-call id %r collided with accumulator slot %d (existing id %r); "
+                        "provider likely omitted 'index' for parallel tool calls — result may be corrupted",
+                        get_request_id(),
+                        incoming_id,
+                        index,
+                        existing_id,
+                    )
+                tool_calls[index]["id"] = incoming_id
             name = (tool_call_delta.get("function") or {}).get("name")
             if name:
                 tool_calls[index]["name"] = name
@@ -524,8 +546,9 @@ class ModelEngine(BaseEngine):
                     if not line:
                         continue
 
-                    # Debug-log raw SSE line before any processing
-                    log.debug("[%s] SSE line: %s", req_id, line)
+                    # Debug-log raw SSE line before any processing. Bounded via
+                    # truncate() for now to match the other payload logs.
+                    log.debug("[%s] SSE line: %s", req_id, truncate(line))
 
                     if not line.startswith("data: "):
                         continue

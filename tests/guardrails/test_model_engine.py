@@ -1338,6 +1338,55 @@ class TestStreamCallToolCalls:
         assert len(tool_chunks) == 1
         assert tool_chunks[0].delta_tool_calls[0].function.arguments == {"city": "Paris"}
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_parallel_tool_calls_without_index_warns(self):
+        """Distinct parallel calls that omit `index` collapse to slot 0 — warn, don't silently corrupt.
+
+        ``index`` is the only key tying argument fragments to their call. If a
+        provider omits it for parallel calls they default to slot 0; the
+        accumulator can't recover the split, so it must at least surface a warning
+        rather than corrupt silently. (OpenAI/NIM always send `index` here.)
+        """
+        engine = ModelEngine(_make_model())
+        # Two distinct calls (different ids), both omitting `index` -> both -> slot 0.
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {"id": "c1", "type": "function", "function": {"name": "fn_a", "arguments": "{}"}}
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {"id": "c2", "type": "function", "function": {"name": "fn_b", "arguments": "{}"}}
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            _ = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert mock_log.warning.called, "expected a collision warning for index-less parallel tool calls"
+        assert "collided with accumulator slot" in mock_log.warning.call_args.args[0]
+
 
 class TestModelEngineConstants:
     """Test values of model-engine-specific constants."""
