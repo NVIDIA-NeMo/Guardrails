@@ -573,16 +573,13 @@ class ModelEngine(BaseEngine):
                     # when the model chose freely, but "stop" when tool_choice forced
                     # a specific function. Gate on *any* finish_reason (with tool calls
                     # accumulated), not the literal "tool_calls", or forced calls never
-                    # surface. _parse_chat_completion_chunk returns None for empty-delta
-                    # finish chunks, so synthesize a carrier chunk to hold the calls.
+                    # surface. finish_reason keeps that chunk alive in
+                    # _parse_chat_completion_chunk, so parsed_chunk is non-None here; if a
+                    # provider ever omits a parseable finish frame, the post-loop safety
+                    # net below surfaces the calls instead.
                     choices = raw_chunk.get("choices") or []
                     finish_reason = choices[0].get("finish_reason") if choices else None
-                    if tool_calls and not tool_calls_emitted and finish_reason:
-                        if parsed_chunk is None:
-                            parsed_chunk = LLMResponseChunk(
-                                finish_reason=finish_reason,
-                                request_id=raw_chunk.get("id"),
-                            )
+                    if tool_calls and not tool_calls_emitted and finish_reason and parsed_chunk is not None:
                         parsed_chunk.delta_tool_calls = _finalize_tool_calls(tool_calls)
                         tool_calls_emitted = True
 

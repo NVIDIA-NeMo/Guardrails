@@ -25,7 +25,12 @@ import pytest_asyncio
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, STREAM_MAX_CONCURRENCY, IORails
+from nemoguardrails.guardrails.iorails import (
+    REFUSAL_MESSAGE,
+    STREAM_MAX_CONCURRENCY,
+    IORails,
+    _is_stream_error_chunk,
+)
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
@@ -821,3 +826,70 @@ class TestStreamAsyncToolCalling:
         assert len(tool_frames) == 1
         parsed = json.loads(tool_frames[0]["text"])
         assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_recorded_in_captured_content(self, iorails_input_only):
+        """When content capture is on, the terminal tool-call payload is recorded on the span.
+
+        Regression (PR #2024 review): the tool-call JSON must reach ``delivered`` so
+        the request span's captured output_text includes tool calls.
+        """
+        iorails_input_only._content_capture_enabled = True
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
+        main_engine._running = True
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as mock_set:
+            await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        mock_set.assert_called_once()
+        # set_request_content(request_span, messages, output_text)
+        output_text = mock_set.call_args.args[2]
+        assert output_text is not None and "tool_calls" in output_text
+
+    @pytest.mark.asyncio
+    async def test_output_rails_streaming_skips_empty_content_batch(self, iorails_stream_check_first):
+        """An empty-content batch skips the is_output_safe check and passes the chunk through.
+
+        Covers the empty-content guard in _run_output_rails_in_streaming on the
+        stream_first=False path (e.g. a batch that formats to an empty string).
+        """
+        iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        async def _empty_content_handler():
+            yield ""  # formats to an empty bot_response_chunk -> guard fires
+
+        out = [
+            chunk
+            async for chunk in iorails_stream_check_first._run_output_rails_in_streaming(
+                streaming_handler=_empty_content_handler(),
+                messages=[{"role": "user", "content": "hi"}],
+            )
+        ]
+
+        iorails_stream_check_first.rails_manager.is_output_safe.assert_not_called()
+        assert out == [""]
+
+
+class TestIsStreamErrorChunk:
+    """Unit tests for _is_stream_error_chunk (terminal-chunk error/violation detection)."""
+
+    def test_error_json_string(self):
+        assert _is_stream_error_chunk('{"error": {"type": "guardrails_violation"}}') is True
+
+    def test_metadata_frame_with_error(self):
+        assert _is_stream_error_chunk({"text": '{"error": {"type": "generation_error"}}'}) is True
+
+    def test_non_error_json_string(self):
+        assert _is_stream_error_chunk('{"tool_calls": []}') is False
+
+    def test_plain_text(self):
+        assert _is_stream_error_chunk("just some text") is False
+
+    def test_malformed_json_with_error_substring(self):
+        # Has the "error" marker but is not valid JSON -> JSONDecodeError branch.
+        assert _is_stream_error_chunk('{"error": ') is False
+
+    def test_non_string_text(self):
+        assert _is_stream_error_chunk({"text": None}) is False
