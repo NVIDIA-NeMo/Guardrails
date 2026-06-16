@@ -95,7 +95,7 @@ interactions:
         content: |-
           Return "yes" if the response is fully supported by the evidence.
           Return "no" otherwise.
-          Evidence: ['Paris is in France.']
+          Evidence: Paris is in France.
           Response: Paris is in Germany.
       max_completion_tokens: 32
   response:
@@ -132,9 +132,9 @@ interactions:
             annotations: []
           finish_reason: stop
         usage:
-          prompt_tokens: 42
+          prompt_tokens: 40
           completion_tokens: 4
-          total_tokens: 46
+          total_tokens: 44
           prompt_tokens_details:
             cached_tokens: 0
             audio_tokens: 0
