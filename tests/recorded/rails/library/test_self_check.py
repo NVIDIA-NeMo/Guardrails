@@ -60,7 +60,7 @@ async def test_self_check_facts_blocks_unsupported_response(openai_api_key):
     result = await check_rails(
         OPENAI_SELF_CHECK_CONFIG,
         [
-            {"role": "context", "content": {"check_facts": True, "relevant_chunks": ["Paris is in France."]}},
+            {"role": "context", "content": {"check_facts": True, "relevant_chunks": "Paris is in France."}},
             {"role": "user", "content": "Where is Paris?"},
             {"role": "assistant", "content": "Paris is in Germany."},
         ],
@@ -69,7 +69,7 @@ async def test_self_check_facts_blocks_unsupported_response(openai_api_key):
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check facts")
     assert normalize_rails_result(result) == snapshot(
-        {"status": "blocked", "rail": "self check facts", "content": "I'm sorry, an internal error has occurred."}
+        {"status": "blocked", "rail": "self check facts", "content": "I'm sorry, I can't respond to that."}
     )
 
 
