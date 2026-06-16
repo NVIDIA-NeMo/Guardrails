@@ -1984,3 +1984,72 @@ class TestParseTools:
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
         assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+
+
+_TOOL_MESSAGES = [
+    {"role": "user", "content": "weather in Paris?"},
+    {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}
+        ],
+    },
+    {"role": "tool", "tool_call_id": "call_1", "name": "get_weather", "content": "18C"},
+]
+
+
+class TestExtractToolResults:
+    def test_extracts_openai_tool_result(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+
+        assert len(results) == 1
+        result = results[0]
+        assert result.call_id == "call_1"
+        assert result.name == "get_weather"
+        assert result.content == "18C"
+        assert result.is_error is False
+
+    def test_ignores_non_tool_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
+        assert engine.extract_tool_results(messages) == []
+
+    def test_extracts_multiple_results_in_order(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {"role": "tool", "tool_call_id": "call_1", "name": "a", "content": "r1"},
+            {"role": "tool", "tool_call_id": "call_2", "name": "b", "content": "r2"},
+        ]
+        results = engine.extract_tool_results(messages)
+        assert [r.call_id for r in results] == ["call_1", "call_2"]
+
+    def test_skips_non_dict_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = ["garbage", {"role": "tool", "tool_call_id": "call_1", "content": "r1"}]
+        results = engine.extract_tool_results(messages)
+        assert len(results) == 1
+        assert results[0].call_id == "call_1"
+
+    def test_missing_fields_become_none(self):
+        """Missing tool_call_id/name still extracts; the rail (not the extractor) judges linkage."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        results = engine.extract_tool_results([{"role": "tool", "content": "r1"}])
+        assert len(results) == 1
+        assert results[0].call_id is None
+        assert results[0].name is None
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+        assert [r.call_id for r in results] == ["call_1"]
+
+    def test_unknown_engine_falls_back_to_openai_extractor(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        results = engine.extract_tool_results(_TOOL_MESSAGES)
+        assert [r.call_id for r in results] == ["call_1"]

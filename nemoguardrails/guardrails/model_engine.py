@@ -39,7 +39,7 @@ from nemoguardrails.guardrails._http import (
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
-from nemoguardrails.guardrails.tool_schema import Tool, Toolset
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -333,6 +333,38 @@ def _parse_tools_nim(tools: list) -> list[Tool]:
 _TOOL_PARSERS = {
     "openai": _parse_tools_openai,
     "nim": _parse_tools_nim,
+}
+
+
+def _extract_tool_results_openai(messages: LLMMessages) -> list[ToolResult]:
+    """Extract OpenAI Chat Completions tool results into ``ToolResult`` objects.
+
+    Chat Completions carries each tool result as a top-level ``{"role": "tool",
+    "tool_call_id", "content"}`` message (optionally ``name``). This shape has no
+    error flag, so ``is_error`` is always ``False``.
+    """
+    results: list[ToolResult] = []
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "tool":
+            continue
+        results.append(
+            ToolResult(
+                call_id=message.get("tool_call_id"),
+                name=message.get("name"),
+                content=message.get("content"),
+            )
+        )
+    return results
+
+
+def _extract_tool_results_nim(messages: LLMMessages) -> list[ToolResult]:
+    """Extract NIM tool results. NIM uses the OpenAI Chat Completions shape."""
+    return _extract_tool_results_openai(messages)
+
+
+_RESULT_EXTRACTORS = {
+    "openai": _extract_tool_results_openai,
+    "nim": _extract_tool_results_nim,
 }
 
 
@@ -714,3 +746,16 @@ class ModelEngine(BaseEngine):
             return Toolset()
         parser = _TOOL_PARSERS.get(self.model_config.engine, _parse_tools_openai)
         return Toolset(tools=parser(tools))
+
+    def extract_tool_results(self, messages: LLMMessages) -> list[ToolResult]:
+        """Extract incoming tool results from ``messages`` into ``ToolResult`` objects.
+
+        Pulls the provider's tool-result messages out of the conversation and
+        normalizes them into the internal ``ToolResult`` shape the ToolResultRail
+        consumes, keyed on the model's engine (``_RESULT_EXTRACTORS``). OpenAI and
+        NIM share the Chat Completions shape (``role:"tool"`` messages); an engine
+        with no registered extractor falls back to it. Returns an empty list when
+        there are no tool results.
+        """
+        extractor = _RESULT_EXTRACTORS.get(self.model_config.engine, _extract_tool_results_openai)
+        return extractor(messages)
