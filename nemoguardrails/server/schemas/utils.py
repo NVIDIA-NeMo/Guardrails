@@ -140,16 +140,11 @@ async def fetch_models(
     headers: Dict[str, str] = {}
     forwarded = request_headers.get("Authorization", "")
 
-    # Check if the auth header is a Bearer token
-    if forwarded and auth_header_name == "Authorization":
-        headers["Authorization"] = forwarded
-    else:
-        # Extract the key from the forwarded header or from the env var.
+    raw_key = os.environ.get(api_key_env, "")
+    if not raw_key:
         raw_key = forwarded.removeprefix("Bearer ").strip() if forwarded else ""
-        if not raw_key:
-            raw_key = os.environ.get(api_key_env, "")
-        if raw_key:
-            headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
+    if raw_key:
+        headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
 
     headers.update(provider.get("extra_headers", {}))
 

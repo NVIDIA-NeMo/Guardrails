@@ -36,11 +36,11 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_reasoning_parse_prompt_safety,
     nemotron_reasoning_parse_response_safety,
 )
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 
 def _create_mock_setup(llm_responses, parsed_result):
-    mock_llm = FakeLLM(responses=llm_responses)
+    mock_llm = FakeLLMModel(responses=llm_responses)
     llms = {"test_model": mock_llm}
 
     mock_task_manager = MagicMock()
@@ -306,7 +306,7 @@ class TestReasoningEnabledEndToEnd:
         self, reasoning_enabled, expected_token, is_harmful, safety_response, expected_response
     ):
         """Test content_safety_check_input renders correct token and handles safe/harmful input."""
-        content_safety_llm = FakeLLM(responses=[safety_response])
+        content_safety_llm = FakeLLMModel(responses=[safety_response])
 
         config = RailsConfig.from_content(
             yaml_content=textwrap.dedent(
@@ -361,7 +361,7 @@ class TestReasoningEnabledEndToEnd:
         assert expected_token in content_safety_prompt
         assert user_message in content_safety_prompt
 
-        assert content_safety_llm.i == 1
+        assert content_safety_llm.inference_count == 1
 
         assert response is not None
         assert response["content"] == expected_response

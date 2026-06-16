@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from importlib.util import find_spec
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,22 +30,19 @@ from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
     detect_language,
 )
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
-try:
-    import fast_langdetect  # noqa
-
-    HAS_FAST_LANGDETECT = True
-except ImportError:
-    HAS_FAST_LANGDETECT = False
+LIVE_TEST_MODE = os.environ.get("LIVE_TEST")
+HAS_FAST_LANGDETECT = find_spec("fast_langdetect") is not None
 
 requires_fast_langdetect = pytest.mark.skipif(not HAS_FAST_LANGDETECT, reason="fast-langdetect not installed")
+requires_live_test = pytest.mark.skipif(not LIVE_TEST_MODE, reason="LIVE_TEST is not set")
 
 
 @pytest.fixture
 def fake_llm():
     def _factory(response):
-        llm = FakeLLM(responses=[response])
+        llm = FakeLLMModel(responses=[response])
         return {"test_model": llm}
 
     return _factory
@@ -165,6 +165,34 @@ def test_content_safety_check_output_mapping_default():
     assert content_safety_check_output_mapping(result) is False
 
 
+class TestDetectLanguageUnit:
+    def test_detect_language_uses_detect_result(self):
+        detect = MagicMock(return_value=[{"lang": "es", "score": 0.99}])
+
+        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+            assert _detect_language("Hola") == "es"
+
+        detect.assert_called_once_with("Hola", k=1)
+
+    def test_detect_language_empty_result(self):
+        detect = MagicMock(return_value=[])
+
+        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+            assert _detect_language("Hello") is None
+
+    def test_detect_language_import_error(self):
+        with patch.dict("sys.modules", {"fast_langdetect": None}):
+            assert _detect_language("Hello") is None
+
+    def test_detect_language_exception(self):
+        detect = MagicMock(side_effect=Exception("Detection failed"))
+
+        with patch.dict("sys.modules", {"fast_langdetect": _fast_langdetect_module(detect)}):
+            assert _detect_language("Hello") is None
+
+
+@pytest.mark.live
+@requires_live_test
 @requires_fast_langdetect
 class TestDetectLanguage:
     @pytest.mark.parametrize(
@@ -186,30 +214,9 @@ class TestDetectLanguage:
         result = _detect_language("")
         assert result is None or result == "en"
 
-    def test_detect_language_import_error(self):
-        with patch.dict("sys.modules", {"fast_langdetect": None}):
-            import nemoguardrails.library.content_safety.actions as actions_module
-
-            _original_detect_language = actions_module._detect_language
-
-            def patched_detect_language(text):
-                try:
-                    raise ImportError("No module named 'fast_langdetect'")
-                except ImportError:
-                    return None
-
-            with patch.object(actions_module, "_detect_language", patched_detect_language):
-                result = actions_module._detect_language("Hello")
-                assert result is None
-
-    def test_detect_language_exception(self):
-        with patch("fast_langdetect.detect", side_effect=Exception("Detection failed")):
-            result = _detect_language("Hello")
-            assert result is None
-
 
 class TestGetRefusalMessage:
-    @pytest.mark.parametrize("lang", list(SUPPORTED_LANGUAGES))
+    @pytest.mark.parametrize("lang", sorted(SUPPORTED_LANGUAGES))
     def test_default_messages(self, lang):
         result = _get_refusal_message(lang, None)
         assert result == DEFAULT_REFUSAL_MESSAGES[lang]
@@ -228,6 +235,8 @@ class TestGetRefusalMessage:
         assert _get_refusal_message("es", custom) == DEFAULT_REFUSAL_MESSAGES["es"]
 
 
+@pytest.mark.live
+@requires_live_test
 @requires_fast_langdetect
 class TestDetectLanguageAction:
     @pytest.mark.asyncio
@@ -305,6 +314,12 @@ class TestSupportedLanguagesAndDefaults:
             assert lang in DEFAULT_REFUSAL_MESSAGES
 
     def test_default_refusal_messages_are_non_empty(self):
-        for _lang, message in DEFAULT_REFUSAL_MESSAGES.items():
+        for message in DEFAULT_REFUSAL_MESSAGES.values():
             assert message
             assert len(message) > 0
+
+
+def _fast_langdetect_module(detect):
+    module = ModuleType("fast_langdetect")
+    module.__dict__["detect"] = detect
+    return module

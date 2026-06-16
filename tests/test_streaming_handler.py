@@ -436,6 +436,40 @@ async def test_multiple_stop_tokens():
 
 
 @pytest.mark.asyncio
+async def test_stop_none_does_not_raise():
+    handler = StreamingHandler()
+    consumer = StreamingConsumer(handler)
+
+    try:
+        handler.stop = None
+        await handler.push_chunk("Hello world")
+        await handler.push_chunk(END_OF_STREAM)
+
+        chunks = await consumer.get_chunks()
+        assert chunks == ["Hello world"]
+        assert handler.completion == "Hello world"
+    finally:
+        await consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_stop_none_with_pattern():
+    await _test_pattern_case(
+        prefix='Bot message: "',
+        suffix='"',
+        stop=None,
+        chunks=[
+            "Bot",
+            " message: ",
+            '"',
+            "This is a message",
+            '"',
+        ],
+        final_chunks=["This is a message"],
+    )
+
+
+@pytest.mark.asyncio
 async def test_enable_print_functionality():
     """Test the enable_print functionality."""
 

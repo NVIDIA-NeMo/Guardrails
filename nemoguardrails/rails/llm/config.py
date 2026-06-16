@@ -20,12 +20,13 @@ import os
 import re
 import warnings
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Discriminator,
     Field,
     PrivateAttr,
     SecretStr,
@@ -53,6 +54,9 @@ with open(os.path.join(os.path.dirname(__file__), "default_config.yml")) as _fc:
 with open(os.path.join(os.path.dirname(__file__), "default_config_v2.yml")) as _fc:
     _default_config_v2 = yaml.safe_load(_fc)
 
+# Jailbreak-related strings
+JAILBREAK_FLOW_MODEL = "jailbreak detection model"
+JAILBREAK_FLOW_HEURISTICS = "jailbreak detection heuristics"
 
 # Extract the COLANGPATH directories.
 colang_path_dirs = [
@@ -328,6 +332,8 @@ class PrivateAIDetection(BaseModel):
 class GLiNERDetectionOptions(BaseModel):
     """Configuration options for GLiNER."""
 
+    model_config = ConfigDict(extra="forbid")
+
     entities: List[str] = Field(
         default_factory=list,
         description="The list of entity labels to detect (e.g., 'email', 'phone_number', 'ssn').",
@@ -337,9 +343,25 @@ class GLiNERDetectionOptions(BaseModel):
 class GLiNERDetection(BaseModel):
     """Configuration for GLiNER PII detection."""
 
+    model_config = ConfigDict(extra="forbid")
+
     server_endpoint: str = Field(
-        default="http://localhost:1235/v1/extract",
-        description="The endpoint for the GLiNER detection server.",
+        default="http://localhost:8000/v1/chat/completions",
+        description=(
+            "The endpoint for the GLiNER detection server. "
+            "By default, this is for a locally hosted NIM instance running the GLiNER model. "
+            "Changed from http://localhost:1235/v1/extract (custom server) to "
+            "http://localhost:8000/v1/chat/completions (NIM) in this release. "
+            "If you use the custom gliner_server, set this explicitly to http://localhost:1235/v1/extract."
+        ),
+    )
+    model: str = Field(
+        default="nvidia/gliner-pii",
+        description="Model identifier sent in NIM API requests (only used when server_endpoint ends with /v1/chat/completions).",
+    )
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description="Name of the environment variable containing the API key for authenticated endpoints (e.g., NVIDIA_API_KEY).",
     )
     threshold: float = Field(
         default=0.5,
@@ -369,6 +391,108 @@ class GLiNERDetection(BaseModel):
         default_factory=GLiNERDetectionOptions,
         description="Configuration of the entities to be detected on retrieved relevant chunks.",
     )
+
+
+class _HFClassifierBase(BaseModel):
+    """Shared fields for all HuggingFace classifier engines."""
+
+    model: str = Field(
+        min_length=1,
+        description="HF model ID, local path, or server-side model identifier.",
+    )
+    threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum score for a detection to trigger blocking.",
+    )
+    blocked_labels: List[str] = Field(
+        default_factory=list,
+        description="Labels that should trigger blocking when detected above threshold.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_common(self) -> "_HFClassifierBase":
+        if not self.blocked_labels:
+            log.warning(
+                "HFClassifierConfig '%s': blocked_labels is empty — this classifier will never block anything.",
+                self.model,
+            )
+        return self
+
+
+class LocalHFClassifierConfig(_HFClassifierBase):
+    """Configuration for a local HuggingFace Transformers pipeline classifier."""
+
+    engine: Literal["local"] = "local"
+    task: Literal["text-classification", "token-classification"] = Field(
+        default="text-classification",
+        description="HuggingFace pipeline task type.",
+    )
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Forwarded as kwargs to transformers.pipeline() "
+        "(e.g. device, dtype, trust_remote_code, token, revision, "
+        "aggregation_strategy).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_local(self) -> "LocalHFClassifierConfig":
+        agg = self.parameters.get("aggregation_strategy")
+        if agg and self.task != "token-classification":
+            raise ValueError("aggregation_strategy is only valid when task is 'token-classification'.")
+        return self
+
+
+class RemoteHFClassifierConfig(_HFClassifierBase):
+    """Configuration for a remote HuggingFace classifier (vLLM, KServe, FMS)."""
+
+    engine: Literal["vllm", "kserve", "fms"]
+    base_url: str = Field(
+        description="Base URL for the inference server (e.g. 'http://host:8000').",
+    )
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+        description="Environment variable name holding the API key. "
+        "Resolved at runtime to an Authorization: Bearer header.",
+    )
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Remote backend parameters: "
+        "'timeout' (float, seconds), 'verify_ssl' (bool), "
+        "'ca_cert'/'client_cert'/'client_key' (str, paths). "
+        "Note: 'ca_cert' replaces (not extends) system CAs; use a "
+        "concatenated bundle to include both custom and system CAs.",
+    )
+
+    _KNOWN_PARAMS: frozenset = frozenset({"timeout", "verify_ssl", "ca_cert", "client_cert", "client_key"})
+
+    @model_validator(mode="after")
+    def _validate_remote(self) -> "RemoteHFClassifierConfig":
+        if not self.base_url.startswith(("http://", "https://")):
+            raise ValueError(f"base_url must start with 'http://' or 'https://', got '{self.base_url}'")
+        self.base_url = self.base_url.rstrip("/")
+        unknown = set(self.parameters) - self._KNOWN_PARAMS
+        if unknown:
+            log.warning(
+                "HFClassifierConfig '%s': unknown parameters ignored: %s. Supported: %s",
+                self.model,
+                sorted(unknown),
+                sorted(self._KNOWN_PARAMS),
+            )
+        if self.parameters.get("verify_ssl") is False:
+            log.warning(
+                "HFClassifierConfig '%s': TLS verification is disabled.",
+                self.model,
+            )
+        return self
+
+
+HFClassifierConfig = Annotated[
+    Union[LocalHFClassifierConfig, RemoteHFClassifierConfig],
+    Discriminator("engine"),
+]
 
 
 class FiddlerGuardrails(BaseModel):
@@ -469,8 +593,33 @@ class TracingConfig(BaseModel):
         description=(
             "Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. "
             "Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. "
-            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend."
+            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend. "
+            "Behaviour differs by engine. "
+            "For IORails — "
+            "1. OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT environment variable has highest priority: "
+            "'true'/'1' force on, 'false'/'0' force off, for other values this field is used. "
+            "2. OTEL_SEMCONV_STABILITY_OPT_IN selects output format: when the comma-separated token list "
+            "contains 'gen_ai_latest_experimental', content is emitted as JSON-encoded span attributes "
+            "(gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions); "
+            "otherwise as legacy per-message span events "
+            "(gen_ai.user.message, gen_ai.assistant.message, gen_ai.system.message, gen_ai.choice). "
+            "For LLMRails — "
+            "Neither OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT nor OTEL_SEMCONV_STABILITY_OPT_IN "
+            "are consulted; this field is the only control. "
+            "Content is always emitted via the deprecated gen_ai.content.prompt and "
+            "gen_ai.content.completion span events."
         ),
+    )
+
+
+class MetricsConfig(BaseModel):
+    """OpenTelemetry Metrics Configuration.
+    Configures and enables Metrics independent of OTEL Traces.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=("Emit OTEL metrics for IORails (independent of tracing)"),
     )
 
 
@@ -536,6 +685,15 @@ class InputRails(BaseModel):
     parallel: Optional[bool] = Field(
         default=False,
         description="If True, the input rails are executed in parallel.",
+    )
+
+    speculative_generation: Optional[bool] = Field(
+        default=False,
+        description=(
+            "If True, input rails run concurrently with LLM generation (speculative execution). "
+            "Only supported for non-streaming generate_async() calls; stream_async() warns and falls "
+            "back to sequential execution."
+        ),
     )
 
     flows: List[str] = Field(
@@ -700,9 +858,9 @@ class JailbreakDetectionConfig(BaseModel):
         default=None,
         description="The endpoint for the jailbreak detection heuristics/model container.",
     )
-    length_per_perplexity_threshold: float = Field(default=89.79, description="The length/perplexity threshold.")
+    length_per_perplexity_threshold: float = Field(default=89.79, gt=0, description="The length/perplexity threshold.")
     prefix_suffix_perplexity_threshold: float = Field(
-        default=1845.65, description="The prefix/suffix perplexity threshold."
+        default=1845.65, gt=0, description="The prefix/suffix perplexity threshold."
     )
     nim_base_url: Optional[str] = Field(
         default=None,
@@ -742,6 +900,15 @@ class JailbreakDetectionConfig(BaseModel):
         if self.nim_url and not self.nim_base_url:
             port = self.nim_port or 8000
             self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
+        return self
+
+    @model_validator(mode="after")
+    def validate_urls(self) -> "JailbreakDetectionConfig":
+        """Validate URL formats for endpoints."""
+        if self.nim_base_url and not self.nim_base_url.startswith(("http://", "https://")):
+            raise ValueError(f"nim_base_url must start with 'http://' or 'https://', got '{self.nim_base_url}'")
+        if self.server_endpoint and not self.server_endpoint.startswith(("http://", "https://")):
+            raise ValueError(f"server_endpoint must start with 'http://' or 'https://', got '{self.server_endpoint}'")
         return self
 
     def get_api_key(self) -> Optional[str]:
@@ -1139,6 +1306,11 @@ class RailsConfigData(BaseModel):
         description="Configuration for content safety rails.",
     )
 
+    hf_classifier: Optional[Dict[str, HFClassifierConfig]] = Field(
+        default=None,
+        description="Named HF classifier configurations. Keys are classifier names referenced by flows.",
+    )
+
 
 class Rails(BaseModel):
     """Configuration of specific rails."""
@@ -1239,6 +1411,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "raw_llm_call_action",
         "enable_rails_exceptions",
         "tracing",
+        "metrics",
     ]
 
     for field in additional_fields:
@@ -1580,6 +1753,11 @@ class RailsConfig(BaseModel):
         description="Configuration for tracing.",
     )
 
+    metrics: MetricsConfig = Field(
+        default_factory=MetricsConfig,
+        description="Configuration for OTEL metrics emission (independent of tracing).",
+    )
+
     @root_validator(pre=True)
     def check_model_exists_for_input_rails(cls, values):
         """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""
@@ -1710,6 +1888,60 @@ class RailsConfig(BaseModel):
                     "It uses 'is_content safe' as the default output parser."
                     "This behavior will be deprecated in future versions."
                 )
+        return values
+
+    @root_validator(pre=True, allow_reuse=True)
+    def check_jailbreak_detection_config(cls, values):
+        """Validate jailbreak detection configuration against enabled flows."""
+        rails = values.get("rails") or {}
+        config_data = rails.get("config") or {}
+        input_flows = (rails.get("input") or {}).get("flows") or []
+
+        jailbreak_config = config_data.get("jailbreak_detection") or {}
+        has_model_flow = JAILBREAK_FLOW_MODEL in input_flows
+        has_heuristics_flow = JAILBREAK_FLOW_HEURISTICS in input_flows
+        has_any_jailbreak_flow = has_model_flow or has_heuristics_flow
+
+        # Case A: Config present but no flow references it
+        if jailbreak_config and not has_any_jailbreak_flow:
+            log.warning(
+                "Jailbreak detection configuration is present under "
+                "rails.config.jailbreak_detection but no jailbreak detection flow "
+                "is enabled. To use jailbreak detection, add 'jailbreak detection model' "
+                "or 'jailbreak detection heuristics' to rails.input.flows."
+            )
+
+        # Case B: "jailbreak detection model" flow is enabled
+        if has_model_flow:
+            nim_base_url = jailbreak_config.get("nim_base_url")
+            nim_url = jailbreak_config.get("nim_url")  # deprecated, migrated later
+            server_endpoint = jailbreak_config.get("server_endpoint")
+            nim_server_endpoint = jailbreak_config.get("nim_server_endpoint", "classify")
+
+            if nim_base_url or nim_url:
+                if not nim_server_endpoint:
+                    raise InvalidRailsConfigurationError(
+                        "nim_base_url is set for jailbreak detection model but "
+                        "nim_server_endpoint is empty. Both must be configured "
+                        "when using NIM-based jailbreak detection."
+                    )
+            elif not server_endpoint:
+                log.warning(
+                    "No endpoint configured for jailbreak detection model. "
+                    "Will fall back to local in-process detection, which is "
+                    "not recommended for production."
+                )
+
+        # Case C: "jailbreak detection heuristics" flow is enabled
+        if has_heuristics_flow:
+            server_endpoint = jailbreak_config.get("server_endpoint")
+            if not server_endpoint:
+                log.warning(
+                    "No server_endpoint configured for jailbreak detection heuristics. "
+                    "Will fall back to local in-process detection, which is "
+                    "not recommended for production."
+                )
+
         return values
 
     @root_validator(pre=True, allow_reuse=True)

@@ -31,8 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
-from starlette.responses import StreamingResponse
-from starlette.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.config import Model
@@ -51,6 +50,11 @@ from nemoguardrails.server.schemas.utils import (
     generation_response_to_chat_completion,
 )
 
+try:
+    from chainlit.utils import mount_chainlit
+except ImportError:
+    mount_chainlit = None
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
@@ -63,7 +67,7 @@ class GuardrailsApp(FastAPI):
         # Initialize custom attributes
         self.default_config_id: Optional[str] = None
         self.rails_config_path: str = ""
-        self.disable_chat_ui: bool = False
+        self.disable_chat_ui: bool = os.getenv("NEMO_GUARDRAILS_DISABLE_CHAT_UI", "false").lower() == "true"
         self.auto_reload: bool = False
         self.stop_signal: bool = False
         self.single_config_mode: bool = False
@@ -76,7 +80,38 @@ class GuardrailsApp(FastAPI):
 # backends and storage engines.
 registered_loggers: List[Callable] = []
 
-api_description = """Guardrails Sever API."""
+
+def _raise_invalid_state(detail: str) -> None:
+    raise HTTPException(status_code=422, detail=detail)
+
+
+def _validate_public_state_shape(state: Optional[dict]) -> None:
+    """Validate request state shape before loading rails config.
+
+    At the public HTTP boundary, the only accepted non-empty dict state shape is
+    Colang 1.0 transcript state: {"events": [...]}. Colang 2.0 has no safe
+    public dict state shape.
+    """
+    if state is None or state == {}:
+        return
+
+    if state.get("version") == "2.x" or "state" in state:
+        _raise_invalid_state(
+            "Caller-supplied state is not accepted for Colang 2.0 over HTTP. "
+            "Full Colang 2.0 flow-state continuation over HTTP is not currently supported."
+        )
+
+    if "events" not in state:
+        _raise_invalid_state(
+            "Invalid state format: state must contain an 'events' key. "
+            "Use an empty dict {} to start a new conversation."
+        )
+
+    if not isinstance(state["events"], list):
+        _raise_invalid_state("Invalid state format: 'events' must be a list.")
+
+
+api_description = """Guardrails Server API."""
 
 # The headers for each request
 api_request_headers: contextvars.ContextVar = contextvars.ContextVar("headers")
@@ -92,16 +127,23 @@ datastore: Optional[DataStore] = None
 async def lifespan(app: GuardrailsApp):
     # Startup logic here
     """Register any additional challenges, if available at startup."""
+    from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
+
+    set_deployment_type(DeploymentTypeEnum.API.value)
+
     challenges_files = os.path.join(app.rails_config_path, "challenges.json")
 
     if os.path.exists(challenges_files):
         with open(challenges_files) as f:
             register_challenges(json.load(f))
 
-    # If there is a `config.yml` in the root `app.rails_config_path`, then
-    # that means we are in single config mode.
-    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
-        os.path.join(app.rails_config_path, "config.yaml")
+    # If there is a `config.yml` in the root `app.rails_config_path` (or in
+    # a `config/` subdirectory), set the app to single config mode.
+    if (
+        os.path.exists(os.path.join(app.rails_config_path, "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config.yaml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yaml"))
     ):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
@@ -121,25 +163,6 @@ async def lifespan(app: GuardrailsApp):
             # If there is an `init` function, we call it with the reference to the app.
             if config_module is not None and hasattr(config_module, "init"):
                 config_module.init(app)
-
-    # Finally, we register the static frontend UI serving
-
-    if not app.disable_chat_ui:
-        FRONTEND_DIR = utils.get_chat_ui_data_path("frontend")
-
-        app.mount(
-            "/",
-            StaticFiles(
-                directory=FRONTEND_DIR,
-                html=True,
-            ),
-            name="chat",
-        )
-    else:
-
-        @app.get("/")
-        async def root_handler():
-            return {"status": "ok"}
 
     if app.auto_reload:
         app.loop = asyncio.get_running_loop()
@@ -188,9 +211,6 @@ app.default_config_id = None
 # By default, we use the rails in the examples folder
 app.rails_config_path = utils.get_examples_data_path("bots")
 
-# Weather the chat UI is enabled or not.
-app.disable_chat_ui = False
-
 # auto reload flag
 app.auto_reload = False
 
@@ -221,11 +241,7 @@ async def get_rails_configs():
         if os.path.isdir(os.path.join(app.rails_config_path, f))
         and f[0] != "."
         and f[0] != "_"
-        # We filter out all the configs for which there is no `config.yml` file.
-        and (
-            os.path.exists(os.path.join(app.rails_config_path, f, "config.yml"))
-            or os.path.exists(os.path.join(app.rails_config_path, f, "config.yaml"))
-        )
+        and _has_config_file(os.path.join(app.rails_config_path, f))
     ]
 
     return [{"id": config_id} for config_id in config_ids]
@@ -271,6 +287,16 @@ llm_rails_instances: dict[str, LLMRails] = {}
 llm_rails_events_history_cache: dict[str, dict] = {}
 
 
+def _has_config_file(path: str) -> bool:
+    """Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml."""
+    for candidate in [path, os.path.join(path, "config")]:
+        if os.path.exists(os.path.join(candidate, "config.yml")) or os.path.exists(
+            os.path.join(candidate, "config.yaml")
+        ):
+            return True
+    return False
+
+
 def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None) -> str:
     """Generates a cache key for the given config ids and model name."""
     key = "-".join(config_ids)
@@ -302,7 +328,7 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     return config.model_copy(update={"models": models})
 
 
-def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
+async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
     """Returns the rails instance for the given config id and model.
 
     Args:
@@ -371,9 +397,9 @@ def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRa
 
 class ChunkErrorMetadata(BaseModel):
     message: str
-    type: str
-    param: str
-    code: str
+    type: Optional[str] = None
+    param: Optional[str] = None
+    code: Optional[str] = None
 
 
 class ChunkError(BaseModel):
@@ -476,8 +502,10 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 detail="No guardrails config_id provided and server has no default configuration",
             )
 
+    _validate_public_state_shape(body.guardrails.state)
+
     try:
-        llm_rails = _get_rails(config_ids, model_name=body.model)
+        llm_rails = await _get_rails(config_ids, model_name=body.model)
 
     except ValueError as ex:
         log.exception(ex)
@@ -485,6 +513,22 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             model=body.model,
             error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
             config_id=config_ids[0] if config_ids else None,
+        )
+
+    # Version-aware state validation, now that the config is loaded.
+    # 1.0 accepts the pre-validated {"events": [...]} transcript. 2.0 has no
+    # valid public dict state shape.
+    if body.guardrails.state is not None and body.guardrails.state != {}:
+        if llm_rails.config.colang_version != "1.0":
+            raise HTTPException(
+                status_code=422,
+                detail="Stateful continuation over HTTP is not supported for Colang 2.0.",
+            )
+
+    if body.guardrails.thread_id and llm_rails.config.colang_version != "1.0":
+        raise HTTPException(
+            status_code=422,
+            detail="thread_id message-history replay is not supported for Colang 2.0.",
         )
 
     try:
@@ -515,14 +559,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             messages = thread_messages + messages
 
         generation_options = body.guardrails.options
-
-        # Validate state format if provided
-        if body.guardrails.state is not None and body.guardrails.state != {}:
-            if "events" not in body.guardrails.state and "state" not in body.guardrails.state:
-                raise HTTPException(
-                    status_code=422,
-                    detail="Invalid state format: state must contain 'events' or 'state' key. Use an empty dict {} to start a new conversation.",
-                )
 
         # Initialize llm_params if not already set
         if generation_options.llm_params is None:
@@ -724,3 +760,20 @@ class GuardrailsConfigurationError(Exception):
 #
 #
 # register_exception(app)
+
+
+if not app.disable_chat_ui and mount_chainlit is not None:
+    chainlit_app_path = os.path.join(os.path.dirname(__file__), "app.py")
+    mount_chainlit(app=app, target=chainlit_app_path, path="/chat")
+
+    @app.get("/")
+    async def root_redirect():
+        return RedirectResponse(url="chat")
+
+else:
+    if not app.disable_chat_ui and mount_chainlit is None:
+        log.warning("Chainlit is not installed; chat UI disabled. Install with: pip install nemoguardrails[chat-ui]")
+
+    @app.get("/")
+    async def root_handler():
+        return {"status": "ok"}

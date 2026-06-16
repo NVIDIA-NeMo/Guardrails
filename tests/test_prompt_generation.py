@@ -17,7 +17,7 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def rails_config():
 
 @pytest.mark.asyncio
 def test_1(rails_config):
-    llm = FakeLLM(
+    llm = FakeLLMModel(
         responses=[
             "  express greeting",
         ]

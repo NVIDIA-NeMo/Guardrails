@@ -14,6 +14,9 @@
 # limitations under the License.
 
 
+import textwrap
+from unittest.mock import patch
+
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
@@ -176,11 +179,13 @@ def test_examples_included_in_prompts(colang_1_config):
         {"role": "user", "content": "Hi!"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     rails.generate(messages=messages)
 
     info = rails.explain()
-    assert len(info.llm_calls) == 1
-    assert 'user "hi"' in info.llm_calls[0].prompt
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert len(llm_calls) == 1
+    assert 'user "hi"' in llm_calls[0].prompt
 
 
 def test_examples_included_in_prompts_2(colang_2_config):
@@ -199,11 +204,13 @@ def test_examples_included_in_prompts_2(colang_2_config):
         {"role": "user", "content": "Hi"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     rails.generate(messages=messages)
 
     info = rails.explain()
-    assert len(info.llm_calls) == 2
-    assert 'user said "Hi"' in info.llm_calls[0].prompt
+    llm_calls = info.llm_calls[before_llm_calls:]
+    assert len(llm_calls) == 2
+    assert 'user said "Hi"' in llm_calls[0].prompt
 
 
 def test_no_llm_calls_embedding_only(colang_2_config):
@@ -222,8 +229,53 @@ def test_no_llm_calls_embedding_only(colang_2_config):
         {"role": "user", "content": "hi"},
     ]
 
+    before_llm_calls = len(rails.explain().llm_calls)
     new_message = rails.generate(messages=messages)
 
     assert new_message["content"] == "Hello!"
 
-    assert rails.explain_info.llm_calls == []
+    assert rails.explain().llm_calls[before_llm_calls:] == []
+
+
+def test_user_message_index_searched_once_when_embeddings_only_disabled():
+    config = RailsConfig.from_content(
+        colang_content=textwrap.dedent("""\
+            define user express greeting
+              "hello"
+              "hi there"
+
+            define bot express greeting
+              "Hello! How can I help you?"
+
+            define flow greeting
+              user express greeting
+              bot express greeting
+        """),
+        yaml_content=textwrap.dedent("""\
+            models:
+              - type: main
+                engine: openai
+                model: gpt-4o
+        """),
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  express greeting",
+            '  "Hello! How can I help you?"',
+            "  express greeting",
+            '  "Hello! How can I help you?"',
+        ],
+    )
+    actions = chat.app._llm_generation_actions
+
+    chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+
+    with patch.object(actions.user_message_index, "search", wraps=actions.user_message_index.search) as mock_search:
+        chat.app.generate(messages=[{"role": "user", "content": "hey there"}])
+
+    assert mock_search.call_count == 1, (
+        f"user_message_index.search should be called exactly once "
+        f"when embeddings_only is disabled, but was called {mock_search.call_count} times"
+    )

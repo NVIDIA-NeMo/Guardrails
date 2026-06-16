@@ -15,7 +15,8 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.exceptions import InvalidStateError
+from nemoguardrails.utils import new_event_dict
 from tests.utils import TestChat
 
 config = RailsConfig.from_content(
@@ -69,65 +70,122 @@ def test_exception_1():
         assert "not supported for Colang 2.0" in str(exc_info.value)
 
 
-def test_state_return():
+def test_state_multi_turn_via_process_events():
+    """Colang 2.0 in-process multi-turn keeps a live State across calls.
+
+    Mirrors the pattern at nemoguardrails/cli/chat.py: the live Python State
+    object is held in memory between calls and handed back to process_events
+    each turn. The second `user said "hi"` only matches the second branch of
+    the greeting flow because the State carries the flow position forward.
+    """
+    chat = TestChat(config, llm_completions=[])
+
+    # The State exists from TestChat's initial process_events([], None) bootstrap.
+    assert chat.state is not None
+
+    # First turn: "hi" → "Hello!"
+    chat >> "hi"
+    chat << "Hello!"
+
+    # Second turn relies on the State surviving across the call; without it
+    # the greeting flow would emit "Hello!" again instead of advancing.
+    chat >> "hi"
+    chat << "Hello again!"
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        {"version": "2.x", "state": "{}"},
+        {"events": []},
+        {"unexpected": "value"},
+    ],
+)
+def test_dict_state_rejected_2_x(state):
+    """Caller-supplied dict state for Colang 2.0 must be refused at the API boundary.
+
+    The serialized State contains trusted control-plane fields (flow_configs,
+    rails_config) and cannot come from an untrusted caller.
+    """
+    rails = LLMRails(config=config)
+    messages = [{"role": "user", "content": "hi"}]
+
+    with pytest.raises(InvalidStateError) as exc_info:
+        rails.generate(
+            messages=messages,
+            state=state,
+        )
+
+    assert "process_events_async" in str(exc_info.value)
+
+
+def test_state_not_returned_for_2_x():
+    """generate_async no longer returns a continuation state for Colang 2.0.
+
+    Stateful 2.x execution moved to process_events_async (see test above).
+    """
     rails = LLMRails(config=config)
     messages = [{"role": "user", "content": "hi"}]
 
     res = rails.generate(messages=messages, state={})
 
-    assert isinstance(res, GenerationResponse)
-    assert res.response == [{"role": "assistant", "content": "Hello!"}]
-
-    # We submit a new message using the returned state
-    res = rails.generate(messages=messages, state=res.state)
-
-    assert res.response == [{"role": "assistant", "content": "Hello again!"}]
+    assert res.state is None
 
 
-def test_actions_1():
+def test_stream_async_dict_state_rejected_2_x():
     rails = LLMRails(config=config)
-    messages = [{"role": "user", "content": "what is 2+2"}]
 
-    res = rails.generate(messages=messages, state={})
+    with pytest.raises(InvalidStateError):
+        rails.stream_async(
+            messages=[{"role": "user", "content": "hi"}],
+            state={"events": []},
+        )
 
-    # We replace the id so that we can make a simple comparison
-    tool_call_id = res.response[0]["tool_calls"][0]["id"]
-    res.response[0]["tool_calls"][0]["id"] = "..."
 
-    assert res.response == [
-        {
-            "tool_calls": [
-                {
-                    "id": "...",
-                    "type": "function",
-                    "function": {
-                        "arguments": {"query": "what is 2+2"},
-                        "name": "WolframAlphaAction",
-                    },
-                }
-            ],
-            "content": "Let me think.",
-            "role": "assistant",
-        }
-    ]
+def test_actions_continue_with_live_state_via_process_events():
+    """Tool/action pause and resume still works with trusted in-process State."""
+    rails = LLMRails(config=config)
 
-    res = rails.generate(
-        messages=[
+    output_events, state = rails.process_events(
+        [{"type": "UtteranceUserActionFinished", "final_transcript": "what is 2+2"}],
+        state={},
+        blocking=True,
+    )
+    assert output_events[0]["type"] == "StartUtteranceBotAction"
+    assert output_events[0]["script"] == "Let me think."
+
+    output_events, state = rails.process_events(
+        [
+            new_event_dict(
+                "UtteranceBotActionFinished",
+                action_uid=output_events[0]["action_uid"],
+                is_success=True,
+                final_script="Let me think.",
+            )
+        ],
+        state=state,
+        blocking=True,
+    )
+    assert output_events[0]["type"] == "StartWolframAlphaAction"
+    assert output_events[0]["query"] == "what is 2+2"
+
+    output_events, state = rails.process_events(
+        [
             {
-                "tool_call_id": tool_call_id,
-                "role": "tool",
-                "content": "The result is 4.",
+                "type": "WolframAlphaActionFinished",
+                "action_uid": output_events[0]["action_uid"],
+                "action_name": "WolframAlphaAction",
+                "status": "success",
+                "is_success": True,
+                "return_value": "The result is 4.",
+                "events": [],
             }
         ],
-        state=res.state,
+        state=state,
+        blocking=True,
     )
-
-    assert res.response == [
-        {
-            "content": "The result is 4.",
-            "role": "assistant",
-        }
-    ]
+    assert output_events[0]["type"] == "StartUtteranceBotAction"
+    assert output_events[0]["script"] == "The result is 4."
 
 
 @pytest.fixture

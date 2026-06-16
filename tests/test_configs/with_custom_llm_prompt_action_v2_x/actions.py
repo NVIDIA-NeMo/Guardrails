@@ -16,13 +16,12 @@
 from ast import literal_eval
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 
 @action(name="CustomLlmRequestAction", is_system_action=True, execute_async=True)
@@ -30,7 +29,7 @@ async def custom_llm_request(
     llm_task_manager: LLMTaskManager,
     prompt_template_name: str,
     context: Optional[dict] = None,
-    llm: Optional[BaseLLM] = None,
+    llm: Optional[LLMModel] = None,
     **kwargs,
 ):
     # user_input = context.get("user_message")

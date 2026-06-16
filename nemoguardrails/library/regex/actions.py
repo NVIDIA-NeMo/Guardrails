@@ -28,11 +28,17 @@ class RegexDetectionResult(TypedDict):
     detections: List[str]
 
 
-@action(is_system_action=True)
+def _regex_blocked_mapping(result: RegexDetectionResult) -> bool:
+    """Return True (blocked) when a regex match was found."""
+    return result.get("is_match", False)
+
+
+@action(is_system_action=True, output_mapping=_regex_blocked_mapping)
 async def detect_regex_pattern(
     source: str,
     text: str,
     config: RailsConfig,
+    **kwargs,
 ) -> RegexDetectionResult:
     """Checks whether the provided text matches any forbidden regex pattern.
 

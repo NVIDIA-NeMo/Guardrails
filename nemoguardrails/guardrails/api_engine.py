@@ -22,20 +22,19 @@ import time
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 import aiohttp
-from aiohttp_retry import ExponentialRetry, RetryClient
-
-from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
-
-if TYPE_CHECKING:
-    from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
+from aiohttp_retry import RetryClient
 
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
     DEFAULT_TIMEOUT_TOTAL,
-    RETRYABLE_STATUS_CODES,
     safe_read_body,
 )
+from nemoguardrails.guardrails.base_engine import BaseEngine
+from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
+
+if TYPE_CHECKING:
+    from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class APIEngineError(Exception):
         super().__init__(message)
 
 
-class APIEngine:
+class APIEngine(BaseEngine):
     """Wraps a single API endpoint and makes HTTP calls with retry support."""
 
     def __init__(
@@ -62,21 +61,16 @@ class APIEngine:
         timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     ) -> None:
+        """Configure the API endpoint URL, auth key, and retry settings."""
         self.base_url = base_url
         self.endpoint = endpoint
         self.api_key = api_key
 
-        self._timeout = aiohttp.ClientTimeout(
-            total=timeout_total,
-            connect=timeout_connect,
+        super().__init__(
+            timeout_total=timeout_total,
+            timeout_connect=timeout_connect,
+            max_attempts=max_attempts,
         )
-        self._retry_options = ExponentialRetry(
-            attempts=max_attempts,
-            statuses=set(RETRYABLE_STATUS_CODES),
-            exceptions={aiohttp.ClientConnectionError},
-        )
-        self._client: Optional[RetryClient] = None
-        self._running = False
 
     @property
     def url(self) -> str:
@@ -96,29 +90,6 @@ class APIEngine:
             endpoint=jailbreak_config.nim_server_endpoint,
             api_key=jailbreak_config.get_api_key(),
         )
-
-    async def start(self) -> None:
-        """Create this engine's RetryClient. Call this during service startup."""
-        if self._running:
-            return
-
-        self._client = RetryClient(
-            retry_options=self._retry_options,
-            client_session=aiohttp.ClientSession(timeout=self._timeout),
-        )
-        self._running = True
-
-    async def stop(self) -> None:
-        """Close this engine's RetryClient. Call this during service shutdown."""
-        if not self._running:
-            return
-
-        try:
-            if self._client:
-                await self._client.close()
-                self._client = None
-        finally:
-            self._running = False
 
     async def call(self, body: dict[str, Any], **kwargs) -> dict:
         """POST the JSON body to the configured endpoint and return the parsed response."""
@@ -177,12 +148,3 @@ class APIEngine:
                 f"Request to endpoint '{url}' failed: {exc}",
                 endpoint=url,
             ) from exc
-
-    async def __aenter__(self):
-        """Context manager entry."""
-        await self.start()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        await self.stop()

@@ -267,6 +267,50 @@ def test_format_chunks_realistic():
 
 
 @pytest.mark.asyncio
+async def test_process_stream_with_metadata_dicts():
+    """Test that process_stream normalizes dict chunks to strings."""
+
+    async def metadata_streaming_handler():
+        for token in ["Hello", " ", "world", "!"]:
+            yield {"text": token, "metadata": {"response_metadata": {"model_provider": "openai"}}}
+
+    buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
+
+    user_output_parts = []
+    async for chunk_batch in buffer_strategy(metadata_streaming_handler()):
+        for chunk in chunk_batch.processing_context:
+            assert isinstance(chunk, str)
+        formatted = buffer_strategy.format_chunks(chunk_batch.processing_context)
+        assert isinstance(formatted, str)
+        user_output_parts.append(buffer_strategy.format_chunks(chunk_batch.user_output_chunks))
+
+    full_text = "".join(user_output_parts)
+    assert full_text == "Hello world!"
+
+
+@pytest.mark.asyncio
+async def test_process_stream_with_mixed_chunk_types():
+    """Test that process_stream handles a mix of string and dict chunks."""
+
+    async def mixed_streaming_handler():
+        yield "Hello"
+        yield {"text": " ", "metadata": {"response_metadata": {"model_provider": "openai"}}}
+        yield {"text": "world", "metadata": {"response_metadata": {"model_provider": "openai"}}}
+        yield "!"
+
+    buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
+
+    user_output_parts = []
+    async for chunk_batch in buffer_strategy(mixed_streaming_handler()):
+        for chunk in chunk_batch.processing_context:
+            assert isinstance(chunk, str)
+        user_output_parts.append(buffer_strategy.format_chunks(chunk_batch.user_output_chunks))
+
+    full_text = "".join(user_output_parts)
+    assert full_text == "Hello world!"
+
+
+@pytest.mark.asyncio
 async def test_total_yielded_tracking():
     """Test that total_yielded is correctly tracked and reset."""
     buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)

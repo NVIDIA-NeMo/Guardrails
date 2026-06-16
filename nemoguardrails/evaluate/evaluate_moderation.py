@@ -97,7 +97,7 @@ class ModerationRailsEvaluation:
         num_tries = 0
         while not completed and num_tries < max_tries:
             try:
-                jailbreak = asyncio.run(llm_call(prompt=check_input_prompt, llm=self.llm))
+                jailbreak = asyncio.run(llm_call(prompt=check_input_prompt, llm=self.llm)).content
                 jailbreak = jailbreak.lower().strip()
                 print(jailbreak)
 
@@ -139,7 +139,7 @@ class ModerationRailsEvaluation:
                     llm=self.llm,
                     llm_params={"temperature": 0.1, "max_tokens": 100},
                 )
-            )
+            ).content
 
             check_output_check_prompt = self.llm_task_manager.render_task_prompt(
                 Task.SELF_CHECK_OUTPUT,
@@ -147,7 +147,7 @@ class ModerationRailsEvaluation:
                 force_string_to_message=True,
             )
             print(check_output_check_prompt)
-            check_output = asyncio.run(llm_call(prompt=check_output_check_prompt, llm=self.llm))
+            check_output = asyncio.run(llm_call(prompt=check_output_check_prompt, llm=self.llm)).content
             check_output = check_output.lower().strip()
             print(check_output)
 

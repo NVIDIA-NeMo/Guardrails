@@ -120,17 +120,10 @@ class KnowledgeBase:
         ) + self.config.embedding_search_provider.parameters.get("embedding_model", "")
 
         hash_value = compute_hash(hash_prefix + "".join(all_text_items))
-        cache_file = os.path.join(CACHE_FOLDER, f"{hash_value}.ann")
-        embedding_size_file = os.path.join(CACHE_FOLDER, f"{hash_value}.esize")
+        cache_file = os.path.join(CACHE_FOLDER, f"{hash_value}.npy")
 
         # If we have already computed this before, we use it
-        if (
-            self.config.embedding_search_provider.name == "default"
-            and os.path.exists(cache_file)
-            and os.path.exists(embedding_size_file)
-        ):
-            from annoy import AnnoyIndex
-
+        if self.config.embedding_search_provider.name == "default" and os.path.exists(cache_file):
             from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 
             log.info(cache_file)
@@ -139,35 +132,32 @@ class KnowledgeBase:
                 self._get_embeddings_search_instance(self.config.embedding_search_provider),
             )
 
-            with open(embedding_size_file, "r") as f:
-                embedding_size = int(f.read())
-
-            ann_index = AnnoyIndex(embedding_size, "angular")
-            ann_index.load(cache_file)
-
-            self.index.embeddings_index = ann_index
-
+            # Restore the persisted index, then attach the item metadata. Since the
+            # index already exists, `add_items` only records the items and does not
+            # recompute embeddings (item order matches the cached matrix rows).
+            self.index.load(cache_file)
+            loaded_index = self.index.embeddings_index
+            if loaded_index is None or loaded_index.shape[0] != len(index_items):
+                loaded_rows = 0 if loaded_index is None else loaded_index.shape[0]
+                raise ValueError(
+                    f"{cache_file} is not a valid embeddings index. Expected {len(index_items)} rows, got {loaded_rows}."
+                )
             await self.index.add_items(index_items)
         else:
             self.index = self._get_embeddings_search_instance(self.config.embedding_search_provider)
             await self.index.add_items(index_items)
             await self.index.build()
 
-            # For the default Embedding Search provider, which uses annoy, we also
-            # persist the index after it's computed.
+            # For the default Embedding Search provider, we also persist the index
+            # after it's computed so it can be reused on subsequent runs.
             if self.config.embedding_search_provider.name == "default":
                 from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 
-                # We also save the file for future use
                 os.makedirs(CACHE_FOLDER, exist_ok=True)
                 basic_index = cast(BasicEmbeddingsIndex, self.index)
-                if not basic_index.embeddings_index:
+                if basic_index.embeddings_index is None:
                     raise Exception("Couldn't create basic embeddings index")
-                basic_index.embeddings_index.save(cache_file)
-
-                # And, explicitly save the size as we need it when we reload
-                with open(embedding_size_file, "w") as f:
-                    f.write(str(basic_index.embedding_size))
+                basic_index.save(cache_file)
 
         log.info(f"Building the Knowledge Base index took {time() - t0} seconds.")
 

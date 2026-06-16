@@ -292,7 +292,7 @@ class RollingBuffer(BufferStrategy):
         total_chunks = 0
 
         async for chunk in streaming_handler:
-            buffer.append(chunk)
+            buffer.append(chunk["text"] if isinstance(chunk, dict) else chunk)
             total_chunks += 1
 
             if len(buffer) >= self.buffer_chunk_size:

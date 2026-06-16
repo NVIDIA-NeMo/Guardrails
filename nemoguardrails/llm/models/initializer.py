@@ -15,33 +15,29 @@
 
 """Module for initializing LLM models with proper error handling and type checking."""
 
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict, Literal
 
-from langchain_core.language_models import BaseChatModel, BaseLLM
-
-from nemoguardrails.llm.models.langchain_initializer import (
-    ModelInitializationError,
-    init_langchain_model,
-)
+from nemoguardrails.llm.frameworks import get_default_framework, get_framework
+from nemoguardrails.types import LLMModel
 
 
-# later we can easily convert it to a class
+class ModelInitializationError(Exception):
+    pass
+
+
 def init_llm_model(
     model_name: str,
     provider_name: str,
-    mode: Literal["chat", "text"],
     kwargs: Dict[str, Any],
-) -> Union[BaseChatModel, BaseLLM]:
+    mode: Literal["chat", "text"] = "chat",
+) -> LLMModel:
     """Initialize an LLM model with proper error handling.
-
-    Currently, this function only supports LangChain models.
-    In the future, it may support other model backends.
 
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
-        mode: Literal taking either "chat" or "text" values
         kwargs: Additional arguments to pass to the model initialization
+        mode: Literal taking either "chat" or "text" values
 
     Returns:
         An initialized LLM model
@@ -49,12 +45,14 @@ def init_llm_model(
     Raises:
         ModelInitializationError: If model initialization fails
     """
-    # currently we only support LangChain models
-    return init_langchain_model(
+    model_kwargs = dict(kwargs) if kwargs else {}
+    model_kwargs["mode"] = mode
+
+    framework = get_framework(get_default_framework())
+    return framework.create_model(
         model_name=model_name,
         provider_name=provider_name,
-        mode=mode,
-        kwargs=kwargs,
+        model_kwargs=model_kwargs,
     )
 
 

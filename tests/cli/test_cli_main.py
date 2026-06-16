@@ -222,6 +222,63 @@ class TestServerCommand:
             assert result.exit_code == 0
             mock_mount.assert_called_once()
 
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("nemoguardrails.telemetry.set_deployment_type")
+    def test_server_sets_api_deployment_type_before_prefixed_mount(
+        self, mock_set_deployment_type, mock_app, mock_uvicorn
+    ):
+        from fastapi import FastAPI
+
+        order = []
+        mock_set_deployment_type.side_effect = lambda deployment_type: order.append(("telemetry", deployment_type))
+
+        with patch.object(FastAPI, "mount", side_effect=lambda *args, **kwargs: order.append(("mount", None))):
+            result = runner.invoke(app, ["server", "--prefix=/api/v1"])
+
+        assert result.exit_code == 0
+        mock_set_deployment_type.assert_called_once_with("api")
+        assert order == [("telemetry", "api"), ("mount", None)]
+
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    def test_server_with_prefix_reports_api_deployment_type_during_mount(self, mock_app, mock_uvicorn):
+        from fastapi import FastAPI
+
+        from nemoguardrails import telemetry
+
+        telemetry._session_uuid = None
+        telemetry._heartbeat_started = False
+        telemetry._deployment_type_override = None
+        telemetry._lock = telemetry.threading.Lock()
+
+        def report_during_mount(*args, **kwargs):
+            telemetry.report_usage(None, deployment_type="library")
+
+        try:
+            with (
+                patch.object(telemetry, "_is_usage_stats_enabled", return_value=True),
+                patch("nemoguardrails.telemetry.threading.Thread") as mock_thread,
+                patch.object(FastAPI, "mount", side_effect=report_during_mount),
+            ):
+                mock_thread.return_value = MagicMock()
+                result = runner.invoke(app, ["server", "--prefix=/api/v1"])
+
+            assert result.exit_code == 0
+            send_calls = [
+                call
+                for call in mock_thread.call_args_list
+                if getattr(call.kwargs.get("target"), "__name__", "") == "_send_one_event"
+            ]
+            assert len(send_calls) == 1
+            usage_data = send_calls[0].kwargs["args"][0]
+            assert usage_data.deployment_type == "api"
+        finally:
+            telemetry._session_uuid = None
+            telemetry._heartbeat_started = False
+            telemetry._deployment_type_override = None
+            telemetry._lock = telemetry.threading.Lock()
+
 
 class TestConvertCommand:
     def test_convert_missing_path(self):

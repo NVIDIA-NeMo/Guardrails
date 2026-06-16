@@ -183,6 +183,41 @@ class TestImportOptionalDependency:
             assert result == mock_module
 
 
+class TestMovedModuleStubs:
+    def test_old_helpers_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.helpers"):
+            import nemoguardrails.llm.helpers  # noqa: F401
+
+    def test_old_huggingface_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.providers.huggingface"):
+            import nemoguardrails.llm.providers.huggingface  # noqa: F401
+
+    def test_old_trtllm_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.providers.trtllm"):
+            import nemoguardrails.llm.providers.trtllm  # noqa: F401
+
+    def test_new_helpers_path_works(self):
+        from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
+
+        assert callable(get_llm_instance_wrapper)
+
+    def test_new_huggingface_path_works(self):
+        from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
+
+        assert HuggingFacePipelineCompatible is not None
+
+    def test_new_trtllm_path_works(self):
+        from nemoguardrails.integrations.langchain.providers.trtllm import TRTLLM, TritonClient
+
+        assert TRTLLM is not None
+        assert TritonClient is not None
+
+    def test_providers_shim_works(self):
+        from nemoguardrails.llm.providers import register_llm_provider
+
+        assert callable(register_llm_provider)
+
+
 class TestGetOptionalDependency:
     def test_get_known_dependency_available(self):
         module = get_optional_dependency("langchain", errors="ignore")
@@ -213,3 +248,34 @@ class TestGetOptionalDependency:
             with pytest.raises(ImportError) as exc_info:
                 get_optional_dependency("openai", errors="raise")
             assert "openai" in str(exc_info.value)
+
+
+class TestIORailsEngineEnvVar:
+    """NEMO_GUARDRAILS_IORAILS_ENGINE aliases top-level ``LLMRails`` to ``Guardrails``."""
+
+    def test_env_var_aliases_llmrails_to_guardrails(self, monkeypatch):
+        """With env var set then ``nemoguardrails`` reloaded, ``LLMRails is Guardrails``;
+        with env var unset and reloaded, ``LLMRails`` is the real LLMRails class.
+
+        Reload only affects ``nemoguardrails/__init__.py``; cached submodules
+        (``nemoguardrails.rails`` etc.) are reused, so the alias swap is the only
+        observable change. Cleanup reload at the end restores the original state
+        for any downstream tests that access ``nemoguardrails.LLMRails`` lazily.
+        """
+        import importlib
+
+        import nemoguardrails
+        from nemoguardrails.rails.llm.llmrails import LLMRails as RealLLMRails
+
+        try:
+            monkeypatch.setenv("NEMO_GUARDRAILS_IORAILS_ENGINE", "1")
+            importlib.reload(nemoguardrails)
+            assert nemoguardrails.LLMRails is nemoguardrails.Guardrails
+
+            monkeypatch.delenv("NEMO_GUARDRAILS_IORAILS_ENGINE", raising=False)
+            importlib.reload(nemoguardrails)
+            assert nemoguardrails.LLMRails is RealLLMRails
+            assert nemoguardrails.LLMRails is not nemoguardrails.Guardrails
+        finally:
+            monkeypatch.delenv("NEMO_GUARDRAILS_IORAILS_ENGINE", raising=False)
+            importlib.reload(nemoguardrails)

@@ -1,0 +1,33 @@
+"""
+PolicyAI Integration Flows (Colang 1.x)
+
+PolicyAI provides content moderation and policy enforcement capabilities.
+For more information, see: https://musubilabs.ai
+
+Supported features:
+- Input moderation: Check user messages against configured policies
+- Output moderation: Check bot responses against configured policies
+- Tag-based evaluation: Use POLICYAI_TAG_NAME env var to specify policy tag
+"""
+
+define subflow policyai moderation on input
+  """Guardrail based on PolicyAI assessment."""
+  $result = execute call_policyai_api(text=$user_message)
+
+  if $result.assessment == "UNSAFE"
+    if $config.enable_rails_exceptions
+      create event PolicyAIModerationRailException(message=$result.exception_message)
+    else
+      bot refuse to respond
+    stop
+
+define subflow policyai moderation on output
+  """Guardrail based on PolicyAI assessment."""
+  $result = execute call_policyai_api(text=$bot_message)
+
+  if $result.assessment == "UNSAFE"
+    if $config.enable_rails_exceptions
+      create event PolicyAIModerationRailException(message=$result.exception_message)
+    else
+      bot refuse to respond
+    stop

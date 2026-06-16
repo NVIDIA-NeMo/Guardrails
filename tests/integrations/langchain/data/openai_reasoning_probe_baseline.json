@@ -1,0 +1,426 @@
+{
+  "captured_at": "2026-04-29",
+  "openai_chat_completions_url": "https://api.openai.com/v1/chat/completions",
+  "results": [
+    {
+      "model": "gpt-3.5-turbo",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-3.5-turbo-0125",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-3.5-turbo-1106",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-3.5-turbo-16k",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-3.5-turbo-instruct",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-3.5-turbo-instruct-0914",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-4",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4-0613",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4-turbo",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4-turbo-2024-04-09",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1-2025-04-14",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1-mini-2025-04-14",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4.1-nano-2025-04-14",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o-2024-05-13",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o-2024-08-06",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o-2024-11-20",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o-mini",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-4o-mini-2024-07-18",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-5",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-2025-08-07",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-chat-latest",
+      "stop": "accepted",
+      "temperature": "accepted",
+      "max_tokens": "accepted"
+    },
+    {
+      "model": "gpt-5-codex",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "gpt-5-mini",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-mini-2025-08-07",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-nano",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-nano-2025-08-07",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5-pro",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "gpt-5-pro-2025-10-06",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "gpt-5.1",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.1-2025-11-13",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.1-chat-latest",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.1-codex",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.1-codex-max",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.1-codex-mini",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "gpt-5.2",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.2-2025-12-11",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.2-chat-latest",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.2-codex",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.2-pro",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.2-pro-2025-12-11",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.3-chat-latest",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.4",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-2026-03-05",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-mini-2026-03-17",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-nano-2026-03-17",
+      "stop": "rejected",
+      "temperature": "accepted",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.4-pro",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.4-pro-2026-03-05",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.5",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.5-2026-04-23",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "gpt-5.5-pro",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "gpt-5.5-pro-2026-04-23",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "o1",
+      "stop": "accepted",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o1-2024-12-17",
+      "stop": "accepted",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o1-pro",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "o1-pro-2025-03-19",
+      "stop": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "temperature": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions.",
+      "max_tokens": "other: invalid_request_error: This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model": "o3",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o3-2025-04-16",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o3-mini",
+      "stop": "accepted",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o3-mini-2025-01-31",
+      "stop": "accepted",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o3-pro",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "o3-pro-2025-06-10",
+      "stop": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "temperature": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?",
+      "max_tokens": "other: invalid_request_error: This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to use v1/completions?"
+    },
+    {
+      "model": "o4-mini",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    },
+    {
+      "model": "o4-mini-2025-04-16",
+      "stop": "rejected",
+      "temperature": "rejected",
+      "max_tokens": "rejected"
+    }
+  ]
+}

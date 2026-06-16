@@ -17,16 +17,20 @@ jobs:
     name: Lint Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Get full Python version
         id: full-python-version
         run: echo "version=$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")" >> $GITHUB_OUTPUT
+
+      - name: Get runner architecture
+        id: runner-arch
+        run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
 
       - name: Bootstrap poetry
         run: |
@@ -41,7 +45,7 @@ jobs:
         id: cache
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Ensure cache is healthy
         if: steps.cache.outputs.cache-hit == 'true'
@@ -51,4 +55,4 @@ jobs:
         run: poetry install --with dev
 
       - name: Run pre-commit hooks
-        run: poetry run make pre_commit
+        run: poetry run make pre-commit

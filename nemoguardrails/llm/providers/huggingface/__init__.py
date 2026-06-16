@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .pipeline import HuggingFacePipelineCompatible
-from .streamers import AsyncTextIteratorStreamer
-
-__all__ = [
-    "HuggingFacePipelineCompatible",
-    "AsyncTextIteratorStreamer",
-]
+# TODO(0.24.0): remove this file and its test in TestMovedModuleStubs
+raise ImportError(
+    "nemoguardrails.llm.providers.huggingface has moved to "
+    "nemoguardrails.integrations.langchain.providers.huggingface. "
+    "Please update your imports."
+)

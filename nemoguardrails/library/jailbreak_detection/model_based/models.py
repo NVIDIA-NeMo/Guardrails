@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Tuple
 
 import numpy as np
+
+SNOWFLAKE_MODEL_ID = "Snowflake/snowflake-arctic-embed-m-long"
 
 
 class SnowflakeEmbed:
@@ -23,13 +26,20 @@ class SnowflakeEmbed:
         import torch
         from transformers import AutoModel, AutoTokenizer
 
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained("Snowflake/snowflake-arctic-embed-m-long")
+        device = os.environ.get("JAILBREAK_CHECK_DEVICE")
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            SNOWFLAKE_MODEL_ID,
+            trust_remote_code=True,
+        )
         self.model = AutoModel.from_pretrained(
-            "Snowflake/snowflake-arctic-embed-m-long",
+            SNOWFLAKE_MODEL_ID,
             trust_remote_code=True,
             add_pooling_layer=False,
-            safe_serialization=True,
+            use_safetensors=True,
         )
         self.model.to(self.device)
         self.model.eval()
@@ -43,16 +53,19 @@ class SnowflakeEmbed:
 
 class JailbreakClassifier:
     def __init__(self, random_forest_path: str):
-        import pickle
+        from onnxruntime import InferenceSession
 
         self.embed = SnowflakeEmbed()
-        with open(random_forest_path, "rb") as fd:
-            self.classifier = pickle.load(fd)
+        # See https://onnx.ai/sklearn-onnx/auto_examples/plot_convert_decision_function.html
+        self.classifier = InferenceSession(random_forest_path, providers=["CPUExecutionProvider"])
 
     def __call__(self, text: str) -> Tuple[bool, float]:
         e = self.embed(text)
-        probs = self.classifier.predict_proba([e])
-        classification = np.argmax(probs)
-        prob = np.max(probs)
+        x = np.asarray([e], dtype=np.float32)
+        res = self.classifier.run(None, {"X": x})
+        classification = res[0].item()
+        # The second is a list of dicts of probabilities -- the slice res[1][:2] should have only one element.
+        # We access the dict entry for the class.
+        prob = res[1][0][classification]
         score = -prob if classification == 0 else prob
         return bool(classification), float(score)

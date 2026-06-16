@@ -1,0 +1,75 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Guardrail Catalog"
+sidebar-title: "Guardrail Catalog"
+description: "Reference for pre-built guardrails including content safety, jailbreak detection, topic control, PII handling, agentic security, and third party APIs."
+content:
+  type: "Reference"
+---
+
+The NeMo Guardrails library ships with a catalog of pre-built guardrails that you can activate out of the box. These guardrails span the most common safety and security concerns in LLM-powered applications from blocking harmful content and detecting jailbreak attempts to masking personally identifiable information and grounding responses in evidence.
+
+Each guardrail is implemented as a configurable rail flow that you add to the `input`, `output`, or `retrieval` section of your `config.yml`. You can use NVIDIA-trained safety models, open-source community models, LLM self-check prompts, or third-party managed APIs, and combine multiple approaches for defense in depth.
+
+Browse the catalog below to find the guardrail that fits your use case.
+
+<Cards>
+
+<Card title="Content Safety" href="/configure-guardrails/guardrail-catalog/content-safety">
+
+Reference for pre-built content safety guardrails for protecting against violence, criminal activity, hate speech, sexually explicit content, and similar areas.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Jailbreak Protection" href="/configure-guardrails/guardrail-catalog/jailbreak-protection">
+
+Reference for jailbreak protection guardrails that help prevent adversarial attempts from bypassing safety measures.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Topic Control" href="/configure-guardrails/guardrail-catalog/topic-control">
+
+Reference for topic control guardrails that ensure conversations stay within predefined subject boundaries.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="PII Detection" href="/configure-guardrails/guardrail-catalog/pii-detection">
+
+Reference for PII detection guardrails that protect user privacy by detecting and masking sensitive data.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Agentic Security" href="/configure-guardrails/guardrail-catalog/agentic-security">
+
+Reference for agentic security guardrails that protect LLM-based agents using tools and interacting with external systems.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Hallucinations & Fact-Checking" href="/configure-guardrails/guardrail-catalog/fact-checking">
+
+Reference for fact-checking and hallucination detection guardrails that ensure LLM output is grounded in evidence.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="LLM Self-Check" href="/configure-guardrails/guardrail-catalog/self-check">
+
+Reference for LLM self-checking guardrails that prompt the LLM to perform input checking, output checking, or fact-checking.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Third-Party APIs" href="/configure-guardrails/guardrail-catalog/third-party">
+
+Reference for third-party API integrations that connect with managed services for guardrail use cases.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+</Cards>

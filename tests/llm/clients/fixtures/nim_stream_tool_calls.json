@@ -1,0 +1,387 @@
+[
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "logprobs": null,
+        "finish_reason": null
+      }
+    ],
+    "prompt_token_ids": null,
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": "Okay",
+          "reasoning_content": "Okay"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": ", the user is asking about the weather in Paris",
+          "reasoning_content": ", the user is asking about the weather in Paris"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": ". Let me check the tools available. There's",
+          "reasoning_content": ". Let me check the tools available. There's"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " a function called get_weather that takes a city",
+          "reasoning_content": " a function called get_weather that takes a city"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " parameter. Since Paris is a city, I can",
+          "reasoning_content": " parameter. Since Paris is a city, I can"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " use that function. I need to make sure to",
+          "reasoning_content": " use that function. I need to make sure to"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " pass \"Paris\" as the city argument. No",
+          "reasoning_content": " pass \"Paris\" as the city argument. No"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " other parameters are required. I'll call the function",
+          "reasoning_content": " other parameters are required. I'll call the function"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " with the city set to Paris to get the current",
+          "reasoning_content": " with the city set to Paris to get the current"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "reasoning": " weather.\n",
+          "reasoning_content": " weather.\n"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "reasoning": null,
+          "reasoning_content": null,
+          "tool_calls": [
+            {
+              "id": "call_1fab8199a2fd4c23acf6fac5",
+              "type": "function",
+              "index": 0,
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\": \"Paris\"}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls",
+        "stop_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-a58fc64867ab8669",
+    "object": "chat.completion.chunk",
+    "created": 1776675714,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 276,
+      "total_tokens": 385,
+      "completion_tokens": 109
+    },
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:55 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "c0fe71b6-4dd0-4c9a-9ced-5f172e4d1d5d",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  }
+]

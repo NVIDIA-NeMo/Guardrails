@@ -1,0 +1,242 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Model Configuration for NeMo Guardrails"
+sidebar-title: "Models"
+description: "Configure LLM engines, embedding models, and task-specific models in config.yml."
+content:
+  type: "reference"
+---
+
+In this page, learn how to configure the `models` section in your Guardrails `config.yml` file. For a complete reference of all configuration options, refer to the [Configuration YAML Schema Reference](/configure-guardrails/configuration-reference).
+
+## NVIDIA NIM Configuration
+
+The NVIDIA NeMo Guardrails library integrates with NVIDIA NIM microservices:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+```
+
+This provides access to:
+
+- Locally deployed NIMs. You can run models on your own infrastructure with optimized inference.
+- NVIDIA API Catalog. You can access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
+- Specialized NIMs. Includes NemoGuard Content Safety, Topic Control, and Jailbreak Detect.
+
+### Local NIM Deployment
+
+For locally deployed NIMs, specify the base URL:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8000/v1
+```
+
+---
+
+## Task-Specific Models
+
+Configure different models for specific tasks:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+
+  - type: self_check_input
+    engine: nim
+    model: meta/llama3-8b-instruct
+
+  - type: self_check_output
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+
+  - type: generate_user_intent
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+```
+
+---
+
+## Configuration Examples
+
+### OpenAI
+
+The following example shows how to configure the OpenAI model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+```
+
+### Azure OpenAI
+
+The following example shows how to configure the Azure OpenAI model as the main application LLM using the Azure OpenAI API:
+
+```yaml
+models:
+  - type: main
+    engine: azure
+    model: gpt-4
+    parameters:
+      azure_endpoint: https://my-resource.openai.azure.com/
+      azure_deployment: my-gpt4-deployment
+      api_version: "2024-02-15-preview"
+```
+
+You can supply the resource endpoint as `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias). Both fields accept only the resource URL. The framework composes the deployment path. Setting both raises an error.
+
+Set `AZURE_OPENAI_API_KEY` in the environment, set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
+
+<Note>
+
+Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD or token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Migrating to 0.22](/reference/0-22#azure-openai) for both alternatives.
+
+</Note>
+
+### Anthropic
+
+The following example shows how to configure the Anthropic model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: anthropic
+    model: claude-3-5-sonnet-20241022
+```
+
+<Note>
+
+Anthropic's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+### vLLM (OpenAI-Compatible)
+
+vLLM exposes an OpenAI-compatible API, so the recommended configuration uses `engine: openai` pointed at the vLLM endpoint. The built-in client handles it with no LangChain dependency.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: meta-llama/Llama-3.1-8B-Instruct
+    parameters:
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
+```
+
+The following example shows how to configure Llama Guard as a guardrail model using the same pattern:
+
+```yaml
+models:
+  - type: llama_guard
+    engine: openai
+    model: meta-llama/LlamaGuard-7b
+    parameters:
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
+```
+
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to a non-empty placeholder such as `EMPTY`. If your deployment requires a real token, replace `parameters.api_key` with the literal token, or omit it and set `api_key_env_var` at the top level of the model entry, not inside `parameters`:
+
+```yaml
+- type: main
+  engine: openai
+  model: meta-llama/Llama-3.1-8B-Instruct
+  api_key_env_var: MY_VLLM_API_KEY
+  parameters:
+    base_url: http://localhost:5000/v1
+```
+
+<Note>
+
+Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
+
+</Note>
+
+<Note>
+
+The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
+
+</Note>
+
+### Other OpenAI-Compatible Endpoints
+
+The same `engine: openai` plus `parameters.base_url` pattern works for any provider whose wire protocol is OpenAI-compatible. Examples include OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek's hosted API at `https://api.deepseek.com/v1`, TGI deployments that expose `/v1/chat/completions`, and the `llama.cpp` server with `--api`. Provide `parameters.base_url` and either `parameters.api_key` or a top-level `api_key_env_var`.
+
+### Google Vertex AI
+
+The following example shows how to configure the Google Vertex AI model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: vertexai
+    model: gemini-1.0-pro
+```
+
+<Note>
+
+Vertex AI's API is not OpenAI-compatible, so this engine is opt-in. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+### Complete Example
+
+The following example shows how to configure the main application LLM, embeddings model, and a dedicated NemoGuard model for input and output checking:
+
+```yaml
+models:
+  # Main application LLM
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+    parameters:
+      temperature: 0.7
+      max_tokens: 2000
+
+  # Embeddings for knowledge base
+  - type: embeddings
+    engine: FastEmbed
+    model: all-MiniLM-L6-v2
+
+  # Dedicated model for input checking
+  - type: self_check_input
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+  # Dedicated model for output checking
+  - type: self_check_output
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+```
+
+---
+
+## Model Parameters
+
+Pass additional parameters to the underlying LLM client. For engines served by the built-in client, such as any OpenAI-compatible endpoint, the runtime forwards parameters to the OpenAI-compatible HTTP request. Examples include `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, and `default_headers`. For LangChain engines, parameters follow the conventions of the underlying LangChain class.
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4
+    parameters:
+      temperature: 0.7
+      max_tokens: 1000
+      top_p: 0.9
+```
+
+Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.

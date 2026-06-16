@@ -1,14 +1,17 @@
 # Vertex AI Example
 
+> **Framework requirement.** This example uses `engine: vertexai`, which is served by the LangChain framework only.
+> Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `pip install langchain langchain-google-vertexai` before running.
+
 This guardrails configuration is a basic example using the Vertex AI API, and it can be adapted as needed.
 
-Note that to call Vertex AI APIs, you need to perform [some initial setup](../../../../docs/user-guides/advanced/vertexai-setup.md), and to use Vertex AI with NeMo Guardrails, you additionally need to install the following:
+Calling Vertex AI APIs requires [initial Google Cloud setup](../../../../docs/user-guides/advanced/vertexai-setup.md). On top of NeMo Guardrails, install:
 
 ```
 pip install "google-cloud-aiplatform>=1.38.0"
-pip install langchain-google-vertexai==0.1.0
+pip install langchain-google-vertexai
 ```
 
-The `gemini-1.0-pro` and `text-bison` models have been evaluated for topical rails, and `gemini-1.0-pro` has also been evaluated as a self-checking model for hallucination and content moderation. Evaluation results can be found [here](../../../../docs/evaluation/README.md).
+The example points at `gemini-1.0-pro` for historical continuity with this configuration; you should update the `model:` field in `config.yml` to a currently supported Gemini model for your project (for example, `gemini-2.5-flash` or `gemini-2.5-pro`). Vertex AI's model catalog rotates frequently, and older model IDs may stop accepting requests.
 
-**Disclaimer**: The Vertex AI models have only been tested on basic use cases, e.g., greetings and recognizing specific questions. On more complex queries, these models may not work correctly. Thorough testing and optimizations are needed before considering a production deployment. Additionally, as of March 14, 2024, there is [an open issue](https://github.com/GoogleCloudPlatform/generative-ai/issues/344) with Vertex AI models that result in them throwing an error likely triggered by moderation inside Vertex AI. In our tests, we find that self-checking with `gemini-1.0-pro` for hallucination and content moderation triggers this error. Production use cases should be designed to account for the possibility of this and handle it appropriately.
+**Disclaimer**: This example has only been tested on basic use cases. On more complex queries, behavior depends on the Vertex AI model you choose and may not match the assertions in the guardrails flows. Thorough testing and tuning are required before any production deployment, especially for the self-check flows whose prompts assume a particular response style. Provider-side content-moderation behavior also varies across Vertex AI model generations and can surface as transient errors; production code paths should handle those gracefully.

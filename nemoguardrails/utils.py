@@ -110,7 +110,7 @@ _event_validators = [
     ),
     Validator(
         "***UtteranceBotActionScriptUpdated events need to provide 'interim_script' of type 'str'",
-        lambda e: e["type"] != "UtteranceBotActionScriptUpdated " or _has_property(e, Property("interim_script", str)),
+        lambda e: e["type"] != "UtteranceBotActionScriptUpdated" or _has_property(e, Property("interim_script", str)),
     ),
     Validator(
         "***UtteranceBotActionFinished events need to provide 'final_script' of type 'str'",
@@ -118,8 +118,9 @@ _event_validators = [
     ),
     Validator(
         "***UtteranceUserActionTranscriptUpdated events need to provide 'interim_transcript' of type 'str'",
-        lambda e: e["type"] != "UtteranceUserActionTranscriptUpdated"
-        or _has_property(e, Property("interim_transcript", str)),
+        lambda e: (
+            e["type"] != "UtteranceUserActionTranscriptUpdated" or _has_property(e, Property("interim_transcript", str))
+        ),
     ),
     Validator(
         "***UtteranceUserActionFinished events need to provide 'final_transcript' of type 'str'",
@@ -270,11 +271,6 @@ def get_data_path(package_name: str, file_path: str) -> str:
 def get_examples_data_path(file_path: str) -> str:
     """Helper to get the path to the examples data directory."""
     return get_data_path("nemoguardrails", f"examples/{file_path}")
-
-
-def get_chat_ui_data_path(file_path: str) -> str:
-    """Helper to get the path to the chat-ui data directory."""
-    return get_data_path("nemoguardrails", f"chat-ui/{file_path}")
 
 
 def camelcase_to_snakecase(name: str) -> str:

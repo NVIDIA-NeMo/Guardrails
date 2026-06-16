@@ -16,14 +16,13 @@
 import logging
 from typing import List, Optional, Tuple
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ def parse_llama_guard_response(response: str) -> Tuple[bool, Optional[List[str]]
 async def llama_guard_check_input(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llama_guard_llm: Optional[BaseLLM] = None,
+    llama_guard_llm: Optional[LLMModel] = None,
     **kwargs,
 ) -> dict:
     """
@@ -75,7 +74,7 @@ async def llama_guard_check_input(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_INPUT.value))
 
-    result = await llm_call(llama_guard_llm, check_input_prompt, stop=stop, llm_params={"temperature": 0.0})
+    result = (await llm_call(llama_guard_llm, check_input_prompt, stop=stop, llm_params={"temperature": 0.0})).content
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return {"allowed": allowed, "policy_violations": policy_violations}
@@ -101,7 +100,7 @@ def llama_guard_check_output_mapping(result: dict) -> bool:
 async def llama_guard_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llama_guard_llm: Optional[BaseLLM] = None,
+    llama_guard_llm: Optional[LLMModel] = None,
 ) -> dict:
     """
     Check the bot response using the configured Llama Guard model
@@ -122,7 +121,7 @@ async def llama_guard_check_output(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_OUTPUT.value))
 
-    result = await llm_call(llama_guard_llm, check_output_prompt, stop=stop, llm_params={"temperature": 0.0})
+    result = (await llm_call(llama_guard_llm, check_output_prompt, stop=stop, llm_params={"temperature": 0.0})).content
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return {"allowed": allowed, "policy_violations": policy_violations}

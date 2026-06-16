@@ -43,7 +43,7 @@ jobs:
           fi
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.version.outputs.tag }}
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
           echo "✅ Version validated: $VERSION_IN_FILE matches tag $TAG_VERSION"
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ steps.version.outputs.artifact_name }}
           path: dist

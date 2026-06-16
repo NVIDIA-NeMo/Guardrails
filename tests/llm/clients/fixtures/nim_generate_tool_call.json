@@ -1,0 +1,57 @@
+{
+  "id": "chatcmpl-84573de96c0257e5",
+  "object": "chat.completion",
+  "created": 1776675712,
+  "model": "nvidia/nemotron-3-nano-30b-a3b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "chatcmpl-tool-99fa29fc3387337b",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          }
+        ],
+        "reasoning": "Okay, the user is asking about the weather in Paris. Let me check the tools available. There's a function called get_weather that takes a city parameter. Since Paris is the city mentioned, I should call that function with \"Paris\" as the argument. I don't need any other tools here. Just need to make sure to structure the tool call correctly within the XML tags.\n",
+        "reasoning_content": "Okay, the user is asking about the weather in Paris. Let me check the tools available. There's a function called get_weather that takes a city parameter. Since Paris is the city mentioned, I should call that function with \"Paris\" as the argument. I don't need any other tools here. Just need to make sure to structure the tool call correctly within the XML tags.\n"
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls",
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 276,
+    "total_tokens": 380,
+    "completion_tokens": 104,
+    "prompt_tokens_details": null
+  },
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null,
+  "_response_headers": {
+    "date": "Mon, 20 Apr 2026 09:01:53 GMT",
+    "content-type": "application/json",
+    "content-length": "1476",
+    "connection": "keep-alive",
+    "access-control-expose-headers": "nvcf-reqid",
+    "nvcf-reqid": "1e6cd027-cfe3-46f1-868b-046f6449b3af",
+    "nvcf-status": "fulfilled",
+    "server": "uvicorn",
+    "vary": "Origin"
+  }
+}

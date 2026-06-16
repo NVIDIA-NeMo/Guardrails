@@ -1,0 +1,188 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "OpenTelemetry Metrics Integration"
+sidebar-title: "OpenTelemetry Metrics Integration"
+description: "Configure the OpenTelemetry SDK with OTLP and Prometheus exporters for production metrics backends."
+content:
+  type: "how_to"
+---
+
+The NVIDIA NeMo Guardrails library follows OpenTelemetry best practices. The library uses only the API, and the host application configures the SDK.
+The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from the NeMo Guardrails IORails engine.
+
+## Installation
+
+Choose one of the following options for installing the library, the OpenTelemetry SDK, and an exporter.
+
+- For development with the OpenTelemetry SDK (console exporter only):
+
+  ```bash
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk
+  ```
+
+- For production with the OpenTelemetry Protocol (OTLP) exporter:
+
+  ```bash
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-otlp
+  ```
+
+- For Prometheus scraping:
+
+  ```bash
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-prometheus prometheus-client
+  ```
+
+  `prometheus-client` is required because the example uses `start_http_server` to expose the scrape endpoint.
+
+## Enabling Metrics in the Configuration
+
+Set `metrics.enabled: true` in your guardrails configuration.
+This is independent of `tracing.enabled`.
+
+```yaml
+metrics:
+  enabled: true
+```
+
+When `metrics.enabled` is `true` and `opentelemetry-api` is installed, the IORails engine emits metrics through the active `MeterProvider`.
+When `opentelemetry-api` is not installed, the IORails engine emits a `UserWarning` at construction time and runs without metrics.
+
+## Configuration Examples
+
+### Console Output (Development)
+
+Use the console exporter to verify emissions locally before pointing at a real backend.
+
+```python
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import (
+    ConsoleMetricExporter,
+    PeriodicExportingMetricReader,
+)
+from opentelemetry.sdk.resources import Resource
+
+resource = Resource.create({"service.name": "my-guardrails-app"})
+reader = PeriodicExportingMetricReader(
+    ConsoleMetricExporter(),
+    export_interval_millis=5000,
+)
+metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
+
+# Configure NeMo Guardrails afterwards.
+from nemoguardrails import Guardrails, RailsConfig
+
+config_yaml = """
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+metrics:
+  enabled: true
+"""
+
+config = RailsConfig.from_content(yaml_content=config_yaml)
+# require_iorails=True raises if the config is incompatible with the IORails engine,
+# so the metrics setup fails loudly rather than silently falling back to LLMRails
+# (which emits no metrics).
+rails = Guardrails(config, use_iorails=True, require_iorails=True)
+```
+
+### OTLP Exporter (Production)
+
+Push metrics over OTLP/gRPC to an OpenTelemetry Collector or any backend that accepts OTLP.
+
+```python
+from opentelemetry import metrics
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
+
+resource = Resource.create({"service.name": "my-guardrails-app"})
+
+otlp_exporter = OTLPMetricExporter(endpoint="http://localhost:4317", insecure=True)
+reader = PeriodicExportingMetricReader(
+    otlp_exporter,
+    export_interval_millis=10000,
+)
+metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
+
+# Use with NeMo Guardrails as above.
+```
+
+### Prometheus Exporter
+
+Use the Prometheus exporter to expose metrics on an HTTP endpoint that Prometheus scrapes directly.
+
+```python
+from prometheus_client import start_http_server
+
+from opentelemetry import metrics
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.resources import Resource
+
+start_http_server(port=9464, addr="0.0.0.0")
+
+resource = Resource.create({"service.name": "my-guardrails-app"})
+reader = PrometheusMetricReader()
+metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
+
+# Use with NeMo Guardrails as above.
+```
+
+After Prometheus has scraped the endpoint, periods in OpenTelemetry metric names are replaced with underscores, for example `guardrails.requests` becomes `guardrails_requests_total` and `gen_ai.client.token.usage` becomes `gen_ai_client_token_usage_bucket`.
+Refer to the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/) for details on how dots, units, and counter suffixes are translated.
+
+## OpenTelemetry Ecosystem Compatibility
+
+You can export IORails metrics to any backend that accepts OpenTelemetry metric data, including:
+
+- OTLP-compatible backends, such as New Relic, Datadog, Honeycomb, Grafana Cloud, AWS CloudWatch (with the ADOT collector), and Google Cloud Monitoring.
+- Prometheus and any system that ingests Prometheus exposition format (Grafana Mimir, Cortex, Thanos, VictoriaMetrics).
+- OpenTelemetry Collector as a fan-out point to receive metrics once and export them to many backends.
+
+Refer to the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
+
+## Combining Metrics with Tracing
+
+Configure each signal independently.
+Metrics and traces correlate naturally when both are exported under the same `service.name` resource: trace exemplars on histograms link directly to their request spans.
+
+```yaml
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+
+metrics:
+  enabled: true
+```
+
+```python
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# Application-side: configure a TracerProvider AND a MeterProvider with the same Resource.
+resource = Resource.create({"service.name": "my-guardrails-app"})
+
+# 1. Tracing
+tracer_provider = TracerProvider(resource=resource)
+tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)))
+trace.set_tracer_provider(tracer_provider)
+
+# 2. Metrics
+reader = PeriodicExportingMetricReader(OTLPMetricExporter(endpoint="http://localhost:4317", insecure=True))
+metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
+```
+
+For full tracing setup, refer to [OpenTelemetry](/observability/tracing/opentelemetry-integration).

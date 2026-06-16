@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,36 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for tool calls with output rails."""
+import pytest
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-
-from nemoguardrails import RailsConfig
-from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+from tests.utils import FakeLLMModel
 
 
-def test_output_rails_skip_for_tool_calls():
-    """Test that output rails are skipped when tool calls are present."""
-
-    class MockLLMWithToolResponse:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+@pytest.mark.asyncio
+async def test_output_rails_skip_for_tool_calls():
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="",
                 tool_calls=[
-                    {
-                        "name": "process_data",
-                        "args": {"data": "test"},
-                        "id": "call_process",
-                        "type": "tool_call",
-                    }
+                    ToolCall(
+                        id="call_process",
+                        type="function",
+                        function=ToolCallFunction(name="process_data", arguments={"data": "test"}),
+                    )
                 ],
             )
+        ]
+    )
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    # Config with aggressive output rails that would block empty content
     config = RailsConfig.from_content(
         """
         define flow strict_output_check
@@ -54,6 +48,7 @@ def test_output_rails_skip_for_tool_calls():
           $bot_message = "PREFIX: " + $bot_message
         """,
         """
+        passthrough: true
         rails:
           output:
             flows:
@@ -62,28 +57,20 @@ def test_output_rails_skip_for_tool_calls():
         """,
     )
 
-    rails = RunnableRails(config, llm=MockLLMWithToolResponse())
-    result = rails.invoke(HumanMessage(content="Process this"))
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Process this"}])
 
-    # Tool calls should bypass output rails entirely
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "process_data"
-    assert result.content == ""  # Should stay empty, not modified by rails
-    assert "I'm sorry, I can't respond to that." not in result.content
-    assert "PREFIX:" not in result.content  # Rails should not have run
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "process_data"
+    assert result["content"] == ""
+    assert "I'm sorry, I can't respond to that." not in result["content"]
+    assert "PREFIX:" not in result["content"]
 
 
-def test_text_responses_still_use_output_rails():
-    """Test that regular text responses still go through output rails."""
+@pytest.mark.asyncio
+async def test_text_responses_still_use_output_rails():
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Hello there")])
 
-    class MockLLMTextResponse:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="Hello there")
-
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    # Same config as above test
     config = RailsConfig.from_content(
         """
         define flow add_prefix
@@ -97,45 +84,33 @@ def test_text_responses_still_use_output_rails():
         """,
     )
 
-    rails = RunnableRails(config, llm=MockLLMTextResponse())
-    result = rails.invoke(HumanMessage(content="Say hello"))
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Say hello"}])
 
-    assert "PREFIX: Hello there" in result.content
-    assert result.tool_calls is None or result.tool_calls == []
+    assert "PREFIX: Hello there" in result["content"]
+    assert result.get("tool_calls") is None or result.get("tool_calls") == []
 
 
-def test_complex_chain_with_tool_calls():
-    """Test tool calls work in complex LangChain scenarios."""
-
-    class MockPatientIntakeLLM:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+@pytest.mark.asyncio
+async def test_complex_chain_with_tool_calls():
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="",
                 tool_calls=[
-                    {
-                        "name": "print_gathered_patient_info",
-                        "args": {
-                            "patient_name": "John Doe",
-                            "patient_dob": "01/01/1990",
-                        },
-                        "id": "call_intake",
-                        "type": "tool_call",
-                    }
+                    ToolCall(
+                        id="call_intake",
+                        type="function",
+                        function=ToolCallFunction(
+                            name="print_gathered_patient_info",
+                            arguments={
+                                "patient_name": "John Doe",
+                                "patient_dob": "01/01/1990",
+                            },
+                        ),
+                    )
                 ],
             )
-
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    system_prompt = """
-    You are a specialized assistant for handling patient intake.
-    After gathering all information, use the print_gathered_patient_info tool.
-    """
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("placeholder", "{messages}"),
         ]
     )
 
@@ -143,6 +118,7 @@ def test_complex_chain_with_tool_calls():
         colang_content="",
         yaml_content="""
         models: []
+        passthrough: true
         rails:
           output:
             flows:
@@ -158,54 +134,38 @@ def test_complex_chain_with_tool_calls():
         """,
     )
 
-    guardrails = RunnableRails(config=config, llm=MockPatientIntakeLLM(), passthrough=True)
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "My date of birth is 01/01/1990."}])
 
-    chain = prompt | guardrails
-
-    result = chain.invoke(
-        {
-            "messages": [
-                ("user", "Hi!"),
-                ("assistant", "Welcome! What's your name?"),
-                ("user", "My name is John Doe."),
-                ("assistant", "What's your date of birth?"),
-                ("user", "My date of birth is 01/01/1990."),
-            ]
-        }
-    )
-
-    assert isinstance(result, AIMessage)
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "print_gathered_patient_info"
-    assert result.tool_calls[0]["args"]["patient_name"] == "John Doe"
-    assert result.content == ""
-    assert "I'm sorry, I can't respond to that." not in result.content
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "print_gathered_patient_info"
+    assert result["tool_calls"][0]["function"]["arguments"]["patient_name"] == "John Doe"
+    assert result["content"] == ""
+    assert "I'm sorry, I can't respond to that." not in result["content"]
 
 
-def test_self_check_output_rail_bypassed():
-    """Test that self_check_output rail is bypassed for tool calls."""
-
-    class MockLLMToolCallsWithSelfCheck:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+@pytest.mark.asyncio
+async def test_self_check_output_rail_bypassed():
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="",
                 tool_calls=[
-                    {
-                        "name": "sensitive_operation",
-                        "args": {"action": "process"},
-                        "id": "call_sensitive",
-                        "type": "tool_call",
-                    }
+                    ToolCall(
+                        id="call_sensitive",
+                        type="function",
+                        function=ToolCallFunction(name="sensitive_operation", arguments={"action": "process"}),
+                    )
                 ],
             )
-
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+        ]
+    )
 
     config = RailsConfig.from_content(
         colang_content="",
         yaml_content="""
         models: []
+        passthrough: true
         rails:
           output:
             flows:
@@ -221,23 +181,17 @@ def test_self_check_output_rail_bypassed():
         """,
     )
 
-    rails = RunnableRails(config, llm=MockLLMToolCallsWithSelfCheck())
-    result = rails.invoke(HumanMessage(content="Perform sensitive operation"))
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Perform sensitive operation"}])
 
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "sensitive_operation"
-    assert "I'm sorry, I can't respond to that." not in result.content
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "sensitive_operation"
+    assert "I'm sorry, I can't respond to that." not in result["content"]
 
 
-def test_backward_compatibility_text_blocking():
-    """Test that text-based blocking still works for non-tool responses."""
-
-    class MockLLMProblematicText:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="This response should be blocked by output rails")
-
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+@pytest.mark.asyncio
+async def test_backward_compatibility_text_blocking():
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="This response should be blocked by output rails")])
 
     config = RailsConfig.from_content(
         """
@@ -247,6 +201,7 @@ def test_backward_compatibility_text_blocking():
             stop
         """,
         """
+        passthrough: true
         rails:
           output:
             flows:
@@ -254,32 +209,29 @@ def test_backward_compatibility_text_blocking():
         """,
     )
 
-    rails = RunnableRails(config, llm=MockLLMProblematicText())
-    result = rails.invoke(HumanMessage(content="Say something bad"))
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Say something bad"}])
 
-    assert "I'm sorry, I can't respond to that." in result.content
-    assert result.tool_calls is None or result.tool_calls == []
+    assert "I'm sorry, I can't respond to that." in result["content"]
+    assert result.get("tool_calls") is None or result.get("tool_calls") == []
 
 
-def test_mixed_tool_calls_and_content():
-    """Test responses that have both content and tool calls."""
-
-    class MockLLMWithBoth:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+@pytest.mark.asyncio
+async def test_mixed_tool_calls_and_content():
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="I'll gather the information for you.",
                 tool_calls=[
-                    {
-                        "name": "gather_info",
-                        "args": {"user_id": "123"},
-                        "id": "call_gather",
-                        "type": "tool_call",
-                    }
+                    ToolCall(
+                        id="call_gather",
+                        type="function",
+                        function=ToolCallFunction(name="gather_info", arguments={"user_id": "123"}),
+                    )
                 ],
             )
-
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+        ]
+    )
 
     config = RailsConfig.from_content(
         """
@@ -287,6 +239,7 @@ def test_mixed_tool_calls_and_content():
           $bot_message = $bot_message + " [" + $current_time + "]"
         """,
         """
+        passthrough: true
         rails:
           output:
             flows:
@@ -294,8 +247,8 @@ def test_mixed_tool_calls_and_content():
         """,
     )
 
-    rails = RunnableRails(config, llm=MockLLMWithBoth())
-    result = rails.invoke(HumanMessage(content="Gather my info"))
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Gather my info"}])
 
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "gather_info"
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "gather_info"

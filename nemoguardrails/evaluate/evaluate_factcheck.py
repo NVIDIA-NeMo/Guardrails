@@ -20,7 +20,6 @@ import time
 
 import tqdm
 import typer
-from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
@@ -71,7 +70,7 @@ class FactCheckEvaluation:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-    def create_negative_samples(self, dataset):
+    async def create_negative_samples(self, dataset):
         """
         Create synthetic negative samples for fact checking. The negative samples are created by an LLM that acts
         as an adversary and modifies the answer to make it incorrect.
@@ -89,27 +88,15 @@ class FactCheckEvaluation:
         that it will not be grounded in the evidence passage. change details in the answer to make the answer
         wrong but yet believable.\nevidence: {evidence}\nanswer: {answer}\nincorrect answer:"""
 
-        create_negatives_prompt = PromptTemplate(
-            template=create_negatives_template,
-            input_variables=["evidence", "answer"],
-        )
-
-        # Bind config parameters to the LLM for generating negative samples
-        llm_with_config = self.llm.bind(temperature=0.8, max_tokens=300)
-
         print("Creating negative samples...")
         for data in tqdm.tqdm(dataset):
             assert "evidence" in data and "question" in data and "answer" in data
             evidence = data["evidence"]
             answer = data["answer"]
 
-            # Format the prompt and invoke the LLM directly
-            formatted_prompt = create_negatives_prompt.format(evidence=evidence, answer=answer)
-            negative_answer = llm_with_config.invoke(formatted_prompt)
-            if isinstance(negative_answer, str):
-                data["incorrect_answer"] = negative_answer.strip()
-            else:
-                data["incorrect_answer"] = negative_answer.content.strip()
+            formatted_prompt = create_negatives_template.format(evidence=evidence, answer=answer)
+            response = await self.llm.generate_async(formatted_prompt, temperature=0.8, max_tokens=300)
+            data["incorrect_answer"] = response.content.strip()
 
         return dataset
 
@@ -147,7 +134,7 @@ class FactCheckEvaluation:
                 force_string_to_message=True,
             )
             stop = self.llm_task_manager.get_stop_tokens(Task.SELF_CHECK_FACTS)
-            fact_check = asyncio.run(llm_call(prompt=fact_check_prompt, llm=self.llm, stop=stop))
+            fact_check = asyncio.run(llm_call(prompt=fact_check_prompt, llm=self.llm, stop=stop)).content
             end_time = time.time()
             time.sleep(0.5)  # avoid rate-limits
             fact_check = fact_check.lower().strip()
@@ -172,7 +159,7 @@ class FactCheckEvaluation:
         Run the fact checking evaluation and print the results.
         """
         if self.create_negatives:
-            self.dataset = self.create_negative_samples(self.dataset)
+            self.dataset = asyncio.run(self.create_negative_samples(self.dataset))
 
         print("Checking facts - positive entailment")
         positive_fact_check_predictions, pos_num_correct, pos_time = self.check_facts(split="positive")

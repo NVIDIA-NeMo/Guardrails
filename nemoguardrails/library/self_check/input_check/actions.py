@@ -16,15 +16,14 @@
 import logging
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import new_event_dict
 
 log = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ log = logging.getLogger(__name__)
 async def self_check_input(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llm: Optional[BaseLLM] = None,
+    llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
 ):
@@ -47,7 +46,7 @@ async def self_check_input(
         True if the input should be allowed, False otherwise.
     """
 
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     user_input = context.get("user_message")
     task = Task.SELF_CHECK_INPUT
 
@@ -65,7 +64,7 @@ async def self_check_input(
         # Initialize the LLMCallInfo object
         llm_call_info_var.set(LLMCallInfo(task=task.value))
 
-        response = await llm_call(
+        llm_response = await llm_call(
             llm,
             prompt,
             stop=stop,
@@ -74,6 +73,8 @@ async def self_check_input(
                 "max_tokens": max_tokens,
             },
         )
+        warn_if_truncated(llm_response, task.value)
+        response = llm_response.content
 
         log.info(f"Input self-checking result is: `{response}`.")
 

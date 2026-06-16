@@ -16,13 +16,12 @@
 import logging
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.library.factchecking.align_score.request import alignscore_request
 from nemoguardrails.library.self_check.facts.actions import self_check_facts
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def alignscore_check_facts_mapping(result: float) -> bool:
 async def alignscore_check_facts(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llm: Optional[BaseLLM] = None,
+    llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
 ):

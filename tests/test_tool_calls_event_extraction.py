@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,26 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for event-based tool_calls extraction."""
-
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
 
-from nemoguardrails import RailsConfig
+from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-from tests.utils import TestChat
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+from tests.utils import FakeLLMModel, TestChat
 
 
 @action(is_system_action=True)
 async def validate_tool_parameters(tool_calls, context=None, **kwargs):
-    """Test implementation of tool parameter validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
     dangerous_patterns = ["eval", "exec", "system", "../", "rm -", "DROP", "DELETE"]
 
     for tool_call in tool_calls:
-        args = tool_call.get("args", {})
+        func = tool_call.get("function", {})
+        args = func.get("arguments", {})
         for param_value in args.values():
             if isinstance(param_value, str):
                 if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
@@ -42,21 +39,19 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
 
 @action(is_system_action=True)
 async def self_check_tool_calls(tool_calls, context=None, **kwargs):
-    """Test implementation of tool call validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
-    return all(isinstance(call, dict) and "name" in call and "id" in call for call in tool_calls)
+    return all(isinstance(call, dict) and "function" in call and "id" in call for call in tool_calls)
 
 
 @pytest.mark.asyncio
 async def test_tool_calls_preserved_when_rails_block():
     test_tool_calls = [
-        {
-            "name": "dangerous_tool",
-            "args": {"param": "eval('malicious code')"},
-            "id": "call_dangerous",
-            "type": "tool_call",
-        }
+        ToolCall(
+            id="call_dangerous",
+            type="function",
+            function=ToolCallFunction(name="dangerous_tool", arguments={"param": "eval('malicious code')"}),
+        )
     ]
 
     config = RailsConfig.from_content(
@@ -81,23 +76,17 @@ async def test_tool_calls_preserved_when_rails_block():
         """,
     )
 
-    class MockLLMWithDangerousTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="", tool_calls=test_tool_calls)
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=test_tool_calls)])
+    rails = LLMRails(config, llm=fake_llm)
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Execute dangerous tool"}])
 
-    rails = RunnableRails(config, llm=MockLLMWithDangerousTools())
-
-    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
-    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
-    result = await rails.ainvoke(HumanMessage(content="Execute dangerous tool"))
-
-    assert result.tool_calls is not None, "tool_calls should be preserved in final response"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_tool"
-    assert "cannot execute this tool request" in result.content
+    assert result["tool_calls"] is not None, "tool_calls should be preserved in final response"
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["function"]["name"] == "dangerous_tool"
+    assert "cannot execute this tool request" in result["content"]
 
 
 @pytest.mark.asyncio
@@ -143,10 +132,12 @@ async def test_llmrails_extracts_tool_calls_from_events():
 
     test_tool_calls = [
         {
-            "name": "extract_test",
-            "args": {"data": "test"},
             "id": "call_extract",
-            "type": "tool_call",
+            "type": "function",
+            "function": {
+                "name": "extract_test",
+                "arguments": {"data": "test"},
+            },
         }
     ]
 
@@ -158,7 +149,7 @@ async def test_llmrails_extracts_tool_calls_from_events():
 
     assert extracted_tool_calls is not None
     assert len(extracted_tool_calls) == 1
-    assert extracted_tool_calls[0]["name"] == "extract_test"
+    assert extracted_tool_calls[0]["function"]["name"] == "extract_test"
 
 
 @pytest.mark.asyncio
@@ -167,10 +158,12 @@ async def test_tool_rails_cannot_clear_context_variable():
 
     test_tool_calls = [
         {
-            "name": "blocked_tool",
-            "args": {"param": "rm -rf /"},
             "id": "call_blocked",
-            "type": "tool_call",
+            "type": "function",
+            "function": {
+                "name": "blocked_tool",
+                "arguments": {"param": "rm -rf /"},
+            },
         }
     ]
 
@@ -181,20 +174,17 @@ async def test_tool_rails_cannot_clear_context_variable():
 
     assert result is False
     assert tool_calls_var.get() is not None, "Context variable should not be cleared by tool rails"
-    assert tool_calls_var.get()[0]["name"] == "blocked_tool"
+    assert tool_calls_var.get()[0]["function"]["name"] == "blocked_tool"
 
 
 @pytest.mark.asyncio
 async def test_complete_fix_integration():
-    """Integration test demonstrating the complete fix for tool_calls preservation."""
-
     dangerous_tool_calls = [
-        {
-            "name": "dangerous_function",
-            "args": {"code": "eval('malicious')"},
-            "id": "call_dangerous_123",
-            "type": "tool_call",
-        }
+        ToolCall(
+            id="call_dangerous_123",
+            type="function",
+            function=ToolCallFunction(name="dangerous_function", arguments={"code": "eval('malicious')"}),
+        )
     ]
 
     config = RailsConfig.from_content(
@@ -219,170 +209,140 @@ async def test_complete_fix_integration():
         """,
     )
 
-    class MockLLMReturningDangerousTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="", tool_calls=dangerous_tool_calls)
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=dangerous_tool_calls)])
+    rails = LLMRails(config, llm=fake_llm)
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Run dangerous code"}])
 
-    rails = RunnableRails(config, llm=MockLLMReturningDangerousTools())
+    assert "security concerns" in result["content"]
 
-    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
-    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
-    result = await rails.ainvoke(HumanMessage(content="Run dangerous code"))
-
-    assert "security concerns" in result.content
-
-    assert result.tool_calls is not None, "tool_calls preserved despite being blocked"
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "dangerous_function"
+    assert result["tool_calls"] is not None, "tool_calls preserved despite being blocked"
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["function"]["name"] == "dangerous_function"
 
 
 @pytest.mark.asyncio
 async def test_passthrough_mode_with_multiple_tool_calls():
     test_tool_calls = [
-        {
-            "name": "get_weather",
-            "args": {"location": "NYC"},
-            "id": "call_123",
-            "type": "tool_call",
-        },
-        {
-            "name": "calculate",
-            "args": {"a": 2, "b": 2},
-            "id": "call_456",
-            "type": "tool_call",
-        },
+        ToolCall(
+            id="call_123",
+            type="function",
+            function=ToolCallFunction(name="get_weather", arguments={"location": "NYC"}),
+        ),
+        ToolCall(
+            id="call_456",
+            type="function",
+            function=ToolCallFunction(name="calculate", arguments={"a": 2, "b": 2}),
+        ),
     ]
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMWithMultipleTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="I'll help you with the weather and calculation.",
                 tool_calls=test_tool_calls,
             )
+        ]
+    )
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "What's the weather in NYC and what's 2+2?"}]
+    )
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    rails = RunnableRails(config, llm=MockLLMWithMultipleTools())
-    result = await rails.ainvoke(HumanMessage(content="What's the weather in NYC and what's 2+2?"))
-
-    assert result.tool_calls is not None
-    assert len(result.tool_calls) == 2
-    assert result.tool_calls[0]["name"] == "get_weather"
-    assert result.tool_calls[1]["name"] == "calculate"
-    assert result.content == ""
+    assert result["tool_calls"] is not None
+    assert len(result["tool_calls"]) == 2
+    assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert result["tool_calls"][1]["function"]["name"] == "calculate"
+    assert result["content"] == ""
 
 
 @pytest.mark.asyncio
 async def test_passthrough_mode_no_tool_calls():
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMNoTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="I can help with general questions.")
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="I can help with general questions.")])
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Hello"}])
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    rails = RunnableRails(config, llm=MockLLMNoTools())
-    result = await rails.ainvoke(HumanMessage(content="Hello"))
-
-    assert result.tool_calls is None or result.tool_calls == []
-    assert result.content == "I can help with general questions."
+    assert result.get("tool_calls") is None or result.get("tool_calls") == []
+    assert result["content"] == "I can help with general questions."
 
 
 @pytest.mark.asyncio
 async def test_passthrough_mode_empty_tool_calls():
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMEmptyTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="No tools needed.", tool_calls=[])
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="No tools needed.", tool_calls=[])])
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Simple question"}])
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    rails = RunnableRails(config, llm=MockLLMEmptyTools())
-    result = await rails.ainvoke(HumanMessage(content="Simple question"))
-
-    assert result.tool_calls == []
-    assert result.content == "No tools needed."
+    assert result.get("tool_calls") == [] or result.get("tool_calls") is None
+    assert result["content"] == "No tools needed."
 
 
 @pytest.mark.asyncio
 async def test_tool_calls_with_prompt_response():
     test_tool_calls = [
-        {
-            "name": "search",
-            "args": {"query": "latest news"},
-            "id": "call_prompt",
-            "type": "tool_call",
-        }
+        ToolCall(
+            id="call_prompt",
+            type="function",
+            function=ToolCallFunction(name="search", arguments={"query": "latest news"}),
+        )
     ]
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMPromptMode:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="", tool_calls=test_tool_calls)
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=test_tool_calls)])
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Get me the latest news"}])
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    rails = RunnableRails(config, llm=MockLLMPromptMode())
-    result = await rails.ainvoke(HumanMessage(content="Get me the latest news"))
-
-    assert result.tool_calls is not None
-    assert len(result.tool_calls) == 1
-    assert result.tool_calls[0]["name"] == "search"
-    assert result.tool_calls[0]["args"]["query"] == "latest news"
+    assert result["tool_calls"] is not None
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["function"]["name"] == "search"
+    assert result["tool_calls"][0]["function"]["arguments"]["query"] == "latest news"
 
 
 @pytest.mark.asyncio
 async def test_tool_calls_preserve_metadata():
     test_tool_calls = [
-        {
-            "name": "preserve_test",
-            "args": {"data": "preserved"},
-            "id": "call_preserve",
-            "type": "tool_call",
-        }
+        ToolCall(
+            id="call_preserve",
+            type="function",
+            function=ToolCallFunction(name="preserve_test", arguments={"data": "preserved"}),
+        )
     ]
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMWithMetadata:
-        def invoke(self, messages, **kwargs):
-            msg = AIMessage(content="Processing with metadata.", tool_calls=test_tool_calls)
-            msg.response_metadata = {"model": "test-model", "usage": {"tokens": 50}}
-            return msg
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
+                content="Processing with metadata.",
+                tool_calls=test_tool_calls,
+                provider_metadata={"model": "test-model", "usage": {"tokens": 50}},
+            )
+        ]
+    )
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Process with metadata"}])
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
-
-    rails = RunnableRails(config, llm=MockLLMWithMetadata())
-    result = await rails.ainvoke(HumanMessage(content="Process with metadata"))
-
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "preserve_test"
-    assert result.content == ""
-    assert hasattr(result, "response_metadata")
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "preserve_test"
+    assert result["content"] == ""
 
 
 @pytest.mark.asyncio
 async def test_tool_output_rails_blocking_behavior():
     dangerous_tool_calls = [
-        {
-            "name": "dangerous_exec",
-            "args": {"command": "rm -rf /"},
-            "id": "call_dangerous_exec",
-            "type": "tool_call",
-        }
+        ToolCall(
+            id="call_dangerous_exec",
+            type="function",
+            function=ToolCallFunction(name="dangerous_exec", arguments={"command": "rm -rf /"}),
+        )
     ]
 
     config = RailsConfig.from_content(
@@ -407,68 +367,58 @@ async def test_tool_output_rails_blocking_behavior():
         """,
     )
 
-    class MockLLMDangerousExec:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(content="", tool_calls=dangerous_tool_calls)
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="", tool_calls=dangerous_tool_calls)])
+    rails = LLMRails(config, llm=fake_llm)
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Execute dangerous command"}])
 
-    rails = RunnableRails(config, llm=MockLLMDangerousExec())
-
-    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
-    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
-    result = await rails.ainvoke(HumanMessage(content="Execute dangerous command"))
-
-    assert "security reasons" in result.content
-    assert result.tool_calls is not None
-    assert result.tool_calls[0]["name"] == "dangerous_exec"
-    assert "rm -rf" in result.tool_calls[0]["args"]["command"]
+    assert "security reasons" in result["content"]
+    assert result["tool_calls"] is not None
+    assert result["tool_calls"][0]["function"]["name"] == "dangerous_exec"
+    assert "rm -rf" in result["tool_calls"][0]["function"]["arguments"]["command"]
 
 
 @pytest.mark.asyncio
 async def test_complex_tool_calls_integration():
     complex_tool_calls = [
-        {
-            "name": "search_database",
-            "args": {"table": "users", "query": "active=true"},
-            "id": "call_db_search",
-            "type": "tool_call",
-        },
-        {
-            "name": "format_results",
-            "args": {"format": "json", "limit": 10},
-            "id": "call_format",
-            "type": "tool_call",
-        },
+        ToolCall(
+            id="call_db_search",
+            type="function",
+            function=ToolCallFunction(name="search_database", arguments={"table": "users", "query": "active=true"}),
+        ),
+        ToolCall(
+            id="call_format",
+            type="function",
+            function=ToolCallFunction(name="format_results", arguments={"format": "json", "limit": 10}),
+        ),
     ]
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    class MockLLMComplexTools:
-        def invoke(self, messages, **kwargs):
-            return AIMessage(
+    fake_llm = FakeLLMModel(
+        llm_responses=[
+            LLMResponse(
                 content="I'll search the database and format the results.",
                 tool_calls=complex_tool_calls,
             )
+        ]
+    )
+    rails = LLMRails(config, llm=fake_llm)
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Find active users and format as JSON"}])
 
-        async def ainvoke(self, messages, **kwargs):
-            return self.invoke(messages, **kwargs)
+    assert result["tool_calls"] is not None
+    assert len(result["tool_calls"]) == 2
 
-    rails = RunnableRails(config, llm=MockLLMComplexTools())
-    result = await rails.ainvoke(HumanMessage(content="Find active users and format as JSON"))
+    db_call = result["tool_calls"][0]
+    assert db_call["function"]["name"] == "search_database"
+    assert db_call["function"]["arguments"]["table"] == "users"
+    assert db_call["function"]["arguments"]["query"] == "active=true"
 
-    assert result.tool_calls is not None
-    assert len(result.tool_calls) == 2
+    format_call = result["tool_calls"][1]
+    assert format_call["function"]["name"] == "format_results"
+    assert format_call["function"]["arguments"]["format"] == "json"
+    assert format_call["function"]["arguments"]["limit"] == 10
 
-    db_call = result.tool_calls[0]
-    assert db_call["name"] == "search_database"
-    assert db_call["args"]["table"] == "users"
-    assert db_call["args"]["query"] == "active=true"
-
-    format_call = result.tool_calls[1]
-    assert format_call["name"] == "format_results"
-    assert format_call["args"]["format"] == "json"
-    assert format_call["args"]["limit"] == 10
-
-    assert result.content == ""
+    assert result["content"] == ""

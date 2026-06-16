@@ -20,11 +20,8 @@ from enum import Enum
 from typing import List, Literal, Optional
 
 import typer
-import uvicorn
-from fastapi import FastAPI
 
 from nemoguardrails import __version__
-from nemoguardrails.actions_server import actions_server
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
 from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
@@ -110,6 +107,13 @@ def chat(
             simplify=verbose_simplify,
         )
 
+    # Claim the deployment context before LLMRails is constructed in
+    # run_chat. The subsequent report_usage call inside LLMRails.__init__
+    # will read this override and emit with deploymentType="cli".
+    from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
+
+    set_deployment_type(DeploymentTypeEnum.CLI.value)
+
     run_chat(
         config_path=config[0],
         verbose=verbose,
@@ -148,14 +152,28 @@ def server(
 ):
     """Start a NeMo Guardrails server."""
 
+    # Forward the disable-chat-ui flag via env var so api.py can read it at
+    # module-load time, before the chainlit mount happens.
+    if disable_chat_ui:
+        os.environ["NEMO_GUARDRAILS_DISABLE_CHAT_UI"] = "true"
+
     try:
+        import uvicorn
+        from fastapi import FastAPI
+
         from nemoguardrails.server import api
+        from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
     except ImportError:
         typer.secho(
-            "The 'openai' package is required to run the server. Install it with: pip install nemoguardrails[server]",
+            "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
+
+    # Claim API deployment context before the first LLMRails instance can be
+    # constructed. This also covers prefixed mounts, where the mounted app's
+    # lifespan may not run before request handling.
+    set_deployment_type(DeploymentTypeEnum.API.value)
 
     if config:
         # We make sure there is no trailing separator, as that might break things in
@@ -242,6 +260,17 @@ def action_server(
     port: int = typer.Option(default=8001, help="The port that the server should listen on. "),
 ):
     """Start a NeMo Guardrails actions server."""
+
+    try:
+        import uvicorn
+
+        from nemoguardrails.actions_server import actions_server
+    except ImportError:
+        typer.secho(
+            "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
 
     uvicorn.run(actions_server.app, port=port, log_level="info", host="0.0.0.0")
 

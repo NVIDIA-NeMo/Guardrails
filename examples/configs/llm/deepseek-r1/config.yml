@@ -1,8 +1,7 @@
 models:
   - type: main
-    engine: deepseek
+    engine: openai
     model: deepseek-reasoner
-    reasoning_config:
-      remove_reasoning_traces: True
-      start_token: "<think>"
-      end_token: "</think>"
+    api_key_env_var: DEEPSEEK_API_KEY
+    parameters:
+      base_url: https://api.deepseek.com/v1

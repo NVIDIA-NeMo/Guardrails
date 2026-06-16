@@ -16,15 +16,14 @@
 import logging
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -44,12 +43,12 @@ def mapping_self_check_facts(result: float) -> bool:
 async def self_check_facts(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llm: Optional[BaseLLM] = None,
+    llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
 ):
     """Checks the facts for the bot response by appropriately prompting the base llm."""
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     evidence = context.get("relevant_chunks", [])
     response = context.get("bot_message")
 
@@ -71,12 +70,18 @@ async def self_check_facts(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=task.value))
 
-    response = await llm_call(
+    llm_response = await llm_call(
         llm,
         prompt,
         stop=stop,
         llm_params={"temperature": config.lowest_temperature, "max_tokens": max_tokens},
     )
+    if warn_if_truncated(llm_response, task.value):
+        # is_content_safe returns [False] on empty input, which this action
+        # inverts to "facts are correct". Fail safe instead: treat truncated
+        # content as a failed fact-check so the output gets blocked.
+        return 0.0
+    response = llm_response.content
 
     if llm_task_manager.has_output_parser(task):
         result = llm_task_manager.parse_task_output(task, output=response)

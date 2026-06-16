@@ -21,6 +21,26 @@ from typing import Union
 
 logger = logging.getLogger(__name__)
 
+MODEL_FILENAME = "snowflake.onnx"
+MODEL_REPO_ID = "nvidia/NemoGuard-JailbreakDetect"
+
+
+def _ensure_model_downloaded(classifier_path: str) -> Path:
+    classifier_dir = Path(classifier_path)
+    classifier_dir.mkdir(parents=True, exist_ok=True)
+    model_path = classifier_dir / MODEL_FILENAME
+
+    if not model_path.is_file():
+        from huggingface_hub import hf_hub_download
+
+        hf_hub_download(
+            repo_id=MODEL_REPO_ID,
+            filename=MODEL_FILENAME,
+            local_dir=classifier_path,
+        )
+
+    return model_path
+
 
 @lru_cache()
 def initialize_model() -> Union[None, "JailbreakClassifier"]:
@@ -39,11 +59,11 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
         logger.warning("No embedding classifier path set. Server /model endpoint will not work.")
         return None
 
-    from nemoguardrails.library.jailbreak_detection.model_based.models import (
-        JailbreakClassifier,
-    )
+    model_path = _ensure_model_downloaded(classifier_path)
 
-    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.pkl")))
+    from .models import JailbreakClassifier
+
+    jailbreak_classifier = JailbreakClassifier(str(model_path))
 
     return jailbreak_classifier
 

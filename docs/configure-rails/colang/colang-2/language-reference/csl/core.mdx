@@ -1,0 +1,516 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Fundamental Core Flows"
+description: "The core library that contains all relevant flows related to user and bot utterance events and actions."
+---
+
+
+The core library that contains all relevant flows related to user and bot utterance events and actions.
+
+## User Event Flows
+### `user said $text -> $transcript`
+Wait for a user to have said the provided text using an exact match.
+
+Example:
+
+```text
+import core
+
+flow main
+    # Only matches exactly "hello"
+    user said "hello"
+    bot say "hi"
+```
+```text
+> hi
+> hello
+hi
+```
+### `user said something -> $transcript`
+Wait for a user to have said something matching any transcript.
+
+Example:
+
+```text
+import core
+
+flow main
+    $transcript = await user said something
+    bot say "You said: {$transcript}"
+```
+```text
+> I can say whatever I want
+You said: I can say whatever I want
+```
+### `user saying $text -> $transcript`
+Wait for a user to say the given text while talking (this matches the partial transcript of the user
+utterance even if the utterance is not finished yet).
+
+Example:
+
+```text
+import core
+
+flow main
+    # Provide verbal feedback while the user is writing / speaking
+    while True
+        when user saying "sad"
+            bot say "oooh"
+        or when user saying "great"
+            bot say "nice!"
+```
+```text
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a ")
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a sad story")
+oooh
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a sad story that has a great ending")
+nice!
+```
+### `user saying something -> $transcript`
+Wait for any ongoing user utterance (partial transcripts).
+
+Example:
+
+```text
+import core
+import avatars
+
+flow main
+    user saying something
+    bot gesture "nod"
+```
+```text
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="anything")
+Gesture: nod
+```
+### `user started saying something`
+Wait for start of user utterance.
+
+Example:
+
+```text
+import core
+import avatars
+
+flow main
+    # Start a bot posture as soon as the user starts talking
+    user started saying something
+    start bot posture "listening" as $ref
+
+    # Stop the posture when the user is done talking
+    user said something
+    send $ref.Stop()
+```
+```text
+> /UtteranceUserAction.Started()
+Posture: listening
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="I am starting to talk")
+> /UtteranceUserAction.Finished(final_transcript="anything")
+bot posture (stop)
+```
+### `user said something unexpected -> $transcript`
+Wait for a user to have said something unexpected (no active match statement for the user utterance that
+matches the incoming event). This is a rather technical flow. If you are looking for a way to react to a
+wide variety of user messages, check out the flows in `llm.co`.
+
+Example:
+
+```text
+import core
+
+flow handling welcome
+    user said "hi" or user said "hello"
+    bot say "hello"
+
+flow main
+    activate handling welcome
+
+    # If the user utterance is anything else except "hi" and "hello" this will advance
+    user said something unexpected
+    bot say "you said something unexpected"
+```
+```text
+> hi
+hello
+> how are you
+you said something unexpected
+```
+## Bot Action Flows
+
+### `bot say $text`
+Execute a bot utterance with the provided text and wait until the utterance is completed (e.g. for a voice bot, this
+flow will finish once the bot audio has finished).
+
+Example:
+
+```text
+import core
+
+flow main
+    user said something
+    bot say "Hello world!"
+```
+```text
+> anything
+Hello world!
+```
+**Semantic variants**
+
+For more expressive interaction histories and more advanced use cases, the `core.co` library provides several
+semantic wrappers for `bot say`. You can use them anywhere instead of a `bot say` to annotate the
+purpose of the bot utterance.
+
+
+```text
+# Trigger the bot to inform about something
+flow bot inform $text
+
+# Trigger the bot to ask something
+flow bot ask $text
+
+# Trigger the bot to express something
+flow bot express $text
+
+# Trigger the bot to respond with given text
+flow bot respond $text
+
+# Trigger the bot to clarify something
+flow bot clarify $text
+
+# Trigger the bot to suggest something
+flow bot suggest $text
+```
+## Bot Event Flows
+
+### `bot started saying $text`
+Wait for the bot to start saying the given utterance
+
+Example:
+
+```text
+import core
+
+flow reacting to bot utterances
+    bot started saying "hi"
+    send CustomEvent()
+
+flow main
+    activate reacting to bot utterances
+
+    user said something
+    bot say "hi"
+```
+```text
+> hello
+hi
+Event: CustomEvent
+```
+### `bot started saying something`
+Wait for the bot to start saying any utterance
+
+Example:
+
+```text
+import core
+import avatars
+
+flow handling talking posture
+    bot started saying something
+    bot posture "talking"
+    bot said something
+
+flow main
+    activate handling talking posture
+
+    user said something
+    bot say "hi"
+```
+```text
+> something
+hi
+Posture: talking
+bot posture (stop)
+```
+### `bot said $text`
+Wait for the bot to finish saying the given utterance
+
+Example:
+
+```text
+import core
+import avatars
+
+flow creating gestures
+    when bot said "yes"
+        bot gesture "thumbs up"
+    or when bot said "no"
+        bot gesture "shake head"
+
+flow answering cat dog questions
+    when user said "Do you like cats?"
+        bot say "yes"
+    or when user said "Do you like dogs?"
+        bot say "no"
+
+flow main
+    activate creating gestures
+    activate answering cat dog questions
+
+    wait indefinitely
+
+```
+```text
+> Do you like cats?
+yes
+Gesture: thumbs up
+> Do you like dogs?
+no
+Gesture: shake head
+```
+### `bot said something -> $text`
+Wait for the bot to finish saying any utterance
+
+Example:
+
+```text
+import core
+import avatars
+
+flow handling talking posture
+    bot started saying something
+    bot posture "talking"
+    bot said something
+
+flow main
+    activate handling talking posture
+
+    user said something
+    bot say "hi"
+```
+```text
+> something
+hi
+Posture: talking
+bot posture (stop)
+```
+**Semantic variants**
+
+You may react to specific semantic wrappers for `bot say` that are defined in the `core.co` library
+
+
+```text
+# Wait for the bot to finish informing about something
+flow bot informed something -> $text
+
+# Wait for the bot to finish asking about something
+flow bot asked something -> $text
+
+# Wait for the bot to finish expressing something
+flow bot expressed something -> $text
+
+# Wait for the bot to finish responding something
+flow bot responded something -> $text
+
+# Wait for the bot to finish clarifying something
+flow bot clarified something -> $text
+
+# Wait for the bot to finish suggesting something
+flow bot suggested something -> $text
+```
+## Utilities
+
+### `wait indefinitely`
+Helper flow to wait indefinitely. This is often used at the end of the `main` flow to make sure the interaction
+is not restarted.
+
+Example:
+
+```text
+import core
+
+flow main
+    bot say "hello"
+    wait indefinitely
+
+```
+```text
+>
+hello
+```
+### `it finished`
+Wait until a flow or action has finished. This will also check the action's or flow's state and, if it has
+already finished, continue immediately. If the awaited flow has already failed instead of finished, this flow
+will also fail.
+
+Note: Actions can never fail, even if stopped, but will always finish. If an action was stopped, the ActionFinished
+event will have a `was_stopped=True` argument.
+
+Example:
+
+```text
+# import core
+
+# flow bot greet
+#   bot say "hello"
+
+# flow test0
+#   user said "hi"
+#   await UtteranceBotAction(script="hello") as $ref
+#   await it finished $ref
+
+# flow test1
+#   user said "hi"
+#   await bot greet as $ref
+#   await it finished $ref
+
+# flow test2
+#   user said "hi"
+#   start bot greet as $ref
+#   send $ref.Stop()
+#   await it finished $ref
+
+# flow main
+#   await test0
+#   bot say "test0 success"
+
+#   start test1 as $ref
+#   match $ref.Finished()
+#   bot say "test1 success"
+
+#   start test2 as $ref
+#   match $ref.Failed()
+#   bot say "test2 success"
+
+```
+```text
+# > hi
+# hello
+# test0 success
+# > hi
+# hello
+# test1 success
+# > hi
+# hello
+# Event: StopUtteranceBotAction
+# test2 success
+```
+## State Tracking Flows
+These are flows that track bot and user states in global variables.
+
+
+### `tracking bot talking state`
+Track bot talking state in global variable `$bot_talking_state`, `$last_bot_script`.
+
+Example:
+
+```text
+import core
+
+flow main
+    global $bot_talking_state
+    activate tracking bot talking state
+
+    user said something
+    if $bot_talking_state
+        bot gesture "show ignorance to user speech"
+    else
+        bot say "responding to user question"
+
+```
+```text
+> hello there
+responding to user question
+```
+### `tracking user talking state`
+Track user utterance state in global variables: `$user_talking_state`, `$last_user_transcript`.
+
+Example:
+
+```text
+import core
+
+flow main
+    global $last_user_transcript
+    activate tracking user talking state
+
+    user said something
+    bot say "I remembered {$last_user_transcript}"
+
+```
+```text
+> my favorite color is red
+I remembered my favorite color is red
+```
+## Development Helper Flows
+
+### `notification of colang errors`
+A flow to notify about any runtime Colang errors
+
+Example:
+
+```text
+import core
+
+# We need to create an artificial error.
+# We need to create this in a separate flow as otherwise the main flow will fail upon the error.
+flow creating an error
+    user said something
+    $number = 3
+    print $number.error
+
+flow main
+    activate notification of colang errors
+
+    creating an error
+    wait indefinitely
+
+
+```
+```text
+> test
+Excuse me, there was an internal Colang error.
+```
+### `notification of undefined flow start`
+A flow to notify about the start of an undefined flow
+
+Example:
+
+```text
+import core
+
+flow main
+    activate notification of undefined flow start
+
+    # We are misspelling the `bot say` flow to trigger a undefined flow start.
+    user said something
+    bot sayy "hello"
+
+```
+```text
+> test
+Failed to start an undefined flow!
+```
+### `notification of unexpected user utterance`
+A flow to notify about an unhandled user utterance
+
+Example:
+
+```text
+import core
+
+flow reacting to user requests
+    user said "hi" or user said "hello"
+    bot say "hi there"
+
+flow main
+    activate notification of unexpected user utterance
+    activate reacting to user requests
+
+```
+```text
+> hello
+hi there
+> what is your name
+I don't know how to respond to that!
+```

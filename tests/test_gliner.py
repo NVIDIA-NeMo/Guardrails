@@ -13,9 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import logging
 from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
@@ -166,8 +170,6 @@ def test_gliner_pii_detection_no_active_pii_detection():
               user express greeting
               bot express greeting
 
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -213,9 +215,6 @@ def test_gliner_pii_detection_input():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -239,7 +238,7 @@ def test_gliner_pii_detection_input():
     )
 
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
-    chat << "I can't answer that."
+    chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -267,9 +266,6 @@ def test_gliner_pii_detection_output():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -293,7 +289,7 @@ def test_gliner_pii_detection_output():
     )
 
     chat >> "Hi!"
-    chat << "I can't answer that."
+    chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -321,9 +317,6 @@ def test_gliner_pii_detection_retrieval_with_no_pii():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -374,9 +367,6 @@ def test_gliner_pii_masking_on_output():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -431,9 +421,6 @@ def test_gliner_pii_masking_on_input():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
 
             define flow check user message
               execute check_user_message(user_message=$user_message)
@@ -495,9 +482,6 @@ def test_gliner_pii_masking_on_retrieval():
               user express greeting
               bot express greeting
 
-            define bot inform answer unknown
-              "I can't answer that."
-
             define flow check relevant chunks
               execute check_relevant_chunks(relevant_chunks=$relevant_chunks)
         """,
@@ -539,3 +523,329 @@ def test_gliner_pii_masking_on_retrieval():
     )
 
     chat >> "Hey! Can you help me get John's email?"
+
+
+def _build_gliner_config_for_api_key_tests(api_key_env_var: Optional[str] = None) -> RailsConfig:
+    """Minimal RailsConfig with an `input` source_config so the actions reach the api_key
+    resolution path. Optionally configures `api_key_env_var`."""
+    yaml = (
+        "models: []\n"
+        "rails:\n"
+        "  config:\n"
+        "    gliner:\n"
+        "      server_endpoint: http://localhost:8000/v1/chat/completions\n"
+        "      input:\n"
+        "        entities:\n"
+        "          - email\n"
+    )
+    if api_key_env_var is not None:
+        yaml += f"      api_key_env_var: {api_key_env_var}\n"
+    return RailsConfig.from_content(yaml_content=yaml)
+
+
+@pytest.mark.unit
+def test_gliner_config_rejects_unsupported_engine():
+    with pytest.raises(ValueError, match="rails.config.gliner.engine"):
+        RailsConfig.from_content(
+            yaml_content="""
+                models: []
+                rails:
+                  config:
+                    gliner:
+                      engine: nvcf
+                      input:
+                        entities:
+                          - email
+            """,
+        )
+
+
+@pytest.mark.unit
+def test_gliner_config_rejects_unknown_nested_option():
+    with pytest.raises(ValueError, match="rails.config.gliner.input.unknown_option"):
+        RailsConfig.from_content(
+            yaml_content="""
+                models: []
+                rails:
+                  config:
+                    gliner:
+                      input:
+                        entities:
+                          - email
+                        unknown_option: true
+            """,
+        )
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_not_configured(monkeypatch, caplog):
+    """No api_key_env_var set => returns None, no warning logged."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var=None).rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result is None
+    assert "api_key_env_var" not in caplog.text
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_set_and_present(monkeypatch, caplog):
+    """api_key_env_var configured AND env var set => returns the env value, no warning."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-token")
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result == "nvapi-test-token"
+    assert "environment variable is not set" not in caplog.text
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_set_but_missing(monkeypatch, caplog):
+    """api_key_env_var configured BUT env var unset => returns None, warning names the var."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result is None
+    assert "NVIDIA_API_KEY" in caplog.text
+    assert "environment variable is not set" in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_detect_pii_forwards_resolved_api_key():
+    """gliner_detect_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
+    config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
+
+    with (
+        patch(
+            "nemoguardrails.library.gliner.actions._resolve_api_key",
+            return_value="sentinel-api-key",
+        ),
+        patch(
+            "nemoguardrails.library.gliner.actions.gliner_request",
+            new=AsyncMock(return_value={"total_entities": 0, "entities": []}),
+        ) as mock_request,
+    ):
+        from nemoguardrails.library.gliner.actions import gliner_detect_pii
+
+        await gliner_detect_pii(source="input", text="Hello.", config=config)
+
+    assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_mask_pii_forwards_resolved_api_key():
+    """gliner_mask_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
+    config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
+
+    with (
+        patch(
+            "nemoguardrails.library.gliner.actions._resolve_api_key",
+            return_value="sentinel-api-key",
+        ),
+        patch(
+            "nemoguardrails.library.gliner.actions.gliner_request",
+            new=AsyncMock(return_value={"entities": []}),
+        ) as mock_request,
+    ):
+        from nemoguardrails.library.gliner.actions import gliner_mask_pii
+
+        await gliner_mask_pii(source="input", text="Hello.", config=config)
+
+    assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
+
+
+NIM_ENDPOINT = "http://localhost:8000/v1/chat/completions"
+CUSTOM_ENDPOINT = "http://localhost:1235/v1/extract"
+
+
+def _wrap_in_chat_completions(content) -> dict:
+    """Wrap a JSON-serializable content payload in a NIM chat-completions envelope."""
+    inner = content if isinstance(content, str) else json.dumps(content)
+    return {"choices": [{"message": {"content": inner}}]}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_chat_completions_normalizes_entities():
+    """NIM (chat completions) endpoint: unwraps the envelope and renames entity fields."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    nim_content = {
+        "entities": [
+            {"text": "John", "label": "first_name", "start": 0, "end": 4, "score": 0.95},
+            {"text": "test@example.com", "label": "email", "start": 17, "end": 33, "score": 0.98},
+        ],
+        "total_entities": 2,
+        "tagged_text": "[John](first_name) ... [test@example.com](email)",
+    }
+    with aioresponses() as m:
+        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions(nim_content))
+        result = await gliner_request(text="Hi I'm John", server_endpoint=NIM_ENDPOINT)
+
+    assert result["total_entities"] == 2
+    assert result["tagged_text"] == nim_content["tagged_text"]
+    assert result["entities"][0] == {
+        "value": "John",
+        "suggested_label": "first_name",
+        "start_position": 0,
+        "end_position": 4,
+        "score": 0.95,
+    }
+    assert result["entities"][1]["value"] == "test@example.com"
+    assert result["entities"][1]["suggested_label"] == "email"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_custom_endpoint_returns_raw():
+    """Custom server (/v1/extract): returns the response body unchanged (no normalization)."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    custom_response = {
+        "entities": [
+            {
+                "value": "John",
+                "suggested_label": "first_name",
+                "start_position": 0,
+                "end_position": 4,
+                "score": 0.91,
+            },
+        ],
+        "total_entities": 1,
+        "tagged_text": "[John](first_name)",
+    }
+    with aioresponses() as m:
+        m.post(CUSTOM_ENDPOINT, payload=custom_response)
+        result = await gliner_request(text="John", server_endpoint=CUSTOM_ENDPOINT)
+
+    assert result == custom_response
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_forwards_api_key_as_bearer_header():
+    """When api_key is set, an Authorization: Bearer <key> header is sent."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(
+            NIM_ENDPOINT,
+            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
+        )
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, api_key="nvapi-test-key")
+
+    sent = next(iter(m.requests.values()))[0]
+    headers = sent.kwargs.get("headers") or {}
+    assert headers.get("Authorization") == "Bearer nvapi-test-key"
+    assert headers.get("Content-Type") == "application/json"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_no_api_key_omits_authorization_header():
+    """When api_key is None, no Authorization header is sent."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(
+            NIM_ENDPOINT,
+            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
+        )
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+    sent = next(iter(m.requests.values()))[0]
+    headers = sent.kwargs.get("headers") or {}
+    assert "Authorization" not in headers
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_non_200_status_raises():
+    """Non-200 responses raise ValueError with the status code in the message."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(NIM_ENDPOINT, status=500, body="Internal Server Error")
+        with pytest.raises(ValueError, match=r"GLiNER call failed with status code 500"):
+            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_non_json_response_raises():
+    """If the server returns a 200 with non-JSON Content-Type, ValueError is raised."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(NIM_ENDPOINT, status=200, body="not json", content_type="text/plain")
+        with pytest.raises(ValueError, match=r"Failed to parse GLiNER response as JSON"):
+            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_nim_content_unparseable_raises():
+    """Chat completions: when message.content is not valid JSON, ValueError is raised."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions("this is not json {"))
+        with pytest.raises(ValueError, match=r"Failed to parse NIM response content"):
+            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_nim_content_not_dict_raises():
+    """Chat completions: when message.content parses to a non-dict, ValueError is raised."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions(["entities", "as", "list"]))
+        with pytest.raises(ValueError, match=r"Expected NIM response content to be a JSON object"):
+            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_forwards_all_optional_params_to_payload():
+    """All optional params flow into the JSON payload sent to the server."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(
+            NIM_ENDPOINT,
+            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
+        )
+        await gliner_request(
+            text="hello",
+            server_endpoint=NIM_ENDPOINT,
+            enabled_entities=["email", "first_name"],
+            threshold=0.7,
+            chunk_length=512,
+            overlap=64,
+            flat_ner=True,
+        )
+
+    sent = next(iter(m.requests.values()))[0]
+    payload = sent.kwargs.get("json") or {}
+    assert payload["threshold"] == 0.7
+    assert payload["chunk_length"] == 512
+    assert payload["overlap"] == 64
+    assert payload["flat_ner"] is True
+    assert payload["labels"] == ["email", "first_name"]

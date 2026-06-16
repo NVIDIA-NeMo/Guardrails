@@ -13,32 +13,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Any, AsyncIterator, List, Optional, Union
 
-from langchain_core.callbacks.manager import (
-    AsyncCallbackManagerForLLMRun,
-    CallbackManagerForLLMRun,
-)
-from langchain_core.language_models import BaseChatModel
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk
 
 
-class CustomChatModel(BaseChatModel):
-    def _call(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
-
-    async def _acall(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-    ) -> str:
-        pass
+class CustomChatModel:
+    def __init__(self, model: str = "custom_chat_model", **kwargs: Any):
+        self._model = model
 
     @property
-    def _llm_type(self) -> str:
-        return "custom_llm"
+    def model_name(self) -> str:
+        return self._model
+
+    @property
+    def provider_name(self) -> Optional[str]:
+        return "custom_chat_model"
+
+    @property
+    def provider_url(self) -> Optional[str]:
+        return None
+
+    async def generate_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        return LLMResponse(content="Custom chat model response")
+
+    async def stream_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[LLMResponseChunk]:
+        yield LLMResponseChunk(delta_content="Custom chat model response")

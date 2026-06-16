@@ -27,7 +27,17 @@ if not os.environ.get("TOKENIZERS_PARALLELISM"):
 import warnings
 
 import nemoguardrails.patch_asyncio
+
+# Import order matters: the `nemoguardrails.rails` package must be fully
+# initialized before `nemoguardrails.guardrails.guardrails`. The latter
+# pulls in `actions/llm/utils.py` -> `context.py` -> `rails.llm.options`,
+# which re-enters `rails/__init__.py` and would otherwise circularly import
+# names from a half-loaded `actions/llm/utils.py`.
+# isort: off
 from nemoguardrails.rails import RailsConfig
+from nemoguardrails.guardrails.guardrails import Guardrails
+
+# isort: on
 
 nemoguardrails.patch_asyncio.apply()
 
@@ -42,11 +52,48 @@ _use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").l
 )
 
 if _use_guardrails_wrapper:
-    # Use the Guardrails wrapper class (aliased as LLMRails for compatibility)
-    from nemoguardrails.guardrails.guardrails import Guardrails as LLMRails
+    # For backwards-compatibility, instantiate Guardrails instead of LLMRails.
+    LLMRails = Guardrails
 else:
     # Use the original LLMRails class
     from nemoguardrails.rails import LLMRails
 
+from nemoguardrails.llm.frameworks import (  # noqa: E402
+    get_default_framework,
+    register_framework,
+    set_default_framework,
+)
+from nemoguardrails.llm.providers import register_provider  # noqa: E402
+from nemoguardrails.types import (  # noqa: E402
+    ChatMessage,
+    FinishReason,
+    LLMFramework,
+    LLMModel,
+    LLMResponse,
+    LLMResponseChunk,
+    Role,
+    ToolCall,
+    ToolCallFunction,
+    UsageInfo,
+)
+
 __version__ = version("nemoguardrails")
-__all__ = ["LLMRails", "RailsConfig"]
+__all__ = [
+    "ChatMessage",
+    "FinishReason",
+    "Guardrails",
+    "LLMFramework",
+    "LLMModel",
+    "LLMRails",
+    "LLMResponse",
+    "LLMResponseChunk",
+    "RailsConfig",
+    "Role",
+    "ToolCall",
+    "ToolCallFunction",
+    "UsageInfo",
+    "get_default_framework",
+    "register_framework",
+    "register_provider",
+    "set_default_framework",
+]

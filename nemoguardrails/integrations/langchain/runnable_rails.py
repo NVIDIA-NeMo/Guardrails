@@ -31,6 +31,7 @@ from nemoguardrails.integrations.langchain.message_utils import (
     create_ai_message_chunk,
     is_base_message,
     message_to_dict,
+    tool_calls_to_langchain_format,
 )
 from nemoguardrails.integrations.langchain.utils import async_wrap
 from nemoguardrails.rails.llm.options import GenerationOptions
@@ -132,7 +133,7 @@ class RunnableRails(Runnable[Input, Output]):
 
             return text, _output
 
-        self.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+        self.rails.passthrough_fn = passthrough_fn
 
     def __or__(self, other: Union[BaseLanguageModel, Runnable[Any, Any]]) -> Union["RunnableRails", Runnable[Any, Any]]:
         """Chain this runnable with another, returning a new runnable.
@@ -498,9 +499,11 @@ class RunnableRails(Runnable[Input, Output]):
         Raises:
             ValueError: If the input type cannot be handled.
         """
-        # Standardize result format if it's a list
         if isinstance(result, list) and len(result) > 0:
             result = result[0]
+
+        if tool_calls:
+            tool_calls = tool_calls_to_langchain_format(tool_calls)
 
         if self.passthrough and self.passthrough_runnable:
             return self._format_passthrough_output(result, context)

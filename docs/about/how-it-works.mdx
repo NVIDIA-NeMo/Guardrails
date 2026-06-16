@@ -1,0 +1,24 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Architecture Overview"
+sidebar-title: "How It Works"
+description: "High level explanation of how Guardrails works."
+keywords:
+    ["guardrails architecture", "event-driven runtime", "llmrails", "colang"]
+content:
+    type: "concept"
+---
+
+The NeMo Guardrails library acts as an intermediary between application code and LLM requests and responses. Once Guardrails is integrated in an application, all LLM inference requests are first checked by Guardrails to ensure user requests are safe and not malicious. If they are, the request is passed to the LLM for inference. Guardrails also checks the LLM response once it's available, making sure it's appropriate before being passed back to the user.
+
+![Programmable Guardrails Flow](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
+
+Each application can configure its own set of guardrails, depending on the use-case. Guardrails requests can trigger calls to third-party APIs, LLMs fine-tuned to implement Guardrail functionality, or to the Application LLM. Guardrails hides this complexity from clients, orchestrating the workflows behind-the-scenes so applications can focus on their business logic.
+
+## Related Resources
+
+Use the following resources to learn more about the Guardrails library:
+
+- [Guardrail Types](/about-nemo-guardrails-library/rail-types)
+- [Get Started](/get-started/installation-guide)

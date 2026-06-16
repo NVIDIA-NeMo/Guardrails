@@ -83,9 +83,13 @@ async def _run_chat_v1_0(
                 try:
                     bot_message_list = []
                     async for chunk in rails_app.stream_async(messages=history):
-                        if '{"event": "ABORT"' in chunk:
-                            dict_chunk = json.loads(chunk)
-                            console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
+                        if isinstance(chunk, str) and chunk.startswith('{"error"'):
+                            try:
+                                error_data = json.loads(chunk)
+                                error_msg = error_data["error"].get("message", "Unknown error")
+                                console.print(f"\n\n[red]Streaming error: {error_msg}[/]")
+                            except (json.JSONDecodeError, KeyError):
+                                console.print(f"\n\n[red]Streaming error: {chunk}[/]")
                             break
 
                         console.print("[green]" + f"{chunk}" + "[/]", end="")

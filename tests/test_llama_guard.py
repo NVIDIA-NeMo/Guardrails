@@ -15,7 +15,7 @@
 
 
 from nemoguardrails import RailsConfig
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 COLANG_CONFIG = """
 define user express greeting
@@ -66,7 +66,7 @@ def test_llama_guard_check_all_safe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
+    llama_guard_llm = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "safe",  # llama_guard_check_output
@@ -92,7 +92,7 @@ def test_llama_guard_check_input_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
+    llama_guard_llm = FakeLLMModel(
         responses=[
             "unsafe",  # llama_guard_check_input
         ]
@@ -117,7 +117,7 @@ def test_llama_guard_check_input_error():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
+    llama_guard_llm = FakeLLMModel(
         responses=[
             "error",  # llama_guard_check_input
         ]
@@ -142,7 +142,7 @@ def test_llama_guard_check_output_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
+    llama_guard_llm = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "unsafe",  # llama_guard_check_output
@@ -168,7 +168,7 @@ def test_llama_guard_check_output_error():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
+    llama_guard_llm = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "error",  # llama_guard_check_output

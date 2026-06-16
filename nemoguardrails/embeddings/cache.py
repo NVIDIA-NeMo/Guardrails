@@ -325,7 +325,10 @@ def cache_embeddings(func):
             # if cache is not enabled compute embeddings for the whole input
             return await func(self, texts)
 
-        embeddings_cache = EmbeddingsCache.from_config(self.cache_config)
+        embeddings_cache = getattr(self, "_embeddings_cache", None)
+        if embeddings_cache is None:
+            embeddings_cache = EmbeddingsCache.from_config(self.cache_config)
+            self._embeddings_cache = embeddings_cache
 
         cached_texts = {}
         uncached_texts = []
