@@ -22,8 +22,8 @@ When presenting references or citations to users, use the canonical human-readab
 
 ## Required Boundaries
 
-- Ask for final confirmation immediately before pushing a branch or creating a PR.
 - Do not push branches, create PRs, create draft PRs, or prepare public-submission-ready PR materials unless the linked issue is triaged and assigned to the human contributor.
+- After that gate passes, ask for final confirmation immediately before pushing a branch or creating a PR.
 - Use the repository PR template.
 - Report the PR URL after creation.
 - Do not edit `CHANGELOG.md` or `CHANGELOG-Colang.md`.
