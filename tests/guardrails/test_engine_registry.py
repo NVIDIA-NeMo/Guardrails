@@ -30,6 +30,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
@@ -1503,3 +1504,41 @@ class TestEngineRegistryStreamModelCallSpanAttributes:
         assert "gen_ai.response.model" not in attrs
         assert "gen_ai.usage.input_tokens" not in attrs
         assert attrs["error.type"] == "RuntimeError"
+
+
+class TestEngineRegistryToolDelegation:
+    _TOOLS = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+            },
+        }
+    ]
+
+    def test_parse_tools_delegates_to_model_engine(self, manager):
+        toolset = manager.parse_tools("main", {"tools": self._TOOLS})
+        assert isinstance(toolset, Toolset)
+        assert list(toolset.by_key) == ["get_weather"]
+
+    def test_parse_tools_no_tools_returns_empty(self, manager):
+        assert manager.parse_tools("main", None).by_key == {}
+
+    def test_extract_tool_results_delegates_to_model_engine(self, manager):
+        messages = [{"role": "tool", "tool_call_id": "c1", "name": "get_weather", "content": "18C"}]
+        results = manager.extract_tool_results("main", messages)
+        assert [(r.call_id, r.name, r.content) for r in results] == [("c1", "get_weather", "18C")]
+
+    def test_parse_tools_unknown_engine_raises_keyerror(self, manager):
+        with pytest.raises(KeyError):
+            manager.parse_tools("nonexistent", {"tools": self._TOOLS})
+
+    def test_extract_tool_results_unknown_engine_raises_keyerror(self, manager):
+        with pytest.raises(KeyError):
+            manager.extract_tool_results("nonexistent", [])
+
+    def test_parse_tools_non_model_engine_raises_typeerror(self, manager):
+        """jailbreak_detection is an APIEngine, not a ModelEngine."""
+        with pytest.raises(TypeError):
+            manager.parse_tools("jailbreak_detection", {"tools": self._TOOLS})
