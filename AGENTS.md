@@ -13,7 +13,7 @@ authoring and AI-agent documentation rules.
 
 Agent skills live under `.agents/skills/`.
 Start with `guardrails-skills-guide` when choosing a task-specific skill.
-Use `guardrails-docs` for product-usage questions and docs routing.
+Use `guardrails-developer-guide` for product-usage questions and docs routing.
 Use `guardrails-contributor-dev-setup` for local contributor setup and
 validation workflow.
 Use `guardrails-contributor-docs` for Fern docs edits, previews, validation, and

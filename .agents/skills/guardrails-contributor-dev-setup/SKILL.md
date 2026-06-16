@@ -123,6 +123,6 @@ If docs validation fails during SDK generation with a network fetch error:
 
 ## Related Skills
 
-- Use `guardrails-docs` for product-usage questions.
+- Use `guardrails-developer-guide` for product-usage questions.
 - Use `guardrails-contributor-docs` for Fern docs editing, preview, links, and publishing workflow.
 - Use `guardrails-contributor-create-pr` when drafting PR text and verification summaries for a human to submit.

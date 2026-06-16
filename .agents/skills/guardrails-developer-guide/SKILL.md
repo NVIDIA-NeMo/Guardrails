@@ -1,10 +1,10 @@
 ---
-name: "guardrails-docs"
+name: "guardrails-developer-guide"
 description: "Routes NVIDIA NeMo Guardrails library product-usage questions to the canonical documentation. Use when users ask how to install, configure, integrate, evaluate, observe, deploy, troubleshoot, or use the NVIDIA NeMo Guardrails library. Trigger keywords - install guardrails, configure rails, guardrail catalog, Colang, Python API, LangChain, LangGraph, server, evaluate guardrails, tracing, metrics, Docker, troubleshooting."
 license: "Apache-2.0"
 ---
 
-# Guardrails Documentation Router
+# Guardrails Developer Guide
 
 Use this skill for product-usage questions about the NVIDIA NeMo Guardrails library.
 Do not restate full product documentation in this skill.

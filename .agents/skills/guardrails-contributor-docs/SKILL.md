@@ -99,6 +99,6 @@ Report any skipped validation and residual risk clearly.
 
 ## Related Skills
 
-- Use `guardrails-docs` for product-usage questions.
+- Use `guardrails-developer-guide` for product-usage questions.
 - Use `guardrails-contributor-dev-setup` for local environment setup.
 - Use `guardrails-contributor-create-pr` when drafting PR text and verification summaries for a human to submit.

@@ -12,20 +12,20 @@ The NVIDIA NeMo Guardrails library agent skills are organized around two paths:
 - Contributors who cloned this repository and need help following project workflow and implementation rules.
 
 For product usage, prefer the canonical documentation instead of duplicating instructions in skills.
-The `guardrails-docs` skill routes the agent to the docs MCP server, `llms.txt`, and clean Markdown pages.
+The `guardrails-developer-guide` skill routes the agent to the docs MCP server, `llms.txt`, and clean Markdown pages.
 
 ## Skill Catalog
 
 | Skill | Audience | Summary |
 | --- | --- | --- |
-| `guardrails-docs` | Users and developers building with the library | Routes product-usage questions to the canonical documentation through MCP, `llms.txt`, per-page Markdown, or local docs fallback. |
+| `guardrails-developer-guide` | Users and developers building with the library | Routes product-usage questions to the canonical documentation through MCP, `llms.txt`, per-page Markdown, or local docs fallback. |
 | `guardrails-contributor-dev-setup` | Repository contributors | Sets up and verifies the local development environment, dependencies, hooks, and validation commands. |
 | `guardrails-contributor-docs` | Documentation contributors | Guides Fern docs edits, navigation, previews, validation, custom components, and docs-agent entry points. |
 | `guardrails-contributor-create-pr` | Repository contributors | Prepares PR-ready text and creates PRs only after explicit user permission and the repository issue gate. |
 
 ## Choose a Skill
 
-Use `guardrails-docs` for questions such as:
+Use `guardrails-developer-guide` for questions such as:
 
 - How do I install the NVIDIA NeMo Guardrails library?
 - Which guardrail should I use?
