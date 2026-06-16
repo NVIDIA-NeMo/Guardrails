@@ -39,6 +39,7 @@ from nemoguardrails.guardrails._http import (
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
+from nemoguardrails.guardrails.tool_schema import Tool, Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -294,6 +295,45 @@ def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
             )
         )
     return result
+
+
+def _parse_tools_openai(tools: list) -> list[Tool]:
+    """Parse OpenAI Chat Completions tool definitions into ``Tool`` objects.
+
+    Each entry has the nested shape ``{"type": "function", "function": {"name",
+    "description", "parameters", "strict"}}``; ``function.parameters`` (the JSON
+    Schema) maps to ``Tool.arguments_schema``. Entries that are not a dict or lack
+    a ``function`` block are skipped, so a malformed/undeclared tool is invisible
+    to the allowlist and a call to it is blocked rather than silently allowed.
+    """
+    parsed: list[Tool] = []
+    for entry in tools:
+        if not isinstance(entry, dict):
+            continue
+        function = entry.get("function")
+        if not isinstance(function, dict):
+            continue
+        parsed.append(
+            Tool(
+                name=function.get("name"),
+                type=entry.get("type", "function"),
+                description=function.get("description"),
+                arguments_schema=function.get("parameters"),
+                strict=function.get("strict"),
+            )
+        )
+    return parsed
+
+
+def _parse_tools_nim(tools: list) -> list[Tool]:
+    """Parse NIM tool definitions. NIM uses the OpenAI Chat Completions tool shape."""
+    return _parse_tools_openai(tools)
+
+
+_TOOL_PARSERS = {
+    "openai": _parse_tools_openai,
+    "nim": _parse_tools_nim,
+}
 
 
 class ModelEngineError(Exception):
@@ -658,3 +698,19 @@ class ModelEngine(BaseEngine):
         """
         async for chunk in self.stream_call(messages, **kwargs):
             yield chunk
+
+    def parse_tools(self, llm_params: Optional[dict]) -> Toolset:
+        """Parse the provider tool block in ``llm_params`` into a ``Toolset``.
+
+        Reads the opaque ``tools`` block forwarded via
+        ``GenerationOptions.llm_params`` and normalizes it into the internal
+        ``Toolset`` the tool rails validate against, keyed on the model's engine
+        (``_TOOL_PARSERS``). OpenAI and NIM share the Chat Completions shape; an
+        engine with no registered parser falls back to it. Returns an empty
+        ``Toolset`` when no tools are declared.
+        """
+        tools = (llm_params or {}).get("tools")
+        if not tools:
+            return Toolset()
+        parser = _TOOL_PARSERS.get(self.model_config.engine, _parse_tools_openai)
+        return Toolset(tools=parser(tools))

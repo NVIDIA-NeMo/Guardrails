@@ -35,6 +35,7 @@ from nemoguardrails.guardrails.model_engine import (
     _parse_chat_completion,
     _parse_chat_completion_chunk,
 )
+from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
@@ -1917,3 +1918,69 @@ class TestParseChatCompletionChunk:
         assert result.model == "gpt-5"
         assert result.request_id == "chunk-1"
         assert result.finish_reason == "stop"
+
+
+_OPENAI_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the weather for a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+            "strict": True,
+        },
+    },
+    {"type": "function", "function": {"name": "noargs"}},
+]
+
+
+class TestParseTools:
+    def test_parses_openai_chat_completions_tools(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+
+        assert isinstance(toolset, Toolset)
+        assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+
+        weather = toolset.by_key["get_weather"]
+        assert weather.name == "get_weather"
+        assert weather.type == "function"
+        assert weather.description == "Get the weather for a city."
+        assert weather.arguments_schema == _OPENAI_TOOLS[0]["function"]["parameters"]
+        assert weather.strict is True
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+
+    def test_tool_without_parameters_has_no_arguments_schema(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        assert toolset.by_key["noargs"].arguments_schema is None
+
+    def test_no_tools_returns_empty_toolset(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.parse_tools({}).by_key == {}
+        assert engine.parse_tools(None).by_key == {}
+        assert engine.parse_tools({"tools": []}).by_key == {}
+
+    def test_malformed_entries_are_skipped(self):
+        """Non-dict / function-less entries are dropped so a malformed tool fails closed."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        tools = [
+            "garbage",
+            {"type": "function"},
+            {"type": "function", "function": {"name": "ok"}},
+        ]
+        toolset = engine.parse_tools({"tools": tools})
+        assert list(toolset.by_key) == ["ok"]
+
+    def test_unknown_engine_falls_back_to_openai_parser(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
+        assert sorted(toolset.by_key) == ["get_weather", "noargs"]

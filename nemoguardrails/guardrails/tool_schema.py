@@ -13,21 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Internal canonical tool types for IORails tool-calling rails.
+"""Internal tool types for IORails tool-calling rails.
 
 These engine-internal dataclasses are the normalized, provider-neutral shape the
 tool rails validate against. They are NOT part of the public API and NOT carried
 on ``GenerationOptions``: the request surface stays the provider-native
-``llm_params`` block, which ``ModelEngine`` canonicalizes into a ``Toolset`` (and
-incoming tool results into ``ToolResult`` objects) per inference call.
+``llm_params`` block, which ``ModelEngine`` parses into a ``Toolset`` (and incoming
+tool results into ``ToolResult`` objects) per inference call.
 
 ``Tool`` is a declared tool definition (what the caller offers); ``ToolCall`` (in
 ``nemoguardrails.types``) is an invocation the model emitted. Field names are
-provider-neutral so OpenAI Chat Completions (the engine implemented today), OpenAI
-Responses, Anthropic, Gemini, and Bedrock all canonicalize into the same shape:
+provider-neutral so the per-provider adapters all produce the same shape:
 ``arguments_schema`` is OpenAI ``parameters`` / Anthropic ``input_schema`` / Gemini
 ``parameters``; ``ToolResult.call_id`` is the OpenAI ``tool_call_id`` / Responses
-``call_id`` / Anthropic ``tool_use_id`` / Gemini function-call ``id``.
+``call_id`` / Anthropic ``tool_use_id`` / Gemini function-call ``id``. OpenAI Chat
+Completions is the engine implemented today.
 """
 
 from dataclasses import dataclass, field
@@ -60,7 +60,7 @@ class Tool:
 
 @dataclass(slots=True)
 class Toolset:
-    """The canonical set of tools declared on a request, with a lookup index."""
+    """The set of tools declared on a request, with a lookup index."""
 
     tools: list[Tool] = field(default_factory=list)
     by_key: dict[str, Tool] = field(init=False)
