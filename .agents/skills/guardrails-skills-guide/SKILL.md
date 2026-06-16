@@ -14,11 +14,18 @@ The NVIDIA NeMo Guardrails library agent skills are organized around two paths:
 For product usage, prefer the canonical documentation instead of duplicating instructions in skills.
 The `guardrails-developer-guide` skill routes the agent to the docs MCP server, `llms.txt`, and clean Markdown pages.
 
+## Documentation Source Rule
+
+When using NVIDIA NeMo Guardrails library documentation, use the Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/`.
+Use `llms.txt` and page URLs ending in `.md` when loading documentation for agent context.
+When presenting references or citations to users, use the canonical human-readable docs links without `.md`.
+
 ## Skill Catalog
 
 | Skill | Audience | Summary |
 | --- | --- | --- |
 | `guardrails-developer-guide` | Users and developers building with the library | Routes product-usage questions to the canonical documentation through MCP, `llms.txt`, per-page Markdown, or local docs fallback. |
+| `guardrails-developer-create-guardrails` | Developers building with the library | Helps create a small working guardrails configuration, choose a starting pattern, add files, and verify behavior. |
 | `guardrails-contributor-dev-setup` | Repository contributors | Sets up and verifies the local development environment, dependencies, hooks, and validation commands. |
 | `guardrails-contributor-docs` | Documentation contributors | Guides Fern docs edits, navigation, previews, validation, custom components, and docs-agent entry points. |
 | `guardrails-contributor-create-pr` | Repository contributors | Prepares PR-ready text and creates PRs only after explicit user permission and the repository issue gate. |
@@ -32,6 +39,8 @@ Use `guardrails-developer-guide` for questions such as:
 - How do I configure input, output, retrieval, dialog, or execution rails?
 - How do I write Colang flows?
 - How do I use Python APIs, LangChain, LangGraph, the server, evaluation, tracing, metrics, or deployment docs?
+
+Use `guardrails-developer-create-guardrails` when a developer wants the agent to create or modify a guardrails configuration, write starter files, choose a rail pattern, or produce verification prompts.
 
 Use `guardrails-contributor-create-pr` when preparing contribution text for a human to submit.
 The skill may create PRs only after the user explicitly asks, the linked issue is triaged and assigned, and the user gives final confirmation.

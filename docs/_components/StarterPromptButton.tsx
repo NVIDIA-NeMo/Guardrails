@@ -17,6 +17,7 @@ Assume I may not have installed the Python package yet and may not have cloned t
 - Use the official NVIDIA NeMo Guardrails library documentation as the source of truth.
 - Prefer the docs MCP server if this agent supports MCP.
 - Otherwise, use the documentation index at \`https://docs.nvidia.com/nemo/guardrails/llms.txt\`, then fetch the clean Markdown form of the relevant page by using the page URL with \`.md\`.
+- Use Markdown documentation under \`https://docs.nvidia.com/nemo/guardrails/\` when loading information for agent context. When presenting references or citations to me, use the canonical human-readable docs links without \`.md\`.
 - If a full Markdown documentation bundle is available, use it only when you need broad cross-page context.
 - Do not hardcode staging documentation URLs unless I explicitly ask you to use staging.
 - Check my installed \`nemoguardrails\` version only after you confirm the package is installed. If it is not installed yet, use the current Installation docs first. If you cannot determine the version after installation, ask whether to use the latest docs.

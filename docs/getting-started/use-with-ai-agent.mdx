@@ -66,7 +66,7 @@ If you want local skill files without cloning the full source tree, use a sparse
 ```bash
 git clone --filter=blob:none --no-checkout https://github.com/NVIDIA-NeMo/Guardrails.git
 cd Guardrails
-git sparse-checkout set --no-cone '/.agents/skills/guardrails-developer-guide/**' '/.agents/skills/guardrails-skills-guide/**' '/.claude/**' '/AGENTS.md' '/CLAUDE.md'
+git sparse-checkout set --no-cone '/.agents/skills/guardrails-developer-guide/**' '/.agents/skills/guardrails-developer-create-guardrails/**' '/.agents/skills/guardrails-skills-guide/**' '/.claude/**' '/AGENTS.md' '/CLAUDE.md'
 git checkout
 ```
 

@@ -10,6 +10,12 @@ Use this skill when a contributor needs to set up or verify a local development 
 `CONTRIBUTING.md` is canonical for the public contribution workflow.
 Root `AGENTS.md` is canonical for agent-specific repository rules and validation guidance.
 
+## Documentation Source Rule
+
+When using NVIDIA NeMo Guardrails library documentation, use the Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/`.
+Use `llms.txt` and page URLs ending in `.md` when loading documentation for agent context.
+When presenting references or citations to users, use the canonical human-readable docs links without `.md`.
+
 ## Prerequisites
 
 Verify the contributor has:

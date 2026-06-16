@@ -10,6 +10,12 @@ Use this skill for product-usage questions about the NVIDIA NeMo Guardrails libr
 Do not restate full product documentation in this skill.
 Route the agent to the canonical docs and summarize the relevant guidance for the user's task.
 
+## Documentation Source Rule
+
+Always use the Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/`.
+Use `llms.txt` and page URLs ending in `.md` when loading documentation for agent context.
+When presenting references or citations to users, use the canonical human-readable docs links without `.md`.
+
 ## Retrieval Order
 
 1. Prefer the docs MCP server when the client supports MCP.

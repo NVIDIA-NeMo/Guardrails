@@ -10,6 +10,12 @@ Use this skill when changing repository documentation under `docs/` or Fern conf
 `docs/AGENTS.md` is canonical for documentation authoring invariants.
 `CONTRIBUTING.md` is canonical for contribution workflow.
 
+## Documentation Source Rule
+
+When using published NVIDIA NeMo Guardrails library documentation, use the Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/`.
+Use `llms.txt` and page URLs ending in `.md` when loading documentation for agent context.
+When presenting references or citations to users, use the canonical human-readable docs links without `.md`.
+
 ## Source Of Truth
 
 - Edit source pages under `docs/**/*.mdx`.

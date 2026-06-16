@@ -14,6 +14,12 @@ Issues must be opened manually by a human through the repository issue templates
 `AI_POLICY.md` is canonical for AI-assisted contribution policy.
 `AGENTS.md` is canonical for repository-specific agent constraints.
 
+## Documentation Source Rule
+
+When using NVIDIA NeMo Guardrails library documentation, use the Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/`.
+Use `llms.txt` and page URLs ending in `.md` when loading documentation for agent context.
+When presenting references or citations to users, use the canonical human-readable docs links without `.md`.
+
 ## Required Boundaries
 
 - Ask for final confirmation immediately before pushing a branch or creating a PR.
