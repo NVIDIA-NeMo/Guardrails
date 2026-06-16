@@ -40,10 +40,9 @@ from nemoguardrails.actions import action
 
 log = logging.getLogger(__name__)
 
-# Sample-based entropy for inputs above this size. Entropy is statistically
-# stable well below this threshold; sampling avoids O(n) work for huge inputs.
+# Entropy is statistically stable well below this threshold; sampling avoids O(n) work.
 ENTROPY_SAMPLE_THRESHOLD = 10000
-ENTROPY_SAMPLE_SIZE = 8000
+ENTROPY_SAMPLE_CHARS = 8000
 
 
 class ContextBloatResult(TypedDict):
@@ -55,24 +54,24 @@ class ContextBloatResult(TypedDict):
     metrics: dict
 
 
+def _stratified_sample(text: str, sample_chars: int) -> str:
+    third = sample_chars // 3
+    mid = len(text) // 2
+    return text[:third] + text[mid - third // 2 : mid + third // 2] + text[-third:]
+
+
 def _shannon_entropy(text: str) -> float:
-    """Shannon entropy (bits/char). Samples large inputs to bound runtime."""
+    """Samples large inputs to bound runtime."""
     if not text:
         return 0.0
-    if len(text) > ENTROPY_SAMPLE_THRESHOLD:
-        # Stratified sample: head, middle, tail thirds
-        third = ENTROPY_SAMPLE_SIZE // 3
-        mid = len(text) // 2
-        sample = text[:third] + text[mid - third // 2 : mid + third // 2] + text[-third:]
-    else:
-        sample = text
+    sample = _stratified_sample(text, ENTROPY_SAMPLE_CHARS) if len(text) > ENTROPY_SAMPLE_THRESHOLD else text
     counts = Counter(sample)
     total = len(sample)
     return -sum((c / total) * math.log2(c / total) for c in counts.values())
 
 
 def _repetition_ratio(text: str, n: int = 3) -> float:
-    """Fraction of repeated n-grams. High values are a padding-attack signature."""
+    """High values are a padding-attack signature."""
     if not text:
         return 0.0
     tokens = text.split()
@@ -109,10 +108,64 @@ def _validate_config(config: RailsConfig) -> None:
         raise ValueError(f"Expected 'reject', 'truncate', or 'warn' but got {cfg.action!r}.")
 
 
+def _check_entropy(text: str, cfg, detections: List[str], metrics: dict) -> Optional[ContextBloatResult]:
+    entropy = _shannon_entropy(text)
+    metrics["entropy"] = round(entropy, 3)
+    if entropy < cfg.min_entropy:
+        detections.append("low_entropy")
+        if cfg.action in ("reject", "truncate"):
+            log.info(f"context bloat detected: low_entropy | entropy={entropy:.3f}")
+            return ContextBloatResult(
+                is_bloat=True,
+                action="reject",
+                text=text,
+                reason="low_entropy",
+                detections=detections,
+                metrics=metrics,
+            )
+    return None
+
+
+def _check_longest_run(text: str, cfg, detections: List[str], metrics: dict) -> Optional[ContextBloatResult]:
+    run_ratio = _longest_run_ratio(text)
+    metrics["longest_run_ratio"] = round(run_ratio, 3)
+    if run_ratio > cfg.max_run_ratio:
+        detections.append("long_run")
+        if cfg.action in ("reject", "truncate"):
+            log.info(f"context bloat detected: long_run | run_ratio={run_ratio:.3f}")
+            return ContextBloatResult(
+                is_bloat=True,
+                action="reject",
+                text=text,
+                reason="long_run",
+                detections=detections,
+                metrics=metrics,
+            )
+    return None
+
+
+def _check_repetition(text: str, cfg, detections: List[str], metrics: dict) -> Optional[ContextBloatResult]:
+    rep_ratio = _repetition_ratio(text, n=cfg.ngram_size)
+    metrics["repetition_ratio"] = round(rep_ratio, 3)
+    if rep_ratio > cfg.max_repetition_ratio:
+        detections.append("high_repetition")
+        if cfg.action in ("reject", "truncate"):
+            log.info(f"context bloat detected: high_repetition | rep_ratio={rep_ratio:.3f}")
+            return ContextBloatResult(
+                is_bloat=True,
+                action="reject",
+                text=text,
+                reason="high_repetition",
+                detections=detections,
+                metrics=metrics,
+            )
+    return None
+
+
 @action()
 async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloatResult:
     """Detect context-bloat / context-manipulation attacks.
-    Check order is cheapest first to enable early-exit
+    Check order is cheapest first to enable early-exit.
 
     Args:
         text: The text to inspect (joined chunks or user message).
@@ -128,7 +181,6 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
     detections: List[str] = []
     metrics: dict = {"chars": char_count}
 
-    # ---- 1. Size cap (truncate only applies here) ----
     if char_count > cfg.max_chars:
         detections.append("size_cap_exceeded")
         log.info(f"context bloat detected: size_cap_exceeded | chars={char_count}")
@@ -144,63 +196,16 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
         if cfg.action == "truncate":
             text = text[: cfg.max_chars]
 
-    # Checks 2-4 are skipped for short texts to avoid false positives
     if char_count >= cfg.min_chars:
-        # ---- 2. Entropy ----
-        entropy = _shannon_entropy(text)
-        metrics["entropy"] = round(entropy, 3)
-        if entropy < cfg.min_entropy:
-            detections.append("low_entropy")
-            if cfg.action in ("reject", "truncate"):
-                log.info(f"context bloat detected: low_entropy | entropy={entropy:.3f}")
-                return ContextBloatResult(
-                    is_bloat=True,
-                    action="reject",
-                    text=text,
-                    reason="low_entropy",
-                    detections=detections,
-                    metrics=metrics,
-                )
+        for check in (_check_entropy, _check_longest_run, _check_repetition):
+            result = check(text, cfg, detections, metrics)
+            if result is not None:
+                return result
 
-        # ---- 3. Longest run ----
-        run_ratio = _longest_run_ratio(text)
-        metrics["longest_run_ratio"] = round(run_ratio, 3)
-        if run_ratio > cfg.max_run_ratio:
-            detections.append("long_run")
-            if cfg.action in ("reject", "truncate"):
-                log.info(f"context bloat detected: long_run | run_ratio={run_ratio:.3f}")
-                return ContextBloatResult(
-                    is_bloat=True,
-                    action="reject",
-                    text=text,
-                    reason="long_run",
-                    detections=detections,
-                    metrics=metrics,
-                )
-
-        # ---- 4. N-gram repetition ----
-        rep_ratio = _repetition_ratio(text, n=cfg.ngram_size)
-        metrics["repetition_ratio"] = round(rep_ratio, 3)
-        if rep_ratio > cfg.max_repetition_ratio:
-            detections.append("high_repetition")
-            if cfg.action in ("reject", "truncate"):
-                log.info(f"context bloat detected: high_repetition | rep_ratio={rep_ratio:.3f}")
-                return ContextBloatResult(
-                    is_bloat=True,
-                    action="reject",
-                    text=text,
-                    reason="high_repetition",
-                    detections=detections,
-                    metrics=metrics,
-                )
-
-    # ---- Aggregate result ----
     is_bloat = bool(detections)
     reason = ", ".join(detections) if detections else None
-
     if is_bloat:
         log.info(f"context bloat detected: {reason} | metrics={metrics}")
-
     return ContextBloatResult(
         is_bloat=is_bloat,
         action=cfg.action,
