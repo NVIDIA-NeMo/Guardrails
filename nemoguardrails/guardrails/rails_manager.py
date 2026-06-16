@@ -24,13 +24,15 @@ unsafe result cancels remaining rails immediately.
 import asyncio
 import logging
 from collections.abc import Coroutine, Mapping
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyInputAction,
     ContentSafetyOutputAction,
 )
 from nemoguardrails.guardrails.actions.jailbreak_detection_action import JailbreakDetectionAction
+from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
+from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
@@ -40,8 +42,11 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.rail_action import RailAction
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
+from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
+from nemoguardrails.guardrails.tool_schema import ToolResult, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
+from nemoguardrails.types import ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -58,6 +63,19 @@ _ACTION_CLASSES: dict[str, type[RailAction]] = {
         JailbreakDetectionAction,
     ]
 }
+
+# All known ToolRailAction subclasses, keyed by their action_name. Tool rails are
+# local structural/schema validators (model-free) and so are registered separately
+# from the LLM/API-call-shaped RailAction classes above.
+_TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
+    cls.action_name: cls
+    for cls in [
+        ToolCallRailAction,
+        ToolResultRailAction,
+    ]
+}
+
+_ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
 
 
 class RailsManager:
@@ -77,6 +95,8 @@ class RailsManager:
         output_flows: list[str],
         input_parallel: bool = False,
         output_parallel: bool = False,
+        tool_call_flows: Optional[list[str]] = None,
+        tool_result_flows: Optional[list[str]] = None,
         tracer: Optional["Tracer"] = None,
         content_capture_enabled: bool = False,
     ) -> None:
@@ -102,16 +122,27 @@ class RailsManager:
         self.input_parallel: bool = input_parallel
         self.output_parallel: bool = output_parallel
 
+        self.tool_call_flows: list[str] = list(tool_call_flows or [])
+        self.tool_result_flows: list[str] = list(tool_result_flows or [])
+
         # Build action instances for each configured flow
         self._actions: dict[str, RailAction] = {}
         for flow in self.input_flows + self.output_flows:
             base_name = _get_flow_name(flow) or flow
             self._actions[flow] = self._create_action(base_name)
 
+        # Tool Call Actions run on tool invocations from the main LLM response
+        # Tool Result Actions run on the results of executing Tool Calls in the harness
+        self._tool_call_actions = self._build_tool_actions(self.tool_call_flows, ToolCallRailAction)
+        self._tool_result_actions = self._build_tool_actions(self.tool_result_flows, ToolResultRailAction)
+
         log.info(
-            "RailsManager initialized: input_flows=%s, output_flows=%s, input_parallel=%s, output_parallel=%s",
+            "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "
+            "tool_result_flows=%s, input_parallel=%s, output_parallel=%s",
             self.input_flows,
             self.output_flows,
+            self.tool_call_flows,
+            self.tool_result_flows,
             self.input_parallel,
             self.output_parallel,
         )
@@ -123,6 +154,26 @@ class RailsManager:
             available = sorted(_ACTION_CLASSES.keys())
             raise RuntimeError(f"Rail flow '{base_name}' not supported. Available: {available}")
         return action_cls(self.engine_registry, self.task_manager, tracer=self._tracer)
+
+    def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
+        """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
+
+        Validates unknown flows or incorrect direction and raises ``RuntimeError``
+        """
+        actions: dict[str, _ToolActionT] = {}
+        for flow in flows:
+            base_name = _get_flow_name(flow) or flow
+            action_cls = _TOOL_ACTION_CLASSES.get(base_name)
+            if action_cls is None:
+                available = sorted(_TOOL_ACTION_CLASSES.keys())
+                raise RuntimeError(f"Tool rail flow '{base_name}' not supported. Available: {available}")
+            action = action_cls(tracer=self._tracer)
+            if not isinstance(action, expected_cls):
+                raise RuntimeError(
+                    f"Tool rail flow '{flow}' resolved to {type(action).__name__}, expected {expected_cls.__name__}"
+                )
+            actions[flow] = action
+        return actions
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
         """Run all enabled input rails, short-circuiting on the first failure.
@@ -155,6 +206,31 @@ class RailsManager:
             return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
 
+    async def are_tool_calls_safe(self, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
+        """Run all enabled tool-call rails against the model's tool calls.
+
+        Rails run sequentially, short-circuiting on the first failure.
+        Returns safe when no tool-call rails are configured.
+        """
+        if not self.tool_call_flows:
+            return RailResult(is_safe=True)
+
+        rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in self.tool_call_flows}
+        return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
+
+    async def are_tool_results_safe(self, tool_results: list[ToolResult], prior_calls: list[ToolCall]) -> RailResult:
+        """Run all enabled tool-result rails against the results of tool calls.
+
+        Validates the tool results (already normalized to ``ToolResult``) against
+        the prior tool calls the model made. Rails run sequentially, short-circuiting
+        on the first failure. Returns safe when no tool-result rails are configured.
+        """
+        if not self.tool_result_flows:
+            return RailResult(is_safe=True)
+
+        rails = {flow: self._run_tool_result_rail(flow, tool_results, prior_calls) for flow in self.tool_result_flows}
+        return await self._run_rails_sequential(rails, RailDirection.INPUT)
+
     async def _run_rail(
         self,
         flow: str,
@@ -178,6 +254,22 @@ class RailsManager:
                     {"messages": messages, "bot_response": bot_response},
                     reason=result.reason if not result.is_safe else None,
                 )
+            return result
+
+    async def _run_tool_call_rail(self, flow: str, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
+        """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
+        with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
+            result = await self._tool_call_actions[flow].run(toolset, tool_calls)
+            mark_rail_stop(span, result.is_safe)
+            return result
+
+    async def _run_tool_result_rail(
+        self, flow: str, tool_results: list[ToolResult], prior_calls: list[ToolCall]
+    ) -> RailResult:
+        """Dispatch a single tool-result rail to its action, wrapped in an INPUT rail span."""
+        with rail_span(self._tracer, flow, RailDirection.INPUT) as span:
+            result = await self._tool_result_actions[flow].run(tool_results, prior_calls)
+            mark_rail_stop(span, result.is_safe)
             return result
 
     async def _run_rails_sequential(

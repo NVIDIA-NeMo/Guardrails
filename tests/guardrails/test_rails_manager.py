@@ -28,9 +28,10 @@ import pytest
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -469,3 +470,103 @@ class TestParallelBothDirections:
         )
         result = await parallel_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe
+
+
+_WEATHER_SCHEMA = {
+    "type": "object",
+    "properties": {"city": {"type": "string"}},
+    "required": ["city"],
+}
+
+
+def _tool_rails_manager(*, tool_call_flows=None, tool_result_flows=None) -> RailsManager:
+    """Build a RailsManager with only tool rails wired (no LLM input/output flows)."""
+    config = RailsConfig.from_content(config={"models": []})
+    return RailsManager(
+        engine_registry=EngineRegistry(config.models, config.rails.config),
+        task_manager=LLMTaskManager(config),
+        input_flows=[],
+        output_flows=[],
+        tool_call_flows=tool_call_flows or [],
+        tool_result_flows=tool_result_flows or [],
+    )
+
+
+def _toolset() -> Toolset:
+    return Toolset(tools=[Tool(name="get_weather", arguments_schema=_WEATHER_SCHEMA)])
+
+
+def _call(name: str, arguments: dict) -> ToolCall:
+    return ToolCall(id="c1", function=ToolCallFunction(name=name, arguments=arguments))
+
+
+class TestRailsManagerToolInit:
+    def test_tool_flows_populated(self):
+        mgr = _tool_rails_manager(
+            tool_call_flows=["tool call validation"], tool_result_flows=["tool result validation"]
+        )
+        assert mgr.tool_call_flows == ["tool call validation"]
+        assert mgr.tool_result_flows == ["tool result validation"]
+
+    def test_no_tool_flows_by_default(self):
+        mgr = _tool_rails_manager()
+        assert mgr.tool_call_flows == []
+        assert mgr.tool_result_flows == []
+
+    def test_unknown_tool_flow_raises(self):
+        with pytest.raises(RuntimeError, match="not supported"):
+            _tool_rails_manager(tool_call_flows=["bogus tool rail"])
+
+    def test_tool_call_flow_with_result_rail_raises(self):
+        with pytest.raises(RuntimeError, match="expected ToolCallRailAction"):
+            _tool_rails_manager(tool_call_flows=["tool result validation"])
+
+    def test_tool_result_flow_with_call_rail_raises(self):
+        with pytest.raises(RuntimeError, match="expected ToolResultRailAction"):
+            _tool_rails_manager(tool_result_flows=["tool call validation"])
+
+
+class TestRailsManagerToolCalls:
+    @pytest.mark.asyncio
+    async def test_allows_valid_call(self):
+        mgr = _tool_rails_manager(tool_call_flows=["tool call validation"])
+        result = await mgr.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], _toolset())
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_blocks_undeclared_call(self):
+        mgr = _tool_rails_manager(tool_call_flows=["tool call validation"])
+        result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], _toolset())
+        assert result.is_safe is False
+        assert result.reason is not None
+        assert "rm_rf" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_no_flows_returns_safe(self):
+        mgr = _tool_rails_manager()
+        result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], _toolset())
+        assert result.is_safe is True
+
+
+class TestRailsManagerToolResults:
+    @pytest.mark.asyncio
+    async def test_allows_linked_result(self):
+        mgr = _tool_rails_manager(tool_result_flows=["tool result validation"])
+        prior = [_call("get_weather", {"city": "Paris"})]
+        result = await mgr.are_tool_results_safe([ToolResult(call_id="c1", content="18C")], prior)
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_blocks_unlinked_result(self):
+        mgr = _tool_rails_manager(tool_result_flows=["tool result validation"])
+        prior = [_call("get_weather", {"city": "Paris"})]
+        result = await mgr.are_tool_results_safe([ToolResult(call_id="c9", content="x")], prior)
+        assert result.is_safe is False
+        assert result.reason is not None
+        assert "c9" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_no_flows_returns_safe(self):
+        mgr = _tool_rails_manager()
+        result = await mgr.are_tool_results_safe([ToolResult(call_id="c9", content="x")], [])
+        assert result.is_safe is True
