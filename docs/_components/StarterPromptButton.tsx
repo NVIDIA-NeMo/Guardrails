@@ -8,30 +8,74 @@ declare const React: unknown;
 const BUTTON_LABEL = "Copy Starter Prompt";
 const STARTER_PROMPT = `# NVIDIA NeMo Guardrails Library Agent Instructions
 
-You are helping me use the NVIDIA NeMo Guardrails library from this AI coding agent.
-Assume I may have installed the Python package with pip and may not have cloned the GitHub repository, so local \`.agents/skills/\` and \`AGENTS.md\` files might not exist.
+You are helping me get started with the NVIDIA NeMo Guardrails library from this AI coding agent.
+Assume I may not have installed the Python package yet and may not have cloned the GitHub repository, so local \`.agents/skills/\` and \`AGENTS.md\` files might not exist.
 
 ## How to Help Me
 
-- Help me add, configure, evaluate, debug, or deploy guardrails for an LLM application.
+- Help me install, add, configure, evaluate, debug, or deploy guardrails for an LLM application.
 - Use the official NVIDIA NeMo Guardrails library documentation as the source of truth.
 - Prefer the docs MCP server if this agent supports MCP.
 - Otherwise, use the documentation index at \`https://docs.nvidia.com/nemo/guardrails/llms.txt\`, then fetch the clean Markdown form of the relevant page by using the page URL with \`.md\`.
-- If I want to install the library, help me install it by using the Installation docs page. Check whether prerequisites are already present, and if something is missing, help me handle it while referring to the relevant docs page.
 - If a full Markdown documentation bundle is available, use it only when you need broad cross-page context.
 - Do not hardcode staging documentation URLs unless I explicitly ask you to use staging.
-- If I have the package installed, check my installed \`nemoguardrails\` version and use matching versioned docs when available. If you cannot determine the version, ask whether to use the latest docs.
+- Check my installed \`nemoguardrails\` version only after you confirm the package is installed. If it is not installed yet, use the current Installation docs first. If you cannot determine the version after installation, ask whether to use the latest docs.
 - If I am working from a cloned repository, you may also use local \`docs/**/*.mdx\`, \`README.md\`, \`CONTRIBUTING.md\`, and \`AGENTS.md\` files as context.
 
 ## Identify My Role First
 
-Before giving instructions, ask who I am:
+Before giving install or usage instructions, ask who I am:
 
 1. Developer using the NVIDIA NeMo Guardrails library in an application.
 2. Contributor changing the Guardrails repository.
 
-If I choose developer, route me to the product documentation.
-If I choose contributor, switch to the repository contribution rules from \`CONTRIBUTING.md\` and \`AGENTS.md\`.
+If I choose developer, follow the Developer Path.
+If I choose contributor, follow the Contributor Path.
+
+## Developer Path
+
+Use this Markdown documentation page as the first source for installation and prerequisite handling:
+
+\`https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide.md\`
+
+Help me install the library based on that page.
+Check whether prerequisites already exist before asking me to install anything:
+
+- Supported operating system: Windows, Linux, or macOS.
+- Python version: 3.10, 3.11, 3.12, or 3.13.
+- Hardware: at least 1 CPU with 4 GB RAM for the library; external models may require separate GPUs.
+
+If a prerequisite is missing, explain the gap and help me handle it while referring to the relevant docs page.
+Then help me create a virtual environment, install \`nemoguardrails\`, and set required environment variables with placeholders, following the Installation docs.
+Never ask me to paste real API keys into chat.
+After installation succeeds, ask which tutorial I want to try next from the Tutorials docs:
+
+1. Check Harmful Content. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemotron-safety-guard-deployment.md\`
+2. Content Safety Reasoning. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemotron-content-safety-reasoning-deployment.md\`
+3. Restrict Topics. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemoguard-topiccontrol-deployment.md\`
+4. Detect Jailbreak Attempts. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemoguard-jailbreakdetect-deployment.md\`
+5. Jailbreak Heuristics. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/jailbreak-detection-heuristics.md\`
+6. Add Multimodal Content Safety. If this is selected, load \`https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/multimodal.md\`
+
+## Contributor Path
+
+Help me clone the Guardrails repository before assuming local repository instructions exist:
+
+\`\`\`bash
+git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
+cd nemoguardrails
+\`\`\`
+
+After the repository is available, help me navigate the implemented contributor guidance:
+
+- Start with \`AGENTS.md\` for root repository rules and skill selection.
+- Use \`.agents/skills/guardrails-skills-guide/SKILL.md\` to choose the right skill.
+- Use \`guardrails-contributor-dev-setup\` for local development setup and validation.
+- Use \`guardrails-contributor-docs\` for Fern documentation changes.
+- Use \`guardrails-contributor-create-pr\` for user-approved PR preparation and creation.
+- Follow \`nemoguardrails/AGENTS.md\` when changing package runtime code.
+- Follow \`docs/AGENTS.md\` when editing documentation.
+- Follow \`CONTRIBUTING.md\` and \`AI_POLICY.md\` for public contribution and AI-assistance policy.
 
 ## Start by Understanding My Goal
 
@@ -63,7 +107,7 @@ Offer these choices when useful:
 - When using live model endpoints in examples, clearly state that unit tests should mock LLM/provider calls.
 - If I am contributing to the repository rather than just using the library, switch to the repository contribution rules from \`CONTRIBUTING.md\` and \`AGENTS.md\`.
 
-Begin by asking what I want to do with the NVIDIA NeMo Guardrails library.`;
+Begin by asking whether I am a developer using the NVIDIA NeMo Guardrails library in an application or a contributor changing the Guardrails repository.`;
 
 let resetCopyButtonTimer: ReturnType<typeof setTimeout> | null = null;
 
