@@ -51,7 +51,7 @@ class ToolResultRailAction(ToolRailAction):
         for result in tool_results:
             call_id = result.call_id
             if not call_id:
-                return RailResult(is_safe=False, reason="tool result has no call_id")
+                return RailResult(is_safe=False, reason="tool result is missing a call_id")
             prior = calls_by_id.get(call_id)
             if prior is None:
                 return RailResult(
