@@ -38,6 +38,7 @@ from nemoguardrails.guardrails.model_engine import (
 from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from tests.guardrails.tool_helpers import make_tool_conversation
 
 
 def _make_model(
@@ -1989,17 +1990,7 @@ class TestParseTools:
         assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
 
 
-_TOOL_MESSAGES = [
-    {"role": "user", "content": "weather in Paris?"},
-    {
-        "role": "assistant",
-        "content": None,
-        "tool_calls": [
-            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}
-        ],
-    },
-    {"role": "tool", "tool_call_id": "call_1", "name": "get_weather", "content": "18C"},
-]
+_TOOL_MESSAGES = make_tool_conversation()
 
 
 class TestExtractToolResults:

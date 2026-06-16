@@ -20,22 +20,11 @@ import pytest
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.tool_schema import Tool, Toolset
 from nemoguardrails.types import ToolCall, ToolCallFunction
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked
 
 
 def _toolset() -> Toolset:
-    return Toolset(
-        tools=[
-            Tool(
-                name="get_weather",
-                arguments_schema={
-                    "type": "object",
-                    "properties": {"city": {"type": "string"}},
-                    "required": ["city"],
-                },
-            ),
-            Tool(name="ping"),
-        ]
-    )
+    return Toolset(tools=[Tool(name="get_weather", arguments_schema=WEATHER_SCHEMA), Tool(name="ping")])
 
 
 def _call(name: str, arguments: dict) -> ToolCall:
@@ -56,17 +45,12 @@ class TestToolCallRailAction:
     @pytest.mark.asyncio
     async def test_undeclared_tool_is_blocked(self):
         result = await ToolCallRailAction().run(_toolset(), [_call("rm_rf", {})])
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "rm_rf" in result.reason
-        assert "not an allowed tool" in result.reason
+        assert_blocked(result, "rm_rf", "not an allowed tool")
 
     @pytest.mark.asyncio
     async def test_invalid_arguments_are_blocked(self):
         result = await ToolCallRailAction().run(_toolset(), [_call("get_weather", {})])
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "get_weather" in result.reason
+        assert_blocked(result, "get_weather")
 
     @pytest.mark.asyncio
     async def test_empty_tool_calls_is_safe(self):
@@ -77,6 +61,4 @@ class TestToolCallRailAction:
     async def test_one_bad_call_blocks_the_batch(self):
         calls = [_call("get_weather", {"city": "Paris"}), _call("rm_rf", {})]
         result = await ToolCallRailAction().run(_toolset(), calls)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "rm_rf" in result.reason
+        assert_blocked(result, "rm_rf")

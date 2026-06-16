@@ -20,6 +20,7 @@ import pytest
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.tool_schema import ToolResult
 from nemoguardrails.types import ToolCall, ToolCallFunction
+from tests.guardrails.tool_helpers import assert_blocked
 
 
 def _prior_calls() -> list:
@@ -59,25 +60,17 @@ class TestToolResultRailAction:
     @pytest.mark.asyncio
     async def test_missing_call_id_is_blocked(self):
         result = await ToolResultRailAction().run([_result("")], _prior_calls())
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "missing a call_id" in result.reason
+        assert_blocked(result, "missing a call_id")
 
     @pytest.mark.asyncio
     async def test_unlinked_call_id_is_blocked(self):
         result = await ToolResultRailAction().run([_result("c9")], _prior_calls())
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "c9" in result.reason
-        assert "does not correspond to a prior tool call" in result.reason
+        assert_blocked(result, "c9", "does not correspond to a prior tool call")
 
     @pytest.mark.asyncio
     async def test_name_mismatch_is_blocked(self):
         result = await ToolResultRailAction().run([_result("c1", name="search")], _prior_calls())
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "does not match the called tool" in result.reason
-        assert "get_weather" in result.reason
+        assert_blocked(result, "does not match the called tool", "get_weather")
 
     @pytest.mark.asyncio
     async def test_malformed_content_is_blocked(self):
@@ -85,14 +78,10 @@ class TestToolResultRailAction:
             [_result("c1", content={"unexpected": "shape"})],  # type: ignore[arg-type]
             _prior_calls(),
         )
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "malformed content" in result.reason
+        assert_blocked(result, "malformed content")
 
     @pytest.mark.asyncio
     async def test_one_bad_result_blocks_the_batch(self):
         results = [_result("c1", name="get_weather"), _result("c9")]
         result = await ToolResultRailAction().run(results, _prior_calls())
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "c9" in result.reason
+        assert_blocked(result, "c9")

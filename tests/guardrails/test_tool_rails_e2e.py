@@ -33,11 +33,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
+from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import ChatMessage
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked, make_tool_conversation
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -46,11 +48,7 @@ WEATHER_TOOL = {
     "function": {
         "name": "get_weather",
         "description": "Get the weather for a city.",
-        "parameters": {
-            "type": "object",
-            "properties": {"city": {"type": "string"}},
-            "required": ["city"],
-        },
+        "parameters": WEATHER_SCHEMA,
     },
 }
 LLM_PARAMS = {"tools": [WEATHER_TOOL], "tool_choice": "auto"}
@@ -185,124 +183,86 @@ def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1"
     return lines
 
 
-def _result_messages(result_call_id: str = "call_1") -> list:
-    """A conversation with an assistant tool call and a following tool result."""
-    return [
-        {"role": "user", "content": "What's the weather in Paris?"},
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
-                }
-            ],
-        },
-        {"role": "tool", "tool_call_id": result_call_id, "name": "get_weather", "content": "18C"},
-    ]
+async def _drive_nonstream_call(payload: dict) -> RailResult:
+    """Mock the model's JSON response, then parse tools + model_call + validate the calls."""
+    registry, manager = _build_stack()
+    _inject_json_response(registry, payload)
+    toolset = registry.parse_tools("main", LLM_PARAMS)
+    response = await registry.model_call("main", MESSAGES, **LLM_PARAMS)
+    assert response.tool_calls is not None
+    return await manager.are_tool_calls_safe(response.tool_calls, toolset)
+
+
+async def _drive_stream_call(sse_lines: list) -> RailResult:
+    """Mock the model's SSE stream, assemble the tool calls, then validate them."""
+    registry, manager = _build_stack()
+    _inject_sse_stream(registry, sse_lines)
+    toolset = registry.parse_tools("main", LLM_PARAMS)
+    collected = []
+    async for chunk in registry.stream_model_call("main", MESSAGES, **LLM_PARAMS):
+        if chunk.delta_tool_calls:
+            collected.extend(chunk.delta_tool_calls)
+    assert collected, "expected assembled tool calls from the stream"
+    return await manager.are_tool_calls_safe(collected, toolset)
+
+
+async def _drive_result(result_call_id: str) -> RailResult:
+    """Extract tool results + prior calls from a conversation, then validate the results."""
+    registry, manager = _build_stack()
+    messages = make_tool_conversation(result_call_id=result_call_id)
+    tool_results = registry.extract_tool_results("main", messages)
+    prior_calls = ChatMessage.from_dict(messages[1]).tool_calls
+    assert prior_calls is not None
+    return await manager.are_tool_results_safe(tool_results, prior_calls)
 
 
 class TestToolCallRailEndToEndNonStreaming:
+    @pytest.mark.parametrize(
+        "payload, blocked",
+        [
+            (_tool_call_payload("get_weather", '{"city": "Paris"}'), None),
+            (_tool_call_payload("rm_rf", "{}"), "rm_rf"),
+            (_tool_call_payload("get_weather", "{}"), "get_weather"),
+        ],
+        ids=["allowed", "undeclared", "invalid-args"],
+    )
     @pytest.mark.asyncio
-    async def test_allowed_call_with_valid_arguments_passes(self):
-        registry, manager = _build_stack()
-        _inject_json_response(registry, _tool_call_payload("get_weather", '{"city": "Paris"}'))
-
-        toolset = registry.parse_tools("main", LLM_PARAMS)
-        response = await registry.model_call("main", MESSAGES, **LLM_PARAMS)
-
-        assert response.tool_calls is not None
-        result = await manager.are_tool_calls_safe(response.tool_calls, toolset)
-        assert result.is_safe is True
-
-    @pytest.mark.asyncio
-    async def test_undeclared_tool_call_is_blocked(self):
-        registry, manager = _build_stack()
-        _inject_json_response(registry, _tool_call_payload("rm_rf", "{}"))
-
-        toolset = registry.parse_tools("main", LLM_PARAMS)
-        response = await registry.model_call("main", MESSAGES, **LLM_PARAMS)
-
-        assert response.tool_calls is not None
-        result = await manager.are_tool_calls_safe(response.tool_calls, toolset)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "rm_rf" in result.reason
-
-    @pytest.mark.asyncio
-    async def test_invalid_arguments_are_blocked(self):
-        registry, manager = _build_stack()
-        _inject_json_response(registry, _tool_call_payload("get_weather", "{}"))
-
-        toolset = registry.parse_tools("main", LLM_PARAMS)
-        response = await registry.model_call("main", MESSAGES, **LLM_PARAMS)
-
-        assert response.tool_calls is not None
-        result = await manager.are_tool_calls_safe(response.tool_calls, toolset)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "get_weather" in result.reason
+    async def test_tool_call(self, payload, blocked):
+        result = await _drive_nonstream_call(payload)
+        if blocked is None:
+            assert result.is_safe is True
+        else:
+            assert_blocked(result, blocked)
 
 
 class TestToolResultRailEndToEnd:
+    @pytest.mark.parametrize(
+        "result_call_id, blocked",
+        [("call_1", None), ("call_999", "call_999")],
+        ids=["linked", "unlinked"],
+    )
     @pytest.mark.asyncio
-    async def test_linked_result_passes(self):
-        registry, manager = _build_stack()
-        messages = _result_messages(result_call_id="call_1")
-
-        tool_results = registry.extract_tool_results("main", messages)
-        prior_calls = ChatMessage.from_dict(messages[1]).tool_calls
-
-        assert prior_calls is not None
-        result = await manager.are_tool_results_safe(tool_results, prior_calls)
-        assert result.is_safe is True
-
-    @pytest.mark.asyncio
-    async def test_unlinked_result_is_blocked(self):
-        registry, manager = _build_stack()
-        messages = _result_messages(result_call_id="call_999")
-
-        tool_results = registry.extract_tool_results("main", messages)
-        prior_calls = ChatMessage.from_dict(messages[1]).tool_calls
-
-        assert prior_calls is not None
-        result = await manager.are_tool_results_safe(tool_results, prior_calls)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "call_999" in result.reason
+    async def test_tool_result(self, result_call_id, blocked):
+        result = await _drive_result(result_call_id)
+        if blocked is None:
+            assert result.is_safe is True
+        else:
+            assert_blocked(result, blocked)
 
 
 class TestToolCallRailEndToEndStreaming:
+    @pytest.mark.parametrize(
+        "sse_lines, blocked",
+        [
+            (_tool_call_sse_lines("get_weather", ['{"city": ', '"Paris"}']), None),
+            (_tool_call_sse_lines("rm_rf", ["{}"]), "rm_rf"),
+        ],
+        ids=["allowed", "undeclared"],
+    )
     @pytest.mark.asyncio
-    async def test_streamed_allowed_call_passes(self):
-        registry, manager = _build_stack()
-        _inject_sse_stream(registry, _tool_call_sse_lines("get_weather", ['{"city": ', '"Paris"}']))
-
-        toolset = registry.parse_tools("main", LLM_PARAMS)
-        collected = []
-        async for chunk in registry.stream_model_call("main", MESSAGES, **LLM_PARAMS):
-            if chunk.delta_tool_calls:
-                collected.extend(chunk.delta_tool_calls)
-
-        assert collected, "expected assembled tool calls from the stream"
-        result = await manager.are_tool_calls_safe(collected, toolset)
-        assert result.is_safe is True
-
-    @pytest.mark.asyncio
-    async def test_streamed_undeclared_call_is_blocked(self):
-        registry, manager = _build_stack()
-        _inject_sse_stream(registry, _tool_call_sse_lines("rm_rf", ["{}"]))
-
-        toolset = registry.parse_tools("main", LLM_PARAMS)
-        collected = []
-        async for chunk in registry.stream_model_call("main", MESSAGES, **LLM_PARAMS):
-            if chunk.delta_tool_calls:
-                collected.extend(chunk.delta_tool_calls)
-
-        assert collected, "expected assembled tool calls from the stream"
-        result = await manager.are_tool_calls_safe(collected, toolset)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "rm_rf" in result.reason
+    async def test_streamed_tool_call(self, sse_lines, blocked):
+        result = await _drive_stream_call(sse_lines)
+        if blocked is None:
+            assert result.is_safe is True
+        else:
+            assert_blocked(result, blocked)

@@ -40,6 +40,7 @@ from tests.guardrails.test_data import (
     NEMOGUARDS_PARALLEL_OUTPUT_CONFIG,
     TOPIC_SAFETY_CONFIG,
 )
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked
 
 SAFE_INPUT_JSON = json.dumps({"User Safety": "safe"})
 UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S1: Violence"})
@@ -472,13 +473,6 @@ class TestParallelBothDirections:
         assert not result.is_safe
 
 
-_WEATHER_SCHEMA = {
-    "type": "object",
-    "properties": {"city": {"type": "string"}},
-    "required": ["city"],
-}
-
-
 def _tool_rails_manager(*, tool_call_flows=None, tool_result_flows=None) -> RailsManager:
     """Build a RailsManager with only tool rails wired (no LLM input/output flows)."""
     config = RailsConfig.from_content(config={"models": []})
@@ -493,7 +487,7 @@ def _tool_rails_manager(*, tool_call_flows=None, tool_result_flows=None) -> Rail
 
 
 def _toolset() -> Toolset:
-    return Toolset(tools=[Tool(name="get_weather", arguments_schema=_WEATHER_SCHEMA)])
+    return Toolset(tools=[Tool(name="get_weather", arguments_schema=WEATHER_SCHEMA)])
 
 
 def _call(name: str, arguments: dict) -> ToolCall:
@@ -537,9 +531,7 @@ class TestRailsManagerToolCalls:
     async def test_blocks_undeclared_call(self):
         mgr = _tool_rails_manager(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], _toolset())
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "rm_rf" in result.reason
+        assert_blocked(result, "rm_rf")
 
     @pytest.mark.asyncio
     async def test_no_flows_returns_safe(self):
@@ -561,9 +553,7 @@ class TestRailsManagerToolResults:
         mgr = _tool_rails_manager(tool_result_flows=["tool result validation"])
         prior = [_call("get_weather", {"city": "Paris"})]
         result = await mgr.are_tool_results_safe([ToolResult(call_id="c9", content="x")], prior)
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "c9" in result.reason
+        assert_blocked(result, "c9")
 
     @pytest.mark.asyncio
     async def test_no_flows_returns_safe(self):
