@@ -1520,10 +1520,10 @@ class TestEngineRegistryToolDelegation:
     def test_parse_tools_delegates_to_model_engine(self, manager):
         toolset = manager.parse_tools("main", {"tools": self._TOOLS})
         assert isinstance(toolset, Toolset)
-        assert list(toolset.by_key) == ["get_weather"]
+        assert [t.key for t in toolset.tools] == ["get_weather"]
 
     def test_parse_tools_no_tools_returns_empty(self, manager):
-        assert manager.parse_tools("main", None).by_key == {}
+        assert manager.parse_tools("main", None).tools == []
 
     def test_extract_tool_results_delegates_to_model_engine(self, manager):
         messages = [{"role": "tool", "tool_call_id": "c1", "name": "get_weather", "content": "18C"}]

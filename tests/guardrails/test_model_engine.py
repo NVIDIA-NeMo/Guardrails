@@ -1944,9 +1944,10 @@ class TestParseTools:
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
 
         assert isinstance(toolset, Toolset)
-        assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
 
-        weather = toolset.by_key["get_weather"]
+        weather = toolset.get("get_weather")
+        assert weather is not None
         assert weather.name == "get_weather"
         assert weather.type == "function"
         assert weather.description == "Get the weather for a city."
@@ -1956,18 +1957,20 @@ class TestParseTools:
     def test_nim_uses_the_same_shape(self):
         engine = ModelEngine(_make_model(engine="nim"))
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
-        assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
 
     def test_tool_without_parameters_has_no_arguments_schema(self):
         engine = ModelEngine(_make_model(engine="openai"))
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
-        assert toolset.by_key["noargs"].arguments_schema is None
+        noargs = toolset.get("noargs")
+        assert noargs is not None
+        assert noargs.arguments_schema is None
 
     def test_no_tools_returns_empty_toolset(self):
         engine = ModelEngine(_make_model(engine="openai"))
-        assert engine.parse_tools({}).by_key == {}
-        assert engine.parse_tools(None).by_key == {}
-        assert engine.parse_tools({"tools": []}).by_key == {}
+        assert engine.parse_tools({}).tools == []
+        assert engine.parse_tools(None).tools == []
+        assert engine.parse_tools({"tools": []}).tools == []
 
     def test_malformed_entries_are_skipped(self):
         """Non-dict / function-less entries are dropped so a malformed tool fails closed."""
@@ -1978,12 +1981,12 @@ class TestParseTools:
             {"type": "function", "function": {"name": "ok"}},
         ]
         toolset = engine.parse_tools({"tools": tools})
-        assert list(toolset.by_key) == ["ok"]
+        assert [t.key for t in toolset.tools] == ["ok"]
 
     def test_unknown_engine_falls_back_to_openai_parser(self):
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
-        assert sorted(toolset.by_key) == ["get_weather", "noargs"]
+        assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
 
 
 _TOOL_MESSAGES = [

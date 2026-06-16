@@ -70,28 +70,34 @@ class TestToolset:
     def test_empty(self):
         ts = Toolset()
         assert ts.tools == []
-        assert ts.by_key == {}
+        assert ts.get("anything") is None
 
-    def test_indexes_function_and_hosted_tools_by_key(self):
+    def test_get_returns_function_and_hosted_tools_by_key(self):
         fn = Tool(name="get_weather", arguments_schema=_WEATHER_SCHEMA)
         hosted = Tool(name=None, type="web_search")
         ts = Toolset(tools=[fn, hosted])
 
-        assert ts.by_key == {"get_weather": fn, "web_search": hosted}
-        assert ts.by_key["get_weather"] is fn
-        assert ts.by_key["web_search"] is hosted
+        assert ts.get("get_weather") is fn
+        assert ts.get("web_search") is hosted
+        assert ts.get("missing") is None
 
-    def test_duplicate_key_last_wins(self):
-        first = Tool(name="dup", description="first")
-        second = Tool(name="dup", description="second")
-        ts = Toolset(tools=[first, second])
+    def test_duplicate_function_name_raises(self):
+        with pytest.raises(ValueError, match="duplicate tool 'dup'"):
+            Toolset(tools=[Tool(name="dup", description="first"), Tool(name="dup", description="second")])
 
-        assert ts.by_key["dup"] is second
+    def test_duplicate_hosted_tool_type_raises(self):
+        with pytest.raises(ValueError, match="duplicate tool 'web_search'"):
+            Toolset(tools=[Tool(name=None, type="web_search"), Tool(name=None, type="web_search")])
 
     def test_tool_with_empty_key_is_skipped(self):
         # name=None and an empty type => empty key => not indexed.
         ts = Toolset(tools=[Tool(name=None, type="")])
-        assert ts.by_key == {}
+        assert ts.get("") is None
+
+    def test_multiple_empty_key_tools_do_not_collide(self):
+        # Empty-key tools are skipped, so duplicates among them never raise.
+        ts = Toolset(tools=[Tool(name=None, type=""), Tool(name=None, type="")])
+        assert ts.get("") is None
 
 
 class TestToolResult:

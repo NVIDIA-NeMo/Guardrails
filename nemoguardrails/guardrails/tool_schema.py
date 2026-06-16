@@ -60,14 +60,33 @@ class Tool:
 
 @dataclass(slots=True)
 class Toolset:
-    """The set of tools declared on a request, with a lookup index."""
+    """The set of tools declared on a request, with a lookup index.
+
+    Look tools up with :meth:`get` (``toolset.get(name)``); the index itself is
+    an implementation detail.
+    """
 
     tools: list[Tool] = field(default_factory=list)
-    by_key: dict[str, Tool] = field(init=False)
+    _by_key: dict[str, Tool] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        """Index the tools by their ``key`` for allowlist + argument-schema lookup."""
-        self.by_key = {tool.key: tool for tool in self.tools if tool.key}
+        """Index the tools by their ``key``, rejecting duplicates.
+
+        A toolset must not declare the same function name (or hosted-tool type)
+        twice, so a repeated ``key`` raises ``ValueError``. Tools with an empty
+        ``key`` are not indexed and do not participate in the duplicate check.
+        """
+        self._by_key = {}
+        for tool in self.tools:
+            if not tool.key:
+                continue
+            if tool.key in self._by_key:
+                raise ValueError(f"duplicate tool '{tool.key}' in toolset")
+            self._by_key[tool.key] = tool
+
+    def get(self, key: str) -> Tool | None:
+        """Return the declared tool registered under *key* (function name or hosted-tool type), or None."""
+        return self._by_key.get(key)
 
 
 @dataclass(frozen=True, slots=True)
