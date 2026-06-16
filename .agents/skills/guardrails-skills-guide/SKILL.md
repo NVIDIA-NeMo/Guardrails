@@ -21,7 +21,7 @@ The `guardrails-docs` skill routes the agent to the docs MCP server, `llms.txt`,
 | `guardrails-docs` | Users and developers building with the library | Routes product-usage questions to the canonical documentation through MCP, `llms.txt`, per-page Markdown, or local docs fallback. |
 | `guardrails-contributor-dev-setup` | Repository contributors | Sets up and verifies the local development environment, dependencies, hooks, and validation commands. |
 | `guardrails-contributor-docs` | Documentation contributors | Guides Fern docs edits, navigation, previews, validation, custom components, and docs-agent entry points. |
-| `guardrails-contributor-create-pr` | Repository contributors | Drafts PR-ready text and verification summaries while respecting the repository rule that agents must not submit PRs. |
+| `guardrails-contributor-create-pr` | Repository contributors | Prepares PR-ready text and creates PRs only after explicit user permission and the repository issue gate. |
 
 ## Choose a Skill
 
@@ -34,7 +34,8 @@ Use `guardrails-docs` for questions such as:
 - How do I use Python APIs, LangChain, LangGraph, the server, evaluation, tracing, metrics, or deployment docs?
 
 Use `guardrails-contributor-create-pr` when preparing contribution text for a human to submit.
-The skill must draft only; agents must not open issues, PRs, draft PRs, or submit GitHub changes through automation.
+The skill may create PRs only after the user explicitly asks, the linked issue is triaged and assigned, and the user gives final confirmation.
+Agents must not open issues through automation.
 
 Use `guardrails-contributor-dev-setup` when setting up a clone, installing dependencies, running local validation, or diagnosing missing development tools.
 

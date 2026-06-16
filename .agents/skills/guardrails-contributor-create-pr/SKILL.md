@@ -1,13 +1,14 @@
 ---
 name: "guardrails-contributor-create-pr"
-description: "Drafts pull request text and verification summaries for Guardrails contributions without submitting them. Use when preparing a PR, PR description, PR title, verification checklist, DCO sign-off guidance, or review-readiness summary. Trigger keywords - create PR, pull request, PR draft, submit for review, PR template, verification checklist, DCO."
+description: "Prepares and creates user-approved Guardrails pull requests. Use when preparing or creating a PR, draft PR, PR description, PR title, verification checklist, DCO sign-off guidance, or review-readiness summary. Trigger keywords - create PR, pull request, PR draft, submit for review, PR template, verification checklist, DCO."
 license: "Apache-2.0"
 ---
 
-# Draft Pull Request Materials
+# Create Pull Request
 
-Use this skill to prepare pull request materials for a human contributor.
-Do not open issues, PRs, draft PRs, or submit GitHub changes through browser automation, the GitHub API, `gh`, or similar tooling.
+Use this skill to prepare pull request materials and create a pull request when the user explicitly asks for PR creation.
+Do not open issues through browser automation, the GitHub API, `gh`, or similar tooling.
+Issues must be opened manually by a human through the repository issue templates.
 
 `CONTRIBUTING.md` is canonical for public contribution workflow.
 `AI_POLICY.md` is canonical for AI-assisted contribution policy.
@@ -15,9 +16,10 @@ Do not open issues, PRs, draft PRs, or submit GitHub changes through browser aut
 
 ## Required Boundaries
 
-- Draft text only.
-- Do not push branches unless the user explicitly asks and the repository rules allow it.
-- Do not prepare public-submission-ready PR materials unless the linked issue is triaged and assigned to the human contributor.
+- Ask for final confirmation immediately before pushing a branch or creating a PR.
+- Do not push branches, create PRs, create draft PRs, or prepare public-submission-ready PR materials unless the linked issue is triaged and assigned to the human contributor.
+- Use the repository PR template.
+- Report the PR URL after creation.
 - Do not edit `CHANGELOG.md` or `CHANGELOG-Colang.md`.
 - Do not add AI tools as commit co-authors.
 - Do not claim tests, reviews, approvals, or validation that did not happen.
@@ -33,7 +35,7 @@ Inspect the local branch and summarize:
 - Whether docs were updated or intentionally not needed.
 
 Use read-only GitHub checks only when needed to identify duplicate or in-flight work, as described in `AGENTS.md`.
-Do not use write-side GitHub automation.
+Use write-side GitHub automation only for user-approved PR creation after the issue and confirmation gates pass.
 
 ## Draft A Conventional Title
 
@@ -124,9 +126,32 @@ Mark only checkboxes supported by actual evidence.
 Leave unchecked any item the human still needs to verify.
 Remind the human contributor that public contributions must satisfy the DCO through signed commits or a `Signed-off-by` line, as described in `CONTRIBUTING.md`.
 
+## Create The PR
+
+Create the PR only when all of these are true:
+
+- The user explicitly asked to create a PR.
+- A linked issue is triaged and assigned to the human contributor.
+- The branch and working tree state are understood.
+- The PR title and body are ready.
+- The user gives final confirmation to push and create the PR.
+
+Use `gh` for GitHub PR creation when the gates pass:
+
+```bash
+git push -u origin HEAD
+gh pr create --title "<type>(scope): summary" --body "$(cat <<'EOF'
+<PR body>
+EOF
+)"
+```
+
+Use `--draft` only when the user asks for a draft PR or the PR is not ready for review.
+After creation, report the PR URL.
+
 ## Review Readiness
 
-Before saying a draft is review-ready, verify the draft accounts for:
+Before saying a draft or PR is review-ready, verify it accounts for:
 
 - Open automated review comments if the branch already has a PR.
 - Open human review comments.
@@ -141,4 +166,4 @@ Return:
 1. A proposed PR title.
 2. A copyable PR body draft.
 3. A short validation summary listing what ran and what remains.
-4. Any blockers that prevent human submission.
+4. Any blockers that prevent PR creation or review readiness.
