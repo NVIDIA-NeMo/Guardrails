@@ -1,0 +1,272 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Testing Your Guardrails Configuration"
+sidebar-title: "Testing"
+description: "Write fast, deterministic tests for your NeMo Guardrails configuration using the public testing surface."
+content:
+    type: "how_to"
+---
+
+Guardrails configurations encode safety-critical behavior. As soon as you have
+a non-trivial config, you should pin its behavior down with tests so that
+prompt tweaks, flow refactors, and library upgrades cannot regress your
+intended policy.
+
+NeMo Guardrails ships a small public testing surface under
+`nemoguardrails.testing`. The two main building blocks are:
+
+- `FakeLLMModel`: a scriptable implementation of the `LLMModel` protocol that
+  returns canned responses. Use it to replace any "main" model so tests do not
+  depend on a real LLM provider.
+- `TestChat`: an ergonomic helper that wires a fake LLM into an `LLMRails`
+  app and lets you assert the bot's reply with a single call.
+
+Both are framework-agnostic and have no test-only dependencies, so you can
+ship them alongside your application code.
+
+## Why test guardrails configs
+
+- Catch regressions in dialog flows, refusals, and safety rails before they
+  hit production.
+- Make config refactors safe. Renaming a flow or tightening a prompt should
+  not silently weaken behavior.
+- Keep CI fast and free. Real LLM calls are slow, expensive, and
+  non-deterministic. Faking the model returns control to the test author.
+
+## Quick start
+
+Install NeMo Guardrails as usual and add the import to your test module:
+
+```python
+from nemoguardrails import RailsConfig
+from nemoguardrails.testing import FakeLLMModel, TestChat
+```
+
+`FakeLLMModel` consumes the list of responses you give it in order. Each call
+to `generate_async` returns the next entry. Once exhausted, it raises so that
+forgotten responses surface as a loud test failure rather than a silent
+fallback.
+
+```python
+import pytest
+
+from nemoguardrails.testing import FakeLLMModel
+
+@pytest.mark.asyncio
+async def test_fake_llm_returns_responses_in_order():
+    llm = FakeLLMModel(responses=["hello", "world"])
+
+    first = await llm.generate_async(prompt="anything")
+    second = await llm.generate_async(prompt="anything")
+
+    assert first.content == "hello"
+    assert second.content == "world"
+```
+
+## Pattern 1: Inject a `FakeLLMModel` into `LLMRails`
+
+When you want full control over which actions get exercised, build the rails
+app yourself and pass the fake model in via the `llm` keyword argument.
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.testing import FakeLLMModel
+
+def test_greeting_flow_calls_main_llm_once():
+    config = RailsConfig.from_path("./my_config")
+    fake = FakeLLMModel(responses=["Hello from the fake!"])
+
+    app = LLMRails(config, llm=fake)
+    result = app.generate(messages=[{"role": "user", "content": "hi"}])
+
+    assert result["content"] == "Hello from the fake!"
+```
+
+If you want a regression alarm on prompt changes that introduce extra LLM
+calls, `FakeLLMModel` exposes an `i` counter (the index of the next response,
+which doubles as the count of consumed responses). Most tests assert on the
+response content; the counter is there if you need it:
+
+```python
+assert fake.inference_count == 1, "Expected exactly one LLM call"
+```
+
+## Pattern 2: Use `TestChat` for ergonomic conversation tests
+
+`TestChat` wraps the boilerplate above so a multi-turn test reads as tersely as
+the conversation itself. It supports `>>` and `<<` operators (the prevalent
+style) and also exposes named-method aliases `user(...)` / `bot(...)`.
+
+```python
+from nemoguardrails import RailsConfig
+from nemoguardrails.testing import TestChat
+
+def test_general_greeting():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "instructions": [
+                {
+                    "type": "general",
+                    "content": "This is a conversation between a user and a bot.",
+                }
+            ],
+        }
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  Hello there!",
+            "Why did the chicken cross the road?",
+        ],
+    )
+
+    chat >> "hello!"
+    chat << "Hello there!"
+    chat >> "tell me a joke"
+    chat << "Why did the chicken cross the road?"
+```
+
+The same test written with the named-method form is equivalent and is
+occasionally clearer when the user message is not a plain string (for
+example, when passing event dicts in Colang 2.x):
+
+```python
+chat.user("hello!")
+chat.bot("Hello there!")
+```
+
+Each call to `chat.bot(expected)` (and equivalently `chat << expected`) asserts
+that the rails app produced exactly `expected`. If the assertion fails, you
+get the actual output in the failure message, which makes debugging prompt or
+flow changes straightforward.
+
+To test how your rails behave when the upstream model raises, pass an
+`llm_exception`. The exception fires on every LLM call, so there is no need
+to also pass `llm_completions`:
+
+```python
+chat = TestChat(
+    config,
+    llm_exception=RuntimeError("upstream is down"),
+)
+```
+
+## Asserting on structured response fields
+
+For models that return more than plain text (reasoning traces, populated
+`finish_reason`, custom token-usage shapes, ...) your rails may pull from
+`LLMResponse` fields other than `content`. Pin those paths down with a fake by
+passing `llm_responses` (full `LLMResponse` objects) instead of `responses`
+(plain strings):
+
+```python
+from nemoguardrails import LLMResponse
+from nemoguardrails.testing import FakeLLMModel
+
+fake = FakeLLMModel(
+    llm_responses=[
+        LLMResponse(
+            content="Final answer.",
+            reasoning="Step 1: ...\nStep 2: ...",
+        ),
+    ],
+)
+```
+
+The `responses=[...]` and `llm_responses=[...]` parameters are mutually
+exclusive; reach for `llm_responses` whenever you need to script structured
+fields, and stick with `responses` for the plain-string case.
+
+## Streaming responses
+
+`chat.bot()` always calls the non-streaming `app.generate(...)`, so to
+actually exercise streaming you bypass `chat.bot()` and iterate the rails
+app's `stream_async(...)` yourself:
+
+```python
+import pytest
+
+from nemoguardrails import RailsConfig
+from nemoguardrails.testing import TestChat
+
+@pytest.mark.asyncio
+async def test_streaming_path():
+    config = RailsConfig.from_path("./my_config")
+    chat = TestChat(config, llm_completions=["Hello there!"])
+
+    chunks = []
+    async for chunk in chat.app.stream_async(
+        messages=[{"role": "user", "content": "hi"}],
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunks).strip() == "Hello there!"
+```
+
+`FakeLLMModel.stream_async` splits each canned response into space-separated
+pieces, so one line in `llm_completions` produces several string chunks
+through the pipeline.
+
+Whether `app.stream_async(...)` is allowed is gated by your `config.yml`,
+not by `TestChat`. When output rails are configured, set
+`rails.output.streaming.enabled: True` in the config (otherwise
+`stream_async` raises).
+
+## Pattern 3: Use the pytest fixtures
+
+For projects that lean heavily on pytest, the testing module ships a plugin
+with reasonable defaults. Opt in by adding the following line to your
+`conftest.py` (or any `conftest.py` whose subtree should have access):
+
+```python
+pytest_plugins = ["nemoguardrails.testing.fixtures"]
+```
+
+You then have three fixtures available:
+
+- `fake_llm`: a `FakeLLMModel` pre-configured with a single `"Hello!"`
+  response. Override it in your own conftest if you want different defaults.
+- `make_fake_llm`: a factory that builds `FakeLLMModel` instances with the
+  arguments you pass through.
+- `make_test_chat`: a factory that builds `TestChat` instances bound to the
+  config you pass in.
+
+```python
+def test_with_fake_llm_fixture(fake_llm):
+    assert fake_llm.responses == ["Hello!"]
+
+def test_with_factory(make_test_chat):
+    config = RailsConfig.from_path("./my_config")
+    chat = make_test_chat(config, llm_completions=["Hi there!"])
+
+    chat.user("hi")
+    chat.bot("Hi there!")
+```
+
+The plugin is opt-in by design. Listing it in `pytest_plugins` keeps the
+fixtures from polluting projects that do not want them.
+
+## Testing custom rails
+
+If you have written a custom action or a custom rail, the patterns above still
+apply: bind a `FakeLLMModel` so the action's LLM calls are deterministic, then
+assert on the side effects (events emitted, generated responses, custom
+logging, etc.). For deeper extensibility hooks, see the
+[Python API reference](/run-guardrailed-inference/using-python-apis) and the
+[custom initialization topics](/configure-guardrails/custom-initialization) for examples.
+
+## Tips
+
+- Keep response lists short and meaningful. Each entry should correspond to
+  a specific LLM call your test expects to make.
+- Use `RailsConfig.from_content` for tiny inline configs. It keeps the test
+  readable and avoids touching the filesystem.
+- Combine `FakeLLMModel` with the `chat.app.explain()` method to assert on
+  the prompts that were sent. This catches regressions where a refactor
+  silently drops an instruction.
+- Treat the response list as a contract. If a test consumes more responses
+  than you provided, that is a real bug, not noise: investigate whether a
+  flow looped or a prompt template now emits an extra call.

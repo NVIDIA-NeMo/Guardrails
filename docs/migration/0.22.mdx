@@ -1,0 +1,250 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Migrating to 0.22"
+sidebar-title: "Migrating to 0.22"
+description: "How to update a working 0.21 configuration for NeMo Guardrails 0.22, in which LangChain becomes optional and a built-in OpenAI-compatible client handles most engines."
+keywords: ["nemoguardrails 0.22", "migration", "langchain optional", "OpenAI-compatible"]
+content:
+  type: "how_to"
+---
+
+Starting with v0.22.0, `pip install nemoguardrails` no longer installs LangChain or provider-specific `langchain-*` packages.
+NeMo Guardrails includes a default LLM framework that calls OpenAI-compatible endpoints directly.
+LangChain remains supported for engines whose APIs are not OpenAI-compatible, but you must opt in.
+
+Most configurations continue to work without changes.
+Some v0.21.0 configurations need a YAML update or an explicit LangChain opt-in.
+Use this guide to identify your configuration shape and apply the matching migration recipe.
+
+## Migration Summary
+
+The following table summarizes the migration instructions by engine type.
+
+| v0.21 Configurations | Action |
+| --- | --- |
+| `engine: openai`, `nim`, `nvidia_ai_endpoints`, or `ollama` with standard OpenAI-compatible parameters | No action required. |
+| `engine: vllm_openai` or another LangChain wrapper for an OpenAI-compatible provider such as DeepSeek, OpenRouter, Together.ai, Fireworks.ai, Groq, or `llama.cpp` | Rewrite the model entry. Refer to [OpenAI-compatible providers](#openai-compatible-providers). |
+| `engine: openai` with LangChain-only parameters such as `openai_api_base`, `streaming`, `verbose`, or `model_kwargs` | Rewrite the parameters. Refer to [Mixed-shape configs](#mixed-shape-configs). |
+| `engine: anthropic`, `cohere`, `vertexai`, `google_genai`, `huggingface_*`, `trt_llm`, or `self_hosted` | Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to [Unsupported Engine on the Default Framework](#unsupported-engine-on-the-default-framework). |
+| `engine: azure` or `azure_openai` | No action required. Set `AZURE_OPENAI_API_KEY` and keep the v0.21 config shape. Refer to [Azure OpenAI](#azure-openai). |
+| Custom provider registered in `config.py` | Match the provider class to the active framework. Refer to [Custom providers](#custom-providers). |
+
+For the engine-by-engine matrix, refer to [Supported LLMs](/about-nemo-guardrails-library/supported-llms).
+
+## OpenAI-Compatible Providers
+
+Several v0.21 engines are LangChain wrappers around providers that already expose an OpenAI-compatible `/v1/chat/completions` route.
+In 0.22, configure those providers with `engine: openai` and `parameters.base_url` so the default framework can call them directly.
+This path does not require LangChain or `NEMOGUARDRAILS_LLM_FRAMEWORK`.
+
+### Self-Hosted vLLM
+
+Before upgrading to v0.22, a self-hosted vLLM configuration might look like this:
+
+Configuration before v0.22:
+
+```yaml
+- type: llama_guard
+  engine: vllm_openai
+  parameters:
+    openai_api_base: http://localhost:5000/v1
+    model_name: meta-llama/LlamaGuard-7b
+```
+
+In v0.22, update the configuration to use the OpenAI-compatible engine:
+
+Configuration starting with v0.22:
+
+```yaml
+- type: llama_guard
+  engine: openai
+  model: meta-llama/LlamaGuard-7b
+  parameters:
+    base_url: http://localhost:5000/v1
+    api_key: EMPTY
+```
+
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to a non-empty placeholder such as `EMPTY`.
+If your deployment requires a token, replace `EMPTY` with the token value or set `api_key_env_var` at the top level of the model entry:
+
+```yaml
+- type: llama_guard
+  engine: openai
+  model: meta-llama/LlamaGuard-7b
+  api_key_env_var: VLLM_API_KEY
+  parameters:
+    base_url: http://localhost:5000/v1
+```
+
+<Note>
+
+Set the referenced environment variable before calling `RailsConfig.from_content` or `RailsConfig.from_path`. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. A Pydantic validator on the model schema performs the check eagerly.
+
+</Note>
+
+### Hosted OpenAI-Compatible Providers
+
+Before upgrading to v0.22, a hosted OpenAI-compatible provider configuration might look like this:
+
+Configuration before v0.22:
+
+```yaml
+- type: main
+  engine: deepseek
+  model: deepseek-reasoner
+```
+
+In v0.22, update the configuration to use the OpenAI-compatible engine:
+
+Configuration starting with v0.22:
+
+```yaml
+- type: main
+  engine: openai
+  model: deepseek-reasoner
+  api_key_env_var: DEEPSEEK_API_KEY
+  parameters:
+    base_url: https://api.deepseek.com/v1
+```
+
+Use the same pattern for other hosted OpenAI-compatible providers.
+Set `parameters.base_url` to the provider's OpenAI-compatible base URL and provide the API key with either `parameters.api_key` or the top-level `api_key_env_var` field.
+
+## Mixed-Shape Configs
+
+Some v0.21 configs already use `engine: openai` but pass LangChain-only parameters such as `openai_api_base`, `streaming`, `verbose`, `cache`, `callbacks`, `tags`, `metadata`, `model_kwargs`, or provider-prefixed aliases such as `*_api_key` and `*_base_url`.
+The v0.22 default framework forwards `parameters` to the OpenAI-compatible HTTP request, so those LangChain-only keys do not apply.
+
+Configuration before v0.22:
+
+```yaml
+- type: main
+  engine: openai
+  model: gpt-4o-mini
+  parameters:
+    openai_api_base: http://localhost:8001/v1
+    streaming: true
+    verbose: true
+```
+
+Configuration starting with v0.22:
+
+```yaml
+- type: main
+  engine: openai
+  model: gpt-4o-mini
+  parameters:
+    base_url: http://localhost:8001/v1
+```
+
+Rename `openai_api_base` to `base_url`.
+Remove LangChain runtime flags and provider-prefixed aliases.
+Streaming still uses the `stream_async` API.
+
+## Unsupported Engine on the Default Framework
+
+If a v0.21 config uses an engine whose API is not OpenAI-compatible, configuration load fails on v0.22 unless you opt into LangChain.
+Engines that are not OpenAI-compatible include `anthropic`, `cohere`, `vertexai`, `google_genai`, `huggingface_*`, `trt_llm`, and `self_hosted`.
+
+```text
+ValueError: No default base_url for provider 'cohere'. If your endpoint is OpenAI-compatible, set parameters.base_url. Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install the matching langchain-<provider> package (see migration guide).
+```
+
+The provider name in the message changes to match your `engine:` value.
+Choose one remediation path based on your migration goal:
+
+- Keep the LangChain provider class. Install `langchain` and the matching `langchain-<provider>` package, and then set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Refer to [Using LangChain](#using-langchain) for the full procedure.
+- Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set `engine: openai` plus `parameters.base_url`. This includes self-hosted gateways, proxies, and hosted providers that expose `/v1/chat/completions`. For more information, refer to [OpenAI-Compatible Providers](#openai-compatible-providers).
+
+## Using LangChain
+
+If your engine's API is not OpenAI-compatible, keep using LangChain.
+This includes Anthropic, Cohere, Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM, and generic LangChain self-hosted providers.
+
+Install LangChain and the provider package you need, then select the LangChain LLM framework:
+
+```bash
+pip install langchain langchain-anthropic
+export NEMOGUARDRAILS_LLM_FRAMEWORK=langchain
+```
+
+The example above installs the Anthropic provider.
+Replace `langchain-anthropic` with the package for your provider.
+Engine names in `config.yml` stay bare; do not prefix them with `langchain/`.
+
+```yaml
+- type: main
+  engine: anthropic
+  model: claude-3-5-sonnet-latest
+  parameters:
+    temperature: 0.0
+```
+
+To list the engine names LangChain recognizes, run:
+
+```bash
+NEMOGUARDRAILS_LLM_FRAMEWORK=langchain nemoguardrails find-providers
+```
+
+## Azure OpenAI
+
+`engine: azure` and `engine: azure_openai` are supported natively on the default framework in v0.22.
+A v0.21 Azure config with `base_url` (or the preferred `azure_endpoint`), `azure_deployment`, and `api_version` loads unchanged.
+The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
+
+```bash
+export AZURE_OPENAI_API_KEY=<your-key>
+```
+
+Azure configuration in v0.22:
+
+```yaml
+- type: main
+  engine: azure_openai
+  model: gpt-4.1-mini
+  parameters:
+    azure_endpoint: "https://my-resource.openai.azure.com/"
+    azure_deployment: gpt-4.1-mini
+    api_version: "2024-12-01-preview"
+```
+
+The resource endpoint accepts either `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias for the same value).
+Both expect the resource URL only, such as `https://my-resource.openai.azure.com/`. The framework composes the deployment path.
+Setting both raises an error.
+
+Set `AZURE_OPENAI_API_KEY` in the environment (or set `api_key_env_var` or `parameters.api_key` on the model entry). The framework does not read `OPENAI_API_KEY` on the Azure path.
+
+### Azure AD and Token-Based Authentication
+
+The native Azure path uses key-based authentication only.
+For Azure AD or other token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and `langchain-openai`.
+
+## Custom Providers
+
+Custom provider migration depends on which framework the provider class targets.
+
+- If your provider class implements the `LLMModel` protocol from `nemoguardrails.types`, register it with `register_provider` and use the default framework.
+- If your provider class subclasses a LangChain model class such as `BaseChatModel`, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and keep using `register_chat_provider`.
+- If your provider uses `register_llm_provider` for a text-completion LangChain provider, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and plan to migrate to a chat provider. `register_llm_provider` is deprecated.
+
+The registration call applies to the active framework for the process.
+A LangChain provider class does not become a default-framework provider automatically.
+
+For LangChain provider examples, refer to [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers).
+For the default framework interface, refer to the `LLMModel` and `LLMFramework` protocols in `nemoguardrails.types`.
+
+## What Did Not Change
+
+- Tool calling. Provider-side function calls and tool calls use the same OpenAI-compatible `tools` and `tool_choice` request shape.
+- Model types. Values such as `main`, `content_safety`, and `llama_guard` still identify how a configured model is used by rails.
+- Embeddings. Embedding provider configuration is unchanged by the LLM framework split.
+- Rails and prompts. Existing Colang flows, rails sections, and prompt task names keep the same structure.
+
+## Related Topics
+
+- [Troubleshooting](/troubleshooting/troubleshooting) covers common errors.
+- [Supported LLMs](/about-nemo-guardrails-library/supported-llms) lists every engine and how it routes.
+- [Configuration YAML Schema Reference](/configure-guardrails/configuration-reference) covers `models.*` field semantics for both modes.
+- [Custom LLM Providers](/configure-guardrails/custom-initialization/custom-llm-providers) covers LangChain custom provider registration.
+- [Release Notes](/about-nemo-guardrails-library/release-notes) lists everything that shipped in 0.22.

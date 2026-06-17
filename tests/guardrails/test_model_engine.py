@@ -328,6 +328,93 @@ class TestModelEngineConfig:
         assert engine._client is None
 
 
+class TestModelEngineBodyParamDefaults:
+    """Test ModelEngine.body_param_defaults: sampling params from a model's
+    ``parameters`` config become per-request body defaults, while transport,
+    secret, identity, and streaming-control keys are excluded."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_keeps_sampling_params(self):
+        """Sampling/body params (temperature, max_tokens, seed, top_p, ...) all
+        pass through to body_param_defaults unchanged."""
+        engine = ModelEngine(_make_model(parameters={"temperature": 0.3, "max_tokens": 256, "seed": 42, "top_p": 0.9}))
+        assert engine.body_param_defaults == {
+            "temperature": 0.3,
+            "max_tokens": 256,
+            "seed": 42,
+            "top_p": 0.9,
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_transport_and_retry_keys(self):
+        """Transport/retry keys consumed by __init__ and _resolve_base_url are
+        not echoed into the body; a sampling param alongside them is kept."""
+        engine = ModelEngine(
+            _make_model(
+                engine="nim",
+                parameters={
+                    "base_url": "https://custom.example.com",
+                    "timeout": 120,
+                    "timeout_connect": 30,
+                    "max_attempts": 5,
+                    "temperature": 0.5,
+                },
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_secret_and_streaming_keys(self):
+        """api_key (secret, header-only) and stream/stream_options (engine-owned)
+        never reach the body defaults."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "api_key": "sk-should-not-leak",
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "max_tokens": 64,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"max_tokens": 64}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_client_only_keys(self):
+        """default_headers / default_query configure the OpenAI-compatible
+        client, not the chat-completion body, so they never reach the body
+        defaults; a sampling param alongside them is kept."""
+        engine = ModelEngine(
+            _make_model(
+                parameters={
+                    "default_headers": {"X-Tenant": "acme"},
+                    "default_query": {"api-version": "2024-02-01"},
+                    "temperature": 0.5,
+                }
+            )
+        )
+        assert engine.body_param_defaults == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_excludes_identity_keys_defensively(self):
+        """model / model_name / messages are stripped even when present in
+        parameters. The Model validator normally lifts model/model_name into
+        the model field, so these only leak via direct construction — mutate
+        parameters after build to simulate that path."""
+        model = _make_model(parameters={"temperature": 0.2})
+        model.parameters.update(
+            {"model": "shadow", "model_name": "shadow", "messages": [{"role": "user", "content": "x"}]}
+        )
+        engine = ModelEngine(model)
+        assert engine.body_param_defaults == {"temperature": 0.2}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    def test_empty_parameters_yields_empty_defaults(self):
+        """A model with no parameters has empty body_param_defaults."""
+        engine = ModelEngine(_make_model(parameters={}))
+        assert engine.body_param_defaults == {}
+
+
 class TestModelEngineLifecycle:
     """Test the ModelEngine start() and stop() client lifecycle."""
 
@@ -1137,7 +1224,7 @@ class TestModelEngineChatCompletion:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """chat_completion() raises ModelEngineError for unsupported tool-calls"""
+        """content=None with no tool_calls is malformed; chat_completion() raises ModelEngineError."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
@@ -1146,8 +1233,8 @@ class TestModelEngineChatCompletion:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_raises_clearer_error_for_tool_call_only_response(self):
-        """Tool-call-only responses (content=None, tool_calls set) get a scope-specific error."""
+    async def test_parses_tool_call_only_response(self):
+        """Tool-call-only responses (content=None, tool_calls set) are parsed, not rejected."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(
             return_value={
@@ -1160,17 +1247,25 @@ class TestModelEngineChatCompletion:
                                 {
                                     "id": "call_abc",
                                     "type": "function",
-                                    "function": {"name": "calculate", "arguments": '{"expr":"2+2"}'},
+                                    "function": {"name": "calculate", "arguments": '{"expr": "2+2"}'},
                                 }
                             ],
-                        }
+                        },
+                        "finish_reason": "tool_calls",
                     }
                 ]
             }
         )
 
-        with pytest.raises(ModelEngineError, match="Tool-call-only responses are not yet supported"):
-            await engine.chat_completion([{"role": "user", "content": "Hi"}])
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_abc"
+        assert result.tool_calls[0].function.name == "calculate"
+        assert result.tool_calls[0].function.arguments == {"expr": "2+2"}
 
 
 class TestParseChatCompletion:
@@ -1206,32 +1301,128 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Unexpected /v1/chat/completions response shape"):
             _parse_chat_completion({})
 
-    def test_raises_on_non_string_content(self):
-        """Non-string content raises ValueError."""
-        with pytest.raises(ValueError, match="Expected string content"):
+    def test_raises_on_null_content_without_tool_calls(self):
+        """content=None with no tool_calls is malformed and raises ValueError."""
+        with pytest.raises(ValueError, match="Expected string content, got NoneType"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
 
-    def test_raises_specific_error_for_tool_call_only_response(self):
-        """When content is None and tool_calls is set, raise a scope-specific error.
+    def test_raises_on_non_string_content(self):
+        """Content that is neither a string nor None (e.g. an int) raises ValueError with its type."""
+        with pytest.raises(ValueError, match="Expected string content, got int"):
+            _parse_chat_completion({"choices": [{"message": {"content": 123}}]})
 
-        OpenAI returns this shape for tool_choice='required'. Tool-call support is out of
-        scope for this PR series; the error message should make that clear rather than
-        suggesting malformed data.
+    def test_parses_tool_calls_when_content_none(self):
+        """content=None with tool_calls parses the calls and normalizes content to ''.
+
+        OpenAI returns this shape for tool_choice='required'; arguments arrive as a JSON
+        string on the wire and are normalized into a dict.
         """
-        with pytest.raises(ValueError, match="Tool-call-only responses are not yet supported"):
-            _parse_chat_completion(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "role": "assistant",
-                                "content": None,
-                                "tool_calls": [{"id": "x", "type": "function", "function": {"name": "f"}}],
-                            }
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {"id": "x", "type": "function", "function": {"name": "f", "arguments": '{"a": 1}'}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.content == ""
+        assert result.finish_reason == "tool_calls"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "x"
+        assert result.tool_calls[0].function.name == "f"
+        assert result.tool_calls[0].function.arguments == {"a": 1}
+
+    def test_parses_tool_calls_alongside_text_content(self):
+        """A response may carry both text content and tool calls; both are surfaced."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Let me look that up.",
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "search", "arguments": "{}"}}
+                            ],
                         }
-                    ]
-                }
-            )
+                    }
+                ]
+            }
+        )
+        assert result.content == "Let me look that up."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "search"
+        assert result.tool_calls[0].function.arguments == {}
+
+    def test_parses_parallel_tool_calls(self):
+        """Multiple tool calls in one response are all parsed into the list, in order."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                },
+                                {
+                                    "id": "c2",
+                                    "type": "function",
+                                    "function": {"name": "get_time", "arguments": '{"city": "Paris"}'},
+                                },
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert [tc.function.name for tc in result.tool_calls] == ["get_weather", "get_time"]
+        assert [tc.id for tc in result.tool_calls] == ["c1", "c2"]
+
+    def test_reasoning_preserved_alongside_tool_calls(self):
+        """NIM-style responses carry reasoning_content together with tool calls."""
+        result = _parse_chat_completion(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": "The user wants the weather.",
+                            "tool_calls": [
+                                {
+                                    "id": "c1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        assert result.reasoning == "The user wants the weather."
+        assert result.content == ""
+        assert len(result.tool_calls) == 1
+
+    def test_text_response_has_no_tool_calls(self):
+        """A normal text response leaves tool_calls as None."""
+        result = _parse_chat_completion({"choices": [{"message": {"content": "hi"}}]})
+        assert result.tool_calls is None
 
 
 class TestParseChatCompletionChunk:
@@ -1306,9 +1497,17 @@ class TestParseChatCompletionChunk:
         assert result is not None
         assert result.usage is None
 
-    def test_finish_only_delta_returns_none(self):
-        """Finish-only deltas (no content/reasoning) are skipped, matching prior behavior."""
-        assert _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]}) is None
+    def test_finish_only_delta_returns_chunk_with_finish_reason(self):
+        """Finish-only frames (empty delta, no usage) are preserved so the
+        ``finish_reason`` reaches the LLM span's ``gen_ai.response.finish_reasons``.
+        Real OpenAI-compatible providers deliver ``finish_reason`` in a terminal
+        frame with an empty delta and no usage."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]})
+        assert result is not None
+        assert result.delta_content is None
+        assert result.delta_reasoning is None
+        assert result.usage is None
+        assert result.finish_reason == "stop"
 
     def test_passes_through_metadata(self):
         """model, request id, and finish_reason flow into the chunk when content is present."""

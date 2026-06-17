@@ -209,6 +209,32 @@ class TestStreamAsyncValidation:
         matching_warnings = [warning for warning in caught if str(warning.message) == _SPECULATIVE_STREAM_WARNING]
         assert len(matching_warnings) == 1
 
+    @pytest.mark.asyncio
+    async def test_tools_in_llm_params_forwarded_on_stream_async(self, iorails_input_only):
+        """Tool definitions in llm_params are forwarded to the streaming LLM call unchanged.
+
+        Streaming tool-call delta parsing is deferred to a later PR; the request-side
+        forwarding works today because llm_params passes through untouched.
+        """
+        captured_kwargs = {}
+
+        async def capturing_stream(model_type, messages, **kwargs):
+            """Mock stream that records kwargs."""
+            captured_kwargs.update(kwargs)
+            yield LLMResponseChunk(delta_content="ok")
+
+        _wire_mocks(iorails_input_only, stream=capturing_stream)
+        tool = {"type": "function", "function": {"name": "get_weather"}}
+        options = GenerationOptions(llm_params={"tools": [tool], "tool_choice": "auto"})
+
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], options=options)
+        )
+
+        assert "".join(chunks) == "ok"
+        assert captured_kwargs.get("tools") == [tool]
+        assert captured_kwargs.get("tool_choice") == "auto"
+
 
 class TestStreamAsyncNoOutputRails:
     """Test streaming when there are no output rails -- chunks flow straight through."""

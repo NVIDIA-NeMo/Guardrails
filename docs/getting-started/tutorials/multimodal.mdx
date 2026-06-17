@@ -1,0 +1,138 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Add Multimodal Content Safety Using a Vision Model"
+sidebar-title: "Add Multimodal Content Safety"
+description: "Add safety checks to images and text using a vision model as LLM-as-a-Judge."
+content:
+    type: "tutorial"
+---
+
+Learn how to add safety checks to images and text using a vision model as LLM-as-a-Judge with [OpenAI GPT-4 Vision](https://platform.openai.com/docs/guides/vision), Llama Vision, or Llama Guard.
+
+By following this tutorial, you learn how to:
+
+1. Configure multimodal content safety rails for images and text.
+2. Use a vision model as LLM-as-a-Judge to evaluate content safety.
+3. Test with safe and unsafe image requests.
+
+The NeMo Guardrails library supports multimodal content safety for input and output rails. You can provide images as base64-encoded data or URLs, depending on the model.
+
+<Note>
+    Ensure image size and prompt length do not exceed the model's maximum
+    context length.
+</Note>
+
+## Prerequisites
+
+- The NeMo Guardrails library [installed](/get-started/installation-guide) with the `openai` extra.
+- A personal NVIDIA API key generated on [https://build.nvidia.com/](https://build.nvidia.com/).
+
+## Configure Guardrails
+
+1. Create a configuration directory and add `config.yml`.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/config.yml"
+        language="yaml"
+        title="config.yml"
+    />
+
+1. Add `prompts.yml`.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/prompts.yml"
+        language="yaml"
+        title="prompts.yml"
+    />
+
+## Test with OpenAI
+
+This example sends image requests to OpenAI endpoints and tests safety checks on a handgun image.
+
+1. Set your OpenAI API key.
+
+    ```console
+    export OPENAI_API_KEY=<your-openai-api-key>
+    ```
+
+1. Install the IPython REPL and run it to interpret the Python code below.
+
+    ```console
+    $ pip install ipython
+    $ ipython
+
+    In [1]:
+    ```
+
+1. Import libraries.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="20-21"
+    />
+
+1. Load the configuration.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="25-29"
+    />
+
+1. Send a safe image reasoning request.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="33-49"
+    />
+
+1. Send an unsafe request.
+
+    <Code
+        src="../../../examples/configs/content_safety_vision/demo.py"
+        language="python"
+        title="demo.py"
+        lines="53-69"
+    />
+
+## Use Base64-Encoded Images
+
+Some models such as Llama Vision require base64-encoded images instead of URLs.
+
+```python
+import base64
+import json
+
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./content_safety_vision")
+rails = LLMRails(config)
+
+with open("<path-to-image>", "rb") as image_file:
+  base64_image = base64.b64encode(image_file.read()).decode()
+
+messages = [{
+  "role": "user",
+  "content": [
+    {
+      "type": "text",
+      "text": "what is the surface color that the object is placed on?",
+    },
+    {
+      "type": "image_url",
+      "image_url": {
+          "url": f"data:image/jpeg;base64,{base64_image}"
+      },
+    },
+  ],
+}]
+
+response = rails.generate(messages=messages)
+print(json.dumps(response, indent=2))
+```
