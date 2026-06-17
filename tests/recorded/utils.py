@@ -37,4 +37,4 @@ def set_api_key_for_record_mode(
 ) -> str:
     value = api_key_for_record_mode(env_name, dummy_value, record_mode)
     monkeypatch.setenv(env_name, value)
-    return dummy_value
+    return value
