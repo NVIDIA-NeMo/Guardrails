@@ -1,6 +1,10 @@
 name: Publish to PyPI (with Approval)
 
 on:
+  # zizmor: ignore[dangerous-triggers] -- workflow_run fires only after the
+  # trusted "Build and Test Distribution" workflow succeeds; the head_branch is
+  # validated against a strict vX.Y.Z regex before any checkout, and checkout
+  # uses that validated tag, not attacker-controlled head code.
   workflow_run:
     workflows: ["Build and Test Distribution"]
     types:
@@ -20,9 +24,9 @@ jobs:
     steps:
       - name: Detect version tag from workflow event
         id: version
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-
           echo "Workflow triggered by: $HEAD_BRANCH"
 
           if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

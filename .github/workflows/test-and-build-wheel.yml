@@ -1,6 +1,9 @@
 name: Build and Test Distribution
 
 on:
+  # zizmor: ignore[cache-poisoning] -- the cache key is the integrity-checked
+  # poetry.lock hash and restores a .venv for build/test only; it is not an
+  # input to the published wheel artifact.
   push:
     branches:
       - main

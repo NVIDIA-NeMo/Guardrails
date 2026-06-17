@@ -1,0 +1,8 @@
+rules:
+  # This repo pins actions to version tags (e.g. `@v6`), kept current by
+  # Dependabot's github-actions updates. Allow ref (tag/branch) pins instead of
+  # requiring commit-hash pins so the policy matches the existing convention.
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin

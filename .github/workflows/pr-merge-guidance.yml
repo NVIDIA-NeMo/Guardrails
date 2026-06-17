@@ -1,6 +1,9 @@
 name: PR Merge Guidance
 
 on:
+  # zizmor: ignore[dangerous-triggers] -- needed to comment on fork PRs; the
+  # job runs actions/github-script only and never checks out or executes PR
+  # head code, so untrusted code cannot run with the elevated token.
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
