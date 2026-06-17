@@ -180,7 +180,7 @@ def cassette_with_parsed_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
     without changing stream semantics.
     """
     cassette = deepcopy(cassette)
-    for interaction in cassette.get("interactions", []):
+    for interaction in cassette.get("interactions") or []:
         request = interaction.get("request", {})
         request_body = request.get("body")
         request_data = _json_body(request_body)
@@ -209,7 +209,7 @@ def cassette_with_parsed_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
 def cassette_with_rehydrated_bodies(cassette: dict[str, Any]) -> dict[str, Any]:
     """Convert readable cassette bodies back to raw strings for VCR replay."""
     cassette = deepcopy(cassette)
-    for interaction in cassette.get("interactions", []):
+    for interaction in cassette.get("interactions") or []:
         request = interaction.get("request", {})
         if "parsed_body" in request:
             request["body"] = _json_body_text(request["parsed_body"])

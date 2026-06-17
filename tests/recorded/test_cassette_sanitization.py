@@ -31,7 +31,7 @@ from tests.recorded.conftest import (
     recorded_body_matcher,
 )
 from tests.recorded.sanitization import FILTERED_HEADERS
-from tests.recorded.utils import api_key_for_record_mode
+from tests.recorded.utils import api_key_for_record_mode, set_api_key_for_record_mode
 
 pytestmark = [pytest.mark.recorded]
 
@@ -122,6 +122,13 @@ def test_recorded_cassette_serializer_keeps_json_bodies_readable():
     loaded = yaml.safe_load(text)
     assert "string" not in loaded["interactions"][0]["response"]["body"]
     assert ReadableYamlSerializer.deserialize(text)["interactions"][0]["response"]["body"]["string"].startswith("{")
+
+
+def test_recorded_cassette_serializer_handles_null_interactions():
+    cassette = {"version": 1, "interactions": None}
+
+    assert yaml.safe_load(ReadableYamlSerializer.serialize(cassette)) == cassette
+    assert ReadableYamlSerializer.deserialize("version: 1\ninteractions:\n") == cassette
 
 
 def test_recorded_cassette_serializer_redacts_access_tokens_from_parsed_bodies():
@@ -511,6 +518,13 @@ def test_recorded_refresh_uses_api_key_without_live_mode_gate(monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "real-key")
     assert api_key_for_record_mode("OPENAI_API_KEY", "dummy-key", "rewrite") == "real-key"
+
+
+def test_recorded_refresh_fixture_returns_selected_api_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "real-key")
+
+    assert set_api_key_for_record_mode(monkeypatch, "OPENAI_API_KEY", "dummy-key", "rewrite") == "real-key"
+    assert set_api_key_for_record_mode(monkeypatch, "OPENAI_API_KEY", "dummy-key", "none") == "dummy-key"
 
 
 def test_recorded_body_matcher_compares_sanitized_json_bodies():
