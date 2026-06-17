@@ -158,8 +158,8 @@ jobs:
                 ...items,
                 "",
                 "Relevant guide:",
-                `- Signed commits: https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md#setting-up-git-for-signed-commits`,
-                `- Contribution workflow: https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md#contribution-workflow`,
+                `- Signed commits: https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md#commit-signing`,
+                `- Contribution guide: https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md`,
               ].join("\n");
 
               if (existingComment) {
