@@ -41,11 +41,15 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' || 'false' }}
           MIN_CREATED_AT: ${{ vars.PR_MERGE_GUIDANCE_MIN_CREATED_AT || '2026-04-01T00:00:00Z' }}
           COMMENT_MARKER: "### PR merge guidance"
+          CONFLICT_LABEL: "needs: rebase"
+          SIGNING_LABEL: "needs: signing"
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const marker = process.env.COMMENT_MARKER;
+            const conflictLabel = process.env.CONFLICT_LABEL;
+            const signingLabel = process.env.SIGNING_LABEL;
             const requestedPullNumber = Number(process.env.PR_NUMBER);
             const baseBranch = process.env.BASE_BRANCH;
             const dryRun = process.env.DRY_RUN === "true";
@@ -98,10 +102,12 @@ jobs:
 
               if (pr.draft) {
                 if (dryRun) {
-                  core.info(`Would delete existing guidance comment for draft PR #${pull_number}: ${Boolean(existingComment)}`);
+                  core.info(`Would delete existing guidance comment and remove labels for draft PR #${pull_number}: ${Boolean(existingComment)}`);
                   return;
                 }
 
+                await removeLabel(pull_number, conflictLabel);
+                await removeLabel(pull_number, signingLabel);
                 await deleteExistingComment(existingComment);
                 return;
               }
@@ -138,6 +144,21 @@ jobs:
                 items.push(
                   `- ${unverifiedCommits.length} commit${unverifiedCommits.length === 1 ? " does" : "s do"} not have a verified signature (${exampleShas}${extraCount}). Please sign the commits and force-push the updated branch.`
                 );
+              }
+
+              const hasConflict = prState.mergeable === "CONFLICTING";
+              const mergeableKnown = prState.mergeable !== "UNKNOWN";
+              const hasUnsigned = unverifiedCommits.length > 0;
+
+              if (dryRun) {
+                core.info(
+                  `Would set labels for PR #${pull_number}: "${conflictLabel}"=${mergeableKnown ? hasConflict : "skipped (mergeable unknown)"}, "${signingLabel}"=${hasUnsigned}.`
+                );
+              } else {
+                if (mergeableKnown) {
+                  await (hasConflict ? addLabel(pull_number, conflictLabel) : removeLabel(pull_number, conflictLabel));
+                }
+                await (hasUnsigned ? addLabel(pull_number, signingLabel) : removeLabel(pull_number, signingLabel));
               }
 
               if (items.length === 0) {
@@ -252,4 +273,28 @@ jobs:
                 repo,
                 comment_id: comment.id,
               });
+            }
+
+            async function addLabel(pull_number, name) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pull_number,
+                labels: [name],
+              });
+            }
+
+            async function removeLabel(pull_number, name) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  name,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
             }
