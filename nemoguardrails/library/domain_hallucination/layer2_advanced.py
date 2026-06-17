@@ -118,6 +118,17 @@ async def layer2_check_with_verification(
     Returns:
         Layer 2 verification result
     """
+    # Fast path: no entities to verify
+    if not urls and not domains and not github_repos:
+        log.info("Layer 2: No URLs/domains/repos found, fast pass")
+        return {
+            "layer": "layer2",
+            "status": "clean",
+            "is_hallucinated": False,
+            "llm_response": "no",
+            "verification_results": {},
+        }
+
     # Step 1: Quick network verification (concurrent for all domains)
     verification_results = {}
     if domains:

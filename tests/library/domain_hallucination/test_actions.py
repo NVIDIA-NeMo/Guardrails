@@ -272,7 +272,7 @@ class TestActionIntegration:
                 "status": "suspicious",
             }
 
-            with patch("nemoguardrails.library.domain_hallucination.actions.logger") as mock_logger:
+            with patch("nemoguardrails.library.domain_hallucination.actions.log") as mock_logger:
                 mock_llm_task_manager = MagicMock()
                 mock_config = MagicMock()
 

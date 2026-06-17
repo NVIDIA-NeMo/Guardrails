@@ -148,7 +148,7 @@ class TestLayer2CheckWithVerification:
             )
 
             assert result["is_hallucinated"] is False
-            assert result["status"] == "verified"
+            assert result["status"] == "clean"
             assert result["layer"] == "layer2"
 
     @pytest.mark.asyncio

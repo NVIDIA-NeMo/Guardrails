@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional
 
 try:
     from nemoguardrails.actions import action
-except Exception:
+except ImportError:
 
     def action(*_args: Any, **_kwargs: Any):
         def decorator(fn):
@@ -41,7 +41,7 @@ from nemoguardrails.types import LLMModel
 
 from . import layer1_check, layer2_advanced
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 @action(output_mapping=lambda value: not value)
@@ -82,7 +82,7 @@ async def self_check_domain_hallucination(
 
     # If both layers disabled, fast pass
     if not enable_layer1 and not enable_layer2:
-        logger.info("Both Layer 1 and Layer 2 disabled, passing")
+        log.info("Both Layer 1 and Layer 2 disabled, passing")
         return True
 
     result = None
@@ -97,7 +97,7 @@ async def self_check_domain_hallucination(
             config=config,
             llm=llm,
         )
-        logger.info(f"Layer 1 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
+        log.info(f"Layer 1 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
 
         # If Layer 1 found hallucination, return immediately
         if result["is_hallucinated"]:
@@ -122,7 +122,7 @@ async def self_check_domain_hallucination(
             config=config,
             llm=llm,
         )
-        logger.info(f"Layer 2 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
+        log.info(f"Layer 2 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
 
         return not result["is_hallucinated"]
 
