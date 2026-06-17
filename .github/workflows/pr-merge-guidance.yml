@@ -162,6 +162,11 @@ jobs:
               }
 
               if (items.length === 0) {
+                if (!mergeableKnown) {
+                  core.info(`PR #${pull_number}: no signing issues and mergeable is UNKNOWN; leaving existing guidance comment untouched.`);
+                  return;
+                }
+
                 if (dryRun) {
                   core.info(`Would delete existing guidance comment for PR #${pull_number}: ${Boolean(existingComment)}`);
                   return;
