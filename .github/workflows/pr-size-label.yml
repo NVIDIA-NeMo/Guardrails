@@ -26,7 +26,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7
         with:
           script: |
             const files = await github.paginate(github.rest.pulls.listFiles, {
@@ -71,12 +71,16 @@ jobs:
 
             for (const stale of current) {
               if (stale === label) continue;
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                name: stale,
-              });
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.pull_request.number,
+                  name: stale,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
             }
 
             if (!current.includes(label)) {
