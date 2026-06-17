@@ -120,6 +120,7 @@ async def self_check_domain_hallucination(
             llm_call_func=llm_call,
             llm_task_manager=llm_task_manager,
             config=config,
+            llm=llm,
         )
         logger.info(f"Layer 2 result: {result['status']}, is_hallucinated={result['is_hallucinated']}")
 

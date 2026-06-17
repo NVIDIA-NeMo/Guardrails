@@ -102,7 +102,7 @@ class TestVerifyDomainNetwork:
     @pytest.mark.asyncio
     async def test_verify_domain_network_uses_executor(self):
         """Test that DNS resolution runs in executor (non-blocking)."""
-        with patch("socket.getaddrinfo") as mock_getaddrinfo, patch("asyncio.get_event_loop") as mock_get_loop:
+        with patch("socket.getaddrinfo") as mock_getaddrinfo, patch("asyncio.get_running_loop") as mock_get_loop:
             mock_getaddrinfo.return_value = []
             mock_executor = MagicMock()
             mock_loop = MagicMock()

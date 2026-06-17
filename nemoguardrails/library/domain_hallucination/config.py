@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from typing import Any, Dict, Optional
 
 
@@ -85,10 +85,18 @@ def load_config(config_path: str) -> DomainHallucinationGuardConfig:
     with open(config_path) as f:
         data = json.load(f)
 
+    # Filter layer1_data to only known fields
     layer1_data = data.get("layer1", {})
+    if layer1_data:
+        known_layer1_fields = {f.name for f in fields(Layer1Config)}
+        layer1_data = {k: v for k, v in layer1_data.items() if k in known_layer1_fields}
     layer1 = Layer1Config(**layer1_data) if layer1_data else Layer1Config()
 
+    # Filter layer2_data to only known fields
     layer2_data = data.get("layer2", {})
+    if layer2_data:
+        known_layer2_fields = {f.name for f in fields(Layer2Config)}
+        layer2_data = {k: v for k, v in layer2_data.items() if k in known_layer2_fields}
     layer2 = Layer2Config(**layer2_data) if layer2_data else Layer2Config()
 
     return DomainHallucinationGuardConfig(

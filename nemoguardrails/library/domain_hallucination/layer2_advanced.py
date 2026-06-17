@@ -53,16 +53,16 @@ async def verify_domain_network(
         Verification result dict with DNS status
     """
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _getaddrinfo():
             """Helper to perform DNS lookup with timeout."""
-            old_timeout = socket.getdefaulttimeout()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
             try:
-                socket.setdefaulttimeout(timeout)
                 return socket.getaddrinfo(domain, 443)
             finally:
-                socket.setdefaulttimeout(old_timeout)
+                sock.close()
 
         # Run DNS lookup in thread pool to avoid blocking event loop
         addrs = await loop.run_in_executor(None, _getaddrinfo)
@@ -100,6 +100,7 @@ async def layer2_check_with_verification(
     llm_call_func,
     llm_task_manager,
     config,
+    llm=None,
 ) -> Dict[str, Any]:
     """Layer 2 check: Use verification results + LLM for conservative judgment.
 
@@ -112,14 +113,17 @@ async def layer2_check_with_verification(
         llm_call_func: LLM call function
         llm_task_manager: Task manager
         config: Rails config
+        llm: LLM model for inference
 
     Returns:
         Layer 2 verification result
     """
-    # Step 1: Quick network verification
+    # Step 1: Quick network verification (concurrent for all domains)
     verification_results = {}
-    for domain in domains:
-        verification_results[domain] = await verify_domain_network(domain)
+    if domains:
+        tasks = [verify_domain_network(domain) for domain in domains]
+        results = await asyncio.gather(*tasks)
+        verification_results = {domain: result for domain, result in zip(domains, results)}
 
     # Step 2: Call LLM with verification results
     task_name = "self_check_domain_hallucination_layer2"
@@ -148,7 +152,7 @@ async def layer2_check_with_verification(
         llm_call_info_var.set(LLMCallInfo(task=task_name))
 
         llm_response = await llm_call_func(
-            config.model,
+            llm,
             prompt,
             stop=stop,
             llm_params={
