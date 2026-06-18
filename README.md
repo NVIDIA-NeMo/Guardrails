@@ -145,7 +145,7 @@ The standard structure for a guardrails configuration folder looks like this:
 │   ├── ...
 ```
 
-The `config.yml` contains all the general configuration options, such as LLM models, active rails, and custom configuration data". The `config.py` file contains any custom initialization code and the `actions.py` contains any custom python actions. For a complete overview, see the [Configuration Guide](https://docs.nvidia.com/nemo/guardrails/user-guides/configuration-guide.html).
+The `config.yml` contains all the general configuration options, such as LLM models, active rails, and custom configuration data". The `config.py` file contains any custom initialization code and the `actions.py` contains any custom python actions. For a complete overview, see the [Configuration Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/configure-rails).
 
 Below is an example `config.yml`:
 
