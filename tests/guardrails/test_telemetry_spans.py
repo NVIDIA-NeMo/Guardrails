@@ -29,7 +29,10 @@ from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
     rail_span,
+    set_llm_request_attributes,
+    set_llm_response_attributes,
 )
+from nemoguardrails.types import UsageInfo
 
 
 @pytest.fixture
@@ -332,3 +335,156 @@ class TestApiCallSpan:
     def test_noop_when_tracer_none(self):
         with api_call_span(None, "jailbreak_detection") as span:
             assert span is None
+
+
+def _span_attrs(otel_provider, set_fn):
+    """Run ``set_fn(span)`` inside a finished CLIENT span and return its
+    attributes as a plain dict.
+
+    Mirrors how the helpers are used in production (called on a live span
+    inside the ``llm_call_span`` block) and reads the result back off the
+    exported span, the same way the span-helper tests above do.
+    """
+    provider, exporter = otel_provider
+    tracer = provider.get_tracer("test")
+    with tracer.start_as_current_span("chat test-model") as span:
+        set_fn(span)
+    return dict(exporter.get_finished_spans()[-1].attributes)
+
+
+class TestSetLlmRequestAttributes:
+    def test_maps_scalar_params(self, otel_provider):
+        """Every supported scalar sampling param maps to its gen_ai.request.* attr."""
+        params = {
+            "temperature": 0.7,
+            "max_tokens": 256,
+            "top_p": 0.9,
+            "top_k": 40,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.25,
+        }
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, params))
+        assert attrs["gen_ai.request.temperature"] == 0.7
+        assert attrs["gen_ai.request.max_tokens"] == 256
+        assert attrs["gen_ai.request.top_p"] == 0.9
+        assert attrs["gen_ai.request.top_k"] == 40
+        assert attrs["gen_ai.request.frequency_penalty"] == 0.5
+        assert attrs["gen_ai.request.presence_penalty"] == 0.25
+
+    def test_max_completion_tokens_aliases_max_tokens(self, otel_provider):
+        """The OpenAI ``max_completion_tokens`` alias lands on gen_ai.request.max_tokens."""
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_request_attributes(s, {"max_completion_tokens": 128}),
+        )
+        assert attrs["gen_ai.request.max_tokens"] == 128
+
+    @pytest.mark.parametrize(
+        "params, expected",
+        [
+            ({"stop": "END"}, ["END"]),
+            ({"stop": ["a", "b"]}, ["a", "b"]),
+            ({"stop_sequences": ["x"]}, ["x"]),
+            ({"stop": 123}, None),  # malformed type → skipped
+            ({"stop": []}, None),  # empty list → skipped
+            ({"stop": ""}, None),  # empty string → skipped
+        ],
+        ids=["string", "list", "stop_sequences_key", "malformed", "empty_list", "empty_string"],
+    )
+    def test_stop_sequences_normalization(self, otel_provider, params, expected):
+        """``stop`` / ``stop_sequences`` normalize to gen_ai.request.stop_sequences:
+        a string wraps to a one-element list, a list passes through, and
+        empty/malformed values are skipped entirely (no empty attribute, which
+        would falsely imply stop tokens were configured)."""
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, params))
+        if expected is None:
+            assert "gen_ai.request.stop_sequences" not in attrs
+        else:
+            assert list(attrs["gen_ai.request.stop_sequences"]) == expected
+
+    def test_unknown_kwargs_ignored(self, otel_provider):
+        """Kwargs with no gen_ai.request.* mapping are silently ignored."""
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_request_attributes(s, {"temperature": 0.1, "foo": "bar"}),
+        )
+        assert attrs["gen_ai.request.temperature"] == 0.1
+        assert "foo" not in attrs
+
+    def test_stream_true_sets_attribute(self, otel_provider):
+        """``stream=True`` records gen_ai.request.stream (CR iff streaming)."""
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {}, stream=True))
+        assert attrs["gen_ai.request.stream"] is True
+
+    def test_stream_default_omits_attribute(self, otel_provider):
+        """The default (non-streaming) call omits gen_ai.request.stream entirely."""
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_request_attributes(s, {}))
+        assert "gen_ai.request.stream" not in attrs
+
+    def test_noop_when_span_none(self):
+        """``span=None`` is a no-op and must not raise."""
+        set_llm_request_attributes(None, {"temperature": 0.5}, stream=True)
+
+
+class TestSetLlmResponseAttributes:
+    def test_sets_all_response_and_usage_attributes(self, otel_provider):
+        """A fully-populated response sets every response + usage attr, including
+        reasoning tokens, and never emits the spec-removed total_tokens."""
+        usage = UsageInfo(input_tokens=12, output_tokens=34, total_tokens=46, reasoning_tokens=7)
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_response_attributes(
+                s,
+                model="meta/llama-3.3-70b-instruct",
+                response_id="chatcmpl-abc123",
+                finish_reason="stop",
+                usage=usage,
+            ),
+        )
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-abc123"
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.usage.input_tokens"] == 12
+        assert attrs["gen_ai.usage.output_tokens"] == 34
+        assert attrs["gen_ai.usage.reasoning.output_tokens"] == 7
+        assert "gen_ai.usage.total_tokens" not in attrs
+
+    def test_finish_reason_wrapped_in_list(self, otel_provider):
+        """The single finish_reason is wrapped into the spec's finish_reasons string[]."""
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_response_attributes(s, finish_reason="length"),
+        )
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["length"]
+
+    def test_reasoning_tokens_omitted_when_none(self, otel_provider):
+        """Reasoning tokens are recorded only when present; input/output still set."""
+        usage = UsageInfo(input_tokens=1, output_tokens=2, reasoning_tokens=None)
+        attrs = _span_attrs(otel_provider, lambda s: set_llm_response_attributes(s, usage=usage))
+        assert "gen_ai.usage.reasoning.output_tokens" not in attrs
+        assert attrs["gen_ai.usage.input_tokens"] == 1
+        assert attrs["gen_ai.usage.output_tokens"] == 2
+
+    def test_usage_none_sets_no_usage_attributes(self, otel_provider):
+        """``usage=None`` records no usage attrs; non-usage fields still set."""
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_response_attributes(s, model="m", usage=None),
+        )
+        assert attrs["gen_ai.response.model"] == "m"
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert "gen_ai.usage.output_tokens" not in attrs
+
+    def test_omits_none_response_fields(self, otel_provider):
+        """Each response field is omitted when its source value is None."""
+        attrs = _span_attrs(
+            otel_provider,
+            lambda s: set_llm_response_attributes(s, model="only-model"),
+        )
+        assert attrs["gen_ai.response.model"] == "only-model"
+        assert "gen_ai.response.id" not in attrs
+        assert "gen_ai.response.finish_reasons" not in attrs
+
+    def test_noop_when_span_none(self):
+        """``span=None`` is a no-op and must not raise."""
+        set_llm_response_attributes(None, model="m", usage=UsageInfo(input_tokens=1, output_tokens=2))

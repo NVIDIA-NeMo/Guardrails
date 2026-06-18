@@ -65,7 +65,7 @@ from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse
+from nemoguardrails.types import LLMModel, LLMResponse, ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -87,6 +87,42 @@ STREAM_MAX_CONCURRENCY = 256
 
 # Error type used by _generation_task when pushing error JSON into the stream
 _GENERATION_ERROR_TYPE = "generation_error"
+
+
+def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
+    """Serialize ToolCall objects to OpenAI /chat/completions shape.
+
+    ``function.arguments`` is emitted as a JSON string (OpenAI-native) rather
+    than the canonical dict carried internally, so the output round-trips
+    through OpenAI-compatible clients.
+    """
+    return [
+        {
+            "id": tool_call.id,
+            "type": tool_call.type,
+            "function": {
+                "name": tool_call.function.name,
+                "arguments": json.dumps(tool_call.function.arguments),
+            },
+        }
+        for tool_call in tool_calls
+    ]
+
+
+def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]]) -> LLMMessage:
+    """Build the assistant message returned by ``generate``.
+
+    Without tool calls this is the existing ``{"role", "content"}`` shape. With
+    tool calls present, the calls are serialized to OpenAI shape and ``content``
+    is set to ``None`` when empty, matching the OpenAI assistant-message contract.
+    """
+    if not tool_calls:
+        return {"role": "assistant", "content": content}
+    return {
+        "role": "assistant",
+        "content": content or None,
+        "tool_calls": _serialize_tool_calls(tool_calls),
+    }
 
 
 class IORails(BaseGuardrails):
@@ -348,6 +384,7 @@ class IORails(BaseGuardrails):
         if options and isinstance(options, dict):
             options = GenerationOptions(**options)
         if isinstance(options, GenerationOptions) and options.llm_params:
+            # Pass llm_params (including tool definitions) unchanged
             llm_kwargs = options.llm_params
 
         if self._speculative_generation:
@@ -367,21 +404,27 @@ class IORails(BaseGuardrails):
         reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
         response_text = response.content
 
-        # Check output rails
-        log.info("[%s] Running output rails", req_id)
-        output_result = await self.rails_manager.is_output_safe(messages, response_text)
-        if not output_result.is_safe:
-            log.info("[%s] Output blocked: %s", req_id, output_result.reason)
-            if self._metrics_enabled:
-                record_request_blocked(RailDirection.OUTPUT)
-            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+        # Output rails check the final answer, not reasoning traces.
+        # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
+        # rails, matching LLMRails.
+        # A tool-call-only response skips output rails (no text to check)
+        # Tool calls have their own `ToolOutputRails` set of rails separate to `OutputRails`
+        is_tool_call_only = bool(response.tool_calls) and not response_text
+        if not is_tool_call_only:
+            log.info("[%s] Running output rails", req_id)
+            output_result = await self.rails_manager.is_output_safe(messages, response_text)
+            if not output_result.is_safe:
+                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                if self._metrics_enabled:
+                    record_request_blocked(RailDirection.OUTPUT)
+                return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # TODO: Support returning GenerationResponse `reasoning_content` to match LLMRails
         # For now, embed the reasoning on the content with think-tags
         if reasoning_content:
             response_text = f"<think>{reasoning_content}</think>\n" + response_text
 
-        return {"role": "assistant", "content": response_text}
+        return _build_assistant_message(response_text, response.tool_calls)
 
     async def _do_generate_sequential(
         self, messages: LLMMessages, req_id: str, llm_kwargs: dict
@@ -555,6 +598,7 @@ class IORails(BaseGuardrails):
         if options and isinstance(options, dict):
             options = GenerationOptions(**options)
         if isinstance(options, GenerationOptions) and options.llm_params:
+            # Pass llm_params (including tool definitions) unchanged
             llm_kwargs = options.llm_params
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)

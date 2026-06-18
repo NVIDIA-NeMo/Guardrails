@@ -1,0 +1,151 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Enable Guardrails Metrics"
+sidebar-title: "Enable Guardrails Metrics"
+description: "Set up metrics in minutes with the OpenTelemetry SDK and console output."
+content:
+  type: "get_started"
+---
+
+Use this minimal setup to enable metrics from IORails with the OpenTelemetry SDK and console output.
+LLMRails does not support OpenTelemetry metrics.
+Use this to verify metric emission locally before wiring up a production exporter.
+
+<Warning title="Experimental Feature">
+Metrics currently require the opt-in IORails engine.
+Enable it either by constructing `Guardrails(config, use_iorails=True)` (the form used in this quickstart) or by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which aliases the top-level `LLMRails` import to `Guardrails`.
+IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.
+</Warning>
+
+1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
+
+    ```bash
+    pip install "nemoguardrails[tracing]" opentelemetry-sdk
+    ```
+
+    The `[tracing]` extra installs `opentelemetry-api`, which is the only OpenTelemetry dependency the library itself takes.
+
+2. Save the following to `metrics_example.py`.
+
+    The script issues a single request and exports metrics once per second to both stdout and `metrics.json`.
+    The `provider.shutdown()` call flushes the metrics to disk.
+    Long-running services typically do not need this call.
+
+    ```python
+    # metrics_example.py
+    import asyncio
+
+    from opentelemetry import metrics
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import (
+        ConsoleMetricExporter,
+        PeriodicExportingMetricReader,
+    )
+    from opentelemetry.sdk.resources import Resource
+
+    from nemoguardrails import Guardrails, RailsConfig
+    # Configure the OpenTelemetry MeterProvider BEFORE constructing Guardrails so
+    # the engine resolves a real meter on first metric emission.  Two readers
+    # are attached to the same provider: one writes to stdout for live
+    # inspection, the other writes to ``metrics.json``.
+    resource = Resource.create({"service.name": "guardrails-quickstart"})
+    metrics_file = open("metrics.json", "w")
+    console_reader = PeriodicExportingMetricReader(
+        ConsoleMetricExporter(),
+        export_interval_millis=1000,
+    )
+    file_reader = PeriodicExportingMetricReader(
+        ConsoleMetricExporter(out=metrics_file),
+        export_interval_millis=1000,
+    )
+    provider = MeterProvider(
+        resource=resource,
+        metric_readers=[console_reader, file_reader],
+    )
+    metrics.set_meter_provider(provider)
+
+    # Use Configuration with metrics enabled.
+    config_yaml = """
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4o-mini
+
+    metrics:
+      enabled: true
+    """
+
+    config = RailsConfig.from_content(yaml_content=config_yaml)
+
+    async def main() -> None:
+        # use_iorails=True selects the IORails engine (the only engine that emits
+        # metrics). require_iorails=True raises a ValueError if the config is
+        # incompatible with IORails.
+        async with Guardrails(config, use_iorails=True, require_iorails=True) as rails:
+            response = await rails.generate_async(
+                messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
+            )
+            print(f"Response: {response}")
+
+    try:
+        asyncio.run(main())
+    finally:
+        # Flush and tear down the reader so the final batch reaches the exporter
+        # before the process exits, then close the metrics file.
+        provider.shutdown()
+        metrics_file.close()
+    ```
+
+3. Run the script.
+
+    ```bash
+    python metrics_example.py
+    ```
+
+4. Post-process the metrics JSON file.
+
+    `metrics.json` contains one JSON document per export interval, concatenated.
+    The following command reads every interval into an array and returns the final object, which is the cumulative state after the request completed.
+
+    ```bash
+    jq -s 'last | .resource_metrics[].scope_metrics[].metrics[]
+           | select(.name=="gen_ai.client.token.usage")
+           | .data.data_points[]
+           | {type: .attributes."gen_ai.token.type", count, sum}' metrics.json
+    ```
+
+    Example output (exact output token counts can vary):
+
+    ```json
+    {
+      "type": "input",
+      "count": 1,
+      "sum": 15
+    }
+    {
+      "type": "output",
+      "count": 1,
+      "sum": 1033
+    }
+    ```
+
+    Each object is one aggregation of the `gen_ai.client.token.usage` histogram. The fields are:
+
+    - `type`: Value of the required [`gen_ai.token.type`](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage) label. Values are `input` or `output`.
+    - `count`: Number of observations recorded for this token type. Each LLM call records one `input` observation and one `output` observation, giving `count: 1` per type.
+    - `sum`: Total tokens across those observations.
+
+<Info>
+
+The host application is responsible for configuring a `MeterProvider`.
+If you construct `LLMRails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **silently discards every metric emission**.
+The library does not log a warning.
+Always set the `MeterProvider` before constructing `LLMRails`.
+
+</Info>
+
+## Next Steps
+
+- For production exporters (OTLP, Prometheus), refer to [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration).
+- For the full list of emitted metrics, refer to [Metric Reference](/observability/metrics/reference).

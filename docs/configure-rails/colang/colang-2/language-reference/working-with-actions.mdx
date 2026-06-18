@@ -1,0 +1,279 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Working with Actions"
+description: "You have seen in section Event Generation & Matching how to work with events. We will now introduce actions that will enable you to better manage events and their temporal dependen"
+---
+
+<a id="working-with-actions"></a>
+
+
+## Introduction
+
+You have seen in section [Event Generation & Matching](event-generation-and-matching#event-generation-and-matching) how to work with events. We will now introduce actions that will enable you to better manage events and their temporal dependencies.
+
+<Info>
+
+Action definition:
+
+```text
+<ActionName>[(param=<value>[, param=<value>]…)]
+```
+Examples:
+
+```text
+# Bot utterance action
+UtteranceBotAction(script="Hello", intensity=1.0)
+
+# Bot gesture action
+GestureBotAction(gesture="Wave with one hand")
+```
+An action uses the Pascal case style naming like events, but ends with `Action`.
+
+</Info>
+Different from events, actions have a lifetime that depends on the underlying events. All actions contain the following main events, where we use X as a placeholder for the action name:
+
+```text
+StartXAction(**action_arguments) # Start of an action with given action specific arguments
+StopXAction(action_uid: str) # Stop of an action with the related uid
+XActionStarted(action_uid: str) # Event to signal the action has started
+XActionFinished(action_uid: str, is_success: bool, was_stopped: bool, **action_arguments) # Event to signal that the action has ended
+```
+In Colang an action is like an object in Python and the events can be accessed like an object method of the action.
+
+```text
+XAction(**action_arguments).Start()
+XAction.Stop(action_uid: str)
+XAction.Started(action_uid: str)
+XAction.Finished(action_uid: str, is_success: bool, was_stopped: bool, **action_arguments)
+```
+Here are two common life cycles of an action that depend on the events:
+
+```text
+XAction.Start() -> Action state: `Starting`
+XAction.Started() -> Action state: `Running`
+XAction.Finished() -> Action state: `Finished`
+```
+```text
+XAction.Start() -> Action state: `Starting`
+XAction.Started() -> Action state: `Running`
+XAction.Stop() -> Action state: `Stopping`
+XAction.Finished() -> Action state: `Finished`
+```
+In the UMIM reference documentation, you will find many predefined actions that should cover the most common use cases. Let's have a look at one of the most prominent actions called `UtteranceBotAction`. This action represents the main channel to communicate with the user, e.g. through speech or text (depending on the specific system). This action relates to events that can be grouped into output and input events from the perspective of a bot:
+
+Output events:
+
+```text
+UtteranceBotAction(script: str).Start()
+UtteranceBotAction.Stop(action_uid: str)
+UtteranceBotAction.Change(action_uid: str, intensity: float)
+```
+Input events:
+
+```text
+UtteranceBotAction.Started(action_uid: str, action_started_at: str, ...)
+UtteranceBotActionScript.Updated(action_uid: str, interim_transcript: str, ...)
+UtteranceBotAction.Finished(action_uid: str, final_transcript: str, ...)
+```
+<Note>
+
+Colang can model both bot and user behavior. When modeling the user, the roles of inputs and outputs are inverted.
+
+</Note>
+While there are no binding rules on how we work with these events using the `send` or `match` keywords, in most cases we will generate output events and match to input events. For example, if we want the bot to finish saying something before making a gesture we could create the following interaction pattern:
+
+**actions/action_events/main.co**
+
+```text
+flow main
+    match StartEvent()
+    send UtteranceBotAction(script="Hello").Start() as $event_ref
+    match UtteranceBotActionFinished(action_uid=$event_ref.action_uid)
+    send GestureBotAction(gesture="Wave").Start()
+```
+```text
+> /StartEvent
+
+Hello
+
+Gesture: Wave
+```
+We see that by using the `action_uid` property of the `Start` action event reference, we can match to the `Finished` event of the specific action. This is important, since there could be other `UtteranceBotAction` finishing before.
+
+## `Start` an Action
+
+Colang supports several features based on the action concept that make designing interaction patterns more convenient. The first feature we introduce is the  `start` statement.
+
+<Info>
+
+Start statement definition:
+
+```text
+start <Action> [as $<action_ref_name>] [and|or <Action> [as $<action_ref_name>]…)]
+```
+Example:
+
+```text
+start UtteranceBotAction(script="Hello") as $bot_action_ref
+```
+
+</Info>
+**actions/start_keyword/main.co**
+
+```text
+flow main
+    start UtteranceBotAction(script="Hello") as $ref_action
+    match $ref_action.Finished()
+    start GestureBotAction(gesture="Wave")
+    match RestartEvent()
+```
+```text
+Hello
+
+Gesture: Wave
+```
+The keyword `start` creates an action object and then generates an action specific `Start` action event. A reference to this action object can be stored using `as $ref_name`. With this action reference, we can now conveniently match to the `Finished` event and no longer need to use the `action_uid` parameter to identify the specific action.
+
+Next, we look at UtteranceUserAction, which mirrors UtteranceBotAction on the user side and serves as the user’s primary channel for expression (e.g., speech, text, or other modalities). A user action is usually not started by Colang but by the user (system). These are the most important action events and parameters:
+
+```text
+UtteranceUserActionStarted(action_uid: str)
+UtteranceUserActionTranscriptUpdated(action_uid: str, interim_transcript: str)
+UtteranceUserActionIntensityUpdated(action_uid: str, intensity: float)
+UtteranceUserActionFinished(action_uid: str, final_transcript: str)
+```
+With this, let's now build a little dialog pattern:
+
+**actions/dialog_pattern/main.co**
+
+```text
+flow main
+    match UtteranceUserAction.Finished(final_transcript="Hi")
+    start UtteranceBotAction(script="Hi there! How are you?") as $ref_action_1
+    match $ref_action_1.Finished()
+    match UtteranceUserAction.Finished(final_transcript="Good and you?")
+    start UtteranceBotAction(script="Great! Thanks") as $ref_action_2
+    start GestureBotAction(gesture="Thumbs up") as $ref_action_3
+    match $ref_action_2.Finished() and $ref_action_3.Finished()
+```
+```text
+> Hi
+
+Hi there! How are you?
+
+> Good and you?
+
+Great! Thanks
+
+Gesture: Thumbs up
+```
+As you might have already noticed, this is very similar to the example we saw in `introduction/interaction_sequence/main.co`. The difference is that we have more temporal control and will only start matching user input once the bot has completed the utterance. Note also how the interaction pattern is completed only once the second bot utterance action and the bot gesture action have both finished.
+
+## `Await` an Action
+
+Let's introduce the `await` statement to further simplify the previous example:
+
+**actions/await_keyword/main.co**
+
+```text
+flow main
+    match UtteranceUserAction.Finished(final_transcript="Hi")
+    await UtteranceBotAction(script="Hi there! How are you?")
+    match UtteranceUserAction.Finished(final_transcript="Good and you?")
+    # ...
+```
+`await` is a shortcut notation for starting an action and waiting for the action to be finished (i.e matching the `.Finished()` event.)
+
+<Info>
+
+Await statement definition:
+
+```text
+await <Action> [as $<action_ref_name>] [and|or <Action> [as $<action_ref_name>]…)]
+```
+Example:
+
+```text
+await UtteranceBotAction(script="Hello") as $bot_action_ref
+```
+
+</Info>
+We can optionally make use of action grouping using the `and` keyword to simplify it like this:
+
+**actions/action_grouping/main.co**
+
+```text
+flow main
+    match UtteranceUserAction.Finished(final_transcript="Hi")
+    await UtteranceBotAction(script="Hi there! How are you?")
+    match UtteranceUserAction.Finished(final_transcript="Good and you?")
+    await UtteranceBotAction(script="Great! Thanks") and GestureBotAction(gesture="Thumbs up")
+```
+Action grouping is identical to event grouping using the keywords `start` and `await` instead of `send` and `match`.
+
+<Info>
+
+Note that this:
+
+```text
+await Action1() or Action2()
+```
+will randomly start only one of the actions (not both!) and wait for it to finish
+
+</Info>
+To simplify it even more, we can actually omit all the `await` keywords completely, since it is the default statement keyword.
+
+**actions/omit_wait_keyword/main.co**
+
+```text
+flow main
+    match UtteranceUserAction.Finished(final_transcript="Hi")
+    UtteranceBotAction(script="Hi there! How are you?")
+    match UtteranceUserAction.Finished(final_transcript="Good and you?")
+    UtteranceBotAction(script="Great! Thanks") and GestureBotAction(gesture="Thumbs up")
+```
+<Info>
+
+`await` is the default statement keyword and can be omitted.
+
+</Info>
+If we would like to start two actions and only wait until either one of them has finished, we can achieve this like this:
+
+**actions/wait_for_first_action_only/main.co**
+
+```text
+flow main
+    match StartEvent()
+    start UtteranceBotAction(script="Great! Thanks") as $ref_action_1
+        and GestureBotAction(gesture="Thumbs up") as $ref_action_2
+    match $ref_action_1.Finished() or $ref_action_2.Finished()
+```
+## More about Actions
+
+If needed, we can also stop an action using its reference like this:
+
+**actions/stop_action/main.co**
+
+```text
+flow main
+    match StartEvent()
+    start UtteranceBotAction(script="Great! Thanks") as $ref_action
+    send $ref_action.Stop()
+```
+Unfortunately, with the simple chat CLI we will not see any effect of the `Stop` event since the utterance is done immediately. But in any real system, the utterance will take some time to finish and can be stopped like this if needed.
+
+Another detail to point out is the difference between matching to an action event accessed via an action reference versus matching directly by an action:
+
+```text
+# Case 1) Wait for Finished event of the specific action
+start UtteranceBotAction(script="hi") as $action_ref
+match $action_ref.Finished()
+
+# Case 2) Wait for the Finished event of any UtteranceBotAction
+match UtteranceBotAction.Finished()
+```
+In the first case, the match is on the specific action reference (same action_uid parameter) and will not match to any other `Finished` event of another `UtteranceBotAction`. The second case is more general and will match to any `Finished` event from any `UtteranceBotAction`.
+
+
+With this, we are now prepared to learn more about the concept of flows in the next chapter [Defining Flows](defining-flows#defining-flows).

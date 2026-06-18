@@ -26,15 +26,11 @@ SYMBOL_TYPES = ["intent", "object", "type", "property", "utterance", "sym", "loo
 def parse_pattern(pattern):
     """
     Parses a pattern from the Markdown-friendly format to an internal format.
-    E.g. parse_pattern("show [me](user=CURRENT) the deals I've [won](deal__status)") =
-    (show me the deals I've {deal__status}, {'user': 'CURRENT'}).
+    For example, a pattern with an implicit user assignment and a captured deal
+    status returns `("show me the deals I've {deal__status}", {"user": "CURRENT"})`.
 
-    For patters with "assignment patterns" like "show [me](user=CURRENT) the deals" we
-    transform it into:
-    "show {user=CURRENT} the deals" with the mapping:
-    {
-        "user=CURRENT": "me"
-    }
+    Assignment patterns are transformed into capture placeholders and record
+    an implicit mapping such as `{"user=CURRENT": "me"}`.
 
     :param pattern: The pattern in Markdown-friendly format.
     :return: A tuple (pattern, params) where pattern is a pattern containing only
