@@ -15,12 +15,16 @@
 
 """Unit tests for engine_registry module."""
 
+import json
 from typing import Optional
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
@@ -86,6 +90,28 @@ def manager_with_metrics(rails_config):
     return EngineRegistry(rails_config.models, rails_config.rails.config, metrics_enabled=True)
 
 
+@pytest.fixture
+def span_exporter():
+    """Install a test-local TracerProvider + in-memory exporter and return
+    ``(tracer, exporter)``.  The tracer is passed explicitly to the registry
+    (no global TracerProvider is set), so there is no global state to clean
+    up beyond the autouse ``reset_telemetry_singletons`` fixture."""
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("test")
+    return tracer, exporter
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def manager_with_tracer(rails_config, span_exporter):
+    """Create an EngineRegistry wired to the test tracer (metrics + content
+    capture off) so LLM calls produce real spans we can read back."""
+    tracer, _ = span_exporter
+    return EngineRegistry(rails_config.models, rails_config.rails.config, tracer=tracer)
+
+
 def _mock_stream(*chunks: LLMResponseChunk, error: Optional[Exception] = None):
     """Build an async generator that yields ``chunks`` in order, then
     optionally raises ``error``.  Drop-in replacement for inline
@@ -100,6 +126,54 @@ def _mock_stream(*chunks: LLMResponseChunk, error: Optional[Exception] = None):
             raise error
 
     return _gen
+
+
+def _mock_sse_response(raw_chunks: list[dict]):
+    """Build a mock aiohttp streaming response that emits ``raw_chunks`` as
+    SSE ``data:`` frames followed by ``[DONE]``.
+
+    Drives ModelEngine.stream_call's real ``_parse_chat_completion_chunk``
+    path (rather than ``_mock_stream``'s pre-parsed chunks), so a finish-only
+    SSE frame is parsed end-to-end. readline() returns one ``\\n``-terminated
+    line at a time, matching aiohttp's StreamReader.
+    """
+    lines = [f"data: {json.dumps(chunk)}\n".encode() for chunk in raw_chunks]
+    lines.append(b"data: [DONE]\n")
+    line_iter = iter(lines)
+
+    async def _readline():
+        return next(line_iter, b"")
+
+    mock_content = MagicMock()
+    mock_content.readline = _readline
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = 200
+    mock_response.content = mock_content
+    return mock_response
+
+
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def _registry_with_main_params(parameters: dict, tracer):
+    """Build an EngineRegistry whose ``main`` model carries ``parameters``,
+    wired to ``tracer`` so model_call / stream_model_call produce real spans we
+    can read back. Used by the parameter-defaults merge tests, which need a
+    model with non-empty ``parameters`` (the shared NEMOGUARDS_CONFIG models
+    have none)."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "model": "meta/llama-3.3-70b-instruct",
+                    "parameters": parameters,
+                }
+            ]
+        }
+    )
+    return EngineRegistry(config.models, config.rails.config, tracer=tracer)
 
 
 class TestEngineRegistryInit:
@@ -368,6 +442,275 @@ class TestEngineRegistryModelCallMetrics:
         points = collect_metric_points(metric_reader)
         assert "gen_ai.client.token.usage" not in points
         assert "gen_ai.client.operation.duration" not in points
+
+
+class TestEngineRegistryModelCallSpanAttributes:
+    """``model_call`` sets gen_ai.request.* and gen_ai.response.* / usage.*
+    attributes on the LLM CLIENT span, independent of metrics and content
+    capture."""
+
+    @pytest.mark.asyncio
+    async def test_sets_request_and_response_attributes(self, manager_with_tracer, span_exporter):
+        """Populated LLMResponse + request kwargs → the finished span carries
+        usage, response, and request-param attrs; gen_ai.request.stream is
+        absent on the non-streaming path and total_tokens is never emitted."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(
+            return_value=LLMResponse(
+                content="hi there",
+                model="meta/llama-3.3-70b-instruct",
+                finish_reason="stop",
+                request_id="chatcmpl-xyz",
+                usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15, reasoning_tokens=3),
+            ),
+        )
+
+        await manager_with_tracer.model_call(
+            "main",
+            [{"role": "user", "content": "hi"}],
+            temperature=0.5,
+            max_tokens=100,
+            stop=["END"],
+        )
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.5
+        assert attrs["gen_ai.request.max_tokens"] == 100
+        assert list(attrs["gen_ai.request.stop_sequences"]) == ["END"]
+        assert "gen_ai.request.stream" not in attrs
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-xyz"
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.usage.input_tokens"] == 10
+        assert attrs["gen_ai.usage.output_tokens"] == 5
+        assert attrs["gen_ai.usage.reasoning.output_tokens"] == 3
+        assert "gen_ai.usage.total_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_attributes_set_without_metrics_or_content_capture(self, manager_with_tracer, span_exporter):
+        """The new attrs are independent of metrics and content capture: with
+        both off (the manager_with_tracer default), usage/response attrs are
+        still present while message-content attrs are not."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(
+            return_value=LLMResponse(content="hi", usage=UsageInfo(input_tokens=2, output_tokens=1)),
+        )
+
+        await manager_with_tracer.model_call("main", [{"role": "user", "content": "hi"}])
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.usage.input_tokens"] == 2
+        assert attrs["gen_ai.usage.output_tokens"] == 1
+        assert "gen_ai.input.messages" not in attrs
+        assert "guardrails.request.input" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_request_attributes_present_on_error(self, manager_with_tracer, span_exporter):
+        """Request params are set before the call, so they survive on the span
+        when the call raises; response/usage attrs are absent and the span is
+        marked ERROR via error.type."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await manager_with_tracer.model_call("main", [{"role": "user", "content": "hi"}], temperature=0.2)
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.2
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert "gen_ai.response.model" not in attrs
+        assert attrs["error.type"] == "RuntimeError"
+
+
+class TestEngineRegistryParameterDefaults:
+    """``model_call`` / ``stream_model_call`` merge ModelEngine.body_param_defaults
+    (the model's ``parameters`` config minus transport/secret/streaming keys)
+    under the per-call kwargs. Both the request body and the gen_ai.request.*
+    span attrs reflect the defaults, with per-call llm_params overriding."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_applies_config_defaults(self, span_exporter):
+        """No per-call kwargs → the model's parameter defaults populate both the
+        request body and the request span attrs."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}])
+
+        body = engine.chat_completion.call_args[1]
+        assert body["temperature"] == 0.7
+        assert body["max_tokens"] == 256
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.7
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_per_call_kwargs_override_defaults(self, span_exporter):
+        """A per-call kwarg overrides the config default for that key; the other
+        defaults are retained, in both body and span."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}], temperature=0.1)
+
+        body = engine.chat_completion.call_args[1]
+        assert body["temperature"] == 0.1  # per-call override wins
+        assert body["max_tokens"] == 256  # config default retained
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.1
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_llm_params_take_precedence_over_config_parameters(self, span_exporter):
+        """Precedence guard: when the same key is set in BOTH the static
+        Model.parameters config AND the per-call llm_params, the per-call value
+        must win in the request body actually sent to the engine. Reversing the
+        merge order ({**kwargs, **defaults}, config winning) flips the sent
+        temperature back to the config value and fails this test."""
+        config_temperature = 0.7
+        per_call_temperature = 0.1
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": config_temperature}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}], temperature=per_call_temperature)
+
+        sent_body = engine.chat_completion.call_args[1]
+        assert sent_body["temperature"] == per_call_temperature
+        assert sent_body["temperature"] != config_temperature  # the static config default must not win
+        # The span reflects the same value that was sent.
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == per_call_temperature
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_excludes_non_body_keys(self, span_exporter):
+        """Transport (base_url/timeout) and streaming-control (stream) keys in
+        parameters never reach the request body; only the sampling param does."""
+        tracer, _ = span_exporter
+        registry = _registry_with_main_params(
+            {"base_url": "https://custom.example.com", "timeout": 5, "stream": True, "temperature": 0.5},
+            tracer,
+        )
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await registry.model_call("main", [{"role": "user", "content": "hi"}])
+
+        body = engine.chat_completion.call_args[1]
+        assert body == {"temperature": 0.5}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_model_call_applies_defaults_and_override(self, span_exporter):
+        """Streaming path merges the same way: defaults populate the body
+        (captured off the engine call) and the span attrs (with stream=True),
+        and a per-call kwarg overrides its default."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": 0.7, "max_tokens": 256}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+
+        captured: dict = {}
+
+        async def _capturing_stream(messages, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+            captured.update(kwargs)
+            yield LLMResponseChunk(delta_content="hi", finish_reason="stop")
+
+        engine.stream_chat_completion = _capturing_stream
+
+        async for _ in registry.stream_model_call("main", [{"role": "user", "content": "hi"}], temperature=0.1):
+            pass
+
+        assert captured["temperature"] == 0.1  # per-call override wins
+        assert captured["max_tokens"] == 256  # config default retained
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.1
+        assert attrs["gen_ai.request.max_tokens"] == 256
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_llm_params_take_precedence_over_config_parameters(self, span_exporter):
+        """Streaming precedence guard: when the same key is set in BOTH the
+        static Model.parameters config AND the per-call llm_params, the per-call
+        value must win in what stream_model_call forwards to the engine.
+        Reversing the merge order ({**kwargs, **defaults}, config winning) flips
+        the streamed temperature back to the config value and fails this test."""
+        config_temperature = 0.7
+        per_call_temperature = 0.1
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params({"temperature": config_temperature}, tracer)
+        engine = registry._get_engine("main", ModelEngine)
+
+        captured: dict = {}
+
+        async def _capturing_stream(messages, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+            captured.update(kwargs)
+            yield LLMResponseChunk(delta_content="hi", finish_reason="stop")
+
+        engine.stream_chat_completion = _capturing_stream
+
+        async for _ in registry.stream_model_call(
+            "main", [{"role": "user", "content": "hi"}], temperature=per_call_temperature
+        ):
+            pass
+
+        assert captured["temperature"] == per_call_temperature
+        assert captured["temperature"] != config_temperature  # the static config default must not win
+        # The span reflects the same value that was forwarded.
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == per_call_temperature
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_model_call_with_stream_param_does_not_raise_type_error(self, span_exporter):
+        """A model whose parameters include ``stream`` drives the real
+        stream_call/_prepare_request path without a duplicate-keyword TypeError
+        (stream is excluded from body_param_defaults). Only the sampling param
+        reaches the sent body; transport/streaming keys are dropped."""
+        tracer, exporter = span_exporter
+        registry = _registry_with_main_params(
+            {"stream": True, "base_url": "https://custom.example.com", "temperature": 0.5}, tracer
+        )
+        engine = registry._get_engine("main", ModelEngine)
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(
+            return_value=_mock_sse_response(
+                [
+                    {
+                        "id": "chatcmpl-stream",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "choices": [{"delta": {"content": "hi"}, "finish_reason": "stop"}],
+                    },
+                ]
+            )
+        )
+        engine._running = True
+
+        # Must not raise TypeError("got multiple values for keyword argument 'stream'").
+        async for _ in registry.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        sent_body = engine._client.post.call_args.kwargs["json"]
+        assert sent_body["temperature"] == 0.5
+        assert sent_body["stream"] is True  # set explicitly by stream_call, not from parameters
+        assert "base_url" not in sent_body
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.temperature"] == 0.5
+        assert attrs["gen_ai.request.stream"] is True
 
 
 class TestEngineRegistryStartErrors:
@@ -1028,3 +1371,135 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
         assert "gen_ai.client.operation.time_per_output_chunk" not in points
         assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"
+
+
+class TestEngineRegistryStreamModelCallSpanAttributes:
+    """``stream_model_call`` sets gen_ai.request.* (including stream=True) and
+    the accumulated gen_ai.response.* / usage.* attributes on the LLM CLIENT
+    span, independent of metrics and content capture (both off here)."""
+
+    @pytest.mark.asyncio
+    async def test_accumulates_response_attributes_across_chunks(self, manager_with_tracer, span_exporter):
+        """Response fields arrive on different chunks (model + id early,
+        finish_reason + usage on the terminal chunk); the span carries the
+        accumulated values plus the request params and stream=True."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(
+                delta_content="Hello",
+                model="meta/llama-3.3-70b-instruct",
+                request_id="chatcmpl-stream",
+            ),
+            LLMResponseChunk(delta_content=" world"),
+            LLMResponseChunk(
+                finish_reason="stop",
+                usage=UsageInfo(input_tokens=8, output_tokens=4, total_tokens=12, reasoning_tokens=2),
+            ),
+        )
+
+        async for _ in manager_with_tracer.stream_model_call(
+            "main", [{"role": "user", "content": "hi"}], temperature=0.3, stop=["X"]
+        ):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.3
+        assert list(attrs["gen_ai.request.stop_sequences"]) == ["X"]
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-stream"
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.usage.input_tokens"] == 8
+        assert attrs["gen_ai.usage.output_tokens"] == 4
+        assert attrs["gen_ai.usage.reasoning.output_tokens"] == 2
+        assert "gen_ai.usage.total_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_finish_only_sse_frame_lands_finish_reasons_on_span(self, manager_with_tracer, span_exporter):
+        """End-to-end regression for the dropped finish-only frame. A real
+        OpenAI-style stream delivers ``finish_reason`` in a frame with an empty
+        delta and no usage, then usage in a separate empty-``choices`` frame.
+        Driving the actual ``_parse_chat_completion_chunk`` (not a pre-parsed
+        ``_mock_stream``), the span must still carry
+        ``gen_ai.response.finish_reasons`` — restoring the ``is None``-only
+        parser guard would drop the finish frame and fail this assertion."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(
+            return_value=_mock_sse_response(
+                [
+                    {
+                        "id": "chatcmpl-stream",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "choices": [{"delta": {"content": "Hello"}, "finish_reason": None}],
+                    },
+                    {"choices": [{"delta": {"content": " world"}, "finish_reason": None}]},
+                    # Finish-only frame: empty delta, no usage — previously dropped.
+                    {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                    # Usage arrives on a separate empty-choices frame.
+                    {"choices": [], "usage": {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12}},
+                ]
+            )
+        )
+        engine._running = True
+
+        async for _ in manager_with_tracer.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert list(attrs["gen_ai.response.finish_reasons"]) == ["stop"]
+        assert attrs["gen_ai.response.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.response.id"] == "chatcmpl-stream"
+        assert attrs["gen_ai.usage.input_tokens"] == 8
+        assert attrs["gen_ai.usage.output_tokens"] == 4
+        assert attrs["gen_ai.request.stream"] is True
+
+    @pytest.mark.asyncio
+    async def test_stream_attribute_set_even_without_usage(self, manager_with_tracer, span_exporter):
+        """gen_ai.request.stream=True is set before the first chunk, so it is
+        present even when no chunk carries usage; usage attrs are then absent."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
+
+        async for _ in manager_with_tracer.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert "gen_ai.usage.output_tokens" not in attrs
+
+    @pytest.mark.asyncio
+    async def test_request_attributes_present_on_provider_error(self, manager_with_tracer, span_exporter):
+        """Provider errors mid-stream → request attrs (incl. stream) survive on
+        the span; the post-loop response/usage attrs are never set (even though
+        a chunk carried ``model``), and the span is marked ERROR."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello", model="meta/llama-3.3-70b-instruct"),
+            error=RuntimeError("provider died"),
+        )
+
+        with pytest.raises(RuntimeError, match="provider died"):
+            async for _ in manager_with_tracer.stream_model_call(
+                "main", [{"role": "user", "content": "hi"}], temperature=0.9
+            ):
+                pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.request.stream"] is True
+        assert attrs["gen_ai.request.temperature"] == 0.9
+        # Captured during iteration but not written — response attrs are set
+        # only after natural exhaustion, which the error skips.
+        assert "gen_ai.response.model" not in attrs
+        assert "gen_ai.usage.input_tokens" not in attrs
+        assert attrs["error.type"] == "RuntimeError"

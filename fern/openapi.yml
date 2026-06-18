@@ -1,0 +1,483 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.0.3
+info:
+  title: NVIDIA NeMo Guardrails Library API Server
+  version: 0.22.0
+  description: |
+    REST API for the NVIDIA NeMo Guardrails library server.
+
+    The server exposes an OpenAI-compatible chat completions endpoint with
+    Guardrails-specific request and response extensions.
+servers:
+  - url: http://localhost:8000
+    description: Local Guardrails server
+tags:
+  - name: Chat Completions
+    description: Generate guarded chat completions.
+  - name: Models
+    description: List upstream models exposed through the configured provider.
+  - name: Configurations
+    description: Discover available guardrails configurations.
+  - name: Challenges
+    description: List registered red teaming challenges.
+  - name: Health
+    description: Check server health or load the chat UI.
+paths:
+  /v1/chat/completions:
+    post:
+      operationId: createGuardrailsChatCompletion
+      tags:
+        - Chat Completions
+      summary: Create a guarded chat completion
+      description: |
+        Generate a chat completion with guardrails applied.
+
+        The request shape is compatible with the OpenAI Chat Completions API and
+        accepts Guardrails-specific options in the `guardrails` object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardrailsChatCompletionRequest"
+            examples:
+              basic:
+                summary: Basic guarded completion
+                value:
+                  model: meta/llama-3.1-8b-instruct
+                  messages:
+                    - role: user
+                      content: What is the capital of France?
+                  guardrails:
+                    config_id: content_safety
+              streaming:
+                summary: Streaming guarded completion
+                value:
+                  model: meta/llama-3.1-8b-instruct
+                  messages:
+                    - role: user
+                      content: Tell me a short story.
+                  stream: true
+                  guardrails:
+                    config_id: content_safety
+      responses:
+        "200":
+          description: Chat completion response or server-sent event stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuardrailsChatCompletion"
+              examples:
+                success:
+                  summary: Basic guarded completion
+                  value:
+                    id: chatcmpl-abc123
+                    object: chat.completion
+                    created: 1709424000
+                    model: meta/llama-3.1-8b-instruct
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: Paris is the capital of France.
+                        finish_reason: stop
+                    guardrails:
+                      config_id: content_safety
+                      llm_output: null
+                      output_data: null
+                      log: null
+                      state: null
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
+
+                data: [DONE]
+        "422":
+          description: Invalid request or unsupported state continuation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingConfig:
+                  value:
+                    detail: No guardrails config_id provided and server has no default configuration
+                unsupportedColangState:
+                  value:
+                    detail: Stateful continuation over HTTP is not supported for Colang 2.0.
+  /v1/models:
+    get:
+      operationId: listModels
+      tags:
+        - Models
+      summary: List models
+      description: |
+        List available LLM models from the configured upstream provider.
+
+        The server forwards the `Authorization` header to the upstream provider
+        when the request includes one.
+      responses:
+        "200":
+          description: OpenAI-compatible models list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAIModelsList"
+              examples:
+                success:
+                  value:
+                    data:
+                      - id: meta/llama-3.1-8b-instruct
+                        object: model
+                        created: 1700000000
+                        owned_by: system
+        "502":
+          description: The upstream provider is unreachable or returned an error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/rails/configs:
+    get:
+      operationId: listRailsConfigs
+      tags:
+        - Configurations
+      summary: List guardrails configurations
+      description: |
+        List available guardrails configurations. In single-config mode, the
+        response contains the single configured ID.
+      responses:
+        "200":
+          description: Array of available configuration IDs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RailsConfigInfo"
+              examples:
+                success:
+                  value:
+                    - id: content_safety
+                    - id: customer-service
+  /v1/challenges:
+    get:
+      operationId: listChallenges
+      tags:
+        - Challenges
+      summary: List red teaming challenges
+      description: |
+        List registered red teaming challenges. The response structure depends
+        on the challenges registered by the application.
+      responses:
+        "200":
+          description: Array of registered challenges.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+              examples:
+                success:
+                  value:
+                    - id: jailbreak-1
+                      description: Attempt to bypass safety guardrails.
+                      category: jailbreak
+  /:
+    get:
+      operationId: getRoot
+      tags:
+        - Health
+      summary: Get server health or chat UI
+      description: |
+        Returns a health payload when the chat UI is disabled. Otherwise, serves
+        the interactive chat interface.
+      responses:
+        "200":
+          description: Health payload or chat UI HTML.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+              example:
+                status: ok
+            text/html:
+              schema:
+                type: string
+components:
+  schemas:
+    ChatMessage:
+      type: object
+      additionalProperties: true
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          description: Message role, such as `system`, `user`, `assistant`, `tool`, or `context`.
+          example: user
+        content:
+          description: Message content.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+    GuardrailsChatCompletionRequest:
+      type: object
+      required:
+        - model
+      properties:
+        model:
+          type: string
+          description: LLM model to use for the completion.
+          example: meta/llama-3.1-8b-instruct
+        messages:
+          type: array
+          description: Chat messages in the current conversation.
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        stream:
+          type: boolean
+          default: false
+          description: Return partial message deltas as server-sent events.
+        max_tokens:
+          type: integer
+          description: Maximum number of tokens to generate.
+        temperature:
+          type: number
+          format: float
+          description: Sampling temperature.
+        top_p:
+          type: number
+          format: float
+          description: Top-p sampling parameter.
+        stop:
+          description: Stop sequence or sequences.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        presence_penalty:
+          type: number
+          format: float
+          description: Presence penalty parameter.
+        frequency_penalty:
+          type: number
+          format: float
+          description: Frequency penalty parameter.
+        function_call:
+          type: object
+          additionalProperties: true
+          description: Function call parameter.
+        logit_bias:
+          type: object
+          additionalProperties: true
+          description: Logit bias parameter.
+        logprobs:
+          type: boolean
+          description: Log probabilities parameter.
+        guardrails:
+          $ref: "#/components/schemas/GuardrailsRequestOptions"
+    GuardrailsRequestOptions:
+      type: object
+      description: Guardrails-specific request options.
+      properties:
+        config_id:
+          type: string
+          description: Guardrails configuration ID to use. Mutually exclusive with `config_ids`.
+        config_ids:
+          type: array
+          description: List of configuration IDs to combine. Mutually exclusive with `config_id`.
+          items:
+            type: string
+        thread_id:
+          type: string
+          minLength: 16
+          maxLength: 255
+          description: Existing thread ID for Colang 1.0 conversation persistence.
+        context:
+          type: object
+          additionalProperties: true
+          description: Additional context data for the conversation.
+        options:
+          $ref: "#/components/schemas/GenerationOptions"
+        state:
+          type: object
+          additionalProperties: true
+          description: Colang 1.0 transcript state for continuing a previous interaction.
+    GenerationOptions:
+      type: object
+      properties:
+        rails:
+          $ref: "#/components/schemas/GenerationRailsOptions"
+        llm_params:
+          type: object
+          additionalProperties: true
+          description: Additional parameters to pass to the LLM call.
+        llm_output:
+          type: boolean
+          default: false
+          description: Include custom LLM output in the response.
+        output_vars:
+          description: Context variables to return.
+          oneOf:
+            - type: boolean
+            - type: array
+              items:
+                type: string
+        log:
+          $ref: "#/components/schemas/GenerationLogOptions"
+    GenerationRailsOptions:
+      type: object
+      properties:
+        input:
+          $ref: "#/components/schemas/RailSelection"
+        output:
+          $ref: "#/components/schemas/RailSelection"
+        retrieval:
+          $ref: "#/components/schemas/RailSelection"
+        dialog:
+          type: boolean
+          default: true
+          description: Enable dialog rails.
+        tool_input:
+          $ref: "#/components/schemas/RailSelection"
+        tool_output:
+          $ref: "#/components/schemas/RailSelection"
+    RailSelection:
+      description: Enable, disable, or select named rails.
+      oneOf:
+        - type: boolean
+        - type: array
+          items:
+            type: string
+    GenerationLogOptions:
+      type: object
+      properties:
+        activated_rails:
+          type: boolean
+          default: false
+          description: Include information about activated rails.
+        llm_calls:
+          type: boolean
+          default: false
+          description: Include details about LLM calls.
+        internal_events:
+          type: boolean
+          default: false
+          description: Include internal generated events.
+        colang_history:
+          type: boolean
+          default: false
+          description: Include conversation history in Colang format.
+    GuardrailsChatCompletion:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatCompletionChoice"
+        guardrails:
+          $ref: "#/components/schemas/GuardrailsResponseData"
+    ChatCompletionChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+        message:
+          $ref: "#/components/schemas/ChatMessage"
+        finish_reason:
+          type: string
+          nullable: true
+    GuardrailsResponseData:
+      type: object
+      properties:
+        config_id:
+          type: string
+          nullable: true
+        state:
+          type: object
+          nullable: true
+          additionalProperties: true
+        llm_output:
+          type: object
+          nullable: true
+          additionalProperties: true
+        output_data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        log:
+          type: object
+          nullable: true
+          additionalProperties: true
+    OpenAIModelsList:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenAIModel"
+    OpenAIModel:
+      type: object
+      required:
+        - id
+        - object
+        - created
+      properties:
+        id:
+          type: string
+          description: Model identifier.
+        object:
+          type: string
+          enum:
+            - model
+        created:
+          type: integer
+          description: Unix timestamp in seconds.
+        owned_by:
+          type: string
+          nullable: true
+          description: Organization that owns the model.
+    RailsConfigInfo:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Guardrails configuration ID.
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          description: Error detail.
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true

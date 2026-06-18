@@ -1,0 +1,94 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "AlignScore Integration"
+---
+NeMo Guardrails provides out-of-the-box support for the [AlignScore metric (Zha et al.)](https://aclanthology.org/2023.acl-long.634.pdf), which uses a RoBERTa-based model for scoring factual consistency in model responses with respect to the knowledge base.
+
+In our testing, we observed an average latency of ~220ms on hosting AlignScore as an HTTP service, and ~45ms on direct inference with the model loaded in-memory. This makes it much faster than the self-check method. However, this method requires an on-prem deployment of the publicly available AlignScore model. See [Deploy AlignScore](#deploy-alignscore) for deployment options.
+
+## Usage
+
+To use the AlignScore-based fact-checking, you have to set the following configuration options in your `config.yml`:
+
+```yaml
+rails:
+  config:
+    fact_checking:
+      parameters:
+        # Point to a running instance of the AlignScore server
+        endpoint: "http://localhost:5000/alignscore_large"
+
+  output:
+    flows:
+      - alignscore check facts
+```
+
+The Colang flow for AlignScore-based fact-checking rail is the same as that for the self-check fact-checking rail. To trigger the fact-checking rail, you have to set the `$check_facts` context variable to `True` before a bot message that requires fact-checking, e.g.:
+
+```text
+define flow
+  user ask about report
+  $check_facts = True
+  bot provide report answer
+```
+
+## Deploy AlignScore
+
+<Note>
+
+The recommended way to use AlignScore with the NeMo Guardrails library is the provided [Dockerfile](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/factchecking/align_score/Dockerfile). For more details, see [AlignScore Fact-Checking with Docker](/more-deployment-options/using-docker#alignscore-fact-checking).
+
+</Note>
+
+To deploy an AlignScore server from source, follow these steps:
+
+<Info>
+
+Installing AlignScore is not supported on Python 3.11.
+
+</Info>
+
+1. Install the `alignscore` package from the GitHub repository:
+
+   ```bash
+   git clone https://github.com/yuh-zha/AlignScore.git
+   cd AlignScore
+   pip install .
+   ```
+
+1. Install PyTorch version `2.0.1`.
+
+   ```bash
+   pip install torch==2.0.1
+   ```
+
+1. Download the spaCy `en_core_web_sm` model:
+
+   ```bash
+   python -m spacy download en_core_web_sm
+   ```
+
+1. Download one or both of the AlignScore checkpoints:
+
+   ```bash
+   curl -OL https://huggingface.co/yzha/AlignScore/resolve/main/AlignScore-base.ckpt
+   curl -OL https://huggingface.co/yzha/AlignScore/resolve/main/AlignScore-large.ckpt
+   ```
+
+1. Set the `ALIGN_SCORE_PATH` environment variable to point to the path where the checkpoints were downloaded.
+
+1. Set the `ALIGN_SCORE_DEVICE` environment variable to `"cpu"` to run the AlignScore model on CPU, or to the corresponding GPU device, such as `"cuda:0"`.
+
+   ```bash
+   export ALIGN_SCORE_PATH=<path/to/folder_containing_ckpt>
+   export ALIGN_SCORE_DEVICE="cuda:0"
+   ```
+
+1. Start the AlignScore server.
+
+   ```bash
+   python -m nemoguardrails.library.factchecking.align_score.server --port 5000 --models=base
+   ```
+
+By default, the AlignScore server listens on port `5000`. You can change the port using the `--port` option. By default, the AlignScore server loads only the base model. You can load only the large model using `--models=large` or both models using `--models=base --models=large`.

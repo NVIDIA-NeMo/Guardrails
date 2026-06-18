@@ -25,7 +25,7 @@ to satisfy the OTEL GenAI semantic conventions.
 """
 
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, Optional
 
@@ -130,6 +130,10 @@ class GenAIAttributes:
     GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
     GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 
+    # Conditionally Required per spec: set if and only if the request is
+    # streaming (omit entirely on non-streaming calls).
+    GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+
     GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
     GEN_AI_RESPONSE_ID = "gen_ai.response.id"
     GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -137,6 +141,10 @@ class GenAIAttributes:
     GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
+
+    # Recommended span attribute (when applicable, e.g. reasoning models).
+    # Span-only — NOT a valid ``gen_ai.token.type`` metric label value.
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
 
     # Required label on the ``gen_ai.client.token.usage`` metric.
     # Allowed values (from spec): "input" or "output" only.  Reasoning
@@ -300,7 +308,7 @@ class EventNames:
     """Standard event names for OpenTelemetry GenAI semantic conventions.
 
     Based on official spec at:
-    https://github.com/open-telemetry/semantic-conventions/blob/main/model/gen-ai/events.yaml
+    https://opentelemetry.io/docs/concepts/semantic-conventions/
     """
 
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
@@ -550,7 +558,10 @@ def llm_operation_duration(
     finally:
         elapsed = time.monotonic() - t0
         attrs = base if exc_type is None else {**base, "error.type": exc_type}
-        instruments.operation_duration.record(elapsed, attributes=attrs)
+        # Best-effort emission: a broken meter SDK must never mask the
+        # original exception propagating through ``finally``.
+        with suppress(Exception):
+            instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
 def record_time_to_first_chunk(

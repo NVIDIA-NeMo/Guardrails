@@ -1,0 +1,119 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "About Configuring Guardrails"
+sidebar-title: "About Configuring Guardrails"
+description: "Configure YAML files, Colang flows, custom actions, and other components to control LLM behavior."
+keywords: ["nemo guardrails configuration", "guardrails setup", "config.yml", "Colang flows", "custom actions"]
+content:
+  type: "concept"
+---
+
+This section explains how to configure your guardrails system, from defining LLM models and guardrail flows in YAML to implementing advanced features like Colang flows and custom actions.
+
+---
+
+## Before You Begin with Configuring Guardrails
+
+Before diving into configuring guardrails, ensure you have the required components ready and understand the overall structure of the guardrails system.
+
+<Cards>
+
+<Card title="Prerequisites" href="/configure-guardrails/before-configuration">
+
+Prepare LLM endpoints, NemoGuard NIMs, and knowledge base documents before configuration.
+
+<Badge intent="tip" minimal outlined>Get Started</Badge>
+</Card>
+
+<Card title="Overview" href="/configure-guardrails/overview">
+
+Learn to write config.yml, Colang flows, and custom actions for guardrails.
+
+<Badge intent="tip" minimal outlined>Concept</Badge>
+</Card>
+
+</Cards>
+
+---
+
+## Core Configuration
+
+Configure the essential components of your guardrails system.
+
+<Cards>
+
+<Card title="Configuring YAML File" href="/configure-guardrails/yaml-schema">
+
+Define models, guardrails, prompts, and tracing settings in the config.yml file.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="YAML Schema Reference" href="/configure-guardrails/configuration-reference">
+
+Reference for all config.yml options including models, rails, prompts, and advanced settings.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Guardrail Catalog" href="/configure-guardrails/guardrail-catalog">
+
+Reference for pre-built guardrails including content safety, jailbreak detection, and PII handling.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Colang" href="/configure-guardrails/colang">
+
+Learn Colang, the event-driven language for defining guardrails flows and bot behavior.
+
+<Badge intent="tip" minimal outlined>Concept</Badge>
+</Card>
+
+</Cards>
+
+---
+
+## Advanced Configuration
+
+Optional configurations for extending and optimizing your guardrails system.
+
+<Cards>
+
+<Card title="Custom Actions" href="/configure-guardrails/actions">
+
+Create Python actions to extend guardrails with external APIs and validation logic.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Custom Initialization" href="/configure-guardrails/custom-initialization">
+
+Use config.py to register custom LLM providers, embedding providers, and shared resources at startup.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Other Configurations" href="/configure-guardrails/other-configurations">
+
+Additional configuration topics including knowledge base setup and embedding search providers.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Caching" href="/configure-guardrails/caching">
+
+Configure in-memory caching for LLM calls and KV cache reuse to improve performance and reduce latency.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Exceptions" href="/configure-guardrails/exceptions">
+
+Raise and handle exceptions in guardrails flows to control error behavior and custom responses.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+</Cards>

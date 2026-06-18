@@ -1,150 +1,141 @@
 name: docs-build
 
 on:
-    pull_request:
-        branches: [develop]
-        types: [opened, synchronize]
-        paths:
-            - "docs/**"
-            - "**/*.md"
-            - "**/*.rst"
-    push:
-        branches: [develop]
-        tags:
-            - docs-v*
-            - v*
-    workflow_dispatch:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize]
+    paths:
+      - ".github/workflows/docs-build.yaml"
+      - "Makefile"
+      - "docs/**"
+      - "fern/**"
+      - "scripts/normalize-fern-sdk-reference.mjs"
+      - "scripts/watch-fern-preview.mjs"
+      - "scripts/fix-empty-fern-links.mjs"
+  push:
+    branches: [develop]
+    tags:
+      - docs-v*
+      - v*
+    paths:
+      - ".github/workflows/docs-build.yaml"
+      - "Makefile"
+      - "docs/**"
+      - "fern/**"
+      - "scripts/normalize-fern-sdk-reference.mjs"
+      - "scripts/watch-fern-preview.mjs"
+      - "scripts/fix-empty-fern-links.mjs"
+  workflow_dispatch:
 
 defaults:
-    run:
-        shell: bash
+  run:
+    shell: bash
 
-env:
-    PYTHON_VERSION: "3.10"
-    POETRY_VERSION: "1.8.2"
+permissions:
+  contents: read
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    build-docs:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v6
-            - name: Set up Python ${{ env.PYTHON_VERSION }}
-              uses: actions/setup-python@v6
-              with:
-                  python-version: ${{ env.PYTHON_VERSION }}
-            - name: Bootstrap poetry (Linux and macOS)
-              run: |
-                  curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
-            - name: Update PATH
-              run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-            - name: Configure poetry
-              run: poetry config virtualenvs.in-project true
-            - name: Install dependencies
-              run: poetry install --with docs
-            - name: Validate redirect targets
-              run: make docs-check-redirects
-            - name: Build documentation
-              run: make docs-strict
-            - name: Delete unnecessary files
-              run: |
-                  sudo find _build -name .doctrees -prune -exec rm -rf {} \;
-                  sudo find _build -name .buildinfo -exec rm {} \;
-            - name: Upload HTML
-              uses: actions/upload-artifact@v6
-              with:
-                  name: html-build-artifact
-                  path: _build/docs
-                  if-no-files-found: error
-                  retention-days: 1
-            - name: Store PR information
-              if: github.event_name == 'pull_request'
-              run: |
-                  mkdir ./pr
-                  echo ${{ github.event.number }}              > ./pr/pr.txt
-                  echo ${{ github.event.pull_request.merged }} > ./pr/merged.txt
-                  echo ${{ github.event.action }}              > ./pr/action.txt
-            - name: Upload PR information
-              if: github.event_name == 'pull_request'
-              uses: actions/upload-artifact@v6
-              with:
-                  name: pr
-                  path: pr/
+  build-docs:
+    name: Check Fern docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
-    store-html:
-        if: github.event_name == 'push' && github.repository_owner == 'NVIDIA-NeMo'
-        needs: [build-docs]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v6
-              with:
-                  ref: "gh-pages"
-            - name: Initialize Git configuration
-              run: |
-                  git config user.name docs-build
-                  git config user.email do-not-send@github.com
-            - name: Download artifacts
-              uses: actions/download-artifact@v7
-              with:
-                  name: html-build-artifact
-                  path: ${{ github.ref_name }}
-            - name: Copy HTML directories
-              run: |
-                  ls -asl
-                  for i in `ls -d *`
-                  do
-                    echo "Git adding ${i}"
-                    git add "${i}"
-                  done
-            - name: Check or create dot-no-jekyll file
-              run: |
-                  if [ -f ".nojekyll" ]; then
-                    echo "The dot-no-jekyll file already exists."
-                    exit 0
-                  fi
-                  touch .nojekyll
-                  git add .nojekyll
-            - name: Check or create redirect page
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  resp=$(grep 'http-equiv="refresh"' index.html 2>/dev/null) || true
-                  if [ -n "${resp}" ]; then
-                    echo "The redirect file already exists."
-                    exit 0
-                  fi
-                  # If any of these commands fail, fail the build.
-                  def_branch=$(gh api "repos/${GITHUB_REPOSITORY}" --jq ".default_branch")
-                  html_url=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq ".html_url")
-                  # Beware ugly quotation mark avoidance in the foll lines.
-                  echo '<!DOCTYPE html>'                                                                         > index.html
-                  echo '<html>'                                                                                 >> index.html
-                  echo '  <head>'                                                                               >> index.html
-                  echo '    <title>Redirect to documentation</title>'                                           >> index.html
-                  echo '    <meta charset="utf-8">'                                                             >> index.html
-                  echo '    <meta http=equiv="refresh" content="3; URL='${html_url}${def_branch}'/index.html">' >> index.html
-                  echo '    <link rel="canonical" href="'${html_url}${def_branch}'/index.html">'                >> index.html
-                  echo '    <script language="javascript">'                                                     >> index.html
-                  echo '      function redirect() {'                                                            >> index.html
-                  echo '        window.location.assign("'${html_url}${def_branch}'/index.html")'                >> index.html
-                  echo '      }'                                                                                >> index.html
-                  echo '    </script>'                                                                          >> index.html
-                  echo '  </head>'                                                                              >> index.html
-                  echo '  <body onload="redirect()">'                                                           >> index.html
-                  echo '    <p>Please follow the link to the <a href="'${html_url}${def_branch}'/index.html">'  >> index.html
-                  echo      ${def_branch}'</a> branch documentation.</p>'                                       >> index.html
-                  echo '  </body>'                                                                              >> index.html
-                  echo '</html>'                                                                                >> index.html
-                  git add index.html
-            - name: Commit changes to the GitHub Pages branch
-              run: |
-                  git status
-                  if git commit -m 'Pushing changes to GitHub Pages.'; then
-                    git push -f
-                  else
-                   echo "Nothing changed."
-                  fi
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Check Fern docs
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-strict
+
+  preview-docs:
+    name: Publish Fern preview
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    needs: [build-docs]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Generate Python SDK reference
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-generate-sdk
+
+      - name: Publish Fern preview
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+          PREVIEW_ID: pr-${{ github.event.pull_request.number }}
+          FERN_DOCS_INSTANCE: nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
+        run: |
+          FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
+          cd fern
+          npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force --instance "${FERN_DOCS_INSTANCE}"
+
+      - name: Comment preview URL
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const previewUrl = `https://nvidia-preview-pr-${context.issue.number}.docs.buildwithfern.com/nemo/guardrails`;
+            const marker = '<!-- guardrails-fern-preview -->';
+            const body = `${marker}\nStaged Fern docs preview: ${previewUrl}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  publish-staging:
+    name: Publish Fern staging docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [build-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Publish Fern staging docs
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-publish-staging

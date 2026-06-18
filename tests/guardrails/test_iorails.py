@@ -22,12 +22,12 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -165,6 +165,22 @@ class TestGenerateAsync:
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
+    async def test_unsafe_output_records_block_metric_when_metrics_enabled(self, iorails):
+        """When metrics are enabled, an output-rails block records an OUTPUT block metric."""
+        iorails._metrics_enabled = True
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="unsafe"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await iorails.generate_async(messages)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_blocked.assert_called_once_with(RailDirection.OUTPUT)
+
+    @pytest.mark.asyncio
     async def test_dict_options_forwarded(self, iorails):
         """Dict options are converted to GenerationOptions and forwarded."""
         messages = [{"role": "user", "content": "hi"}]
@@ -186,6 +202,84 @@ class TestGenerateAsync:
 
         with pytest.raises(RuntimeError, match="LLM internal error"):
             await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+
+class TestToolCalling:
+    """Test tool-call forwarding (request body) and return (assistant message)."""
+
+    @pytest.mark.asyncio
+    async def test_tools_in_llm_params_forwarded_to_model(self, iorails):
+        """Tool definitions in options.llm_params are forwarded to model_call unchanged."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
+        options = GenerationOptions(llm_params={"tools": [tool], "tool_choice": "auto", "parallel_tool_calls": True})
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails.generate_async(messages, options=options)
+
+        iorails.engine_registry.model_call.assert_called_once_with(
+            "main", messages, tools=[tool], tool_choice="auto", parallel_tool_calls=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_returned_on_assistant_message(self, iorails):
+        """Tool calls from the model are serialized OpenAI-native (JSON-string arguments)."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [
+            ToolCall(
+                id="call_1",
+                type="function",
+                function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+            )
+        ]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        assert result["role"] == "assistant"
+        assert result["content"] is None
+        assert result["tool_calls"] == [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_output_rails_skipped_for_tool_call_only_response(self, iorails):
+        """A tool-call-only response (no text) skips the content output rails."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_not_called()
+        assert result["tool_calls"][0]["function"]["name"] == "f"
+
+    @pytest.mark.asyncio
+    async def test_text_with_tool_calls_runs_output_rails_and_returns_both(self, iorails):
+        """When a response has text and tool calls, output rails run on the text and both are returned."""
+        messages = [{"role": "user", "content": "hi"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="some text", tool_calls=tool_calls)
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "some text")
+        assert result["content"] == "some text"
+        assert result["tool_calls"][0]["function"]["name"] == "f"
 
 
 class TestIORailsLifecycle:

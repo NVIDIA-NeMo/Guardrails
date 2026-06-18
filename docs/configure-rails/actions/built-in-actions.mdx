@@ -1,0 +1,283 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Built-in Actions Reference"
+sidebar-title: "Built-in Actions"
+description: "Reference for default actions included in the NeMo Guardrails library."
+keywords: ["nemo guardrails built-in actions", "guardrails self check input", "guardrails self check output", "llama guard check", "jailbreak detection action"]
+content:
+  type: "reference"
+---
+
+This section describes the default actions included in the NeMo Guardrails library.
+
+## Core Actions
+
+These actions are fundamental to the guardrails process:
+
+| Action | Description |
+|--------|-------------|
+| `generate_user_intent` | Generate the canonical form for the user utterance |
+| `generate_next_steps` | Generate the next step in the conversation flow |
+| `generate_bot_message` | Generate a bot message based on the desired intent |
+| `retrieve_relevant_chunks` | Retrieve relevant chunks from the knowledge base |
+
+### generate_user_intent
+
+Converts raw user input into a canonical intent form:
+
+```text
+# Automatically called during guardrails process
+# Input: "Hello there!"
+# Output: express greeting
+```
+
+### generate_next_steps
+
+Determines what the bot should do next:
+
+```text
+# Automatically called to decide next action
+# Output: bot express greeting, execute some_action, etc.
+```
+
+### generate_bot_message
+
+Generates the actual bot response text:
+
+```text
+# Converts intent to natural language
+# Input: bot express greeting
+# Output: "Hello! How can I help you today?"
+```
+
+### retrieve_relevant_chunks
+
+Retrieves context from the knowledge base:
+
+```text
+# Retrieves relevant documents for RAG
+# Result stored in $relevant_chunks context variable
+```
+
+## Guardrail-Specific Actions
+
+These actions implement built-in guardrails:
+
+| Action | Description |
+|--------|-------------|
+| `self_check_input` | Check if user input should be accepted |
+| `self_check_output` | Check if bot response should be allowed |
+| `self_check_facts` | Verify factual accuracy of bot response |
+| `self_check_hallucination` | Detect hallucinations in bot response |
+
+### self_check_input
+
+Validates user input against configured policies:
+
+```yaml
+# config.yml
+rails:
+  input:
+    flows:
+      - self check input
+```
+
+```text
+# rails/input.co
+define flow self check input
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+```
+
+### self_check_output
+
+Validates bot output against configured policies:
+
+```yaml
+# config.yml
+rails:
+  output:
+    flows:
+      - self check output
+```
+
+```text
+# rails/output.co
+define flow self check output
+  $allowed = execute self_check_output
+  if not $allowed
+    bot refuse to respond
+    stop
+```
+
+### self_check_facts
+
+Verifies facts against retrieved knowledge base chunks:
+
+```yaml
+# config.yml
+rails:
+  output:
+    flows:
+      - self check facts
+```
+
+### self_check_hallucination
+
+Detects hallucinated content in bot responses:
+
+```yaml
+# config.yml
+rails:
+  output:
+    flows:
+      - self check hallucination
+```
+
+## LangChain Tool Wrappers
+
+The library includes wrappers for popular LangChain tools.
+
+<Note>
+
+These tool wrappers are only available when the `NEMO_GUARDRAILS_DEMO_ACTIONS` environment variable is set.
+
+</Note>
+
+| Action | Description | Requirements |
+|--------|-------------|--------------|
+| `apify` | Web scraping and automation | Apify API key |
+| `bing_search` | Bing Web Search | Bing API key |
+| `google_search` | Google Search | Google API key |
+| `searx_search` | Searx search engine | Searx instance |
+| `google_serper` | SerpApi Google Search | SerpApi key |
+| `openweather_query` | Weather information | OpenWeatherMap API key |
+| `serp_api_query` | SerpAPI search | SerpApi key |
+| `wikipedia_query` | Wikipedia information | None |
+| `wolframalpha_query` | Math and science queries | Wolfram Alpha API key |
+| `zapier_nla_query` | Zapier automation | Zapier NLA API key |
+
+### Using LangChain Tools
+
+```text
+define flow answer with search
+  user ask about current events
+  $results = execute google_search(query=$user_query)
+  bot provide search results
+```
+
+### Wikipedia Example
+
+```text
+define flow answer with wikipedia
+  user ask about historical facts
+  $info = execute wikipedia_query(query=$user_query)
+  bot provide information
+```
+
+## Sensitive Data Detection Actions
+
+| Action | Description |
+|--------|-------------|
+| `detect_sensitive_data` | Detect PII in text |
+| `mask_sensitive_data` | Mask detected PII |
+
+### detect_sensitive_data
+
+```yaml
+# config.yml
+rails:
+  config:
+    sensitive_data_detection:
+      input:
+        entities:
+          - PERSON
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+```
+
+```text
+define flow check input sensitive data
+  $has_pii = execute detect_sensitive_data
+  if $has_pii
+    bot refuse to respond
+    stop
+```
+
+### mask_sensitive_data
+
+```text
+define flow mask input sensitive data
+  $masked_input = execute mask_sensitive_data
+  # Continue with masked input
+```
+
+## Content Safety Actions
+
+| Action | Description |
+|--------|-------------|
+| `llama_guard_check_input` | LlamaGuard input moderation |
+| `llama_guard_check_output` | LlamaGuard output moderation |
+| `content_safety_check_input` | NVIDIA content safety model for input (requires `model_name` parameter) |
+| `content_safety_check_output` | NVIDIA content safety model for output (requires `model_name` parameter) |
+
+### LlamaGuard Example
+
+```yaml
+# config.yml
+rails:
+  input:
+    flows:
+      - llama guard check input
+  output:
+    flows:
+      - llama guard check output
+```
+
+## Jailbreak Detection Actions
+
+| Action | Description |
+|--------|-------------|
+| `jailbreak_detection_model` | Detect jailbreak attempts using a trained classifier |
+| `jailbreak_detection_heuristics` | Detect jailbreak attempts using heuristic checks |
+
+```yaml
+# config.yml
+rails:
+  input:
+    flows:
+      - jailbreak detection heuristics
+```
+
+## Using Built-in Actions in Custom Flows
+
+You can combine built-in actions with custom logic:
+
+```text
+define flow enhanced_input_check
+  $is_jailbreak = execute jailbreak_detection_heuristics
+  if $is_jailbreak
+    bot refuse to respond
+    stop
+
+  # Then, check for sensitive data
+  $has_pii = execute detect_sensitive_data
+  if $has_pii
+    bot ask to remove sensitive data
+    stop
+
+  # Finally, run self-check
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+```
+
+## Related Topics
+
+- [Action Parameters](action-parameters) - Special parameters provided automatically
+- [Registering Actions](registering-actions) - Different ways to register actions
+- [Creating Custom Actions](creating-actions) - Create your own actions

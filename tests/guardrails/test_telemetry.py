@@ -254,6 +254,31 @@ class TestRecordSpanError:
         assert len(exc_events) == 1
         assert exc_events[0].attributes["exception.type"] == "ValueError"
 
+    def test_swallows_sdk_failure(self):
+        """A broken span/exporter that raises while being annotated must not
+        propagate — ``record_span_error`` is best-effort so the span helpers
+        can call it from an ``except`` branch handling a cancellation without
+        the telemetry failure masking the original exception.
+        """
+        broken_span = MagicMock()
+        broken_span.set_attribute.side_effect = RuntimeError("exporter down")
+        broken_span.record_exception.side_effect = RuntimeError("exporter down")
+        broken_span.set_status.side_effect = RuntimeError("exporter down")
+
+        # Must return cleanly, not raise.
+        record_span_error(broken_span, ValueError("orig"))
+
+    def test_does_not_swallow_base_exception_from_sdk(self):
+        """Only ``Exception`` is suppressed.  A ``BaseException`` raised by the
+        SDK (e.g. a cancellation delivered while the call is in flight) must
+        still propagate rather than be silently dropped.
+        """
+        broken_span = MagicMock()
+        broken_span.set_attribute.side_effect = KeyboardInterrupt()
+
+        with pytest.raises(KeyboardInterrupt):
+            record_span_error(broken_span, ValueError("orig"))
+
 
 class TestMarkRailStop:
     """``mark_rail_stop`` encapsulates the None-span + rail-safe conditional."""

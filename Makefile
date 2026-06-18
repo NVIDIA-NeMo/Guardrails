@@ -1,6 +1,6 @@
 .PHONY: help
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile warm-fastembed-cache
-.PHONY: docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards docs-check-redirects
+.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-redirects docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit
 
 .DEFAULT_GOAL := help
@@ -20,6 +20,8 @@ UNIT_TEST_ENV ?= env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
 FASTEMBED_CACHE ?= .cache/fastembed
 FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
 FASTEMBED_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE)
+FERN_STAGING_INSTANCE ?= nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails
+FERN_PUBLIC_INSTANCE ?= nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
 
 test:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST)
@@ -44,23 +46,29 @@ test-profile:
 warm-fastembed-cache:
 	$(FASTEMBED_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
-docs:
-	poetry run sphinx-build -b html docs _build/docs
+docs-fern: docs-fern-strict
 
-docs-strict:
-	poetry run sphinx-build -b html -W --keep-going docs _build/docs
+docs-fern-strict: docs-fern-generate-sdk
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check
 
-docs-serve:
-	cd docs && poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
+docs-fern-live: docs-fern-generate-sdk
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
 
-docs-update-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py
+docs-fern-publish-staging: docs-fern-generate-sdk
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_STAGING_INSTANCE)"
 
-docs-check-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py --dry-run
+docs-fern-publish-public: docs-fern-generate-sdk
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
 
-docs-watch-cards:
-	cd docs && poetry run python scripts/update_cards/update_cards.py watch
+docs-fern-preview-watch: docs-fern-generate-sdk
+	node scripts/watch-fern-preview.mjs
+
+docs-fern-generate-sdk:
+	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk
+	node scripts/normalize-fern-sdk-reference.mjs
+
+docs-fern-fix-empty-links:
+	node scripts/fix-empty-fern-links.mjs
 
 docs-check-redirects:
 	cd docs && poetry run python scripts/validate_redirects.py
@@ -90,12 +98,14 @@ help:
 		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
 		'' \
 		'Docs:' \
-		'  docs                  Build docs' \
-		'  docs-strict           Build docs with warnings as errors' \
-		'  docs-serve            Serve docs locally' \
-		'  docs-update-cards     Update generated docs cards' \
-		'  docs-check-cards      Check generated docs cards' \
-		'  docs-watch-cards      Watch and update generated docs cards' \
+		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
+		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
+		'  docs-fern-live        Serve Fern docs locally' \
+		'  docs-fern-publish-staging Publish Fern docs to the staging instance' \
+		'  docs-fern-publish-public Publish Fern docs to the public instance' \
+		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
+		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
+		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
 		'  docs-check-redirects  Validate docs redirects' \
 		'' \
 		'Maintenance:' \

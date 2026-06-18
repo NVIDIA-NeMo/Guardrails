@@ -1,0 +1,24 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+:root {
+  --nv-color-green: #76b900;
+  --nv-dark-grey-2: #1a1a1a;
+  --nv-light-grey-2: #eeeeee;
+}
+
+.prose {
+  color: var(--nv-dark-grey-2) !important;
+}
+
+.dark .prose {
+  color: var(--nv-light-grey-2) !important;
+}
+
+.fern-mdx-link {
+  color: var(--tw-prose-body);
+  font-weight: var(--font-weight-normal);
+  text-decoration-color: var(--accent);
+}

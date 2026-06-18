@@ -1,0 +1,75 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Configuring Custom Initialization"
+sidebar-title: "Custom Initialization"
+description: "Use config.py to register custom LLM providers, embedding providers, and shared resources at startup."
+content:
+  type: "how_to"
+---
+
+The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
+
+## When to Use config.py or actions.py
+
+| Use Case | File | Reason |
+| --- | --- | --- |
+| Register custom LLM provider | `config.py` | Must happen before LLMRails initialization |
+| Register custom embedding provider | `config.py` | Must happen before LLMRails initialization |
+| Initialize database connection | `config.py` | Shared resource, initialized once |
+| Validate user input | `actions.py` | Called during request processing |
+| Call external API | `actions.py` | Called during request processing |
+| Custom guardrail logic | `actions.py` | Called from Colang flows |
+
+## Configuration Sections
+
+<Cards>
+
+<Card title="Init Function" href="/configure-guardrails/custom-initialization/init-function">
+
+Define the init() function to initialize resources and register action parameters at startup.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="LLM Providers" href="/configure-guardrails/custom-initialization/custom-llm-providers">
+
+Register custom text completion and chat models. Use the `LLMModel` Protocol for the built-in client, or LangChain `BaseLLM`/`BaseChatModel` when running with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Custom LLM Model" href="/configure-guardrails/custom-initialization/custom-llm-model">
+
+Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Custom LLM Framework" href="/configure-guardrails/custom-initialization/custom-llm-framework">
+
+Replace the LLM framework layer to connect LiteLLM, an in-house orchestrator, or any non-default LLM stack to the NVIDIA NeMo Guardrails library.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Embedding Providers" href="/configure-guardrails/custom-initialization/custom-embedding-providers">
+
+Register custom embedding providers for vector similarity search in the NVIDIA NeMo Guardrails library.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Custom Data" href="/configure-guardrails/custom-initialization/custom-data">
+
+Pass and access custom data from config.yml in your initialization code and actions.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+</Cards>
+
+## Related Topics
+
+- [Custom Actions](/configure-guardrails/actions) - Define callable actions in `actions.py`
+- [Model Configuration](/configure-guardrails/yaml-schema/model-configuration) - Configure LLM models in `config.yml`

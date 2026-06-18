@@ -1,0 +1,612 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+landing-page:
+  page: "Home"
+  path: index.mdx
+
+navigation:
+  - section: About NeMo Guardrails Library
+    slug: about-nemo-guardrails-library
+    collapsed: open-by-default
+    contents:
+      - page: Overview
+        path: about/overview.mdx
+        slug: overview
+      - page: How It Works
+        path: about/how-it-works.mdx
+        slug: how-it-works
+      - page: Guardrail Types
+        path: about/rail-types.mdx
+        slug: rail-types
+      - page: Supported LLMs
+        path: about/supported-llms.mdx
+        slug: supported-llms
+      - page: Release Notes
+        path: about/release-notes.mdx
+        slug: release-notes
+  - section: Get Started
+    slug: get-started
+    collapsed: open-by-default
+    contents:
+      - page: Installation
+        path: getting-started/installation-guide.mdx
+        slug: installation-guide
+      - section: Tutorials
+        path: getting-started/tutorials/index.mdx
+        slug: tutorials
+        contents:
+          - page: Check Harmful Content
+            path: getting-started/tutorials/nemotron-safety-guard-deployment.mdx
+            slug: nemotron-safety-guard-deployment
+          - page: Content Safety Reasoning
+            path: getting-started/tutorials/nemotron-content-safety-reasoning-deployment.mdx
+            slug: nemotron-content-safety-reasoning-deployment
+          - page: Restrict Topics
+            path: getting-started/tutorials/nemoguard-topiccontrol-deployment.mdx
+            slug: nemoguard-topiccontrol-deployment
+          - page: Detect Jailbreak Attempts
+            path: getting-started/tutorials/nemoguard-jailbreakdetect-deployment.mdx
+            slug: nemoguard-jailbreakdetect-deployment
+          - page: Use Jailbreak Detection Heuristics
+            path: getting-started/tutorials/jailbreak-detection-heuristics.mdx
+            slug: jailbreak-detection-heuristics
+          - page: Add Multimodal Content Safety
+            path: getting-started/tutorials/multimodal.mdx
+            slug: multimodal
+      - page: Integrate Guardrails
+        path: getting-started/integrate-into-application.mdx
+        slug: integrate-into-application
+  - section: Configure Guardrails
+    slug: configure-guardrails
+    collapsed: open-by-default
+    contents:
+      - page: About Configuring Guardrails
+        path: configure-rails/index.mdx
+        slug: configure-rails
+      - page: Overview
+        path: configure-rails/overview.mdx
+        slug: overview
+      - page: Prerequisites
+        path: configure-rails/before-configuration.mdx
+        slug: before-configuration
+      - section: Configuring YAML File
+        path: configure-rails/yaml-schema/index.mdx
+        slug: yaml-schema
+        contents:
+          - page: Models
+            path: configure-rails/yaml-schema/model-configuration.mdx
+            slug: model-configuration
+          - page: Guardrails
+            path: configure-rails/yaml-schema/guardrails-configuration.mdx
+            slug: guardrails-configuration
+          - page: Prompts
+            path: configure-rails/yaml-schema/prompt-configuration.mdx
+            slug: prompt-configuration
+          - page: Tracing
+            path: configure-rails/yaml-schema/tracing-configuration.mdx
+            slug: tracing-configuration
+          - section: Streaming
+            path: configure-rails/yaml-schema/streaming/index.mdx
+            slug: streaming
+            contents:
+              - page: Streaming LLM Responses
+                path: configure-rails/yaml-schema/streaming/global-streaming.mdx
+                slug: global-streaming
+              - page: Output Rail Streaming
+                path: configure-rails/yaml-schema/streaming/output-rail-streaming.mdx
+                slug: output-rail-streaming
+      - page: YAML Schema Reference
+        path: configure-rails/configuration-reference.mdx
+        slug: configuration-reference
+      - section: Guardrail Catalog
+        path: configure-rails/guardrail-catalog/index.mdx
+        slug: guardrail-catalog
+        contents:
+          - page: Content Safety
+            path: configure-rails/guardrail-catalog/content-safety.mdx
+            slug: content-safety
+          - page: Jailbreak Protection
+            path: configure-rails/guardrail-catalog/jailbreak-protection.mdx
+            slug: jailbreak-protection
+          - page: Topic Control
+            path: configure-rails/guardrail-catalog/topic-control.mdx
+            slug: topic-control
+          - page: PII Detection
+            path: configure-rails/guardrail-catalog/pii-detection.mdx
+            slug: pii-detection
+          - page: Agentic Security
+            path: configure-rails/guardrail-catalog/agentic-security.mdx
+            slug: agentic-security
+          - page: Hallucinations & Fact-Checking
+            path: configure-rails/guardrail-catalog/fact-checking.mdx
+            slug: fact-checking
+          - page: LLM Self-Check
+            path: configure-rails/guardrail-catalog/self-check.mdx
+            slug: self-check
+          - section: Third-Party APIs
+            path: configure-rails/guardrail-catalog/third-party.mdx
+            slug: third-party
+            contents:
+              - page: ActiveFence
+                path: configure-rails/guardrail-catalog/community/active-fence.mdx
+                slug: active-fence
+              - page: AlignScore
+                path: configure-rails/guardrail-catalog/community/alignscore.mdx
+                slug: alignscore
+              - page: AutoAlign
+                path: configure-rails/guardrail-catalog/community/auto-align.mdx
+                slug: auto-align
+              - page: Cisco AI Defense
+                path: configure-rails/guardrail-catalog/community/ai-defense.mdx
+                slug: ai-defense
+              - page: Clavata
+                path: configure-rails/guardrail-catalog/community/clavata.mdx
+                slug: clavata
+              - page: Cleanlab
+                path: configure-rails/guardrail-catalog/community/cleanlab.mdx
+                slug: cleanlab
+              - page: CrowdStrike AIDR
+                path: configure-rails/guardrail-catalog/community/crowdstrike-aidr.mdx
+                slug: crowdstrike-aidr
+              - page: Fiddler
+                path: configure-rails/guardrail-catalog/community/fiddler.mdx
+                slug: fiddler
+              - page: GCP Text Moderation
+                path: configure-rails/guardrail-catalog/community/gcp-text-moderations.mdx
+                slug: gcp-text-moderations
+              - page: GLiNER PII
+                path: configure-rails/guardrail-catalog/community/gliner.mdx
+                slug: gliner
+              - page: GuardrailsAI
+                path: configure-rails/guardrail-catalog/community/guardrails-ai.mdx
+                slug: guardrails-ai
+              - page: Llama Guard
+                path: configure-rails/guardrail-catalog/community/llama-guard.mdx
+                slug: llama-guard
+              - page: Pangea AI Guard
+                path: configure-rails/guardrail-catalog/community/pangea.mdx
+                slug: pangea
+              - page: Patronus Evaluate API
+                path: configure-rails/guardrail-catalog/community/patronus-evaluate-api.mdx
+                slug: patronus-evaluate-api
+              - page: Patronus Lynx
+                path: configure-rails/guardrail-catalog/community/patronus-lynx.mdx
+                slug: patronus-lynx
+              - page: PolicyAI
+                path: configure-rails/guardrail-catalog/community/policyai.mdx
+                slug: policyai
+              - page: Presidio
+                path: configure-rails/guardrail-catalog/community/presidio.mdx
+                slug: presidio
+              - page: Private AI
+                path: configure-rails/guardrail-catalog/community/privateai.mdx
+                slug: privateai
+              - page: Prompt Security
+                path: configure-rails/guardrail-catalog/community/prompt-security.mdx
+                slug: prompt-security
+              - page: Regex
+                path: configure-rails/guardrail-catalog/community/regex.mdx
+                slug: regex
+              - page: Trend Micro
+                path: configure-rails/guardrail-catalog/community/trend-micro.mdx
+                slug: trend-micro
+      - section: Custom Actions
+        path: configure-rails/actions/index.mdx
+        slug: actions
+        contents:
+          - page: Creating Actions
+            path: configure-rails/actions/creating-actions.mdx
+            slug: creating-actions
+          - page: Built-in Actions
+            path: configure-rails/actions/built-in-actions.mdx
+            slug: built-in-actions
+          - page: Action Parameters
+            path: configure-rails/actions/action-parameters.mdx
+            slug: action-parameters
+          - page: Registering Actions
+            path: configure-rails/actions/registering-actions.mdx
+            slug: registering-actions
+      - section: Custom Initialization
+        path: configure-rails/custom-initialization/index.mdx
+        slug: custom-initialization
+        contents:
+          - page: Init Function
+            path: configure-rails/custom-initialization/init-function.mdx
+            slug: init-function
+          - page: LLM Providers
+            path: configure-rails/custom-initialization/custom-llm-providers.mdx
+            slug: custom-llm-providers
+          - page: Custom LLM Model
+            path: configure-rails/custom-initialization/custom-llm-model.mdx
+            slug: custom-llm-model
+          - page: Testing Your Guardrails Configuration
+            path: configure-rails/custom-initialization/testing-your-config.mdx
+            slug: testing-your-config
+          - page: Custom LLM Framework
+            path: configure-rails/custom-initialization/custom-llm-framework.mdx
+            slug: custom-llm-framework
+          - page: Embedding Providers
+            path: configure-rails/custom-initialization/custom-embedding-providers.mdx
+            slug: custom-embedding-providers
+          - page: Custom Data
+            path: configure-rails/custom-initialization/custom-data.mdx
+            slug: custom-data
+      - section: Colang
+        path: configure-rails/colang/index.mdx
+        slug: colang
+        contents:
+          - section: Colang 2.0 Guide
+            path: configure-rails/colang/colang-2/index.mdx
+            slug: colang-2
+            contents:
+              - page: What's Changed
+                path: configure-rails/colang/colang-2/whats-changed.mdx
+                slug: whats-changed
+              - page: Migration Guide
+                path: configure-rails/colang/colang-2/migration-guide.mdx
+                slug: migration-guide
+              - section: Getting Started
+                path: configure-rails/colang/colang-2/getting-started/index.mdx
+                slug: getting-started
+                contents:
+                  - page: Hello World
+                    path: configure-rails/colang/colang-2/getting-started/hello-world.mdx
+                    slug: hello-world
+                  - page: Interaction Loop
+                    path: configure-rails/colang/colang-2/getting-started/interaction-loop.mdx
+                    slug: interaction-loop
+                  - page: Input Rails
+                    path: configure-rails/colang/colang-2/getting-started/input-rails.mdx
+                    slug: input-rails
+                  - page: Dialog Rails
+                    path: configure-rails/colang/colang-2/getting-started/dialog-rails.mdx
+                    slug: dialog-rails
+                  - page: LLM Flows
+                    path: configure-rails/colang/colang-2/getting-started/llm-flows.mdx
+                    slug: llm-flows
+                  - page: Multimodal Rails
+                    path: configure-rails/colang/colang-2/getting-started/multimodal-rails.mdx
+                    slug: multimodal-rails
+                  - page: Recommended Next Steps
+                    path: configure-rails/colang/colang-2/getting-started/recommended-next-steps.mdx
+                    slug: recommended-next-steps
+              - section: Language Reference
+                path: configure-rails/colang/colang-2/language-reference/index.mdx
+                slug: language-reference
+                contents:
+                  - page: Introduction
+                    path: configure-rails/colang/colang-2/language-reference/introduction.mdx
+                    slug: introduction
+                  - page: Event Generation and Matching
+                    path: configure-rails/colang/colang-2/language-reference/event-generation-and-matching.mdx
+                    slug: event-generation-and-matching
+                  - page: Working with Actions
+                    path: configure-rails/colang/colang-2/language-reference/working-with-actions.mdx
+                    slug: working-with-actions
+                  - page: Defining Flows
+                    path: configure-rails/colang/colang-2/language-reference/defining-flows.mdx
+                    slug: defining-flows
+                  - page: Working with Variables and Expressions
+                    path: configure-rails/colang/colang-2/language-reference/working-with-variables-and-expressions.mdx
+                    slug: working-with-variables-and-expressions
+                  - page: Flow Control
+                    path: configure-rails/colang/colang-2/language-reference/flow-control.mdx
+                    slug: flow-control
+                  - section: Colang Standard Library
+                    path: configure-rails/colang/colang-2/language-reference/the-standard-library.mdx
+                    slug: the-standard-library
+                    contents:
+                      - page: Core Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/core.mdx
+                        slug: core
+                      - page: Timing Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/timing.mdx
+                        slug: timing
+                      - page: LLM Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/lmm.mdx
+                        slug: lmm
+                      - page: Avatar Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/avatars.mdx
+                        slug: avatars
+                      - page: Guardrail Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/guardrails.mdx
+                        slug: guardrails
+                      - page: Attention Flows
+                        path: configure-rails/colang/colang-2/language-reference/csl/attention.mdx
+                        slug: attention
+                  - page: Make Use of LLMs
+                    path: configure-rails/colang/colang-2/language-reference/make-use-of-llms.mdx
+                    slug: make-use-of-llms
+                  - page: More on Flows
+                    path: configure-rails/colang/colang-2/language-reference/more-on-flows.mdx
+                    slug: more-on-flows
+                  - page: Python Actions
+                    path: configure-rails/colang/colang-2/language-reference/python-actions.mdx
+                    slug: python-actions
+                  - page: Development and Debugging
+                    path: configure-rails/colang/colang-2/language-reference/development-and-debugging.mdx
+                    slug: development-and-debugging
+          - section: Colang 1.0 Guide
+            path: configure-rails/colang/colang-1/index.mdx
+            slug: colang-1
+            contents:
+              - page: Colang 1.0 Language Syntax
+                path: configure-rails/colang/colang-1/colang-language-syntax-guide.mdx
+                slug: colang-language-syntax-guide
+              - section: Colang 1.0 Tutorials
+                path: configure-rails/colang/colang-1/tutorials/index.mdx
+                slug: tutorials
+                contents:
+                  - page: Hello World
+                    path: configure-rails/colang/colang-1/tutorials/1-hello-world/README.mdx
+                    slug: 1-hello-world
+                  - page: Core Colang Concepts
+                    path: configure-rails/colang/colang-1/tutorials/2-core-colang-concepts/README.mdx
+                    slug: 2-core-colang-concepts
+                  - page: Demo Use Case
+                    path: configure-rails/colang/colang-1/tutorials/3-demo-use-case/README.mdx
+                    slug: 3-demo-use-case
+                  - page: Input Rails
+                    path: configure-rails/colang/colang-1/tutorials/4-input-rails/README.mdx
+                    slug: 4-input-rails
+                  - page: Output Rails
+                    path: configure-rails/colang/colang-1/tutorials/5-output-rails/README.mdx
+                    slug: 5-output-rails
+                  - page: Topical Rails
+                    path: configure-rails/colang/colang-1/tutorials/6-topical-rails/README.mdx
+                    slug: 6-topical-rails
+                  - page: Retrieval-Augmented Generation
+                    path: configure-rails/colang/colang-1/tutorials/7-rag/README.mdx
+                    slug: 7-rag
+              - page: Guardrailing Bot Reasoning Content
+                path: configure-rails/colang/colang-1/bot-thinking-guardrails.mdx
+                slug: bot-thinking-guardrails
+          - section: Colang Usage Examples
+            path: configure-rails/colang/usage-examples/index.mdx
+            slug: usage-examples
+            contents:
+              - page: Bot Message Instructions
+                path: configure-rails/colang/usage-examples/bot-message-instructions.mdx
+                slug: bot-message-instructions
+              - page: Extract User-provided Values
+                path: configure-rails/colang/usage-examples/extract-user-provided-values.mdx
+                slug: extract-user-provided-values
+      - section: Other Configurations
+        path: configure-rails/other-configurations/index.mdx
+        slug: other-configurations
+        contents:
+          - page: Knowledge Base
+            path: configure-rails/other-configurations/knowledge-base.mdx
+            slug: knowledge-base
+          - page: Embedding Search Providers
+            path: configure-rails/other-configurations/embedding-search-providers.mdx
+            slug: embedding-search-providers
+      - section: Caching
+        path: configure-rails/caching/index.mdx
+        slug: caching
+        contents:
+          - page: Memory Model Cache
+            path: configure-rails/caching/model-memory-cache.mdx
+            slug: model-memory-cache
+          - page: KV Cache Reuse
+            path: configure-rails/caching/kv-cache-reuse.mdx
+            slug: kv-cache-reuse
+      - page: Exceptions
+        path: configure-rails/exceptions.mdx
+        slug: exceptions
+  - section: Run Guardrailed Inference
+    slug: run-guardrailed-inference
+    collapsed: open-by-default
+    contents:
+      - page: About Running Guardrailed Inference
+        path: run-rails/index.mdx
+        slug: run-rails
+      - section: Python API
+        path: run-rails/using-python-apis/index.mdx
+        slug: using-python-apis
+        contents:
+          - page: Overview
+            path: run-rails/using-python-apis/overview.mdx
+            slug: overview
+          - page: Core Classes
+            path: run-rails/using-python-apis/core-classes.mdx
+            slug: core-classes
+          - page: Generation Options
+            path: run-rails/using-python-apis/generation-options.mdx
+            slug: generation-options
+          - page: Streaming
+            path: run-rails/using-python-apis/streaming.mdx
+            slug: streaming
+          - page: Check Messages
+            path: run-rails/using-python-apis/check-messages.mdx
+            slug: check-messages
+          - page: Event-Based API
+            path: run-rails/using-python-apis/event-based-api.mdx
+            slug: event-based-api
+      - section: Guardrails API Server
+        path: run-rails/using-fastapi-server/index.mdx
+        slug: using-fastapi-server
+        contents:
+          - page: Overview
+            path: run-rails/using-fastapi-server/overview.mdx
+            slug: overview
+          - page: Run the Server
+            path: run-rails/using-fastapi-server/run-guardrails-server.mdx
+            slug: run-guardrails-server
+          - page: Chat Completions
+            path: run-rails/using-fastapi-server/chat-with-guardrailed-model.mdx
+            slug: chat-with-guardrailed-model
+          - page: List Configurations
+            path: run-rails/using-fastapi-server/list-guardrail-configs.mdx
+            slug: list-guardrail-configs
+          - page: List Models
+            path: run-rails/using-fastapi-server/list-models.mdx
+            slug: list-models
+          - page: Actions Server
+            path: run-rails/using-fastapi-server/actions-server.mdx
+            slug: actions-server
+  - section: Evaluation
+    slug: evaluation
+    collapsed: open-by-default
+    contents:
+      - page: Evaluate Configuration
+        path: evaluation/evaluate-configuration.mdx
+        slug: evaluate-configuration
+      - page: Evaluation Methodology
+        path: evaluation/evaluation-methodology.mdx
+        slug: evaluation-methodology
+      - page: Evaluate Guardrails
+        path: evaluation/evaluate-guardrails.mdx
+        slug: evaluate-guardrails
+      - page: Vulnerability Scanning
+        path: evaluation/llm-vulnerability-scanning.mdx
+        slug: llm-vulnerability-scanning
+  - section: Observability
+    slug: observability
+    collapsed: open-by-default
+    contents:
+      - page: Overview
+        path: observability/index.mdx
+        slug: observability
+      - page: Logging
+        path: observability/logging/index.mdx
+        slug: logging
+      - section: Tracing
+        path: observability/tracing/index.mdx
+        slug: tracing
+        contents:
+          - page: Quick Start
+            path: observability/tracing/quick-start.mdx
+            slug: quick-start
+          - page: Adapters
+            path: observability/tracing/adapter-configurations.mdx
+            slug: adapter-configurations
+          - page: OpenTelemetry
+            path: observability/tracing/opentelemetry-integration.mdx
+            slug: opentelemetry-integration
+          - page: OpenTelemetry Logs
+            path: observability/tracing/opentelemetry-logs.mdx
+            slug: opentelemetry-logs
+          - page: Troubleshooting
+            path: observability/tracing/troubleshooting.mdx
+            slug: troubleshooting
+      - section: Metrics
+        path: observability/metrics/index.mdx
+        slug: metrics
+        contents:
+          - page: Enable Guardrails Metrics
+            path: observability/metrics/enable-metrics.mdx
+            slug: enable-metrics
+          - page: OpenTelemetry Metrics Integration
+            path: observability/metrics/opentelemetry-integration.mdx
+            slug: opentelemetry-integration
+          - page: Metric Reference
+            path: observability/metrics/reference.mdx
+            slug: reference
+  - section: More Deployment Options
+    slug: more-deployment-options
+    collapsed: open-by-default
+    contents:
+      - page: Deployment Options
+        path: deployment/index.mdx
+        slug: deployment
+      - page: Docker
+        path: deployment/using-docker.mdx
+        slug: using-docker
+      - page: NeMo Microservice
+        path: deployment/using-microservice.mdx
+        slug: using-microservice
+  - section: Integration with Third-Party Libraries
+    slug: integration-with-third-party-libraries
+    collapsed: open-by-default
+    contents:
+      - section: LangChain Frameworks
+        path: integration/langchain/index.mdx
+        slug: langchain
+        contents:
+          - page: LangChain Integration
+            path: integration/langchain/langchain-integration.mdx
+            slug: langchain-integration
+          - page: Agent Middleware
+            path: integration/langchain/agent-middleware.mdx
+            slug: agent-middleware
+          - page: RunnableRails
+            path: integration/langchain/runnable-rails.mdx
+            slug: runnable-rails
+          - page: Chain with Guardrails
+            path: integration/langchain/chain-with-guardrails/index.mdx
+            slug: chain-with-guardrails
+          - page: Runnable as Action
+            path: integration/langchain/runnable-as-action/index.mdx
+            slug: runnable-as-action
+          - page: LangGraph
+            path: integration/langchain/langgraph-integration.mdx
+            slug: langgraph-integration
+      - page: Tools Integration
+        path: integration/tools-integration.mdx
+        slug: tools-integration
+  - section: Reference
+    slug: reference
+    collapsed: open-by-default
+    contents:
+      - page: Architecture
+        path: reference/colang-architecture-guide.mdx
+        slug: colang-architecture-guide
+      - page: Sequence Diagrams
+        path: reference/guardrails-sequence-diagrams.mdx
+        slug: guardrails-sequence-diagrams
+      - page: Use Case Diagrams
+        path: reference/use-case-diagrams.mdx
+        slug: use-case-diagrams
+      - folder: _static/python-sdk-reference/guardrails-python-sdk
+        title: Python SDK Reference
+        collapsed: true
+      - page: CLI
+        path: reference/cli/index.mdx
+        slug: cli
+      - api: Guardrails API Server
+        layout:
+          - chatCompletions:
+              - endpoint: POST /v1/chat/completions
+                title: Create Chat Completion
+                slug: chat-completions
+          - models:
+              - endpoint: GET /v1/models
+                title: List Models
+                slug: list-models
+          - configurations:
+              - endpoint: GET /v1/rails/configs
+                title: List Guardrails Configurations
+                slug: list-guardrails-configurations
+          - challenges:
+              - endpoint: GET /v1/challenges
+                title: List Challenges
+                slug: list-challenges
+          - health:
+              - endpoint: GET /
+                title: Get Server Health or Chat UI
+                slug: get-root
+      - page: Migrating to 0.22
+        path: migration/0.22.mdx
+        slug: 0-22
+  - section: Troubleshooting
+    slug: troubleshooting
+    collapsed: open-by-default
+    contents:
+      - page: Troubleshooting
+        path: troubleshooting.mdx
+        slug: troubleshooting
+  - section: Resources
+    slug: resources
+    collapsed: open-by-default
+    contents:
+      - page: Security
+        path: resources/security/guidelines.mdx
+        slug: guidelines
+      - page: Telemetry and Privacy
+        path: telemetry.mdx
+        slug: telemetry
+      - page: Research
+        path: resources/research.mdx
+        slug: research

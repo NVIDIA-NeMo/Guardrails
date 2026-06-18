@@ -1,0 +1,67 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Python Actions"
+description: "In the section Working with Actions, you have seen how actions can be used in the context of UMIM events. Additionally, you can also use the action concept to call custom python fu"
+---
+
+<a id="python-actions"></a>
+
+
+In the section [Working with Actions](working-with-actions#working-with-actions), you have seen how actions can be used in the context of UMIM events. Additionally, you can also use the action concept to call custom python functions decorated as actions in the file `actions.py` or in any python file in the subfolder `action`. This can be particularly useful if you need more complex functionality that cannot be done in Colang. Note that all the python actions will run in the context of the Colang interpreter.
+
+Here is an example of such a Python action definition:
+
+```python
+from nemoguardrails.actions import action
+
+@action(name="CustomTestAction")
+async def custom_test(value: int):
+    # Complicated calculation based on parameter value
+    return result
+```
+And here is how you can call it from a Colang flow:
+
+```text
+flow main
+    $result = await CustomTestAction(value=5)
+    bot say "The result is: {$result}"
+```
+Be aware that Python actions are blocking by default. That means if the action implements a long running task (e.g. a REST API request), you will want to make the Python Action asynchronous. You can do this by adding the parameter `execute_async=True` to the function decorator :
+
+```python
+from nemoguardrails.actions import action
+
+@action(name="CustomAsyncTestAction", execute_async=True)
+async def custom_test(value: int):
+    # Something that takes time, e.g. a REST API request
+    return value
+```
+And here is how you can call it from a Colang flow:
+
+```text
+flow main
+    # Option 1 start the action and let your flow continue until you really need the result from the action
+    start CustomTestAction(value=5) as $action_ref
+    # Some other statements ...
+    match $action_ref.Finished() as $event_ref
+    bot say "The result is: {$event_ref.return_value}" # Access the function return value via the event reference
+
+    # Option 2: You can still use async Python actions like you would use any other action (the same as for non async Python actions)
+    $result = await CustomTestAction(value=5)
+    bot say "The result is: {$result}"
+```
+<Note>
+
+All Python action names need to end with `Action`.
+
+</Note>
+In addition to all the custom user-defined parameters, the parameters listed below are available in a Python action. To make use of these parameters in your Python action implementation, add the parameter to your function signature.
+
+```python
+events: list # Recent history of events
+context: dict # Contains all global variables and can be updated via ContextUpdate event
+config: dict # All configurations from the `config.yml` file
+llm_task_manager: LLMTaskManager # The llm task manage object of type LLMTaskManager
+state: State # The state machine state object
+```
