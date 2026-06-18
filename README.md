@@ -109,7 +109,7 @@ The NeMo Guardrails library is an async-first toolkit as the core mechanics are 
 
 ### Supported LLMs
 
-You can use NeMo Guardrails with multiple LLMs like OpenAI GPT-3.5, GPT-4, LLaMa-2, Falcon, Vicuna, or Mosaic. For more details, check out the [Supported LLM Models](https://docs.nvidia.com/nemo/guardrails/user-guides/configuration-guide.html#supported-llm-models) section in the Configuration Guide.
+You can use NeMo Guardrails with multiple LLMs like OpenAI GPT-3.5, GPT-4, LLaMa-2, Falcon, Vicuna, or Mosaic. For more details, check out the [Supported LLM Models](https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/supported-llms) section in the Configuration Guide.
 
 ### Types of Guardrails
 
