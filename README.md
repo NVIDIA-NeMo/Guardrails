@@ -78,7 +78,7 @@ You can use programmable guardrails in different types of use cases:
 
 ### Usage
 
-To add programmable guardrails to your application you can use the Python API or a guardrails server (see the [Server Guide](https://docs.nvidia.com/nemo/guardrails/user-guides/server-guide.html) for more details). Using the Python API is similar to using the LLM directly. Calling the guardrails layer instead of the LLM requires only minimal changes to the code base, and it involves two simple steps:
+To add programmable guardrails to your application you can use the Python API or a guardrails server (see the [Server Guide](https://docs.nvidia.com/nemo/guardrails/get-started/integrate-into-application) for more details). Using the Python API is similar to using the LLM directly. Calling the guardrails layer instead of the LLM requires only minimal changes to the code base, and it involves two simple steps:
 
 1. Loading a guardrails configuration and creating an `LLMRails` instance.
 2. Making the calls to the LLM using the `generate`/`generate_async` methods.
