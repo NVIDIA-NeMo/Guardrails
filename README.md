@@ -37,7 +37,7 @@ To install using pip:
 > pip install nemoguardrails
 ```
 
-For more detailed instructions, see the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/getting-started/installation-guide.html).
+For more detailed instructions, see the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/get-started/installation-guide).
 
 ## Overview
 
