@@ -2,10 +2,9 @@ name: triage auto-label
 
 # Manages the triage-state labels that gate automated review from CodeRabbit
 # and Greptile:
-#   - On open/reopen with no triage label yet: maintainers / NVIDIA-NeMo org
-#     members / collaborators get "status: triaged"; everyone else gets
-#     "status: needs triage". A PR that already carries either label keeps it
-#     (reopening a triaged PR does not reset it to "needs triage").
+#   - On open/reopen with no triage label yet: every PR gets
+#     "status: needs triage" (no author-based exception). A PR that already
+#     carries either label keeps it (reopening a triaged PR does not reset it).
 #   - When a maintainer adds "status: triaged", "status: needs triage" is
 #     removed automatically.
 #
@@ -37,14 +36,11 @@ jobs:
             ) {
               return;
             }
-            const trusted = ["OWNER", "MEMBER", "COLLABORATOR"].includes(
-              context.payload.pull_request.author_association
-            );
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              labels: [trusted ? "status: triaged" : "status: needs triage"],
+              labels: ["status: needs triage"],
             });
 
   clear-needs-triage:

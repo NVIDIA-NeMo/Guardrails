@@ -87,12 +87,11 @@ Automated code review tools such as CodeRabbit and Greptile are part of the
 pre-review workflow. A PR is ready for maintainer review only after the author
 has addressed unresolved human and automated review comments.
 
-Automated code review is gated on triage. New and reopened PRs from
-maintainers, repository collaborators, or NVIDIA-NeMo organization members are
-labeled `status: triaged` automatically. Other PRs open as `status: needs
-triage`; a maintainer applies `status: triaged` after confirming the PR is
-linked to a triaged issue assigned to the contributor. CodeRabbit and Greptile
-are configured to review only PRs with `status: triaged`.
+Automated code review is gated on triage. A new PR opens as `status: needs
+triage` (a reopened PR keeps whatever triage label it already has); a maintainer
+applies `status: triaged` after confirming the PR is linked to a triaged issue
+assigned to the contributor. CodeRabbit and Greptile are configured to review
+only PRs with `status: triaged`.
 
 Before requesting maintainer review:
 
