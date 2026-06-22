@@ -1,9 +1,11 @@
 name: Build and Test Distribution
 
 on:
-  # zizmor: ignore[cache-poisoning] -- the cache key is the integrity-checked
-  # poetry.lock hash and restores a .venv for build/test only; it is not an
-  # input to the published wheel artifact.
+  # zizmor: ignore[cache-poisoning] -- this workflow has no pull_request
+  # trigger; it runs only on push to main/develop/tags and on schedule, so the
+  # restored .venv cache is only ever written by trusted refs (fork PRs cannot
+  # write a cache these runs restore). The build env can influence the wheel,
+  # so trigger scoping -- not the cache contents -- is what makes this safe.
   push:
     branches:
       - main
