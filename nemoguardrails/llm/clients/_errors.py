@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 from nemoguardrails.exceptions import (
     LLMAuthenticationError,
@@ -94,6 +94,59 @@ _EMPTY_CONTEXT = ErrorContext()
 
 def _redact_secrets(text: str) -> str:
     return _SECRET_PATTERN.sub(lambda m: m.group(1) + "***", text)
+
+
+_URL_PATTERN = re.compile(r"https?://[^\s)\"']+")
+
+
+def _sanitize(message: str) -> str:
+    """Scrub a client-facing error message: redact secrets and upstream URLs."""
+    return _URL_PATTERN.sub("[redacted-url]", _redact_secrets(message))
+
+
+# Outbound HTTP status -> OpenAI error ``type``. This is the response-formatting
+# counterpart to ``_SSE_ERROR_TYPE_TO_STATUS`` below (which parses inbound
+# provider SSE error types into statuses); keep the two in sync.
+_STATUS_TO_ERROR_TYPE: Dict[int, str] = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    403: "permission_error",
+    404: "not_found_error",
+    422: "invalid_request_error",
+    429: "rate_limit_error",
+}
+
+
+def _error_type_for_status(status_code: Optional[int]) -> str:
+    if status_code in _STATUS_TO_ERROR_TYPE:
+        return _STATUS_TO_ERROR_TYPE[status_code]
+    if status_code and status_code >= 500:
+        return "server_error"
+    return "api_error"
+
+
+def build_error_payload(
+    message: str,
+    *,
+    status: Optional[int] = None,
+    error_type: Optional[str] = None,
+    code: Union[str, int, None] = None,
+) -> Dict[str, Any]:
+    """Single source of truth for the OpenAI error envelope.
+
+    Always sanitizes the message. ``type`` defaults to the OpenAI category for
+    ``status``; ``code`` stays null unless the caller supplies one (the
+    streaming paths pass the status/marker here because an SSE response has no
+    HTTP status line to carry it).
+    """
+    return {
+        "error": {
+            "message": _sanitize(message),
+            "type": error_type or _error_type_for_status(status),
+            "param": None,
+            "code": code,
+        }
+    }
 
 
 def _parse_retry_after_value(value: Any) -> Optional[float]:
@@ -209,6 +262,8 @@ def raise_for_status(status_code: int, body: str, headers: Any, ctx: Optional[Er
     raise LLMClientError(status_code, error_message, **kwargs)
 
 
+# Inbound provider SSE error ``type`` -> HTTP status. Response-formatting
+# counterpart is ``_STATUS_TO_ERROR_TYPE`` above; keep the two in sync.
 _SSE_ERROR_TYPE_TO_STATUS: Dict[str, int] = {
     "invalid_request_error": 400,
     "authentication_error": 401,

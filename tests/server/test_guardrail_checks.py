@@ -170,7 +170,7 @@ def test_no_config_no_default_returns_422():
         }
     )
     assert resp.status_code == 422
-    assert "config" in resp.json()["detail"].lower()
+    assert "config" in resp.json()["error"]["message"].lower()
 
 
 # --- Colang 2.0 rejection ---
@@ -190,7 +190,7 @@ def test_colang_v2_returns_422():
         )
 
     assert resp.status_code == 422
-    assert "colang 2.0" in resp.json()["detail"].lower()
+    assert "colang 2.0" in resp.json()["error"]["message"].lower()
 
 
 # --- Error handling ---

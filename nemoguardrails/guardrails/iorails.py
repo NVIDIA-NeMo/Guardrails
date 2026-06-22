@@ -62,7 +62,7 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
-from nemoguardrails.llm.clients._errors import _redact_secrets
+from nemoguardrails.llm.clients._errors import build_error_payload
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
@@ -1438,13 +1438,12 @@ class IORails(BaseGuardrails):
                     record_request_error(e)
                 status = getattr(e, "status", None)
                 error_payload = json.dumps(
-                    {
-                        "error": {
-                            "message": _redact_secrets(str(e)),
-                            "type": "downstream_error" if status is not None else _GENERATION_ERROR_TYPE,
-                            "code": status if status is not None else "generation_failed",
-                        }
-                    }
+                    build_error_payload(
+                        str(e),
+                        status=status,
+                        error_type="downstream_error" if status is not None else _GENERATION_ERROR_TYPE,
+                        code=status if status is not None else "generation_failed",
+                    )
                 )
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1628,8 +1627,7 @@ class IORails(BaseGuardrails):
                 try:
                     parsed = json.loads(chunk)
                     error_obj = parsed.get("error") if isinstance(parsed, dict) else None
-                    error_type = error_obj.get("type") if isinstance(error_obj, dict) else None
-                    if error_type in (_GENERATION_ERROR_TYPE, "downstream_error"):
+                    if isinstance(error_obj, dict) and "message" in error_obj:
                         yield chunk
                         return
                 except (json.JSONDecodeError, TypeError):

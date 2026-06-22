@@ -75,7 +75,7 @@ from nemoguardrails.exceptions import (
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
-from nemoguardrails.llm.clients._errors import _redact_secrets
+from nemoguardrails.llm.clients._errors import build_error_payload
 from nemoguardrails.llm.models.initializer import (
     ModelInitializationError,
     init_llm_model,
@@ -2138,33 +2138,26 @@ def _build_streaming_error_payload(e: Exception) -> str:
     {"error": {"message", "type", "code"}} format that iorails.py
     expects for error chunk detection.
     """
-    error_dict = extract_error_json(str(e))
-    if not isinstance(error_dict, dict):
-        error_dict = {}
-    error_val = error_dict.get("error")
     status = getattr(e, "status", None)
-    error_type = "downstream_error" if status is not None else "generation_error"
-    error_code = status if status is not None else "generation_failed"
+    extracted = extract_error_json(str(e))
+    inner = extracted.get("error") if isinstance(extracted, dict) else None
 
-    if isinstance(error_val, dict):
-        error_val["message"] = _redact_secrets(error_val.get("message", ""))
-        if status is not None:
-            error_val["code"] = status
-            error_val["type"] = "downstream_error"
-        else:
-            error_val.setdefault("type", error_type)
-            error_val.setdefault("code", error_code)
-    elif isinstance(error_val, str):
-        error_dict["error"] = {
-            "message": _redact_secrets(error_val),
-            "type": error_type,
-            "code": error_code,
-        }
+    if isinstance(inner, dict):
+        message = inner.get("message") or str(e)
+        provider_type = inner.get("type")
+        provider_code = inner.get("code")
     else:
-        error_dict["error"] = {
-            "message": _redact_secrets(str(e)),
-            "type": error_type,
-            "code": error_code,
-        }
+        message = inner if isinstance(inner, str) and inner else str(e)
+        provider_type = None
+        provider_code = None
 
-    return json.dumps(error_dict)
+    # A carried HTTP status marks a downstream failure; otherwise preserve any
+    # provider-supplied type/code and fall back to the generation markers.
+    if status is not None:
+        error_type = "downstream_error"
+        code = status
+    else:
+        error_type = provider_type or "generation_error"
+        code = provider_code if provider_code is not None else "generation_failed"
+
+    return json.dumps(build_error_payload(message, status=status, error_type=error_type, code=code))

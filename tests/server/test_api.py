@@ -338,7 +338,7 @@ def test_chat_completion_rejects_tools_for_non_passthrough_config():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_rejects_tool_choice_without_passthrough():
@@ -359,7 +359,7 @@ def test_chat_completion_rejects_tool_choice_without_passthrough():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
@@ -383,7 +383,7 @@ def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_returns_tool_calls():
