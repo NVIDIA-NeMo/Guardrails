@@ -1,0 +1,76 @@
+name: Review response reminder
+
+# Posts a one-time reminder comment when a maintainer labels a PR as needing the
+# author to respond to review comments. Maintainer-gated: it only fires when the
+# label is applied, and applying labels requires write access. The lifecycle is
+# manual: a maintainer removes the label when satisfied; the comment is not
+# auto-removed.
+#
+# Uses pull_request_target so it has a write token even on fork PRs. Safe ONLY
+# because the job does not check out or execute PR head code; it reads event
+# metadata and calls the comments API. Do not add a checkout of the PR head here.
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- no checkout or execution of PR head
+  # code; the job reads event metadata and posts a comment only.
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: review-response-reminder-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    if: "${{ github.event.label.name == 'status: awaiting author' }}"
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7
+        env:
+          MARKER: "### Open review comments need your response"
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = process.env.MARKER;
+            const pull_number = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user?.login;
+            const authorMention = author ? `@${author} ` : "";
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pull_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => {
+              return comment.user?.type === "Bot" && comment.body?.startsWith(marker);
+            });
+
+            if (existing) {
+              core.info(`PR #${pull_number}: reminder comment already present; skipping.`);
+              return;
+            }
+
+            const body = [
+              marker,
+              "",
+              `${authorMention}this PR is waiting on you. Reply to each open review comment so a reviewer can confirm it is resolved. For every comment, leave a reply that either points to the change you made or explains why no change is needed.`,
+              "",
+              "Pushing a fix without replying is not enough: reviewers cannot tell which comments a commit addresses, so each thread needs an explicit reply.",
+              "",
+              `Review readiness guide: https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md#review-readiness`,
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pull_number,
+              body,
+            });
