@@ -42,6 +42,7 @@ from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.server import api
 from nemoguardrails.server.api import ChunkError, process_chunk
 
@@ -123,7 +124,7 @@ class TestRaiseLLMCallException:
 
     def test_detail_includes_model_context(self):
         with pytest.raises(LLMCallException) as exc_info:
-            _raise_llm_call_exception(LLMServerError(500, "fail"), _FakeLLMModel())
+            _raise_llm_call_exception(ValueError("fail"), _FakeLLMModel())
         assert "test-model" in str(exc_info.value)
         assert "test-provider" in str(exc_info.value)
 
@@ -222,7 +223,7 @@ class TestRailActionExceptionRouting:
 # 5. API endpoint integration
 # ---------------------------------------------------------------------------
 
-_client = TestClient(api.app)
+_client = TestClient(api.app, raise_server_exceptions=False)
 
 _REQUEST = {
     "model": "test-model",
@@ -266,11 +267,11 @@ class TestAPIErrorPropagation:
     def test_downstream_error_returns_status(self, exception, expected_status):
         response = _post(side_effect=exception)
         assert response.status_code == expected_status
-        body = response.json()
-        assert body["id"].startswith("chatcmpl-")
-        assert body["object"] == "chat.completion"
-        assert body["model"] == "test-model"
-        assert body["choices"][0]["message"]["role"] == "assistant"
+        error = response.json()["error"]
+        assert error["message"]
+        assert error["type"]
+        assert "param" in error
+        assert "code" in error
 
     def test_no_status_returns_500(self):
         response = _post(side_effect=ModelEngineError("Connection refused", "m", status=None))
@@ -279,12 +280,31 @@ class TestAPIErrorPropagation:
     def test_generic_exception_returns_500(self):
         response = _post(side_effect=RuntimeError("unexpected"))
         assert response.status_code == 500
-        assert response.json()["choices"][0]["message"]["content"] == "Internal server error"
+        error = response.json()["error"]
+        assert error["message"] == "Internal server error"
+        assert error["type"] == "server_error"
 
     def test_happy_path_returns_200(self):
         response = _post(return_value={"role": "assistant", "content": "Hello!"})
         assert response.status_code == 200
         assert response.json()["choices"][0]["message"]["content"] == "Hello!"
+
+    def test_model_initialization_error_returns_400(self):
+        with patch(
+            "nemoguardrails.server.api._get_rails",
+            new_callable=AsyncMock,
+            side_effect=ModelInitializationError("could not init model"),
+        ):
+            response = _client.post("/v1/chat/completions", json=_REQUEST)
+        assert response.status_code == 400
+        error = response.json()["error"]
+        assert error["type"] == "invalid_request_error"
+
+    def test_validation_error_returns_422(self):
+        response = _client.post("/v1/chat/completions", json={})
+        assert response.status_code == 422
+        error = response.json()["error"]
+        assert error["type"] == "invalid_request_error"
 
 
 # ---------------------------------------------------------------------------

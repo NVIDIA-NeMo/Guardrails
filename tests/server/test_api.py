@@ -537,8 +537,8 @@ def test_no_config_error_returns_proper_response():
     )
     assert response.status_code == 422
     res = response.json()
-    assert "detail" in res
-    assert "config" in res["detail"].lower()
+    assert "error" in res
+    assert "config" in res["error"]["message"].lower()
 
 
 def test_invalid_state_returns_error():
@@ -556,8 +556,8 @@ def test_invalid_state_returns_error():
     )
     assert response.status_code == 422
     res = response.json()
-    assert "detail" in res
-    assert "state" in res["detail"].lower() or "events" in res["detail"].lower()
+    assert "error" in res
+    assert "state" in res["error"]["message"].lower() or "events" in res["error"]["message"].lower()
 
 
 def test_chat_completion_response_structure():
@@ -931,7 +931,7 @@ def test_list_models_no_base_url_known_engine():
         os.environ.pop("MAIN_MODEL_BASE_URL", None)
         response = client.get("/v1/models")
     assert response.status_code == 502
-    assert "MAIN_MODEL_BASE_URL" in response.json()["detail"]
+    assert "MAIN_MODEL_BASE_URL" in response.json()["error"]["message"]
 
 
 def test_list_models_unknown_engine_no_base_url():
@@ -1002,7 +1002,7 @@ def test_list_models_upstream_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 401
-    assert "Error fetching models from upstream" in response.json()["detail"]
+    assert "Error fetching models from upstream" in response.json()["error"]["message"]
 
 
 def test_list_models_connection_error():
@@ -1017,7 +1017,7 @@ def test_list_models_connection_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 502
-    assert "Error connecting to upstream" in response.json()["detail"]
+    assert "Error connecting to upstream" in response.json()["error"]["message"]
 
 
 def test_list_models_forwards_auth_header():

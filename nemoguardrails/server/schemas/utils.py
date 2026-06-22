@@ -401,42 +401,6 @@ def bot_message_to_chat_completion(
     )
 
 
-def create_error_chat_completion(
-    model: str,
-    error_message: str,
-    config_id: Optional[str] = None,
-) -> GuardrailsChatCompletion:
-    """
-    Create an error response in GuardrailsChatCompletion format.
-
-    Args:
-        model: The model name to include in the response
-        error_message: The error message to return
-        config_id: Optional guardrails configuration ID
-
-    Returns:
-        A GuardrailsChatCompletion instance with the error message
-    """
-    return GuardrailsChatCompletion(
-        id=f"chatcmpl-{uuid.uuid4()}",
-        object="chat.completion",
-        created=int(time.time()),
-        model=model,
-        choices=[
-            Choice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content=error_message,
-                ),
-                finish_reason="stop",
-                logprobs=None,
-            )
-        ],
-        guardrails=GuardrailsDataOutput(config_id=config_id) if config_id else None,
-    )
-
-
 def format_streaming_chunk(
     chunk: Any,
     model: str,

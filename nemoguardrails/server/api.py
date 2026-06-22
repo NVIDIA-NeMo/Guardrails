@@ -27,18 +27,27 @@ from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.llm.clients._errors import _redact_secrets
+from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
 from nemoguardrails.server.datastore.datastore import DataStore
+from nemoguardrails.server.exception_handlers import (
+    http_exception_handler,
+    internal_error_handler,
+    llm_call_exception_handler,
+    model_initialization_error_handler,
+    validation_error_handler,
+)
 from nemoguardrails.server.schemas.openai import (
     GuardrailCheckRequest,
     GuardrailCheckResponse,
@@ -48,7 +57,6 @@ from nemoguardrails.server.schemas.openai import (
 )
 from nemoguardrails.server.schemas.utils import (
     bot_message_to_chat_completion,
-    create_error_chat_completion,
     extract_bot_message_from_response,
     fetch_models,
     format_streaming_chunk_as_sse,
@@ -199,6 +207,20 @@ app = GuardrailsApp(
     lifespan=lifespan,
 )
 
+_EXCEPTION_HANDLERS = (
+    (LLMCallException, llm_call_exception_handler),
+    (ModelEngineError, llm_call_exception_handler),
+    (APIEngineError, llm_call_exception_handler),
+    (ModelInitializationError, model_initialization_error_handler),
+    (RequestValidationError, validation_error_handler),
+    (StarletteHTTPException, http_exception_handler),
+    (Exception, internal_error_handler),
+)
+for _exc_type, _handler in _EXCEPTION_HANDLERS:
+    # Handlers are typed with their specific exception; Starlette's stub expects
+    # (Request, Exception), so ty flags the narrower signature as a false positive.
+    app.add_exception_handler(_exc_type, _handler)  # ty: ignore[invalid-argument-type]
+
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
 ALLOWED_ORIGINS = os.getenv("NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS", "*")
 
@@ -294,9 +316,10 @@ async def list_models(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     except httpx.HTTPStatusError as exc:
+        log.warning("Error fetching models from upstream: HTTP %s - %s", exc.response.status_code, exc.response.text)
         raise HTTPException(
             status_code=exc.response.status_code,
-            detail=f"Error fetching models from upstream: {exc.response.text}",
+            detail=f"Error fetching models from upstream (HTTP {exc.response.status_code})",
         )
     except httpx.RequestError as exc:
         raise HTTPException(
@@ -539,10 +562,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     except ValueError as ex:
         log.exception(ex)
-        return create_error_chat_completion(
-            model=body.model,
-            error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
-            config_id=config_ids[0] if config_ids else None,
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not load the requested guardrails configuration: {config_ids}",
         )
 
     # Version-aware state validation, now that the config is loaded.
@@ -585,10 +607,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 raise RuntimeError("No DataStore has been configured.")
             # We make sure the `thread_id` meets the minimum complexity requirement.
             if len(body.guardrails.thread_id) < 16:
-                return create_error_chat_completion(
-                    model=body.model,
-                    error_message="The `thread_id` must have a minimum length of 16 characters.",
-                    config_id=config_ids[0] if config_ids else None,
+                raise HTTPException(
+                    status_code=422,
+                    detail="The `thread_id` must have a minimum length of 16 characters.",
                 )
 
             # Fetch the existing thread messages. For easier management, we prepend
@@ -677,27 +698,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     except HTTPException:
         raise
-    except (LLMCallException, ModelEngineError, APIEngineError) as ex:
-        log.exception(ex)
-        status = getattr(ex, "status", None) or 500
-        return JSONResponse(
-            status_code=status,
-            content=create_error_chat_completion(
-                model=body.model,
-                error_message=_redact_secrets(str(ex)),
-                config_id=config_ids[0] if config_ids else None,
-            ).model_dump(),
-        )
-    except Exception as ex:
-        log.exception(ex)
-        return JSONResponse(
-            status_code=500,
-            content=create_error_chat_completion(
-                model=body.model,
-                error_message="Internal server error",
-                config_id=config_ids[0] if config_ids else None,
-            ).model_dump(),
-        )
 
 
 def _map_rail_status(status: RailStatus) -> str:

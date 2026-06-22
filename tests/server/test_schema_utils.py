@@ -35,7 +35,6 @@ from nemoguardrails.server.schemas.utils import (
     _azure_url,
     _openai_compatible_url,
     bot_message_to_chat_completion,
-    create_error_chat_completion,
     extract_bot_message_from_response,
     fetch_models,
     format_streaming_chunk,
@@ -254,31 +253,6 @@ def test_bot_message_to_chat_completion():
     assert result.choices[0].message.content == "I'll check that for you."
     assert result.choices[0].message.tool_calls[0].function.arguments == '{"id": 1}'
     assert result.guardrails.config_id == "cfg"
-
-
-# ===== Tests for create_error_chat_completion =====
-
-
-def test_create_error_chat_completion():
-    """Test creating an error chat completion response."""
-    error_message = "This is an error message"
-    config_id = "test_config_id"
-    result = create_error_chat_completion(model="test_model", error_message=error_message, config_id=config_id)
-    assert result.choices[0].message.content == error_message
-    assert result.model == "test_model"
-    assert result.guardrails is not None
-    assert result.guardrails.config_id == config_id
-    assert result.object == "chat.completion"
-    assert result.choices[0].message.role == "assistant"
-    assert result.choices[0].finish_reason == "stop"
-
-
-def test_create_error_chat_completion_without_config_id():
-    """Test creating an error chat completion without config_id."""
-    result = create_error_chat_completion(model="gpt-4", error_message="Error occurred")
-    assert result.choices[0].message.content == "Error occurred"
-    assert result.model == "gpt-4"
-    assert result.guardrails is None
 
 
 # ===== Tests for format_streaming_chunk =====

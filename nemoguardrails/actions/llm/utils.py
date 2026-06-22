@@ -358,11 +358,14 @@ def _raise_llm_call_exception(
 
     status = _extract_http_status(exception)
 
+    if isinstance(exception, LLMClientError):
+        raise LLMCallException(exception, status=status) from exception
+
     if context_parts:
         detail = f"Error invoking LLM ({', '.join(context_parts)})"
         raise LLMCallException(exception, detail=detail, status=status) from exception
-    else:
-        raise LLMCallException(exception, status=status) from exception
+
+    raise LLMCallException(exception, status=status) from exception
 
 
 def _store_reasoning_traces(response: LLMResponse) -> None:

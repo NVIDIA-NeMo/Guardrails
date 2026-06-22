@@ -98,7 +98,10 @@ class LLMCallException(Exception):
         detail: Optional[str] = None,
         status: Optional[int] = None,
     ):
-        message = f"{detail or 'LLM Call Exception'}: {str(inner_exception)}"
+        if detail:
+            message = f"{detail}: {inner_exception}"
+        else:
+            message = str(inner_exception)
         super().__init__(message)
 
         self.inner_exception = inner_exception
