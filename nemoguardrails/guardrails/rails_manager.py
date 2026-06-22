@@ -24,7 +24,7 @@ unsafe result cancels remaining rails immediately.
 import asyncio
 import logging
 from collections.abc import Coroutine, Mapping
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
 from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyInputAction,
@@ -210,30 +210,80 @@ class RailsManager:
             return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
 
-    async def are_tool_calls_safe(self, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
-        """Run all enabled tool-call rails against the model's tool calls.
+    async def are_tool_calls_safe(
+        self,
+        tool_calls: list[ToolCall],
+        llm_params: Optional[dict],
+        *,
+        enabled: Union[bool, list[str]] = True,
+        model_type: str = "main",
+    ) -> RailResult:
+        """Validate the model's emitted tool calls (OUTPUT-direction tool rail).
 
-        Rails run sequentially, short-circuiting on the first failure.
-        Returns safe when no tool-call rails are configured.
+        The tool-call counterpart to :meth:`is_output_safe`: takes the model's output
+        (``tool_calls``) plus the request's declared tools (``llm_params``) and returns
+        a ``RailResult``.
         """
-        if not self.tool_call_flows:
+        active = self._enabled_tool_flows(self._tool_call_actions, enabled)
+        if not active or not tool_calls:
             return RailResult(is_safe=True)
+        try:
+            toolset = self.engine_registry.parse_tools(model_type, llm_params)
+        except Exception as e:
+            log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
+            return RailResult(is_safe=False, reason=f"tool parsing failed: {e}")
 
-        rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in self.tool_call_flows}
+        rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
 
-    async def are_tool_results_safe(self, tool_results: list[ToolResult], prior_calls: list[ToolCall]) -> RailResult:
-        """Run all enabled tool-result rails against the results of tool calls.
+    async def are_tool_results_safe(
+        self,
+        messages: list[dict],
+        *,
+        enabled: Union[bool, list[str]] = True,
+        model_type: str = "main",
+    ) -> RailResult:
+        """Validate incoming tool results (INPUT-direction tool rail).
 
-        Validates the tool results (already normalized to ``ToolResult``) against
-        the prior tool calls the model made. Rails run sequentially, short-circuiting
-        on the first failure. Returns safe when no tool-result rails are configured.
+        The tool-result counterpart to :meth:`is_input_safe`: takes the conversation
+        ``messages`` and returns a ``RailResult``. Extracts the tool results and the
+        prior assistant tool calls they link back to via the engine adapter.
         """
-        if not self.tool_result_flows:
+        active = self._enabled_tool_flows(self._tool_result_actions, enabled)
+        if not active:
             return RailResult(is_safe=True)
+        try:
+            tool_results = self.engine_registry.extract_tool_results(model_type, messages)
+        except Exception as e:
+            log.warning("[%s] tool result extraction failed; blocking: %s", get_request_id(), e)
+            return RailResult(is_safe=False, reason=f"tool result extraction failed: {e}")
+        if not tool_results:
+            return RailResult(is_safe=True)
+        try:
+            prior_calls = self.engine_registry.extract_tool_calls(model_type, messages)
+        except Exception as e:
+            log.warning("[%s] prior tool call extraction failed; blocking: %s", get_request_id(), e)
+            return RailResult(is_safe=False, reason=f"prior tool call extraction failed: {e}")
 
-        rails = {flow: self._run_tool_result_rail(flow, tool_results, prior_calls) for flow in self.tool_result_flows}
+        rails = {flow: self._run_tool_result_rail(flow, tool_results, prior_calls) for flow in active}
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
+
+    @staticmethod
+    def _enabled_tool_flows(actions: Mapping[str, ToolRailAction], enabled: Union[bool, list[str]]) -> list[str]:
+        """Resolve the per-request enable toggle into the configured flows to run.
+
+        ``True`` (the default) runs every configured flow; ``False`` runs none; a list
+        runs only the named flows that are configured, preserving configured order and
+        ignoring unknown names. The two booleans are spelled out as separate cases so a
+        non-empty list is never mistaken for ``True``.
+        """
+        configured = list(actions.keys())
+        if enabled is True:
+            return configured
+        if enabled is False:
+            return []
+        requested = set(enabled)
+        return [flow for flow in configured if flow in requested]
 
     async def _run_rail(
         self,

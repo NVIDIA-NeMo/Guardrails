@@ -44,7 +44,7 @@ from nemoguardrails.tracing.constants import (
     record_time_to_first_chunk,
     record_token_usage,
 )
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -397,6 +397,21 @@ class EngineRegistry:
         """
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_tool_results(messages)
+
+    def extract_tool_calls(self, model_type: str, messages: list[dict]) -> list[ToolCall]:
+        """Extract the prior tool calls from ``messages`` for the named model engine.
+
+        Delegates to the engine's ``extract_tool_calls`` so the calls that incoming
+        tool results link back to are normalized into the ``ToolCall`` list
+        ``RailsManager.are_tool_results_safe`` validates against. Symmetric to
+        ``extract_tool_results``.
+
+        Raises:
+            KeyError: If no engine is registered with the given name.
+            TypeError: If the named engine is not a ModelEngine.
+        """
+        engine = self._get_engine(model_type, ModelEngine)
+        return engine.extract_tool_calls(messages)
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Route an API request to the named API engine.

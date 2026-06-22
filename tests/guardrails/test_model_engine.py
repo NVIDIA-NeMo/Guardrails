@@ -2058,3 +2058,82 @@ class TestExtractToolResults:
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
         results = engine.extract_tool_results(_TOOL_MESSAGES)
         assert [r.call_id for r in results] == ["call_1"]
+
+
+class TestExtractToolCalls:
+    def test_extracts_assistant_tool_call(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
+
+        assert len(calls) == 1
+        call = calls[0]
+        assert call.id == "call_1"
+        assert call.function.name == "get_weather"
+        # JSON-string arguments on the wire are normalized to a dict.
+        assert call.function.arguments == {"city": "Paris"}
+
+    def test_ignores_non_assistant_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "tool", "tool_call_id": "call_1", "content": "18C"},
+        ]
+        assert engine.extract_tool_calls(messages) == []
+
+    def test_collects_across_multiple_assistant_turns(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r1"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "b", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": "c2", "name": "b", "content": "r2"},
+        ]
+        calls = engine.extract_tool_calls(messages)
+        assert [c.id for c in calls] == ["c1", "c2"]
+
+    def test_assistant_without_tool_calls_skipped(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.extract_tool_calls([{"role": "assistant", "content": "just text"}]) == []
+
+    def test_skips_non_dict_messages(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = ["garbage", _TOOL_MESSAGES[1]]
+        calls = engine.extract_tool_calls(messages)
+        assert [c.id for c in calls] == ["call_1"]
+
+    def test_no_tool_calls_returns_empty(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.extract_tool_calls([]) == []
+
+    def test_malformed_arguments_raise_value_error(self):
+        """Invalid JSON arguments fail closed: the IORails glue blocks rather than 500s."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "not json"}}],
+            },
+        ]
+        with pytest.raises(ValueError):
+            engine.extract_tool_calls(messages)
+
+    def test_nim_uses_the_same_shape(self):
+        engine = ModelEngine(_make_model(engine="nim"))
+        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
+        assert [c.id for c in calls] == ["call_1"]
+
+    def test_unknown_engine_falls_back_to_openai_extractor(self):
+        engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
+        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
+        assert [c.id for c in calls] == ["call_1"]

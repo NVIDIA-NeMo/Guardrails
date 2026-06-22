@@ -370,6 +370,41 @@ _RESULT_EXTRACTORS = {
 }
 
 
+def _extract_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
+    """Extract the prior tool calls from an OpenAI Chat Completions conversation.
+
+    These are the calls the model made on earlier turns -- the calls that incoming
+    ``role:"tool"`` results link back to. Chat Completions is stateless (the client
+    resends the full history), so the prior calls ride on the conversation's
+    ``role:"assistant"`` messages alongside the tool results. ``ChatMessage.from_dict``
+    parses JSON-string arguments into a dict; it raises ``ValueError`` on malformed
+    tool-call arguments, which the caller treats as fail-closed. Calls are collected
+    across every assistant turn and returned as-is (no dedupe), so a malformed history
+    with duplicate call ids is rejected by the tool-result rail rather than here.
+    """
+    calls: list[ToolCall] = []
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        if not message.get("tool_calls"):
+            continue
+        parsed = ChatMessage.from_dict(message).tool_calls
+        if parsed:
+            calls.extend(parsed)
+    return calls
+
+
+def _extract_tool_calls_nim(messages: LLMMessages) -> list[ToolCall]:
+    """Extract NIM tool calls. NIM uses the OpenAI Chat Completions shape."""
+    return _extract_tool_calls_openai(messages)
+
+
+_TOOL_CALL_EXTRACTORS = {
+    "openai": _extract_tool_calls_openai,
+    "nim": _extract_tool_calls_nim,
+}
+
+
 class ModelEngineError(Exception):
     """Raised when a model engine call fails."""
 
@@ -760,4 +795,17 @@ class ModelEngine(BaseEngine):
         there are no tool results.
         """
         extractor = _RESULT_EXTRACTORS.get(self.model_config.engine, _extract_tool_results_openai)
+        return extractor(messages)
+
+    def extract_tool_calls(self, messages: LLMMessages) -> list[ToolCall]:
+        """Extract the prior tool calls from ``messages`` into ``ToolCall`` objects.
+
+        Pulls the tool calls the model made on earlier assistant turns -- the calls
+        that incoming tool results link back to -- so ``RailsManager.are_tool_results_safe``
+        can validate that linkage. Symmetric to ``extract_tool_results`` and keyed on
+        the model's engine (``_TOOL_CALL_EXTRACTORS``). OpenAI and NIM share the Chat
+        Completions shape; an engine with no registered extractor falls back to it.
+        Returns an empty list when there are no prior tool calls.
+        """
+        extractor = _TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _extract_tool_calls_openai)
         return extractor(messages)

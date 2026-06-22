@@ -1530,6 +1530,19 @@ class TestEngineRegistryToolDelegation:
         results = manager.extract_tool_results("main", messages)
         assert [(r.call_id, r.name, r.content) for r in results] == [("c1", "get_weather", "18C")]
 
+    def test_extract_tool_calls_delegates_to_model_engine(self, manager):
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "X"}'}}
+                ],
+            }
+        ]
+        calls = manager.extract_tool_calls("main", messages)
+        assert [(c.id, c.function.name, c.function.arguments) for c in calls] == [("c1", "get_weather", {"city": "X"})]
+
     def test_parse_tools_unknown_engine_raises_keyerror(self, manager):
         with pytest.raises(KeyError):
             manager.parse_tools("nonexistent", {"tools": self._TOOLS})
@@ -1537,6 +1550,10 @@ class TestEngineRegistryToolDelegation:
     def test_extract_tool_results_unknown_engine_raises_keyerror(self, manager):
         with pytest.raises(KeyError):
             manager.extract_tool_results("nonexistent", [])
+
+    def test_extract_tool_calls_unknown_engine_raises_keyerror(self, manager):
+        with pytest.raises(KeyError):
+            manager.extract_tool_calls("nonexistent", [])
 
     def test_parse_tools_non_model_engine_raises_typeerror(self, manager):
         """jailbreak_detection is an APIEngine, not a ModelEngine."""

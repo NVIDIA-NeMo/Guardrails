@@ -17,14 +17,12 @@
 
 These exercise the full seam this PR builds: the real ModelEngine response
 parsing (non-streaming ``chat_completion`` and streaming SSE assembly) feeds
-the EngineRegistry tool helpers (``parse_tools`` / ``extract_tool_results``),
-whose normalized output is validated by ``RailsManager.are_tool_calls_safe`` /
-``are_tool_results_safe``.
+the request-shaped ``RailsManager.are_tool_calls_safe`` / ``are_tool_results_safe``,
+which parse the toolset / extract the tool results + prior calls via the engine
+adapter internally and validate them.
 
 The only mock is the aiohttp transport (the model's HTTP/SSE response body), so
-ModelEngine's parsing runs for real. The "model response -> parse -> validate"
-orchestration here stands in for the future IORails glue; this PR keeps the
-RailsManager surface limited to the two validation methods.
+ModelEngine's parsing runs for real end to end.
 """
 
 import json
@@ -38,7 +36,6 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import ChatMessage
 from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked, make_tool_conversation
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
@@ -184,36 +181,31 @@ def _tool_call_sse_lines(name: str, arg_fragments: list, call_id: str = "call_1"
 
 
 async def _drive_nonstream_call(payload: dict) -> RailResult:
-    """Mock the model's JSON response, then parse tools + model_call + validate the calls."""
+    """Mock the model's JSON response, then model_call + validate the calls (toolset parsed inside)."""
     registry, manager = _build_stack()
     _inject_json_response(registry, payload)
-    toolset = registry.parse_tools("main", LLM_PARAMS)
     response = await registry.model_call("main", MESSAGES, **LLM_PARAMS)
     assert response.tool_calls is not None
-    return await manager.are_tool_calls_safe(response.tool_calls, toolset)
+    return await manager.are_tool_calls_safe(response.tool_calls, LLM_PARAMS)
 
 
 async def _drive_stream_call(sse_lines: list) -> RailResult:
     """Mock the model's SSE stream, assemble the tool calls, then validate them."""
     registry, manager = _build_stack()
     _inject_sse_stream(registry, sse_lines)
-    toolset = registry.parse_tools("main", LLM_PARAMS)
     collected = []
     async for chunk in registry.stream_model_call("main", MESSAGES, **LLM_PARAMS):
         if chunk.delta_tool_calls:
             collected.extend(chunk.delta_tool_calls)
     assert collected, "expected assembled tool calls from the stream"
-    return await manager.are_tool_calls_safe(collected, toolset)
+    return await manager.are_tool_calls_safe(collected, LLM_PARAMS)
 
 
 async def _drive_result(result_call_id: str) -> RailResult:
-    """Extract tool results + prior calls from a conversation, then validate the results."""
-    registry, manager = _build_stack()
+    """Validate the conversation's tool results (results + prior calls extracted inside)."""
+    _, manager = _build_stack()
     messages = make_tool_conversation(result_call_id=result_call_id)
-    tool_results = registry.extract_tool_results("main", messages)
-    prior_calls = ChatMessage.from_dict(messages[1]).tool_calls
-    assert prior_calls is not None
-    return await manager.are_tool_results_safe(tool_results, prior_calls)
+    return await manager.are_tool_results_safe(messages)
 
 
 class TestToolCallRailEndToEndNonStreaming:
