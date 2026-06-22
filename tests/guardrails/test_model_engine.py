@@ -1969,9 +1969,9 @@ class TestParseTools:
 
     def test_no_tools_returns_empty_toolset(self):
         engine = ModelEngine(_make_model(engine="openai"))
-        assert engine.parse_tools({}).tools == []
-        assert engine.parse_tools(None).tools == []
-        assert engine.parse_tools({"tools": []}).tools == []
+        assert engine.parse_tools({}).tools == ()
+        assert engine.parse_tools(None).tools == ()
+        assert engine.parse_tools({"tools": []}).tools == ()
 
     def test_malformed_entries_are_skipped(self):
         """Non-dict / function-less entries are dropped so a malformed tool fails closed."""

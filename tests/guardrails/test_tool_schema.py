@@ -69,7 +69,7 @@ class TestTool:
 class TestToolset:
     def test_empty(self):
         ts = Toolset()
-        assert ts.tools == []
+        assert ts.tools == ()
         assert ts.get("anything") is None
 
     def test_get_returns_function_and_hosted_tools_by_key(self):

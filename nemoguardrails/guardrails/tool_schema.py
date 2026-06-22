@@ -30,7 +30,8 @@ provider-neutral so the per-provider adapters all produce the same shape:
 Completions is the engine implemented today.
 """
 
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 import jsonschema
 
@@ -58,26 +59,26 @@ class Tool:
         return self.name or self.type
 
 
-@dataclass(slots=True)
 class Toolset:
-    """The set of tools declared on a request, with a lookup index.
+    """The set of tools declared on a request, indexed by tool key.
 
-    Look tools up with :meth:`get` (``toolset.get(name)``); the index itself is
-    an implementation detail.
+    Backed by a single ``key -> Tool`` mapping built at construction, so there is
+    no separate list that can drift out of sync with the index. Look tools up with
+    :meth:`get` (``toolset.get(name)``); iterate or count via the read-only
+    :attr:`tools`.
     """
 
-    tools: list[Tool] = field(default_factory=list)
-    _by_key: dict[str, Tool] = field(init=False, repr=False)
+    __slots__ = ("_by_key",)
 
-    def __post_init__(self) -> None:
-        """Index the tools by their ``key``, rejecting duplicates.
+    def __init__(self, tools: Iterable[Tool] | None = None) -> None:
+        """Index *tools* by their ``key``, rejecting duplicates.
 
         A toolset must not declare the same function name (or hosted-tool type)
-        twice, so a repeated ``key`` raises ``ValueError``. Tools with an empty
-        ``key`` are not indexed and do not participate in the duplicate check.
+        twice, so a repeated ``key`` raises ``ValueError``. A tool with an empty
+        ``key`` (no name and no type) has no lookup identifier and is dropped.
         """
-        self._by_key = {}
-        for tool in self.tools:
+        self._by_key: dict[str, Tool] = {}
+        for tool in tools or []:
             if not tool.key:
                 continue
             if tool.key in self._by_key:
@@ -87,6 +88,11 @@ class Toolset:
     def get(self, key: str) -> Tool | None:
         """Return the declared tool registered under *key* (function name or hosted-tool type), or None."""
         return self._by_key.get(key)
+
+    @property
+    def tools(self) -> tuple[Tool, ...]:
+        """The declared tools in declaration order (read-only view of the index)."""
+        return tuple(self._by_key.values())
 
 
 @dataclass(frozen=True, slots=True)
