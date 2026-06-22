@@ -1,5 +1,5 @@
 .PHONY: help
-.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-tests check-record-test-env warm-fastembed-cache
+.PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-check-redirects docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit
 
@@ -14,6 +14,8 @@ DIST ?= worksteal
 
 PYTEST ?= poetry run pytest
 RECORDED_TESTS ?= tests/recorded
+RECORDED_RECORD_MODE ?= once
+RECORDED_SNAPSHOT_MODE ?= create
 RECORDED_REQUIRED_KEYS ?= OPENAI_API_KEY NVIDIA_API_KEY
 RECORDED_REPLAY_ENV ?= env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy
 # These targets assume a Unix-like shell for env -u; use bash, Git Bash, or WSL on Windows.
@@ -46,10 +48,19 @@ test-coverage:
 test-profile:
 	$(PYTEST) -vv --profile-svg $(ARGS) $(TEST)
 
-record-tests: check-record-test-env
-	$(PYTEST) $(RECORDED_TESTS) --record-mode=all -m "not fake_cassette"
-	$(RECORDED_REPLAY_ENV) $(PYTEST) $(RECORDED_TESTS) --block-network --inline-snapshot=create
+record-cassettes: check-record-test-env
+	$(PYTEST) $(RECORDED_TESTS) --record-mode=$(RECORDED_RECORD_MODE) -m "not fake_cassette"
+	$(RECORDED_REPLAY_ENV) $(PYTEST) $(RECORDED_TESTS) --block-network --inline-snapshot=$(RECORDED_SNAPSHOT_MODE)
 	$(RECORDED_REPLAY_ENV) $(PYTEST) $(RECORDED_TESTS) --block-network
+
+rewrite-cassettes:
+	$(MAKE) record-cassettes RECORDED_RECORD_MODE=rewrite RECORDED_SNAPSHOT_MODE=fix
+
+replay-cassettes:
+	$(RECORDED_REPLAY_ENV) $(PYTEST) $(RECORDED_TESTS) --block-network
+
+snapshot-cassettes:
+	$(RECORDED_REPLAY_ENV) $(PYTEST) $(RECORDED_TESTS) --block-network --inline-snapshot=fix
 
 check-record-test-env:
 	@missing=""; \
@@ -60,7 +71,7 @@ check-record-test-env:
 	done; \
 	if [ -n "$$missing" ]; then \
 		printf '%s\n' "Missing required env var(s):$$missing" \
-			"Set them before make record-tests, or override RECORDED_REQUIRED_KEYS for a focused refresh."; \
+			"Set them before make record-cassettes, or override RECORDED_REQUIRED_KEYS for a focused refresh."; \
 		exit 2; \
 	fi
 
@@ -107,7 +118,10 @@ help:
 		'  make test-benchmark [ARGS="-q"]' \
 		'  make test-parallel [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-watch [TEST=path]' \
-		'  make record-tests [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
+		'  make record-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_RECORD_MODE=once] [RECORDED_SNAPSHOT_MODE=create] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
+		'  make rewrite-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
+		'  make replay-cassettes [RECORDED_TESTS=tests/recorded]' \
+		'  make snapshot-cassettes [RECORDED_TESTS=tests/recorded]' \
 		'' \
 		'Tests:' \
 		'  test                  Run pytest.ini testpaths with pytest-xdist' \
@@ -117,7 +131,10 @@ help:
 		'  test-watch            Run pytest in watch mode' \
 		'  test-coverage         Run pytest with coverage' \
 		'  test-profile          Run pytest with profiling' \
-		'  record-tests          Refresh cassettes with required provider keys, fill snapshots, and verify replay' \
+		'  record-cassettes      Record missing or selected cassettes, fill snapshots, and verify replay' \
+		'  rewrite-cassettes     Rewrite selected cassettes, fill snapshots, and verify replay' \
+		'  replay-cassettes      Verify selected cassettes offline without recording' \
+		'  snapshot-cassettes    Update inline snapshots from existing cassettes offline' \
 		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
 		'' \
 		'Docs:' \
