@@ -261,6 +261,12 @@ class RailsManager:
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = await self._tool_call_actions[flow].run(toolset, tool_calls)
             mark_rail_stop(span, result.is_safe)
+            if self._content_capture_enabled:
+                set_rail_content(
+                    span,
+                    {"tool_calls": [tc.to_dict() for tc in tool_calls]},
+                    reason=result.reason if not result.is_safe else None,
+                )
             return result
 
     async def _run_tool_result_rail(
@@ -270,6 +276,16 @@ class RailsManager:
         with rail_span(self._tracer, flow, RailDirection.INPUT) as span:
             result = await self._tool_result_actions[flow].run(tool_results, prior_calls)
             mark_rail_stop(span, result.is_safe)
+            if self._content_capture_enabled:
+                set_rail_content(
+                    span,
+                    {
+                        "tool_results": [
+                            {"call_id": r.call_id, "name": r.name, "is_error": r.is_error} for r in tool_results
+                        ]
+                    },
+                    reason=result.reason if not result.is_safe else None,
+                )
             return result
 
     async def _run_rails_sequential(

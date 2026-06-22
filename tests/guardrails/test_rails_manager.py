@@ -25,12 +25,16 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
@@ -560,3 +564,58 @@ class TestRailsManagerToolResults:
         mgr = _tool_rails_manager()
         result = await mgr.are_tool_results_safe([ToolResult(call_id="c9", content="x")], [])
         assert result.is_safe is True
+
+
+def _capture_tool_rails_manager():
+    """Build (manager, exporter) with a real tracer + content capture on, both tool rails wired."""
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    config = RailsConfig.from_content(config={"models": []})
+    manager = RailsManager(
+        engine_registry=EngineRegistry(config.models, config.rails.config),
+        task_manager=LLMTaskManager(config),
+        input_flows=[],
+        output_flows=[],
+        tool_call_flows=["tool call validation"],
+        tool_result_flows=["tool result validation"],
+        tracer=provider.get_tracer("test"),
+        content_capture_enabled=True,
+    )
+    return manager, exporter
+
+
+def _rail_span(exporter):
+    """The single finished span that carries rail.input (the rail span, not the action span)."""
+    spans = [s for s in exporter.get_finished_spans() if GuardrailsAttributes.RAIL_INPUT in s.attributes]
+    assert len(spans) == 1
+    return spans[0]
+
+
+class TestRailsManagerToolContentCapture:
+    @pytest.mark.asyncio
+    async def test_tool_call_span_captures_calls_and_reason_on_block(self):
+        manager, exporter = _capture_tool_rails_manager()
+        await manager.are_tool_calls_safe([_call("rm_rf", {})], _toolset())
+        attrs = _rail_span(exporter).attributes
+        payload = json.loads(attrs[GuardrailsAttributes.RAIL_INPUT])
+        assert payload["tool_calls"][0]["function"]["name"] == "rm_rf"
+        assert "rm_rf" in attrs[GuardrailsAttributes.RAIL_REASON]
+
+    @pytest.mark.asyncio
+    async def test_tool_call_span_omits_reason_when_safe(self):
+        manager, exporter = _capture_tool_rails_manager()
+        await manager.are_tool_calls_safe([_call("get_weather", {"city": "Paris"})], _toolset())
+        attrs = _rail_span(exporter).attributes
+        assert "tool_calls" in json.loads(attrs[GuardrailsAttributes.RAIL_INPUT])
+        assert GuardrailsAttributes.RAIL_REASON not in attrs
+
+    @pytest.mark.asyncio
+    async def test_tool_result_span_captures_linkage_and_reason_on_block(self):
+        manager, exporter = _capture_tool_rails_manager()
+        prior = [_call("get_weather", {"city": "Paris"})]
+        await manager.are_tool_results_safe([ToolResult(call_id="c9", name="get_weather", content="x")], prior)
+        attrs = _rail_span(exporter).attributes
+        payload = json.loads(attrs[GuardrailsAttributes.RAIL_INPUT])
+        assert payload["tool_results"][0] == {"call_id": "c9", "name": "get_weather", "is_error": False}
+        assert "c9" in attrs[GuardrailsAttributes.RAIL_REASON]
