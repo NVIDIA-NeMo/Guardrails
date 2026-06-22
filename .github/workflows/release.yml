@@ -30,6 +30,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -77,9 +78,11 @@ jobs:
         run: |
           git cliff \
             --unreleased \
-            --tag     v${{ steps.version.outputs.version }} \
+            --tag     v${STEPS_VERSION_OUTPUTS_VERSION} \
             --strip all \
             > CHANGELOG.new.md
+        env:
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Inject release block just above the previous entry
         run: |
@@ -97,7 +100,9 @@ jobs:
             && rm CHANGELOG.new.md
 
       - name: Update version with uv
-        run: uv version --no-sync "${{ steps.version.outputs.version }}"
+        run: uv version --no-sync "${STEPS_VERSION_OUTPUTS_VERSION}"
+        env:
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Update version in README.md
         env:

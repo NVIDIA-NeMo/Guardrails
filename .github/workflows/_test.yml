@@ -40,6 +40,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v6

@@ -25,6 +25,8 @@ jobs:
       # Checkout the code
       - name: Checkout
         uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
 
       # Get runner architecture
       - name: Get runner architecture
@@ -33,8 +35,10 @@ jobs:
 
       - name: Set Docker tags
         run: |
-          ARCH=${{ steps.runner-arch.outputs.arch }}
+          ARCH=${STEPS_RUNNER_ARCH_OUTPUTS_ARCH}
           echo "TEST_TAG=${{ env.IMAGE }}:${{ github.sha }}-$ARCH" >> $GITHUB_ENV
+        env:
+          STEPS_RUNNER_ARCH_OUTPUTS_ARCH: ${{ steps.runner-arch.outputs.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -50,7 +54,7 @@ jobs:
 
       # Start the container in detached mode
       - name: Start container
-        run: docker run -d --name test_container -p 8000:8000 ${{ env.TEST_TAG }}
+        run: docker run -d --name test_container -p 8000:8000 ${TEST_TAG}
 
       # Wait for the container to be ready
       - name: Wait for container to be ready
