@@ -128,6 +128,22 @@ def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
     ]
 
 
+def _terminal_tool_call_chunk(
+    tool_calls: list[ToolCall], include_metadata: Optional[bool]
+) -> tuple[str, Union[str, dict]]:
+    """Frame assembled tool calls as the stream's terminal chunk.
+
+    Returns ``(payload, framed)``: ``payload`` is the OpenAI-native
+    ``{"tool_calls": ...}`` JSON string used for content capture, and
+    ``framed`` is what to yield — a ``{"text": payload}`` dict under
+    ``include_metadata``, a raw string otherwise — matching the shape of
+    the surrounding stream.
+    """
+    payload = json.dumps({"tool_calls": _serialize_tool_calls(tool_calls)})
+    framed: Union[str, dict] = {"text": payload} if include_metadata else payload
+    return payload, framed
+
+
 def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]]) -> LLMMessage:
     """Build the assistant message returned by ``generate``.
 
@@ -621,8 +637,10 @@ class IORails(BaseGuardrails):
             llm_kwargs = options.llm_params
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
-        # Assembled tool calls from the stream — populated by _generation_task
-        # and consumed by _wrapped_iterator after the content stream ends.
+        # Tool calls assembled by the stream: _generation_task rebinds this (via
+        # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
+        # after the content stream drains. The engine emits the complete list once
+        # (see ModelEngine.stream_call), so a plain rebind is sufficient.
         accumulated_tool_calls: list[ToolCall] = []
 
         async def _generation_task(request_span):
@@ -636,6 +654,7 @@ class IORails(BaseGuardrails):
 
             Inherits the request ID from the caller context via create_task().
             """
+            nonlocal accumulated_tool_calls
             req_id = get_request_id()
             t0 = time.monotonic()
             try:
@@ -661,9 +680,9 @@ class IORails(BaseGuardrails):
                         content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content)
                     if chunk.delta_tool_calls:
-                        # Slice-assign to mutate the shared list in place so
-                        # _wrapped_iterator sees the update without nonlocal.
-                        accumulated_tool_calls[:] = chunk.delta_tool_calls
+                        # Engine emits the complete finalized list once (see
+                        # ModelEngine.stream_call), so rebind rather than accumulate.
+                        accumulated_tool_calls = chunk.delta_tool_calls
 
                 # While LLMResponseChunk.delta_reasoning is dropped explicitly,
                 # think-tags embedded in delta_content are not. Give a warning
@@ -792,24 +811,17 @@ class IORails(BaseGuardrails):
                                                     if isinstance(text, str) and text:
                                                         delivered.append(text)
                                             yield chunk
-                                    # Yield assembled tool calls as a terminal chunk after
-                                    # all text content (and output rails) have finished —
-                                    # but only on a clean stream. If an error or guardrails
-                                    # violation was already surfaced, suppress the tool calls
-                                    # so the caller never receives a tool-call after a
-                                    # failure/block.
+                                    # Emit assembled tool calls as the terminal chunk once
+                                    # text + output rails finish, but only on a clean stream:
+                                    # suppress after an error/guardrails block so the caller
+                                    # never receives a tool call following a failure.
                                     if accumulated_tool_calls and not error_emitted:
-                                        tool_calls_payload = json.dumps(
-                                            {"tool_calls": _serialize_tool_calls(accumulated_tool_calls)}
+                                        payload, framed = _terminal_tool_call_chunk(
+                                            accumulated_tool_calls, include_metadata
                                         )
                                         if self._content_capture_enabled:
-                                            delivered.append(tool_calls_payload)
-                                        # Match the stream's chunk shape: a {"text": ...}
-                                        # frame under include_metadata, a raw string otherwise.
-                                        if include_metadata:
-                                            yield {"text": tool_calls_payload}
-                                        else:
-                                            yield tool_calls_payload
+                                            delivered.append(payload)
+                                        yield framed
                                 finally:
                                     if not task.done():
                                         task.cancel()

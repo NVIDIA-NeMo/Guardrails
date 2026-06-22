@@ -231,10 +231,11 @@ def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) ->
         # OpenAI/NIM always send it for parallel calls. The collision check below
         # flags the rare case where a provider omits it for parallel calls.
         index = tool_call_delta.get("index", 0)
+        function = tool_call_delta.get("function") or {}
         if index not in tool_calls:
             tool_calls[index] = {
                 "id": tool_call_delta.get("id") or "",
-                "name": (tool_call_delta.get("function") or {}).get("name") or "",
+                "name": function.get("name") or "",
                 "arguments_buffer": "",
             }
         else:
@@ -257,14 +258,16 @@ def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) ->
                         existing_id,
                     )
                 tool_calls[index]["id"] = incoming_id
-            name = (tool_call_delta.get("function") or {}).get("name")
+            name = function.get("name")
             if name:
                 tool_calls[index]["name"] = name
-        arguments_fragment = (tool_call_delta.get("function") or {}).get("arguments") or ""
+        arguments_fragment = function.get("arguments") or ""
         if arguments_fragment:
             tool_calls[index]["arguments_buffer"] += arguments_fragment
 
 
+# TODO: duplicates _finalize_tool_calls in
+# nemoguardrails/llm/models/openai_chat.py . Needs consolidating.
 def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
     """Assemble accumulated tool-call fragments into ToolCall objects.
 
@@ -498,6 +501,15 @@ class ModelEngine(BaseEngine):
         content should gate on ``chunk.delta_content`` rather than
         assuming every yielded chunk carries one.
 
+        Tool calls (when the request declared ``tools``) are accumulated
+        from streamed ``delta.tool_calls`` fragments and surfaced as a
+        single ``LLMResponseChunk`` whose ``delta_tool_calls`` carries the
+        COMPLETE finalized list exactly once — on the first chunk with a
+        ``finish_reason`` (``"tool_calls"`` for a free choice, ``"stop"``
+        for a forced ``tool_choice``), or via a post-loop safety net if the
+        provider omits a parseable finish frame. No other chunk carries
+        ``delta_tool_calls``, so consumers may treat it as last-write-wins.
+
         Args:
             messages: List of message dicts in OpenAI format.
             **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
@@ -546,8 +558,6 @@ class ModelEngine(BaseEngine):
                     if not line:
                         continue
 
-                    # Debug-log raw SSE line before any processing. Bounded via
-                    # truncate() for now to match the other payload logs.
                     log.debug("[%s] SSE line: %s", req_id, truncate(line))
 
                     if not line.startswith("data: "):
@@ -580,6 +590,17 @@ class ModelEngine(BaseEngine):
                     choices = raw_chunk.get("choices") or []
                     finish_reason = choices[0].get("finish_reason") if choices else None
                     if tool_calls and not tool_calls_emitted and finish_reason and parsed_chunk is not None:
+                        if finish_reason not in ("tool_calls", "stop"):
+                            # Abnormal terminator (e.g. "length", "content_filter")
+                            # while a tool call is mid-assembly: surface what we have
+                            # but warn, because the JSON arguments are likely truncated
+                            # and will degrade to {} in _finalize_tool_calls.
+                            log.warning(
+                                "[%s] tool-call stream ended with finish_reason=%r; "
+                                "assembled tool-call arguments may be truncated or incomplete",
+                                req_id,
+                                finish_reason,
+                            )
                         parsed_chunk.delta_tool_calls = _finalize_tool_calls(tool_calls)
                         tool_calls_emitted = True
 

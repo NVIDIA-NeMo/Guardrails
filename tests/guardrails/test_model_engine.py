@@ -1387,6 +1387,53 @@ class TestStreamCallToolCalls:
         assert mock_log.warning.called, "expected a collision warning for index-less parallel tool calls"
         assert "collided with accumulator slot" in mock_log.warning.call_args.args[0]
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_abnormal_finish_reason_warns_but_still_surfaces_tool_call(self):
+        """finish_reason='length' mid-tool-call: surface what we have but warn it may be truncated.
+
+        When the model hits its token limit while streaming tool-call arguments,
+        finish_reason is 'length' (not 'tool_calls'/'stop') and the JSON buffer
+        is incomplete. The finalizer must still emit the call (arguments degrade
+        to {}) AND log a warning so the truncation is not silent.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {"name": "get_weather", "arguments": '{"city": "Par'},
+                                    }
+                                ]
+                            },
+                            "finish_reason": "length",
+                        }
+                    ]
+                },
+            ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        tc = tool_chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "get_weather"
+        assert tc.function.arguments == {}
+        assert mock_log.warning.called, "expected a truncation warning for finish_reason='length'"
+        assert "may be truncated" in mock_log.warning.call_args.args[0]
+
 
 class TestModelEngineConstants:
     """Test values of model-engine-specific constants."""

@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.iorails import (
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponseChunk
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -775,6 +775,35 @@ class TestStreamAsyncToolCalling:
         parsed = json.loads(chunks[0])
         assert parsed["tool_calls"][0]["function"]["name"] == "get_weather"
         assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
+
+    @pytest.mark.asyncio
+    async def test_terminal_chunk_keeps_complete_list_when_engine_emits_over_multiple_chunks(self, iorails_input_only):
+        """Group B regression (PR #2024 review): no tool calls lost if the engine
+        surfaces delta_tool_calls on more than one chunk.
+
+        The engine contract is "complete finalized list, emitted once" (see
+        ModelEngine.stream_call), so _generation_task rebinds the channel rather
+        than slice-appending. If a future engine emitted delta_tool_calls
+        cumulatively across several chunks, the last (complete) emission must
+        still win — earlier calls must not be dropped by the rebind.
+        """
+        call_a = ToolCall(id="a", type="function", function=ToolCallFunction(name="fn_a", arguments={"x": 1}))
+        call_b = ToolCall(id="b", type="function", function=ToolCallFunction(name="fn_b", arguments={"y": 2}))
+
+        async def _two_emission_stream(model_type, messages, **kwargs):
+            # First emission: partial set; second: complete cumulative set.
+            yield LLMResponseChunk(delta_tool_calls=[call_a])
+            yield LLMResponseChunk(finish_reason="tool_calls", delta_tool_calls=[call_a, call_b])
+
+        iorails_input_only.engine_registry.stream_model_call = _two_emission_stream
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert len(chunks) == 1
+        parsed = json.loads(chunks[0])
+        names = [tc["function"]["name"] for tc in parsed["tool_calls"]]
+        assert names == ["fn_a", "fn_b"]
 
     @pytest.mark.asyncio
     async def test_tool_calls_suppressed_after_output_rails_block(self, iorails_stream_first):
