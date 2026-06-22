@@ -217,7 +217,7 @@ To configure and implement various types of guardrails, this toolkit introduces 
 Two versions of Colang, 1.0 and 2.0, are supported and Colang 1.0 is the default.
 ```
 
-For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/user-guides/colang-language-syntax-guide.html).
+For a brief introduction to the Colang 1.0 syntax, see the [Colang 1.0 Language Syntax Guide](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/colang).
 
 To get started with Colang 2.0, see the [Colang 2.0 Documentation](https://docs.nvidia.com/nemo/guardrails/colang-2/overview.html).
 
