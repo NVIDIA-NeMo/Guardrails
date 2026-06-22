@@ -81,6 +81,19 @@ class TestToolResultRailAction:
         assert_blocked(result, "malformed content")
 
     @pytest.mark.asyncio
+    async def test_list_of_non_dicts_is_blocked(self):
+        result = await ToolResultRailAction().run(
+            [_result("c1", content=[1, 2, 3])],  # type: ignore[arg-type]
+            _prior_calls(),
+        )
+        assert_blocked(result, "malformed content")
+
+    @pytest.mark.asyncio
+    async def test_empty_content_list_is_well_formed(self):
+        result = await ToolResultRailAction().run([_result("c1", content=[])], _prior_calls())
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
     async def test_one_bad_result_blocks_the_batch(self):
         results = [_result("c1", name="get_weather"), _result("c9")]
         result = await ToolResultRailAction().run(results, _prior_calls())

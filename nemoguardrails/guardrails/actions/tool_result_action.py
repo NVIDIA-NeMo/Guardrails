@@ -36,6 +36,17 @@ if TYPE_CHECKING:
     from nemoguardrails.types import ToolCall
 
 
+def _is_well_formed_content(content: object) -> bool:
+    """Tool-result content is a string, or a list of content-block dicts.
+
+    Matches the declared ``ToolResult.content`` type (``str | list[dict] | None``);
+    a list of non-dict values (e.g. ``[1, 2, 3]``) is not well-formed.
+    """
+    if isinstance(content, str):
+        return True
+    return isinstance(content, list) and all(isinstance(block, dict) for block in content)
+
+
 class ToolResultRailAction(ToolRailAction):
     """Check incoming tool results link to a prior call and are structurally well-formed."""
 
@@ -66,7 +77,7 @@ class ToolResultRailAction(ToolRailAction):
                         f"'{prior.function.name}' for call_id '{call_id}'"
                     ),
                 )
-            if result.content is not None and not isinstance(result.content, (str, list)):
+            if result.content is not None and not _is_well_formed_content(result.content):
                 return RailResult(
                     is_safe=False,
                     reason=f"tool result for call_id '{call_id}' has malformed content",
