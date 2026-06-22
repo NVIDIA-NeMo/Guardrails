@@ -24,7 +24,7 @@ jobs:
       #
       # Checkout the code
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.3
 
       # Get runner architecture
       - name: Get runner architecture
@@ -37,9 +37,9 @@ jobs:
           echo "TEST_TAG=${{ env.IMAGE }}:${{ github.sha }}-$ARCH" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile

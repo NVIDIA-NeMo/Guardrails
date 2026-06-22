@@ -41,7 +41,7 @@ jobs:
     runs-on: ${{ inputs.image }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
 
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v6
@@ -72,7 +72,7 @@ jobs:
         run: poetry config virtualenvs.in-project true
 
       - name: Set up cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache
         with:
           path: .venv

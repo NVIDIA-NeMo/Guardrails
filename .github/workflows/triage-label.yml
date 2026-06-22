@@ -24,7 +24,7 @@ jobs:
     if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const existing = context.payload.pull_request.labels.map(
@@ -47,7 +47,7 @@ jobs:
     if: "github.event.action == 'labeled' && github.event.label.name == 'status: triaged'"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             try {
