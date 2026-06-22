@@ -75,34 +75,61 @@ Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette m
 
 ## Refresh
 
-Refresh only in a trusted environment with real provider credentials. The full
-record -> fill-snapshots -> verify loop is wrapped in a make target:
+Refresh only in a trusted environment with real provider credentials. The
+record -> fill-snapshots -> verify loop is wrapped in make targets.
 
 ```bash
-OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-tests
+OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-cassettes
 ```
 
-The full target requires `OPENAI_API_KEY` and `NVIDIA_API_KEY` before it starts
-recording. For a focused refresh that only touches one provider, override the
-preflight list:
+`record-cassettes` defaults to `RECORDED_RECORD_MODE=once` and
+`RECORDED_SNAPSHOT_MODE=create`, which records missing cassettes, fills empty
+snapshots, and replays existing cassettes. This is the safest mode when adding
+new tests because it will not rewrite unrelated existing cassettes selected by
+the same path.
+
+For a focused new cassette that only touches one provider, pass the test node and
+override the preflight list:
 
 ```bash
-OPENAI_API_KEY=... make record-tests RECORDED_TESTS=path::test_name RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
+OPENAI_API_KEY=... make record-cassettes \
+  RECORDED_TESTS=tests/recorded/rails/public_api/test_generate.py::test_new_case \
+  RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
-Or run the recording step alone:
+`RECORDED_TESTS` is passed directly to pytest, so it can be a single test, a
+test class, several files, or a directory:
 
 ```bash
-poetry run pytest tests/recorded --record-mode=all -m "not fake_cassette" -v
+OPENAI_API_KEY=... make record-cassettes \
+  RECORDED_TESTS="tests/recorded/rails/public_api/test_generate.py tests/recorded/clients/test_openai_chat.py" \
+  RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
-For a focused rewrite:
+For an intentional rewrite of existing cassettes, use `rewrite-cassettes`:
 
 ```bash
-poetry run pytest tests/recorded/rails/public_api/test_generate.py::test_openai_generate_async_public_contract --record-mode=rewrite -v
+OPENAI_API_KEY=... make rewrite-cassettes \
+  RECORDED_TESTS=tests/recorded/rails/public_api/test_generate.py::test_openai_generate_async_public_contract \
+  RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
-The refresh workflow uploads cassettes as artifacts for review and does not commit them.
+`rewrite-cassettes` uses `RECORDED_RECORD_MODE=rewrite` and
+`RECORDED_SNAPSHOT_MODE=fix`, so changed recorded outputs update existing inline
+snapshots before the final offline replay verification.
+
+For a full trusted refresh, set the record mode explicitly:
+
+```bash
+OPENAI_API_KEY=... NVIDIA_API_KEY=... make record-cassettes RECORDED_RECORD_MODE=all RECORDED_SNAPSHOT_MODE=fix
+```
+
+Replay and snapshot-only workflows do not need real provider credentials:
+
+```bash
+make replay-cassettes RECORDED_TESTS=tests/recorded/rails/public_api/test_generate.py::test_openai_generate_async_public_contract
+make snapshot-cassettes RECORDED_TESTS=tests/recorded/rails/public_api/test_generate.py::test_openai_generate_async_public_contract
+```
 
 ## Cassettes
 
@@ -135,7 +162,7 @@ poetry run pytest tests/recorded/rails --block-network --inline-snapshot=review
 ```
 
 Snapshot formatting uses `ruff format` through `[tool.inline-snapshot]` in `pyproject.toml`.
-Snapshot create/fix/review runs must be serial. Use `make record-tests` or a
+Snapshot create/fix/review runs must be serial. Use `make record-cassettes` or a
 direct `poetry run pytest ... --inline-snapshot=<mode>` command; the default
 `make test` path uses xdist, where inline-snapshot disables update and report
 modes.
