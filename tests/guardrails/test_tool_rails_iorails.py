@@ -115,6 +115,22 @@ def _inject_sse_stream(iorails: IORails, raw_lines: list) -> None:
     engine._running = True
 
 
+def _inject_forbidden_transport(iorails: IORails) -> MagicMock:
+    """Wire the 'main' engine with a transport whose ``post`` must never be called.
+
+    Returns the mock ``post`` so the test can assert it stayed untouched. Any actual
+    call raises immediately, so a regression that lets a blocked request reach the
+    provider fails loudly here instead of hitting the live network.
+    """
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(side_effect=AssertionError("provider must not be called when the request is blocked"))
+    mock_client.closed = False
+    engine = iorails.engine_registry._get_engine("main", ModelEngine)
+    engine._client = mock_client
+    engine._running = True
+    return mock_client.post
+
+
 def _tool_call_payload(name: str, arguments_json: str, call_id: str = "call_1") -> dict:
     """A non-streaming /v1/chat/completions response carrying a single tool call."""
     return {
@@ -240,6 +256,16 @@ class TestRouting:
         assert reason is not None
         assert "duplicate" in reason
 
+    def test_normalized_duplicate_tool_flow_falls_back(self):
+        # Two entries differing only by a `$model=` suffix normalize to the same tool
+        # flow (the tool rails ignore the suffix); they must be caught as a duplicate
+        # rather than slipping past and running twice.
+        reason = IORails.unsupported_reason(
+            _config({"tool_output": {"flows": ["tool call validation", "tool call validation $model=x"]}})
+        )
+        assert reason is not None
+        assert "duplicate" in reason
+
     def test_iorails_construction_raises_on_duplicate_flow(self):
         # Why unsupported_reason pre-validates duplicates: IORails.__init__ itself would
         # raise on a dup flow, so without the pre-check Guardrails could not fall back.
@@ -305,10 +331,12 @@ class TestNonStreamingToolResults:
 
     @pytest.mark.asyncio
     async def test_unlinked_tool_result_blocked_before_generation(self, iorails):
-        # No response is injected: a blocked tool result must short-circuit before
-        # the model is ever called.
+        # A blocked tool result must short-circuit before the model is ever called:
+        # wire a transport that fails if used, and assert it stayed untouched.
+        forbidden_post = _inject_forbidden_transport(iorails)
         result = await iorails.generate_async(make_tool_conversation(result_call_id="call_999"))
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        forbidden_post.assert_not_called()
 
 
 class TestStreamingToolCalls:
@@ -336,8 +364,11 @@ class TestStreamingToolCalls:
 class TestStreamingToolResults:
     @pytest.mark.asyncio
     async def test_unlinked_tool_result_blocks_stream(self, iorails):
+        # As above, the streaming block must short-circuit before the model is called.
+        forbidden_post = _inject_forbidden_transport(iorails)
         chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
         assert REFUSAL_MESSAGE in chunks
+        forbidden_post.assert_not_called()
 
 
 class TestPerRequestToggles:

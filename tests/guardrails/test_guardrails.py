@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.iorails import IORails, _unsupported_flows_reason
+from nemoguardrails.guardrails.iorails import IORails, _duplicate_flows_reason, _unsupported_flows_reason
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
@@ -402,6 +402,34 @@ class TestUnsupportedFlowsReason:
     def test_empty_supported_set_rejects_every_named_flow(self):
         reason = _unsupported_flows_reason(["anything"], frozenset(), "tool input")
         assert reason == "config has unsupported tool input flows: ['anything']"
+
+
+class TestDuplicateFlowsReason:
+    """Unit tests for the ``_duplicate_flows_reason`` helper that backs the tool-flow
+    duplicate pre-check in ``IORails.unsupported_reason``."""
+
+    def test_no_duplicates_returns_none(self):
+        assert _duplicate_flows_reason(["tool call validation"], "tool output") is None
+
+    def test_empty_flows_returns_none(self):
+        assert _duplicate_flows_reason([], "tool output") is None
+
+    def test_exact_duplicate_is_caught(self):
+        reason = _duplicate_flows_reason(["tool call validation", "tool call validation"], "tool output")
+        assert reason is not None
+        assert "duplicate tool output flows" in reason
+
+    def test_normalized_duplicate_is_caught(self):
+        # Entries differing only by a `$model=` suffix normalize to the same name.
+        reason = _duplicate_flows_reason(["tool call validation", "tool call validation $model=x"], "tool output")
+        assert reason is not None
+        assert "duplicate" in reason
+
+    def test_flow_normalizing_to_empty_is_skipped(self):
+        # A flow that normalizes to an empty name has no comparable identity, so it is
+        # neither flagged as a duplicate nor matched against other empty-normalizing flows.
+        assert _duplicate_flows_reason(["$model=x", "tool call validation"], "tool output") is None
+        assert _duplicate_flows_reason(["$model=x", "$model=y"], "tool output") is None
 
 
 class TestRequireIORails:

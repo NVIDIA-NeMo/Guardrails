@@ -188,6 +188,27 @@ def _unsupported_flows_reason(flows: list[str], supported: frozenset[str], label
     return f"config has unsupported {label} flows: {sorted(unsupported)}"
 
 
+def _duplicate_flows_reason(flows: list[str], label: str) -> Optional[str]:
+    """Return a fallback reason when *flows* contains a duplicate flow, else None.
+
+    A duplicate tool flow raises ``RuntimeError`` in RailsManager at construction, so
+    surfacing it here lets the config route to LLMRails cleanly instead of failing init.
+    Flow ids are normalized (call args / ``$model=`` suffix stripped) before comparison
+    -- matching :func:`_unsupported_flows_reason` -- so two entries that differ only by a
+    suffix the tool rails ignore are still caught as duplicates rather than running twice.
+    A flow whose name normalizes to empty carries no recognizable rail name and is skipped.
+    """
+    seen = set()
+    for flow in flows:
+        name = _get_flow_name(flow)
+        if not name:
+            continue
+        if name in seen:
+            return f"config has duplicate {label} flows: {flows}"
+        seen.add(name)
+    return None
+
+
 class IORails(BaseGuardrails):
     """Workflow engine for accelerated Input/Output rails inference."""
 
@@ -237,8 +258,9 @@ class IORails(BaseGuardrails):
             ("tool output", config.rails.tool_output.flows),
             ("tool input", config.rails.tool_input.flows),
         ):
-            if len(tool_flows) != len(set(tool_flows)):
-                return f"config has duplicate {label} flows: {tool_flows}"
+            reason = _duplicate_flows_reason(tool_flows, label)
+            if reason is not None:
+                return reason
 
         return None
 
@@ -494,6 +516,7 @@ class IORails(BaseGuardrails):
 
         # Agent/client executes tool-calls and sends results to Main LLM with prior conversation history.
         # Symmetric with INPUT rails
+        log.info("[%s] Running tool result rails", req_id)
         tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
         if not tool_result.is_safe:
             log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
@@ -752,6 +775,7 @@ class IORails(BaseGuardrails):
                 # Step 0: Tool-result rails. Client/agent harness executes tool calls and sends
                 # results of execution to Main LLM along with prior conversation history
                 # Symmetric with INPUT rails for dialog use-case
+                log.info("[%s] Running tool result rails", req_id)
                 tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
                 if not tool_result.is_safe:
                     log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
