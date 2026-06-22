@@ -28,7 +28,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
-      pull-requests: write
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7
         env:
@@ -41,6 +40,11 @@ jobs:
             const pull_number = context.payload.pull_request.number;
             const author = context.payload.pull_request.user?.login;
             const authorMention = author ? `@${author} ` : "";
+
+            if (context.payload.pull_request.state !== "open") {
+              core.info(`PR #${pull_number}: state is ${context.payload.pull_request.state}; skipping.`);
+              return;
+            }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
