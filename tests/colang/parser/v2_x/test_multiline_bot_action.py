@@ -98,6 +98,8 @@ class TestGetFirstBotActionMultiline:
         lines = llm_completion.splitlines()
         bot_action = get_first_bot_action(lines)
 
+        assert "**Performance:** The RTX 4090 is faster." in bot_action
+
         bot_intent = "bot respond provide information about NVIDIA GPU comparison"
         flow_name = f"_dynamic_test {bot_intent}"
         flow_body = f'@meta(bot_intent="{bot_intent}")\n' + f"flow {flow_name}\n" + f"  {bot_action}"
@@ -207,14 +209,14 @@ class TestGetFirstBotActionMultiline:
         assert result == ""
 
     def test_permanently_unclosed_quote_has_safety_bound(self):
-        """Permanently unclosed quote stops collecting after max continuation lines."""
+        """Permanently unclosed quote stops at exactly the line cap and stays valid."""
         lines = ['bot action: bot say "This never closes'] + [
             f"line {i}" for i in range(_MAX_QUOTE_CONTINUATION_LINES + 10)
         ]
         result = get_first_bot_action(lines)
-        # Should not absorb all lines — safety bound kicks in
-        assert result is not None
-        assert f"line {_MAX_QUOTE_CONTINUATION_LINES + 5}" not in result
+        assert f"line {_MAX_QUOTE_CONTINUATION_LINES - 1}" in result
+        assert f"line {_MAX_QUOTE_CONTINUATION_LINES}" not in result
+        assert not _has_unclosed_quote(result)
 
     def test_unclosed_quote_does_not_absorb_subsequent_actions(self):
         """Unclosed quote with safety bound doesn't consume later bot actions."""
@@ -225,6 +227,46 @@ class TestGetFirstBotActionMultiline:
         )
         result = get_first_bot_action(lines)
         assert "Next action" not in result
+
+    def test_safety_bound_returns_closed_quote(self):
+        """Hitting the safety bound returns a closed quote, never invalid Colang."""
+        lines = ['bot action: bot say "open'] + [f"filler {i}" for i in range(_MAX_QUOTE_CONTINUATION_LINES + 10)]
+        result = get_first_bot_action(lines)
+        assert not _has_unclosed_quote(result)
+        assert result.endswith('"')
+
+    def test_unbalanced_quote_does_not_absorb_intent_lines(self):
+        """An unbalanced quote stops at structural marker lines instead of swallowing them."""
+        lines = [
+            'bot action: bot say "oops',
+            "user intent: greeting",
+            "bot intent: express greeting",
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "oops"'
+        assert "user intent" not in result
+        assert "bot intent" not in result
+
+    def test_unbalanced_quote_does_not_merge_next_action(self):
+        """An unbalanced quote does not swallow the next distinct bot action."""
+        lines = [
+            'bot action: bot say "hello',
+            "bot action: bot gesture smile",
+            "",
+        ]
+        result = get_first_bot_action(lines)
+        assert result == 'bot say "hello"'
+        assert "gesture" not in result
+
+    def test_close_reopen_oscillation_is_bounded(self):
+        """Repeated close/reopen does not bypass the total continuation-line bound."""
+        lines = ['bot action: bot say "x']
+        for index in range(120):
+            lines += [f'frag{index}"', f'bot action: bot say "y{index}']
+        result = get_first_bot_action(lines)
+        assert not _has_unclosed_quote(result)
+        assert "frag119" not in result
+        assert "y119" not in result
 
     def test_whitespace_continuation_lines(self):
         """Whitespace-only lines inside a quoted string are preserved."""

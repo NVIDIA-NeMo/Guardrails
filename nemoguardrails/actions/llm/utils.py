@@ -862,6 +862,12 @@ def _has_unclosed_quote(s: str) -> bool:
 
 
 _MAX_QUOTE_CONTINUATION_LINES = 50
+_STRUCTURAL_MARKERS = (
+    "bot intent: ",
+    "bot action: ",
+    "user intent: ",
+    "user action: ",
+)
 
 
 def get_first_bot_action(strings: List[str]) -> Optional[str]:
@@ -873,13 +879,10 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
         # Collect continuation lines for multi-line quoted strings,
         # joining with escaped newlines to keep the Colang statement valid.
         if action and _has_unclosed_quote(action):
-            if continuation_lines >= _MAX_QUOTE_CONTINUATION_LINES:
-                # Safety bound: stop collecting to avoid absorbing all input.
-                return action
+            if continuation_lines >= _MAX_QUOTE_CONTINUATION_LINES or string.startswith(_STRUCTURAL_MARKERS):
+                return action + '"'
             action += "\\n" + string
             continuation_lines += 1
-            if not _has_unclosed_quote(action):
-                continuation_lines = 0
             continue
         if string.startswith("bot action: "):
             if action != "":
