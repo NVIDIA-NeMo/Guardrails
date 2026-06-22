@@ -29,6 +29,7 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails import Guardrails
+from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -245,6 +246,13 @@ class TestRouting:
         with pytest.raises(RuntimeError):
             IORails(_config({"tool_output": {"flows": ["tool call validation", "tool call validation"]}}))
 
+    def test_tool_parallel_flag_warns_inert(self):
+        # tool_*.parallel is inert (tool rails run sequentially); construction warns
+        # rather than silently ignoring it.
+        config = _config({"tool_output": {"flows": ["tool call validation"], "parallel": True}})
+        with pytest.warns(UserWarning, match="not honored by IORails"):
+            IORails(config)
+
 
 class TestNonStreamingToolCalls:
     @pytest.mark.asyncio
@@ -360,3 +368,46 @@ class TestFailClosed:
         dup_params = {"tools": [WEATHER_TOOL, WEATHER_TOOL]}
         result = await iorails.generate_async(MESSAGES, options={"llm_params": dup_params})
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+
+
+class TestToolRailBlockMetrics:
+    """When metrics are enabled, a tool-rail block records the directional block metric."""
+
+    @pytest.mark.asyncio
+    async def test_nonstream_tool_result_block_records_input_metric(self, iorails):
+        iorails._metrics_enabled = True
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await iorails.generate_async(make_tool_conversation(result_call_id="call_999"))
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_blocked.assert_called_once_with(RailDirection.INPUT)
+
+    @pytest.mark.asyncio
+    async def test_nonstream_tool_call_block_records_output_metric(self, iorails):
+        iorails._metrics_enabled = True
+        _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_blocked.assert_called_once_with(RailDirection.OUTPUT)
+
+    @pytest.mark.asyncio
+    async def test_streamed_tool_result_block_records_input_metric(self, iorails):
+        iorails._metrics_enabled = True
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
+        assert REFUSAL_MESSAGE in chunks
+        record_blocked.assert_called_once_with(RailDirection.INPUT)
+
+    @pytest.mark.asyncio
+    async def test_streamed_tool_call_block_records_metric_and_captures(self, iorails):
+        # Enable both metrics and content capture so the block records the OUTPUT metric
+        # and appends the violation payload to the captured output.
+        iorails._metrics_enabled = True
+        iorails._content_capture_enabled = True
+        _inject_sse_stream(iorails, _tool_call_sse_lines("rm_rf", ["{}"]))
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+        violations = _stream_violation_chunks(chunks)
+        assert len(violations) == 1
+        assert violations[0]["error"]["param"] == "tool_output_rails"
+        record_blocked.assert_called_once_with(RailDirection.OUTPUT)

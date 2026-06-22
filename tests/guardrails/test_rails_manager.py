@@ -21,6 +21,7 @@ Rail-specific logic (prompt rendering, parsing) is tested in the
 individual iorails_actions test files.
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -30,6 +31,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -659,6 +661,19 @@ class TestRailsManagerToolResults:
         result = await mgr.are_tool_results_safe(messages)
         assert_blocked(result, "prior tool call extraction failed")
 
+    @pytest.mark.asyncio
+    async def test_fails_closed_when_result_extraction_raises(self):
+        # If the engine adapter's result extraction itself blows up, the method must
+        # fail closed (block) rather than let the error escape.
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("extract boom")
+
+        mgr.engine_registry.extract_tool_results = _boom
+        result = await mgr.are_tool_results_safe(make_tool_conversation())
+        assert_blocked(result, "tool result extraction failed")
+
 
 def _capture_tool_rails_manager():
     """Build (manager, exporter) with a real tracer + content capture on, both tool rails wired.
@@ -728,3 +743,57 @@ class TestRailsManagerToolContentCapture:
         payload = json.loads(attrs[GuardrailsAttributes.RAIL_INPUT])
         assert payload["tool_results"][0] == {"call_id": "c9", "name": "get_weather", "is_error": False}
         assert "c9" in attrs[GuardrailsAttributes.RAIL_REASON]
+
+
+class TestRunRailsParallel:
+    """Direct tests for the parallel runner's cancel-on-block and error-cleanup paths.
+
+    These exercise ``_run_rails_parallel`` (used by ``is_input_safe`` / ``is_output_safe``
+    when ``parallel`` is enabled) with hand-built coroutines so a rail can stay pending /
+    raise deterministically -- the mock-fast rails in the config-driven parallel tests
+    above all resolve in the first batch, leaving the cancel/except branches uncovered.
+    """
+
+    @pytest.mark.asyncio
+    async def test_first_unsafe_result_cancels_pending_rails(self):
+        mgr = _tool_rails_manager()
+        cancelled = asyncio.Event()
+
+        async def slow_safe():
+            try:
+                await asyncio.sleep(5)
+                return RailResult(is_safe=True)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        async def fast_unsafe():
+            return RailResult(is_safe=False, reason="blocked fast")
+
+        rails = {"slow": slow_safe(), "fast": fast_unsafe()}
+        result = await mgr._run_rails_parallel(rails, RailDirection.INPUT)
+
+        assert_blocked(result, "blocked fast")
+        assert cancelled.is_set(), "the still-pending rail should have been cancelled"
+
+    @pytest.mark.asyncio
+    async def test_rail_exception_cancels_all_and_propagates(self):
+        mgr = _tool_rails_manager()
+        cancelled = asyncio.Event()
+
+        async def slow_safe():
+            try:
+                await asyncio.sleep(5)
+                return RailResult(is_safe=True)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        async def raises():
+            raise RuntimeError("rail boom")
+
+        rails = {"slow": slow_safe(), "boom": raises()}
+        with pytest.raises(RuntimeError, match="rail boom"):
+            await mgr._run_rails_parallel(rails, RailDirection.INPUT)
+
+        assert cancelled.is_set(), "remaining rails should be cancelled on a rail error"
