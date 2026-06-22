@@ -523,6 +523,14 @@ class TestRailsManagerToolInit:
         with pytest.raises(RuntimeError, match="expected ToolResultRailAction"):
             _tool_rails_manager(tool_result_flows=["tool call validation"])
 
+    def test_duplicate_tool_call_flow_raises(self):
+        with pytest.raises(RuntimeError, match="Duplicate tool rail flow"):
+            _tool_rails_manager(tool_call_flows=["tool call validation", "tool call validation"])
+
+    def test_duplicate_tool_result_flow_raises(self):
+        with pytest.raises(RuntimeError, match="Duplicate tool rail flow"):
+            _tool_rails_manager(tool_result_flows=["tool result validation", "tool result validation"])
+
 
 class TestRailsManagerToolCalls:
     @pytest.mark.asyncio

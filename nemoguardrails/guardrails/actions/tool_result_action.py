@@ -58,7 +58,16 @@ class ToolResultRailAction(ToolRailAction):
 
     def _validate(self, tool_results: List["ToolResult"], prior_calls: List["ToolCall"]) -> RailResult:
         """Check call_id linkage, name consistency, and content shape for each result."""
-        calls_by_id = {call.id: call for call in prior_calls if call.id}
+        calls_by_id: dict[str, "ToolCall"] = {}
+        for call in prior_calls:
+            if not call.id:
+                continue
+            if call.id in calls_by_id:
+                return RailResult(
+                    is_safe=False,
+                    reason=f"duplicate prior tool call id '{call.id}' makes tool-result linkage ambiguous",
+                )
+            calls_by_id[call.id] = call
         for result in tool_results:
             call_id = result.call_id
             if not call_id:

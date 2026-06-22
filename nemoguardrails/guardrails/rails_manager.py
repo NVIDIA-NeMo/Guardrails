@@ -158,10 +158,14 @@ class RailsManager:
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
 
-        Validates unknown flows or incorrect direction and raises ``RuntimeError``
+        Raises ``RuntimeError`` on a duplicate flow, an unknown flow, or a flow that
+        resolves to the wrong direction. Duplicates are rejected because the dispatch
+        keys its coroutine map by flow, so a repeated flow would silently drop a run.
         """
         actions: dict[str, _ToolActionT] = {}
         for flow in flows:
+            if flow in actions:
+                raise RuntimeError(f"Duplicate tool rail flow '{flow}' is not supported")
             base_name = _get_flow_name(flow) or flow
             action_cls = _TOOL_ACTION_CLASSES.get(base_name)
             if action_cls is None:

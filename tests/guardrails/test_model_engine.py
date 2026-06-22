@@ -1989,6 +1989,17 @@ class TestParseTools:
         toolset = engine.parse_tools({"tools": _OPENAI_TOOLS})
         assert sorted(t.key for t in toolset.tools) == ["get_weather", "noargs"]
 
+    def test_function_entries_without_name_are_skipped(self):
+        """Name-less function entries are dropped, so duplicate empty keys never crash parse_tools."""
+        engine = ModelEngine(_make_model(engine="openai"))
+        tools = [
+            {"type": "function", "function": {"description": "no name"}},
+            {"type": "function", "function": {"name": ""}},
+            {"type": "function", "function": {"name": "ok"}},
+        ]
+        toolset = engine.parse_tools({"tools": tools})
+        assert [t.key for t in toolset.tools] == ["ok"]
+
 
 _TOOL_MESSAGES = make_tool_conversation()
 

@@ -302,9 +302,8 @@ def _parse_tools_openai(tools: list) -> list[Tool]:
 
     Each entry has the nested shape ``{"type": "function", "function": {"name",
     "description", "parameters", "strict"}}``; ``function.parameters`` (the JSON
-    Schema) maps to ``Tool.arguments_schema``. Entries that are not a dict or lack
-    a ``function`` block are skipped, so a malformed/undeclared tool is invisible
-    to the allowlist and a call to it is blocked rather than silently allowed.
+    Schema) maps to ``Tool.arguments_schema``. Entries that are not a dict, lack a
+    ``function`` block, or whose function has no non-empty ``name`` are skipped.
     """
     parsed: list[Tool] = []
     for entry in tools:
@@ -313,9 +312,12 @@ def _parse_tools_openai(tools: list) -> list[Tool]:
         function = entry.get("function")
         if not isinstance(function, dict):
             continue
+        name = function.get("name")
+        if not isinstance(name, str) or not name:
+            continue
         parsed.append(
             Tool(
-                name=function.get("name"),
+                name=name,
                 type=entry.get("type", "function"),
                 description=function.get("description"),
                 arguments_schema=function.get("parameters"),

@@ -98,3 +98,12 @@ class TestToolResultRailAction:
         results = [_result("c1", name="get_weather"), _result("c9")]
         result = await ToolResultRailAction().run(results, _prior_calls())
         assert_blocked(result, "c9")
+
+    @pytest.mark.asyncio
+    async def test_duplicate_prior_call_id_is_blocked(self):
+        prior = [
+            ToolCall(id="c1", function=ToolCallFunction(name="get_weather", arguments={})),
+            ToolCall(id="c1", function=ToolCallFunction(name="search", arguments={})),
+        ]
+        result = await ToolResultRailAction().run([_result("c1")], prior)
+        assert_blocked(result, "duplicate prior tool call id", "c1")
