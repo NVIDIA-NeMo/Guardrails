@@ -29,7 +29,6 @@ repos:
     rev: v1.25.2
     hooks:
       - id: zizmor
-        args: ["--min-severity", "high"]
 
   - repo: local
     hooks:

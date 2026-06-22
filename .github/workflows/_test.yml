@@ -28,6 +28,9 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 defaults:
   run:

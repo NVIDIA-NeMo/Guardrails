@@ -15,6 +15,9 @@ on:
   schedule:
     - cron: "0 23 * * *" # 11:00 PM UTC, daily
 
+permissions:
+  contents: read
+
 jobs:
   build-wheel:
     runs-on: ubuntu-latest

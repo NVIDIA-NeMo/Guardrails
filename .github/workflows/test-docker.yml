@@ -15,6 +15,9 @@ on:
       - "uv.lock"
       - ".github/workflows/test-docker.yml"
 
+permissions:
+  contents: read
+
 jobs:
   docker:
     runs-on: ubuntu-latest

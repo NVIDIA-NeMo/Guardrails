@@ -4,6 +4,8 @@ on:
 
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   test-pypi-wheel:
     runs-on: ubuntu-latest

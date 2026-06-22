@@ -7,6 +7,8 @@ on:
         description: 'Version of the wheel to publish (format X.Y.Z - no "v"!).'
         required: true
 
+permissions: {}
+
 jobs:
   publish-wheel:
     runs-on: ubuntu-latest
@@ -22,6 +24,9 @@ jobs:
           name: nemoguardrails-${{ github.event.inputs.version }}.whl
 
       - name: Publish package
+        # zizmor: ignore[use-trusted-publishing] -- publishes with a PyPI API
+        # token by design; migrating to OIDC trusted publishing is tracked
+        # separately.
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
