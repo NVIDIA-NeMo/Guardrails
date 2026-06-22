@@ -743,9 +743,7 @@ class TestStreamAsyncToolCalling:
     @pytest.mark.asyncio
     async def test_forced_tool_choice_finish_reason_stop_surfaces_terminal_json(self, iorails_input_only):
         """Forced tool_choice yields finish_reason='stop'; the tool call must still surface.
-
-        Regression for the e2e failure where forced tool calls returned zero
-        chunks because finalization was gated on finish_reason=='tool_calls'.
+        If tool_choice is `auto`, the finish_reason is `tool_calls`
         """
         forced_chunk = {
             "choices": [
@@ -777,15 +775,9 @@ class TestStreamAsyncToolCalling:
         assert parsed["tool_calls"][0]["function"]["arguments"] == '{"city": "Paris"}'
 
     @pytest.mark.asyncio
-    async def test_terminal_chunk_keeps_complete_list_when_engine_emits_over_multiple_chunks(self, iorails_input_only):
-        """Group B regression (PR #2024 review): no tool calls lost if the engine
-        surfaces delta_tool_calls on more than one chunk.
-
-        The engine contract is "complete finalized list, emitted once" (see
-        ModelEngine.stream_call), so _generation_task rebinds the channel rather
-        than slice-appending. If a future engine emitted delta_tool_calls
-        cumulatively across several chunks, the last (complete) emission must
-        still win — earlier calls must not be dropped by the rebind.
+    async def test_model_engine_accumulates_tool_calls(self, iorails_input_only):
+        """Ensure ModelEngine.stream_call() accumulates all delta_tool_calls before
+        emitting once after the stream ends.
         """
         call_a = ToolCall(id="a", type="function", function=ToolCallFunction(name="fn_a", arguments={"x": 1}))
         call_b = ToolCall(id="b", type="function", function=ToolCallFunction(name="fn_b", arguments={"y": 2}))
@@ -807,12 +799,7 @@ class TestStreamAsyncToolCalling:
 
     @pytest.mark.asyncio
     async def test_tool_calls_suppressed_after_output_rails_block(self, iorails_stream_first):
-        """A blocked output rail suppresses the terminal tool-call chunk.
-
-        Regression (PR #2024 review): a mixed text+tool-call response that gets
-        blocked must not emit tool_calls after the guardrails_violation error —
-        the caller must never receive a tool-call after a block.
-        """
+        """A blocked output rail suppresses the terminal tool-call chunk."""
         iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails_stream_first.rails_manager.is_output_safe = AsyncMock(
             return_value=RailResult(is_safe=False, reason="blocked")
@@ -833,12 +820,7 @@ class TestStreamAsyncToolCalling:
 
     @pytest.mark.asyncio
     async def test_include_metadata_tool_call_only_yields_dict_frame(self, iorails_input_only):
-        """With include_metadata=True the terminal tool-call chunk is a dict frame.
-
-        Regression (PR #2024 review): metadata mode must stay shape-consistent —
-        every chunk is a ``{"text": ...}`` dict, including the terminal tool-call
-        payload, never a bare JSON string.
-        """
+        """With include_metadata=True the terminal tool-call chunk is a dict frame."""
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
         main_engine._client = _build_tool_call_sse_mock(tool_call_chunks=[_NIM_TOOL_CALL_CHUNK])
@@ -858,11 +840,7 @@ class TestStreamAsyncToolCalling:
 
     @pytest.mark.asyncio
     async def test_tool_calls_recorded_in_captured_content(self, iorails_input_only):
-        """When content capture is on, the terminal tool-call payload is recorded on the span.
-
-        Regression (PR #2024 review): the tool-call JSON must reach ``delivered`` so
-        the request span's captured output_text includes tool calls.
-        """
+        """When content capture is on, the terminal tool-call payload is recorded on the span."""
         iorails_input_only._content_capture_enabled = True
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
