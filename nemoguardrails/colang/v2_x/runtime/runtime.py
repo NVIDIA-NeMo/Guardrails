@@ -83,7 +83,10 @@ class RuntimeV2_x(Runtime):
                 format_colang_parsing_error_message(e, flow_content),
             )
 
-            flow_name = flow_content.split("\n")[0].split(" ", maxsplit=1)[1]
+            flow_name = next(
+                (line.split(" ", maxsplit=1)[1] for line in flow_content.split("\n") if line.startswith("flow ")),
+                "unknown",
+            )
             fixed_body = f"flow {flow_name}\n" + f'  bot say "Internal error on flow `{flow_name}`."'
             log.warning("Using the following flow instead:\n%s", fixed_body)
 

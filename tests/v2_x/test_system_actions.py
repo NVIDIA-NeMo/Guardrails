@@ -68,6 +68,39 @@ def test_add_new_flow_action():
     chat << "message a!\nmessage b!"  # "message a!\nmessage b!\nmessage a!\nmessage b!"
 
 
+def test_add_flows_action_fallback_handles_unparseable_body():
+    """A generated flow body that fails to parse falls back gracefully without crashing.
+
+    Regression: the fallback handler read the flow name from the first line, which is the
+    @meta(...) decorator, and raised IndexError when that line had no space. It must read
+    the name from the `flow` line instead.
+    """
+    bad_flow_content = '@meta(bot_intent="respond")\nflow _dynamic_x respond\n  bot say "unterminated'
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow main
+          match UtteranceUserAction().Finished(final_transcript="start")
+          await AddFlowsAction(config=$bad_flow_content)
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    chat.state.main_flow_state.context["bad_flow_content"] = bad_flow_content
+
+    chat.user("start")
+    _, state = chat.app.process_events(chat.input_events, chat.state)
+
+    assert "_dynamic_x respond" in state.flow_configs
+
+
 def test_check_for_active_flow_finished_match_action():
     """Test of action that checks for active flow finished matches."""
     config = RailsConfig.from_content(
