@@ -126,16 +126,31 @@ class ToolResultRailAction(ToolRailAction):
         return None
 
     def _validate_result_name(self, result: "ToolResult", prior: "ToolCall") -> "RailResult | None":
-        """Return a blocking RailResult if the result name conflicts with the prior call's function name."""
-        if result.name and prior.function.name and result.name != prior.function.name:
+        """Return a blocking RailResult unless the result name matches the prior call's function name.
+
+        When the prior call's name is known, the result must carry that exact name: a
+        missing name no longer slips through on call_id linkage alone (it could mislabel a
+        result from a different tool), and a mismatched name is rejected. When the prior
+        call's name is unknown there is nothing to compare against, so the check returns None.
+        """
+        if not prior.function.name:
+            return None
+        if result.name == prior.function.name:
+            return None
+        if not result.name:
             return RailResult(
                 is_safe=False,
                 reason=(
-                    f"tool result name '{result.name}' does not match the called tool "
-                    f"'{prior.function.name}' for call_id '{result.call_id}'"
+                    f"tool result for call_id '{result.call_id}' is missing a name; expected '{prior.function.name}'"
                 ),
             )
-        return None
+        return RailResult(
+            is_safe=False,
+            reason=(
+                f"tool result name '{result.name}' does not match the called tool "
+                f"'{prior.function.name}' for call_id '{result.call_id}'"
+            ),
+        )
 
     def _validate_result_content(self, result: "ToolResult") -> "RailResult | None":
         """Return a blocking RailResult if the result content is not a string or list of dicts."""

@@ -41,14 +41,15 @@ class TestToolResultRailAction:
         assert result.is_safe is True
 
     @pytest.mark.asyncio
-    async def test_result_without_name_links_on_call_id_only(self):
+    async def test_result_without_name_blocked_when_prior_name_known(self):
+        """When the prior call's name is known, a result without a name should be blocked"""
         result = await ToolResultRailAction().run([_result("c2")], _prior_calls())
-        assert result.is_safe is True
+        assert_blocked(result, "missing a name", "search")
 
     @pytest.mark.asyncio
     async def test_list_content_is_well_formed(self):
         result = await ToolResultRailAction().run(
-            [_result("c1", content=[{"type": "text", "text": "18C"}])], _prior_calls()
+            [_result("c1", name="get_weather", content=[{"type": "text", "text": "18C"}])], _prior_calls()
         )
         assert result.is_safe is True
 
@@ -75,7 +76,7 @@ class TestToolResultRailAction:
     @pytest.mark.asyncio
     async def test_malformed_content_is_blocked(self):
         result = await ToolResultRailAction().run(
-            [_result("c1", content={"unexpected": "shape"})],  # type: ignore[arg-type]
+            [_result("c1", name="get_weather", content={"unexpected": "shape"})],  # type: ignore[arg-type]
             _prior_calls(),
         )
         assert_blocked(result, "malformed content")
@@ -83,14 +84,14 @@ class TestToolResultRailAction:
     @pytest.mark.asyncio
     async def test_list_of_non_dicts_is_blocked(self):
         result = await ToolResultRailAction().run(
-            [_result("c1", content=[1, 2, 3])],  # type: ignore[arg-type]
+            [_result("c1", name="get_weather", content=[1, 2, 3])],  # type: ignore[arg-type]
             _prior_calls(),
         )
         assert_blocked(result, "malformed content")
 
     @pytest.mark.asyncio
     async def test_empty_content_list_is_well_formed(self):
-        result = await ToolResultRailAction().run([_result("c1", content=[])], _prior_calls())
+        result = await ToolResultRailAction().run([_result("c1", name="get_weather", content=[])], _prior_calls())
         assert result.is_safe is True
 
     @pytest.mark.asyncio
@@ -174,12 +175,23 @@ class TestValidateResultName:
     def test_matching_names_returns_none(self):
         assert self.action._validate_result_name(_result("c1", name="get_weather"), self.prior) is None
 
-    def test_result_without_name_returns_none(self):
-        assert self.action._validate_result_name(_result("c1"), self.prior) is None
+    def test_result_without_name_is_blocked_when_prior_name_known(self):
+        """When the prior call's name is known, a result without a name should be blocked"""
+        assert_blocked(
+            self.action._validate_result_name(_result("c1"), self.prior),
+            "missing a name",
+            "get_weather",
+            "c1",
+        )
 
     def test_prior_without_function_name_returns_none(self):
+        """If a prior call is missing a name, a matching result with a name is allowed through"""
         prior = ToolCall(id="c1", function=ToolCallFunction(name="", arguments={}))
         assert self.action._validate_result_name(_result("c1", name="get_weather"), prior) is None
+
+    def test_both_names_absent_returns_none(self):
+        prior = ToolCall(id="c1", function=ToolCallFunction(name="", arguments={}))
+        assert self.action._validate_result_name(_result("c1"), prior) is None
 
     def test_name_mismatch_is_blocked(self):
         assert_blocked(
