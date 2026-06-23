@@ -1,0 +1,28 @@
+# Canned flows that demonstrate the tool-call guardrail end-to-end inside
+# NeMo Guardrails. In a real agent the LLM emits the tool name and arguments;
+# here we hard-code them so the example runs deterministically.
+#
+# The guardrail is `safe_tool_call` (registered in config.py): it authorizes the
+# proposed call against policy.py and only then dispatches to the real tool.
+
+define user ask to check own balance
+  "what is my balance"
+  "check my account balance"
+  "how much money do I have"
+
+define user ask to transfer funds
+  "transfer money"
+  "send funds to another account"
+  "move money to another account"
+
+# Allowed path: cust-alice reads an account she owns.
+define flow check balance
+  user ask to check own balance
+  $result = execute safe_tool_call(tool="read_account", principal_id="cust-alice", account_id="acct-1001")
+  bot $result
+
+# Blocked path: cust-bob attempts a transfer above the $10,000 ceiling.
+define flow transfer funds
+  user ask to transfer funds
+  $result = execute safe_tool_call(tool="transfer_funds", principal_id="cust-bob", from_account="acct-1002", to_account="acct-9999", amount=50000)
+  bot $result
