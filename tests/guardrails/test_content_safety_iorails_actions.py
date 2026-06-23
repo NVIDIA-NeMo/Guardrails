@@ -136,6 +136,15 @@ class TestContentSafetyOutputExtract:
             "bot_response": BOT_RESPONSE,
         }
 
+    def test_extracts_empty_user_when_no_user_message(self, output_action):
+        # Output-only check: no user message -> user_input "" rather than raising,
+        # so the bot response is still checked instead of a spurious error-block.
+        messages = [{"role": "assistant", "content": "earlier reply"}]
+        assert output_action._extract_messages(messages, BOT_RESPONSE) == {
+            "user_input": "",
+            "bot_response": BOT_RESPONSE,
+        }
+
 
 class TestContentSafetyOutputExtractValidation:
     """Test that _extract_messages rejects missing bot_response."""
