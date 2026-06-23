@@ -37,10 +37,20 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from example_policies import GUARD, PRINCIPALS, TOOL_REGISTRY  # noqa: E402
+from example_policies import (  # noqa: E402
+    GUARD,
+    PRINCIPAL_ATTRS,
+    PRINCIPALS,
+    TOOL_REGISTRY,
+    TOOL_SCHEMAS,
+)
 from policy import Principal, ToolCall, ToolCallGuard  # noqa: E402
 from scanner.scan import KeywordExtractor, ScanContext, scan  # noqa: E402
-from synthesis.catalog import CLASS_DESCRIPTIONS, CLASS_TO_FACTORY  # noqa: E402
+from synthesis.catalog import (  # noqa: E402
+    CLASS_DESCRIPTIONS,
+    CLASS_REQUIRED_PARAMS,
+    CLASS_TO_FACTORY,
+)
 from synthesis.proposals import (  # noqa: E402
     dropped_findings,
     find_gaps,
@@ -62,6 +72,9 @@ def main() -> int:
         tool_registry=dict(TOOL_REGISTRY),
         taxonomy=tuple(CLASS_TO_FACTORY),
         class_definitions=dict(CLASS_DESCRIPTIONS),
+        class_params=dict(CLASS_REQUIRED_PARAMS),
+        tool_schemas=dict(TOOL_SCHEMAS),
+        principal_attrs=tuple(PRINCIPAL_ATTRS),
     )
     findings = scan(scan_ctx, KeywordExtractor())
 
