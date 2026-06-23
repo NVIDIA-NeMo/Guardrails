@@ -360,6 +360,18 @@ class TestStreamingToolCalls:
         # The tool-call chunk is suppressed: no chunk carries the tool call.
         assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
 
+    @pytest.mark.asyncio
+    async def test_truncated_streamed_tool_call_fails_closed(self, iorails):
+        # Truncated tool-call args must fail closed (parity with non-streaming): no tool-call
+        # chunk is surfaced with silently-empty args; a generation error is emitted instead.
+        _inject_sse_stream(iorails, _tool_call_sse_lines("get_weather", ['{"city": "Par']))
+        chunks = await _collect(iorails.stream_async(MESSAGES, options={"llm_params": LLM_PARAMS}))
+
+        assert not any(isinstance(c, str) and '"tool_calls"' in c for c in chunks)
+        error_chunks = [c for c in chunks if isinstance(c, str) and '"error"' in c]
+        assert error_chunks, f"expected a generation error chunk, got {chunks}"
+        assert json.loads(error_chunks[0])["error"]["code"] == "generation_failed"
+
 
 class TestStreamingToolResults:
     @pytest.mark.asyncio

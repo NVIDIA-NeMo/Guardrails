@@ -272,17 +272,28 @@ def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) ->
 def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
     """Assemble accumulated tool-call fragments into ToolCall objects.
 
-    Called once when the stream emits finish_reason='tool_calls'. Arguments
-    are parsed from the accumulated JSON buffer; malformed or empty buffers
-    degrade gracefully to an empty dict (matching openai_chat.py behaviour).
+    Called once when the stream emits finish_reason='tool_calls'. An empty buffer (no
+    argument fragments streamed) is a no-argument call and becomes ``{}``; a non-empty
+    buffer that is not a valid JSON object (e.g. arguments truncated mid-stream) raises
+    ``ValueError`` so the malformed call fails closed rather than silently degrading to
+    empty arguments that could pass the tool-call rail. This mirrors the non-streaming
+    parser (``ChatMessage.from_dict``), which raises on the same bytes; ``stream_call``
+    wraps the error into ``ModelEngineError`` exactly as the non-streaming path does.
     """
     result = []
     for index in sorted(tool_calls.keys()):
         entry = tool_calls[index]
         raw_arguments = entry.get("arguments_buffer", "")
-        try:
-            arguments = json.loads(raw_arguments) if raw_arguments else {}
-        except json.JSONDecodeError:
+        if raw_arguments:
+            try:
+                arguments = json.loads(raw_arguments)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Tool call arguments are not valid JSON: {raw_arguments!r}") from exc
+            if not isinstance(arguments, dict):
+                raise ValueError(
+                    f"Tool call arguments must be a JSON object, got {type(arguments).__name__}: {raw_arguments!r}"
+                )
+        else:
             arguments = {}
         result.append(
             ToolCall(

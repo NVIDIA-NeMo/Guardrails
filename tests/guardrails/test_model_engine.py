@@ -1053,31 +1053,50 @@ class TestStreamCallToolCalls:
         lines.append(b"data: [DONE]\n")
         return lines
 
+    @staticmethod
+    def _tc_chunk(*, index=0, id=None, name=None, arguments=None, finish_reason=None):
+        """One SSE chunk carrying a single ``tool_calls`` delta.
+
+        Only the provided fields are emitted, so the same helper builds every shape used
+        below: the opening chunk (``id`` + ``name``), argument-fragment chunks
+        (``arguments`` only), and a chunk that also carries ``finish_reason``. ``id``
+        implies ``type="function"`` (matching real provider frames); pass ``index=None``
+        to omit ``index`` entirely (the index-collision case). Use :meth:`_finish_chunk`
+        for an empty terminal chunk.
+        """
+        function: dict = {}
+        if name is not None:
+            function["name"] = name
+        if arguments is not None:
+            function["arguments"] = arguments
+        tool_call: dict = {"function": function}
+        if index is not None:
+            tool_call["index"] = index
+        if id is not None:
+            tool_call["id"] = id
+            tool_call["type"] = "function"
+        choice: dict = {"delta": {"tool_calls": [tool_call]}}
+        if finish_reason is not None:
+            choice["finish_reason"] = finish_reason
+        return {"choices": [choice]}
+
+    @staticmethod
+    def _finish_chunk(finish_reason="tool_calls"):
+        """A terminal chunk with an empty delta carrying only a ``finish_reason``."""
+        return {"choices": [{"delta": {}, "finish_reason": finish_reason}]}
+
+    @staticmethod
+    def _reasoning_chunk(text):
+        """A chunk carrying a ``reasoning_content`` delta (no tool calls)."""
+        return {"choices": [{"delta": {"reasoning_content": text}}]}
+
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_nim_style_single_chunk_tool_call(self):
         """NIM-style: complete args in one delta on the finish_reason chunk."""
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
-            [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
-                                    }
-                                ]
-                            },
-                            "finish_reason": "tool_calls",
-                        }
-                    ]
-                },
-            ]
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="tool_calls")]
         )
         engine._client = AsyncMock()
         engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
@@ -1100,25 +1119,10 @@ class TestStreamCallToolCalls:
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
             [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": ""},
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"city"'}}]}}]},
-                {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": ': "Paris"}'}}]}}]},
-                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+                self._tc_chunk(id="c1", name="get_weather", arguments=""),
+                self._tc_chunk(arguments='{"city"'),
+                self._tc_chunk(arguments=': "Paris"}'),
+                self._finish_chunk(),
             ]
         )
         engine._client = AsyncMock()
@@ -1140,39 +1144,9 @@ class TestStreamCallToolCalls:
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
             [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "fn_a", "arguments": '{"x": 1}'},
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 1,
-                                        "id": "c2",
-                                        "type": "function",
-                                        "function": {"name": "fn_b", "arguments": '{"y": 2}'},
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+                self._tc_chunk(index=0, id="c1", name="fn_a", arguments='{"x": 1}'),
+                self._tc_chunk(index=1, id="c2", name="fn_b", arguments='{"y": 2}'),
+                self._finish_chunk(),
             ]
         )
         engine._client = AsyncMock()
@@ -1196,25 +1170,9 @@ class TestStreamCallToolCalls:
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
             [
-                {"choices": [{"delta": {"reasoning_content": "let me think"}}]},
-                {"choices": [{"delta": {"reasoning_content": " about this"}}]},
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
-                                    }
-                                ]
-                            },
-                            "finish_reason": "tool_calls",
-                        }
-                    ]
-                },
+                self._reasoning_chunk("let me think"),
+                self._reasoning_chunk(" about this"),
+                self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="tool_calls"),
             ]
         )
         engine._client = AsyncMock()
@@ -1231,37 +1189,22 @@ class TestStreamCallToolCalls:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_malformed_args_degrade_to_empty_dict(self):
-        """Truncated or invalid JSON arguments produce an empty arguments dict."""
+    async def test_malformed_streamed_args_raise(self):
+        """Truncated/invalid JSON arguments fail closed (raise), matching the non-streaming path.
+
+        These previously degraded silently to ``{}`` and could pass the tool-call rail; the
+        non-streaming parser raises on the same bytes, so the streaming path must too.
+        """
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
-            [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "f", "arguments": '{"city": "Par'},
-                                    }
-                                ]
-                            },
-                            "finish_reason": "tool_calls",
-                        }
-                    ]
-                },
-            ]
+            [self._tc_chunk(id="c1", name="f", arguments='{"city": "Par', finish_reason="tool_calls")]
         )
         engine._client = AsyncMock()
         engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
         engine._running = True
 
-        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
-
-        assert chunks[0].delta_tool_calls[0].function.arguments == {}
+        with pytest.raises(ModelEngineError):
+            [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -1274,23 +1217,8 @@ class TestStreamCallToolCalls:
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
             [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}'),
+                self._finish_chunk("stop"),
             ]
         )
         engine._client = AsyncMock()
@@ -1310,26 +1238,7 @@ class TestStreamCallToolCalls:
     async def test_tool_calls_finalized_without_finish_reason_chunk(self):
         """Safety net: tool calls surface even if the stream ends ([DONE]) with no finish chunk."""
         engine = ModelEngine(_make_model())
-        raw_lines = self._make_sse_lines(
-            [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-            ]
-        )
+        raw_lines = self._make_sse_lines([self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}')])
         engine._client = AsyncMock()
         engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
         engine._running = True
@@ -1342,41 +1251,23 @@ class TestStreamCallToolCalls:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_parallel_tool_calls_without_index_warns(self):
-        """Distinct parallel calls that omit `index` collapse to slot 0 — warn, don't silently corrupt.
+    async def test_parallel_tool_calls_without_index_warns_and_fails_closed(self):
+        """Distinct parallel calls that omit `index` collapse to slot 0 — warn, then fail closed.
 
         ``index`` is the only key tying argument fragments to their call. If a
-        provider omits it for parallel calls they default to slot 0; the
-        accumulator can't recover the split, so it must at least surface a warning
-        rather than corrupt silently. (OpenAI/NIM always send `index` here.)
+        provider omits it for parallel calls they default to slot 0; the accumulator
+        can't recover the split. It warns about the collision, and the concatenated
+        argument buffers (here ``"{}" + "{}" == "{}{}"``) are invalid JSON, so the
+        finalizer fails closed rather than surfacing a corrupted call. (OpenAI/NIM
+        always send `index` here.)
         """
         engine = ModelEngine(_make_model())
         # Two distinct calls (different ids), both omitting `index` -> both -> slot 0.
         raw_lines = self._make_sse_lines(
             [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {"id": "c1", "type": "function", "function": {"name": "fn_a", "arguments": "{}"}}
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {"id": "c2", "type": "function", "function": {"name": "fn_b", "arguments": "{}"}}
-                                ]
-                            }
-                        }
-                    ]
-                },
-                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+                self._tc_chunk(index=None, id="c1", name="fn_a", arguments="{}"),
+                self._tc_chunk(index=None, id="c2", name="fn_b", arguments="{}"),
+                self._finish_chunk(),
             ]
         )
         engine._client = AsyncMock()
@@ -1384,42 +1275,114 @@ class TestStreamCallToolCalls:
         engine._running = True
 
         with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
-            _ = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+            with pytest.raises(ModelEngineError):
+                [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
 
-        assert mock_log.warning.called, "expected a collision warning for index-less parallel tool calls"
-        assert "collided with accumulator slot" in mock_log.warning.call_args.args[0]
+        assert any("collided with accumulator slot" in call.args[0] for call in mock_log.warning.call_args_list), (
+            "expected a collision warning for index-less parallel tool calls"
+        )
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_abnormal_finish_reason_warns_but_still_surfaces_tool_call(self):
-        """finish_reason='length' mid-tool-call: surface what we have but warn it may be truncated.
+    async def test_abnormal_finish_reason_with_truncated_args_warns_and_raises(self):
+        """finish_reason='length' mid-tool-call with truncated args: warn, then fail closed.
 
         When the model hits its token limit while streaming tool-call arguments,
-        finish_reason is 'length' (not 'tool_calls'/'stop') and the JSON buffer
-        is incomplete. The finalizer must still emit the call (arguments degrade
-        to {}) AND log a warning so the truncation is not silent.
+        finish_reason is 'length' (not 'tool_calls'/'stop') and the JSON buffer is
+        incomplete. The finalizer warns about the abnormal terminator AND raises (rather
+        than silently surfacing empty args), matching the non-streaming parser.
         """
         engine = ModelEngine(_make_model())
         raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Par', finish_reason="length")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with patch("nemoguardrails.guardrails.model_engine.log") as mock_log:
+            with pytest.raises(ModelEngineError):
+                [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        # The truncation warning is logged before the finalizer raises (a later
+        # exception-wrap warning also fires), so scan all warning calls.
+        assert any("may be truncated" in call.args[0] for call in mock_log.warning.call_args_list), (
+            "expected a truncation warning for finish_reason='length'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_malformed_tool_args_fail_closed_on_both_paths(self):
+        """Identical malformed tool-call args fail closed on BOTH paths (the core of the fix).
+
+        The streaming and non-streaming engines must agree: the same provider bytes that
+        raise ``ModelEngineError`` non-streaming must not silently degrade to empty args
+        (and a schema-passing 'safe' call) when streamed.
+        """
+        bad_args = '{"city": "Par'
+
+        # Non-streaming: chat_completion parses the response body.
+        nonstream_engine = ModelEngine(_make_model())
+        nonstream_engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "f", "arguments": bad_args}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+        with pytest.raises(ModelEngineError):
+            await nonstream_engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        # Streaming: stream_call assembles the same args from SSE fragments.
+        stream_engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="f", arguments=bad_args, finish_reason="tool_calls")]
+        )
+        stream_engine._client = AsyncMock()
+        stream_engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        stream_engine._running = True
+        with pytest.raises(ModelEngineError):
+            [c async for c in stream_engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+    @pytest.mark.asyncio
+    async def test_no_argument_fragments_is_empty_dict(self):
+        """A streamed tool call with no argument fragments is a no-arg call -> {} (not an error)."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
             [
-                {
-                    "choices": [
-                        {
-                            "delta": {
-                                "tool_calls": [
-                                    {
-                                        "index": 0,
-                                        "id": "c1",
-                                        "type": "function",
-                                        "function": {"name": "get_weather", "arguments": '{"city": "Par'},
-                                    }
-                                ]
-                            },
-                            "finish_reason": "length",
-                        }
-                    ]
-                },
+                self._tc_chunk(id="c1", name="ping", arguments=""),
+                self._finish_chunk(),
             ]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        chunks = [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        tool_chunks = [c for c in chunks if c.delta_tool_calls]
+        assert len(tool_chunks) == 1
+        tc = tool_chunks[0].delta_tool_calls[0]
+        assert tc.function.name == "ping"
+        assert tc.function.arguments == {}
+
+    @pytest.mark.asyncio
+    async def test_abnormal_finish_reason_with_valid_args_surfaces_and_warns(self):
+        """finish_reason='length' but a complete/valid arg buffer: surface the call AND warn.
+
+        The abnormal-terminator warning still fires, but a *valid* buffer is not an error, so
+        the call is surfaced normally (only truncated/invalid buffers fail closed)."""
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="get_weather", arguments='{"city": "Paris"}', finish_reason="length")]
         )
         engine._client = AsyncMock()
         engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
@@ -1430,11 +1393,31 @@ class TestStreamCallToolCalls:
 
         tool_chunks = [c for c in chunks if c.delta_tool_calls]
         assert len(tool_chunks) == 1
-        tc = tool_chunks[0].delta_tool_calls[0]
-        assert tc.function.name == "get_weather"
-        assert tc.function.arguments == {}
-        assert mock_log.warning.called, "expected a truncation warning for finish_reason='length'"
-        assert "may be truncated" in mock_log.warning.call_args.args[0]
+        assert tool_chunks[0].delta_tool_calls[0].function.arguments == {"city": "Paris"}
+        assert any("may be truncated" in call.args[0] for call in mock_log.warning.call_args_list)
+
+    @pytest.mark.parametrize(
+        "arguments",
+        ["[1, 2]", '"just a string"', "42", "true", "null"],
+        ids=["list", "string", "number", "bool", "null"],
+    )
+    @pytest.mark.asyncio
+    async def test_non_object_streamed_args_raise(self, arguments):
+        """Args that parse as valid JSON but not an object fail closed (parity with non-streaming).
+
+        Covers every non-dict JSON kind (list, string, number, bool, null) so the
+        ``not isinstance(arguments, dict)`` guard isn't resting on a single case.
+        """
+        engine = ModelEngine(_make_model())
+        raw_lines = self._make_sse_lines(
+            [self._tc_chunk(id="c1", name="f", arguments=arguments, finish_reason="tool_calls")]
+        )
+        engine._client = AsyncMock()
+        engine._client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._running = True
+
+        with pytest.raises(ModelEngineError):
+            [c async for c in engine.stream_call([{"role": "user", "content": "Hi"}])]
 
 
 class TestModelEngineConstants:
