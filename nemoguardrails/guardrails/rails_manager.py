@@ -43,7 +43,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.rail_action import RailAction
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
-from nemoguardrails.guardrails.tool_schema import ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
 from nemoguardrails.types import ToolCall
@@ -246,26 +246,23 @@ class RailsManager:
         """Validate incoming tool results (INPUT-direction tool rail).
 
         The tool-result counterpart to :meth:`is_input_safe`: takes the conversation
-        ``messages`` and returns a ``RailResult``. Extracts the tool results and the
-        prior assistant tool calls they link back to via the engine adapter.
+        ``messages`` and returns a ``RailResult``. Groups the conversation into per-turn
+        ``(calls, results)`` exchanges via the engine adapter and validates each result
+        against its own turn's calls, so call ids reused across turns (spec-allowed) are
+        not flagged as ambiguous duplicates.
         """
         active = self._enabled_tool_flows(self._tool_result_actions, enabled)
         if not active:
             return RailResult(is_safe=True)
         try:
-            tool_results = self.engine_registry.extract_tool_results(model_type, messages)
+            exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
         except Exception as e:
-            log.warning("[%s] tool result extraction failed; blocking: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"tool result extraction failed: {e}")
-        if not tool_results:
+            log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
+            return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
+        if not any(exchange.results for exchange in exchanges):
             return RailResult(is_safe=True)
-        try:
-            prior_calls = self.engine_registry.extract_tool_calls(model_type, messages)
-        except Exception as e:
-            log.warning("[%s] prior tool call extraction failed; blocking: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"prior tool call extraction failed: {e}")
 
-        rails = {flow: self._run_tool_result_rail(flow, tool_results, prior_calls) for flow in active}
+        rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
 
     @staticmethod
@@ -323,19 +320,27 @@ class RailsManager:
                 )
             return result
 
-    async def _run_tool_result_rail(
-        self, flow: str, tool_results: list[ToolResult], prior_calls: list[ToolCall]
-    ) -> RailResult:
-        """Dispatch a single tool-result rail to its action, wrapped in an INPUT rail span."""
+    async def _run_tool_result_rail(self, flow: str, exchanges: list[ToolExchange]) -> RailResult:
+        """Validate each turn's results against that turn's calls, wrapped in an INPUT rail span.
+
+        Each exchange is validated independently so ``call_id`` linkage stays turn-local;
+        the first unsafe exchange short-circuits.
+        """
+        action = self._tool_result_actions[flow]
         with rail_span(self._tracer, flow, RailDirection.INPUT) as span:
-            result = await self._tool_result_actions[flow].run(tool_results, prior_calls)
+            result = RailResult(is_safe=True)
+            for exchange in exchanges:
+                result = await action.run(exchange.results, exchange.calls)
+                if not result.is_safe:
+                    break
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
+                all_results = [r for exchange in exchanges for r in exchange.results]
                 set_rail_content(
                     span,
                     {
                         "tool_results": [
-                            {"call_id": r.call_id, "name": r.name, "is_error": r.is_error} for r in tool_results
+                            {"call_id": r.call_id, "name": r.name, "is_error": r.is_error} for r in all_results
                         ]
                     },
                     reason=result.reason if not result.is_safe else None,

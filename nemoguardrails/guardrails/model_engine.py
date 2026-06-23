@@ -39,7 +39,7 @@ from nemoguardrails.guardrails._http import (
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
-from nemoguardrails.guardrails.tool_schema import Tool, ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -349,25 +349,29 @@ _TOOL_PARSERS = {
 }
 
 
+def _tool_result_from_message(message: dict) -> ToolResult:
+    """Normalize one OpenAI Chat Completions ``role:"tool"`` message into a ``ToolResult``.
+
+    This shape has no error flag, so ``is_error`` is always ``False``.
+    """
+    return ToolResult(
+        call_id=message.get("tool_call_id"),
+        name=message.get("name"),
+        content=message.get("content"),
+    )
+
+
 def _extract_tool_results_openai(messages: LLMMessages) -> list[ToolResult]:
     """Extract OpenAI Chat Completions tool results into ``ToolResult`` objects.
 
     Chat Completions carries each tool result as a top-level ``{"role": "tool",
-    "tool_call_id", "content"}`` message (optionally ``name``). This shape has no
-    error flag, so ``is_error`` is always ``False``.
+    "tool_call_id", "content"}`` message (optionally ``name``).
     """
-    results: list[ToolResult] = []
-    for message in messages:
-        if not isinstance(message, dict) or message.get("role") != "tool":
-            continue
-        results.append(
-            ToolResult(
-                call_id=message.get("tool_call_id"),
-                name=message.get("name"),
-                content=message.get("content"),
-            )
-        )
-    return results
+    return [
+        _tool_result_from_message(message)
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "tool"
+    ]
 
 
 def _extract_tool_results_nim(messages: LLMMessages) -> list[ToolResult]:
@@ -381,38 +385,39 @@ _RESULT_EXTRACTORS = {
 }
 
 
-def _extract_tool_calls_openai(messages: LLMMessages) -> list[ToolCall]:
-    """Extract the prior tool calls from an OpenAI Chat Completions conversation.
-
-    These are the calls the model made on earlier turns -- the calls that incoming
-    ``role:"tool"`` results link back to. Chat Completions is stateless (the client
-    resends the full history), so the prior calls ride on the conversation's
-    ``role:"assistant"`` messages alongside the tool results. ``ChatMessage.from_dict``
-    parses JSON-string arguments into a dict; it raises ``ValueError`` on malformed
-    tool-call arguments, which the caller treats as fail-closed. Calls are collected
-    across every assistant turn and returned as-is (no dedupe), so a malformed history
-    with duplicate call ids is rejected by the tool-result rail rather than here.
-    """
-    calls: list[ToolCall] = []
+def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
+    """Group an OpenAI Chat Completions conversation into per-turn ``ToolExchange``es."""
+    exchanges: list[ToolExchange] = []
+    # The exchange currently accepting tool results: the most recent assistant tool-call
+    # turn, or an orphan opened by a leading/stray tool result. Any other message resets
+    # it to None so the next tool result starts a fresh exchange instead of attaching to
+    # a closed turn.
+    open_exchange: ToolExchange | None = None
     for message in messages:
-        if not isinstance(message, dict) or message.get("role") != "assistant":
+        if not isinstance(message, dict):
             continue
-        if not message.get("tool_calls"):
-            continue
-        parsed = ChatMessage.from_dict(message).tool_calls
-        if parsed:
-            calls.extend(parsed)
-    return calls
+        role = message.get("role")
+        if role == "tool":
+            if open_exchange is None:
+                open_exchange = ToolExchange(calls=[], results=[])
+                exchanges.append(open_exchange)
+            open_exchange.results.append(_tool_result_from_message(message))
+        elif role == "assistant" and message.get("tool_calls"):
+            open_exchange = ToolExchange(calls=ChatMessage.from_dict(message).tool_calls or [], results=[])
+            exchanges.append(open_exchange)
+        else:
+            open_exchange = None
+    return exchanges
 
 
-def _extract_tool_calls_nim(messages: LLMMessages) -> list[ToolCall]:
-    """Extract NIM tool calls. NIM uses the OpenAI Chat Completions shape."""
-    return _extract_tool_calls_openai(messages)
+def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
+    """Extract NIM tool exchanges. NIM uses the OpenAI Chat Completions shape."""
+    return _extract_tool_exchanges_openai(messages)
 
 
-_TOOL_CALL_EXTRACTORS = {
-    "openai": _extract_tool_calls_openai,
-    "nim": _extract_tool_calls_nim,
+_TOOL_EXCHANGE_EXTRACTORS = {
+    "openai": _extract_tool_exchanges_openai,
+    "nim": _extract_tool_exchanges_nim,
 }
 
 
@@ -808,15 +813,15 @@ class ModelEngine(BaseEngine):
         extractor = _RESULT_EXTRACTORS.get(self.model_config.engine, _extract_tool_results_openai)
         return extractor(messages)
 
-    def extract_tool_calls(self, messages: LLMMessages) -> list[ToolCall]:
-        """Extract the prior tool calls from ``messages`` into ``ToolCall`` objects.
+    def extract_tool_exchanges(self, messages: LLMMessages) -> list[ToolExchange]:
+        """Group ``messages`` into per-turn ``(tool_calls, tool_results)`` exchanges.
 
-        Pulls the tool calls the model made on earlier assistant turns -- the calls
-        that incoming tool results link back to -- so ``RailsManager.are_tool_results_safe``
-        can validate that linkage. Symmetric to ``extract_tool_results`` and keyed on
-        the model's engine (``_TOOL_CALL_EXTRACTORS``). OpenAI and NIM share the Chat
-        Completions shape; an engine with no registered extractor falls back to it.
-        Returns an empty list when there are no prior tool calls.
+        Each exchange pairs one assistant turn's tool calls with the tool results that
+        answer it, so ``RailsManager.are_tool_results_safe`` can validate ``call_id``
+        linkage turn-locally rather than across the whole flattened history (the latter
+        falsely flags ids reused across turns, which the OpenAI spec permits). Keyed on
+        the model's engine (``_TOOL_EXCHANGE_EXTRACTORS``); OpenAI and NIM share the Chat
+        Completions shape and an engine with no registered extractor falls back to it.
         """
-        extractor = _TOOL_CALL_EXTRACTORS.get(self.model_config.engine, _extract_tool_calls_openai)
+        extractor = _TOOL_EXCHANGE_EXTRACTORS.get(self.model_config.engine, _extract_tool_exchanges_openai)
         return extractor(messages)

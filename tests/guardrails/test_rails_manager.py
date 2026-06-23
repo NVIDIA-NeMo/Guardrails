@@ -45,7 +45,12 @@ from tests.guardrails.test_data import (
     NEMOGUARDS_PARALLEL_OUTPUT_CONFIG,
     TOPIC_SAFETY_CONFIG,
 )
-from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked, make_tool_conversation
+from tests.guardrails.tool_helpers import (
+    WEATHER_SCHEMA,
+    assert_blocked,
+    make_tool_conversation,
+    multi_turn_reused_call_id_messages,
+)
 
 SAFE_INPUT_JSON = json.dumps({"User Safety": "safe"})
 UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S1: Violence"})
@@ -640,6 +645,13 @@ class TestRailsManagerToolResults:
         assert_blocked(result, "call_999")
 
     @pytest.mark.asyncio
+    async def test_recycled_call_ids_across_turns_are_safe(self):
+        """Reuse the same call ID across turns, but within each turn the call ID is unique"""
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+        result = await mgr.are_tool_results_safe(multi_turn_reused_call_id_messages())
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"), enabled=False)
@@ -647,7 +659,7 @@ class TestRailsManagerToolResults:
 
     @pytest.mark.asyncio
     async def test_fails_closed_on_malformed_prior_tool_call(self):
-        # A prior assistant tool call with non-JSON arguments makes extract_tool_calls
+        # A prior assistant tool call with non-JSON arguments makes exchange extraction
         # raise; the method must fail closed rather than propagate the error.
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         messages = [
@@ -659,20 +671,20 @@ class TestRailsManagerToolResults:
             {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r"},
         ]
         result = await mgr.are_tool_results_safe(messages)
-        assert_blocked(result, "prior tool call extraction failed")
+        assert_blocked(result, "tool exchange extraction failed")
 
     @pytest.mark.asyncio
-    async def test_fails_closed_when_result_extraction_raises(self):
-        # If the engine adapter's result extraction itself blows up, the method must
+    async def test_fails_closed_when_exchange_extraction_raises(self):
+        # If the engine adapter's exchange extraction itself blows up, the method must
         # fail closed (block) rather than let the error escape.
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
 
         def _boom(*args, **kwargs):
             raise RuntimeError("extract boom")
 
-        mgr.engine_registry.extract_tool_results = _boom
+        mgr.engine_registry.extract_tool_exchanges = _boom
         result = await mgr.are_tool_results_safe(make_tool_conversation())
-        assert_blocked(result, "tool result extraction failed")
+        assert_blocked(result, "tool exchange extraction failed")
 
 
 def _capture_tool_rails_manager():

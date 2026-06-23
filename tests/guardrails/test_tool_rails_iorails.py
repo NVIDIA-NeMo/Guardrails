@@ -34,7 +34,11 @@ from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.tool_helpers import WEATHER_SCHEMA, make_tool_conversation
+from tests.guardrails.tool_helpers import (
+    WEATHER_SCHEMA,
+    make_tool_conversation,
+    multi_turn_reused_call_id_messages,
+)
 
 BASE_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -337,6 +341,14 @@ class TestNonStreamingToolResults:
         result = await iorails.generate_async(make_tool_conversation(result_call_id="call_999"))
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         forbidden_post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_recycled_call_ids_across_turns_not_blocked(self, iorails):
+        """Multi-turn conversation reusing the same call_id across turns is valid"""
+
+        _inject_json_response(iorails, _text_payload("It's 12C in London."))
+        result = await iorails.generate_async(multi_turn_reused_call_id_messages())
+        assert result == {"role": "assistant", "content": "It's 12C in London."}
 
 
 class TestStreamingToolCalls:

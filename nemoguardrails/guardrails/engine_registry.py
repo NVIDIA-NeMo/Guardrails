@@ -36,7 +36,7 @@ from nemoguardrails.guardrails.telemetry import (
     set_llm_request_attributes,
     set_llm_response_attributes,
 )
-from nemoguardrails.guardrails.tool_schema import ToolResult, Toolset
+from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.tracing.constants import (
     llm_operation_duration,
@@ -44,7 +44,7 @@ from nemoguardrails.tracing.constants import (
     record_time_to_first_chunk,
     record_token_usage,
 )
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, UsageInfo
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -398,20 +398,20 @@ class EngineRegistry:
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_tool_results(messages)
 
-    def extract_tool_calls(self, model_type: str, messages: list[dict]) -> list[ToolCall]:
-        """Extract the prior tool calls from ``messages`` for the named model engine.
+    def extract_tool_exchanges(self, model_type: str, messages: list[dict]) -> list[ToolExchange]:
+        """Group ``messages`` into per-turn ``(tool_calls, tool_results)`` exchanges.
 
-        Delegates to the engine's ``extract_tool_calls`` so the calls that incoming
-        tool results link back to are normalized into the ``ToolCall`` list
-        ``RailsManager.are_tool_results_safe`` validates against. Symmetric to
-        ``extract_tool_results``.
+        Delegates to the engine's ``extract_tool_exchanges`` so each tool result is
+        validated against its own turn's calls. This keeps ``call_id`` linkage
+        turn-local, which ``RailsManager.are_tool_results_safe`` relies on so that ids
+        reused across turns (spec-allowed) are not flagged as ambiguous duplicates.
 
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
         """
         engine = self._get_engine(model_type, ModelEngine)
-        return engine.extract_tool_calls(messages)
+        return engine.extract_tool_exchanges(messages)
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Route an API request to the named API engine.

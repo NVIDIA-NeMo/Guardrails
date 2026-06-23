@@ -32,8 +32,11 @@ Completions is the engine implemented today.
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import jsonschema
+
+from nemoguardrails.types import ToolCall
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +114,13 @@ class ToolResult:
     name: str | None = None
     content: str | list[dict] | None = None
     is_error: bool = False
+
+
+class ToolExchange(NamedTuple):
+    """One assistant turn's tool calls paired with the tool results that answer them."""
+
+    calls: list[ToolCall]
+    results: list[ToolResult]
 
 
 def validate_arguments(tool: Tool, arguments: dict) -> str | None:

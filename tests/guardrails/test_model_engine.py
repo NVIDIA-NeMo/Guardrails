@@ -38,7 +38,7 @@ from nemoguardrails.guardrails.model_engine import (
 from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
-from tests.guardrails.tool_helpers import make_tool_conversation
+from tests.guardrails.tool_helpers import make_tool_conversation, multi_turn_reused_call_id_messages
 
 
 def _make_model(
@@ -2043,29 +2043,25 @@ class TestExtractToolResults:
         assert [r.call_id for r in results] == ["call_1"]
 
 
-class TestExtractToolCalls:
-    def test_extracts_assistant_tool_call(self):
-        engine = ModelEngine(_make_model(engine="openai"))
-        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
+class TestExtractToolExchanges:
+    @staticmethod
+    def _ids(exchanges):
+        """Reduce exchanges to ``[(call_ids, result_call_ids), ...]`` for terse assertions."""
+        return [([c.id for c in calls], [r.call_id for r in results]) for calls, results in exchanges]
 
-        assert len(calls) == 1
-        call = calls[0]
-        assert call.id == "call_1"
-        assert call.function.name == "get_weather"
+    def test_groups_single_turn(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        exchanges = engine.extract_tool_exchanges(_TOOL_MESSAGES)
+
+        assert len(exchanges) == 1
+        calls, results = exchanges[0]
+        assert calls[0].id == "call_1"
+        assert calls[0].function.name == "get_weather"
         # JSON-string arguments on the wire are normalized to a dict.
-        assert call.function.arguments == {"city": "Paris"}
+        assert calls[0].function.arguments == {"city": "Paris"}
+        assert [r.call_id for r in results] == ["call_1"]
 
-    def test_ignores_non_assistant_messages(self):
-        engine = ModelEngine(_make_model(engine="openai"))
-        messages = [
-            {"role": "system", "content": "be helpful"},
-            {"role": "user", "content": "hi"},
-            {"role": "assistant", "content": "hello"},
-            {"role": "tool", "tool_call_id": "call_1", "content": "18C"},
-        ]
-        assert engine.extract_tool_calls(messages) == []
-
-    def test_collects_across_multiple_assistant_turns(self):
+    def test_each_turn_is_its_own_exchange(self):
         engine = ModelEngine(_make_model(engine="openai"))
         messages = [
             {
@@ -2074,6 +2070,7 @@ class TestExtractToolCalls:
                 "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}}],
             },
             {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r1"},
+            {"role": "assistant", "content": "interim text"},
             {
                 "role": "assistant",
                 "content": None,
@@ -2081,22 +2078,51 @@ class TestExtractToolCalls:
             },
             {"role": "tool", "tool_call_id": "c2", "name": "b", "content": "r2"},
         ]
-        calls = engine.extract_tool_calls(messages)
-        assert [c.id for c in calls] == ["c1", "c2"]
+        assert self._ids(engine.extract_tool_exchanges(messages)) == [(["c1"], ["c1"]), (["c2"], ["c2"])]
 
-    def test_assistant_without_tool_calls_skipped(self):
+    def test_recycled_ids_stay_in_separate_exchanges(self):
+        # The core of #13: the same call_id reused across turns is NOT collapsed; each
+        # turn is its own exchange so linkage stays turn-local.
         engine = ModelEngine(_make_model(engine="openai"))
-        assert engine.extract_tool_calls([{"role": "assistant", "content": "just text"}]) == []
+        assert self._ids(engine.extract_tool_exchanges(multi_turn_reused_call_id_messages())) == [
+            (["call_0"], ["call_0"]),
+            (["call_0"], ["call_0"]),
+        ]
+
+    def test_parallel_calls_in_one_turn_share_an_exchange(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "a", "arguments": "{}"}},
+                    {"id": "c2", "type": "function", "function": {"name": "b", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r1"},
+            {"role": "tool", "tool_call_id": "c2", "name": "b", "content": "r2"},
+        ]
+        assert self._ids(engine.extract_tool_exchanges(messages)) == [(["c1", "c2"], ["c1", "c2"])]
+
+    def test_orphan_result_has_no_calls(self):
+        # A tool result with no preceding assistant tool-call turn becomes an exchange
+        # with no calls, so the rail still flags it as an orphan.
+        engine = ModelEngine(_make_model(engine="openai"))
+        exchanges = engine.extract_tool_exchanges([{"role": "tool", "tool_call_id": "x", "content": "y"}])
+        assert self._ids(exchanges) == [([], ["x"])]
+
+    def test_no_tool_data_returns_empty(self):
+        engine = ModelEngine(_make_model(engine="openai"))
+        assert engine.extract_tool_exchanges([]) == []
+        assert (
+            engine.extract_tool_exchanges([{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}])
+            == []
+        )
 
     def test_skips_non_dict_messages(self):
         engine = ModelEngine(_make_model(engine="openai"))
-        messages = ["garbage", _TOOL_MESSAGES[1]]
-        calls = engine.extract_tool_calls(messages)
-        assert [c.id for c in calls] == ["call_1"]
-
-    def test_no_tool_calls_returns_empty(self):
-        engine = ModelEngine(_make_model(engine="openai"))
-        assert engine.extract_tool_calls([]) == []
+        assert self._ids(engine.extract_tool_exchanges(["garbage", *_TOOL_MESSAGES])) == [(["call_1"], ["call_1"])]
 
     def test_malformed_arguments_raise_value_error(self):
         """Invalid JSON arguments fail closed: the IORails glue blocks rather than 500s."""
@@ -2109,14 +2135,12 @@ class TestExtractToolCalls:
             },
         ]
         with pytest.raises(ValueError):
-            engine.extract_tool_calls(messages)
+            engine.extract_tool_exchanges(messages)
 
     def test_nim_uses_the_same_shape(self):
         engine = ModelEngine(_make_model(engine="nim"))
-        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
-        assert [c.id for c in calls] == ["call_1"]
+        assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]
 
     def test_unknown_engine_falls_back_to_openai_extractor(self):
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
-        calls = engine.extract_tool_calls(_TOOL_MESSAGES)
-        assert [c.id for c in calls] == ["call_1"]
+        assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]

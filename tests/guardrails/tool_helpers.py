@@ -57,3 +57,38 @@ def make_tool_conversation(result_call_id: str = "call_1") -> list:
         },
         {"role": "tool", "tool_call_id": result_call_id, "name": "get_weather", "content": "18C"},
     ]
+
+
+def multi_turn_reused_call_id_messages(call_id: str = "call_0") -> list:
+    """Two ``get_weather`` turns that reuse the same tool-call id across turns.
+    This is valid according to the OpenAI chat completions spec"""
+
+    return [
+        {"role": "user", "content": "What's the weather in Paris?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": call_id, "name": "get_weather", "content": "18C"},
+        {"role": "assistant", "content": "It's 18C in Paris."},
+        {"role": "user", "content": "And in London?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city": "London"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": call_id, "name": "get_weather", "content": "12C"},
+    ]
