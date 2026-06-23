@@ -102,6 +102,12 @@ from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
     get_history_cache_key,
 )
+from nemoguardrails.stream_errors import (
+    StreamError,
+    StreamErrorType,
+    parse_stream_error_chunk,
+    stream_error_to_chunk,
+)
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import (
@@ -1053,10 +1059,13 @@ class LLMRails(BaseGuardrails):
                 log.error("Error in generate_async: %s", e, exc_info=True)
                 streaming_handler = streaming_handler_var.get()
                 if streaming_handler:
-                    # Push an error chunk instead of None.
-                    error_message = str(e)
-                    error_dict = extract_error_json(error_message)
-                    error_payload: str = json.dumps(error_dict)
+                    # Push a typed error chunk instead of None. ``extract_error_json``
+                    # may yield a partial shape (just ``{"error": {"message": ...}}``)
+                    # for upstream providers; ``StreamError.from_error_dict`` fills in
+                    # the missing type/code with sensible defaults so the on-the-wire
+                    # contract stays the same for all paths.
+                    error_dict = extract_error_json(str(e))
+                    error_payload: str = stream_error_to_chunk(StreamError.from_error_dict(error_dict))
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
@@ -1422,12 +1431,12 @@ class LLMRails(BaseGuardrails):
                     state=state,
                 )
             except Exception as e:
-                # If an exception occurs during generation, push it to the streaming handler as a json string
-                # This ensures the streaming pipeline is properly terminated
+                # If an exception occurs during generation, push it to the streaming
+                # handler as a typed StreamError chunk so the buffer-skip path and
+                # downstream consumers can detect it without substring heuristics.
                 log.error(f"Error in generation task: {e}", exc_info=True)
-                error_message = str(e)
-                error_dict = extract_error_json(error_message)
-                error_payload = json.dumps(error_dict)
+                error_dict = extract_error_json(str(e))
+                error_payload = stream_error_to_chunk(StreamError.from_error_dict(error_dict))
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
 
@@ -1907,6 +1916,18 @@ class LLMRails(BaseGuardrails):
                     # if it's not JSON, treat it as empty list
                     user_output_chunks = []
 
+            # If the batch contains a typed StreamError emitted by _generation_task
+            # (generation_error), pass it straight through and stop. Without this
+            # skip, RollingBuffer would treat the error JSON as ordinary text and
+            # feed it to the output rails alongside neighboring chunks, which both
+            # leaks the error payload into user-visible context and risks the rail
+            # blocking on its own diagnostic.
+            for chunk in user_output_chunks:
+                stream_error = parse_stream_error_chunk(chunk)
+                if stream_error is not None and stream_error.error.type == StreamErrorType.GENERATION_ERROR.value:
+                    yield chunk
+                    return
+
             if stream_first:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
@@ -1960,22 +1981,18 @@ class LLMRails(BaseGuardrails):
                             if error_type == "internal_error":
                                 error_message = stop_event.get("error_message", "Unknown error")
                                 reason = f"Internal error in {blocked_flow} rail: {error_message}"
-                                error_code = "rail_execution_failure"
-                                error_type = "internal_error"
+                                stream_error = StreamError.rail_execution_failure(
+                                    reason,
+                                    param=blocked_flow,
+                                )
                             else:
                                 reason = f"Blocked by {blocked_flow} rails."
-                                error_code = "content_blocked"
-                                error_type = "guardrails_violation"
+                                stream_error = StreamError.content_blocked(
+                                    reason,
+                                    param=blocked_flow,
+                                )
 
-                            error_data = {
-                                "error": {
-                                    "message": reason,
-                                    "type": error_type,
-                                    "param": blocked_flow,
-                                    "code": error_code,
-                                }
-                            }
-                            yield json.dumps(error_data)
+                            yield stream_error_to_chunk(stream_error)
                             return
 
                 except Exception as e:
@@ -2009,24 +2026,11 @@ class LLMRails(BaseGuardrails):
                     if is_output_blocked(result, action_func):
                         reason = f"Blocked by {flow_id} rails."
 
-                        # return the error as a plain JSON string (not in SSE format)
-                        # NOTE: When integrating with the OpenAI Python client, the server code should:
-                        # 1. detect this JSON error object in the stream
-                        # 2. terminate the stream
-                        # 3. format the error following OpenAI's SSE format
-                        # the OpenAI client will then properly raise an APIError with this error message
-
-                        error_data = {
-                            "error": {
-                                "message": reason,
-                                "type": "guardrails_violation",
-                                "param": flow_id,
-                                "code": "content_blocked",
-                            }
-                        }
-
-                        # return as plain JSON: the server should detect this JSON and convert it to an HTTP error
-                        yield json.dumps(error_data)
+                        # Yield a typed StreamError as a JSON string. The server
+                        # detects this payload, terminates the stream, and reformats
+                        # it as an SSE error so the OpenAI client raises APIError
+                        # with this message.
+                        yield stream_error_to_chunk(StreamError.content_blocked(reason, param=flow_id))
                         return
 
             if not stream_first:

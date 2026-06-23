@@ -21,7 +21,6 @@ outside this supported set, the standard LLMRails engine should be used instead.
 """
 
 import asyncio
-import json
 import logging
 import time
 import warnings
@@ -63,6 +62,12 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.stream_errors import (
+    StreamError,
+    StreamErrorType,
+    parse_stream_error_chunk,
+    stream_error_to_chunk,
+)
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMModel, LLMResponse, ToolCall
@@ -85,8 +90,10 @@ NONSTREAM_MAX_CONCURRENCY = 256
 # semaphore).
 STREAM_MAX_CONCURRENCY = 256
 
-# Error type used by _generation_task when pushing error JSON into the stream
-_GENERATION_ERROR_TYPE = "generation_error"
+# Error type used by _generation_task when pushing error JSON into the stream.
+# Retained as a module-level constant for backwards compatibility with code that
+# imported it directly; new call sites should reference StreamErrorType.
+_GENERATION_ERROR_TYPE = StreamErrorType.GENERATION_ERROR.value
 
 
 def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
@@ -718,9 +725,7 @@ class IORails(BaseGuardrails):
                 # streaming path.
                 if self._metrics_enabled:
                     record_request_error(e)
-                error_payload = json.dumps(
-                    {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
-                )
+                error_payload = stream_error_to_chunk(StreamError.generation_failed(str(e)))
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
@@ -872,16 +877,15 @@ class IORails(BaseGuardrails):
             user_output_chunks = chunk_batch.user_output_chunks
             bot_response_chunk = buffer_strategy.format_chunks(chunk_batch.processing_context)
 
-            # If the batch contains a generation error from _generation_task,
-            # yield it directly and stop — don't feed error JSON through output rails.
+            # If the batch contains a typed StreamError from _generation_task,
+            # yield it directly and stop. Feeding the error JSON through output
+            # rails would let RollingBuffer concatenate it with neighboring text
+            # and surface it as if the model said it.
             for chunk in user_output_chunks:
-                try:
-                    parsed = json.loads(chunk)
-                    if isinstance(parsed, dict) and parsed.get("error", {}).get("type") == _GENERATION_ERROR_TYPE:
-                        yield chunk
-                        return
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                stream_error = parse_stream_error_chunk(chunk)
+                if stream_error is not None and stream_error.error.type == StreamErrorType.GENERATION_ERROR.value:
+                    yield chunk
+                    return
 
             if stream_first:
                 for chunk in user_output_chunks:
@@ -902,15 +906,12 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                error_data = {
-                    "error": {
-                        "message": f"Blocked by output rails: {output_result.reason}",
-                        "type": "guardrails_violation",
-                        "param": "output_rails",
-                        "code": "content_blocked",
-                    }
-                }
-                yield json.dumps(error_data)
+                yield stream_error_to_chunk(
+                    StreamError.content_blocked(
+                        f"Blocked by output rails: {output_result.reason}",
+                        param="output_rails",
+                    )
+                )
                 return
 
             if not stream_first:
