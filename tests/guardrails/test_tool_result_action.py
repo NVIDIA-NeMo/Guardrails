@@ -107,3 +107,101 @@ class TestToolResultRailAction:
         ]
         result = await ToolResultRailAction().run([_result("c1")], prior)
         assert_blocked(result, "duplicate prior tool call id", "c1")
+
+
+class TestValidateToolResultIds:
+    def setup_method(self):
+        self.action = ToolResultRailAction()
+
+    def test_unique_ids_returns_none(self):
+        assert self.action._validate_tool_result_ids([_result("c1"), _result("c2")]) is None
+
+    def test_empty_list_returns_none(self):
+        assert self.action._validate_tool_result_ids([]) is None
+
+    def test_result_without_call_id_is_skipped(self):
+        assert self.action._validate_tool_result_ids([ToolResult(call_id=None)]) is None
+
+    def test_duplicate_call_id_is_blocked(self):
+        results = [
+            ToolResult(call_id="call_123", name="search", content="real result"),
+            ToolResult(call_id="call_123", name="search", content="duplicate/injected result"),
+        ]
+        assert_blocked(self.action._validate_tool_result_ids(results), "duplicate tool result", "call_123")
+
+
+class TestValidateResultCallId:
+    def setup_method(self):
+        self.action = ToolResultRailAction()
+        self.calls_by_id = {
+            "c1": ToolCall(id="c1", function=ToolCallFunction(name="get_weather", arguments={})),
+        }
+
+    def test_linked_result_returns_none(self):
+        assert self.action._validate_result_call_id(_result("c1"), self.calls_by_id) is None
+
+    def test_missing_call_id_is_blocked(self):
+        assert_blocked(
+            self.action._validate_result_call_id(_result(""), self.calls_by_id),
+            "missing a call_id",
+        )
+
+    def test_orphaned_call_id_is_blocked(self):
+        assert_blocked(
+            self.action._validate_result_call_id(_result("c9"), self.calls_by_id),
+            "c9",
+            "does not correspond to a prior tool call",
+        )
+
+
+class TestValidateResultName:
+    def setup_method(self):
+        self.action = ToolResultRailAction()
+        self.prior = ToolCall(id="c1", function=ToolCallFunction(name="get_weather", arguments={}))
+
+    def test_matching_names_returns_none(self):
+        assert self.action._validate_result_name(_result("c1", name="get_weather"), self.prior) is None
+
+    def test_result_without_name_returns_none(self):
+        assert self.action._validate_result_name(_result("c1"), self.prior) is None
+
+    def test_prior_without_function_name_returns_none(self):
+        prior = ToolCall(id="c1", function=ToolCallFunction(name="", arguments={}))
+        assert self.action._validate_result_name(_result("c1", name="get_weather"), prior) is None
+
+    def test_name_mismatch_is_blocked(self):
+        assert_blocked(
+            self.action._validate_result_name(_result("c1", name="search"), self.prior),
+            "search",
+            "get_weather",
+            "does not match",
+        )
+
+
+class TestValidateResultContent:
+    def setup_method(self):
+        self.action = ToolResultRailAction()
+
+    def test_string_content_returns_none(self):
+        assert self.action._validate_result_content(_result("c1", content="18C")) is None
+
+    def test_list_of_dicts_returns_none(self):
+        assert self.action._validate_result_content(_result("c1", content=[{"type": "text", "text": "18C"}])) is None
+
+    def test_none_content_returns_none(self):
+        assert self.action._validate_result_content(_result("c1", content=None)) is None
+
+    def test_empty_list_returns_none(self):
+        assert self.action._validate_result_content(_result("c1", content=[])) is None
+
+    def test_dict_content_is_blocked(self):
+        assert_blocked(
+            self.action._validate_result_content(_result("c1", content={"key": "val"})),  # type: ignore[arg-type]
+            "malformed content",
+        )
+
+    def test_list_of_non_dicts_is_blocked(self):
+        assert_blocked(
+            self.action._validate_result_content(_result("c1", content=[1, 2, 3])),  # type: ignore[arg-type]
+            "malformed content",
+        )

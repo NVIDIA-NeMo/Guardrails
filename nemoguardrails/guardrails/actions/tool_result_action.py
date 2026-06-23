@@ -58,6 +58,13 @@ class ToolResultRailAction(ToolRailAction):
 
     def _validate(self, tool_results: List["ToolResult"], prior_calls: List["ToolCall"]) -> RailResult:
         """Check call_id linkage, name consistency, and content shape for each result."""
+        calls_by_id = self._validate_prior_calls(prior_calls)
+        if isinstance(calls_by_id, RailResult):
+            return calls_by_id
+        return self._validate_results(tool_results, calls_by_id)
+
+    def _validate_prior_calls(self, prior_calls: List["ToolCall"]) -> "RailResult | dict[str, ToolCall]":
+        """Build a call_id index from prior_calls; return a blocking RailResult on duplicate IDs."""
         calls_by_id: dict[str, "ToolCall"] = {}
         for call in prior_calls:
             if not call.id:
@@ -68,27 +75,73 @@ class ToolResultRailAction(ToolRailAction):
                     reason=f"duplicate prior tool call id '{call.id}' makes tool-result linkage ambiguous",
                 )
             calls_by_id[call.id] = call
+        return calls_by_id
+
+    def _validate_results(self, tool_results: List["ToolResult"], calls_by_id: "dict[str, ToolCall]") -> RailResult:
+        """Check each result links to a prior call with a consistent name and well-formed content."""
+        rail_result = self._validate_tool_result_ids(tool_results)
+        if rail_result:
+            return rail_result
+
         for result in tool_results:
-            call_id = result.call_id
-            if not call_id:
-                return RailResult(is_safe=False, reason="tool result is missing a call_id")
-            prior = calls_by_id.get(call_id)
-            if prior is None:
-                return RailResult(
-                    is_safe=False,
-                    reason=f"tool result for call_id '{call_id}' does not correspond to a prior tool call",
-                )
-            if result.name and prior.function.name and result.name != prior.function.name:
-                return RailResult(
-                    is_safe=False,
-                    reason=(
-                        f"tool result name '{result.name}' does not match the called tool "
-                        f"'{prior.function.name}' for call_id '{call_id}'"
-                    ),
-                )
-            if result.content is not None and not _is_well_formed_content(result.content):
-                return RailResult(
-                    is_safe=False,
-                    reason=f"tool result for call_id '{call_id}' has malformed content",
-                )
+            rail_result = self._validate_result_call_id(result, calls_by_id)
+            if rail_result:
+                return rail_result
+
+            prior = calls_by_id[result.call_id]  # type: ignore[index]
+            rail_result = self._validate_result_name(result, prior)
+            if rail_result:
+                return rail_result
+
+            rail_result = self._validate_result_content(result)
+            if rail_result:
+                return rail_result
+
         return RailResult(is_safe=True)
+
+    def _validate_tool_result_ids(self, tool_results: List["ToolResult"]) -> "RailResult | None":
+        """Return a blocking RailResult if any call_id appears more than once in the result list."""
+        seen: set[str] = set()
+        for result in tool_results:
+            if not result.call_id:
+                continue
+            if result.call_id in seen:
+                return RailResult(
+                    is_safe=False,
+                    reason=f"duplicate tool result for call_id '{result.call_id}': each tool call must have exactly one result",
+                )
+            seen.add(result.call_id)
+        return None
+
+    def _validate_result_call_id(self, result: "ToolResult", calls_by_id: "dict[str, ToolCall]") -> "RailResult | None":
+        """Return a blocking RailResult if the result is missing a call_id or it has no prior call."""
+        call_id = result.call_id
+        if not call_id:
+            return RailResult(is_safe=False, reason="tool result is missing a call_id")
+        if calls_by_id.get(call_id) is None:
+            return RailResult(
+                is_safe=False,
+                reason=f"tool result for call_id '{call_id}' does not correspond to a prior tool call",
+            )
+        return None
+
+    def _validate_result_name(self, result: "ToolResult", prior: "ToolCall") -> "RailResult | None":
+        """Return a blocking RailResult if the result name conflicts with the prior call's function name."""
+        if result.name and prior.function.name and result.name != prior.function.name:
+            return RailResult(
+                is_safe=False,
+                reason=(
+                    f"tool result name '{result.name}' does not match the called tool "
+                    f"'{prior.function.name}' for call_id '{result.call_id}'"
+                ),
+            )
+        return None
+
+    def _validate_result_content(self, result: "ToolResult") -> "RailResult | None":
+        """Return a blocking RailResult if the result content is not a string or list of dicts."""
+        if result.content is not None and not _is_well_formed_content(result.content):
+            return RailResult(
+                is_safe=False,
+                reason=f"tool result for call_id '{result.call_id}' has malformed content",
+            )
+        return None
