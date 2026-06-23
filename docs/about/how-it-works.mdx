@@ -12,24 +12,24 @@ content:
 
 The NVIDIA NeMo Guardrails library sits between your application and the LLM, tool, or retrieval systems that the application uses. It loads a guardrails configuration, evaluates incoming user messages against the configured rails, orchestrates any required LLM calls or custom actions, and returns either an approved response or a configured safe alternative.
 
-Use this page to understand the main request path. For deeper event-level details, refer to [Colang Architecture Guide](/reference/colang-architecture-guide).
+Use this page to understand the guardrails process at a high level. For deeper event-level details, refer to [Colang Architecture Guide](../reference/colang-architecture-guide), [Guardrails Sequence Diagrams](../reference/guardrails-sequence-diagrams), and [Use Case Diagrams](../reference/use-case-diagrams).
 
 ## High-Level Architecture Diagram
 
-The following diagram shows how a user message moves through the major guardrail stages. Each stage is optional and runs only when your configuration enables the corresponding rail type.
+The following diagram shows how guardrails intervene in the application's request flow.
 
-![Sequence diagram showing the NVIDIA NeMo Guardrails library request flow from user input through input rails, retrieval rails, dialog rails, execution rails, output rails, LLM calls, custom actions, and the final application response.](../_static/puml/master_rails_flow.png "NVIDIA NeMo Guardrails library request flow")
+![Programmable Guardrails Flow](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
 
 ## Functional Layers
 
 The NVIDIA NeMo Guardrails library separates application integration, policy configuration, runtime orchestration, and external systems. This separation lets your application call one guardrailed interface while the library handles the configured checks and workflows.
 
-| Layer | Role |
-| --- | --- |
-| **Application integration** | Sends messages through the Python SDK or the guardrails server and receives the final response. |
-| **Guardrails configuration** | Defines models, prompts, rails, Colang flows, knowledge base settings, and custom actions. |
-| **Runtime orchestration** | Loads the configuration, processes events, executes rails, calls actions, and coordinates LLM requests. |
-| **External systems** | Provide LLM inference, retrieval content, moderation services, tool calls, or other custom validation logic. |
+| Layer                        | Role                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Application integration**  | Sends messages through the Python SDK or the guardrails server and receives the final response.              |
+| **Guardrails configuration** | Defines models, prompts, rails, Colang flows, knowledge base settings, and custom actions.                   |
+| **Runtime orchestration**    | Loads the configuration, processes events, executes rails, calls actions, and coordinates LLM requests.      |
+| **External systems**         | Provide LLM inference, retrieval content, moderation services, tool calls, or other custom validation logic. |
 
 ## Request Flow
 
@@ -53,12 +53,12 @@ Applications do not need to implement this orchestration themselves. They call t
 
 The NVIDIA NeMo Guardrails library can work with several external systems.
 
-| Integration | Details |
-| --- | --- |
-| **Application LLM** | The model that generates responses for your application. |
+| Integration                       | Details                                                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Application LLM**               | The model that generates responses for your application.                                                                       |
 | **Guardrail models and services** | Specialized models, NVIDIA NIM microservices, or third-party APIs that perform safety, jailbreak, topic, PII, or other checks. |
-| **Knowledge bases** | Documents or chunks that support retrieval-augmented generation workflows. |
-| **Custom actions and tools** | Python functions, LangChain tools, or external APIs that add application-specific logic. |
+| **Knowledge bases**               | Documents or chunks that support retrieval-augmented generation workflows.                                                     |
+| **Custom actions and tools**      | Python functions, LangChain tools, or external APIs that add application-specific logic.                                       |
 
 ## Related Resources
 
