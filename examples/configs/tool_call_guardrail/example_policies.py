@@ -26,6 +26,7 @@ from policy import (
     max_numeric_arg,
     require_owns_arg,
 )
+from scanner.scan import ArgSpec
 
 # Who may call each tool, under which argument constraints.
 GUARD = ToolCallGuard(
@@ -53,6 +54,22 @@ TOOL_REGISTRY = {
     "transfer_funds": "Move money between accounts",
     "close_account": "Permanently close an account",
 }
+
+# Each tool's argument schema, handed to the LLM extractor so it grounds a
+# proposed `arg_name` against real argument names instead of guessing from prose.
+TOOL_SCHEMAS = {
+    "read_account": [ArgSpec("account_id", "string", "the account being read")],
+    "transfer_funds": [
+        ArgSpec("from_account", "string", "source account; must be owned by the principal"),
+        ArgSpec("to_account", "string", "destination account"),
+        ArgSpec("amount", "number", "amount of money to move"),
+    ],
+    "close_account": [ArgSpec("account_id", "string", "the account to close")],
+}
+
+# Principal attributes the guard recognizes — the values an `attr_name` param
+# (e.g. on a privilege-escalation finding) may legitimately reference.
+PRINCIPAL_ATTRS = ["mfa_verified", "elevated", "owned_accounts"]
 
 # Principals the agent might be acting for.
 PRINCIPALS = {
