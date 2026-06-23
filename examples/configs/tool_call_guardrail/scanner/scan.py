@@ -39,7 +39,11 @@ from typing import Iterator, Mapping, Protocol, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from synthesis.catalog import CLASS_DESCRIPTIONS, CLASS_TO_FACTORY  # noqa: E402
+from synthesis.catalog import (  # noqa: E402
+    CLASS_DESCRIPTIONS,
+    CLASS_REQUIRED_PARAMS,
+    CLASS_TO_FACTORY,
+)
 from synthesis.findings import Finding  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +60,16 @@ class SourceDoc:
 
 
 @dataclass(frozen=True)
+class ArgSpec:
+    """One argument of a tool. Fed to the LLM extractor so it grounds an
+    `arg_name` it proposes against the tool's real argument names."""
+
+    name: str
+    type: str = "string"
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class ScanContext:
     docs_dir: str
     tool_registry: Mapping[str, str]  # tool name -> description
@@ -64,6 +78,13 @@ class ScanContext:
     class_definitions: Mapping[str, str] = field(
         default_factory=dict
     )  # attack_class -> the control it represents (used by the LLM extractor)
+    class_params: Mapping[str, Sequence[str]] = field(
+        default_factory=dict
+    )  # attack_class -> suggested_params keys it requires (used by the LLM extractor)
+    tool_schemas: Mapping[str, Sequence[ArgSpec]] = field(
+        default_factory=dict
+    )  # tool name -> its argument specs (used by the LLM extractor to ground arg names)
+    principal_attrs: Sequence[str] = ()  # recognized principal attributes (for attr_name)
 
 
 @dataclass(frozen=True)
@@ -261,13 +282,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from example_policies import TOOL_REGISTRY
+    from example_policies import PRINCIPAL_ATTRS, TOOL_REGISTRY, TOOL_SCHEMAS
 
     ctx = ScanContext(
         docs_dir=args.docs,
         tool_registry=dict(TOOL_REGISTRY),
         taxonomy=tuple(CLASS_TO_FACTORY),
         class_definitions=dict(CLASS_DESCRIPTIONS),
+        class_params=dict(CLASS_REQUIRED_PARAMS),
+        tool_schemas=dict(TOOL_SCHEMAS),
+        principal_attrs=tuple(PRINCIPAL_ATTRS),
     )
 
     catch: tuple = ()  # keyword path raises nothing extractor-specific

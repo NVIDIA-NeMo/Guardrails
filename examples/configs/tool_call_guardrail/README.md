@@ -127,13 +127,18 @@ keywords — enough to prove the plumbing on the sample docs. The **LLM extracto
 is the real path for prose: it classifies into the closed taxonomy and grounds by
 *meaning* against tool descriptions, treats the document as untrusted (clamping
 its output back onto the allowed taxonomy and registry), and chunks long papers.
-If the backend is unreachable for an entire document the run **fails fast with a
-clear error** rather than silently reporting nothing.
+It is also given each tool's **argument schema** (`TOOL_SCHEMAS`) and the
+recognized **principal attributes** (`PRINCIPAL_ATTRS`), so a proposed `arg_name`
+or `attr_name` is grounded against real names — a hallucinated name is dropped,
+which makes the candidate fail closed at the synthesis gate rather than becoming a
+wrong-but-valid rule. If the backend is unreachable for an entire document the run
+**fails fast with a clear error** rather than silently reporting nothing.
 
-> The example tool registry is a toy banking set (`read_account`,
-> `transfer_funds`, `close_account`) defined in `example_policies.py`. For real
-> use, replace it with the registry of the agent you are protecting — the LLM
-> extractor grounds findings against those descriptions.
+> The example tool registry, argument schemas, and principal attributes are a toy
+> banking set (`read_account`, `transfer_funds`, `close_account`) defined in
+> `example_policies.py`. For real use, replace them with the surface of the agent
+> you are protecting — the LLM extractor grounds findings against those tool
+> descriptions and argument names.
 
 ### Acquire a corpus from real sources
 
@@ -164,8 +169,9 @@ poetry run pytest examples/configs/tool_call_guardrail/tests/
 
 ## Extending it
 
-- **New tool:** add an implementation to `tools.py` and a `ToolPolicy` entry in
-  `example_policies.py`.
+- **New tool:** add an implementation to `tools.py`, a `ToolPolicy` entry plus a
+  `TOOL_SCHEMAS` argument list in `example_policies.py` (the schema is what lets
+  the LLM extractor ground an `arg_name` against the tool's real arguments).
 - **New constraint:** write a `Rule` — a function `(ToolCall, Principal) -> str | None`
   returning `None` to pass or a reason string to block — and add it to the tool's
   policy. `require_owns_arg` and `max_numeric_arg` in `policy.py` are examples.
