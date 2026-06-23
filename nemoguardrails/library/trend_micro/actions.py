@@ -60,13 +60,10 @@ class GuardResult(BaseModel):
             return "Allow"
         return v
 
-    @model_validator(mode="before")
-    @classmethod
-    def set_blocked(cls, values):
-        a = values.get("action")
-        if a is not None:
-            values["blocked"] = a.lower() == "block"
-        return values
+    @model_validator(mode="after")
+    def set_blocked(self) -> "GuardResult":
+        self.blocked = self.action == "Block"
+        return self
 
 
 def get_config(config: RailsConfig) -> TrendMicroRailConfig:
@@ -89,7 +86,7 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
 
 def trend_ai_guard_mapping(result: GuardResult) -> bool:
     """Convert Trend Micro result to boolean for flow logic."""
-    return result.action.lower() == "block"
+    return result.action == "Block"
 
 
 @action(is_system_action=True, output_mapping=trend_ai_guard_mapping)

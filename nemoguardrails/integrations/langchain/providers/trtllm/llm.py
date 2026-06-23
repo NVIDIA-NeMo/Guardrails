@@ -59,7 +59,7 @@ class TRTLLM(BaseLLM):
     beam_width: Optional[int] = 1
     repetition_penalty: Optional[float] = 1.0
     length_penalty: Optional[float] = 1.0
-    client: Any = None
+    client: Any = Field(default=None, exclude=True)
     streaming: Optional[bool] = True
 
     @model_validator(mode="after")
