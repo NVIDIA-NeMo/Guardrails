@@ -61,9 +61,11 @@ class GuardResult(BaseModel):
         return v
 
     @model_validator(mode="before")
+    @classmethod
     def set_blocked(cls, values):
         a = values.get("action")
-        values["blocked"] = a.lower() == "block"
+        if a is not None:
+            values["blocked"] = a.lower() == "block"
         return values
 
 
