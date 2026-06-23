@@ -108,6 +108,18 @@ class TestToolResultRailAction:
         result = await ToolResultRailAction().run([_result("c1")], prior)
         assert_blocked(result, "duplicate prior tool call id", "c1")
 
+    @pytest.mark.asyncio
+    async def test_prior_call_with_empty_id_is_skipped(self):
+        prior = [ToolCall(id="", function=ToolCallFunction(name="get_weather", arguments={}))]
+        result = await ToolResultRailAction().run([], prior)
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_duplicate_result_ids_are_blocked(self):
+        results = [_result("c1", name="get_weather"), _result("c1", name="get_weather")]
+        result = await ToolResultRailAction().run(results, _prior_calls())
+        assert_blocked(result, "duplicate tool result", "c1")
+
 
 class TestValidateToolResultIds:
     def setup_method(self):
