@@ -1,0 +1,17 @@
+# The main model only handles intent matching for the demo flows below; the
+# guardrail's allow/deny decision is deterministic and model-independent (see
+# policy.py). Pointed at NVIDIA's inference-api (LiteLLM-proxied, OpenAI-
+# compatible): base_url is the /v1 root — the OpenAI client appends
+# /chat/completions — and auth uses the sk- LiteLLM virtual key in
+# NVIDIA_LITELLM_KEY (NOT the nvapi- NVIDIA_API_KEY).
+models:
+  - type: main
+    engine: openai
+    model: azure/openai/gpt-4o-mini
+    api_key_env_var: NVIDIA_LITELLM_KEY
+    parameters:
+      base_url: "https://inference-api.nvidia.com/v1"
+
+# No rails flows are required for the guardrail itself: the protection is the
+# `safe_tool_call` action, which any flow (or a tool-calling agent) invokes in
+# place of a raw tool. See flows.co for canned demonstrations.
