@@ -28,11 +28,12 @@ import pytest
 from scanner.llm_extractor import (
     ExtractionError,
     LLMExtractor,
+    _build_system,
     _chunk,
     _merge,
     _strip_to_json,
 )
-from scanner.scan import ExtractedTechnique, ScanContext, SourceDoc
+from scanner.scan import ArgSpec, ExtractedTechnique, ScanContext, SourceDoc
 from synthesis.catalog import CLASS_DESCRIPTIONS, CLASS_TO_FACTORY
 
 REGISTRY = {
@@ -151,6 +152,85 @@ def test_max_chunks_bounds_model_calls():
     extractor = LLMExtractor(counting_chat, chunk_chars=40, overlap_chars=0, max_chunks=2)
     extractor.extract(_doc(text), CTX)
     assert len(calls) == 2  # capped, even though the doc chunks into more
+
+
+def test_system_prompt_lists_required_params_per_class():
+    ctx = ScanContext(
+        docs_dir="(unused)",
+        tool_registry=REGISTRY,
+        taxonomy=("unbounded-arg",),
+        class_definitions={"unbounded-arg": "cap a numeric argument"},
+        class_params={"unbounded-arg": ("arg_name", "ceiling")},
+    )
+    system = _build_system(ctx)
+    assert "REQUIRED suggested_params: arg_name, ceiling" in system
+
+
+def test_system_prompt_lists_tool_arguments():
+    ctx = ScanContext(
+        docs_dir="(unused)",
+        tool_registry={"transfer_funds": "move money"},
+        taxonomy=("unbounded-arg",),
+        tool_schemas={"transfer_funds": [ArgSpec("amount", "number", "amount to move")]},
+    )
+    assert "arg amount (number): amount to move" in _build_system(ctx)
+
+
+def _schema_ctx() -> ScanContext:
+    return ScanContext(
+        docs_dir="(unused)",
+        tool_registry={"transfer_funds": "move money"},
+        taxonomy=tuple(CLASS_TO_FACTORY),
+        class_definitions=dict(CLASS_DESCRIPTIONS),
+        tool_schemas={"transfer_funds": [ArgSpec("amount", "number", "amount to move")]},
+        principal_attrs=["mfa_verified"],
+    )
+
+
+def test_hallucinated_arg_name_is_dropped():
+    # The model names an argument that does not exist on the affected tool; it is
+    # dropped so the candidate fails closed downstream rather than enforcing a
+    # wrong-but-valid rule.
+    chat = _chat_returning(
+        {
+            "has_technique": True,
+            "summary": "x",
+            "attack_class": "unbounded-arg",
+            "affected_tools": ["transfer_funds"],
+            "suggested_params": {"arg_name": "totally_wrong", "ceiling": 5000},
+        }
+    )
+    [tech] = LLMExtractor(chat).extract(_doc(), _schema_ctx())
+    assert "arg_name" not in tech.suggested_params  # dropped: not a real argument
+    assert tech.suggested_params["ceiling"] == 5000  # value params are untouched
+
+
+def test_real_arg_name_is_kept():
+    chat = _chat_returning(
+        {
+            "has_technique": True,
+            "summary": "x",
+            "attack_class": "unbounded-arg",
+            "affected_tools": ["transfer_funds"],
+            "suggested_params": {"arg_name": "amount", "ceiling": 5000},
+        }
+    )
+    [tech] = LLMExtractor(chat).extract(_doc(), _schema_ctx())
+    assert tech.suggested_params["arg_name"] == "amount"
+
+
+def test_hallucinated_principal_attr_is_dropped():
+    chat = _chat_returning(
+        {
+            "has_technique": True,
+            "summary": "x",
+            "attack_class": "privilege-escalation",
+            "affected_tools": ["transfer_funds"],
+            "suggested_params": {"attr_name": "is_admin", "expected": True},
+        }
+    )
+    [tech] = LLMExtractor(chat).extract(_doc(), _schema_ctx())
+    assert "attr_name" not in tech.suggested_params  # not a recognized attribute
 
 
 def _technique_json() -> str:
