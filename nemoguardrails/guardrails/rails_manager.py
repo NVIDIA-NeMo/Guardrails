@@ -273,14 +273,19 @@ class RailsManager:
         runs only the named flows that are configured, preserving configured order and
         ignoring unknown names. The two booleans are spelled out as separate cases so a
         non-empty list is never mistaken for ``True``.
+
+        List membership is compared on the normalized flow name (``_get_flow_name``),
+        the same way ``_build_tool_actions`` and ``unsupported_reason`` do, so a request
+        toggle carrying the canonical rail name matches a configured flow that carries a
+        ``$model=``/``(...)`` suffix instead of silently dropping it (fail-open).
         """
         configured = list(actions.keys())
         if enabled is True:
             return configured
         if enabled is False:
             return []
-        requested = set(enabled)
-        return [flow for flow in configured if flow in requested]
+        requested = {_get_flow_name(name) or name for name in enabled}
+        return [flow for flow in configured if (_get_flow_name(flow) or flow) in requested]
 
     async def _run_rail(
         self,

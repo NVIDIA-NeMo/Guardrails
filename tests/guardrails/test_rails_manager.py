@@ -685,6 +685,70 @@ class TestRailsManagerToolResults:
         assert_blocked(result, "tool exchange extraction failed")
 
 
+class TestRailsManagerToolToggleNormalization:
+    """#15 (currently failing): a list-valued enable toggle must match configured flows
+    by their normalized name, not by the raw flow string.
+
+    A configured tool flow may carry a ``$model=`` or ``(...)`` suffix (accepted by
+    config loading, which normalizes via ``_get_flow_name``), while a caller's per-request
+    ``enabled`` list naturally carries the canonical rail name. The toggle currently
+    compares the raw configured flow string against the requested names, so a suffixed
+    configured flow never matches the canonical name, the rail is silently dropped, and
+    tool calls/results go unvalidated (fail-open). These assert the rail still runs.
+    """
+
+    SUFFIXED_CALL_FLOWS = [
+        "tool call validation $model=main",
+        "tool call validation(main)",
+    ]
+    SUFFIXED_RESULT_FLOWS = [
+        "tool result validation $model=main",
+        "tool result validation(main)",
+    ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("configured_flow", SUFFIXED_CALL_FLOWS)
+    async def test_call_toggle_matches_normalized_name(self, configured_flow):
+        # Configured flow carries a suffix; the request toggle uses the canonical name.
+        # The call rail must still run and block the undeclared call.
+        mgr = _tool_rails_manager_with_main(tool_call_flows=[configured_flow])
+        result = await mgr.are_tool_calls_safe(
+            [_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=["tool call validation"]
+        )
+        assert_blocked(result, "rm_rf")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("configured_flow", SUFFIXED_RESULT_FLOWS)
+    async def test_result_toggle_matches_normalized_name(self, configured_flow):
+        # Configured flow carries a suffix; the request toggle uses the canonical name.
+        # The result rail must still run and block the unlinked result.
+        mgr = _tool_rails_manager_with_main(tool_result_flows=[configured_flow])
+        result = await mgr.are_tool_results_safe(
+            make_tool_conversation(result_call_id="call_999"), enabled=["tool result validation"]
+        )
+        assert_blocked(result, "call_999")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("configured_flow", SUFFIXED_CALL_FLOWS)
+    async def test_call_toggle_raw_flow_string_also_matches(self, configured_flow):
+        # Passing the raw configured flow string (including suffix) must also select it,
+        # so normalizing the comparison does not break exact-string callers.
+        mgr = _tool_rails_manager_with_main(tool_call_flows=[configured_flow])
+        result = await mgr.are_tool_calls_safe(
+            [_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=[configured_flow]
+        )
+        assert_blocked(result, "rm_rf")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("configured_flow", SUFFIXED_RESULT_FLOWS)
+    async def test_result_toggle_raw_flow_string_also_matches(self, configured_flow):
+        mgr = _tool_rails_manager_with_main(tool_result_flows=[configured_flow])
+        result = await mgr.are_tool_results_safe(
+            make_tool_conversation(result_call_id="call_999"), enabled=[configured_flow]
+        )
+        assert_blocked(result, "call_999")
+
+
 def _capture_tool_rails_manager():
     """Build (manager, exporter) with a real tracer + content capture on, both tool rails wired.
 
