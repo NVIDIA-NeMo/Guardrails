@@ -1542,3 +1542,22 @@ class TestEngineRegistryToolDelegation:
         """jailbreak_detection is an APIEngine, not a ModelEngine."""
         with pytest.raises(TypeError):
             manager.parse_tools("jailbreak_detection", {"tools": self._TOOLS})
+
+    def test_parse_tools_includes_tools_from_model_parameters(self):
+        """Tools declared in model parameters (body_param_defaults) are included even with no per-call llm_params."""
+        config = RailsConfig.from_content(
+            config={
+                "models": [
+                    {
+                        "type": "main",
+                        "engine": "nim",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "parameters": {"tools": self._TOOLS},
+                    }
+                ]
+            }
+        )
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            mgr = EngineRegistry(config.models, config.rails.config)
+        toolset = mgr.parse_tools("main", None)
+        assert [t.key for t in toolset.tools] == ["get_weather"]

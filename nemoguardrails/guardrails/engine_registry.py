@@ -382,7 +382,7 @@ class EngineRegistry:
             TypeError: If the named engine is not a ModelEngine.
         """
         engine = self._get_engine(model_type, ModelEngine)
-        return engine.parse_tools(llm_params)
+        return engine.parse_tools({**engine.body_param_defaults, **(llm_params or {})})
 
     def extract_tool_results(self, model_type: str, messages: list[dict]) -> list[ToolResult]:
         """Extract incoming tool results from ``messages`` for the named model engine.
