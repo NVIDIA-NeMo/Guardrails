@@ -37,6 +37,7 @@ from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
     make_tool_conversation,
+    malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
 )
 
@@ -348,6 +349,13 @@ class TestNonStreamingToolResults:
 
         _inject_json_response(iorails, _text_payload("It's 12C in London."))
         result = await iorails.generate_async(multi_turn_reused_call_id_messages())
+        assert result == {"role": "assistant", "content": "It's 12C in London."}
+
+    @pytest.mark.asyncio
+    async def test_malformed_prior_tool_call_does_not_block(self, iorails):
+        """Malformed tool-call in prior turns must not block request."""
+        _inject_json_response(iorails, _text_payload("It's 12C in London."))
+        result = await iorails.generate_async(malformed_prior_tool_call_messages())
         assert result == {"role": "assistant", "content": "It's 12C in London."}
 
 

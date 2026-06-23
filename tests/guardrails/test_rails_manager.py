@@ -49,6 +49,7 @@ from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
     assert_blocked,
     make_tool_conversation,
+    malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
 )
 
@@ -652,26 +653,23 @@ class TestRailsManagerToolResults:
         assert result.is_safe is True
 
     @pytest.mark.asyncio
+    async def test_malformed_prior_tool_call_does_not_block_well_formed_results(self):
+        """#14 (currently failing): a malformed historical tool-call must not block the request.
+
+        The tool-result rail validates linkage (call_id + name), not the prior call's
+        arguments, so a truncated/invalid argument JSON on one turn should not fail
+        extraction for the whole conversation. Expected to FAIL until extraction tolerates
+        a malformed historical call instead of raising and blocking the whole request.
+        """
+        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
+        result = await mgr.are_tool_results_safe(malformed_prior_tool_call_messages())
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"), enabled=False)
         assert result.is_safe is True
-
-    @pytest.mark.asyncio
-    async def test_fails_closed_on_malformed_prior_tool_call(self):
-        # A prior assistant tool call with non-JSON arguments makes exchange extraction
-        # raise; the method must fail closed rather than propagate the error.
-        mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
-        messages = [
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "not json"}}],
-            },
-            {"role": "tool", "tool_call_id": "c1", "name": "a", "content": "r"},
-        ]
-        result = await mgr.are_tool_results_safe(messages)
-        assert_blocked(result, "tool exchange extraction failed")
 
     @pytest.mark.asyncio
     async def test_fails_closed_when_exchange_extraction_raises(self):

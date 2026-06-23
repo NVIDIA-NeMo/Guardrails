@@ -385,6 +385,23 @@ _RESULT_EXTRACTORS = {
 }
 
 
+def _tool_calls_from_message(message: dict) -> list[ToolCall]:
+    """Extract the tool calls from one assistant message into ``ToolCall`` objects.
+    Malformed tool calls fall back to just id, type, function"""
+    try:
+        return ChatMessage.from_dict(message).tool_calls or []
+    except ValueError:
+        return [
+            ToolCall(
+                id=raw.get("id", ""),
+                type=raw.get("type", "function"),
+                function=ToolCallFunction(name=(raw.get("function") or {}).get("name", ""), arguments={}),
+            )
+            for raw in message.get("tool_calls") or []
+            if isinstance(raw, dict)
+        ]
+
+
 def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
     """Group an OpenAI Chat Completions conversation into per-turn ``ToolExchange``es."""
     exchanges: list[ToolExchange] = []
@@ -403,7 +420,7 @@ def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
                 exchanges.append(open_exchange)
             open_exchange.results.append(_tool_result_from_message(message))
         elif role == "assistant" and message.get("tool_calls"):
-            open_exchange = ToolExchange(calls=ChatMessage.from_dict(message).tool_calls or [], results=[])
+            open_exchange = ToolExchange(calls=_tool_calls_from_message(message), results=[])
             exchanges.append(open_exchange)
         else:
             open_exchange = None

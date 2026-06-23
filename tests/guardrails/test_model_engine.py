@@ -2124,8 +2124,9 @@ class TestExtractToolExchanges:
         engine = ModelEngine(_make_model(engine="openai"))
         assert self._ids(engine.extract_tool_exchanges(["garbage", *_TOOL_MESSAGES])) == [(["call_1"], ["call_1"])]
 
-    def test_malformed_arguments_raise_value_error(self):
-        """Invalid JSON arguments fail closed: the IORails glue blocks rather than 500s."""
+    def test_malformed_arguments_degrade_to_empty_for_linkage(self):
+        """A historical call with malformed argument JSON degrades to empty arguments
+        (id/name preserved) instead of aborting extraction."""
         engine = ModelEngine(_make_model(engine="openai"))
         messages = [
             {
@@ -2134,8 +2135,12 @@ class TestExtractToolExchanges:
                 "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "a", "arguments": "not json"}}],
             },
         ]
-        with pytest.raises(ValueError):
-            engine.extract_tool_exchanges(messages)
+        exchanges = engine.extract_tool_exchanges(messages)
+        assert len(exchanges) == 1
+        calls, _results = exchanges[0]
+        assert calls[0].id == "c1"
+        assert calls[0].function.name == "a"
+        assert calls[0].function.arguments == {}
 
     def test_nim_uses_the_same_shape(self):
         engine = ModelEngine(_make_model(engine="nim"))

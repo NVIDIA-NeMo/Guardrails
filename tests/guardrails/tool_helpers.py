@@ -92,3 +92,32 @@ def multi_turn_reused_call_id_messages(call_id: str = "call_0") -> list:
         },
         {"role": "tool", "tool_call_id": call_id, "name": "get_weather", "content": "12C"},
     ]
+
+
+def malformed_prior_tool_call_messages() -> list:
+    """Two turns where the FIRST turn's tool-call arguments are malformed (truncated JSON)."""
+    return [
+        {"role": "user", "content": "What's the weather in Paris?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {"id": "call_0", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Par'}}
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_0", "name": "get_weather", "content": "18C"},
+        {"role": "assistant", "content": "It's 18C in Paris."},
+        {"role": "user", "content": "And in London?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city": "London"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "name": "get_weather", "content": "12C"},
+    ]
