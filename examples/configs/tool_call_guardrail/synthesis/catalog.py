@@ -96,6 +96,23 @@ CLASS_DESCRIPTIONS: Mapping[str, str] = {
 }
 
 
+def _required_params(factory: Callable[..., Rule]) -> tuple:
+    """The parameter names a factory needs (those without defaults)."""
+    return tuple(
+        name
+        for name, param in inspect.signature(factory).parameters.items()
+        if param.default is inspect.Parameter.empty
+    )
+
+
+# attack_class -> the suggested_params keys a finding of that class MUST supply,
+# derived from the mapped factory's signature so it never drifts from the catalog.
+# Fed to the LLM extractor so it knows which params each classification requires.
+CLASS_REQUIRED_PARAMS: Mapping[str, tuple] = {
+    cls: _required_params(RULE_FACTORIES[key]) for cls, key in CLASS_TO_FACTORY.items()
+}
+
+
 @dataclass(frozen=True)
 class RuleCandidate:
     """A proposed rule: a vetted factory key plus parameters, with provenance.
