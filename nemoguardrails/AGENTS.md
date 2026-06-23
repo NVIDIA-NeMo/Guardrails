@@ -62,24 +62,6 @@ provider-integration specifics that matter when editing this package.
 - Deprecate with `warnings.warn(..., DeprecationWarning, stacklevel=...)` and
   keep the old path working.
 
-## Provider And Library Integrations
-
-- Keep new provider, framework, embedding, and guardrail-library dependencies
-  optional. Import third-party packages lazily and name the extra or package to
-  install when an optional import is missing.
-- Read the current `pyproject.toml` and `poetry.lock` before dependency edits.
-  Add dependencies under the narrowest appropriate optional extra and regenerate
-  the lock with project tooling; if the lock cannot be regenerated, stop and
-  report the inconsistency.
-- Follow sibling registration patterns. For embedding providers, mirror
-  `nemoguardrails/embeddings/providers/openai.py` and register with
-  `register_embedding_provider(...)`. For OpenAI-compatible LLM providers,
-  prefer the default OpenAI-compatible framework unless LangChain is required.
-- Tests for integrations must mock provider clients or HTTP calls, set secrets
-  with `monkeypatch`, and never call live services by default.
-- Document engine/provider names, required extras, expected environment
-  variables, framework path, supported modes, and known limitations.
-
 ## NeMo Guardrails Invariants
 
 - Preserve non-text model metadata such as reasoning content, usage data, finish
@@ -107,3 +89,34 @@ provider-integration specifics that matter when editing this package.
 - Mock provider HTTP with `pytest-httpx` (`httpx_mock`) and set secrets via
   `monkeypatch`. There is no global live-test mode; gate any real-network test
   behind an explicit skip.
+
+## Adding A Provider Or Library Integration
+
+When adding a new optional third-party integration (LLM provider, embedding
+provider, or similar library):
+
+- Keep the dependency optional: import the third-party package lazily inside
+  `__init__` or the method that needs it, wrapped in a `try/except ImportError`
+  that names the poetry extra to install. Never import it at module top level in
+  a way that breaks core import when the package is absent.
+- Add the dependency as an optional dependency under a poetry extra in
+  `pyproject.toml`; do not add it to the default runtime dependencies.
+- Packaging-patch hygiene: read the current `pyproject.toml` and `poetry.lock`
+  first, anchor edits to lines that actually exist, and regenerate the lock with
+  project tooling. Do not generate dependency edits from memory or templates; if
+  the lock cannot be regenerated, stop and flag that it will be inconsistent.
+- Follow the existing provider pattern. For an embedding provider, mimic
+  `nemoguardrails/embeddings/providers/openai.py`: subclass the `EmbeddingModel`
+  ABC, set `engine_name`, implement `encode()` and `encode_async()`, and register
+  the class with one `register_embedding_provider(...)` call in
+  `providers/__init__.py`. For an LLM provider, implement the `LLMModel` protocol
+  and route through the default OpenAI-compatible framework unless LangChain is
+  required.
+- Tests must not call the live service: mock the client (`MagicMock`/`AsyncMock`
+  or httpx fixtures, as in `tests/test_embeddings_openai.py`); guard any
+  real-network test behind an explicit skip (there is no global live-test mode).
+- Document the engine/provider name, the required extra, and the expected API
+  keys or environment variables, and note whether it uses the default framework
+  or LangChain.
+- Keep the registration name and constructor signature consistent with sibling
+  providers.

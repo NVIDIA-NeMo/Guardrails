@@ -69,11 +69,7 @@ cd nemoguardrails
 
 After the repository is available, help me navigate the implemented contributor guidance:
 
-- Start with \`AGENTS.md\` for root repository rules and skill selection.
-- Use \`.agents/skills/guardrails-skills-guide/SKILL.md\` to choose the right skill.
-- Use \`guardrails-contributor-dev-setup\` for local development setup and validation.
-- Use \`guardrails-contributor-docs\` for Fern documentation changes.
-- Use \`guardrails-contributor-create-pr\` for user-approved PR preparation and creation.
+- Start with \`AGENTS.md\` for root repository rules.
 - Follow \`nemoguardrails/AGENTS.md\` when changing package runtime code.
 - Follow \`docs/AGENTS.md\` when editing documentation.
 - Follow \`CONTRIBUTING.md\` and \`AI_POLICY.md\` for public contribution and AI-assistance policy.
@@ -110,7 +106,7 @@ Offer these choices when useful:
 
 Begin by asking whether I am a developer using the NVIDIA NeMo Guardrails library in an application or a contributor changing the Guardrails repository.`;
 
-let resetCopyButtonTimer: ReturnType<typeof setTimeout> | null = null;
+const resetCopyButtonTimers = new WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 
 export function StarterPromptButton() {
   return (
@@ -218,6 +214,7 @@ function setCopyButtonState(
   ariaLabel: string,
   icon: "prompt" | "check" = "prompt",
 ) {
+  const resetCopyButtonTimer = resetCopyButtonTimers.get(button);
   if (resetCopyButtonTimer) {
     clearTimeout(resetCopyButtonTimer);
   }
@@ -239,14 +236,16 @@ function setCopyButtonState(
     );
   }
 
-  resetCopyButtonTimer = setTimeout(() => {
+  const timer = setTimeout(() => {
     setButtonLabel(button, BUTTON_LABEL);
     setButtonIcon(button, "prompt");
     button.setAttribute("aria-label", "Copy NVIDIA NeMo Guardrails library starter prompt");
     button.style.background = "#76B900";
     button.style.boxShadow = "none";
     button.style.width = "";
+    resetCopyButtonTimers.delete(button);
   }, 2000);
+  resetCopyButtonTimers.set(button, timer);
 }
 
 function setButtonIcon(button: HTMLButtonElement, icon: "prompt" | "check") {

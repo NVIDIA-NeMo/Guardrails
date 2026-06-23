@@ -71,5 +71,5 @@ Use this table to find the right docs area quickly.
 
 ## Related Skills
 
-- Use `guardrails-contributor-create-pr` when preparing contribution text or validation summaries for a human-submitted PR.
+- Use `guardrails-developer-create-guardrails` when creating or modifying a guardrails configuration.
 When editing this repository, follow `AGENTS.md` and any subtree `AGENTS.md` files that apply.

@@ -111,5 +111,4 @@ When helping create guardrails, return:
 ## Related Skills
 
 - Use `guardrails-developer-guide` for documentation lookup and product-usage questions.
-- Use `guardrails-contributor-dev-setup` for local repository setup.
-- Use `guardrails-contributor-docs` for documentation changes.
+When editing this repository, follow `AGENTS.md` and any subtree `AGENTS.md` files that apply.
