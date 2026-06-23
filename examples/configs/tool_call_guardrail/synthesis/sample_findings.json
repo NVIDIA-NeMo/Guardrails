@@ -1,0 +1,29 @@
+[
+  {
+    "id": "2026-unbounded-transfer-amount",
+    "title": "Agents coerced into large fund transfers below per-tool ceilings",
+    "source": "https://example.org/advisories/agent-financial-tool-abuse",
+    "attack_class": "unbounded-arg",
+    "affected_tools": ["transfer_funds"],
+    "suggested_params": {"arg_name": "amount", "ceiling": 5000},
+    "evidence": "Reported cases where a prompt-injected agent issues transfers just under the configured limit; tightening the per-call ceiling reduces blast radius."
+  },
+  {
+    "id": "2026-confused-deputy-close-account",
+    "title": "Confused-deputy account closure without ownership check",
+    "source": "https://example.org/cve/2026-confused-deputy-close",
+    "attack_class": "ownership-bypass",
+    "affected_tools": ["close_account"],
+    "suggested_params": {"arg_name": "account_id"},
+    "evidence": "An agent with a close_account tool can be steered to close accounts the acting principal does not own when no ownership rule is present."
+  },
+  {
+    "id": "2026-speculative-multi-turn-loop",
+    "title": "Speculative multi-turn tool-call loop (no catalogued mitigation)",
+    "source": "https://example.org/research/speculative-loops",
+    "attack_class": "speculative-prompt-loop",
+    "affected_tools": ["transfer_funds"],
+    "suggested_params": {},
+    "evidence": "Included to show fail-closed behavior: this attack class has no entry in CLASS_TO_FACTORY, so synthesize() produces no candidate for it."
+  }
+]
