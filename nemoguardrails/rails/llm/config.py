@@ -645,7 +645,7 @@ class EmbeddingsCacheConfig(BaseModel):
     )
 
     def to_dict(self):
-        return self.dict()
+        return self.model_dump()
 
 
 class EmbeddingSearchProvider(BaseModel):
@@ -2187,11 +2187,11 @@ def _join_rails_configs(base_rails_config: RailsConfig, updated_rails_config: Ra
     if base_rails_config.actions_server_url != updated_rails_config.actions_server_url:
         raise ValueError("Both config files should have the same actions_server_url")
 
-    combined_rails_config_dict = _join_dict(base_rails_config.dict(), updated_rails_config.dict())
+    combined_rails_config_dict = _join_dict(base_rails_config.model_dump(), updated_rails_config.model_dump())
     # filter out empty strings to avoid leading/trailing commas
     config_paths = [
-        base_rails_config.dict()["config_path"] or "",
-        updated_rails_config.dict()["config_path"] or "",
+        base_rails_config.model_dump()["config_path"] or "",
+        updated_rails_config.model_dump()["config_path"] or "",
     ]
     combined_rails_config_dict["config_path"] = ",".join(filter(None, config_paths))
     combined_rails_config = RailsConfig(**combined_rails_config_dict)

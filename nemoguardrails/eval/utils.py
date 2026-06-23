@@ -122,7 +122,7 @@ def save_dict_to_file(val: Any, output_path: str, output_format: str = "yaml"):
 
 def save_eval_output(eval_output: "EvalOutput", output_path: str, output_format: str = "yaml"):
     """Writes the evaluation output to a folder."""
-    data = eval_output.dict()
+    data = eval_output.model_dump()
 
     save_dict_to_file(
         {"results": data["results"]},
