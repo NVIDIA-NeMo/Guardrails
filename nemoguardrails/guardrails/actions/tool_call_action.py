@@ -47,7 +47,9 @@ class ToolCallRailAction(ToolRailAction):
     def _validate(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailResult:
         """Allowlist each call by name, then validate its arguments against the tool schema."""
         for call in tool_calls:
-            name = call.function.name
+            # Hosted/server tools (e.g. web_search) have no function name; fall back to
+            # call.type, mirroring Tool.key = name or type used when indexing the toolset.
+            name = call.function.name or call.type
             tool = toolset.get(name)
             if tool is None:
                 return RailResult(is_safe=False, reason=f"tool call '{name}' is not an allowed tool")

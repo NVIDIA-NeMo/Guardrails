@@ -62,3 +62,17 @@ class TestToolCallRailAction:
         calls = [_call("get_weather", {"city": "Paris"}), _call("rm_rf", {})]
         result = await ToolCallRailAction().run(_toolset(), calls)
         assert_blocked(result, "rm_rf")
+
+    @pytest.mark.asyncio
+    async def test_hosted_tool_matched_by_type_when_name_is_empty(self):
+        toolset = Toolset(tools=[Tool(name=None, type="web_search")])
+        call = ToolCall(id="c1", type="web_search", function=ToolCallFunction(name="", arguments={}))
+        result = await ToolCallRailAction().run(toolset, [call])
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_undeclared_hosted_tool_type_is_blocked(self):
+        toolset = Toolset(tools=[Tool(name=None, type="web_search")])
+        call = ToolCall(id="c1", type="code_interpreter", function=ToolCallFunction(name="", arguments={}))
+        result = await ToolCallRailAction().run(toolset, [call])
+        assert_blocked(result, "code_interpreter", "not an allowed tool")
