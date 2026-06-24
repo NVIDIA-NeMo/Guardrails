@@ -40,7 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_FINDINGS = os.path.join(os.path.dirname(HERE), "synthesis", "sample_findings.json")
 
 
-def _finding(attack_class: str, tool: str = "transfer_funds", **params) -> Finding:
+def _finding(attack_class: str, tool: str = "run_shell", **params) -> Finding:
     return Finding(
         id=f"id-{attack_class}",
         title=f"{attack_class} technique",
@@ -75,7 +75,7 @@ def test_candidate_with_bad_params_is_invalid():
     candidate = RuleCandidate(
         finding_id="x",
         source="s",
-        tool="transfer_funds",
+        tool="git_push",
         factory_key="require_owns_arg",
         params={"wrong_kwarg": 1},
     )
@@ -87,25 +87,25 @@ def test_valid_candidate_materializes_into_a_working_rule():
     candidate = RuleCandidate(
         finding_id="x",
         source="s",
-        tool="transfer_funds",
+        tool="run_shell",
         factory_key="max_numeric_arg",
-        params={"arg_name": "amount", "ceiling": 5000},
+        params={"arg_name": "timeout_seconds", "ceiling": 300},
     )
     assert candidate.is_valid()
     rule = candidate.materialize()
     who = Principal("p")
-    assert rule(ToolCall("transfer_funds", {"amount": 6000}), who) is not None
-    assert rule(ToolCall("transfer_funds", {"amount": 100}), who) is None
+    assert rule(ToolCall("run_shell", {"timeout_seconds": 600}), who) is not None
+    assert rule(ToolCall("run_shell", {"timeout_seconds": 100}), who) is None
 
 
 def test_find_gaps_reports_unpoliced_tools():
-    guard = ToolCallGuard({"read_account": ToolPolicy(allowed_roles=frozenset({"customer"}))})
-    gaps = find_gaps(guard, ["read_account", "transfer_funds", "close_account"])
-    assert {g.tool for g in gaps} == {"transfer_funds", "close_account"}
+    guard = ToolCallGuard({"read_file": ToolPolicy(allowed_roles=frozenset({"developer"}))})
+    gaps = find_gaps(guard, ["read_file", "run_shell", "write_file"])
+    assert {g.tool for g in gaps} == {"run_shell", "write_file"}
 
 
 def test_review_queue_starts_all_unapproved(tmp_path):
-    candidates = synthesize([_finding("unbounded-arg", arg_name="amount", ceiling=5000)])
+    candidates = synthesize([_finding("unbounded-arg", arg_name="timeout_seconds", ceiling=300)])
     path = write_review_queue(candidates, [], str(tmp_path / "queue.json"))
     payload = json.loads(open(path).read())
     assert payload["candidates"]
@@ -119,15 +119,15 @@ def test_load_approved_returns_only_approved_and_valid(tmp_path):
                 "approved": True,
                 "finding_id": "good",
                 "source": "s",
-                "tool": "transfer_funds",
+                "tool": "run_shell",
                 "factory_key": "max_numeric_arg",
-                "params": {"arg_name": "amount", "ceiling": 5000},
+                "params": {"arg_name": "timeout_seconds", "ceiling": 300},
             },
             {  # approved but invalid -> must be filtered out
                 "approved": True,
                 "finding_id": "bad",
                 "source": "s",
-                "tool": "transfer_funds",
+                "tool": "run_shell",
                 "factory_key": "not_a_factory",
                 "params": {},
             },
@@ -135,9 +135,9 @@ def test_load_approved_returns_only_approved_and_valid(tmp_path):
                 "approved": False,
                 "finding_id": "unapproved",
                 "source": "s",
-                "tool": "transfer_funds",
+                "tool": "run_shell",
                 "factory_key": "max_numeric_arg",
-                "params": {"arg_name": "amount", "ceiling": 1000},
+                "params": {"arg_name": "timeout_seconds", "ceiling": 100},
             },
         ],
         "coverage_gaps": [],
@@ -151,9 +151,9 @@ def test_load_approved_returns_only_approved_and_valid(tmp_path):
 def test_apply_merges_into_existing_and_failcloses_new_tools():
     guard = ToolCallGuard(
         {
-            "transfer_funds": ToolPolicy(
-                allowed_roles=frozenset({"customer"}),
-                rules=[max_numeric_arg("amount", ceiling=10_000)],
+            "run_shell": ToolPolicy(
+                allowed_roles=frozenset({"developer"}),
+                rules=[max_numeric_arg("timeout_seconds", ceiling=3600)],
             )
         }
     )
@@ -161,30 +161,30 @@ def test_apply_merges_into_existing_and_failcloses_new_tools():
         RuleCandidate(
             finding_id="a",
             source="s",
-            tool="transfer_funds",
+            tool="run_shell",
             factory_key="max_numeric_arg",
-            params={"arg_name": "amount", "ceiling": 5000},
+            params={"arg_name": "timeout_seconds", "ceiling": 300},
         ),
         RuleCandidate(
             finding_id="b",
             source="s",
-            tool="close_account",
-            factory_key="require_owns_arg",
-            params={"arg_name": "account_id"},
+            tool="write_file",
+            factory_key="require_principal_attr",
+            params={"attr_name": "elevated"},
         ),
     ]
     new_guard = ToolCallGuard(apply(approved, guard))
 
-    customer = Principal("c", roles=frozenset({"customer"}))
+    developer = Principal("c", roles=frozenset({"developer"}))
     # Existing tool keeps its role grant but gains the tighter ceiling.
-    tightened = new_guard.authorize(ToolCall("transfer_funds", {"amount": 7000}), customer)
+    tightened = new_guard.authorize(ToolCall("run_shell", {"timeout_seconds": 600}), developer)
     assert not tightened.allowed
 
     # Newly-policied tool is fail-closed on roles: an approved rule cannot, by
     # itself, grant access.
-    new_tool = new_guard.authorize(ToolCall("close_account", {"account_id": "acct-1"}), customer)
+    new_tool = new_guard.authorize(ToolCall("write_file", {"path": "x"}), developer)
     assert not new_tool.allowed
-    assert new_guard.policy_for("close_account").allowed_roles == frozenset()
+    assert new_guard.policy_for("write_file").allowed_roles == frozenset()
 
 
 def test_sample_findings_fixture_loads():
