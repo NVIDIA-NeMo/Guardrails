@@ -36,9 +36,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_DOCS = os.path.join(os.path.dirname(HERE), "scanner", "sample_docs")
 
 REGISTRY = {
-    "read_account": "Read an account's balance",
-    "transfer_funds": "Move money between accounts",
-    "close_account": "Permanently close an account",
+    "read_file": "Read a file from the workspace",
+    "write_file": "Create or overwrite a file in the workspace",
+    "run_shell": "Execute a shell command in the sandbox",
+    "http_request": "Make an outbound HTTP request",
+    "git_push": "Push commits to a git remote",
+    "install_package": "Install a dependency from a package index",
 }
 
 
@@ -75,8 +78,8 @@ def test_keyword_scan_over_sample_docs():
         "unbounded-arg",
         "novel",
     }
-    # The ungrounded "bulk export" doc mentions no registered tool and is dropped.
-    assert not any("bulk-export" in f.id for f in findings)
+    # The ungrounded "bulk deploy" doc mentions no registered tool and is dropped.
+    assert not any("bulk-deploy" in f.id for f in findings)
 
 
 def test_every_finding_is_grounded_and_has_provenance():
@@ -91,7 +94,7 @@ def test_every_finding_is_grounded_and_has_provenance():
 def test_params_hint_is_parsed_from_doc():
     findings = scan(_ctx(), KeywordExtractor())
     unbounded = next(f for f in findings if f.attack_class == "unbounded-arg")
-    assert unbounded.suggested_params == {"arg_name": "amount", "ceiling": 5000}
+    assert unbounded.suggested_params == {"arg_name": "timeout_seconds", "ceiling": 300}
 
 
 def test_scan_drops_ungrounded_techniques_even_if_extractor_emits_them():
@@ -109,12 +112,12 @@ def test_scan_keeps_only_registered_tools_when_extractor_overreaches():
     mixed = ExtractedTechnique(
         summary="partly real",
         attack_class="unbounded-arg",
-        tool_mentions=["transfer_funds", "ghost_tool"],
+        tool_mentions=["run_shell", "ghost_tool"],
     )
     findings = scan(_ctx(), _FixedExtractor(mixed))
     assert findings  # the grounded mention survives
     for f in findings:
-        assert f.affected_tools == ("transfer_funds",)  # ghost_tool filtered out
+        assert f.affected_tools == ("run_shell",)  # ghost_tool filtered out
 
 
 def test_known_finding_ids_suppress_re_emission():

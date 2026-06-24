@@ -46,16 +46,16 @@ RSS_FIXTURE = b"""<?xml version="1.0"?>
 <rss version="2.0"><channel>
   <title>Sec Advisories</title>
   <item>
-    <title>Sanctioned destination transfers</title>
+    <title>Malicious dependency installs</title>
     <link>https://example.org/a1</link>
     <guid>ex-a1</guid>
-    <description>Agents moving funds to denied accounts.</description>
+    <description>Agents steered into installing typosquatted packages.</description>
   </item>
   <item>
-    <title>Step-up bypass</title>
+    <title>Runaway shell timeouts</title>
     <link>https://example.org/a2</link>
     <guid>ex-a2</guid>
-    <description>Privilege escalation without MFA.</description>
+    <description>Inflated run_shell timeouts drain compute.</description>
   </item>
 </channel></rss>
 """
@@ -64,9 +64,9 @@ ATOM_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
     <id>tag:example.org,2026:1</id>
-    <title>Path traversal in account lookup</title>
+    <title>Path traversal in agent file reads</title>
     <link href="https://example.org/atom1"/>
-    <summary>Injection via the account identifier argument.</summary>
+    <summary>Injection via the path argument of a file read.</summary>
   </entry>
 </feed>
 """
@@ -111,7 +111,7 @@ def test_feed_fetcher_parses_rss():
     docs = list(FeedFetcher("https://x/rss", _http_returning(RSS_FIXTURE)).fetch())
     assert len(docs) == 2
     assert docs[0].url == "https://example.org/a1"
-    assert "Sanctioned destination" in docs[0].text
+    assert "Malicious dependency" in docs[0].text
     assert all(d.id.startswith("feed-") for d in docs)
 
 
@@ -125,7 +125,7 @@ def test_fetched_doc_round_trips_through_scan_helpers():
     # A fetched doc must be indistinguishable from a hand-written sample doc to
     # the scanner: scan.py recovers the same title and provenance from its text.
     doc = next(FeedFetcher("https://x/atom", _http_returning(ATOM_FIXTURE)).fetch())
-    assert _title(doc) == "Path traversal in account lookup"
+    assert _title(doc) == "Path traversal in agent file reads"
     assert _source_url(doc.text, "fallback") == doc.url
 
 
