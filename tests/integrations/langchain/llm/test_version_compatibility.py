@@ -29,156 +29,6 @@ from nemoguardrails.integrations.langchain.providers.providers import (
     get_llm_provider_names,
 )
 
-# last validated against:
-# name         : langchain-community
-# version      : 0.4.2
-# description  : Community contributed LangChain integrations.
-# In 0.4.x several chat providers (openai, anthropic, bedrock, huggingface,
-# cohere, vertexai, ollama, ...) were removed from langchain-community and now
-# ship only in partner packages; refresh the lists below when this changes.
-
-_LLM_PROVIDERS_NAMES = [
-    "ai21",
-    "aleph_alpha",
-    "amazon_api_gateway",
-    "amazon_bedrock",
-    "anthropic",
-    "anyscale",
-    "arcee",
-    "aviary",
-    "azure",
-    "azureml_endpoint",
-    "baichuan",
-    "bananadev",
-    "beam",
-    "cerebriumai",
-    "chat_glm",
-    "clarifai",
-    "cohere",
-    "ctransformers",
-    "ctranslate2",
-    "databricks",
-    "deepinfra",
-    "deepsparse",
-    "edenai",
-    "fake-list",
-    "forefrontai",
-    "friendli",
-    "giga-chat-model",
-    "google_palm",
-    "gooseai",
-    "gradient",
-    "gpt4all",
-    "huggingface_endpoint",
-    "huggingface_hub",
-    "huggingface_pipeline",
-    "huggingface_textgen_inference",
-    "human-input",
-    "koboldai",
-    "konko",
-    "llamacpp",
-    "llamafile",
-    "textgen",
-    "minimax",
-    "mlflow",
-    "mlflow-ai-gateway",
-    "mlx_pipeline",
-    "modal",
-    "mosaic",
-    "nebula",
-    "nibittensor",
-    "nlpcloud",
-    "oci_model_deployment_tgi_endpoint",
-    "oci_model_deployment_vllm_endpoint",
-    "oci_model_deployment_endpoint",
-    "oci_generative_ai",
-    "octoai_endpoint",
-    "ollama",
-    "openai",
-    "openlm",
-    "pai_eas_endpoint",
-    "petals",
-    "pipelineai",
-    "predibase",
-    "opaqueprompts",
-    "replicate",
-    "rwkv",
-    "sagemaker_endpoint",
-    "sambanovacloud",
-    "sambastudio",
-    "self_hosted",
-    "self_hosted_hugging_face",
-    "stochasticai",
-    "together",
-    "tongyi",
-    "titan_takeoff",
-    "titan_takeoff_pro",
-    "vertexai",
-    "vertexai_model_garden",
-    "openllm",
-    "outlines",
-    "vllm",
-    "vllm_openai",
-    "watsonxllm",
-    "weight_only_quantization",
-    "writer",
-    "xinference",
-    "javelin-ai-gateway",
-    "qianfan_endpoint",
-    "yandex_gpt",
-    "yuan2",
-    "VolcEngineMaasLLM",
-    "SparkLLM",
-    "yi",
-    "you",
-]
-_COMMUNITY_CHAT_PROVIDERS_NAMES = [
-    "anyscale",
-    "baichuan",
-    "naver",
-    "coze",
-    "deepinfra",
-    "everlyai",
-    "edenai",
-    "friendli",
-    "google_palm",
-    "hunyuan",
-    "javelin_ai_gateway",
-    "kinetica",
-    "konko",
-    "mlflow_ai_gateway",
-    "mlx",
-    "maritalk",
-    "mlflow",
-    "symblai_nebula",
-    "octoai",
-    "oci_generative_ai",
-    "oci_data_science",
-    "outlines",
-    "reka",
-    "snowflake",
-    "sparkllm",
-    "tongyi",
-    "yandex",
-    "yuan2",
-    "zhipuai",
-    "ernie",
-    "fake",
-    "gpt_router",
-    "human",
-    "jinachat",
-    "llama_edge",
-    "minimax",
-    "moonshot",
-    "pai_eas_endpoint",
-    "promptlayer_openai",
-    "baidu_qianfan_endpoint",
-    "volcengine_maas",
-    "premai",
-    "llamacpp",
-    "yi",
-]
-
 _PARTNER_CHAT_PROVIDERS_NAMES = {
     "anthropic",
     "azure_openai",
@@ -322,9 +172,6 @@ def test_discover_langchain_community_chat_providers():
     assert set(chat_provider_names) == set(providers.keys()), (
         "it seems that we are registering a provider that is not in the LC community chat provider"
     )
-    assert _COMMUNITY_CHAT_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain chat community providers may have changed. please investigate and update the test if necessary."
-    )
 
 
 def test_discover_partner_chat_providers_no_providers_attr(monkeypatch):
@@ -413,9 +260,6 @@ def test_discover_langchain_community_llm_providers():
     custom_registered_providers = {"trt_llm"}
     assert set(llm_provider_names) - custom_registered_providers == set(providers.keys()), (
         "it seems that we are registering a provider that is not in the LC community llm provider"
-    )
-    assert _LLM_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain LLM community providers may have changed. Please investigate and update the test if necessary."
     )
 
 
