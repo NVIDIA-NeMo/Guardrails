@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
 import warnings
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 import pytest
 
@@ -309,3 +312,57 @@ def test_langchain_provider_compatibility():
 #         if version_tuple >= (0, 2, 0):
 #             #  we can check for changes introduced in version 0.2.0 for example
 #             pass
+
+
+# Path to the recorded langchain-community provider snapshot. Regenerate with
+# tests/integrations/langchain/llm/update_provider_snapshot.py after a reviewed
+# langchain-community upgrade.
+_PROVIDER_SNAPSHOT_PATH = Path(__file__).parent / "langchain_provider_snapshot.json"
+
+
+def _provider_set_diff(expected, actual):
+    """Return (added, removed) provider names of actual relative to expected."""
+    expected_set, actual_set = set(expected), set(actual)
+    return sorted(actual_set - expected_set), sorted(expected_set - actual_set)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("LANGCHAIN_PROVIDER_DRIFT_CHECK"),
+    reason="provider drift canary runs only in the latest-deps job "
+    "(set LANGCHAIN_PROVIDER_DRIFT_CHECK=1 to run locally)",
+)
+def test_langchain_community_provider_drift():
+    """Canary that fails when the langchain-community provider set drifts from
+    the recorded snapshot.
+
+    Skipped by default (including the pinned PR suite) and exercised only in the
+    scheduled latest-deps job, which sets LANGCHAIN_PROVIDER_DRIFT_CHECK. A
+    failure means a newer langchain-community changed which community providers
+    it exposes; review the added/removed providers and, if expected, regenerate
+    the snapshot with update_provider_snapshot.py.
+    """
+    snapshot = json.loads(_PROVIDER_SNAPSHOT_PATH.read_text())
+
+    llm_added, llm_removed = _provider_set_diff(
+        snapshot["community_llm_providers"],
+        _discover_langchain_community_llm_providers().keys(),
+    )
+    chat_added, chat_removed = _provider_set_diff(
+        snapshot["community_chat_providers"],
+        _discover_langchain_community_chat_providers().keys(),
+    )
+
+    drift = []
+    if llm_added or llm_removed:
+        drift.append(f"community LLM providers: added={llm_added}, removed={llm_removed}")
+    if chat_added or chat_removed:
+        drift.append(f"community chat providers: added={chat_added}, removed={chat_removed}")
+
+    assert not drift, (
+        "langchain-community provider set drifted from the recorded snapshot "
+        f"(snapshot taken at langchain-community {snapshot['langchain_community_version']}, "
+        f"installed {version('langchain-community')}). "
+        + " ; ".join(drift)
+        + ". If this change is expected, review it and regenerate the snapshot with "
+        "tests/integrations/langchain/llm/update_provider_snapshot.py."
+    )

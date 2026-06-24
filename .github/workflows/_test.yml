@@ -96,10 +96,18 @@ jobs:
 
       - name: Run pytest with coverage
         if: inputs.with-coverage
+        env:
+          # Enable the langchain-community provider drift canary only when
+          # testing upgraded dependencies (the scheduled latest-deps job).
+          LANGCHAIN_PROVIDER_DRIFT_CHECK: ${{ inputs.upgrade-deps && '1' || '' }}
         run: make test-coverage
 
       - name: Run pytest without coverage
         if: inputs.with-coverage == false
+        env:
+          # Enable the langchain-community provider drift canary only when
+          # testing upgraded dependencies (the scheduled latest-deps job).
+          LANGCHAIN_PROVIDER_DRIFT_CHECK: ${{ inputs.upgrade-deps && '1' || '' }}
         run: make test
 
       - name: Upload coverage to Codecov
