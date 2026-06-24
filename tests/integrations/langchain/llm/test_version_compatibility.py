@@ -29,12 +29,13 @@ from nemoguardrails.integrations.langchain.providers.providers import (
     get_llm_provider_names,
 )
 
-# valid for 0.3.13 till 0.3.21
-# previous 0.3 versions miss   -     'openllm_client',
-# 0.2 versions have more and less
+# last validated against:
 # name         : langchain-community
-# version      : 0.3.16
+# version      : 0.4.2
 # description  : Community contributed LangChain integrations.
+# In 0.4.x several chat providers (openai, anthropic, bedrock, huggingface,
+# cohere, vertexai, ollama, ...) were removed from langchain-community and now
+# ship only in partner packages; refresh the lists below when this changes.
 
 _LLM_PROVIDERS_NAMES = [
     "ai21",
@@ -49,7 +50,6 @@ _LLM_PROVIDERS_NAMES = [
     "azureml_endpoint",
     "baichuan",
     "bananadev",
-    "baseten",
     "beam",
     "cerebriumai",
     "chat_glm",
@@ -133,28 +133,19 @@ _LLM_PROVIDERS_NAMES = [
     "you",
 ]
 _COMMUNITY_CHAT_PROVIDERS_NAMES = [
-    "azure_openai",
-    "bedrock",
-    "anthropic",
     "anyscale",
     "baichuan",
     "naver",
-    "cohere",
     "coze",
-    "databricks",
     "deepinfra",
     "everlyai",
     "edenai",
-    "fireworks",
     "friendli",
     "google_palm",
-    "huggingface",
     "hunyuan",
     "javelin_ai_gateway",
     "kinetica",
     "konko",
-    "litellm",
-    "litellm_router",
     "mlflow_ai_gateway",
     "mlx",
     "maritalk",
@@ -163,23 +154,17 @@ _COMMUNITY_CHAT_PROVIDERS_NAMES = [
     "octoai",
     "oci_generative_ai",
     "oci_data_science",
-    "ollama",
-    "openai",
     "outlines",
     "reka",
-    "perplexity",
-    "sambanova",
     "snowflake",
     "sparkllm",
     "tongyi",
-    "vertexai",
     "yandex",
     "yuan2",
     "zhipuai",
     "ernie",
     "fake",
     "gpt_router",
-    "gigachat",
     "human",
     "jinachat",
     "llama_edge",
@@ -187,7 +172,6 @@ _COMMUNITY_CHAT_PROVIDERS_NAMES = [
     "moonshot",
     "pai_eas_endpoint",
     "promptlayer_openai",
-    "solar",
     "baidu_qianfan_endpoint",
     "volcengine_maas",
     "premai",
@@ -452,9 +436,13 @@ def test_langchain_provider_compatibility():
                 "This might be due to a version mismatch with LangChain."
             )
 
-    # check for chat providers
+    # check for chat providers; in langchain-community 0.4.x several common
+    # providers (openai, anthropic, huggingface, ...) moved to partner packages,
+    # so check the full runtime-resolvable set rather than the community-only
+    # _chat_providers dict.
+    chat_provider_names = get_chat_provider_names()
     for provider in common_chat_providers:
-        if provider not in _chat_providers:
+        if provider not in chat_provider_names:
             raise RuntimeError(
                 f"Common chat provider '{provider}' is not available. "
                 "This might be due to a version mismatch with LangChain."
