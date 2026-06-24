@@ -1016,6 +1016,7 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_parallel_vs_sequential_with_slow_actions():
     """Test that demonstrates real parallel speedup with slow actions"""
