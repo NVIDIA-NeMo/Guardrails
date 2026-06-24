@@ -76,10 +76,10 @@ CLASS_DESCRIPTIONS: Mapping[str, str] = {
         "or repeated calls — only the magnitude of one argument on one call."
     ),
     "disallowed-target": (
-        "An argument may name a specifically forbidden target (a sanctioned "
-        "account, a protected/system resource). The control blocks the call when "
-        "the argument is in a denylist. Use for enumerable prohibited values, not "
-        "for formats or numeric bounds."
+        "An argument may name a specifically forbidden target (a known-malicious "
+        "package, a protected host or system resource). The control blocks the call "
+        "when the argument is in a denylist. Use for enumerable prohibited values, "
+        "not for formats or numeric bounds."
     ),
     "argument-injection": (
         "An argument can carry malformed or injected content — path traversal, "

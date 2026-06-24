@@ -37,8 +37,8 @@ from scanner.scan import ArgSpec, ExtractedTechnique, ScanContext, SourceDoc
 from synthesis.catalog import CLASS_DESCRIPTIONS, CLASS_TO_FACTORY
 
 REGISTRY = {
-    "read_account": "Read an account's balance",
-    "transfer_funds": "Move money between accounts",
+    "read_file": "Read a file from the workspace",
+    "run_shell": "Execute a shell command in the sandbox",
 }
 
 CTX = ScanContext(
@@ -69,13 +69,13 @@ def test_bogus_attack_class_is_clamped_to_novel():
             "has_technique": True,
             "summary": "x",
             "attack_class": "totally-made-up",
-            "affected_tools": ["transfer_funds"],
+            "affected_tools": ["run_shell"],
             "suggested_params": {},
         }
     )
     [tech] = LLMExtractor(chat).extract(_doc(), CTX)
     assert tech.attack_class == "novel"
-    assert tech.tool_mentions == ["transfer_funds"]
+    assert tech.tool_mentions == ["run_shell"]
 
 
 def test_unknown_tool_is_dropped():
@@ -112,7 +112,7 @@ def test_non_mapping_params_clamped_to_empty_dict():
             "has_technique": True,
             "summary": "x",
             "attack_class": "unbounded-arg",
-            "affected_tools": ["transfer_funds"],
+            "affected_tools": ["run_shell"],
             "suggested_params": ["not", "a", "mapping"],
         }
     )
@@ -169,20 +169,20 @@ def test_system_prompt_lists_required_params_per_class():
 def test_system_prompt_lists_tool_arguments():
     ctx = ScanContext(
         docs_dir="(unused)",
-        tool_registry={"transfer_funds": "move money"},
+        tool_registry={"run_shell": "Execute a shell command in the sandbox"},
         taxonomy=("unbounded-arg",),
-        tool_schemas={"transfer_funds": [ArgSpec("amount", "number", "amount to move")]},
+        tool_schemas={"run_shell": [ArgSpec("timeout_seconds", "number", "max wall-clock seconds")]},
     )
-    assert "arg amount (number): amount to move" in _build_system(ctx)
+    assert "arg timeout_seconds (number): max wall-clock seconds" in _build_system(ctx)
 
 
 def _schema_ctx() -> ScanContext:
     return ScanContext(
         docs_dir="(unused)",
-        tool_registry={"transfer_funds": "move money"},
+        tool_registry={"run_shell": "Execute a shell command in the sandbox"},
         taxonomy=tuple(CLASS_TO_FACTORY),
         class_definitions=dict(CLASS_DESCRIPTIONS),
-        tool_schemas={"transfer_funds": [ArgSpec("amount", "number", "amount to move")]},
+        tool_schemas={"run_shell": [ArgSpec("timeout_seconds", "number", "max wall-clock seconds")]},
         principal_attrs=["mfa_verified"],
     )
 
@@ -196,7 +196,7 @@ def test_hallucinated_arg_name_is_dropped():
             "has_technique": True,
             "summary": "x",
             "attack_class": "unbounded-arg",
-            "affected_tools": ["transfer_funds"],
+            "affected_tools": ["run_shell"],
             "suggested_params": {"arg_name": "totally_wrong", "ceiling": 5000},
         }
     )
@@ -211,12 +211,12 @@ def test_real_arg_name_is_kept():
             "has_technique": True,
             "summary": "x",
             "attack_class": "unbounded-arg",
-            "affected_tools": ["transfer_funds"],
-            "suggested_params": {"arg_name": "amount", "ceiling": 5000},
+            "affected_tools": ["run_shell"],
+            "suggested_params": {"arg_name": "timeout_seconds", "ceiling": 5000},
         }
     )
     [tech] = LLMExtractor(chat).extract(_doc(), _schema_ctx())
-    assert tech.suggested_params["arg_name"] == "amount"
+    assert tech.suggested_params["arg_name"] == "timeout_seconds"
 
 
 def test_hallucinated_principal_attr_is_dropped():
@@ -225,7 +225,7 @@ def test_hallucinated_principal_attr_is_dropped():
             "has_technique": True,
             "summary": "x",
             "attack_class": "privilege-escalation",
-            "affected_tools": ["transfer_funds"],
+            "affected_tools": ["run_shell"],
             "suggested_params": {"attr_name": "is_admin", "expected": True},
         }
     )
@@ -239,7 +239,7 @@ def _technique_json() -> str:
             "has_technique": True,
             "summary": "x",
             "attack_class": "unbounded-arg",
-            "affected_tools": ["transfer_funds"],
+            "affected_tools": ["run_shell"],
             "suggested_params": {},
         }
     )
@@ -273,8 +273,8 @@ def test_partial_chunk_failure_warns_but_returns_results():
 
 
 def test_merge_collapses_per_class_and_unions_tools():
-    a = ExtractedTechnique(summary="first", attack_class="unbounded-arg", tool_mentions=["transfer_funds"])
-    b = ExtractedTechnique(summary="", attack_class="unbounded-arg", tool_mentions=["read_account"])
+    a = ExtractedTechnique(summary="first", attack_class="unbounded-arg", tool_mentions=["run_shell"])
+    b = ExtractedTechnique(summary="", attack_class="unbounded-arg", tool_mentions=["read_file"])
     [merged] = _merge([a, b])
     assert merged.summary == "first"
-    assert set(merged.tool_mentions) == {"transfer_funds", "read_account"}
+    assert set(merged.tool_mentions) == {"run_shell", "read_file"}
