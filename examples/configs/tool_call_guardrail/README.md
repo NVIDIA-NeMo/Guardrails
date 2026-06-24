@@ -29,8 +29,8 @@ works standalone; the pipeline is how its policies are kept current.
 `policy.py` defines `Principal`, `ToolCall`, `ToolPolicy`, and `ToolCallGuard`.
 The guard is **default-deny**: a tool with no registered policy is refused. Each
 policy names the roles allowed to call a tool and a list of pure-function
-argument `Rule`s (e.g. "principal must own this account", "amount must not exceed
-a ceiling"). `config.py` only wraps this in a `safe_tool_call` action and
+argument `Rule`s (e.g. "principal must own this git remote", "shell timeout must
+not exceed a ceiling"). `config.py` only wraps this in a `safe_tool_call` action and
 registers it; it contains no authorization logic of its own. Lifting `policy.py`
 (plus the rule helpers) into a standalone package is the planned path to the
 runtime-agnostic library — nothing in it imports Guardrails.
@@ -56,7 +56,7 @@ flow — or a tool-calling agent — invokes in place of a raw tool:
 from nemoguardrails import LLMRails, RailsConfig
 
 rails = LLMRails(RailsConfig.from_path("examples/configs/tool_call_guardrail"))
-print(rails.generate(messages=[{"role": "user", "content": "what is my balance"}]))
+print(rails.generate(messages=[{"role": "user", "content": "read the source file"}]))
 ```
 
 `flows.co` contains two canned flows (one allowed read, one blocked transfer) so
@@ -134,11 +134,11 @@ which makes the candidate fail closed at the synthesis gate rather than becoming
 wrong-but-valid rule. If the backend is unreachable for an entire document the run
 **fails fast with a clear error** rather than silently reporting nothing.
 
-> The example tool registry, argument schemas, and principal attributes are a toy
-> banking set (`read_account`, `transfer_funds`, `close_account`) defined in
-> `example_policies.py`. For real use, replace them with the surface of the agent
-> you are protecting — the LLM extractor grounds findings against those tool
-> descriptions and argument names.
+> The example tool registry, argument schemas, and principal attributes model a
+> coding/dev agent (`read_file`, `write_file`, `run_shell`, `http_request`,
+> `git_push`, `install_package`) defined in `example_policies.py`. For real use,
+> replace them with the surface of the agent you are protecting — the LLM
+> extractor grounds findings against those tool descriptions and argument names.
 
 ### Acquire a corpus from real sources
 

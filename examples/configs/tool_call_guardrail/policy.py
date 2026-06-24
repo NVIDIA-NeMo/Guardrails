@@ -121,8 +121,12 @@ class ToolCallGuard:
 # must stay within a ceiling). New rules are just functions with the same shape.
 
 
-def require_owns_arg(arg_name: str, owned_attr: str = "owned_accounts") -> Rule:
-    """Block unless `call.args[arg_name]` is in `principal.attributes[owned_attr]`."""
+def require_owns_arg(arg_name: str, owned_attr: str) -> Rule:
+    """Block unless `call.args[arg_name]` is in `principal.attributes[owned_attr]`.
+
+    `owned_attr` is required (no default): it names the principal attribute holding
+    the owned set, which is domain-specific (e.g. `owned_repos`), so the scanner
+    must supply it rather than fall back to a guessed default."""
 
     def rule(call: ToolCall, principal: Principal) -> Optional[str]:
         target = call.args.get(arg_name)
