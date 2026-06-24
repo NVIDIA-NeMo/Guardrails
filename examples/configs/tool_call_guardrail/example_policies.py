@@ -24,23 +24,30 @@ from policy import (
     ToolCallGuard,
     ToolPolicy,
     max_numeric_arg,
-    require_owns_arg,
 )
 from scanner.scan import ArgSpec
 
-# Who may call each tool, under which argument constraints.
+# Example agent: a coding/dev assistant. The guard sits between its decision to
+# call a tool and the call's execution.
+
+# Who may call each tool, under which baseline argument constraints. Deliberately
+# thin: git_push has no ownership check and run_shell's timeout ceiling is loose —
+# exactly the gaps the field scanner is meant to surface and tighten. write_file
+# and http_request are unpoliced, so the coverage analyzer flags them.
 GUARD = ToolCallGuard(
     {
-        "read_account": ToolPolicy(
-            allowed_roles=frozenset({"customer", "teller"}),
-            rules=[require_owns_arg("account_id")],
+        "read_file": ToolPolicy(
+            allowed_roles=frozenset({"developer", "ci", "reviewer"}),
         ),
-        "transfer_funds": ToolPolicy(
-            allowed_roles=frozenset({"customer"}),
-            rules=[
-                require_owns_arg("from_account"),
-                max_numeric_arg("amount", ceiling=10_000),
-            ],
+        "run_shell": ToolPolicy(
+            allowed_roles=frozenset({"developer"}),
+            rules=[max_numeric_arg("timeout_seconds", ceiling=3600)],
+        ),
+        "git_push": ToolPolicy(
+            allowed_roles=frozenset({"developer"}),
+        ),
+        "install_package": ToolPolicy(
+            allowed_roles=frozenset({"developer"}),
         ),
     }
 )
@@ -48,40 +55,58 @@ GUARD = ToolCallGuard(
 # The tools the agent can call (name -> description). Single source of truth for
 # both the scanner (which grounds findings against it) and the coverage analyzer
 # (which flags tools with no policy). It is a superset of the tools GUARD has
-# policies for: close_account is intentionally unpoliced so a gap is surfaced.
+# policies for: write_file and http_request are unpoliced so gaps are surfaced.
 TOOL_REGISTRY = {
-    "read_account": "Read an account's balance",
-    "transfer_funds": "Move money between accounts",
-    "close_account": "Permanently close an account",
+    "read_file": "Read a file from the workspace",
+    "write_file": "Create or overwrite a file in the workspace",
+    "run_shell": "Execute a shell command in the sandbox",
+    "http_request": "Make an outbound HTTP request",
+    "git_push": "Push commits to a git remote",
+    "install_package": "Install a dependency from a package index",
 }
 
 # Each tool's argument schema, handed to the LLM extractor so it grounds a
 # proposed `arg_name` against real argument names instead of guessing from prose.
 TOOL_SCHEMAS = {
-    "read_account": [ArgSpec("account_id", "string", "the account being read")],
-    "transfer_funds": [
-        ArgSpec("from_account", "string", "source account; must be owned by the principal"),
-        ArgSpec("to_account", "string", "destination account"),
-        ArgSpec("amount", "number", "amount of money to move"),
+    "read_file": [ArgSpec("path", "string", "workspace-relative file path")],
+    "write_file": [
+        ArgSpec("path", "string", "workspace-relative file path"),
+        ArgSpec("content", "string", "file contents to write"),
     ],
-    "close_account": [ArgSpec("account_id", "string", "the account to close")],
+    "run_shell": [
+        ArgSpec("command", "string", "shell command to execute"),
+        ArgSpec("timeout_seconds", "number", "max wall-clock seconds before kill"),
+    ],
+    "http_request": [
+        ArgSpec("url", "string", "target URL"),
+        ArgSpec("method", "string", "HTTP method"),
+    ],
+    "git_push": [
+        ArgSpec("remote", "string", "git remote the principal owns"),
+        ArgSpec("branch", "string", "branch to push"),
+    ],
+    "install_package": [
+        ArgSpec("name", "string", "package name"),
+        ArgSpec("version", "string", "version spec"),
+    ],
 }
 
 # Principal attributes the guard recognizes — the values an `attr_name` param
-# (e.g. on a privilege-escalation finding) may legitimately reference.
-PRINCIPAL_ATTRS = ["mfa_verified", "elevated", "owned_accounts"]
+# (e.g. on a privilege-escalation finding) or an `owned_attr` may reference.
+PRINCIPAL_ATTRS = ["elevated", "mfa_verified", "owned_repos", "approved_deploy"]
 
 # Principals the agent might be acting for.
 PRINCIPALS = {
-    "cust-alice": Principal(
-        "cust-alice",
-        roles=frozenset({"customer"}),
-        attributes={"owned_accounts": frozenset({"acct-1001"})},
+    "dev-alice": Principal(
+        "dev-alice",
+        roles=frozenset({"developer"}),
+        attributes={"owned_repos": frozenset({"origin"}), "elevated": True},
     ),
-    "cust-bob": Principal(
-        "cust-bob",
-        roles=frozenset({"customer"}),
-        attributes={"owned_accounts": frozenset({"acct-1002"})},
+    "dev-bob": Principal(
+        "dev-bob",
+        roles=frozenset({"developer"}),
+        attributes={"owned_repos": frozenset({"fork-bob"}), "elevated": False},
     ),
+    "ci-bot": Principal("ci-bot", roles=frozenset({"ci"})),
     "anon": Principal("anon", roles=frozenset()),
 }

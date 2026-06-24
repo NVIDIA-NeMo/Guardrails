@@ -120,14 +120,24 @@ def main() -> int:
     _rule("6. Before vs. after authorization")
     checks = [
         (
-            "cust-alice",
-            ToolCall("transfer_funds", {"from_account": "acct-1001", "to_account": "acct-1002", "amount": 7000}),
-            "transfer of 7000 (was under old 10000 ceiling)",
+            "dev-bob",
+            ToolCall("git_push", {"remote": "origin", "branch": "main"}),
+            "push to a remote dev-bob does not own (ownership rule added)",
         ),
         (
-            "cust-alice",
-            ToolCall("close_account", {"account_id": "acct-1001"}),
-            "close own account (newly-policied tool, fail-closed on roles)",
+            "dev-alice",
+            ToolCall("run_shell", {"command": "sleep 600", "timeout_seconds": 600}),
+            "shell with 600s timeout (was under old 3600 ceiling)",
+        ),
+        (
+            "dev-alice",
+            ToolCall("install_package", {"name": "leftpad-evil", "version": "1.0"}),
+            "install a denylisted package (denylist added to an existing tool)",
+        ),
+        (
+            "dev-alice",
+            ToolCall("write_file", {"path": "src/app.py", "content": "..."}),
+            "write_file (newly-policied tool, fail-closed on roles)",
         ),
     ]
     for principal_id, call, note in checks:

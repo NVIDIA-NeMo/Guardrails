@@ -22,28 +22,37 @@ is permitted, and only then does dispatch reach these functions.
 
 from __future__ import annotations
 
-_BALANCES = {
-    "acct-1001": 4200.00,
-    "acct-1002": 75.50,
-    "acct-9999": 1_000_000.00,
-}
+
+def read_file(path: str) -> str:
+    return f"<contents of {path}>"
 
 
-def read_account(account_id: str) -> str:
-    balance = _BALANCES.get(account_id)
-    if balance is None:
-        return f"account {account_id} not found"
-    return f"account {account_id} balance: ${balance:,.2f}"
+def write_file(path: str, content: str = "") -> str:
+    return f"wrote {len(content)} bytes to {path}"
 
 
-def transfer_funds(from_account: str, to_account: str, amount: float) -> str:
-    if _BALANCES.get(from_account, 0) < amount:
-        return f"insufficient funds in {from_account}"
-    return f"transferred ${amount:,.2f} from {from_account} to {to_account}"
+def run_shell(command: str, timeout_seconds: float = 60) -> str:
+    return f"ran {command!r} (timeout {timeout_seconds:g}s)"
+
+
+def http_request(url: str, method: str = "GET") -> str:
+    return f"{method} {url} -> 200"
+
+
+def git_push(remote: str, branch: str) -> str:
+    return f"pushed {branch} to {remote}"
+
+
+def install_package(name: str, version: str = "latest") -> str:
+    return f"installed {name}=={version}"
 
 
 # Dispatch table mapping tool names (as referenced by policies) to implementations.
 TOOLS = {
-    "read_account": read_account,
-    "transfer_funds": transfer_funds,
+    "read_file": read_file,
+    "write_file": write_file,
+    "run_shell": run_shell,
+    "http_request": http_request,
+    "git_push": git_push,
+    "install_package": install_package,
 }
