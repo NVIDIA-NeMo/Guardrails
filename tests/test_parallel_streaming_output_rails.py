@@ -452,9 +452,16 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_parallel_streaming_output_rails_performance_benefits():
-    """Tests that parallel rails execution provides performance benefits over sequential"""
+    """Tests that parallel rails execution provides performance benefits over sequential.
+
+    Wall-clock timing assertion; marked ``perf`` and excluded from the default
+    run. The multi-flow parallel-vs-sequential response equivalence it also
+    checks is covered (always-run) by
+    test_parallel_matches_sequential_with_slow_actions.
+    """
 
     parallel_config = RailsConfig.from_content(
         config={
