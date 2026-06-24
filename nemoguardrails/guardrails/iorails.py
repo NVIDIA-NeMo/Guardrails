@@ -128,6 +128,16 @@ def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
     ]
 
 
+def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[str, dict]:
+    """Frame a directly-yielded payload to match the surrounding stream's chunk shape.
+
+    Returns a ``{"text": payload}`` dict under ``include_metadata``, the raw string
+    otherwise — the same wrapping the StreamingHandler applies to ``push_chunk``'d
+    strings, so terminal and block chunks that bypass the handler stay shape-consistent.
+    """
+    return {"text": payload} if include_metadata else payload
+
+
 def _terminal_tool_call_chunk(
     tool_calls: list[ToolCall], include_metadata: Optional[bool]
 ) -> tuple[str, Union[str, dict]]:
@@ -140,8 +150,7 @@ def _terminal_tool_call_chunk(
     the surrounding stream.
     """
     payload = json.dumps({"tool_calls": _serialize_tool_calls(tool_calls)})
-    framed: Union[str, dict] = {"text": payload} if include_metadata else payload
-    return payload, framed
+    return payload, _frame_for_stream(payload, include_metadata)
 
 
 def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]]) -> LLMMessage:
@@ -484,11 +493,12 @@ class IORails(BaseGuardrails):
 
     @staticmethod
     def _guardrails_violation_payload(message: str, param: str) -> str:
-        """Build the JSON error payload emitted when a streaming rail blocks output.
+        """Build the JSON error payload emitted when a streaming rail blocks the request.
 
-        Shared by the output-rails and tool-call-rails streaming block paths so both
-        surface the same ``guardrails_violation`` / ``content_blocked`` shape; ``param``
-        distinguishes which rail family blocked (``output_rails`` / ``tool_output_rails``).
+        Shared by every streaming block path so they all surface the same
+        ``guardrails_violation`` / ``content_blocked`` shape; ``param`` distinguishes which
+        rail family blocked (``input_rails`` / ``tool_input_rails`` / ``tool_output_rails`` /
+        ``output_rails``).
         """
         return json.dumps(
             {
@@ -793,7 +803,11 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    await streaming_handler.push_chunk(REFUSAL_MESSAGE)
+                    await streaming_handler.push_chunk(
+                        self._guardrails_violation_payload(
+                            f"Blocked by tool input rails: {tool_result.reason}", "tool_input_rails"
+                        )
+                    )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
 
@@ -804,7 +818,11 @@ class IORails(BaseGuardrails):
                     log.info("[%s] Input blocked: %s", req_id, input_result.reason)
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
-                    await streaming_handler.push_chunk(REFUSAL_MESSAGE)
+                    await streaming_handler.push_chunk(
+                        self._guardrails_violation_payload(
+                            f"Blocked by input rails: {input_result.reason}", "input_rails"
+                        )
+                    )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
 
@@ -930,6 +948,7 @@ class IORails(BaseGuardrails):
                                             streaming_handler=streaming_handler,
                                             messages=messages,
                                             enabled=output_enabled,
+                                            include_metadata=include_metadata,
                                         )
                                     else:
                                         base_iterator = streaming_handler
@@ -972,12 +991,9 @@ class IORails(BaseGuardrails):
                                                 f"Blocked by tool output rails: {tool_call.reason}",
                                                 "tool_output_rails",
                                             )
-                                            framed_violation: Union[str, dict] = (
-                                                {"text": violation} if include_metadata else violation
-                                            )
                                             if self._content_capture_enabled:
                                                 delivered.append(violation)
-                                            yield framed_violation
+                                            yield _frame_for_stream(violation, include_metadata)
                                         else:
                                             payload, framed = _terminal_tool_call_chunk(
                                                 accumulated_tool_calls, include_metadata
@@ -1017,6 +1033,7 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         *,
         enabled: Union[bool, list[str]] = True,
+        include_metadata: Optional[bool] = False,
     ) -> AsyncGenerator[Union[str, dict], None]:
         """Buffer streamed chunks and run output rails on each batch.
 
@@ -1067,9 +1084,10 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                yield self._guardrails_violation_payload(
+                violation = self._guardrails_violation_payload(
                     f"Blocked by output rails: {output_result.reason}", "output_rails"
                 )
+                yield _frame_for_stream(violation, include_metadata)
                 return
 
             if not stream_first:

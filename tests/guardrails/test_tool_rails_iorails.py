@@ -405,10 +405,13 @@ class TestStreamingToolCalls:
 class TestStreamingToolResults:
     @pytest.mark.asyncio
     async def test_unlinked_tool_result_blocks_stream(self, iorails):
-        # As above, the streaming block must short-circuit before the model is called.
+        """A guardrails_violation error chunk (param=tool_input_rails) is emitted, and the model is never called."""
         forbidden_post = _inject_forbidden_transport(iorails)
         chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
-        assert REFUSAL_MESSAGE in chunks
+        violations = _stream_violation_chunks(chunks)
+        assert len(violations) == 1
+        assert violations[0]["error"]["param"] == "tool_input_rails"
+        assert REFUSAL_MESSAGE not in chunks
         forbidden_post.assert_not_called()
 
 
@@ -504,7 +507,7 @@ class TestToolRailBlockMetrics:
         iorails._metrics_enabled = True
         with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
             chunks = await _collect(iorails.stream_async(make_tool_conversation(result_call_id="call_999")))
-        assert REFUSAL_MESSAGE in chunks
+        assert _stream_violation_chunks(chunks)
         record_blocked.assert_called_once_with(RailDirection.INPUT)
 
     @pytest.mark.asyncio

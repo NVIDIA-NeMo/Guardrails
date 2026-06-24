@@ -896,7 +896,8 @@ class TestStreamAsyncSpanHierarchy:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
-        assert chunks == [REFUSAL_MESSAGE]
+        assert len(chunks) == 1
+        assert json.loads(chunks[0])["error"]["param"] == "input_rails"
 
         spans = exporter.get_finished_spans()
         request_spans = [s for s in spans if s.name == "guardrails.request"]
@@ -1420,7 +1421,8 @@ class TestStreamAsyncRequestMetrics:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
-        assert chunks == [REFUSAL_MESSAGE]
+        assert len(chunks) == 1
+        assert json.loads(chunks[0])["error"]["param"] == "input_rails"
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests.blocked"][0].value == 1
@@ -2305,17 +2307,18 @@ class TestStreamingContentCapture:
         assert dict(choice.attributes)["message.content"] == delivered
 
     @pytest.mark.asyncio
-    async def test_blocked_input_records_refusal_as_output(self, iorails_streaming_content_capture, exporter):
-        """Input-rail block: REFUSAL_MESSAGE is pushed through the streaming
-        handler, so the consumer receives it and content capture records it
-        as the assistant output on the request span (not empty)."""
+    async def test_blocked_input_records_violation_as_output(self, iorails_streaming_content_capture, exporter):
+        """Input-rail block: the guardrails_violation chunk is pushed through the streaming
+        handler, so the consumer receives it and content capture records it as the assistant
+        output on the request span (not empty)."""
         iorails = iorails_streaming_content_capture
         _stub_deep_streaming_pipeline(iorails, input_safe=False)
 
         [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
 
         span = _request_span(exporter.get_finished_spans())
-        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == REFUSAL_MESSAGE
+        recorded = span.attributes[GuardrailsAttributes.REQUEST_OUTPUT]
+        assert json.loads(recorded)["error"]["param"] == "input_rails"
 
     @pytest.mark.asyncio
     async def test_empty_delivered_records_no_output_attr(self, iorails_streaming_content_capture, exporter):

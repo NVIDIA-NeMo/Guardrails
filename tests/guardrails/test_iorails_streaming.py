@@ -246,10 +246,29 @@ class TestStreamAsyncNoOutputRails:
 
     @pytest.mark.asyncio
     async def test_input_rails_block(self, iorails_input_only):
-        """Yields the refusal message when input rails block."""
+        """A guardrails_violation error chunk (param=input_rails) is emitted when input rails block."""
         _wire_mocks(iorails_input_only, input_safe=False)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}]))
-        assert "".join(chunks) == REFUSAL_MESSAGE
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        assert len(error_chunks) == 1
+        error = json.loads(error_chunks[0])["error"]
+        assert error["type"] == "guardrails_violation"
+        assert error["param"] == "input_rails"
+        assert error["code"] == "content_blocked"
+        assert REFUSAL_MESSAGE not in "".join(c for c in chunks if isinstance(c, str))
+
+    @pytest.mark.asyncio
+    async def test_input_block_framed_under_include_metadata(self, iorails_input_only):
+        """Under include_metadata, the input-block violation is wrapped as a {"text": <json>} dict, like every other chunk."""
+        _wire_mocks(iorails_input_only, input_safe=False)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}], include_metadata=True)
+        )
+        dict_chunks = [c for c in chunks if isinstance(c, dict) and str(c.get("text", "")).startswith("{")]
+        assert len(dict_chunks) == 1
+        error = json.loads(dict_chunks[0]["text"])["error"]
+        assert error["type"] == "guardrails_violation"
+        assert error["param"] == "input_rails"
 
     @pytest.mark.asyncio
     async def test_generation_options_forwarded(self, iorails_input_only):
