@@ -45,9 +45,10 @@ class Tool:
 
     ``name`` is set for function tools and ``None`` for hosted/server tools that
     are identified only by ``type`` (e.g. web_search). ``arguments_schema`` is the
-    JSON Schema for the call arguments, or ``None`` for hosted tools (and any
-    function tool that declares no parameters), in which case argument validation
-    is skipped and only the allowlist applies.
+    JSON Schema for the call arguments, or ``None`` when none is declared. A hosted
+    tool with no schema is allowlist-only (the provider owns the call shape); a
+    function tool that declares no parameters accepts no arguments, so a call that
+    supplies any is rejected.
     """
 
     name: str | None = None
@@ -123,20 +124,56 @@ class ToolExchange(NamedTuple):
     results: list[ToolResult]
 
 
+def _schema_accepts_no_arguments(schema: dict) -> bool:
+    """Whether an argument schema declares no way to supply arguments.
+
+    True for an empty schema (``{}``) or an object schema that names no ``properties``
+    and opens no other input channel (``additionalProperties``, ``patternProperties``,
+    or a composition/reference keyword). Such a schema describes a tool that takes no
+    arguments; jsonschema treats it as permissive, so callers enforce emptiness directly.
+    """
+    if not schema:
+        return True
+    if schema.get("properties"):
+        return False
+    if schema.get("additionalProperties"):
+        return False
+    if schema.get("patternProperties"):
+        return False
+    return not any(keyword in schema for keyword in ("anyOf", "oneOf", "allOf", "$ref"))
+
+
+def _no_arguments_reason(tool: Tool, arguments: dict) -> str | None:
+    """Block reason for a tool that accepts no arguments, or ``None`` when the call is allowed.
+
+    Hosted/server tools (no ``name``) are allowlist-only -- the provider owns the call
+    shape -- so arguments are accepted here. A function tool that declares no parameters
+    must be called with no arguments, so any supplied argument is rejected.
+    """
+    if tool.name is None:
+        return None
+    if arguments:
+        return f"tool '{tool.key}' accepts no arguments but the call supplied: {sorted(arguments)}"
+    return None
+
+
 def validate_arguments(tool: Tool, arguments: dict) -> str | None:
     """Validate model-supplied tool-call arguments against the tool's schema.
 
-    Returns ``None`` when the arguments are valid or the tool declares no schema.
-    Returns a human-readable reason when the arguments violate the schema, or when
-    the declared schema itself is not valid JSON Schema (e.g. a non-JSON-Schema
-    dialect reaching this validator before its engine adapter normalizes it).
+    Returns ``None`` when the arguments are valid. Returns a human-readable reason when
+    the arguments violate the schema, when the declared schema itself is not valid JSON
+    Schema (e.g. a non-JSON-Schema dialect reaching this validator before its engine
+    adapter normalizes it), or when a function tool that declares no parameters is called
+    with arguments.
     """
     if tool.arguments_schema is None:
-        return None
+        return _no_arguments_reason(tool, arguments)
     try:
         jsonschema.validate(instance=arguments, schema=tool.arguments_schema)
     except jsonschema.ValidationError as exc:
         return f"arguments for tool '{tool.key}' do not match its schema: {exc.message}"
     except jsonschema.SchemaError as exc:
         return f"declared schema for tool '{tool.key}' is not valid JSON Schema: {exc.message}"
+    if _schema_accepts_no_arguments(tool.arguments_schema):
+        return _no_arguments_reason(tool, arguments)
     return None

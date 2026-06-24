@@ -38,8 +38,15 @@ class TestToolCallRailAction:
         assert result.is_safe is True
 
     @pytest.mark.asyncio
-    async def test_tool_without_schema_passes_allowlist_only(self):
+    async def test_no_parameter_function_tool_with_arguments_is_blocked(self):
+        """A function tool that declares no parameters accepts no arguments, so a call supplying any is blocked."""
         result = await ToolCallRailAction().run(_toolset(), [_call("ping", {"anything": 1})])
+        assert_blocked(result, "ping", "no arguments")
+
+    @pytest.mark.asyncio
+    async def test_no_parameter_function_tool_without_arguments_is_safe(self):
+        """A no-parameter function tool called with no arguments passes."""
+        result = await ToolCallRailAction().run(_toolset(), [_call("ping", {})])
         assert result.is_safe is True
 
     @pytest.mark.asyncio

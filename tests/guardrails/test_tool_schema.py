@@ -144,11 +144,62 @@ class TestValidateArguments:
         assert reason is not None
         assert "get_weather" in reason
 
-    def test_no_schema_skips_validation(self):
-        # A tool with no declared schema (hosted tool, or a function with no
-        # parameters) is allowlist-only: any arguments are accepted here.
+    def test_hosted_tool_without_schema_skips_validation(self):
+        """A hosted/server tool (name is None) declares no schema and the provider owns the call shape, so it stays allowlist-only: any arguments are accepted here."""
         hosted = Tool(name=None, type="web_search")
         assert validate_arguments(hosted, {"anything": [1, 2, 3]}) is None
+
+    def test_function_tool_without_parameters_allows_empty_arguments(self):
+        """A no-parameter function tool legitimately called with no arguments stays safe."""
+        tool = Tool(name="get_time", arguments_schema=None)
+        assert validate_arguments(tool, {}) is None
+
+    def test_function_tool_without_parameters_rejects_arguments(self):
+        """A function tool that declares no parameters accepts no arguments, so supplying any blocks instead of skipping."""
+        tool = Tool(name="get_time", arguments_schema=None)
+        reason = validate_arguments(tool, {"path": "/etc/shadow"})
+        assert reason is not None
+        assert "get_time" in reason
+        assert "no arguments" in reason
+
+    def test_function_tool_empty_dict_schema_rejects_arguments(self):
+        """An explicit empty schema ({}) declares no properties; jsonschema would accept anything, so it is treated as no-args."""
+        tool = Tool(name="ping", arguments_schema={})
+        reason = validate_arguments(tool, {"x": 1})
+        assert reason is not None
+        assert "ping" in reason
+        assert "no arguments" in reason
+
+    def test_function_tool_empty_properties_rejects_arguments(self):
+        """An object schema with empty properties and no additionalProperties:false defaults to permissive, so it is treated as no-args."""
+        tool = Tool(name="ping", arguments_schema={"type": "object", "properties": {}})
+        reason = validate_arguments(tool, {"x": 1})
+        assert reason is not None
+        assert "ping" in reason
+        assert "no arguments" in reason
+
+    def test_function_tool_object_schema_without_properties_rejects_arguments(self):
+        """An object schema with no properties key at all declares no inputs, so it is treated as no-args."""
+        tool = Tool(name="ping", arguments_schema={"type": "object"})
+        reason = validate_arguments(tool, {"x": 1})
+        assert reason is not None
+        assert "ping" in reason
+        assert "no arguments" in reason
+
+    def test_function_tool_additional_properties_schema_accepts_arguments(self):
+        """A schema that opens additionalProperties declares an input channel, so it is not treated as no-args and free-form arguments pass."""
+        tool = Tool(name="kv", arguments_schema={"type": "object", "additionalProperties": {"type": "string"}})
+        assert validate_arguments(tool, {"foo": "bar"}) is None
+
+    def test_function_tool_pattern_properties_schema_accepts_arguments(self):
+        """A schema that opens patternProperties declares an input channel, so it is not treated as no-args and matching arguments pass."""
+        tool = Tool(name="kv", arguments_schema={"type": "object", "patternProperties": {"^x": {"type": "integer"}}})
+        assert validate_arguments(tool, {"x1": 1}) is None
+
+    def test_function_tool_composition_schema_accepts_arguments(self):
+        """A schema using a composition keyword declares an input channel, so it is not treated as no-args and conforming arguments pass."""
+        tool = Tool(name="kv", arguments_schema={"anyOf": [{"type": "object"}]})
+        assert validate_arguments(tool, {"x": 1}) is None
 
     def test_malformed_schema_is_reported_not_raised(self):
         # A declared schema that is not valid JSON Schema degrades to a reason
