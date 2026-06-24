@@ -12,13 +12,11 @@ include = [
   "LICENSE.md",
   "LICENSE-Apache-2.0.txt",
   "LICENCES-3rd-party.txt",
-  "examples/**/*",
-  "eval/data/**/*",
-  "**/*.yml",
-  "**/*.co",
-  "**/*.txt",
-  "**/*.json",
-  "**/*.lark",
+  "nemoguardrails/**/*.yml",
+  "nemoguardrails/**/*.co",
+  "nemoguardrails/**/*.txt",
+  "nemoguardrails/**/*.json",
+  "nemoguardrails/**/*.lark",
 ]
 
 classifiers = [
