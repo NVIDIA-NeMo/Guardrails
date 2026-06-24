@@ -35,28 +35,33 @@ from policy import Principal, ToolCall  # noqa: E402
 
 # Each case: (principal_id, ToolCall, ground_truth_allowed, note).
 CASES = [
-    ("cust-alice", ToolCall("read_account", {"account_id": "acct-1001"}), True, "owner reads own account"),
-    ("cust-alice", ToolCall("read_account", {"account_id": "acct-1002"}), False, "reads an account she does not own"),
-    ("anon", ToolCall("read_account", {"account_id": "acct-1001"}), False, "no role permits read_account"),
+    ("dev-alice", ToolCall("read_file", {"path": "src/app.py"}), True, "developer reads a workspace file"),
+    ("anon", ToolCall("read_file", {"path": "src/app.py"}), False, "no role permits read_file"),
     (
-        "cust-alice",
-        ToolCall("transfer_funds", {"from_account": "acct-1001", "to_account": "acct-1002", "amount": 500}),
+        "dev-alice",
+        ToolCall("run_shell", {"command": "pytest -q", "timeout_seconds": 120}),
         True,
-        "in-bounds transfer from own account",
+        "in-bounds shell command",
     ),
     (
-        "cust-alice",
-        ToolCall("transfer_funds", {"from_account": "acct-1001", "to_account": "acct-9999", "amount": 50000}),
+        "dev-alice",
+        ToolCall("run_shell", {"command": "sleep 99999", "timeout_seconds": 7200}),
         False,
-        "amount exceeds the $10,000 ceiling",
+        "timeout exceeds the 3600s ceiling",
     ),
     (
-        "cust-bob",
-        ToolCall("transfer_funds", {"from_account": "acct-1001", "to_account": "acct-9999", "amount": 100}),
+        "ci-bot",
+        ToolCall("run_shell", {"command": "make build", "timeout_seconds": 60}),
         False,
-        "transfers out of an account he does not own",
+        "ci role may not run shell commands",
     ),
-    ("cust-alice", ToolCall("delete_all_accounts", {}), False, "unknown tool is denied by default"),
+    (
+        "dev-alice",
+        ToolCall("write_file", {"path": "src/app.py", "content": "..."}),
+        False,
+        "write_file is unpoliced, so default-deny",
+    ),
+    ("dev-alice", ToolCall("deploy_service", {}), False, "unknown tool is denied by default"),
 ]
 
 
