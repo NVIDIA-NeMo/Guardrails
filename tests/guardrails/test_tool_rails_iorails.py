@@ -71,6 +71,25 @@ WEATHER_TOOL = {
 LLM_PARAMS = {"tools": [WEATHER_TOOL], "tool_choice": "auto"}
 MESSAGES = [{"role": "user", "content": "What's the weather in Paris?"}]
 
+# Tools declared statically on the model (models[].parameters.tools) rather than per-request
+# via options.llm_params. The engine merges these config-level defaults into the toolset the
+# tool-call rail validates against, so a config-declared tool must be honored even when the
+# request carries no llm_params.
+CONFIG_TOOLS_CONFIG = {
+    "models": [
+        {
+            "type": "main",
+            "engine": "nim",
+            "model": "meta/llama-3.3-70b-instruct",
+            "parameters": {"tools": [WEATHER_TOOL]},
+        }
+    ],
+    "rails": {
+        "tool_output": {"flows": ["tool call validation"]},
+        "tool_input": {"flows": ["tool result validation"]},
+    },
+}
+
 
 def _config(rails: dict) -> RailsConfig:
     """Build a RailsConfig with the given ``rails`` block, under a stubbed API key."""
@@ -334,6 +353,39 @@ class TestSpeculativeToolCalls:
         _inject_json_response(speculative_iorails, _text_payload("ok"))
         await speculative_iorails.generate_async(MESSAGES, options={"rails": {"input": False}})
         assert spy.await_args.kwargs.get("enabled") is False
+
+
+class TestConfigDeclaredTools:
+    """Tools declared on the model (models[].parameters.tools) are validated by the tool-call
+    rail end to end, even when the request carries no options.llm_params.tools."""
+
+    @pytest_asyncio.fixture
+    async def iorails_config_tools(self):
+        async with started_iorails(CONFIG_TOOLS_CONFIG) as engine:
+            yield engine
+
+    @pytest.mark.asyncio
+    async def test_config_declared_tool_call_passes(self, iorails_config_tools):
+        """A call to a config-declared tool passes the rail when the request carries no llm_params."""
+        _inject_json_response(iorails_config_tools, _tool_call_payload("get_weather", '{"city": "Paris"}'))
+        result = await iorails_config_tools.generate_async(MESSAGES)
+        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+
+    @pytest.mark.asyncio
+    async def test_undeclared_tool_call_blocked_against_config_tools(self, iorails_config_tools):
+        """A call to a tool absent from the config toolset is blocked when the request carries no llm_params."""
+        _inject_json_response(iorails_config_tools, _tool_call_payload("rm_rf", "{}"))
+        result = await iorails_config_tools.generate_async(MESSAGES)
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+
+    @pytest.mark.asyncio
+    async def test_streamed_undeclared_tool_call_blocked_against_config_tools(self, iorails_config_tools):
+        """In streaming, a call to a tool absent from the config toolset is blocked with no llm_params."""
+        _inject_sse_stream(iorails_config_tools, _tool_call_sse_lines("rm_rf", ["{}"]))
+        chunks = await _collect(iorails_config_tools.stream_async(MESSAGES))
+        violations = _stream_violation_chunks(chunks)
+        assert len(violations) == 1
+        assert violations[0]["error"]["param"] == "tool_output_rails"
 
 
 class TestNonStreamingToolResults:
