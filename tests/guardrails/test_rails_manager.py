@@ -252,6 +252,72 @@ class TestIsOutputSafe:
         assert not result.is_safe
 
 
+class TestIsInputSafeToggle:
+    """The per-request enabled toggle selects which input rails run (bool / list / normalized name)."""
+
+    @pytest.mark.asyncio
+    async def test_disabled_toggle_skips_input_rails(self, content_safety_rails_manager):
+        """enabled=False runs no input rails, so an otherwise-unsafe input passes."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=False)
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_empty_list_toggle_skips_input_rails(self, content_safety_rails_manager):
+        """enabled=[] selects no input rails, so an otherwise-unsafe input passes."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=[])
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_normalized_name_list_runs_input_rail(self, content_safety_rails_manager):
+        """A toggle listing the canonical rail name matches the configured $model=-suffixed flow and runs it."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=["content safety check input"])
+        assert not result.is_safe
+        assert "Violence" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_true_toggle_runs_input_rails(self, content_safety_rails_manager):
+        """enabled=True runs every configured input rail, matching the default."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=True)
+        assert not result.is_safe
+
+
+class TestIsOutputSafeToggle:
+    """The per-request enabled toggle selects which output rails run (bool / list / normalized name)."""
+
+    @pytest.mark.asyncio
+    async def test_disabled_toggle_skips_output_rails(self, content_safety_rails_manager):
+        """enabled=False runs no output rails, so an otherwise-unsafe response passes."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_output_safe(MESSAGES, "bad response", enabled=False)
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_normalized_name_list_runs_output_rail(self, content_safety_rails_manager):
+        """A toggle listing the canonical rail name matches the configured $model=-suffixed flow and runs it."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_output_safe(
+            MESSAGES, "bad response", enabled=["content safety check output"]
+        )
+        assert not result.is_safe
+        assert "S17: Malware" in result.reason
+
+
 # --- Multi-rail sequential tests (nemoguards config: content + topic + jailbreak) ---
 
 

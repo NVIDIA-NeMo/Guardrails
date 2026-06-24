@@ -511,6 +511,8 @@ class IORails(BaseGuardrails):
         options = _coerce_generation_options(kwargs.get("options"))
         # Pass llm_params (including tool definitions) unchanged to the LLM call.
         llm_kwargs = options.llm_params if (options and options.llm_params) else {}
+        input_enabled = options.rails.input if options else True
+        output_enabled = options.rails.output if options else True
         tool_input_enabled = options.rails.tool_input if options else True
         tool_output_enabled = options.rails.tool_output if options else True
 
@@ -525,9 +527,11 @@ class IORails(BaseGuardrails):
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         if self._speculative_generation:
-            response = await self._do_generate_speculative(messages, req_id, llm_kwargs, request_span)
+            response = await self._do_generate_speculative(
+                messages, req_id, llm_kwargs, request_span, input_enabled=input_enabled
+            )
         else:
-            response = await self._do_generate_sequential(messages, req_id, llm_kwargs)
+            response = await self._do_generate_sequential(messages, req_id, llm_kwargs, input_enabled=input_enabled)
 
         if response is None:
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
@@ -561,7 +565,7 @@ class IORails(BaseGuardrails):
         is_tool_call_only = bool(response.tool_calls) and not response_text
         if not is_tool_call_only:
             log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, response_text)
+            output_result = await self.rails_manager.is_output_safe(messages, response_text, enabled=output_enabled)
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:
@@ -576,11 +580,11 @@ class IORails(BaseGuardrails):
         return _build_assistant_message(response_text, response.tool_calls)
 
     async def _do_generate_sequential(
-        self, messages: LLMMessages, req_id: str, llm_kwargs: dict
+        self, messages: LLMMessages, req_id: str, llm_kwargs: dict, *, input_enabled: Union[bool, list[str]] = True
     ) -> Optional[LLMResponse]:
         """Sequential path: input rails block before LLM generation starts."""
         log.info("[%s] Running input rails", req_id)
-        input_result = await self.rails_manager.is_input_safe(messages)
+        input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
         if not input_result.is_safe:
             log.info("[%s] Input blocked: %s", req_id, input_result.reason)
             if self._metrics_enabled:
@@ -591,12 +595,18 @@ class IORails(BaseGuardrails):
         return await self.engine_registry.model_call("main", messages, **llm_kwargs)
 
     async def _do_generate_speculative(
-        self, messages: LLMMessages, req_id: str, llm_kwargs: dict, request_span: Optional["Span"] = None
+        self,
+        messages: LLMMessages,
+        req_id: str,
+        llm_kwargs: dict,
+        request_span: Optional["Span"] = None,
+        *,
+        input_enabled: Union[bool, list[str]] = True,
     ) -> Optional[LLMResponse]:
         """Speculative path: input rails and LLM generation race concurrently."""
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
 
-        rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages))
+        rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages, enabled=input_enabled))
         gen_task = asyncio.create_task(self.engine_registry.model_call("main", messages, **llm_kwargs))
 
         try:
@@ -747,6 +757,8 @@ class IORails(BaseGuardrails):
         # per-request tool-rail toggles off the coerced GenerationOptions.
         options = _coerce_generation_options(options)
         llm_kwargs: dict = options.llm_params if (options and options.llm_params) else {}
+        input_enabled = options.rails.input if options else True
+        output_enabled = options.rails.output if options else True
         tool_input_enabled = options.rails.tool_input if options else True
         tool_output_enabled = options.rails.tool_output if options else True
 
@@ -787,7 +799,7 @@ class IORails(BaseGuardrails):
 
                 # Step 1: Input rails (non-streaming)
                 log.info("[%s] Running input rails", req_id)
-                input_result = await self.rails_manager.is_input_safe(messages)
+                input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked: %s", req_id, input_result.reason)
                     if self._metrics_enabled:
@@ -917,6 +929,7 @@ class IORails(BaseGuardrails):
                                         base_iterator = self._run_output_rails_in_streaming(
                                             streaming_handler=streaming_handler,
                                             messages=messages,
+                                            enabled=output_enabled,
                                         )
                                     else:
                                         base_iterator = streaming_handler
@@ -1002,6 +1015,8 @@ class IORails(BaseGuardrails):
         self,
         streaming_handler: AsyncIterator[Union[str, dict]],
         messages: LLMMessages,
+        *,
+        enabled: Union[bool, list[str]] = True,
     ) -> AsyncGenerator[Union[str, dict], None]:
         """Buffer streamed chunks and run output rails on each batch.
 
@@ -1047,7 +1062,7 @@ class IORails(BaseGuardrails):
                 continue
 
             log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk)
+            output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk, enabled=enabled)
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:

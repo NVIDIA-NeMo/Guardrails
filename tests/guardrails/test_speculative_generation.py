@@ -78,7 +78,7 @@ class TestSpeculativeGeneration:
     async def test_rails_first_pass(self, iorails):
         """Rails finish first and pass — generation is awaited, output rails run."""
 
-        async def fast_rails(messages):
+        async def fast_rails(messages, *, enabled=True):
             return RailResult(is_safe=True)
 
         async def slow_llm(model_type, messages):
@@ -99,7 +99,7 @@ class TestSpeculativeGeneration:
         llm_started = False
         llm_completed = False
 
-        async def fast_reject(messages):
+        async def fast_reject(messages, *, enabled=True):
             return RailResult(is_safe=False, reason="unsafe")
 
         async def slow_llm(model_type, messages):
@@ -127,7 +127,7 @@ class TestSpeculativeGeneration:
     async def test_gen_first_pass(self, iorails):
         """Generation finishes first — rails verdict awaited, response served on pass."""
 
-        async def slow_rails(messages):
+        async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.05)
             return RailResult(is_safe=True)
 
@@ -146,7 +146,7 @@ class TestSpeculativeGeneration:
     async def test_gen_first_reject(self, iorails):
         """Generation finishes first, then rails reject — response discarded."""
 
-        async def slow_reject(messages):
+        async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
             return RailResult(is_safe=False, reason="unsafe")
 
@@ -166,7 +166,7 @@ class TestSpeculativeGeneration:
     async def test_llm_error_cancels_rails(self, iorails):
         """LLM errors while rails still running — rails cancelled, error propagated."""
 
-        async def slow_rails(messages):
+        async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.5)
             return RailResult(is_safe=True)
 
@@ -194,7 +194,7 @@ class TestSpeculativeGeneration:
     async def test_rails_reject_with_simultaneous_llm_exception(self, iorails, caplog_iorails):
         """Rails reject + LLM raises in the same scheduling window — refusal returned, exception drained."""
 
-        async def fast_reject(messages):
+        async def fast_reject(messages, *, enabled=True):
             return RailResult(is_safe=False, reason="unsafe")
 
         async def slow_raises(model_type, messages):
@@ -219,7 +219,7 @@ class TestSpeculativeGeneration:
     async def test_both_tasks_raise_during_race(self, iorails, caplog_iorails):
         """Both rails and gen raise — outer cleanup logs the loser exception, winner propagates."""
 
-        async def rails_raises(messages):
+        async def rails_raises(messages, *, enabled=True):
             raise RuntimeError("Rails crashed")
 
         async def gen_raises(model_type, messages):
@@ -241,7 +241,7 @@ class TestSpeculativeGeneration:
         cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_CONFIG)
         cfg["metrics"] = {"enabled": True}
 
-        async def fast_reject(messages):
+        async def fast_reject(messages, *, enabled=True):
             return RailResult(is_safe=False, reason="unsafe")
 
         async def slow_llm(model_type, messages):
@@ -266,7 +266,7 @@ class TestSpeculativeGeneration:
         cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_CONFIG)
         cfg["metrics"] = {"enabled": True}
 
-        async def slow_reject(messages):
+        async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
             return RailResult(is_safe=False, reason="unsafe")
 
@@ -290,7 +290,7 @@ class TestSpeculativeGeneration:
         """When speculative_generation is false, pipeline runs sequentially."""
         call_order = []
 
-        async def mock_input(messages):
+        async def mock_input(messages, *, enabled=True):
             call_order.append("input")
             return RailResult(is_safe=True)
 
@@ -298,7 +298,7 @@ class TestSpeculativeGeneration:
             call_order.append("generate")
             return LLMResponse(content="response")
 
-        async def mock_output(messages, response):
+        async def mock_output(messages, response, *, enabled=True):
             call_order.append("output")
             return RailResult(is_safe=True)
 
@@ -349,7 +349,7 @@ class TestSpeculativeGenerationTelemetry:
     async def test_rails_first_pass_span_attrs(self, iorails_speculative_tracing, span_exporter):
         """Rails finish first and pass — first_completed=input_rails, first_rejector=none."""
 
-        async def fast_rails(messages):
+        async def fast_rails(messages, *, enabled=True):
             return RailResult(is_safe=True)
 
         async def slow_llm(model_type, messages):
@@ -375,7 +375,7 @@ class TestSpeculativeGenerationTelemetry:
     async def test_rails_first_reject_span_attrs(self, iorails_speculative_tracing, span_exporter):
         """Rails finish first and reject — first_completed=input_rails, first_rejector=input_rails."""
 
-        async def fast_reject(messages):
+        async def fast_reject(messages, *, enabled=True):
             return RailResult(is_safe=False, reason="unsafe")
 
         async def slow_llm(model_type, messages):
@@ -401,7 +401,7 @@ class TestSpeculativeGenerationTelemetry:
     async def test_gen_first_pass_span_attrs(self, iorails_speculative_tracing, span_exporter):
         """Generation finishes first, rails pass — first_completed=generation, first_rejector=none."""
 
-        async def slow_rails(messages):
+        async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.05)
             return RailResult(is_safe=True)
 
@@ -427,7 +427,7 @@ class TestSpeculativeGenerationTelemetry:
     async def test_gen_first_reject_span_attrs(self, iorails_speculative_tracing, span_exporter):
         """Generation finishes first, then rails reject — first_completed=generation, first_rejector=input_rails."""
 
-        async def slow_reject(messages):
+        async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
             return RailResult(is_safe=False, reason="unsafe")
 

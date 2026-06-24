@@ -84,9 +84,9 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": llm_response}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
 
     @pytest.mark.asyncio
     async def test_safe_input_and_output_with_generation_options(self, iorails):
@@ -104,16 +104,16 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages, options=options)
 
         assert result == {"role": "assistant", "content": llm_response}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
 
     @pytest.mark.asyncio
     async def test_safe_input_and_output_call_sequence(self, iorails):
         """Pipeline executes in order: input check → generate → output check."""
         call_order = []
 
-        async def mock_input_safe(messages):
+        async def mock_input_safe(messages, *, enabled=True):
             call_order.append("input")
             return RailResult(is_safe=True)
 
@@ -121,7 +121,7 @@ class TestGenerateAsync:
             call_order.append("generate")
             return LLMResponse(content="response")
 
-        async def mock_output_safe(messages, response):
+        async def mock_output_safe(messages, response, *, enabled=True):
             call_order.append("output")
             return RailResult(is_safe=True)
 
@@ -143,7 +143,7 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_not_called()
         iorails.rails_manager.is_output_safe.assert_not_called()
 
@@ -160,9 +160,9 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
 
     @pytest.mark.asyncio
     async def test_unsafe_output_records_block_metric_when_metrics_enabled(self, iorails):
@@ -277,7 +277,7 @@ class TestToolCalling:
 
         result = await iorails.generate_async(messages)
 
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "some text")
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "some text", enabled=True)
         assert result["content"] == "some text"
         assert result["tool_calls"][0]["function"]["name"] == "f"
 

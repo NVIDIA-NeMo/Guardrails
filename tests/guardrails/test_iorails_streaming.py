@@ -302,6 +302,18 @@ class TestStreamAsyncOutputRailsStreamFirst:
         assert "Hello from the streaming LLM" in text
 
     @pytest.mark.asyncio
+    async def test_output_toggle_forwarded_to_output_rails(self, iorails_stream_first):
+        """In streaming, options.rails.output is forwarded to is_output_safe as the enabled argument."""
+        _wire_mocks(iorails_stream_first)
+        await _collect(
+            iorails_stream_first.stream_async(
+                messages=[{"role": "user", "content": "hi"}],
+                options={"rails": {"output": False}},
+            )
+        )
+        assert iorails_stream_first.rails_manager.is_output_safe.await_args.kwargs.get("enabled") is False
+
+    @pytest.mark.asyncio
     async def test_unsafe_output_injects_error(self, iorails_stream_first):
         """Error JSON is injected into the stream when output rails block."""
         _wire_mocks(iorails_stream_first, output_safe=False)
@@ -319,7 +331,7 @@ class TestStreamAsyncOutputRailsStreamFirst:
         """Chunks appear before the output rail check in stream_first mode."""
         yield_order = []
 
-        async def tracking_rail(messages, response):
+        async def tracking_rail(messages, response, *, enabled=True):
             """Mock output rail that records call order."""
             yield_order.append("rail_check")
             return RailResult(is_safe=True)
@@ -363,7 +375,7 @@ class TestStreamAsyncOutputRailsGated:
         """Each chunk batch only appears after its rail check passes."""
         yield_order = []
 
-        async def tracking_rail(messages, response):
+        async def tracking_rail(messages, response, *, enabled=True):
             """Mock output rail that records call order."""
             yield_order.append("rail_check")
             return RailResult(is_safe=True)

@@ -179,33 +179,38 @@ class RailsManager:
             actions[flow] = action
         return actions
 
-    async def is_input_safe(self, messages: list[dict]) -> RailResult:
-        """Run all enabled input rails, short-circuiting on the first failure.
+    async def is_input_safe(self, messages: list[dict], *, enabled: Union[bool, list[str]] = True) -> RailResult:
+        """Run the enabled input rails, short-circuiting on the first failure.
 
-        When parallel mode is enabled, all rails run concurrently and the first
-        unsafe result cancels remaining rails.
+        The per-request *enabled* toggle selects which configured input rails run:
+        ``True`` (the default) runs all, ``False`` runs none, and a list runs only the
+        named flows (matched on the normalized flow name). When parallel mode is enabled,
+        all selected rails run concurrently and the first unsafe result cancels the rest.
         """
-        if not self.input_flows:
+        active = self._enabled_flows(self.input_flows, enabled)
+        if not active:
             return RailResult(is_safe=True)
 
-        rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in self.input_flows}
+        rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in active}
         if self.input_parallel:
             return await self._run_rails_parallel(rails, RailDirection.INPUT)
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
 
-    async def is_output_safe(self, messages: list[dict], response: str) -> RailResult:
-        """Run all enabled output rails, short-circuiting on the first failure.
+    async def is_output_safe(
+        self, messages: list[dict], response: str, *, enabled: Union[bool, list[str]] = True
+    ) -> RailResult:
+        """Run the enabled output rails, short-circuiting on the first failure.
 
-        When parallel mode is enabled, all rails run concurrently and the first
-        unsafe result cancels remaining rails.
+        The per-request *enabled* toggle selects which configured output rails run:
+        ``True`` (the default) runs all, ``False`` runs none, and a list runs only the
+        named flows (matched on the normalized flow name). When parallel mode is enabled,
+        all selected rails run concurrently and the first unsafe result cancels the rest.
         """
-        if not self.output_flows:
+        active = self._enabled_flows(self.output_flows, enabled)
+        if not active:
             return RailResult(is_safe=True)
 
-        rails = {
-            flow: self._run_rail(flow, RailDirection.OUTPUT, messages, bot_response=response)
-            for flow in self.output_flows
-        }
+        rails = {flow: self._run_rail(flow, RailDirection.OUTPUT, messages, bot_response=response) for flow in active}
         if self.output_parallel:
             return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
@@ -224,7 +229,7 @@ class RailsManager:
         (``tool_calls``) plus the request's declared tools (``llm_params``) and returns
         a ``RailResult``.
         """
-        active = self._enabled_tool_flows(self._tool_call_actions, enabled)
+        active = self._enabled_flows(list(self._tool_call_actions), enabled)
         if not active or not tool_calls:
             return RailResult(is_safe=True)
         try:
@@ -251,7 +256,7 @@ class RailsManager:
         against its own turn's calls, so call ids reused across turns (spec-allowed) are
         not flagged as ambiguous duplicates.
         """
-        active = self._enabled_tool_flows(self._tool_result_actions, enabled)
+        active = self._enabled_flows(list(self._tool_result_actions), enabled)
         if not active:
             return RailResult(is_safe=True)
         try:
@@ -266,7 +271,7 @@ class RailsManager:
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
 
     @staticmethod
-    def _enabled_tool_flows(actions: Mapping[str, ToolRailAction], enabled: Union[bool, list[str]]) -> list[str]:
+    def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:
         """Resolve the per-request enable toggle into the configured flows to run.
 
         ``True`` (the default) runs every configured flow; ``False`` runs none; a list
@@ -275,13 +280,13 @@ class RailsManager:
         non-empty list is never mistaken for ``True``.
 
         List membership is compared on the normalized flow name (``_get_flow_name``),
-        the same way ``_build_tool_actions`` and ``unsupported_reason`` do, so a request
-        toggle carrying the canonical rail name matches a configured flow that carries a
-        ``$model=``/``(...)`` suffix instead of silently dropping it (fail-open).
+        the same way ``_create_action``, ``_build_tool_actions`` and ``unsupported_reason``
+        do, so a request toggle carrying the canonical rail name matches a configured flow
+        that carries a ``$model=``/``(...)`` suffix instead of silently dropping it
+        (fail-open). Shared by the input, output, and tool rail families.
         """
-        configured = list(actions.keys())
         if enabled is True:
-            return configured
+            return list(configured)
         if enabled is False:
             return []
         requested = {_get_flow_name(name) or name for name in enabled}

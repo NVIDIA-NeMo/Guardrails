@@ -326,6 +326,15 @@ class TestSpeculativeToolCalls:
         result = await speculative_iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
         assert result["tool_calls"][0]["function"]["name"] == "get_weather"
 
+    @pytest.mark.asyncio
+    async def test_input_toggle_forwarded_to_input_rails(self, speculative_iorails):
+        """On the speculative path, options.rails.input is forwarded to is_input_safe as the enabled argument."""
+        spy = AsyncMock(wraps=speculative_iorails.rails_manager.is_input_safe)
+        speculative_iorails.rails_manager.is_input_safe = spy
+        _inject_json_response(speculative_iorails, _text_payload("ok"))
+        await speculative_iorails.generate_async(MESSAGES, options={"rails": {"input": False}})
+        assert spy.await_args.kwargs.get("enabled") is False
+
 
 class TestNonStreamingToolResults:
     @pytest.mark.asyncio
@@ -421,6 +430,43 @@ class TestPerRequestToggles:
             options={"rails": {"tool_input": False}},
         )
         assert result == {"role": "assistant", "content": "ok"}
+
+    @pytest.mark.asyncio
+    async def test_input_toggle_forwarded_to_input_rails(self, iorails):
+        """options.rails.input is forwarded to is_input_safe as the enabled argument."""
+        spy = AsyncMock(wraps=iorails.rails_manager.is_input_safe)
+        iorails.rails_manager.is_input_safe = spy
+        _inject_json_response(iorails, _text_payload("ok"))
+        await iorails.generate_async(MESSAGES, options={"rails": {"input": False}})
+        assert spy.await_args.kwargs.get("enabled") is False
+
+    @pytest.mark.asyncio
+    async def test_output_toggle_forwarded_to_output_rails(self, iorails):
+        """options.rails.output is forwarded to is_output_safe as the enabled argument."""
+        spy = AsyncMock(wraps=iorails.rails_manager.is_output_safe)
+        iorails.rails_manager.is_output_safe = spy
+        _inject_json_response(iorails, _text_payload("ok"))
+        await iorails.generate_async(MESSAGES, options={"rails": {"output": False}})
+        assert spy.await_args.kwargs.get("enabled") is False
+
+    @pytest.mark.asyncio
+    async def test_streamed_input_toggle_forwarded_to_input_rails(self, iorails):
+        """In streaming, options.rails.input is forwarded to is_input_safe as the enabled argument."""
+        spy = AsyncMock(wraps=iorails.rails_manager.is_input_safe)
+        iorails.rails_manager.is_input_safe = spy
+        text_lines = [
+            _sse(
+                {
+                    "id": "c1",
+                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": "ok"}, "finish_reason": None}],
+                }
+            ),
+            _sse({"id": "c1", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}),
+            b"data: [DONE]\n\n",
+        ]
+        _inject_sse_stream(iorails, text_lines)
+        await _collect(iorails.stream_async(MESSAGES, options={"rails": {"input": False}}))
+        assert spy.await_args.kwargs.get("enabled") is False
 
 
 class TestFailClosed:
