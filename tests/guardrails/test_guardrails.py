@@ -348,6 +348,19 @@ class TestIORailsUnsupportedReason:
         reason = IORails.unsupported_reason(config, llm=MagicMock())
         assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
 
+    def test_colang_2x_config_is_unsupported(self):
+        """A Colang 2.x config is rejected: IORails has no Colang runtime, so 2.x falls back to LLMRails."""
+        config = RailsConfig.from_content(config={"colang_version": "2.x"})
+        reason = IORails.unsupported_reason(config, llm=None)
+        assert reason == "IORails supports Colang 1.0 only; config uses Colang 2.x"
+        assert IORails.can_handle(config, llm=None) is False
+
+    def test_llm_takes_precedence_over_colang_version(self):
+        """When both an llm is provided and the config is Colang 2.x, the llm reason is reported first."""
+        config = RailsConfig.from_content(config={"colang_version": "2.x"})
+        reason = IORails.unsupported_reason(config, llm=MagicMock())
+        assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
+
     def test_can_handle_matches_reason_none(self, _content_safety_rails_config):
         """``can_handle`` is a thin wrapper that returns True iff reason is None."""
         assert IORails.can_handle(_content_safety_rails_config, llm=None) is True

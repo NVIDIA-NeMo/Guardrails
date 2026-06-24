@@ -22,8 +22,10 @@ attributes were reclassified as private:
   default_embedding_{model,engine,params}, llm_generation_actions).
 * Deprecated read/write alias on LLMRails for explain_info.
 * First-class passthrough_fn property/setter on LLMRails (no warning).
-* Guardrails-facade proxies for explain_info (deprecated), passthrough_fn,
-  and events_history_cache — including the IORails-engine raise paths.
+* Guardrails-facade proxies for explain_info (deprecated) and passthrough_fn,
+  including the IORails-engine raise paths.
+* Guardrails-facade proxy for events_history_cache: delegates under LLMRails,
+  inert under IORails (reads return {}, writes are dropped).
 """
 
 from unittest.mock import MagicMock, patch
@@ -224,7 +226,7 @@ class TestGuardrailsFacadePassthroughFn:
 
 
 class TestGuardrailsFacadeEventsHistoryCache:
-    """Facade proxy for events_history_cache: plain getter+setter under LLMRails, raises under IORails."""
+    """Facade proxy for events_history_cache: plain getter+setter under LLMRails, inert under IORails."""
 
     def test_read_delegates_to_llmrails(self, llmrails_guardrails):
         """Reading guardrails.events_history_cache returns the wrapped LLMRails's plain attribute."""
@@ -239,12 +241,15 @@ class TestGuardrailsFacadeEventsHistoryCache:
         llmrails_guardrails.events_history_cache = sentinel
         assert llmrails_guardrails.rails_engine.events_history_cache is sentinel
 
-    def test_read_raises_under_iorails(self, iorails_guardrails):
-        """Reading guardrails.events_history_cache on an IORails-backed facade raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match=r"IORails doesn't support events_history_cache"):
-            _ = iorails_guardrails.events_history_cache
+    def test_read_returns_empty_dict_under_iorails(self, iorails_guardrails):
+        """Reading guardrails.events_history_cache on an IORails-backed facade returns an empty dict."""
+        assert iorails_guardrails.events_history_cache == {}
 
-    def test_write_raises_under_iorails(self, iorails_guardrails):
-        """Writing guardrails.events_history_cache on an IORails-backed facade raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match=r"IORails doesn't support events_history_cache"):
-            iorails_guardrails.events_history_cache = {}
+    def test_write_is_dropped_under_iorails(self, iorails_guardrails):
+        """Writing guardrails.events_history_cache on an IORails-backed facade is silently dropped.
+
+        IORails is stateless, so a write followed by a read still yields {} —
+        the value is never stored and never consulted during generation.
+        """
+        iorails_guardrails.events_history_cache = {"b": 2}
+        assert iorails_guardrails.events_history_cache == {}

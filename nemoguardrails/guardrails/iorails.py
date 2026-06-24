@@ -241,6 +241,9 @@ class IORails(BaseGuardrails):
         if llm is not None:
             return "an `llm` argument was provided; IORails does not accept a custom LLM"
 
+        if config.colang_version != "1.0":
+            return f"IORails supports Colang 1.0 only; config uses Colang {config.colang_version}"
+
         unsupported_rails = sorted(config.rails.model_fields_set - cls.SUPPORTED_RAILS)
         if unsupported_rails:
             return f"config has rails outside the IORails-supported set: {unsupported_rails}"
