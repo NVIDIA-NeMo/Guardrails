@@ -682,7 +682,7 @@ class LLMGenerationActions:
         """Generate the canonical form for what the user said i.e. user intent."""
         # If using a single LLM call, use the specific action defined for this task.
         if self.config.rails.dialog.single_call.enabled:
-            return await self.generate_intent_steps_message(events=events, llm=llm, kb=kb)
+            return await self.generate_intent_steps_message(events=events, context=context, llm=llm, kb=kb)
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
         if not event:
@@ -1230,6 +1230,7 @@ class LLMGenerationActions:
     async def generate_intent_steps_message(
         self,
         events: List[dict],
+        context: dict,
         llm: Optional[LLMModel] = None,
         kb: Optional[KnowledgeBase] = None,
     ):
@@ -1474,29 +1475,15 @@ class LLMGenerationActions:
             return ActionResult(events=events)
 
         else:
-            prompt = self.llm_task_manager.render_task_prompt(task=Task.GENERAL, events=events)
-
-            # We make this call with temperature 0 to have it as deterministic as possible.
-            gen_options: Optional[GenerationOptions] = generation_options_var.get()
-            llm_params = (gen_options and gen_options.llm_params) or {}
-            result = await self._generate_general_response(
+            # No user messages: this is a general bot turn, identical to the
+            # one generate_user_intent emits in this mode.
+            return await self._emit_general_bot_turn(
+                events=events,
+                context=context,
+                event=event,
                 generation_llm=generation_llm,
-                prompt=prompt,
                 streaming_handler=streaming_handler,
-                stream_during_call=False,
-                llm_params=llm_params,
-            )
-
-            text = result.strip()
-            if text.startswith('"'):
-                text = text[1:-1]
-
-            # In streaming mode, we also push this.
-            if streaming_handler:
-                await streaming_handler.push_chunk(text)
-
-            return ActionResult(
-                events=[new_event_dict("BotMessage", text=text)],
+                kb=kb,
             )
 
 
