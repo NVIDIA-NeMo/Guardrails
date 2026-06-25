@@ -119,6 +119,7 @@ async def test_content_safety_cache_retrieves_result_and_restores_stats(fake_llm
     assert llm_call_info.duration is not None
 
 
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_content_safety_cache_duration_reflects_cache_read_time(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
