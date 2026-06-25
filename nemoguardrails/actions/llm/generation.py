@@ -20,7 +20,7 @@ import logging
 import random
 import re
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from functools import lru_cache
 from time import time
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
@@ -71,6 +71,44 @@ log = logging.getLogger(__name__)
 
 
 local_streaming_handlers = {}
+
+
+@dataclass
+class SingleCallPayload:
+    """The bot intent/message events computed by the single-call generation.
+
+    Carried on the ``additional_info`` of the ``UserIntent`` event so that the
+    later ``generate_next_steps`` and ``generate_bot_message`` phases can reuse
+    the results of the single LLM call instead of calling the LLM again.
+    """
+
+    bot_intent_event: dict
+    bot_message_event: dict
+
+
+def build_single_call_payload(bot_intent_event: dict, bot_message_event: dict) -> dict:
+    """Build the single-call cache carried on the ``UserIntent`` event.
+
+    Returns the plain nested ``additional_info`` dict (not a dataclass) so the
+    event serializes byte-identically as it passes between actions.
+    """
+    return {
+        "bot_intent_event": bot_intent_event,
+        "bot_message_event": bot_message_event,
+    }
+
+
+def read_single_call_payload(event: dict) -> SingleCallPayload:
+    """Read the single-call cache back from a ``UserIntent`` event.
+
+    Mirrors the existing direct dict access (raising ``KeyError`` when the
+    payload is absent); guarding that is a separate follow-up.
+    """
+    additional_info = event["additional_info"]
+    return SingleCallPayload(
+        bot_intent_event=additional_info["bot_intent_event"],
+        bot_message_event=additional_info["bot_message_event"],
+    )
 
 
 class LLMGenerationActions:
@@ -681,7 +719,7 @@ class LLMGenerationActions:
         if event["type"] == "UserIntent":
             # If using a single LLM call, use the results computed in the first call.
             if self.config.rails.dialog.single_call.enabled:
-                bot_intent_event = event["additional_info"]["bot_intent_event"]
+                bot_intent_event = read_single_call_payload(event).bot_intent_event
                 return ActionResult(events=[bot_intent_event])
 
             user_intent = event["intent"]
@@ -875,7 +913,8 @@ class LLMGenerationActions:
                 if not event:
                     raise RuntimeError("No last user intent found to generate bot message")
                 if event["type"] == "UserIntent":
-                    bot_message_event = event["additional_info"]["bot_message_event"]
+                    payload = read_single_call_payload(event)
+                    bot_message_event = payload.bot_message_event
 
                     # We only need to use the bot message if it corresponds to the
                     # generate bot intent as well.
@@ -883,7 +922,7 @@ class LLMGenerationActions:
                     if not last_bot_intent:
                         raise RuntimeError("No last bot intent found to generate bot message")
 
-                    if last_bot_intent["intent"] == event["additional_info"]["bot_intent_event"]["intent"]:
+                    if last_bot_intent["intent"] == payload.bot_intent_event["intent"]:
                         text = bot_message_event["text"]
                         # If the bot message is being generated in streaming mode
                         if text.startswith('Bot message: "<<STREAMING['):
@@ -1397,10 +1436,10 @@ class LLMGenerationActions:
             log.info("Canonical form for bot intent: " + (bot_intent if bot_intent else "None"))
             log.info("Generated bot message: " + (bot_message if bot_message else "None"))
 
-            additional_info = {
-                "bot_intent_event": new_event_dict("BotIntent", intent=bot_intent),
-                "bot_message_event": new_event_dict("BotMessage", text=bot_message),
-            }
+            additional_info = build_single_call_payload(
+                bot_intent_event=new_event_dict("BotIntent", intent=bot_intent),
+                bot_message_event=new_event_dict("BotMessage", text=bot_message),
+            )
             events = [new_event_dict("UserIntent", intent=user_intent, additional_info=additional_info)]
 
             return ActionResult(events=events)
