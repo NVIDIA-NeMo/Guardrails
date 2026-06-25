@@ -52,6 +52,17 @@ class Finding:
             evidence=str(data.get("evidence", "")),
         )
 
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "source": self.source,
+            "attack_class": self.attack_class,
+            "affected_tools": list(self.affected_tools),
+            "suggested_params": dict(self.suggested_params),
+            "evidence": self.evidence,
+        }
+
 
 @dataclass(frozen=True)
 class CoverageGap:
@@ -59,6 +70,19 @@ class CoverageGap:
 
     tool: str
     missing: str  # human-readable description of what is missing
+
+
+@dataclass(frozen=True)
+class NovelCluster:
+    """Uncatalogued findings aggregated for one tool — a prompt to consider a new
+    rule factory. A reporting signal only; it proposes no rule and is never acted
+    on automatically."""
+
+    tool: str
+    count: int
+    attack_classes: Sequence[str]  # the distinct uncatalogued classes seen
+    finding_ids: Sequence[str]
+    examples: Sequence[str]  # a few finding titles for human context
 
 
 def load_findings(path: str) -> list[Finding]:
