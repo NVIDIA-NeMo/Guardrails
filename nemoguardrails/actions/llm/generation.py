@@ -385,6 +385,210 @@ class LLMGenerationActions:
 
         return self.llm_task_manager.parse_task_output(parse_task, output=result)
 
+    async def _detect_user_intent(
+        self,
+        events: List[dict],
+        event: dict,
+        config: RailsConfig,
+        generation_llm: Optional[LLMModel],
+    ) -> ActionResult:
+        """Detect the canonical form (user intent) for the given user message.
+
+        Covers both the embeddings-only lookup and the LLM-based canonical-form
+        generation. Always returns a single ``UserIntent`` event.
+        """
+        # TODO: based on the config we can use a specific canonical forms model
+        #  or use the LLM to detect the canonical form. The below implementation
+        #  is for the latter.
+
+        log.info("Phase 1 :: Generating user intent")
+
+        # We search for the most relevant similar user utterance
+        examples = ""
+        potential_user_intents = []
+        if isinstance(event["text"], list):
+            text = " ".join([item["text"] for item in event["text"] if item["type"] == "text"])
+        else:
+            text = event["text"]
+
+        if self.user_message_index is not None:
+            if config.rails.dialog.user_messages and config.rails.dialog.user_messages.embeddings_only:
+                threshold = config.rails.dialog.user_messages.embeddings_only_similarity_threshold
+                results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
+
+                if results:
+                    intent = results[0].meta["intent"]
+                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
+                elif config.rails.dialog.user_messages.embeddings_only_fallback_intent:
+                    intent = config.rails.dialog.user_messages.embeddings_only_fallback_intent
+                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
+
+            results = await self.user_message_index.search(text=text, max_results=5, threshold=None)
+            # We add these in reverse order so the most relevant is towards the end.
+            for result in reversed(results):
+                examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
+                if result.meta["intent"] not in potential_user_intents:
+                    potential_user_intents.append(result.meta["intent"])
+
+        prompt = self.llm_task_manager.render_task_prompt(
+            task=Task.GENERATE_USER_INTENT,
+            events=events,
+            context={
+                "examples": examples,
+                "potential_user_intents": ", ".join(potential_user_intents),
+            },
+        )
+
+        # Initialize the LLMCallInfo object
+        llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_USER_INTENT.value))
+
+        # We make this call with temperature 0 to have it as deterministic as possible.
+        result = (
+            await llm_call(
+                generation_llm,
+                prompt,
+                llm_params={"temperature": self.config.lowest_temperature},
+            )
+        ).content
+
+        # Parse the output using the associated parser
+        result = self.llm_task_manager.parse_task_output(Task.GENERATE_USER_INTENT, output=result)
+
+        user_intent = get_first_nonempty_line(result)
+        if user_intent is None:
+            user_intent = "unknown message"
+
+        if user_intent and user_intent.startswith("user "):
+            user_intent = user_intent[5:]
+
+        log.info("Canonical form for user intent: " + (user_intent if user_intent else "None"))
+
+        if user_intent is None:
+            return ActionResult(events=[new_event_dict("UserIntent", intent="unknown message")])
+        else:
+            return ActionResult(events=[new_event_dict("UserIntent", intent=user_intent)])
+
+    async def _emit_general_bot_turn(
+        self,
+        events: List[dict],
+        context: dict,
+        event: dict,
+        generation_llm: Optional[LLMModel],
+        streaming_handler: Optional[StreamingHandler],
+        kb: Optional[KnowledgeBase],
+    ) -> ActionResult:
+        """Generate and package a general bot turn when there are no user messages.
+
+        Handles the passthrough (with or without a passthrough fn) and the
+        non-passthrough general paths, then packages the result into the
+        BotMessage/BotToolCalls/BotThinking events and context updates that
+        ``generate_user_intent`` returns in this mode.
+        """
+        output_events = []
+        context_updates = {}
+
+        # If we are in passthrough mode, we just use the input for prompting
+        if self.config.passthrough:
+            # We check if we have a raw request. If the guardrails API is using
+            # the `generate_events` API, this will not be set.
+            raw_prompt = raw_llm_request.get()
+
+            if raw_prompt is None:
+                prompt = event["text"]
+            else:
+                if isinstance(raw_prompt, str):
+                    # If we're in completion mode, we use directly the last $user_message
+                    # as it may have been altered by the input rails.
+                    prompt = event["text"]
+                elif isinstance(raw_prompt, list):
+                    prompt = raw_prompt.copy()
+
+                    # In this case, if the last message is from the user, we replace the text
+                    # just in case the input rails may have altered it.
+                    if prompt[-1]["role"] == "user":
+                        raw_prompt[-1]["content"] = event["text"]
+                else:
+                    raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
+
+            if self._passthrough_fn:
+                raw_output = await self._passthrough_fn(context=context, events=events)
+                text, passthrough_output = _unpack_passthrough_output(raw_output)
+
+                # We record the passthrough output in the context
+                output_events.append(
+                    new_event_dict(
+                        "ContextUpdate",
+                        data={"passthrough_output": passthrough_output},
+                    )
+                )
+            else:
+                gen_options: Optional[GenerationOptions] = generation_options_var.get()
+
+                llm_params = (gen_options and gen_options.llm_params) or {}
+
+                text = await self._generate_general_response(
+                    generation_llm=generation_llm,
+                    prompt=prompt,
+                    streaming_handler=streaming_handler,
+                    stream_during_call=True,
+                    llm_params=llm_params,
+                )
+
+        else:
+            if kb:
+                chunks = await kb.search_relevant_chunks(event["text"])
+                relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
+            else:
+                # in case there is  no user flow (user message) then we need the context update to work for relevant_chunks
+                relevant_chunks = get_retrieved_relevant_chunks(events, skip_user_message=True)
+
+            # Otherwise, we still create an altered prompt.
+            prompt = self.llm_task_manager.render_task_prompt(
+                task=Task.GENERAL,
+                events=events,
+                context={"relevant_chunks": relevant_chunks},
+            )
+
+            generation_options: Optional[GenerationOptions] = generation_options_var.get()
+            llm_params = (generation_options and generation_options.llm_params) or {}
+
+            text = await self._generate_general_response(
+                generation_llm=generation_llm,
+                prompt=prompt,
+                streaming_handler=streaming_handler,
+                stream_during_call=True,
+                stop=["User:"],
+                llm_params=llm_params,
+            )
+            text = text.strip()
+            if text.startswith('"'):
+                text = text[1:-1]
+
+        # In streaming mode, we also push this.
+        if streaming_handler:
+            await streaming_handler.push_chunk(text)
+
+        reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+        if reasoning_trace:
+            context_updates["bot_thinking"] = reasoning_trace
+            output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
+
+        if self.config.passthrough:
+            from nemoguardrails.actions.llm.utils import (
+                get_and_clear_tool_calls_contextvar,
+            )
+
+            tool_calls = get_and_clear_tool_calls_contextvar()
+
+            if tool_calls:
+                output_events.append(new_event_dict("BotToolCalls", tool_calls=tool_calls))
+            else:
+                output_events.append(new_event_dict("BotMessage", text=text))
+        else:
+            output_events.append(new_event_dict("BotMessage", text=text))
+
+        return ActionResult(events=output_events, context_updates=context_updates)
+
     @action(is_system_action=True)
     async def generate_user_intent(
         self,
@@ -418,184 +622,25 @@ class LLMGenerationActions:
 
         # TODO: check for an explicit way of enabling the canonical form detection
 
+        # With user messages we detect the canonical form (user intent); without
+        # them we fall back to generating a general bot turn directly. The two
+        # paths are split into helpers so the polymorphic return is legible.
         if self.user_messages:
-            # TODO: based on the config we can use a specific canonical forms model
-            #  or use the LLM to detect the canonical form. The below implementation
-            #  is for the latter.
-
-            log.info("Phase 1 :: Generating user intent")
-
-            # We search for the most relevant similar user utterance
-            examples = ""
-            potential_user_intents = []
-            if isinstance(event["text"], list):
-                text = " ".join([item["text"] for item in event["text"] if item["type"] == "text"])
-            else:
-                text = event["text"]
-
-            if self.user_message_index is not None:
-                if config.rails.dialog.user_messages and config.rails.dialog.user_messages.embeddings_only:
-                    threshold = config.rails.dialog.user_messages.embeddings_only_similarity_threshold
-                    results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
-
-                    if results:
-                        intent = results[0].meta["intent"]
-                        return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
-                    elif config.rails.dialog.user_messages.embeddings_only_fallback_intent:
-                        intent = config.rails.dialog.user_messages.embeddings_only_fallback_intent
-                        return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
-
-                results = await self.user_message_index.search(text=text, max_results=5, threshold=None)
-                # We add these in reverse order so the most relevant is towards the end.
-                for result in reversed(results):
-                    examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
-                    if result.meta["intent"] not in potential_user_intents:
-                        potential_user_intents.append(result.meta["intent"])
-
-            prompt = self.llm_task_manager.render_task_prompt(
-                task=Task.GENERATE_USER_INTENT,
+            return await self._detect_user_intent(
                 events=events,
-                context={
-                    "examples": examples,
-                    "potential_user_intents": ", ".join(potential_user_intents),
-                },
+                event=event,
+                config=config,
+                generation_llm=generation_llm,
             )
-
-            # Initialize the LLMCallInfo object
-            llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_USER_INTENT.value))
-
-            # We make this call with temperature 0 to have it as deterministic as possible.
-            result = (
-                await llm_call(
-                    generation_llm,
-                    prompt,
-                    llm_params={"temperature": self.config.lowest_temperature},
-                )
-            ).content
-
-            # Parse the output using the associated parser
-            result = self.llm_task_manager.parse_task_output(Task.GENERATE_USER_INTENT, output=result)
-
-            user_intent = get_first_nonempty_line(result)
-            if user_intent is None:
-                user_intent = "unknown message"
-
-            if user_intent and user_intent.startswith("user "):
-                user_intent = user_intent[5:]
-
-            log.info("Canonical form for user intent: " + (user_intent if user_intent else "None"))
-
-            if user_intent is None:
-                return ActionResult(events=[new_event_dict("UserIntent", intent="unknown message")])
-            else:
-                return ActionResult(events=[new_event_dict("UserIntent", intent=user_intent)])
         else:
-            output_events = []
-            context_updates = {}
-
-            # If we are in passthrough mode, we just use the input for prompting
-            if self.config.passthrough:
-                # We check if we have a raw request. If the guardrails API is using
-                # the `generate_events` API, this will not be set.
-                raw_prompt = raw_llm_request.get()
-
-                if raw_prompt is None:
-                    prompt = event["text"]
-                else:
-                    if isinstance(raw_prompt, str):
-                        # If we're in completion mode, we use directly the last $user_message
-                        # as it may have been altered by the input rails.
-                        prompt = event["text"]
-                    elif isinstance(raw_prompt, list):
-                        prompt = raw_prompt.copy()
-
-                        # In this case, if the last message is from the user, we replace the text
-                        # just in case the input rails may have altered it.
-                        if prompt[-1]["role"] == "user":
-                            raw_prompt[-1]["content"] = event["text"]
-                    else:
-                        raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
-
-                if self._passthrough_fn:
-                    raw_output = await self._passthrough_fn(context=context, events=events)
-                    text, passthrough_output = _unpack_passthrough_output(raw_output)
-
-                    # We record the passthrough output in the context
-                    output_events.append(
-                        new_event_dict(
-                            "ContextUpdate",
-                            data={"passthrough_output": passthrough_output},
-                        )
-                    )
-                else:
-                    gen_options: Optional[GenerationOptions] = generation_options_var.get()
-
-                    llm_params = (gen_options and gen_options.llm_params) or {}
-
-                    streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
-
-                    text = await self._generate_general_response(
-                        generation_llm=generation_llm,
-                        prompt=prompt,
-                        streaming_handler=streaming_handler,
-                        stream_during_call=True,
-                        llm_params=llm_params,
-                    )
-
-            else:
-                if kb:
-                    chunks = await kb.search_relevant_chunks(event["text"])
-                    relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
-                else:
-                    # in case there is  no user flow (user message) then we need the context update to work for relevant_chunks
-                    relevant_chunks = get_retrieved_relevant_chunks(events, skip_user_message=True)
-
-                # Otherwise, we still create an altered prompt.
-                prompt = self.llm_task_manager.render_task_prompt(
-                    task=Task.GENERAL,
-                    events=events,
-                    context={"relevant_chunks": relevant_chunks},
-                )
-
-                generation_options: Optional[GenerationOptions] = generation_options_var.get()
-                llm_params = (generation_options and generation_options.llm_params) or {}
-
-                text = await self._generate_general_response(
-                    generation_llm=generation_llm,
-                    prompt=prompt,
-                    streaming_handler=streaming_handler,
-                    stream_during_call=True,
-                    stop=["User:"],
-                    llm_params=llm_params,
-                )
-                text = text.strip()
-                if text.startswith('"'):
-                    text = text[1:-1]
-
-            # In streaming mode, we also push this.
-            if streaming_handler:
-                await streaming_handler.push_chunk(text)
-
-            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
-            if reasoning_trace:
-                context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
-
-            if self.config.passthrough:
-                from nemoguardrails.actions.llm.utils import (
-                    get_and_clear_tool_calls_contextvar,
-                )
-
-                tool_calls = get_and_clear_tool_calls_contextvar()
-
-                if tool_calls:
-                    output_events.append(new_event_dict("BotToolCalls", tool_calls=tool_calls))
-                else:
-                    output_events.append(new_event_dict("BotMessage", text=text))
-            else:
-                output_events.append(new_event_dict("BotMessage", text=text))
-
-            return ActionResult(events=output_events, context_updates=context_updates)
+            return await self._emit_general_bot_turn(
+                events=events,
+                context=context,
+                event=event,
+                generation_llm=generation_llm,
+                streaming_handler=streaming_handler,
+                kb=kb,
+            )
 
     async def _search_flows_index(self, text, max_results):
         """Search the index of flows."""
