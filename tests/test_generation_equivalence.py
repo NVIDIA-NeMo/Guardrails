@@ -497,6 +497,25 @@ def test_general_streaming_push():
     assert chunks == ["hello ", "world ", "foo"]
 
 
+def test_streaming_handoff_registry_round_trip_and_eviction():
+    """The handoff registry round-trips the marker and evicts on take (no leak)."""
+    from nemoguardrails.actions.llm.generation import _StreamingHandoffRegistry
+    from nemoguardrails.streaming import StreamingHandler
+
+    registry = _StreamingHandoffRegistry()
+    handler = StreamingHandler()
+
+    marker = registry.register(handler)
+    assert marker == f'Bot message: "<<STREAMING[{handler.uid}]>>"'
+    assert registry.parse_marker(marker) == handler.uid
+    assert registry.parse_marker("not a marker") is None
+
+    assert registry.take(handler.uid) is handler
+    # Taken once, the handler is gone -- it does not linger for the module lifetime.
+    with pytest.raises(KeyError):
+        registry.take(handler.uid)
+
+
 # ---------------------------------------------------------------------------
 # Passthrough / general mode (no user_messages).
 # ---------------------------------------------------------------------------

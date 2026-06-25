@@ -75,9 +75,9 @@ class _StreamingHandoffRegistry:
 
     The single-call streaming path generates the bot message on an inner
     ``StreamingHandler``, registers it here and leaves a marker on the cached bot
-    message. The later bot-message phase parses the marker, looks the handler up
-    and pipes it to the main handler. Handlers are kept for the module lifetime;
-    cleanup (the handler leak) is a follow-up.
+    message. The later bot-message phase parses the marker, takes the handler and
+    pipes it to the main handler. Each handler is removed when taken, so handlers
+    do not accumulate for the module lifetime.
     """
 
     _MARKER_PREFIX = 'Bot message: "<<STREAMING['
@@ -97,9 +97,9 @@ class _StreamingHandoffRegistry:
             return text[len(self._MARKER_PREFIX) : -len(self._MARKER_SUFFIX)]
         return None
 
-    def get(self, uid: str) -> "StreamingHandler":
-        """Return the registered handler for ``uid``."""
-        return self._handlers[uid]
+    def take(self, uid: str) -> "StreamingHandler":
+        """Return the registered handler for ``uid`` and remove it from the registry."""
+        return self._handlers.pop(uid)
 
 
 _streaming_handoff = _StreamingHandoffRegistry()
@@ -955,7 +955,7 @@ class LLMGenerationActions:
                         # If the bot message is being generated in streaming mode
                         streaming_handler_uid = _streaming_handoff.parse_marker(text)
                         if streaming_handler_uid is not None:
-                            _streaming_handler = _streaming_handoff.get(streaming_handler_uid)
+                            _streaming_handler = _streaming_handoff.take(streaming_handler_uid)
 
                             # We pipe the content from this handler to the main one.
                             # The marker is only present when generation streamed,
