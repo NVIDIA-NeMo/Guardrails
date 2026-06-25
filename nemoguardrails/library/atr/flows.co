@@ -11,5 +11,5 @@ flow atr detection
     if $config.enable_rails_exceptions
       send AtrDetectionRailException(message="Input not allowed. The input was blocked by the 'atr detection' flow.")
     else
-      bot "I'm sorry, your request triggered Agent Threat Rules ({{ response.rules | join(join_separator) }}) and can't be processed."
+      bot "Your request was blocked by an Agent Threat Rules detector ({{ response.rules | join(join_separator) }})."
       abort

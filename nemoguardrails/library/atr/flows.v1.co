@@ -10,5 +10,5 @@ define flow atr detection
       create event AtrDetectionRailException(message="Input not allowed. The input was blocked by the 'atr detection' flow.")
       stop
     else
-      bot say "I'm sorry, your request triggered Agent Threat Rules ({{ response.rules | join(join_separator) }}) and can't be processed."
+      bot say "Your request was blocked by an Agent Threat Rules detector ({{ response.rules | join(join_separator) }})."
       stop
