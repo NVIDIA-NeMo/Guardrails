@@ -33,7 +33,14 @@ from policy import (
 )
 from synthesis.catalog import CLASS_TO_FACTORY, RuleCandidate
 from synthesis.findings import Finding, load_findings
-from synthesis.proposals import dropped_findings, find_gaps, synthesize
+from synthesis.proposals import (
+    UNTARGETED,
+    cluster_uncatalogued,
+    dropped_findings,
+    find_gaps,
+    format_factory_prompt,
+    synthesize,
+)
 from synthesis.review import apply, load_approved, write_review_queue
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -110,6 +117,109 @@ def test_review_queue_starts_all_unapproved(tmp_path):
     payload = json.loads(open(path).read())
     assert payload["candidates"]
     assert all(entry["approved"] is False for entry in payload["candidates"])
+
+
+def test_finding_to_dict_roundtrips():
+    finding = _finding("novel", tool="http_request", arg_name="url")
+    assert Finding.from_dict(finding.to_dict()) == finding
+
+
+def test_review_queue_records_uncatalogued_for_triage(tmp_path):
+    findings = [
+        _finding("unbounded-arg", arg_name="timeout_seconds", ceiling=300),
+        _finding("novel", tool="http_request"),
+    ]
+    candidates = synthesize(findings)
+    uncatalogued = dropped_findings(findings)
+    path = write_review_queue(candidates, [], str(tmp_path / "queue.json"), uncatalogued=uncatalogued)
+    payload = json.loads(open(path).read())
+
+    assert [c["finding_id"] for c in payload["candidates"]] == ["id-unbounded-arg"]
+    assert [u["id"] for u in payload["uncatalogued"]] == ["id-novel"]
+    entry = payload["uncatalogued"][0]
+    assert entry["triaged"] is False
+    assert entry["attack_class"] == "novel"
+    assert entry["affected_tools"] == ["http_request"]
+
+
+def test_write_review_queue_defaults_uncatalogued_empty(tmp_path):
+    path = write_review_queue([], [], str(tmp_path / "queue.json"))
+    payload = json.loads(open(path).read())
+    assert payload["uncatalogued"] == []
+
+
+def test_load_approved_never_loads_uncatalogued_findings(tmp_path):
+    # Even a maliciously hand-edited "approved" flag on an uncatalogued entry must
+    # not turn it into a rule: load_approved reads only `candidates`.
+    queue = {
+        "candidates": [],
+        "coverage_gaps": [],
+        "uncatalogued": [
+            {
+                "id": "id-novel",
+                "title": "novel technique",
+                "source": "s",
+                "attack_class": "novel",
+                "affected_tools": ["http_request"],
+                "suggested_params": {},
+                "evidence": "",
+                "triaged": True,
+                "approved": True,
+            }
+        ],
+    }
+    path = tmp_path / "queue.json"
+    path.write_text(json.dumps(queue))
+    assert load_approved(str(path)) == []
+
+
+def _novel(fid: str, tool: str | None) -> Finding:
+    return Finding(
+        id=fid,
+        title=f"{fid} technique",
+        source="https://example.org/x",
+        attack_class="novel",
+        affected_tools=(tool,) if tool else (),
+    )
+
+
+def test_cluster_uncatalogued_groups_and_ranks_by_tool():
+    findings = [
+        _novel("n1", "http_request"),
+        _novel("n2", "http_request"),
+        _novel("n3", "run_shell"),
+        _finding("unbounded-arg", arg_name="timeout_seconds", ceiling=300),  # catalogued -> excluded
+    ]
+    clusters = cluster_uncatalogued(findings)
+
+    # ranked by count desc, so the tool with two novel findings comes first
+    assert [(c.tool, c.count) for c in clusters] == [("http_request", 2), ("run_shell", 1)]
+    top = clusters[0]
+    assert top.attack_classes == ("novel",)
+    assert top.finding_ids == ("n1", "n2")
+    assert top.examples == ("n1 technique", "n2 technique")
+
+
+def test_cluster_uncatalogued_min_count_filters():
+    findings = [_novel("n1", "http_request"), _novel("n2", "http_request"), _novel("n3", "run_shell")]
+    clusters = cluster_uncatalogued(findings, min_count=2)
+    assert [c.tool for c in clusters] == ["http_request"]
+
+
+def test_cluster_uncatalogued_buckets_untargeted_findings():
+    clusters = cluster_uncatalogued([_novel("n1", None)])
+    assert [c.tool for c in clusters] == [UNTARGETED]
+
+
+def test_format_factory_prompt_when_empty():
+    assert "No uncatalogued findings" in format_factory_prompt([])
+
+
+def test_format_factory_prompt_renders_a_new_factory_prompt():
+    clusters = cluster_uncatalogued([_novel("n1", "http_request"), _novel("n2", "http_request")])
+    report = format_factory_prompt(clusters)
+    assert "http_request: 2 uncatalogued finding(s)" in report
+    assert "consider a new rule factory" in report
 
 
 def test_load_approved_returns_only_approved_and_valid(tmp_path):
