@@ -62,6 +62,9 @@ multilingual = ["fast-langdetect (>=1.0.0)"]
 
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 
+# agent threat rules (ATR) detection rail
+atr = ["pyatr (>=0.2.6)"]
+
 # eval
 eval = [
   "tqdm (>=4.65,<5.0)",
@@ -94,6 +97,7 @@ all = [
   "uvicorn (>=0.23)",
   "watchdog (>=3.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
+  "pyatr (>=0.2.6)",
 ]
 
 [dependency-groups]
@@ -113,6 +117,7 @@ test_integration = [
   "aioresponses>=0.7.6",
   "streamlit>=1.37.0",
   "yara-python>=4.5.1,<5.0.0",
+  "pyatr>=0.2.6",
   "opentelemetry-api>=1.34.1,<2.0.0",
   "opentelemetry-sdk>=1.34.1,<2.0.0",
   "fast-langdetect>=1.0.0",
