@@ -31,18 +31,30 @@ from typing import Sequence
 from policy import ToolCallGuard, ToolPolicy
 
 from .catalog import RuleCandidate
-from .findings import CoverageGap
+from .findings import CoverageGap, Finding
 
 
 def write_review_queue(
     candidates: Sequence[RuleCandidate],
     gaps: Sequence[CoverageGap],
     path: str,
+    uncatalogued: Sequence[Finding] = (),
 ) -> str:
-    """Write proposals to `path` for human review. All start unapproved."""
+    """Write proposals to `path` for human review. All start unapproved.
+
+    `uncatalogued` carries findings whose attack class has no vetted factory
+    (e.g. "novel") — techniques the catalog cannot yet express. They are recorded
+    under their own key, each `"triaged": false`, so a human sees what the scanner
+    surfaced but the catalog could not act on; acting on one means designing a new
+    rule factory (a deliberate code change). They are never loadable as rules:
+    `load_approved` reads only `candidates`, so surfacing them cannot, by itself,
+    change enforcement — closing the learning loop without widening the trust
+    boundary.
+    """
     payload = {
         "candidates": [c.to_dict() for c in candidates],
         "coverage_gaps": [{"tool": g.tool, "missing": g.missing} for g in gaps],
+        "uncatalogued": [{**f.to_dict(), "triaged": False} for f in uncatalogued],
     }
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
