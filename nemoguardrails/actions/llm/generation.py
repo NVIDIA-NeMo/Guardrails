@@ -70,7 +70,53 @@ from nemoguardrails.utils import (
 log = logging.getLogger(__name__)
 
 
-local_streaming_handlers = {}
+class _StreamingHandoffRegistry:
+    """Encodes the ``<<STREAMING[uid]>>`` handoff used by the single-call path.
+
+    The single-call streaming path generates the bot message on an inner
+    ``StreamingHandler``, registers it here and leaves a marker on the cached bot
+    message. The later bot-message phase parses the marker, looks the handler up
+    and pipes it to the main handler. Handlers are kept for the module lifetime;
+    cleanup (the handler leak) is a follow-up.
+    """
+
+    _MARKER_PREFIX = 'Bot message: "<<STREAMING['
+    _MARKER_SUFFIX = ']>>"'
+
+    def __init__(self):
+        self._handlers = {}
+
+    def register(self, handler: "StreamingHandler") -> str:
+        """Register an inner handler and return the marker text for it."""
+        self._handlers[handler.uid] = handler
+        return f"{self._MARKER_PREFIX}{handler.uid}{self._MARKER_SUFFIX}"
+
+    def parse_marker(self, text: str) -> Optional[str]:
+        """Return the handler uid encoded in ``text``, or None if not a marker."""
+        if text.startswith(self._MARKER_PREFIX):
+            return text[len(self._MARKER_PREFIX) : -len(self._MARKER_SUFFIX)]
+        return None
+
+    def get(self, uid: str) -> "StreamingHandler":
+        """Return the registered handler for ``uid``."""
+        return self._handlers[uid]
+
+
+_streaming_handoff = _StreamingHandoffRegistry()
+
+
+def _streaming_pattern_for(output_parser, *, include_bot_message_parser: bool):
+    """Return the ``(prefix, suffix)`` streaming pattern for the bot message.
+
+    The two call sites differ: ``generate_bot_message`` treats both ``verbose_v1``
+    and ``bot_message`` as the verbose pattern, while
+    ``generate_intent_steps_message`` treats only ``verbose_v1`` that way;
+    ``include_bot_message_parser`` selects which rule applies.
+    """
+    verbose = output_parser == "verbose_v1" or (include_bot_message_parser and output_parser == "bot_message")
+    if verbose:
+        return 'Bot message: "', '"'
+    return '  "', '"'
 
 
 @dataclass
@@ -925,14 +971,14 @@ class LLMGenerationActions:
                     if last_bot_intent["intent"] == payload.bot_intent_event["intent"]:
                         text = bot_message_event["text"]
                         # If the bot message is being generated in streaming mode
-                        if text.startswith('Bot message: "<<STREAMING['):
-                            # Format: `Bot message: "<<STREAMING[...]>>"`
-                            # Extract the streaming handler uid and get a reference.
-                            streaming_handler_uid = text[26:-4]
-                            _streaming_handler = local_streaming_handlers[streaming_handler_uid]
+                        streaming_handler_uid = _streaming_handoff.parse_marker(text)
+                        if streaming_handler_uid is not None:
+                            _streaming_handler = _streaming_handoff.get(streaming_handler_uid)
 
                             # We pipe the content from this handler to the main one.
-                            _streaming_handler.set_pipe_to(streaming_handler)
+                            # The marker is only present when generation streamed,
+                            # so the main handler is set here.
+                            _streaming_handler.set_pipe_to(cast(StreamingHandler, streaming_handler))
                             await _streaming_handler.disable_buffering()
 
                             # And wait for it to finish.
@@ -1043,10 +1089,10 @@ class LLMGenerationActions:
 
                 if streaming_handler:
                     # TODO: Figure out a more generic way to deal with this
-                    if prompt_config.output_parser in ["verbose_v1", "bot_message"]:
-                        streaming_handler.set_pattern(prefix='Bot message: "', suffix='"')
-                    else:
-                        streaming_handler.set_pattern(prefix='  "', suffix='"')
+                    prefix, suffix = _streaming_pattern_for(
+                        prompt_config.output_parser, include_bot_message_parser=True
+                    )
+                    streaming_handler.set_pattern(prefix=prefix, suffix=suffix)
 
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_BOT_MESSAGE.value))
@@ -1347,7 +1393,6 @@ class LLMGenerationActions:
             if streaming_handler:
                 # Create a new "inner" streaming handler and save the reference
                 _streaming_handler = StreamingHandler()
-                local_streaming_handlers[_streaming_handler.uid] = _streaming_handler
 
                 # We buffer the content, so we can get a chance to look at the
                 # first k lines.
@@ -1365,15 +1410,13 @@ class LLMGenerationActions:
 
                 # We also mark that the message is still being generated
                 # by a streaming handler.
-                result += f'\nBot message: "<<STREAMING[{_streaming_handler.uid}]>>"'
+                result += f"\n{_streaming_handoff.register(_streaming_handler)}"
 
                 # Moving forward we need to set the expected pattern to correctly
                 # parse the message.
                 # TODO: Figure out a more generic way to deal with this.
-                if prompt_config.output_parser == "verbose_v1":
-                    _streaming_handler.set_pattern(prefix='Bot message: "', suffix='"')
-                else:
-                    _streaming_handler.set_pattern(prefix='  "', suffix='"')
+                prefix, suffix = _streaming_pattern_for(prompt_config.output_parser, include_bot_message_parser=False)
+                _streaming_handler.set_pattern(prefix=prefix, suffix=suffix)
             else:
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value))
