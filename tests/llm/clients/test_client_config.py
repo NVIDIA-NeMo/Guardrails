@@ -248,6 +248,272 @@ class TestDefaultFramework:
             await fw.reset()
 
     @pytest.mark.asyncio
+    async def test_creates_azure(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "base_url": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "my-deployment",
+                    "api_version": "2024-02-15-preview",
+                    "api_key": "test-azure-key",
+                },
+            )
+
+            assert isinstance(model, OpenAIChatModel)
+            assert model.provider_url == "https://my-resource.openai.azure.com/openai/deployments/my-deployment"
+            assert model._client._api_key is None
+            assert model._client._custom_headers == {"api-key": "test-azure-key"}
+            assert model._client._custom_query == {"api-version": "2024-02-15-preview"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_openai_alias(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure_openai",
+                {
+                    "base_url": "https://my-resource.openai.azure.com",
+                    "azure_deployment": "deploy-2",
+                    "api_version": "2024-12-01-preview",
+                    "api_key": "k",
+                },
+            )
+
+            assert model.provider_url == "https://my-resource.openai.azure.com/openai/deployments/deploy-2"
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_resolves_api_key_from_env(self, monkeypatch):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "env-key-value")
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "base_url": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "d",
+                    "api_version": "2024-02-15-preview",
+                },
+            )
+            assert model._client._custom_headers["api-key"] == "env-key-value"
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_user_headers_and_query_preserved(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "base_url": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "d",
+                    "api_version": "2024-02-15-preview",
+                    "api_key": "k",
+                    "default_headers": {"X-Custom": "value"},
+                    "default_query": {"trace-id": "abc"},
+                },
+            )
+            assert model._client._custom_headers == {"X-Custom": "value", "api-key": "k"}
+            assert model._client._custom_query == {"trace-id": "abc", "api-version": "2024-02-15-preview"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_default_query_api_version_conflict_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"conflicting Azure API versions"):
+                fw.create_model(
+                    "gpt-4o-mini",
+                    "azure",
+                    {
+                        "base_url": "https://my-resource.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "2024-02-15-preview",
+                        "api_key": "k",
+                        "default_query": {"api-version": "2023-05-15"},
+                    },
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.parametrize("header_name", ["api-key", "Api-Key", "API-KEY"])
+    @pytest.mark.asyncio
+    async def test_azure_default_headers_api_key_satisfies_auth(self, monkeypatch, header_name):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "base_url": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "d",
+                    "api_version": "2024-02-15-preview",
+                    "default_headers": {header_name: "header-key"},
+                },
+            )
+            assert model._client._custom_headers == {header_name: "header-key"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.parametrize("header_name", ["api-key", "Api-Key", "API-KEY"])
+    @pytest.mark.asyncio
+    async def test_azure_api_key_and_default_headers_api_key_conflict_raises(self, header_name):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match="conflicting Azure API keys"):
+                fw.create_model(
+                    "gpt-4o-mini",
+                    "azure",
+                    {
+                        "base_url": "https://my-resource.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "2024-02-15-preview",
+                        "api_key": "param-key",
+                        "default_headers": {header_name: "header-key"},
+                    },
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_missing_endpoint_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"requires parameters\.azure_endpoint"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {"azure_deployment": "d", "api_version": "v", "api_key": "k"},
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_endpoint_alias(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "azure_endpoint": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "my-deployment",
+                    "api_version": "2024-02-15-preview",
+                    "api_key": "k",
+                },
+            )
+            assert model.provider_url == "https://my-resource.openai.azure.com/openai/deployments/my-deployment"
+            assert model._client._custom_headers == {"api-key": "k"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_endpoint_and_base_url_both_set_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"either parameters\.azure_endpoint or parameters\.base_url"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {
+                        "azure_endpoint": "https://x.openai.azure.com/",
+                        "base_url": "https://x.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "v",
+                        "api_key": "k",
+                    },
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_missing_deployment_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"requires parameters\.azure_deployment"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {"base_url": "https://x", "api_version": "v", "api_key": "k"},
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_missing_api_version_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match=r"requires parameters\.api_version"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {"base_url": "https://x", "azure_deployment": "d", "api_key": "k"},
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_missing_api_key_raises(self, monkeypatch):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match="requires an API key"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {"base_url": "https://x", "azure_deployment": "d", "api_version": "v"},
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_listed_in_provider_names(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        names = fw.get_provider_names()
+        assert "azure" in names
+        assert "azure_openai" in names
+
+    @pytest.mark.asyncio
     async def test_pools_clients(self):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
 

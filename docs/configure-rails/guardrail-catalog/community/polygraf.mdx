@@ -1,0 +1,122 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Polygraf Integration"
+---
+[Polygraf](https://polygraf.ai/) offers a state-of-the-art PII detection and masking API designed to help identify and protect sensitive information in your text. This integration enables NeMo Guardrails to use Polygraf for PII detection and masking in input, output, and retrieval flows.
+
+## Setup
+
+1. Obtain a Polygraf API key and set it as an environment variable so the integration can authenticate cloud requests:
+
+    ```bash
+    export POLYGRAF_API_KEY="your-polygraf-api-key"
+    ```
+
+2. Pick the endpoint that matches your deployment:
+
+    - For **Polygraf cloud**, use `https://governance.api.polygraf.ai/gcp/pii/text-detect`.
+    - For **self-hosted** deployments, set this to your service endpoint (the local default is typically `http://localhost:8000/v1/pii/text-detect`).
+
+3. Update your `config.yml` file to include the Polygraf settings.
+
+    **PII detection config**
+
+    ```yaml
+    rails:
+      config:
+        polygraf:
+          server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+          input:
+            entities:  # If no entity is specified here, any detected PII will trigger the rail.
+              - Email
+              - Person
+              - Phone
+          output:
+            entities:
+              - Email
+              - Person
+              - Phone
+      input:
+        flows:
+          - polygraf detect pii on input
+      output:
+        flows:
+          - polygraf detect pii on output
+    ```
+
+    The detection flow blocks the input, output, or retrieval text if PII is detected and an entity match is configured.
+
+    **PII masking config**
+
+    ```yaml
+    rails:
+      config:
+        polygraf:
+          server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+          input:
+            entities:
+              - Email
+              - Person
+              - Phone
+          output:
+            entities:
+              - Email
+              - Person
+              - Phone
+      input:
+        flows:
+          - polygraf mask pii on input
+      output:
+        flows:
+          - polygraf mask pii on output
+    ```
+
+    The masking flow replaces detected PII spans with `<EntityType>` placeholders. For example, `Hi John, my email is john@example.com` becomes `Hi <Person>, my email is <Email>`.
+
+### Retrieval Flows
+
+To detect or mask PII in retrieved documents, configure the `retrieval` entities and enable the retrieval flow variant:
+
+```yaml
+rails:
+  config:
+    polygraf:
+      server_endpoint: "https://governance.api.polygraf.ai/gcp/pii/text-detect"
+      retrieval:
+        entities:
+          - Email
+          - Person
+          - Phone
+
+  retrieval:
+    flows:
+      - polygraf detect pii on retrieval
+      # or for masking:
+      # - polygraf mask pii on retrieval
+```
+
+## Usage
+
+Once configured, the Polygraf integration can automatically:
+
+1. Detect or mask PII in user inputs before they are processed by the LLM.
+2. Detect or mask PII in LLM outputs before they are sent back to the user.
+3. Detect or mask PII in retrieved chunks before they are sent to the LLM.
+
+The `polygraf_detect_pii` and `polygraf_mask_pii` actions in `nemoguardrails/library/polygraf/actions.py` handle the PII detection and masking processes, respectively.
+
+## Entity Types
+
+You can customize the PII handling behavior by modifying the `entities` lists under `input`, `output`, and `retrieval`. Entity labels should match the labels returned by your Polygraf deployment. Common entities include:
+
+- `Person`
+- `Email`
+- `Phone`
+
+For a complete list of supported entity types, refer to the [Polygraf documentation](https://polygraf.ai/api-agents/).
+
+## Notes
+
+- Polygraf requests use a default per-call timeout of 30 seconds. If the endpoint is slow or unreachable, the integration raises a `ValueError` rather than blocking the rail indefinitely.
+- If the `POLYGRAF_API_KEY` environment variable is not set, the integration logs a warning since cloud endpoints typically reject unauthenticated requests.

@@ -1,53 +1,52 @@
 # Guardrails Benchmarking
 
 NeMo Guardrails includes benchmarking tools to help users capacity-test their Guardrails applications.
-Adding guardrails to an LLM-based application improves safety and security, while adding some latency. These benchmarks allow users to quantify the tradeoff between security and latency, to make data-driven decisions.
-We currently have a simple testbench, which runs the Guardrails server with mocks as Guardrail and Application models. This can be used for performance-testing on a laptop without any GPUs, and run in a few minutes.
+Adding guardrails to an LLM-based application improves safety and security, while adding some latency.
+These benchmarks allow users to quantify the tradeoff between security and latency, to make data-driven decisions.
+We currently have a simple testbench, which runs the Guardrails server and mock LLMs for Content-Safety Guardrail and Application models.
+This can be used for performance-testing on a laptop without any GPUs, and run in a few minutes.
 
 -----
 
-## Guardrails Core Benchmarking
+## Quickstart: Running Guardrails with Mock LLMs
 
 This benchmark measures the performance of the Guardrails application, running on CPU-only laptop or instance.
 It doesn't require GPUs on which to run local models, or access to the internet to use models hosted by providers.
 All models use the [Mock LLM Server](mock_llm_server), which is a simplified model of an LLM used for inference.
 The aim of this benchmark is to detect performance-regressions as quickly as running unit-tests.
 
-## Quickstart: Running Guardrails with Mock LLMs
+To run benchmarks, two terminals or tmux panes are needed, one for the server-side and client-side processes.
+The first shell runs the Guardrails OpenAI-compatible server and Mock LLMs for a content-safety and application LLM.
+This uses the same poetry environment used to develop code, with extra packages added using `pip install`.
+The second shell uses [AIPerf](https://github.com/ai-dynamo/aiperf) to issue client requests and measure latency.
 
-To run Guardrails with mocks for both the content-safety and main LLM, follow the steps below.
-All commands must be run in the `benchmark` directory.
+### 1. Run Server-side components: Guardrails OpenAI-compatible service with Mock LLMs for Content-Safety and Application LLMs
 
-### 1. Set up benchmarking virtual environment
-
-The benchmarking tools have their own dependencies, which are managed using a virtual environment, pip, and the [requirements.txt](requirements.txt) file.
-In this section, you'll create a new virtual environment, activate it, and install all the dependencies needed to benchmark Guardrails.
-
-First you'll create the virtual environment and install dependencies.
+You'll first increase the file descriptor limit to 65,536.
+This is needed because otherwise the Operating System will limit the number of open file descriptors and restrict the concurrency to be benchmarked.
 
 ```shell
-# Create a virtual environment under ~/env/benchmark_env and activate it
+$ ulimit -n 65536
+````
 
-$ cd benchmark
-$ mkdir ~/env
-$ python -m venv ~/env/benchmark_env
-$ pip install -r requirements.txt
-...
-Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-1.2.5 numpy-2.4.0 pydantic-2.12.5 pydantic-core-2.41.5 pydantic-settings-2.12.0 pyyaml-6.0.3 typer-0.21.0 typing-inspection-0.4.2 uuid-utils-0.12.0 uvicorn-0.40.0
-$ source ~/env/benchmark_env/bin/activate
-(benchmark_env) $
+Next you'll install the NeMo Guardrails Poetry environment and honcho to run server-side components.
+The honcho package is used to read the [`Procfile`](Procfile) and bring up the OpenAI service and Mock LLMs for benchmarking.
+
+```shell
+$ poetry install --with dev -E "server"
+$ poetry run pip install honcho
 ```
 
-### 2. Run Guardrails with Mock LLMs for Content-Safety and Application LLM
-
-Now we can start up the processes that are part of the [Procfile](Procfile).
-As the Procfile processes spin up, they log to the console with a prefix. The `system` prefix is used by Honcho, `app_llm` is the Application or Main LLM mock, `cs_llm` is the content-safety mock, and `gr` is the Guardrails service. We'll explore the Procfile in more detail below.
-Once the three 'Uvicorn running on ...' messages are printed, you can move to the next step. Note these messages are likely not on consecutive lines.
+Now all the dependencies are installed in the poetry environment, you'll use honcho to run the Procfile.
+This runs the Guardrails server and Mock LLMs for the Application LLM and Content-Safety.
+As the Procfile processes spin up, they log to the console with a prefix. The `system` prefix is used by Honcho, `app_llm` is the Application or Main LLM mock, `cs_llm` is the content-safety mock, and `gr` is the Guardrails service.
+We'll explore the Procfile in more detail below.
+Once the three 'Uvicorn running on ...' messages are printed, you can move to the next step.
+Note these messages are likely not on consecutive lines.
 
 ```shell
-# These commands must be run in the benchmark directory after activating the benchmark_env virtual environment
-
-(benchmark_env) $ honcho start
+$ cd benchmark
+$ poetry run honcho start
 13:40:33 system    | gr.1 started (pid=93634)
 13:40:33 system    | app_llm.1 started (pid=93635)
 13:40:33 system    | cs_llm.1 started (pid=93636)
@@ -59,10 +58,10 @@ Once the three 'Uvicorn running on ...' messages are printed, you can move to th
 13:40:45 gr.1      | INFO:     Uvicorn running on http://0.0.0.0:9000 (Press CTRL+C to quit)
 ```
 
-### 3. Validate services are running correctly
+### 2. Validate services are running correctly
 
 Once Guardrails and the mock servers are up, we'll use the [validate_mocks.sh](scripts/validate_mocks.sh) script to validate everything is working.
-This doesn't require the `benchmark_env` virtual environment since we're running curl commands in the script.
+This script checks all Mock LLMs are running by checking the models they're serving and the Guardrails service.
 
 ```shell
 # In a new shell, change into the benchmark directory and run these commands.
@@ -99,33 +98,60 @@ Port 9000 (Rails Config): PASSED
 Overall Status: All endpoints are healthy!
 ```
 
-### 4. Make Guardrails requests
 
-Once the mocks and Guardrails are running and the script passes, we can issue curl requests against the Guardrails `/chat/completions` endpoint to generate a response and test the system end-to-end.
+### 3. Run client-side benchmarking: AIPerf
+
+Now in a second terminal you'll increase the file descriptor limit as above.
 
 ```shell
- $ curl -s -X POST http://0.0.0.0:9000/v1/chat/completions \
-   -H 'Accept: application/json' \
-   -H 'Content-Type: application/json' \
-   -d '{
-      "model": "meta/llama-3.3-70b-instruct",
-      "messages": [
-         {
-            "role": "user",
-            "content": "what can you do for me?"
-         }
-      ],
-      "stream": false
-    }' | jq
+$ ulimit -n 65536
+````
 
-{
-  "messages": [
-    {
-      "role": "assistant",
-      "content": "I can provide information and help with a wide range of topics, from science and history to entertainment and culture. I can also help with language-related tasks, such as translation and text summarization. However, I can't assist with requests that involve harm or illegal activities."
-    }
-  ]
-}
+Next you'll create a virtual environment for AIPerf and install it.
+Run these and the following commands in the repository root (one level up from `benchmark`).
+
+```shell
+
+$ mkdir ~/env
+$ python -m venv ~/env/aiperf_env
+$ source ~/env/aiperf_env/bin/activate
+(aiperf_env) $ pip install aiperf
+
+...
+Successfully installed Flask-3.1.3 MarkupSafe-3.0.3 Werkzeug-3.1.8 ..... yarl-1.23.0 zipp-4.1.0 zstandard-0.25.0
+(aiperf_env) $
+```
+
+To run an AIPerf benchmark with the `sweep_concurrency_benchmark.yaml` configuration, use the command below.
+This makes requests against the Guardrails service created above in step 2, which in turn makes requests to the Mock LLMs for Application and Content-Safety LLMs.
+The benchmark sweeps concurrency from 1 to 256 in powers-of-2 steps, with synthetic user-prompts.
+Once the benchmark completes, the results can be found in the `aiperf_results` directory.
+
+```shell
+(aiperf_env) $ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
+
+2026-05-19 14:19:47 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/sweep_concurrency_benchmark.yaml
+2026-05-19 14:19:47 INFO: Results root directory: aiperf_results/sweep_concurrency_benchmark/20260519_141947
+2026-05-19 14:19:47 INFO: Sweeping parameters: {'concurrency': [1, 2, 4, 8, 16, 32, 64, 128, 256]}
+2026-05-19 14:19:47 INFO: Running 9 benchmarks
+2026-05-19 14:19:47 INFO: Run 1/9
+2026-05-19 14:19:47 INFO: Sweep parameters: {'concurrency': 1}
+2026-05-19 14:21:45 INFO: Run 1 completed successfully
+2026-05-19 14:21:45 INFO: Run 2/9
+2026-05-19 14:21:45 INFO: Sweep parameters: {'concurrency': 2}
+2026-05-19 14:23:19 INFO: Run 2 completed successfully
+.....
+.....
+2026-05-19 14:29:58 INFO: Run 8/9
+2026-05-19 14:29:58 INFO: Sweep parameters: {'concurrency': 128}
+2026-05-19 14:31:17 INFO: Run 8 completed successfully
+2026-05-19 14:31:17 INFO: Run 9/9
+2026-05-19 14:31:17 INFO: Sweep parameters: {'concurrency': 256}
+2026-05-19 14:32:37 INFO: Run 9 completed successfully
+2026-05-19 14:32:37 INFO: SUMMARY
+2026-05-19 14:32:37 INFO: Total runs : 9
+2026-05-19 14:32:37 INFO: Completed  : 9
+2026-05-19 14:32:37 INFO: Failed     : 0
 ```
 
 ------
@@ -168,7 +194,7 @@ The latency of each response is also controllable, and works as follows:
 
 * Latency is first sampled from a normal distribution with mean `LATENCY_MEAN_SECONDS` and standard deviation `LATENCY_STD_SECONDS`.
 * If the sampled value is less than `LATENCY_MIN_SECONDS`, it is set to `LATENCY_MIN_SECONDS`.
-* If the sampled value is less than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
+* If the sampled value is greater than `LATENCY_MAX_SECONDS`, it is set to `LATENCY_MAX_SECONDS`.
 
 The full list of configuration fields is shown below:
 

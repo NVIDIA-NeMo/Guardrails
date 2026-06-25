@@ -13,10 +13,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Public LLM types for NeMo Guardrails.
+
+This module defines the stable, public dataclasses and Protocols that make
+up the LLM interop surface for NeMo Guardrails. The types are implemented
+as plain Python dataclasses (not Pydantic) so they remain lightweight and
+introduce no additional runtime dependencies for downstream integrators.
+
+The public surface defined here is stable across minor versions: breaking
+changes are reserved for major version bumps. Custom ``LLMModel`` and
+``LLMFramework`` implementations should import the relevant types from
+this module so they stay aligned with the canonical definitions.
+"""
+
 import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Protocol, Union, runtime_checkable
+
+__all__ = [
+    "ChatMessage",
+    "FinishReason",
+    "LLMFramework",
+    "LLMModel",
+    "LLMResponse",
+    "LLMResponseChunk",
+    "Role",
+    "ToolCall",
+    "ToolCallFunction",
+    "UsageInfo",
+]
 
 
 class Role(str, Enum):

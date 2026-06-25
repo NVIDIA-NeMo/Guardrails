@@ -107,6 +107,13 @@ def chat(
             simplify=verbose_simplify,
         )
 
+    # Claim the deployment context before LLMRails is constructed in
+    # run_chat. The subsequent report_usage call inside LLMRails.__init__
+    # will read this override and emit with deploymentType="cli".
+    from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
+
+    set_deployment_type(DeploymentTypeEnum.CLI.value)
+
     run_chat(
         config_path=config[0],
         verbose=verbose,
@@ -155,12 +162,18 @@ def server(
         from fastapi import FastAPI
 
         from nemoguardrails.server import api
+        from nemoguardrails.telemetry import DeploymentTypeEnum, set_deployment_type
     except ImportError:
         typer.secho(
             "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
+
+    # Claim API deployment context before the first LLMRails instance can be
+    # constructed. This also covers prefixed mounts, where the mounted app's
+    # lifespan may not run before request handling.
+    set_deployment_type(DeploymentTypeEnum.API.value)
 
     if config:
         # We make sure there is no trailing separator, as that might break things in

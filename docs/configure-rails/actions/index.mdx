@@ -1,0 +1,158 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Configuring Custom Actions"
+sidebar-title: "Custom Actions"
+description: "Create Python actions to extend guardrails with external APIs and validation logic."
+keywords: ["nemo guardrails custom actions", "python actions guardrails", "guardrails action decorator", "llm safety actions"]
+content:
+  type: "how_to"
+---
+
+This section guides you through how to create the `actions.py` file to define custom Python actions and integrate them into the NeMo Guardrails library.
+By configuring custom actions, you can execute Python code within guardrails flows, extending the library with custom logic, external API integrations, and complex validation.
+
+An `actions.py` file defines custom action functions using the `@action` decorator. A decorator is a callable that takes a function and returns a new function, usually adding behavior or attaching metadata.
+
+```python
+from typing import Optional
+from nemoguardrails.actions import action
+
+@action()
+async def check_custom_policy(context: Optional[dict] = None):
+    """Check if the input complies with custom policy."""
+    user_message = context.get("last_user_message", "")
+
+    # Custom validation logic
+    forbidden_words = ["spam", "phishing"]
+    for word in forbidden_words:
+        if word in user_message.lower():
+            return False
+
+    return True
+
+@action(name="fetch_user_data")
+async def get_user_info(user_id: str):
+    """Fetch user data from external service."""
+    # External API call
+    return {"user_id": user_id, "status": "active"}
+```
+
+## Configuration Sections
+
+The following sections provide detailed documentation for creating and using custom actions:
+
+<Cards>
+
+<Card title="Creating Actions" href="/configure-guardrails/actions/creating-actions">
+
+Create custom actions using the @action decorator to integrate Python logic.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+<Card title="Built-in Actions" href="/configure-guardrails/actions/built-in-actions">
+
+Reference for default actions included in the NeMo Guardrails library.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Action Parameters" href="/configure-guardrails/actions/action-parameters">
+
+Reference for special parameters like context, llm, and config provided to actions.
+
+<Badge intent="tip" minimal outlined>Reference</Badge>
+</Card>
+
+<Card title="Registering Actions" href="/configure-guardrails/actions/registering-actions">
+
+Register custom actions via actions.py, LLMRails.register_action(), or config.py.
+
+<Badge intent="tip" minimal outlined>How To</Badge>
+</Card>
+
+</Cards>
+
+## File Organization
+
+Custom actions can be organized in two ways:
+
+**Option 1: Single `actions.py` file**
+
+```text
+.
+├── config
+│   ├── config.yml
+│   ├── actions.py        # All custom actions
+│   └── rails/
+│       └── ...
+```
+
+**Option 2: `actions/` sub-package**
+
+```text
+.
+├── config
+│   ├── config.yml
+│   ├── actions/
+│   │   ├── __init__.py
+│   │   ├── validation.py
+│   │   ├── external_api.py
+│   │   └── ...
+│   └── rails/
+│       └── ...
+```
+
+## Quick Example
+
+### 1. Define the Action
+
+Create `config/actions.py`:
+
+```python
+from typing import Optional
+from nemoguardrails.actions import action
+
+@action(is_system_action=True)
+async def check_blocked_terms(context: Optional[dict] = None):
+    """Check if bot response contains blocked terms."""
+    bot_response = context.get("bot_message", "")
+
+    blocked_terms = ["confidential", "proprietary", "secret"]
+
+    for term in blocked_terms:
+        if term in bot_response.lower():
+            return True  # Term found, block the response
+
+    return False  # No blocked terms found
+```
+
+### 2. Create a Flow Using the Action
+
+Create `config/rails/output.co`:
+
+```text
+define bot refuse to respond
+  "I apologize, but I cannot provide that information."
+
+define flow check_output_terms
+  $contains_blocked = execute check_blocked_terms
+
+  if $contains_blocked
+    bot refuse to respond
+    stop
+```
+
+### 3. Configure the Rail
+
+Add to `config/config.yml`:
+
+```yaml
+rails:
+  output:
+    flows:
+      - check_output_terms
+```
+
+For detailed information about each topic, refer to the individual pages linked above.

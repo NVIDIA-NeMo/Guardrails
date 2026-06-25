@@ -17,8 +17,7 @@ import logging
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, Field, model_validator
-from pydantic import field_validator as validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import to_json
 from typing_extensions import cast
 
@@ -53,18 +52,18 @@ class GuardResult(BaseModel):
     reason: str = Field(..., min_length=1, description="Explanation for the action")
     blocked: bool = Field(default=False, description="True if action is 'Block', else False")
 
-    @validator("action")
+    @field_validator("action")
+    @classmethod
     def validate_action(cls, v):
         log.error(f"Validating action: {v}")
         if v not in ["Block", "Allow"]:
             return "Allow"
         return v
 
-    @model_validator(mode="before")
-    def set_blocked(cls, values):
-        a = values.get("action")
-        values["blocked"] = a.lower() == "block"
-        return values
+    @model_validator(mode="after")
+    def set_blocked(self) -> "GuardResult":
+        self.blocked = self.action == "Block"
+        return self
 
 
 def get_config(config: RailsConfig) -> TrendMicroRailConfig:
@@ -87,7 +86,7 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
 
 def trend_ai_guard_mapping(result: GuardResult) -> bool:
     """Convert Trend Micro result to boolean for flow logic."""
-    return result.action.lower() == "block"
+    return result.action == "Block"
 
 
 @action(is_system_action=True, output_mapping=trend_ai_guard_mapping)

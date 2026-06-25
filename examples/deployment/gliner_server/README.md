@@ -98,10 +98,6 @@ Get the default PII labels supported by the model.
 
 OpenAI-compatible models endpoint.
 
-### `POST /v1/chat/completions`
-
-OpenAI-compatible chat completions endpoint (returns entities as JSON in the response).
-
 ### `GET /health`
 
 Health check endpoint with model status.

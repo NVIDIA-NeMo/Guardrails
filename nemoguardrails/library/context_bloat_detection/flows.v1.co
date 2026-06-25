@@ -1,0 +1,28 @@
+
+# RETRIEVAL RAILS
+
+define subflow context bloat detection on retrieval
+  """Detect bloated or padded content in retrieved RAG chunks."""
+  $bloat_result = execute context_bloat_detection(text=$relevant_chunks)
+  if $bloat_result.is_bloat and $bloat_result.action == "reject"
+    bot inform retrieval bloated
+    stop
+  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
+    $relevant_chunks = $bloat_result.text
+
+define bot inform retrieval bloated
+  "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation."
+
+# INPUT RAILS
+
+define subflow context bloat detection on input
+  """Detect bloated or padded user-supplied content."""
+  $bloat_result = execute context_bloat_detection(text=$user_message)
+  if $bloat_result.is_bloat and $bloat_result.action == "reject"
+    bot refuse bloated input
+    stop
+  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
+    $user_message = $bloat_result.text
+
+define bot refuse bloated input
+  "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."

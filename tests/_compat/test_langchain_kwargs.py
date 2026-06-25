@@ -79,10 +79,17 @@ class TestProviderAliasPatternDetection:
                 active_framework="default",
             )
 
-    def test_azure_endpoint_detected_and_collapsed_to_base_url(self):
+    @pytest.mark.parametrize("engine", ["azure", "azure_openai"])
+    def test_azure_endpoint_allowed_for_azure_engines(self, engine):
+        check_langchain_kwargs(
+            [_model(engine=engine, parameters={"azure_endpoint": "https://..."})],
+            active_framework="default",
+        )
+
+    def test_azure_endpoint_detected_and_collapsed_to_base_url_for_non_azure_engine(self):
         with pytest.raises(ValueError, match=r"azure_endpoint.*to.*base_url"):
             check_langchain_kwargs(
-                [_model(engine="azure", parameters={"azure_endpoint": "https://..."})],
+                [_model(engine="openai", parameters={"azure_endpoint": "https://..."})],
                 active_framework="default",
             )
 

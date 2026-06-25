@@ -452,9 +452,16 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_parallel_streaming_output_rails_performance_benefits():
-    """Tests that parallel rails execution provides performance benefits over sequential"""
+    """Tests that parallel rails execution provides performance benefits over sequential.
+
+    Wall-clock timing assertion; marked ``perf`` and excluded from the default
+    run. The multi-flow parallel-vs-sequential response equivalence it also
+    checks is covered (always-run) by
+    test_parallel_matches_sequential_with_slow_actions.
+    """
 
     parallel_config = RailsConfig.from_content(
         config={
@@ -1016,9 +1023,12 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
-@pytest.mark.asyncio
-async def test_parallel_vs_sequential_with_slow_actions():
-    """Test that demonstrates real parallel speedup with slow actions"""
+async def _run_slow_actions_sequential_and_parallel():
+    """Run the slow-action output rails both sequentially and in parallel.
+
+    Returns ``(sequential_chunks, parallel_chunks, sequential_time, parallel_time)``.
+    Shared by the functional-equivalence test and the (perf-only) timing test.
+    """
 
     import time
 
@@ -1143,6 +1153,21 @@ async def test_parallel_vs_sequential_with_slow_actions():
         parallel_chunks.append(chunk)
     parallel_time = time.time() - start_time
 
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+    return sequential_chunks, parallel_chunks, sequential_time, parallel_time
+
+
+@pytest.mark.asyncio
+async def test_parallel_matches_sequential_with_slow_actions():
+    """Multi-flow parallel output rails must produce the same result as sequential.
+
+    This is the functional (always-run) half of the slow-actions check: it does
+    not assert on wall-clock timing, only that parallel and sequential execution
+    of multiple output rails yield identical, error-free responses.
+    """
+    sequential_chunks, parallel_chunks, _, _ = await _run_slow_actions_sequential_and_parallel()
+
     sequential_response = "".join(sequential_chunks)
     parallel_response = "".join(parallel_chunks)
 
@@ -1159,12 +1184,19 @@ async def test_parallel_vs_sequential_with_slow_actions():
 
     assert sequential_response == parallel_response
 
-    speedup = sequential_time / parallel_time
 
-    print("\nSlow Actions Timing Results:")
-    print(f"Sequential: {sequential_time:.4f}s")
-    print(f"Parallel: {parallel_time:.4f}s")
-    print(f"Speedup: {speedup:.2f}x")
+@pytest.mark.perf
+@pytest.mark.asyncio
+async def test_parallel_vs_sequential_with_slow_actions():
+    """Parallel execution should be meaningfully faster than sequential with slow actions.
+
+    Wall-clock timing assertion; flaky on shared CI runners, so it is marked
+    ``perf`` and excluded from the default run. Functional correctness is covered
+    by test_parallel_matches_sequential_with_slow_actions.
+    """
+    _, _, sequential_time, parallel_time = await _run_slow_actions_sequential_and_parallel()
+
+    speedup = sequential_time / parallel_time
 
     # with slow actions, parallel should be significantly faster
     # we expect at least 1.5x speedup (theoretical max ~3x, but overhead reduces it)
@@ -1172,7 +1204,3 @@ async def test_parallel_vs_sequential_with_slow_actions():
         f"With slow actions, parallel should be at least 1.5x faster than sequential. "
         f"Got speedup of {speedup:.2f}x. Sequential: {sequential_time:.4f}s, Parallel: {parallel_time:.4f}s"
     )
-
-    print(f" Parallel execution achieved {speedup:.2f}x speedup as expected!")
-
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})

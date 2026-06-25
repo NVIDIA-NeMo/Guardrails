@@ -855,11 +855,32 @@ def get_first_bot_intent(strings: List[str]) -> Optional[str]:
     return None
 
 
+def _has_unclosed_quote(s: str) -> bool:
+    """Check if a string has an unclosed double quote (ignoring escaped quotes)."""
+    # Strip escaped backslashes first so that \\" is not misread as \" (escaped quote).
+    return s.replace("\\\\", "").replace('\\"', "").count('"') % 2 == 1
+
+
+_MAX_QUOTE_CONTINUATION_LINES = 50
+
+
 def get_first_bot_action(strings: List[str]) -> Optional[str]:
     """Returns first bot action."""
     action_started = False
     action: str = ""
+    continuation_lines = 0
     for string in strings:
+        # Collect continuation lines for multi-line quoted strings,
+        # joining with escaped newlines to keep the Colang statement valid.
+        if action and _has_unclosed_quote(action):
+            if continuation_lines >= _MAX_QUOTE_CONTINUATION_LINES:
+                # Safety bound: stop collecting to avoid absorbing all input.
+                return action
+            action += "\\n" + string
+            continuation_lines += 1
+            if not _has_unclosed_quote(action):
+                continuation_lines = 0
+            continue
         if string.startswith("bot action: "):
             if action != "":
                 action += "\n"

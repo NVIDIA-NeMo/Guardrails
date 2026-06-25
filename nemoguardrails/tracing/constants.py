@@ -25,7 +25,7 @@ to satisfy the OTEL GenAI semantic conventions.
 """
 
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, Optional
 
@@ -87,6 +87,26 @@ class SystemConstants:
     UNKNOWN = "unknown"
 
 
+class OtelContentCapture:
+    """OTEL environment-variable names and tokens for content-capture gating.
+
+    Two independent OTEL-standard env vars control content capture:
+
+    * ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`` — fallback
+      enable switch when ``config.tracing.enable_content_capture`` is
+      unset/False.  Truthy values (``"true"``, ``"1"``) turn capture on.
+    * ``OTEL_SEMCONV_STABILITY_OPT_IN`` — comma-separated stability
+      opt-in list.  When ``"gen_ai_latest_experimental"`` is present,
+      content is emitted as new-form span attributes
+      (``gen_ai.input.messages`` etc.); otherwise as legacy span events
+      (``gen_ai.user.message`` etc.).
+    """
+
+    CAPTURE_CONTENT_ENV = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
+    STABILITY_OPT_IN_ENV = "OTEL_SEMCONV_STABILITY_OPT_IN"
+    STABILITY_OPT_IN_LATEST = "gen_ai_latest_experimental"
+
+
 class GenAIAttributes:
     """GenAI semantic convention attributes following the draft specification.
 
@@ -110,6 +130,10 @@ class GenAIAttributes:
     GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
     GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 
+    # Conditionally Required per spec: set if and only if the request is
+    # streaming (omit entirely on non-streaming calls).
+    GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+
     GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
     GEN_AI_RESPONSE_ID = "gen_ai.response.id"
     GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -118,11 +142,23 @@ class GenAIAttributes:
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
 
+    # Recommended span attribute (when applicable, e.g. reasoning models).
+    # Span-only — NOT a valid ``gen_ai.token.type`` metric label value.
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+
     # Required label on the ``gen_ai.client.token.usage`` metric.
     # Allowed values (from spec): "input" or "output" only.  Reasoning
     # and cached tokens are span-only attributes, NOT valid token.type
     # metric label values.
     GEN_AI_TOKEN_TYPE = "gen_ai.token.type"
+
+    # New-form content-capture span attributes (opt-in, gated by
+    # OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental).  Values
+    # are JSON-encoded strings.  Default emission uses the legacy event
+    # form (EventNames.GEN_AI_*_MESSAGE / GEN_AI_CHOICE) instead.
+    GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+    GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+    GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 
 
 class CommonAttributes:
@@ -139,6 +175,24 @@ class GuardrailsAttributes:
     RAIL_NAME = "rail.name"
     RAIL_STOP = "rail.stop"
     RAIL_DECISIONS = "rail.decisions"
+
+    # rail content-capture attributes (opt-in alongside the GenAI
+    # content-capture knob).  No GenAI semconv exists for rail spans,
+    # so these live under the guardrails.* namespace.  RAIL_INPUT is
+    # a JSON-encoded snapshot of the rail's inputs; RAIL_REASON is set
+    # only when the rail blocks.
+    RAIL_INPUT = "guardrails.rail.input"
+    RAIL_REASON = "guardrails.rail.reason"
+
+    # request-level content-capture attributes on the guardrails.request
+    # SERVER span.  These record the caller-facing input and output —
+    # what the caller sent and what was returned — which differs
+    # from gen_ai.input/output.messages on the LLM CLIENT span on block
+    # paths (where the LLM CLIENT span records the raw model response
+    # while the SERVER span records the refusal message).  Using a
+    # distinct attribute namespace avoids conflating the two semantics.
+    REQUEST_INPUT = "guardrails.request.input"
+    REQUEST_OUTPUT = "guardrails.request.output"
 
     # action attributes
     ACTION_NAME = "action.name"
@@ -254,13 +308,13 @@ class EventNames:
     """Standard event names for OpenTelemetry GenAI semantic conventions.
 
     Based on official spec at:
-    https://github.com/open-telemetry/semantic-conventions/blob/main/model/gen-ai/events.yaml
+    https://opentelemetry.io/docs/concepts/semantic-conventions/
     """
 
     GEN_AI_SYSTEM_MESSAGE = "gen_ai.system.message"
     GEN_AI_USER_MESSAGE = "gen_ai.user.message"
     GEN_AI_ASSISTANT_MESSAGE = "gen_ai.assistant.message"
-    # GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
+    GEN_AI_TOOL_MESSAGE = "gen_ai.tool.message"
 
     GEN_AI_CHOICE = "gen_ai.choice"
 
@@ -498,13 +552,16 @@ def llm_operation_duration(
     exc_type: Optional[str] = None
     try:
         yield
-    except Exception as exc:
+    except BaseException as exc:
         exc_type = type(exc).__name__
         raise
     finally:
         elapsed = time.monotonic() - t0
         attrs = base if exc_type is None else {**base, "error.type": exc_type}
-        instruments.operation_duration.record(elapsed, attributes=attrs)
+        # Best-effort emission: a broken meter SDK must never mask the
+        # original exception propagating through ``finally``.
+        with suppress(Exception):
+            instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
 def record_time_to_first_chunk(

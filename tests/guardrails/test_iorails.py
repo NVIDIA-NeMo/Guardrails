@@ -21,13 +21,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.guardrails.guardrails import Guardrails
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails import Guardrails
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -39,30 +39,33 @@ def rails_config():
 
 @pytest.fixture
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails(rails_config):
-    # Sync fixture kept for the class-init and sync-generate tests in this
-    # file.  Async tests that invoke ``iorails.generate_async()`` will
-    # start the internal queue's worker pool lazily; those workers may
-    # leave pending asyncio tasks at test teardown (harmless warnings).
-    # The IORails-queue-aware async tests live in ``test_iorails_telemetry.py``
-    # where fixtures use ``@pytest_asyncio.fixture`` + ``await iorails.stop()``.
+def iorails_sync(rails_config):
     return IORails(rails_config)
+
+
+@pytest_asyncio.fixture
+async def iorails(rails_config):
+    iorails = IORails(rails_config)
+    try:
+        yield iorails
+    finally:
+        await iorails.stop()
 
 
 class TestIORailsInit:
     """Test IORails wires up EngineRegistry and RailsManager from config."""
 
-    def test_creates_engine_registry(self, iorails):
+    def test_creates_engine_registry(self, iorails_sync):
         """EngineRegistry is created during init."""
-        assert iorails.engine_registry is not None
+        assert iorails_sync.engine_registry is not None
 
-    def test_creates_rails_manager(self, iorails):
+    def test_creates_rails_manager(self, iorails_sync):
         """RailsManager is created during init."""
-        assert iorails.rails_manager is not None
+        assert iorails_sync.rails_manager is not None
 
-    def test_rails_manager_uses_engine_registry(self, iorails):
+    def test_rails_manager_uses_engine_registry(self, iorails_sync):
         """RailsManager receives the same EngineRegistry instance."""
-        assert iorails.rails_manager.engine_registry is iorails.engine_registry
+        assert iorails_sync.rails_manager.engine_registry is iorails_sync.engine_registry
 
 
 class TestGenerateAsync:
@@ -81,9 +84,9 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": llm_response}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
 
     @pytest.mark.asyncio
     async def test_safe_input_and_output_with_generation_options(self, iorails):
@@ -101,16 +104,16 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages, options=options)
 
         assert result == {"role": "assistant", "content": llm_response}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
 
     @pytest.mark.asyncio
     async def test_safe_input_and_output_call_sequence(self, iorails):
         """Pipeline executes in order: input check → generate → output check."""
         call_order = []
 
-        async def mock_input_safe(messages):
+        async def mock_input_safe(messages, *, enabled=True):
             call_order.append("input")
             return RailResult(is_safe=True)
 
@@ -118,7 +121,7 @@ class TestGenerateAsync:
             call_order.append("generate")
             return LLMResponse(content="response")
 
-        async def mock_output_safe(messages, response):
+        async def mock_output_safe(messages, response, *, enabled=True):
             call_order.append("output")
             return RailResult(is_safe=True)
 
@@ -140,7 +143,7 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_not_called()
         iorails.rails_manager.is_output_safe.assert_not_called()
 
@@ -157,9 +160,25 @@ class TestGenerateAsync:
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
-        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages)
-        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_records_block_metric_when_metrics_enabled(self, iorails):
+        """When metrics are enabled, an output-rails block records an OUTPUT block metric."""
+        iorails._metrics_enabled = True
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="unsafe"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
+            result = await iorails.generate_async(messages)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_blocked.assert_called_once_with(RailDirection.OUTPUT)
 
     @pytest.mark.asyncio
     async def test_dict_options_forwarded(self, iorails):
@@ -183,6 +202,84 @@ class TestGenerateAsync:
 
         with pytest.raises(RuntimeError, match="LLM internal error"):
             await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+
+class TestToolCalling:
+    """Test tool-call forwarding (request body) and return (assistant message)."""
+
+    @pytest.mark.asyncio
+    async def test_tools_in_llm_params_forwarded_to_model(self, iorails):
+        """Tool definitions in options.llm_params are forwarded to model_call unchanged."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool = {"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object"}}}
+        options = GenerationOptions(llm_params={"tools": [tool], "tool_choice": "auto", "parallel_tool_calls": True})
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails.generate_async(messages, options=options)
+
+        iorails.engine_registry.model_call.assert_called_once_with(
+            "main", messages, tools=[tool], tool_choice="auto", parallel_tool_calls=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_calls_returned_on_assistant_message(self, iorails):
+        """Tool calls from the model are serialized OpenAI-native (JSON-string arguments)."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [
+            ToolCall(
+                id="call_1",
+                type="function",
+                function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+            )
+        ]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        assert result["role"] == "assistant"
+        assert result["content"] is None
+        assert result["tool_calls"] == [
+            {"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_output_rails_skipped_for_tool_call_only_response(self, iorails):
+        """A tool-call-only response (no text) skips the content output rails."""
+        messages = [{"role": "user", "content": "weather?"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="", tool_calls=tool_calls))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_not_called()
+        assert result["tool_calls"][0]["function"]["name"] == "f"
+
+    @pytest.mark.asyncio
+    async def test_text_with_tool_calls_runs_output_rails_and_returns_both(self, iorails):
+        """When a response has text and tool calls, output rails run on the text and both are returned."""
+        messages = [{"role": "user", "content": "hi"}]
+        tool_calls = [ToolCall(id="c1", type="function", function=ToolCallFunction(name="f", arguments={}))]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="some text", tool_calls=tool_calls)
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "some text", enabled=True)
+        assert result["content"] == "some text"
+        assert result["tool_calls"][0]["function"]["name"] == "f"
 
 
 class TestIORailsLifecycle:
@@ -636,8 +733,9 @@ class TestAutoStart:
 class TestGenerate:
     """Test the synchronous generate() method."""
 
-    def test_generate_delegates_to_generate_async(self, iorails):
+    def test_generate_delegates_to_generate_async(self, iorails_sync):
         """generate() creates a temp IORails, starts it, calls generate_async, and stops it."""
+        iorails = iorails_sync
         messages = [{"role": "user", "content": "hi"}]
         expected = {"role": "assistant", "content": "Hello from LLM"}
 
@@ -651,8 +749,9 @@ class TestGenerate:
 
         assert result == expected
 
-    def test_generate_passes_kwargs(self, iorails):
+    def test_generate_passes_kwargs(self, iorails_sync):
         """generate() forwards kwargs to generate_async."""
+        iorails = iorails_sync
         messages = [{"role": "user", "content": "hi"}]
         options = GenerationOptions(llm_params={"temperature": 0.5})
 
@@ -665,11 +764,26 @@ class TestGenerate:
 
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, temperature=0.5)
 
-    def test_generate_raises_when_called_from_async_loop(self, iorails):
+    def test_generate_marks_temp_engine_as_internal(self, iorails_sync):
+        """generate() suppresses usage reporting for its temporary bridge engine."""
+        iorails = iorails_sync
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="response"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails) as mock_iorails:
+            iorails.generate(messages)
+
+        mock_iorails.assert_called_once()
+        assert mock_iorails.call_args.kwargs == {"_report_usage": False}
+
+    def test_generate_raises_when_called_from_async_loop(self, iorails_sync):
         """generate() raises RuntimeError when called inside a running event loop."""
 
         async def call_generate():
-            iorails.generate([{"role": "user", "content": "hi"}])
+            iorails_sync.generate([{"role": "user", "content": "hi"}])
 
         with pytest.raises(RuntimeError):
             asyncio.run(call_generate())

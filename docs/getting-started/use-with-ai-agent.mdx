@@ -1,0 +1,82 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Use the NVIDIA NeMo Guardrails Library with Your AI Agent"
+sidebar-title: "Use with AI Agents"
+description: "Connect an AI coding agent to the NVIDIA NeMo Guardrails library documentation and starter prompt."
+content:
+    type: "get_started"
+---
+
+import { StarterPromptButton } from "../_components/StarterPromptButton";
+
+Use an AI coding agent to help you install, configure, evaluate, debug, or deploy the NVIDIA NeMo Guardrails library.
+
+The easiest path is to connect your agent to the documentation MCP server.
+If your agent does not support MCP, copy the starter prompt and paste it into your agent chat.
+
+## Copy the Starter Prompt
+
+Copy this prompt and paste it into your AI coding agent, such as Cursor, Claude Code, Codex, or another agent.
+The prompt tells the agent how to find the Markdown documentation, align docs to your installed package version, and avoid asking for secrets in chat.
+
+<StarterPromptButton />
+
+## Use the Documentation MCP Server
+
+If your AI agent supports MCP, connect it to the NVIDIA NeMo Guardrails library documentation MCP server:
+
+```text
+https://docs.nvidia.com/nemo/guardrails/_mcp/server
+```
+
+The MCP server lets your agent retrieve the canonical documentation without cloning the GitHub repository.
+
+## Use Markdown Documentation Pages
+
+The documentation is available in clean Markdown for AI clients.
+
+- Documentation index for AI clients: `https://docs.nvidia.com/nemo/guardrails/llms.txt`.
+- Clean Markdown for any page: append `.md` to the page URL.
+
+For example, use the Markdown version of the harmful-content tutorial:
+
+```text
+https://docs.nvidia.com/nemo/guardrails/get-started/tutorials/nemotron-safety-guard-deployment.md
+```
+
+Use production documentation as the canonical source.
+Use staging URLs only when you are explicitly testing staging documentation.
+
+## Match the Documentation Version
+
+If you already installed the package, ask your agent to check your installed version:
+
+```bash
+python -c "import nemoguardrails; print(nemoguardrails.__version__)"
+```
+
+Use the matching versioned documentation when it is available.
+If you cannot determine the installed version, use the latest docs unless your project requires an older version.
+
+## Fetch Only The Agent Skills
+
+If you want local skill files without cloning the full source tree, use a sparse checkout:
+
+```bash
+git clone --filter=blob:none --no-checkout https://github.com/NVIDIA-NeMo/Guardrails.git
+cd Guardrails
+git sparse-checkout set --no-cone '/.agents/skills/guardrails-developer-guide/**' '/.agents/skills/guardrails-developer-create-guardrails/**' '/.claude/**' '/AGENTS.md'
+git checkout
+```
+
+Open the `Guardrails` directory in your AI coding agent.
+The agent can then discover the local skills and root instructions.
+
+You can also copy the developer-focused skills to a global agent skill location if your agent supports global skills.
+Keep repository contribution guidance in a repository clone because it depends on local files such as `AGENTS.md`, `docs/AGENTS.md`, `CONTRIBUTING.md`, and `AI_POLICY.md`.
+
+## Keep Secrets Out Of Chat
+
+Do not paste real API keys, tokens, passwords, or private credentials into agent chat.
+Use placeholders in examples and set real secrets through your shell, local environment, secret manager, or provider dashboard.

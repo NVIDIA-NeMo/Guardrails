@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.library.regex.actions import detect_regex_pattern
 from tests.utils import TestChat
 
 
@@ -646,3 +647,60 @@ def test_regex_detection_retrieval_allows_non_matching():
     # The retrieved chunk does NOT contain "classified" — passes through unchanged.
     chat >> "Hi!"
     chat << "Here is what I found."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_regex_action_accepts_extra_kwargs():
+    """Regression: detect_regex_pattern must accept the extra kwargs that
+    the action dispatcher injects during output streaming."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  output:
+                    patterns:
+                      - "\\\\bconfidential\\\\b"
+        """,
+        colang_content="",
+    )
+
+    result = await detect_regex_pattern(
+        source="output",
+        text="This is confidential information.",
+        config=config,
+        context={"user_message": "hi"},
+        llm_task_manager=object(),
+        model_name="test-model",
+        llms={"main": object()},
+        llm=object(),
+    )
+
+    assert result["is_match"] is True
+    assert "\\bconfidential\\b" in result["detections"]
+
+
+@pytest.mark.unit
+def test_regex_output_mapping_blocks_on_match():
+    """The output_mapping on detect_regex_pattern must return True (blocked)
+    when is_match is True, so the streaming output rail framework blocks content."""
+    from nemoguardrails.actions.output_mapping import is_output_blocked
+    from nemoguardrails.library.regex.actions import RegexDetectionResult
+
+    matched = RegexDetectionResult(is_match=True, text="fight club", detections=["\\bfight\\s+club\\b"])
+    no_match = RegexDetectionResult(is_match=False, text="hello", detections=[])
+
+    assert is_output_blocked(matched, detect_regex_pattern) is True
+    assert is_output_blocked(no_match, detect_regex_pattern) is False
+
+
+@pytest.mark.unit
+def test_regex_output_mapping_is_registered():
+    """detect_regex_pattern must have an output_mapping in its action_meta."""
+    meta = getattr(detect_regex_pattern, "action_meta", {})
+    assert meta.get("output_mapping") is not None, (
+        "detect_regex_pattern is missing output_mapping — streaming output rails "
+        "will silently pass matched content through (see #1936 follow-up)"
+    )

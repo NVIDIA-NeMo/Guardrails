@@ -1,0 +1,28 @@
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define subflow hf classifier check input
+  $allowed = execute hf_classifier_check_input(classifier=$classifier)
+
+  if not $allowed
+    if $config.enable_rails_exceptions
+      create event InputRailException(message="Input blocked by 'hf classifier check input'.")
+    else
+      bot refuse to respond
+    stop
+
+define subflow hf classifier check output
+  $allowed = execute hf_classifier_check_output(classifier=$classifier)
+
+  if not $allowed
+    if $config.enable_rails_exceptions
+      create event OutputRailException(message="Output blocked by 'hf classifier check output'.")
+    else
+      bot refuse to respond
+    stop
+
+define subflow hf classifier check retrieval
+  $allowed = execute hf_classifier_check_retrieval(classifier=$classifier)
+
+  if not $allowed
+    $relevant_chunks = ""

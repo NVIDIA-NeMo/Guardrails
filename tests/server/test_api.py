@@ -218,6 +218,214 @@ def test_request_body_messages():
     assert len(request_body.messages) == 1
 
 
+def test_request_body_tools_and_tool_choice():
+    """Test GuardrailsChatCompletionRequest accepts OpenAI tools parameters."""
+    data = {
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "What's the weather?"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a city",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                },
+            }
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": False,
+        "guardrails": {"config_id": "test_config"},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert len(request_body.tools) == 1
+    assert request_body.tools[0]["function"]["name"] == "get_weather"
+    assert request_body.tool_choice == "auto"
+    assert request_body.parallel_tool_calls is False
+
+
+def test_request_body_messages_with_tool_calls():
+    """Test GuardrailsChatCompletionRequest accepts OpenAI tool call messages."""
+    data = {
+        "model": "gpt-4o",
+        "messages": [
+            {"role": "user", "content": "What's the weather in Boston?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": '{"city": "Boston"}',
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "content": '{"temp_f": 72}',
+            },
+        ],
+        "guardrails": {"config_id": "test_config"},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert len(request_body.messages) == 3
+    assert request_body.messages[1]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert request_body.messages[2]["role"] == "tool"
+
+
+def test_chat_completion_passes_tools_to_llm_params():
+    """Test that tools and tool_choice from the request are forwarded to llm_params in passthrough mode."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    captured_options = {}
+
+    async def mock_generate_async(*, messages, options, state):
+        captured_options["options"] = options
+        return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = True
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "tool_choice": "auto",
+                "parallel_tool_calls": False,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured_options["options"].llm_params["tools"] == tools
+    assert captured_options["options"].llm_params["tool_choice"] == "auto"
+    assert captured_options["options"].llm_params["parallel_tool_calls"] is False
+
+
+def test_chat_completion_rejects_tools_for_non_passthrough_config():
+    """Test that tools/tool_choice/parallel_tool_calls are rejected unless passthrough is True."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = False
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["detail"].lower()
+
+
+def test_chat_completion_rejects_tool_choice_without_passthrough():
+    """Test that tool_choice alone is rejected for non-passthrough configs."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = None
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tool_choice": "auto",
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["detail"].lower()
+
+
+def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
+    """Test that tools + stream=True is rejected even when passthrough is True."""
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = True
+
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tools": tools,
+                "stream": True,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "passthrough" in response.json()["detail"].lower()
+
+
+def test_chat_completion_returns_tool_calls():
+    """Test that tool calls in the generation response are returned in OpenAI format."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    tool_calls = [
+        {
+            "name": "get_weather",
+            "args": {"city": "Boston"},
+            "id": "call_123",
+            "type": "tool_call",
+        }
+    ]
+
+    async def mock_generate_async(*, messages, options, state):
+        return GenerationResponse(
+            response=[{"role": "assistant", "content": ""}],
+            tool_calls=tool_calls,
+        )
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather in Boston?"}],
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    res = response.json()
+    assert res["choices"][0]["finish_reason"] == "tool_calls"
+    assert res["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert res["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] == '{"city": "Boston"}'
+
+
 def test_request_body_options():
     """Test GuardrailsChatCompletionRequest options handling."""
     data = {

@@ -797,7 +797,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             },
         )
 
-        stop = self.llm_task_manager.get_stop_tokens(Task.GENERATE_USER_INTENT_FROM_USER_ACTION)
+        stop = self.llm_task_manager.get_stop_tokens(Task.GENERATE_VALUE_FROM_INSTRUCTION)
 
         result = (await llm_call(generation_llm, prompt, stop=stop, llm_params={"temperature": 0.1})).content
 

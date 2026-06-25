@@ -4,7 +4,7 @@ description = "NeMo Guardrails is an open-source toolkit for easily adding progr
 authors = ["NVIDIA <nemoguardrails@nvidia.com>"]
 license = "LICENSE.md"
 readme = "README.md"
-version = "0.21.0"
+version = "0.23.0.dev0"
 packages = [{ include = "nemoguardrails" }]
 
 
@@ -12,13 +12,11 @@ include = [
   "LICENSE.md",
   "LICENSE-Apache-2.0.txt",
   "LICENCES-3rd-party.txt",
-  "examples/**/*",
-  "eval/data/**/*",
-  "**/*.yml",
-  "**/*.co",
-  "**/*.txt",
-  "**/*.json",
-  "**/*.lark",
+  "nemoguardrails/**/*.yml",
+  "nemoguardrails/**/*.co",
+  "nemoguardrails/**/*.txt",
+  "nemoguardrails/**/*.json",
+  "nemoguardrails/**/*.lark",
 ]
 
 classifiers = [
@@ -47,7 +45,6 @@ nemoguardrails = "nemoguardrails.__main__:app"
 python = ">=3.10,<3.14"
 aiohttp = ">=3.10.11"
 aiohttp-retry = ">=2.9.0"
-annoy = ">=1.17.3"
 dataclasses-json = ">=0.6.7,<0.7.0"
 fastapi = { version = ">=0.103.0", optional = true }
 fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
@@ -58,6 +55,7 @@ onnxruntime = [
 ]
 httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
+jsonschema = "^4.26.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
 # NOTE:
@@ -66,7 +64,7 @@ nest-asyncio = ">=1.5.6,"
 # and streamlit is using the vulnerable protobuf versions
 protobuf = ">=5.29.5"
 prompt-toolkit = ">=3.0"
-pydantic = ">=1.10"
+pydantic = ">=2.5,<3.0"
 pyyaml = ">=6.0"
 rich = ">=13.5.2"
 simpleeval = ">=0.9.13,"
@@ -111,6 +109,10 @@ fast-langdetect = { version = ">=1.0.0", optional = true }
 # chat UI
 chainlit = { version = "^2.11.0", optional = true }
 
+# hf classifier (local backend)
+transformers = { version = ">=4.35.0", optional = true }
+torch = { version = ">=2.0.0", optional = true }
+
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit", "tornado"]
@@ -120,6 +122,7 @@ jailbreak = ["yara-python"]
 multilingual = ["fast-langdetect"]
 server = ["aiofiles", "openai", "fastapi", "starlette", "uvicorn", "watchdog"]
 chat-ui = ["chainlit"]
+hf-classifier = ["transformers", "torch"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -140,6 +143,8 @@ all = [
   "uvicorn",
   "watchdog",
   "chainlit",
+  "transformers",
+  "torch",
 ]
 
 [tool.poetry.group.dev]
@@ -153,6 +158,7 @@ pytest = ">=7.2.2,<9.0.0"
 pytest-asyncio = ">=0.21.0, <1.0.0"
 pytest-cov = ">=4.1.0"
 pytest-httpx = ">=0.22.0"
+pytest-xdist = "^3.8.0"
 streamlit = ">=1.37.0"
 tox = "^4.23.2"
 pytest-profiling = "^1.7.0"

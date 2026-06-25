@@ -24,7 +24,8 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
+from types import MappingProxyType
 from typing import Any, NamedTuple, Optional, cast
 
 import aiohttp
@@ -38,8 +39,9 @@ from nemoguardrails.guardrails._http import (
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
+from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +52,46 @@ _ENGINE_BASE_URLS = {
 }
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
+
+# Parameter keys the engine reserves and handles itself, so they are NOT
+# forwarded into the /v1/chat/completions request body.  Everything else in
+# a model's ``parameters`` config block becomes a per-request default via
+# ``ModelEngine.body_param_defaults``.
+_RESERVED_LLM_PARAMETERS = frozenset(
+    {
+        # transport / retry — consumed by ModelEngine.__init__ and
+        # _resolve_base_url, never part of the request body
+        "base_url",
+        "timeout",
+        "timeout_connect",
+        "max_attempts",
+        # secret — carried in the Authorization header, never echoed into the body
+        "api_key",
+        # model identity / positional — set explicitly by _prepare_request;
+        # would collide with the "model" body field set there.  After Model
+        # validation these never appear in parameters, but exclude them
+        # defensively against direct construction.
+        "model",
+        "model_name",
+        "messages",
+        # streaming control — owned by the engine.  "stream" in particular
+        # collides with the explicit stream=True kwarg that stream_call()
+        # passes into _prepare_request(), which would raise TypeError on a
+        # duplicate keyword argument.
+        "stream",
+        # Can't set Model-level `stream_options` because the same model can
+        # be used in streaming or non-streaming mode. Defer to inference-time
+        # `llm_params`.
+        "stream_options",
+        # client-only options — these configure the OpenAI-compatible client
+        # (constructor kwargs), not the chat-completion request body.  IORails
+        # doesn't wire the shared client yet; reserve them so they're never
+        # forwarded as body fields, leaving proper client support to a future
+        # refactor.
+        "default_headers",
+        "default_query",
+    }
+)
 
 
 class _RequestParams(NamedTuple):
@@ -82,8 +124,12 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     """Convert a /v1/chat/completions response dict into an LLMResponse.
 
     Reasoning is read from ``message.reasoning_content`` when the provider
-    exposes it (NIM, DeepSeek-style). Tool calls are out of scope for this
-    PR series and are not currently surfaced.
+    exposes it (NIM, DeepSeek-style). Tool calls are parsed from
+    ``message.tool_calls`` (OpenAI shape) into ``LLMResponse.tool_calls`` via
+    ``ChatMessage.from_dict``, which normalizes JSON-string arguments into a
+    dict. ``content`` is ``None`` on a tool-call-only response and is
+    normalized to an empty string; a ``None`` content with no tool calls is
+    treated as a malformed response.
     """
     try:
         choice = response["choices"][0]
@@ -92,12 +138,18 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     except (KeyError, IndexError, TypeError) as exc:
         raise ValueError(f"Unexpected /v1/chat/completions response shape: {exc}") from exc
 
-    if not isinstance(content, str):
-        if content is None and message.get("tool_calls"):
-            raise ValueError(
-                "Tool-call-only responses are not yet supported by IORails (message contains tool_calls but no content)"
-            )
+    raw_tool_calls = message.get("tool_calls")
+
+    if content is None:
+        # A tool-call-only response legitimately carries content=None; a null
+        # content with no tool calls is malformed.
+        if not raw_tool_calls:
+            raise ValueError("Expected string content, got NoneType")
+        content = ""
+    elif not isinstance(content, str):
         raise ValueError(f"Expected string content, got {type(content).__name__}")
+
+    tool_calls = ChatMessage.from_dict(message).tool_calls if raw_tool_calls else None
 
     reasoning = message.get("reasoning_content") or None
 
@@ -106,6 +158,7 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
     return LLMResponse(
         content=content,
         reasoning=reasoning,
+        tool_calls=tool_calls,
         model=response.get("model"),
         finish_reason=choice.get("finish_reason"),
         request_id=response.get("id"),
@@ -117,9 +170,18 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     """Build an LLMResponseChunk from an SSE chunk dict.
 
     Returns None for chunks without one of: content delta, reasoning delta,
-    or a usage payload.
-    Role-only first events and finish-only events with empty deltas
-    map to None.
+    a usage payload, or a finish_reason.
+    Role-only first events map to None.
+
+    Finish-only frames are preserved: a delta with no content/reasoning
+    (OpenAI sends ``delta: {}``, NIM sends ``delta: {"content": ""}``) and no
+    usage, carrying only a ``finish_reason``. Dropping them would strip
+    ``gen_ai.response.finish_reasons`` from the LLM span. (Some providers
+    instead attach ``finish_reason`` to the final content chunk — that case is
+    already captured, since content keeps the chunk alive.) When
+    ``stream_options.include_usage=true`` the usage payload arrives in a
+    *separate* later frame with empty ``choices`` — so finish_reason and usage
+    do not share a frame.
 
     Last chunk from OpenAI-compatible providers has a ``usage`` field when
     ``stream_options.include_usage=true``. This is passed through to capture
@@ -138,7 +200,7 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
         delta_reasoning = delta.get("reasoning_content") or None
         finish_reason = choice.get("finish_reason")
 
-    if not delta_content and not delta_reasoning and not usage_dict:
+    if not delta_content and not delta_reasoning and not usage_dict and not finish_reason:
         return None
 
     return LLMResponseChunk(
@@ -149,6 +211,231 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
         request_id=chunk.get("id"),
         usage=_parse_usage(usage_dict) if usage_dict else None,
     )
+
+
+def _accumulate_tool_call_delta(tool_calls: dict[int, dict], raw_chunk: dict) -> None:
+    """Update the tool-call accumulator with any tool_call deltas from a raw SSE chunk.
+
+    OpenAI streams argument JSON as fragments across many chunks; NIM delivers
+    complete arguments in one delta. Both are handled uniformly: ``tool_calls``
+    is keyed by the OpenAI ``index`` field and mutated in place on every call.
+    Finalize with ``_finalize_tool_calls`` once ``finish_reason=="tool_calls"``.
+    """
+    choices = raw_chunk.get("choices") or []
+    if not choices:
+        return
+    delta = choices[0].get("delta") or {}
+    for tool_call_delta in delta.get("tool_calls") or []:
+        # ``index`` ties fragmented argument deltas back to their tool call (only
+        # the first delta per call carries id/name; later ones carry just args +
+        # the same index). It defaults to 0 for single-call streams that omit it;
+        # OpenAI/NIM always send it for parallel calls. The collision check below
+        # flags the rare case where a provider omits it for parallel calls.
+        index = tool_call_delta.get("index", 0)
+        function = tool_call_delta.get("function") or {}
+        if index not in tool_calls:
+            tool_calls[index] = {
+                "id": tool_call_delta.get("id") or "",
+                "name": function.get("name") or "",
+                "arguments_buffer": "",
+            }
+        else:
+            incoming_id = tool_call_delta.get("id")
+            if incoming_id:
+                existing_id = tool_calls[index]["id"]
+                if existing_id and incoming_id != existing_id:
+                    # A distinct tool call (different id) landed on an existing
+                    # accumulator slot — happens when a provider omits ``index`` for
+                    # parallel calls, collapsing them into one slot (id/name
+                    # overwritten, arguments concatenated into invalid JSON). Warn
+                    # rather than silently corrupt; strict per-provider validation
+                    # is the canonicalization layer's job.
+                    log.warning(
+                        "[%s] tool-call id %r collided with accumulator slot %d (existing id %r); "
+                        "provider likely omitted 'index' for parallel tool calls — result may be corrupted",
+                        get_request_id(),
+                        incoming_id,
+                        index,
+                        existing_id,
+                    )
+                tool_calls[index]["id"] = incoming_id
+            name = function.get("name")
+            if name:
+                tool_calls[index]["name"] = name
+        arguments_fragment = function.get("arguments") or ""
+        if arguments_fragment:
+            tool_calls[index]["arguments_buffer"] += arguments_fragment
+
+
+# TODO: duplicates _finalize_tool_calls in
+# nemoguardrails/llm/models/openai_chat.py . Needs consolidating.
+def _finalize_tool_calls(tool_calls: dict[int, dict]) -> list[ToolCall]:
+    """Assemble accumulated tool-call fragments into ToolCall objects.
+
+    Called once when the stream emits finish_reason='tool_calls'. An empty buffer (no
+    argument fragments streamed) is a no-argument call and becomes ``{}``; a non-empty
+    buffer that is not a valid JSON object (e.g. arguments truncated mid-stream) raises
+    ``ValueError`` so the malformed call fails closed rather than silently degrading to
+    empty arguments that could pass the tool-call rail. This mirrors the non-streaming
+    parser (``ChatMessage.from_dict``), which raises on the same bytes; ``stream_call``
+    wraps the error into ``ModelEngineError`` exactly as the non-streaming path does.
+    """
+    result = []
+    for index in sorted(tool_calls.keys()):
+        entry = tool_calls[index]
+        raw_arguments = entry.get("arguments_buffer", "")
+        if raw_arguments:
+            try:
+                arguments = json.loads(raw_arguments)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Tool call arguments are not valid JSON: {raw_arguments!r}") from exc
+            if not isinstance(arguments, dict):
+                raise ValueError(
+                    f"Tool call arguments must be a JSON object, got {type(arguments).__name__}: {raw_arguments!r}"
+                )
+        else:
+            arguments = {}
+        result.append(
+            ToolCall(
+                id=entry.get("id", ""),
+                type="function",
+                function=ToolCallFunction(
+                    name=entry.get("name", ""),
+                    arguments=arguments,
+                ),
+            )
+        )
+    return result
+
+
+def _parse_tools_openai(tools: list) -> list[Tool]:
+    """Parse OpenAI Chat Completions tool definitions into ``Tool`` objects.
+
+    Each entry has the nested shape ``{"type": "function", "function": {"name",
+    "description", "parameters", "strict"}}``; ``function.parameters`` (the JSON
+    Schema) maps to ``Tool.arguments_schema``. Entries that are not a dict, lack a
+    ``function`` block, or whose function has no non-empty ``name`` are skipped.
+    """
+    parsed: list[Tool] = []
+    for entry in tools:
+        if not isinstance(entry, dict):
+            continue
+        function = entry.get("function")
+        if not isinstance(function, dict):
+            continue
+        name = function.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        parsed.append(
+            Tool(
+                name=name,
+                type=entry.get("type", "function"),
+                description=function.get("description"),
+                arguments_schema=function.get("parameters"),
+                strict=function.get("strict"),
+            )
+        )
+    return parsed
+
+
+def _parse_tools_nim(tools: list) -> list[Tool]:
+    """Parse NIM tool definitions. NIM uses the OpenAI Chat Completions tool shape."""
+    return _parse_tools_openai(tools)
+
+
+_TOOL_PARSERS = {
+    "openai": _parse_tools_openai,
+    "nim": _parse_tools_nim,
+}
+
+
+def _tool_result_from_message(message: dict) -> ToolResult:
+    """Normalize one OpenAI Chat Completions ``role:"tool"`` message into a ``ToolResult``.
+
+    This shape has no error flag, so ``is_error`` is always ``False``.
+    """
+    return ToolResult(
+        call_id=message.get("tool_call_id"),
+        name=message.get("name"),
+        content=message.get("content"),
+    )
+
+
+def _extract_tool_results_openai(messages: LLMMessages) -> list[ToolResult]:
+    """Extract OpenAI Chat Completions tool results into ``ToolResult`` objects.
+
+    Chat Completions carries each tool result as a top-level ``{"role": "tool",
+    "tool_call_id", "content"}`` message (optionally ``name``).
+    """
+    return [
+        _tool_result_from_message(message)
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "tool"
+    ]
+
+
+def _extract_tool_results_nim(messages: LLMMessages) -> list[ToolResult]:
+    """Extract NIM tool results. NIM uses the OpenAI Chat Completions shape."""
+    return _extract_tool_results_openai(messages)
+
+
+_RESULT_EXTRACTORS = {
+    "openai": _extract_tool_results_openai,
+    "nim": _extract_tool_results_nim,
+}
+
+
+def _tool_calls_from_message(message: dict) -> list[ToolCall]:
+    """Extract the tool calls from one assistant message into ``ToolCall`` objects.
+    Malformed tool calls fall back to just id, type, function"""
+    try:
+        return ChatMessage.from_dict(message).tool_calls or []
+    except ValueError:
+        return [
+            ToolCall(
+                id=raw.get("id", ""),
+                type=raw.get("type", "function"),
+                function=ToolCallFunction(name=(raw.get("function") or {}).get("name", ""), arguments={}),
+            )
+            for raw in message.get("tool_calls") or []
+            if isinstance(raw, dict)
+        ]
+
+
+def _extract_tool_exchanges_openai(messages: LLMMessages) -> list[ToolExchange]:
+    """Group an OpenAI Chat Completions conversation into per-turn ``ToolExchange``es."""
+    exchanges: list[ToolExchange] = []
+    # The exchange currently accepting tool results: the most recent assistant tool-call
+    # turn, or an orphan opened by a leading/stray tool result. Any other message resets
+    # it to None so the next tool result starts a fresh exchange instead of attaching to
+    # a closed turn.
+    open_exchange: ToolExchange | None = None
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = message.get("role")
+        if role == "tool":
+            if open_exchange is None:
+                open_exchange = ToolExchange(calls=[], results=[])
+                exchanges.append(open_exchange)
+            open_exchange.results.append(_tool_result_from_message(message))
+        elif role == "assistant" and message.get("tool_calls"):
+            open_exchange = ToolExchange(calls=_tool_calls_from_message(message), results=[])
+            exchanges.append(open_exchange)
+        else:
+            open_exchange = None
+    return exchanges
+
+
+def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
+    """Extract NIM tool exchanges. NIM uses the OpenAI Chat Completions shape."""
+    return _extract_tool_exchanges_openai(messages)
+
+
+_TOOL_EXCHANGE_EXTRACTORS = {
+    "openai": _extract_tool_exchanges_openai,
+    "nim": _extract_tool_exchanges_nim,
+}
 
 
 class ModelEngineError(Exception):
@@ -179,6 +466,13 @@ class ModelEngine(BaseEngine):
             timeout_total=float(params.get("timeout") or DEFAULT_TIMEOUT_TOTAL),
             timeout_connect=float(params.get("timeout_connect") or DEFAULT_TIMEOUT_CONNECT),
             max_attempts=int(params.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
+        )
+
+        # Default `llm_params` used on inference are the subset of Model.parameters after
+        # filtering out keys in _RESERVED_LLM_PARAMETERS.  Exposed as a read-only
+        # MappingProxyType view so callers can't mutate the shared per-engine defaults.
+        self.body_param_defaults: Mapping[str, Any] = MappingProxyType(
+            {key: value for key, value in params.items() if key not in _RESERVED_LLM_PARAMETERS}
         )
 
     def _resolve_base_url(self) -> str:
@@ -349,6 +643,15 @@ class ModelEngine(BaseEngine):
         content should gate on ``chunk.delta_content`` rather than
         assuming every yielded chunk carries one.
 
+        Tool calls (when the request declared ``tools``) are accumulated
+        from streamed ``delta.tool_calls`` fragments and surfaced as a
+        single ``LLMResponseChunk`` whose ``delta_tool_calls`` carries the
+        COMPLETE finalized list exactly once — on the first chunk with a
+        ``finish_reason`` (``"tool_calls"`` for a free choice, ``"stop"``
+        for a forced ``tool_choice``), or via a post-loop safety net if the
+        provider omits a parseable finish frame. No other chunk carries
+        ``delta_tool_calls``, so consumers may treat it as last-write-wins.
+
         Args:
             messages: List of message dicts in OpenAI format.
             **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
@@ -385,6 +688,9 @@ class ModelEngine(BaseEngine):
                 # response.content uses readany() which returns arbitrary byte
                 # chunks — multiple SSE events in one TCP segment would be merged
                 # into one unparseable blob.  readline() splits on \n correctly.
+                tool_calls: dict[int, dict] = {}
+                tool_calls_emitted = False
+                last_chunk_id = None
                 while True:
                     raw_line = await response.content.readline()
                     if not raw_line:
@@ -393,6 +699,9 @@ class ModelEngine(BaseEngine):
                     line = raw_line.decode("utf-8").strip()
                     if not line:
                         continue
+
+                    log.debug("[%s] SSE line: %s", req_id, truncate(line))
+
                     if not line.startswith("data: "):
                         continue
 
@@ -406,9 +715,48 @@ class ModelEngine(BaseEngine):
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
+                    last_chunk_id = raw_chunk.get("id") or last_chunk_id
+                    _accumulate_tool_call_delta(tool_calls, raw_chunk)
+
                     parsed_chunk = _parse_chat_completion_chunk(raw_chunk)
+
+                    # Finalize accumulated tool calls onto the terminating chunk.
+                    # A streamed tool call ends with a finish_reason — "tool_calls"
+                    # when the model chose freely, but "stop" when tool_choice forced
+                    # a specific function. Gate on *any* finish_reason (with tool calls
+                    # accumulated), not the literal "tool_calls", or forced calls never
+                    # surface. finish_reason keeps that chunk alive in
+                    # _parse_chat_completion_chunk, so parsed_chunk is non-None here; if a
+                    # provider ever omits a parseable finish frame, the post-loop safety
+                    # net below surfaces the calls instead.
+                    choices = raw_chunk.get("choices") or []
+                    finish_reason = choices[0].get("finish_reason") if choices else None
+                    if tool_calls and not tool_calls_emitted and finish_reason and parsed_chunk is not None:
+                        if finish_reason not in ("tool_calls", "stop"):
+                            # Abnormal terminator (e.g. "length", "content_filter")
+                            # while a tool call is mid-assembly: surface what we have
+                            # but warn, because the JSON arguments are likely truncated
+                            # and will degrade to {} in _finalize_tool_calls.
+                            log.warning(
+                                "[%s] tool-call stream ended with finish_reason=%r; "
+                                "assembled tool-call arguments may be truncated or incomplete",
+                                req_id,
+                                finish_reason,
+                            )
+                        parsed_chunk.delta_tool_calls = _finalize_tool_calls(tool_calls)
+                        tool_calls_emitted = True
+
                     if parsed_chunk is not None:
                         yield parsed_chunk
+
+                # Safety net: a provider that ends the stream with [DONE]/EOF and no
+                # finish_reason chunk still gets its accumulated tool calls surfaced.
+                if tool_calls and not tool_calls_emitted:
+                    yield LLMResponseChunk(
+                        finish_reason="tool_calls",
+                        request_id=last_chunk_id,
+                        delta_tool_calls=_finalize_tool_calls(tool_calls),
+                    )
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.debug("[%s] Stream completed time=%.1fms", req_id, elapsed_ms)
@@ -452,3 +800,45 @@ class ModelEngine(BaseEngine):
         """
         async for chunk in self.stream_call(messages, **kwargs):
             yield chunk
+
+    def parse_tools(self, llm_params: Optional[dict]) -> Toolset:
+        """Parse the provider tool block in ``llm_params`` into a ``Toolset``.
+
+        Reads the opaque ``tools`` block forwarded via
+        ``GenerationOptions.llm_params`` and normalizes it into the internal
+        ``Toolset`` the tool rails validate against, keyed on the model's engine
+        (``_TOOL_PARSERS``). OpenAI and NIM share the Chat Completions shape; an
+        engine with no registered parser falls back to it. Returns an empty
+        ``Toolset`` when no tools are declared.
+        """
+        tools = (llm_params or {}).get("tools")
+        if not tools:
+            return Toolset()
+        parser = _TOOL_PARSERS.get(self.model_config.engine, _parse_tools_openai)
+        return Toolset(tools=parser(tools))
+
+    def extract_tool_results(self, messages: LLMMessages) -> list[ToolResult]:
+        """Extract incoming tool results from ``messages`` into ``ToolResult`` objects.
+
+        Pulls the provider's tool-result messages out of the conversation and
+        normalizes them into the internal ``ToolResult`` shape the ToolResultRail
+        consumes, keyed on the model's engine (``_RESULT_EXTRACTORS``). OpenAI and
+        NIM share the Chat Completions shape (``role:"tool"`` messages); an engine
+        with no registered extractor falls back to it. Returns an empty list when
+        there are no tool results.
+        """
+        extractor = _RESULT_EXTRACTORS.get(self.model_config.engine, _extract_tool_results_openai)
+        return extractor(messages)
+
+    def extract_tool_exchanges(self, messages: LLMMessages) -> list[ToolExchange]:
+        """Group ``messages`` into per-turn ``(tool_calls, tool_results)`` exchanges.
+
+        Each exchange pairs one assistant turn's tool calls with the tool results that
+        answer it, so ``RailsManager.are_tool_results_safe`` can validate ``call_id``
+        linkage turn-locally rather than across the whole flattened history (the latter
+        falsely flags ids reused across turns, which the OpenAI spec permits). Keyed on
+        the model's engine (``_TOOL_EXCHANGE_EXTRACTORS``); OpenAI and NIM share the Chat
+        Completions shape and an engine with no registered extractor falls back to it.
+        """
+        extractor = _TOOL_EXCHANGE_EXTRACTORS.get(self.model_config.engine, _extract_tool_exchanges_openai)
+        return extractor(messages)

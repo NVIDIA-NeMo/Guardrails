@@ -51,15 +51,12 @@ from nemoguardrails.actions.llm.utils import (
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
+from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
-from nemoguardrails.colang.v2_x.runtime.serialization import (
-    json_to_state,
-    state_to_json,
-)
 from nemoguardrails.context import (
     explain_info_var,
     generation_options_var,
@@ -73,6 +70,7 @@ from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
+    InvalidStateError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
@@ -135,12 +133,132 @@ def _wrap_legacy_llm(llm):
     return LangChainLLMAdapter(llm)
 
 
-class LLMRails:
+class LLMRails(BaseGuardrails):
     """Rails based on a given configuration."""
 
     config: RailsConfig
     llm: Optional[LLMModel]
     runtime: Runtime
+
+    @property
+    def kb(self):
+        warnings.warn(
+            "LLMRails.kb is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._kb
+
+    @property
+    def embedding_search_providers(self):
+        warnings.warn(
+            "LLMRails.embedding_search_providers is deprecated and will be removed in a future release. "
+            "It is an internal attribute with no replacement read API; "
+            "use register_embedding_search_provider() to add providers.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._embedding_search_providers
+
+    @property
+    def default_embedding_model(self):
+        warnings.warn(
+            "LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_model
+
+    @default_embedding_model.setter
+    def default_embedding_model(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_model is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_model = value
+
+    @property
+    def default_embedding_engine(self):
+        warnings.warn(
+            "LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_engine
+
+    @default_embedding_engine.setter
+    def default_embedding_engine(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_engine is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_engine = value
+
+    @property
+    def default_embedding_params(self):
+        warnings.warn(
+            "LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._default_embedding_params
+
+    @default_embedding_params.setter
+    def default_embedding_params(self, value):
+        warnings.warn(
+            "Setting LLMRails.default_embedding_params is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._default_embedding_params = value
+
+    @property
+    def explain_info(self):
+        warnings.warn(
+            "LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "Use LLMRails.explain() instead, which guarantees a non-None ExplainInfo.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._explain_info
+
+    @explain_info.setter
+    def explain_info(self, value):
+        warnings.warn(
+            "Setting LLMRails.explain_info is deprecated and will be removed in the next release. "
+            "explain_info is an internal accumulator; use LLMRails.explain() to read it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._explain_info = value
+
+    @property
+    def llm_generation_actions(self):
+        warnings.warn(
+            "LLMRails.llm_generation_actions is deprecated and will be removed in a future release. "
+            "It is an internal attribute; use the first-class LLMRails.passthrough_fn API if you "
+            "previously set passthrough_fn through it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._llm_generation_actions
+
+    @property
+    def passthrough_fn(self):
+        """The optional passthrough function that bypasses LLM generation.
+
+        When set, the rails pipeline calls this function instead of the main LLM
+        for generating responses. LLMGenerationActions is private, expose only
+        `passthrough_fn` as a public API
+        """
+        return self._llm_generation_actions._passthrough_fn
+
+    @passthrough_fn.setter
+    def passthrough_fn(self, fn):
+        """LLMGenerationActions is private, set passthrough_fn directly"""
+        self._llm_generation_actions._passthrough_fn = fn
 
     def __init__(
         self,
@@ -168,12 +286,12 @@ class LLMRails:
 
         # We allow the user to register additional embedding search providers, so we keep
         # an index of them.
-        self.embedding_search_providers = {}
+        self._embedding_search_providers = {}
 
         # The default embeddings model is using FastEmbed
-        self.default_embedding_model = "all-MiniLM-L6-v2"
-        self.default_embedding_engine = "FastEmbed"
-        self.default_embedding_params = {}
+        self._default_embedding_model = "all-MiniLM-L6-v2"
+        self._default_embedding_engine = "FastEmbed"
+        self._default_embedding_params = {}
 
         # We keep a cache of the events history associated with a sequence of user messages.
         # TODO: when we update the interface to allow to return a "state object", this
@@ -273,9 +391,9 @@ class LLMRails:
         # If we have a customized embedding model, we'll use it.
         for model in self.config.models:
             if model.type == "embeddings":
-                self.default_embedding_model = model.model
-                self.default_embedding_engine = model.engine
-                self.default_embedding_params = model.parameters or {}
+                self._default_embedding_model = model.model
+                self._default_embedding_engine = model.engine
+                self._default_embedding_params = model.parameters or {}
 
                 for esp in [
                     self.config.core.embedding_search_provider,
@@ -309,7 +427,7 @@ class LLMRails:
         llm_generation_actions_class = (
             LLMGenerationActions if config.colang_version == "1.0" else LLMGenerationActionsV2dotx
         )
-        self.llm_generation_actions = llm_generation_actions_class(
+        self._llm_generation_actions = llm_generation_actions_class(
             config=config,
             llm=self.llm,
             llm_task_manager=self.runtime.llm_task_manager,
@@ -318,7 +436,7 @@ class LLMRails:
         )
 
         # If there's already an action registered, we don't override.
-        self.runtime.register_actions(self.llm_generation_actions, override=False)
+        self.runtime.register_actions(self._llm_generation_actions, override=False)
 
         # Next, we initialize the Knowledge Base
         # There are still some edge cases not covered by nest_asyncio.
@@ -332,10 +450,14 @@ class LLMRails:
             loop.run_until_complete(self._init_kb())
 
         # We also register the kb as a parameter that can be passed to actions.
-        self.runtime.register_action_param("kb", self.kb)
+        self.runtime.register_action_param("kb", self._kb)
 
         # Reference to the general ExplainInfo object.
-        self.explain_info = None
+        self._explain_info = None
+
+        from nemoguardrails.telemetry import report_usage
+
+        report_usage(config, deployment_type="library", rails_engine="LLMRails")
 
     def update_llm(self, llm: LLMModel):
         """Replace the main LLM with the provided one.
@@ -346,7 +468,7 @@ class LLMRails:
         if not isinstance(llm, LLMModel):
             llm = _wrap_legacy_llm(llm)
         self.llm = llm
-        self.llm_generation_actions.llm = llm
+        self._llm_generation_actions.llm = llm
         self.runtime.register_action_param("llm", llm)
 
     def _validate_config(self):
@@ -381,19 +503,19 @@ class LLMRails:
 
     async def _init_kb(self):
         """Initializes the knowledge base."""
-        self.kb = None
+        self._kb = None
 
         if not self.config.docs:
             return
 
         documents = [doc.content for doc in self.config.docs]
-        self.kb = KnowledgeBase(
+        self._kb = KnowledgeBase(
             documents=documents,
             config=self.config.knowledge_base,
             get_embedding_search_provider_instance=self._get_embeddings_search_provider_instance,
         )
-        self.kb.init()
-        await self.kb.build()
+        self._kb.init()
+        await self._kb.build()
 
     def _prepare_model_kwargs(self, model_config):
         """
@@ -581,9 +703,9 @@ class LLMRails:
             from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 
             return BasicEmbeddingsIndex(
-                embedding_model=esp_config.parameters.get("embedding_model", self.default_embedding_model),
-                embedding_engine=esp_config.parameters.get("embedding_engine", self.default_embedding_engine),
-                embedding_params=esp_config.parameters.get("embedding_parameters", self.default_embedding_params),
+                embedding_model=esp_config.parameters.get("embedding_model", self._default_embedding_model),
+                embedding_engine=esp_config.parameters.get("embedding_engine", self._default_embedding_engine),
+                embedding_params=esp_config.parameters.get("embedding_parameters", self._default_embedding_params),
                 cache_config=esp_config.cache,
                 # We make sure we also pass additional relevant params.
                 **{
@@ -600,11 +722,11 @@ class LLMRails:
                 },
             )
         else:
-            if esp_config.name not in self.embedding_search_providers:
+            if esp_config.name not in self._embedding_search_providers:
                 raise Exception(f"Unknown embedding search provider: {esp_config.name}")
             else:
                 kwargs = esp_config.parameters
-                return self.embedding_search_providers[esp_config.name](**kwargs)
+                return self._embedding_search_providers[esp_config.name](**kwargs)
 
     def _get_events_for_messages(self, messages: List[dict], state: Any):
         """Return the list of events corresponding to the provided messages.
@@ -772,6 +894,32 @@ class LLMRails:
 
         return explain_info
 
+    def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
+        """Validate public dict state passed through generate/generate_async."""
+        if not isinstance(state, dict) or not state:
+            return
+
+        if self.config.colang_version == "1.0" and state.get("version") != "2.x":
+            if "state" in state:
+                raise InvalidStateError(
+                    "Invalid Colang 1.0 state format: expected transcript state with an 'events' list."
+                )
+            if "events" not in state:
+                raise InvalidStateError(
+                    "Invalid Colang 1.0 state format: state must contain an 'events' key. "
+                    "Use an empty dict {} to start a new conversation."
+                )
+            if not isinstance(state["events"], list):
+                raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
+            return
+
+        raise InvalidStateError(
+            "Colang 2.0 dict state is not supported by generate/generate_async. "
+            "Use rails.process_events_async(events, state) with a live State object "
+            "for trusted in-process multi-turn execution. Public serialized Colang "
+            "2.0 runtime state is not accepted."
+        )
+
     async def generate_async(
         self,
         prompt: Optional[str] = None,
@@ -821,9 +969,7 @@ class LLMRails:
         # This is because we want the output to be a GenerationResponse which will contain
         # the output state.
         if state is not None:
-            # We deserialize the state if needed.
-            if isinstance(state, dict) and state.get("version", "1.0") == "2.x":
-                state = json_to_state(state["state"])
+            self._validate_public_state(state)
 
             if options is None:
                 gen_options = GenerationOptions()
@@ -856,7 +1002,7 @@ class LLMRails:
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
         # requests are made.
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         raw_llm_request.set(messages)
 
@@ -928,11 +1074,13 @@ class LLMRails:
             # Compute the new events.
             # In generation mode, the processing is always blocking, i.e., it waits for
             # all local actions (sync and async).
-            new_events, output_state = await runtime.process_events(
+            new_events, _output_state = await runtime.process_events(
                 events, state=state, instant_actions=instant_actions, blocking=True
             )
-            # We also encode the output state as a JSON
-            output_state = {"state": state_to_json(output_state), "version": "2.x"}
+            # The runtime State for 2.x is not publicly exposed through generate_async.
+            # Callers that need stateful 2.x execution use process_events_async, which
+            # returns the live State object directly.
+            output_state = None
 
         # Extract and join all the messages from StartUtteranceBotAction events as the response.
         responses = []
@@ -1009,9 +1157,9 @@ class LLMRails:
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
-        self.explain_info.colang_history = get_colang_history(events)
+        self._explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
+            log.info(f"Conversation history so far: \n{self._explain_info.colang_history}")
 
         total_time = time.time() - t0
         log.info("--- :: Total processing took %.2f seconds. LLM Stats: %s" % (total_time, llm_stats))
@@ -1246,6 +1394,7 @@ class LLMRails:
             include_metadata = include_generation_metadata
 
         self._validate_streaming_with_output_rails()
+        self._validate_public_state(state)
         # if an external generator is provided, use it directly
         if generator:
             if self.config.rails.output.streaming and self.config.rails.output.streaming.enabled:
@@ -1258,7 +1407,7 @@ class LLMRails:
             else:
                 return generator
 
-        self.explain_info = self._ensure_explain_info()
+        self._explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
@@ -1598,7 +1747,7 @@ class LLMRails:
             cls: The class that will be used to generate and search embedding
         """
 
-        self.embedding_search_providers[name] = cls
+        self._embedding_search_providers[name] = cls
         return self
 
     def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> Self:
@@ -1617,9 +1766,9 @@ class LLMRails:
 
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
-        if self.explain_info is None:
-            self.explain_info = self._ensure_explain_info()
-        return self.explain_info
+        if self._explain_info is None:
+            self._explain_info = self._ensure_explain_info()
+        return self._explain_info
 
     def __getstate__(self):
         return {"config": self.config}
@@ -1836,7 +1985,7 @@ class LLMRails:
                     pass
 
                 # update explain info for parallel mode
-                self.explain_info = self._ensure_explain_info()
+                self._explain_info = self._ensure_explain_info()
 
             else:
                 for flow_id in output_rails_flows_id:
@@ -1852,7 +2001,7 @@ class LLMRails:
                     )
 
                     result = await self.runtime.action_dispatcher.execute_action(action_name, params)
-                    self.explain_info = self._ensure_explain_info()
+                    self._explain_info = self._ensure_explain_info()
 
                     action_func = self.runtime.action_dispatcher.get_action(action_name)
 

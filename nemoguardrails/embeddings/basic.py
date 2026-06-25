@@ -17,7 +17,8 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
-from annoy import AnnoyIndex  # type: ignore
+import numpy as np
+from numpy.typing import NDArray
 
 from nemoguardrails.embeddings.cache import cache_embeddings
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
@@ -25,18 +26,20 @@ from nemoguardrails.embeddings.providers import EmbeddingModel, init_embedding_m
 from nemoguardrails.rails.llm.config import EmbeddingsCacheConfig
 
 log = logging.getLogger(__name__)
+EmbeddingMatrix = NDArray[np.float32]
 
 
 class BasicEmbeddingsIndex(EmbeddingsIndex):
     """Basic implementation of an embeddings index.
 
     It uses the `sentence-transformers/all-MiniLM-L6-v2` model to compute embeddings.
-    Annoy is employed for efficient nearest-neighbor search.
+    Exact cosine nearest-neighbor search is performed over a NumPy matrix of
+    L2-normalized embeddings, so search results are exact (no approximation).
 
     Attributes:
         embedding_model (str): The model for computing embeddings.
         embedding_engine (str): The engine for computing embeddings.
-        index (AnnoyIndex): The current embedding index.
+        index (NDArray[np.float32]): The current embedding index (normalized matrix).
         embedding_size (int): The size of the embeddings.
         cache_config (EmbeddingsCacheConfig): The cache configuration.
         embeddings (List[List[float]]): The computed embeddings.
@@ -50,7 +53,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         embedding_engine: str = "SentenceTransformers",
         embedding_params: Optional[Dict[str, Any]] = None,
-        index: Optional[AnnoyIndex] = None,
+        index: Optional[EmbeddingMatrix] = None,
         cache_config: Optional[Union[EmbeddingsCacheConfig, Dict[str, Any]]] = None,
         search_threshold: float = float("inf"),
         use_batching: bool = False,
@@ -81,7 +84,10 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._cache_config = EmbeddingsCacheConfig(**cache_config)
         else:
             self._cache_config = cache_config or EmbeddingsCacheConfig()
-        self._index = index
+        self._index: Optional[EmbeddingMatrix] = None
+        if index is not None:
+            self._index = self._validate_index(index)
+            self._embedding_size = int(self._index.shape[1])
 
         # Data structures for batching embedding requests
         self._req_queue: Dict[int, str] = {}
@@ -97,14 +103,27 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self.max_batch_hold = max_batch_hold
 
     @property
-    def embeddings_index(self):
+    def embeddings_index(self) -> Optional[EmbeddingMatrix]:
         """Get the current embedding index"""
         return self._index
 
     @embeddings_index.setter
-    def embeddings_index(self, index):
+    def embeddings_index(self, index: Optional[EmbeddingMatrix]):
         """Setter to allow replacing the index dynamically."""
-        self._index = index
+        if index is None:
+            self._index = None
+            self._embedding_size = 0
+        else:
+            self._index = self._validate_index(index)
+            self._embedding_size = int(self._index.shape[1])
+
+    @staticmethod
+    def _validate_index(index: Any, path: Optional[str] = None) -> EmbeddingMatrix:
+        matrix = np.asarray(index, dtype=np.float32)
+        if matrix.ndim != 2 or matrix.shape[1] <= 0:
+            label = path if path is not None else "Embedding index"
+            raise ValueError(f"{label} is not a valid embeddings index. Expected a 2D array with at least one column.")
+        return cast(EmbeddingMatrix, matrix)
 
     @property
     def cache_config(self):
@@ -181,11 +200,22 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._embedding_size = len(self._embeddings[0])
 
     async def build(self):
-        """Builds the Annoy index."""
-        self._index = AnnoyIndex(len(self._embeddings[0]), "angular")
-        for i in range(len(self._embeddings)):
-            self._index.add_item(i, self._embeddings[i])
-        self._index.build(10)
+        """Builds the embeddings index.
+
+        Stores an L2-normalized float32 matrix of the computed embeddings. Because
+        rows are normalized, the dot product between a normalized query and a row
+        equals their cosine similarity. `search` ranks by this exact cosine value
+        and converts it to the previous Annoy-compatible score for thresholding.
+        """
+        if not self._embeddings:
+            raise ValueError("No embeddings to build the index from. Add items before calling `build`.")
+        matrix = np.asarray(self._embeddings, dtype=np.float32)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        # Avoid division by zero for degenerate (all-zero) embeddings.
+        norms[norms == 0] = 1.0
+        index = matrix / norms
+        self._index = index
+        self._embedding_size = int(index.shape[1])
 
     async def _run_batch(self):
         """Runs the current batch of embeddings."""
@@ -279,27 +309,52 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         if self._index is None:
             raise ValueError("Index is not built yet. Ensure to call `build` before searching.")
 
-        results = self._index.get_nns_by_vector(
-            _embedding,
-            max_results,
-            include_distances=True,
-        )
+        if self._index.shape[0] == 0:
+            return []
 
-        # In verbose mode, we show detailed info about the scores
+        query = np.asarray(_embedding, dtype=np.float32)
+        query_norm = np.linalg.norm(query)
+        if query_norm > 0:
+            query = query / query_norm
+
+        # Cosine similarity between the normalized query and each normalized row.
+        cosine = self._index @ query
+
+        # Reproduce Annoy's angular-distance score *exactly* so that existing
+        # `search_threshold` / `embeddings_only_similarity_threshold` values keep
+        # their meaning. For normalized vectors Annoy's angular distance is
+        # d = sqrt(2 - 2*cos), and the score was `1 - d/2`. This is a monotonic
+        # function of cosine, so the ranking is identical to (exact) cosine ranking.
+        # `clip` guards against tiny negative values from floating-point error
+        # before the sqrt.
+        distances = np.sqrt(np.clip(2.0 - 2.0 * cosine, 0.0, None))
+        scores = 1.0 - distances / 2.0
+
+        # Select the top `max_results` items, ordered best-first.
+        k = min(max_results, scores.shape[0])
+        top_indices = np.argpartition(-scores, k - 1)[:k]
+        top_indices = top_indices[np.argsort(-scores[top_indices])]
+
+        # In verbose mode, we show detailed info about the scores.
         if threshold != float("inf"):
-            log_items = []
-            for i in range(len(results[0])):
-                score = 1 - results[1][i] / 2
-                log_items.append((score, self._items[results[0][i]].text))
+            log_items = [(float(scores[i]), self._items[i].text) for i in top_indices]
             log.info("Similarity scores :: %s", str(log_items))
-
-        filtered_results = self._filter_results(results[0], results[1], threshold)
-
-        return [self._items[i] for i in filtered_results]
-
-    @staticmethod
-    def _filter_results(indices: List[int], distances: List[float], threshold: float) -> List[int]:
-        if threshold == float("inf"):
-            return indices
+            selected = [int(i) for i in top_indices if scores[i] >= threshold]
         else:
-            return [index for index, distance in zip(indices, distances) if (1 - distance / 2) >= threshold]
+            selected = [int(i) for i in top_indices]
+
+        return [self._items[i] for i in selected]
+
+    def save(self, path: str) -> None:
+        """Persist the built index to disk as a NumPy ``.npy`` file."""
+        if self._index is None:
+            raise ValueError("Index is not built yet. Ensure to call `build` before saving.")
+        index_path = path if path.endswith(".npy") else f"{path}.npy"
+        np.save(index_path, self._index)
+
+    def load(self, path: str) -> None:
+        """Restore a previously persisted index from disk."""
+        index_path = path if path.endswith(".npy") else f"{path}.npy"
+        index = np.load(index_path).astype(np.float32, copy=False)
+        self._index = self._validate_index(index, path)
+        self._embedding_size = int(self._index.shape[1])

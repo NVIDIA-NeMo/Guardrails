@@ -1105,10 +1105,10 @@ def test_explain_calls_ensure_explain_info():
     rails = LLMRails(config=config, llm=fake_llm)
     rails.generate(messages=[{"role": "user", "content": "Hi!"}])
 
-    rails.explain_info = None
+    rails._explain_info = None
     info = rails.explain()
     assert info == ExplainInfo()
-    assert rails.explain_info == ExplainInfo()
+    assert rails._explain_info == ExplainInfo()
 
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")

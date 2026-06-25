@@ -15,6 +15,7 @@
 
 """Unit tests for nemoguardrails.guardrails.telemetry module."""
 
+import asyncio
 import re
 from unittest.mock import MagicMock, patch
 
@@ -191,6 +192,39 @@ class TestRequestSpan:
         assert len(exception_events) == 1
         assert "boom" in exception_events[0].attributes["exception.message"]
 
+    def test_records_error_type_on_cancelled_error(self, otel_provider):
+        """Consumer-cancelled streams raise ``asyncio.CancelledError``
+        inside the SERVER span.  Span must still be marked ERROR with
+        ``error.type=CancelledError`` so traces can be filtered to
+        cancelled requests.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(asyncio.CancelledError):
+            with request_span(tracer) as _:
+                raise asyncio.CancelledError()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "CancelledError"
+
+    def test_records_error_type_on_generator_exit(self, otel_provider):
+        """``GeneratorExit`` (raised when the async generator wrapping
+        the request is closed) must mark the SERVER span ERROR with
+        ``error.type=GeneratorExit``.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(GeneratorExit):
+            with request_span(tracer) as _:
+                raise GeneratorExit()
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "GeneratorExit"
+
     def test_span_ended_on_success(self, otel_provider):
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
@@ -219,6 +253,31 @@ class TestRecordSpanError:
         exc_events = [e for e in finished.events if e.name == "exception"]
         assert len(exc_events) == 1
         assert exc_events[0].attributes["exception.type"] == "ValueError"
+
+    def test_swallows_sdk_failure(self):
+        """A broken span/exporter that raises while being annotated must not
+        propagate — ``record_span_error`` is best-effort so the span helpers
+        can call it from an ``except`` branch handling a cancellation without
+        the telemetry failure masking the original exception.
+        """
+        broken_span = MagicMock()
+        broken_span.set_attribute.side_effect = RuntimeError("exporter down")
+        broken_span.record_exception.side_effect = RuntimeError("exporter down")
+        broken_span.set_status.side_effect = RuntimeError("exporter down")
+
+        # Must return cleanly, not raise.
+        record_span_error(broken_span, ValueError("orig"))
+
+    def test_does_not_swallow_base_exception_from_sdk(self):
+        """Only ``Exception`` is suppressed.  A ``BaseException`` raised by the
+        SDK (e.g. a cancellation delivered while the call is in flight) must
+        still propagate rather than be silently dropped.
+        """
+        broken_span = MagicMock()
+        broken_span.set_attribute.side_effect = KeyboardInterrupt()
+
+        with pytest.raises(KeyboardInterrupt):
+            record_span_error(broken_span, ValueError("orig"))
 
 
 class TestMarkRailStop:

@@ -1,0 +1,21 @@
+example_id,prompt,expected_topic
+tc_001,Can you explain the doctrine of equivalents in patent claim interpretation?,ip_law
+tc_002,What's the standard for prior art search using the IPC classification system?,ip_law
+tc_003,How long does a continuation application typically take to issue at the USPTO?,ip_law
+tc_004,"Walk me through how to build a claim chart for an alleged infringer's product against US Patent 10,123,456.",ip_law
+tc_005,Can a software algorithm be patented post-Alice v. CLS Bank? Walk me through the patent eligibility analysis.,ip_law
+tc_006,How do I make sure my new logo doesn't accidentally infringe on someone else's trademark?,ip_law
+tc_007,"If I modified an open-source library and want to release it under a different license, what are my legal options?",ip_law
+tc_008,How do I get sole custody of my kids after a divorce?,off_topic_legal
+tc_009,What's the statute of limitations on filing a federal tax return correction?,off_topic_legal
+tc_010,"If someone steals my car, what's the maximum sentence under California penal code?",off_topic_legal
+tc_011,I'm being sued for breach of an NDA at work. What are my defenses?,off_topic_legal
+tc_012,Can I sue my landlord for not fixing the broken heater? It's been three weeks.,off_topic_legal
+tc_013,What's the IRS treatment of patent income for individual inventors?,off_topic_legal
+tc_014,"If my ex-spouse claims half of my patents in the divorce, what's the marital property treatment?",off_topic_legal
+tc_015,What are the immigration consequences of a misdemeanor conviction for a green card holder?,off_topic_legal
+tc_016,How do I claim disability benefits under the SSA?,off_topic_legal
+tc_017,What's the best slow-cooker recipe for beef stew?,off_topic_generic
+tc_018,Will it rain in Boston tomorrow?,off_topic_generic
+tc_019,Who won the Super Bowl in 2020?,off_topic_generic
+tc_020,What are the top tourist attractions in Tokyo?,off_topic_generic

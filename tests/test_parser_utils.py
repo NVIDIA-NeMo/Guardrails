@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.colang.v1_0.lang.utils import split_args
+from nemoguardrails.colang.v1_0.lang.utils import get_numbered_lines, split_args
 
 
 def test_1():
@@ -30,3 +30,17 @@ def test_1():
         "x=[1,2,3]",
         "data = {'name': 'John'}",
     ]
+
+
+def test_get_numbered_lines_or_continuation_at_eof():
+    # A line ending in " or" as the final line must not raise IndexError.
+    # The bounds guard previously only protected the "\\" continuation, so a
+    # dangling " or" at end-of-file indexed past the last line.
+    lines = get_numbered_lines("define flow test\n  user express greeting or")
+    assert lines[-1]["text"] == "user express greeting or"
+
+
+def test_get_numbered_lines_or_continuation_merges():
+    # A valid " or" continuation still merges onto the next line.
+    lines = get_numbered_lines("define flow test\n  a or\n  b")
+    assert [line["text"] for line in lines] == ["define flow test", "a or b"]

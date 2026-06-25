@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "docs": "make docs-fern",
+    "docs:convert": "node docs/scripts/convert-docs-to-fern.mjs",
+    "docs:deps": "node -p \"require('./fern/fern.config.json').version\" | xargs -I {} npx --yes fern-api@{} --version",
+    "docs:preview:watch": "make docs-fern-preview-watch",
+    "docs:strict": "make docs-fern-strict",
+    "docs:live": "make docs-fern-live"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
+  }
+}

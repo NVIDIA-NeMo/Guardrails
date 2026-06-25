@@ -1,0 +1,20 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+rails:
+  config:
+    fact_checking:
+      parameters:
+        endpoint: "http://localhost:5123/alignscore_base"
+    patronus:
+      output:
+        evaluate_config:
+          params:
+            evaluators:
+              - evaluator: lynx
+    regex_detection:
+      input:
+        patterns:
+          - "secret"

@@ -1,0 +1,93 @@
+name: PR size label
+
+# Applies a "size: XS/S/M/L/XL" label to PRs from a weighted diff score
+# (code + 50% docs + 50% tests), excluding poetry.lock and recorded test data
+# so generated fixtures do not dominate the size.
+#
+# Uses pull_request_target so it has a write token on fork PRs. Safe because the
+# job only reads the PR file list via the API and calls the labels API; it never
+# checks out or executes PR head code. Do not add a checkout of the PR head here.
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- no checkout or execution of PR head
+  # code; the job reads the PR file list and calls the labels API only.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-size-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  size-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const isExcluded = (name) =>
+              name === "poetry.lock" ||
+              name.includes("/cassettes/") ||
+              name.includes("/recordings/") ||
+              name.includes("/fixtures/");
+
+            const isDocs = (name) =>
+              name.startsWith("docs/") || name.endsWith(".md");
+
+            const isTests = (name) => name.startsWith("tests/");
+
+            let code = 0;
+            let docs = 0;
+            let tests = 0;
+            for (const file of files) {
+              if (isExcluded(file.filename)) continue;
+              const changed = file.additions + file.deletions;
+              if (isDocs(file.filename)) docs += changed;
+              else if (isTests(file.filename)) tests += changed;
+              else code += changed;
+            }
+
+            const score = code + Math.floor(docs / 2) + Math.floor(tests / 2);
+            const size =
+              score < 10 ? "XS" :
+              score < 50 ? "S" :
+              score < 250 ? "M" :
+              score < 1000 ? "L" : "XL";
+            const label = `size: ${size}`;
+
+            const current = context.payload.pull_request.labels
+              .map((existing) => existing.name)
+              .filter((name) => name.startsWith("size: "));
+
+            for (const stale of current) {
+              if (stale === label) continue;
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.pull_request.number,
+                  name: stale,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+
+            if (!current.includes(label)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: [label],
+              });
+            }

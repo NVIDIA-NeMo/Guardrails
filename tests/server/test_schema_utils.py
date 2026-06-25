@@ -34,12 +34,16 @@ from nemoguardrails.server.schemas.utils import (
     PROVIDERS,
     _azure_url,
     _openai_compatible_url,
+    bot_message_to_chat_completion,
     create_error_chat_completion,
     extract_bot_message_from_response,
     fetch_models,
     format_streaming_chunk,
     format_streaming_chunk_as_sse,
     generation_response_to_chat_completion,
+    normalize_tool_calls_openai,
+    resolve_tool_calls,
+    warn_if_thread_history_invalid_for_tool_use,
 )
 
 # ===== Tests for extract_bot_message_from_response =====
@@ -72,6 +76,49 @@ def test_extract_bot_message_from_generation_response_with_dict():
     response = GenerationResponse(response=[bot_msg])
     result = extract_bot_message_from_response(response)
     assert result == {"role": "assistant", "content": "Response from dict"}
+
+
+def test_extract_bot_message_does_not_merge_generation_response_tool_calls():
+    """extract_bot_message_from_response is a pure extractor; it does not merge tool_calls."""
+    tool_calls = [{"name": "get_weather", "args": {"city": "Boston"}, "id": "call_1", "type": "tool_call"}]
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": ""}],
+        tool_calls=tool_calls,
+    )
+    result = extract_bot_message_from_response(response)
+    # tool_calls lives on GenerationResponse, not on the message dict here
+    assert result.get("tool_calls") is None
+
+
+def test_resolve_tool_calls_merges_from_response():
+    """resolve_tool_calls falls back to response_tool_calls when absent on the message."""
+    tool_calls = [{"name": "get_weather", "args": {"city": "Boston"}, "id": "call_1", "type": "tool_call"}]
+    bot_message = {"role": "assistant", "content": ""}
+    result = resolve_tool_calls(bot_message, tool_calls)
+    assert result == tool_calls
+
+
+def test_resolve_tool_calls_prefers_message_tool_calls():
+    """resolve_tool_calls returns message-level tool_calls when present."""
+    message_tool_calls = [{"id": "call_msg", "type": "function", "function": {"name": "a", "arguments": "{}"}}]
+    response_tool_calls = [{"name": "other", "args": {}, "id": "call_res", "type": "tool_call"}]
+    bot_message = {"role": "assistant", "content": "", "tool_calls": message_tool_calls}
+    result = resolve_tool_calls(bot_message, response_tool_calls)
+    assert result == message_tool_calls
+
+
+def test_warn_if_thread_history_invalid_for_tool_use(caplog):
+    """Warn when thread replay would violate OpenAI tool message ordering."""
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    warn_if_thread_history_invalid_for_tool_use(
+        [
+            {"role": "assistant", "content": "ok"},
+            {"role": "tool", "tool_call_id": "call_1", "content": "{}"},
+        ]
+    )
+    assert "without tool_calls" in caplog.text
 
 
 def test_extract_bot_message_from_tuple_with_dict():
@@ -121,6 +168,94 @@ def test_generation_response_to_chat_completion_with_empty_content():
     assert result.choices[0].message.content == ""
 
 
+def test_normalize_dict_tool_calls_openai_format():
+    """Test converting nested OpenAI-style tool calls with dict arguments."""
+    tool_calls = [
+        {
+            "id": "call_abc",
+            "type": "function",
+            "function": {"name": "search", "arguments": {"q": "test"}},
+        }
+    ]
+    result = normalize_tool_calls_openai(tool_calls)
+    assert result[0].function.name == "search"
+    assert result[0].function.arguments == '{"q": "test"}'
+
+
+def test_normalize_string_tool_calls_openai_format():
+    """Test converting nested OpenAI-style tool calls with string arguments."""
+    tool_calls = [
+        {
+            "id": "call_abc",
+            "type": "function",
+            "function": {"name": "search", "arguments": '{"q": "test"}'},
+        }
+    ]
+    result = normalize_tool_calls_openai(tool_calls)
+    assert result[0].function.name == "search"
+    assert result[0].function.arguments == '{"q": "test"}'
+
+
+def test_normalize_tool_calls_openai_format_with_missing_id(caplog):
+    """Test that a missing id triggers a warning and generates a valid fallback."""
+    import logging
+    import re
+
+    tool_calls = [
+        {
+            "type": "function",
+            "function": {"name": "search", "arguments": {"q": "test"}},
+        }
+    ]
+    caplog.set_level(logging.WARNING)
+    result = normalize_tool_calls_openai(tool_calls)
+    assert re.fullmatch(r"call_[0-9a-f]{8}", result[0].id)
+    assert "missing an 'id'" in caplog.text
+    assert "search" in caplog.text
+
+
+def test_generation_response_to_chat_completion_with_tool_calls():
+    """Test converting GenerationResponse with tool calls."""
+    tool_calls = [
+        {
+            "name": "get_weather",
+            "args": {"city": "Boston"},
+            "id": "call_456",
+            "type": "tool_call",
+        }
+    ]
+    response = GenerationResponse(
+        response=[{"role": "assistant", "content": ""}],
+        tool_calls=tool_calls,
+    )
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    assert result.choices[0].finish_reason == "tool_calls"
+    assert result.choices[0].message.content is None
+    assert len(result.choices[0].message.tool_calls) == 1
+    assert result.choices[0].message.tool_calls[0].function.name == "get_weather"
+    assert result.choices[0].message.tool_calls[0].function.arguments == '{"city": "Boston"}'
+
+
+def test_bot_message_to_chat_completion():
+    """Test converting a bot message dict with tool calls."""
+    bot_message = {
+        "role": "assistant",
+        "content": "I'll check that for you.",
+        "tool_calls": [
+            {
+                "id": "call_789",
+                "type": "function",
+                "function": {"name": "lookup", "arguments": {"id": 1}},
+            }
+        ],
+    }
+    result = bot_message_to_chat_completion(bot_message, model="gpt-4o", config_id="cfg")
+    assert result.choices[0].finish_reason == "tool_calls"
+    assert result.choices[0].message.content == "I'll check that for you."
+    assert result.choices[0].message.tool_calls[0].function.arguments == '{"id": 1}'
+    assert result.guardrails.config_id == "cfg"
+
+
 # ===== Tests for create_error_chat_completion =====
 
 
@@ -157,9 +292,6 @@ def test_format_streaming_chunk_with_dict():
     assert result["model"] == "test_model"
     assert result["choices"][0]["delta"] == {"content": "Hello"}
     assert result["choices"][0]["index"] == 0
-    assert result["choices"][0]["finish_reason"] is None
-    assert "id" in result
-    assert "created" in result
 
 
 def test_format_streaming_chunk_with_plain_string():

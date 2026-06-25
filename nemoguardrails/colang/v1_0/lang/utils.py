@@ -157,7 +157,7 @@ def get_numbered_lines(content: str):
         # but without the indentation.
         # Also, if there's an active "operator" like "or", we also continue to the next line
         text = raw_line
-        while i < len(raw_lines) - 1 and text[-1] == "\\" or text.endswith(" or"):
+        while i < len(raw_lines) - 1 and (text[-1] == "\\" or text.endswith(" or")):
             i += 1
             if text[-1] == "\\":
                 text = text[0:-1]

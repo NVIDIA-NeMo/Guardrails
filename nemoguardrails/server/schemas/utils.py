@@ -26,6 +26,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import httpx
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+    Function,
+)
 
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.schemas.openai import (
@@ -174,6 +178,104 @@ async def fetch_models(
     ]
 
 
+def _parse_tool_call_name_and_arguments(tc: dict) -> tuple[str, str]:
+    if "function" in tc:
+        func = tc.get("function") or {}
+        name = func.get("name", "")
+        arguments = func.get("arguments", {})
+    else:
+        name = tc.get("name", "")
+        arguments = tc.get("args", {})
+
+    if isinstance(arguments, dict):
+        arguments_str = json.dumps(arguments)
+    elif isinstance(arguments, str):
+        arguments_str = arguments
+    else:
+        arguments_str = json.dumps(arguments)
+    return name, arguments_str
+
+
+def _generate_fallback_tool_call_id(tc: dict) -> str:
+    fallback_id = f"call_{uuid.uuid4().hex[:8]}"
+    func_name = tc.get("name") or (tc.get("function") or {}).get("name", "<unknown>")
+    log.warning(
+        "Tool call for function %r is missing an 'id'; generated fallback id %r.",
+        func_name,
+        fallback_id,
+    )
+    return fallback_id
+
+
+def normalize_tool_calls_openai(
+    tool_calls: List[dict],
+) -> List[ChatCompletionMessageToolCall]:
+    """Convert internal tool call dicts to OpenAI function tool call objects."""
+    openai_tool_calls: List[ChatCompletionMessageToolCall] = []
+    for tc in tool_calls:
+        name, arguments_str = _parse_tool_call_name_and_arguments(tc)
+        openai_tool_calls.append(
+            ChatCompletionMessageToolCall(
+                id=tc.get("id") or _generate_fallback_tool_call_id(tc),
+                type="function",
+                function=Function(name=name, arguments=arguments_str),
+            )
+        )
+    return openai_tool_calls
+
+
+def resolve_tool_calls(bot_message: dict, response_tool_calls: Optional[list] = None) -> Optional[List[dict]]:
+    """Collect tool calls from a bot message and/or GenerationResponse.tool_calls."""
+    tool_calls = bot_message.get("tool_calls") or response_tool_calls
+    return tool_calls or None
+
+
+def build_chat_completion_message(
+    bot_message: dict,
+    tool_calls: Optional[List[dict]] = None,
+) -> ChatCompletionMessage:
+    """Build an OpenAI ChatCompletionMessage from an internal bot message dict."""
+    content = bot_message.get("content")
+    if content == "" and tool_calls:
+        content = None
+
+    if not tool_calls:
+        return ChatCompletionMessage(
+            role="assistant",
+            content=content,
+        )
+
+    openai_tool_calls = normalize_tool_calls_openai(tool_calls)
+
+    return ChatCompletionMessage(
+        role="assistant",
+        content=content,
+        tool_calls=openai_tool_calls,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def warn_if_thread_history_invalid_for_tool_use(messages: List[dict]) -> None:
+    """Log when persisted thread history is incompatible with OpenAI tool-calling message ordering."""
+    for i, msg in enumerate(messages):
+        if msg.get("role") != "tool":
+            continue
+        if i == 0 or messages[i - 1].get("role") != "assistant":
+            log.warning(
+                "Thread message history has a tool message without a preceding assistant "
+                "message at index %s. Multi-turn tool use with thread_id is unreliable; "
+                "send the full message list (assistant tool_calls + tool results) in each request.",
+                i,
+            )
+            continue
+        if not messages[i - 1].get("tool_calls"):
+            log.warning(
+                "Thread message history has a tool message after an assistant message "
+                "without tool_calls at index %s. Prior assistant tool_calls may have been "
+                "dropped when the thread was saved; include full history in the request.",
+                i,
+            )
+
+
 def extract_bot_message_from_response(
     response: Union[str, dict, GenerationResponse, Tuple[dict, dict]],
 ) -> Dict[str, Any]:
@@ -194,9 +296,10 @@ def extract_bot_message_from_response(
         bot_message_content = response.response[0]
         # Ensure bot_message is always a dict
         if isinstance(bot_message_content, str):
-            return {"role": "assistant", "content": bot_message_content}
+            bot_message = {"role": "assistant", "content": bot_message_content}
         else:
-            return bot_message_content
+            bot_message = bot_message_content
+        return bot_message
     elif isinstance(response, str):
         # Direct string response
         return {"role": "assistant", "content": response}
@@ -229,6 +332,8 @@ def generation_response_to_chat_completion(
         A GuardrailsChatCompletion instance compatible with OpenAI API format
     """
     bot_message = extract_bot_message_from_response(response)
+    tool_calls = resolve_tool_calls(bot_message, response.tool_calls)
+    finish_reason = "tool_calls" if tool_calls else "stop"
 
     # Convert log to dict if present (for JSON serialization)
     log_dict = None
@@ -255,11 +360,8 @@ def generation_response_to_chat_completion(
         choices=[
             Choice(
                 index=0,
-                message=ChatCompletionMessage(
-                    role="assistant",
-                    content=bot_message.get("content", ""),
-                ),
-                finish_reason="stop",
+                message=build_chat_completion_message(bot_message, tool_calls),
+                finish_reason=finish_reason,
                 logprobs=None,
             )
         ],
@@ -270,6 +372,32 @@ def generation_response_to_chat_completion(
             log=log_dict,
             state=response.state,
         ),
+    )
+
+
+def bot_message_to_chat_completion(
+    bot_message: dict,
+    model: str,
+    config_id: Optional[str] = None,
+) -> GuardrailsChatCompletion:
+    """Convert a bot message dict to an OpenAI-compatible GuardrailsChatCompletion."""
+    tool_calls = resolve_tool_calls(bot_message)
+    finish_reason = "tool_calls" if tool_calls else "stop"
+
+    return GuardrailsChatCompletion(
+        id=f"chatcmpl-{uuid.uuid4()}",
+        object="chat.completion",
+        created=int(time.time()),
+        model=model,
+        choices=[
+            Choice(
+                index=0,
+                message=build_chat_completion_message(bot_message, tool_calls),
+                finish_reason=finish_reason,
+                logprobs=None,
+            )
+        ],
+        guardrails=GuardrailsDataOutput(config_id=config_id) if config_id else None,
     )
 
 
@@ -330,7 +458,6 @@ def format_streaming_chunk(
 
     # Determine the payload format based on chunk type
     if isinstance(chunk, dict):
-        # If chunk is a dict, wrap it in OpenAI chunk format with delta
         return {
             "id": chunk_id,
             "object": "chat.completion.chunk",

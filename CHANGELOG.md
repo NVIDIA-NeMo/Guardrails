@@ -9,6 +9,108 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.22.0] - 2026-05-22
+
+### 🚀 Features
+
+- *(iorails)* IORails support for streaming output rails ([#1765](https://github.com/NVIDIA-NeMo/Guardrails/issues/1765), [#1766](https://github.com/NVIDIA-NeMo/Guardrails/issues/1766))
+- *(iorails)* IORails OpenTelemetry tracing support ([#1793](https://github.com/NVIDIA-NeMo/Guardrails/issues/1793), [#1794](https://github.com/NVIDIA-NeMo/Guardrails/issues/1794), [#1798](https://github.com/NVIDIA-NeMo/Guardrails/issues/1798))
+- *(iorails)* IORails OpenTelemetry token-level metrics support ([#1812](https://github.com/NVIDIA-NeMo/Guardrails/issues/1812), [#1846](https://github.com/NVIDIA-NeMo/Guardrails/issues/1846))
+- *(iorails)* IORails reasoning model support ([#1842](https://github.com/NVIDIA-NeMo/Guardrails/issues/1842), [#1843](https://github.com/NVIDIA-NeMo/Guardrails/issues/1843))
+- *(llm)* Add LangChain adapter and framework registry ([#1759](https://github.com/NVIDIA-NeMo/Guardrails/issues/1759))
+- *(llm)* Add streaming tool call accumulation and LLMResponse parity ([#1789](https://github.com/NVIDIA-NeMo/Guardrails/issues/1789))
+- *(llm)* Add default framework with OpenAI-compatible client ([#1797](https://github.com/NVIDIA-NeMo/Guardrails/issues/1797))
+- *(llm/frameworks)* Validate framework on registration ([#1863](https://github.com/NVIDIA-NeMo/Guardrails/issues/1863))
+- *(types)* Add framework-agnostic LLM type system ([#1745](https://github.com/NVIDIA-NeMo/Guardrails/issues/1745))
+- *(compat)* Transitional compat layer to migrate from 0.21 to 0.22+ ([#1841](https://github.com/NVIDIA-NeMo/Guardrails/issues/1841))
+- *(testing)* Add public testing surface under nemoguardrails.testing ([#1860](https://github.com/NVIDIA-NeMo/Guardrails/issues/1860))
+- *(api)* Canonical top-level imports for LLM types and registry functions ([#1882](https://github.com/NVIDIA-NeMo/Guardrails/issues/1882))
+- *(config)* Forbade extra fields in GLiNER rails configs ([#1898](https://github.com/NVIDIA-NeMo/Guardrails/issues/1898))
+- *(framework)* Support Azure as a first-class default framework preset ([#1896](https://github.com/NVIDIA-NeMo/Guardrails/issues/1896))
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Reject Colang 2.0 public runtime state ([#1885](https://github.com/NVIDIA-NeMo/Guardrails/issues/1885))
+- *(server)* Prioritize env var API key over forwarded client header ([#1688](https://github.com/NVIDIA-NeMo/Guardrails/issues/1688))
+- *(utils)* Removing extra space from UtteranceBotActionScriptUpdated ([#1708](https://github.com/NVIDIA-NeMo/Guardrails/issues/1708))
+- *(actions)* Remove redundant embedding search in generate_user_intent ([#1754](https://github.com/NVIDIA-NeMo/Guardrails/issues/1754))
+- *(llmrails)* Backfill embedding model params into search provider config (fixes stale KB cache) ([#1753](https://github.com/NVIDIA-NeMo/Guardrails/issues/1753))
+- *(embeddings)* Persist in-memory embedding cache instance across calls ([#1755](https://github.com/NVIDIA-NeMo/Guardrails/issues/1755))
+- *(ci)* Pin baseline x86-64 compiler target to prevent SIGILL on cached venvs ([#1785](https://github.com/NVIDIA-NeMo/Guardrails/issues/1785))
+- *(tests)* Use asyncio.run instead of get_event_loop in middleware tests ([#1804](https://github.com/NVIDIA-NeMo/Guardrails/issues/1804))
+- *(actions)* Guard bot message extraction against composite specs ([#1810](https://github.com/NVIDIA-NeMo/Guardrails/issues/1810))
+- *(llm)* Drop stop param for OpenAI reasoning models ([#1811](https://github.com/NVIDIA-NeMo/Guardrails/issues/1811))
+- *(llmrails)* Scope no main LLM warning to generation path ([#1813](https://github.com/NVIDIA-NeMo/Guardrails/issues/1813))
+- *(chat-ui)* Replace Chatbot UI with Chainlit ([#1734](https://github.com/NVIDIA-NeMo/Guardrails/issues/1734))
+- *(library)* Unblock reasoning models in self-check and content-safety actions ([#1816](https://github.com/NVIDIA-NeMo/Guardrails/issues/1816))
+- *(llm)* Drop temperature/stop and rename max_tokens for OpenAI reasoning models ([#1837](https://github.com/NVIDIA-NeMo/Guardrails/issues/1837))
+- *(build)* Remove chat-ui references from wheel build script ([#1835](https://github.com/NVIDIA-NeMo/Guardrails/issues/1835))
+- *(ci)* Override annoy's -march=native to actually enforce baseline x86-64 ([#1839](https://github.com/NVIDIA-NeMo/Guardrails/issues/1839))
+- *(llm/clients)* Retry on stale event loop binding ([#1840](https://github.com/NVIDIA-NeMo/Guardrails/issues/1840))
+- *(llm/frameworks)* Point users to LangChain when DefaultFramework has no base_url ([#1865](https://github.com/NVIDIA-NeMo/Guardrails/issues/1865))
+- *(taskmanager)* Preserve multimodal list content in vision safety prompts ([#1815](https://github.com/NVIDIA-NeMo/Guardrails/issues/1815))
+- *(actions)* Extract text from multimodal events in colang history ([#1636](https://github.com/NVIDIA-NeMo/Guardrails/issues/1636))
+- *(iorails)* Route to LLMRails if Guardrails inits with provided LLM ([#1844](https://github.com/NVIDIA-NeMo/Guardrails/issues/1844))
+- *(iorails)* Strip trailing /v1 from base_url to avoid doubled path ([#1862](https://github.com/NVIDIA-NeMo/Guardrails/issues/1862))
+- *(iorails)* Add all LLMRails methods, `llm` and `runtime` getters to Guardrails facade ([#1886](https://github.com/NVIDIA-NeMo/Guardrails/issues/1886), [#1889](https://github.com/NVIDIA-NeMo/Guardrails/issues/1889))
+- *(iorails)* Annotate cancelled OTEL spans with error ([#1897](https://github.com/NVIDIA-NeMo/Guardrails/issues/1897))
+
+### 🚜 Refactor
+
+- *(llm)* [**breaking**] Atomic switch to LLMModel protocol ([#1760](https://github.com/NVIDIA-NeMo/Guardrails/issues/1760))
+- *(iorails)* [**breaking**] Move AsyncWorkQueue from Guardrails to IORails ([#1817](https://github.com/NVIDIA-NeMo/Guardrails/issues/1817))
+- *(deps)* [**breaking**] Demote LangChain and LangChain-providers from core to dev ([#1806](https://github.com/NVIDIA-NeMo/Guardrails/issues/1806))
+- *(iorails)* Return LLMResponse(Chunk) from ModelEngine ([#1827](https://github.com/NVIDIA-NeMo/Guardrails/issues/1827))
+- *(iorails)* Refactor ModelManager ([#1778](https://github.com/NVIDIA-NeMo/Guardrails/issues/1778))
+- *(iorails)* Refactor Guardrails and IORails for top-level import and clean separation ([#1893](https://github.com/NVIDIA-NeMo/Guardrails/issues/1893))
+- *(iorails)* Refactor RailsManager and Nemoguard Actions ([#1762](https://github.com/NVIDIA-NeMo/Guardrails/issues/1762))
+- *(llm)* Rename generate/stream to generate_async/stream_async ([#1769](https://github.com/NVIDIA-NeMo/Guardrails/issues/1769))
+- *(llm)* Remove LangChain imports from core modules ([#1770](https://github.com/NVIDIA-NeMo/Guardrails/issues/1770))
+- *(llm)* Move LangChain implementations into integrations/langchain/ ([#1772](https://github.com/NVIDIA-NeMo/Guardrails/issues/1772))
+- *(llm)* Framework-owned provider registry ([#1773](https://github.com/NVIDIA-NeMo/Guardrails/issues/1773))
+- *(llm)* Share OpenAI reasoning-model classifier across adapters ([#1836](https://github.com/NVIDIA-NeMo/Guardrails/issues/1836))
+- *(llm)* Reorganize llm package into clients/models/frameworks ([#1801](https://github.com/NVIDIA-NeMo/Guardrails/issues/1801))
+- *(llm/clients)* Return HTTPResponse(body, headers, status_code) from_apost ([#1830](https://github.com/NVIDIA-NeMo/Guardrails/issues/1830))
+- *(llm/default_framework)* Split reset() into aclose() + clear_providers() ([#1829](https://github.com/NVIDIA-NeMo/Guardrails/issues/1829))
+- *(tests)* Framework-agnostic test infrastructure ([#1790](https://github.com/NVIDIA-NeMo/Guardrails/issues/1790))
+- *(deps)* Make server-only dependencies optional ([#1689](https://github.com/NVIDIA-NeMo/Guardrails/issues/1689))
+- *(jailbreak)* Use onnx instead of pickle to load model ([#1715](https://github.com/NVIDIA-NeMo/Guardrails/issues/1715))
+- *(logging)* Remove LangChain LoggingCallbackHandler dependency ([#1616](https://github.com/NVIDIA-NeMo/Guardrails/issues/1616))
+
+### 📚 Documentation
+
+- Document release notes for 0.21 and additional details ([#1726](https://github.com/NVIDIA-NeMo/Guardrails/issues/1726))
+- *(middleware)* Fix incorrect example query and expected output in agent-middleware guide ([#1784](https://github.com/NVIDIA-NeMo/Guardrails/issues/1784))
+- *(iorails)* OTEL Logging page ([#1807](https://github.com/NVIDIA-NeMo/Guardrails/issues/1807))
+- Fix jira 407 ([#1809](https://github.com/NVIDIA-NeMo/Guardrails/issues/1809))
+- Update README ([#1820](https://github.com/NVIDIA-NeMo/Guardrails/issues/1820))
+- Mark LangChain integration as opt-in in 0.22 entry-point docs ([#1856](https://github.com/NVIDIA-NeMo/Guardrails/issues/1856))
+- Documentation for langchain decoupling ([#1854](https://github.com/NVIDIA-NeMo/Guardrails/issues/1854))
+- *(configure-rails)* Align with 0.22 DefaultFramework / LangChain split ([#1855](https://github.com/NVIDIA-NeMo/Guardrails/issues/1855))
+- *(custom-initialization)* Add customLLM and customFramework guides ([#1857](https://github.com/NVIDIA-NeMo/Guardrails/issues/1857))
+- *(examples)* Align example configs and deployment docs with 0.22 DefaultFramework / LangChain split ([#1858](https://github.com/NVIDIA-NeMo/Guardrails/issues/1858))
+- *(iorails)* IORails OTEL Metrics ([#1864](https://github.com/NVIDIA-NeMo/Guardrails/issues/1864))
+- *(iorails)* Speculative Generation ([#1876](https://github.com/NVIDIA-NeMo/Guardrails/issues/1876))
+- *(migration)* Explain the "No default base_url" config-load error ([#1881](https://github.com/NVIDIA-NeMo/Guardrails/issues/1881))
+- *(iorails)* Use Guardrails entry-point not IORails ([#1892](https://github.com/NVIDIA-NeMo/Guardrails/issues/1892))
+- Prometheus client install instructions ([#1894](https://github.com/NVIDIA-NeMo/Guardrails/issues/1894))
+- *(guardrails)* Document max_tokens fallback and reasoning model guidance ([#1833](https://github.com/NVIDIA-NeMo/Guardrails/issues/1833))
+- *(colang-1)* Fix Hello World tutorial issues (NGUARD-666) ([#1834](https://github.com/NVIDIA-NeMo/Guardrails/issues/1834))
+- *(telemetry)* Document anonymous usage reporting ([#1891](https://github.com/NVIDIA-NeMo/Guardrails/issues/1891))
+- Add prompts.yml to code snippets ([#1904](https://github.com/NVIDIA-NeMo/Guardrails/issues/1904))
+- Update Benchmark README with updated configs ([#1905](https://github.com/NVIDIA-NeMo/Guardrails/issues/1905))
+
+### 🧪 Testing
+
+- *(llm)* Probe OpenAI API to validate _is_openai_reasoning_model ([#1814](https://github.com/NVIDIA-NeMo/Guardrails/issues/1814))
+- *(llm)* Expand reasoning-model param probe + regenerate baseline ([#1838](https://github.com/NVIDIA-NeMo/Guardrails/issues/1838))
+- *(telemetry)* Add smoke driver and fixtures  ([#1879](https://github.com/NVIDIA-NeMo/Guardrails/issues/1879))
+
+### ⚙️ Miscellaneous Tasks
+
+- Restore original 2023-2026 copyright dates on moved files ([#1831](https://github.com/NVIDIA-NeMo/Guardrails/issues/1831))
+- Include scripts in docker image ([#1902](https://github.com/NVIDIA-NeMo/Guardrails/issues/1902))
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features
@@ -300,7 +402,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - More heading levels so RNs resolve links ([#1228](https://github.com/NVIDIA-NeMo/Guardrails/issues/1228))
 - Update docs version ([#1219](https://github.com/NVIDIA-NeMo/Guardrails/issues/1219))
 - Fix jailbreak detection build instructions ([#1248](https://github.com/NVIDIA-NeMo/Guardrails/issues/1248))
-- Change ABC bot link at docs ([#1261]([#1248](https://github.com/NVIDIA-NeMo/Guardrails/issues/1261)))
+- Change ABC bot link at docs ([#1261](https://github.com/NVIDIA-NeMo/Guardrails/issues/1261))
 
 ### 🧪 Testing
 
@@ -711,8 +813,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- [#292](https://github.com/NVIDIA-NeMo/Guardrails/pull/292) [Jailbreak heuristics](./docs/user_guides/guardrails-library.md#jailbreak-detection-heuristics) by @erickgalinkin.
-- [#256](https://github.com/NVIDIA-NeMo/Guardrails/pull/256) Support [generation options](./docs/user_guides/advanced/generation-options.md).
+- [#292](https://github.com/NVIDIA-NeMo/Guardrails/pull/292) [Jailbreak heuristics](./docs/getting-started/tutorials/jailbreak-detection-heuristics.mdx) by @erickgalinkin.
+- [#256](https://github.com/NVIDIA-NeMo/Guardrails/pull/256) Support [generation options](./docs/run-rails/using-python-apis/generation-options.mdx).
 - [#307](https://github.com/NVIDIA-NeMo/Guardrails/pull/307) Added support for multi-config api calls by @makeshn.
 - [#293](https://github.com/NVIDIA-NeMo/Guardrails/pull/293) Adds configurable stop tokens by @zmackie.
 - [#334](https://github.com/NVIDIA-NeMo/Guardrails/pull/334) Colang 2.0 - Preview by @schuellc.
@@ -722,10 +824,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Documentation:
 
 - [#311](https://github.com/NVIDIA-NeMo/Guardrails/pull/311) Update documentation to demonstrate the use of output rails when using a custom RAG by @niels-garve.
-- [#347](https://github.com/NVIDIA-NeMo/Guardrails/pull/347) Add [detailed logging docs](./docs/user_guides/detailed_logging) by @erickgalinkin.
-- [#354](https://github.com/NVIDIA-NeMo/Guardrails/pull/354) [Input and output rails only guide](./docs/user_guides/input_output_rails_only) by @trebedea.
-- [#359](https://github.com/NVIDIA-NeMo/Guardrails/pull/359) Added [user guide for jailbreak detection heuristics](./docs/user_guides/jailbreak_detection_heuristics) by @makeshn.
-- [#363](https://github.com/NVIDIA-NeMo/Guardrails/pull/363) Add [multi-config API call user guide](./docs/user_guides/multi_config_api).
+- [#347](https://github.com/NVIDIA-NeMo/Guardrails/pull/347) Add [detailed logging docs](./docs/observability/logging/index.mdx) by @erickgalinkin.
+- [#354](https://github.com/NVIDIA-NeMo/Guardrails/pull/354) [Input and output rails only guide](./docs/run-rails/using-python-apis/check-messages.mdx) by @trebedea.
+- [#359](https://github.com/NVIDIA-NeMo/Guardrails/pull/359) Added [user guide for jailbreak detection heuristics](./docs/getting-started/tutorials/jailbreak-detection-heuristics.mdx) by @makeshn.
+- [#363](https://github.com/NVIDIA-NeMo/Guardrails/pull/363) Add [multi-config API call user guide](./docs/run-rails/using-fastapi-server/list-guardrail-configs.mdx).
 - [#297](https://github.com/NVIDIA-NeMo/Guardrails/pull/297) Example configurations for using only the guardrails, without LLM generation.
 
 ### Changed
@@ -764,9 +866,9 @@ Documentation:
 
 ### Added
 
-- [#254](https://github.com/NVIDIA-NeMo/Guardrails/pull/254) Support for [Llama Guard input and output content moderation](./docs/user_guides/guardrails-library.md#llama-guard-based-content-moderation).
-- [#253](https://github.com/NVIDIA-NeMo/Guardrails/pull/253) Support for [server-side threads](./docs/user_guides/server-guide.md#threads).
-- [#235](https://github.com/NVIDIA-NeMo/Guardrails/pull/235) Improved [LangChain integration](docs/user_guides/langchain/langchain-integration.md) through `RunnableRails`.
+- [#254](https://github.com/NVIDIA-NeMo/Guardrails/pull/254) Support for [Llama Guard input and output content moderation](./docs/configure-rails/guardrail-catalog/content-safety.mdx#llama-guard-based-content-moderation).
+- [#253](https://github.com/NVIDIA-NeMo/Guardrails/pull/253) Support for [server-side threads](./docs/run-rails/using-fastapi-server/overview.mdx).
+- [#235](https://github.com/NVIDIA-NeMo/Guardrails/pull/235) Improved [LangChain integration](./docs/integration/langchain/langchain-integration.mdx) through `RunnableRails`.
 - [#190](https://github.com/NVIDIA-NeMo/Guardrails/pull/190) Add [example](./examples/notebooks/generate_events_and_streaming.ipynb) for using `generate_events_async` with streaming.
 - Support for Python 3.11.
 
@@ -808,24 +910,24 @@ Documentation:
 
 ### Added
 
-- Support for [explicit definition](./docs/user_guides/configuration-guide.md#guardrails-definitions) of input/output/retrieval rails.
-- Support for [custom tasks and their prompts](docs/user_guides/advanced/prompt-customization.md#custom-tasks-and-prompts).
-- Support for fact-checking [using AlignScore](./docs/user_guides/guardrails-library.md#alignscore-based-fact-checking).
-- Support for [NeMo LLM Service](./docs/user_guides/configuration-guide.md#nemo-llm-service) as an LLM provider.
+- Support for [explicit definition](./docs/configure-rails/yaml-schema/guardrails-configuration.mdx) of input/output/retrieval rails.
+- Support for [custom tasks and their prompts](./docs/configure-rails/yaml-schema/prompt-configuration.mdx).
+- Support for fact-checking [using AlignScore](./docs/configure-rails/guardrail-catalog/community/alignscore.mdx).
+- Support for [NeMo LLM Service](./docs/about/supported-llms.mdx) as an LLM provider.
 - Support for making a single LLM call for both the guardrails process and generating the response (by setting `rails.dialog.single_call.enabled` to `True`).
-- Support for [sensitive data detection](./docs/user_guides/guardrails-library.md#presidio-based-sensitive-data-detection) guardrails using Presidio.
+- Support for [sensitive data detection](./docs/configure-rails/guardrail-catalog/community/presidio.mdx) guardrails using Presidio.
 - [Example](./examples/configs/llm/hf_pipeline_llama2) using NeMo Guardrails with the LLaMa2-13B model.
 - [Dockerfile](./Dockerfile) for building a Docker image.
-- Support for [prompting modes](./docs/user_guides/advanced/prompt-customization.md) using `prompting_mode`.
-- Support for [TRT-LLM](./docs/user_guides/configuration-guide.md#trt-llm) as an LLM provider.
-- Support for [streaming](./docs/user_guides/advanced/streaming.md) the LLM responses when no output rails are used.
-- [Integration](./docs/user_guides/guardrails-library.md#active-fence) of ActiveFence ActiveScore API as an input rail.
-- Support for `--prefix` and `--auto-reload` in the [guardrails server](./docs/user_guides/server-guide.md).
-- Example [authentication dialog flow](./examples/configs/auth).
+- Support for [prompting modes](./docs/configure-rails/yaml-schema/prompt-configuration.mdx) using `prompting_mode`.
+- Support for [TRT-LLM](./docs/about/supported-llms.mdx) as an LLM provider.
+- Support for [streaming](./docs/run-rails/using-python-apis/streaming.mdx) the LLM responses when no output rails are used.
+- [Integration](./docs/configure-rails/guardrail-catalog/community/active-fence.mdx) of ActiveFence ActiveScore API as an input rail.
+- Support for `--prefix` and `--auto-reload` in the [guardrails server](./docs/run-rails/using-fastapi-server/overview.mdx).
+- Example authentication dialog flow.
 - Example [RAG using Pinecone](./examples/configs/rag/pinecone).
 - Support for loading a configuration from dictionary, i.e. `RailsConfig.from_content(config=...)`.
-- Guidance on [LLM support](./docs/user_guides/llm-support.md).
-- Support for `LLMRails.explain()` (see the [Getting Started](./docs/getting-started) guide for sample usage).
+- Guidance on [LLM support](./docs/about/supported-llms.mdx).
+- Support for `LLMRails.explain()` (see the [Getting Started](./docs/getting-started/installation-guide.mdx) guide for sample usage).
 
 ### Changed
 
@@ -834,14 +936,14 @@ Documentation:
 - Allow using actions which are not `async` functions.
 - Disabled pretty exceptions in CLI.
 - Upgraded dependencies.
-- Updated the [Getting Started Guide](./docs/getting-started).
+- Updated the [Getting Started Guide](./docs/getting-started/installation-guide.mdx).
 - Main [README](./README.md) now provides more details.
 - Merged original examples into a single [ABC Bot](./examples/bots/abc) and removed the original ones.
 - Documentation improvements.
 
 ### Fixed
 
-- Fix going over the maximum prompt length using the `max_length` attribute in [Prompt Templates](./docs/user_guides/advanced/prompt-customization.md#prompt-templates).
+- Fix going over the maximum prompt length using the `max_length` attribute in [Prompt Templates](./docs/configure-rails/yaml-schema/prompt-configuration.mdx).
 - Fixed problem with `nest_asyncio` initialization.
 - [#144](https://github.com/NVIDIA-NeMo/Guardrails/pull/144) Fixed TypeError in logging call.
 - [#121](https://github.com/NVIDIA-NeMo/Guardrails/pull/109) Detect chat model using openai engine.
@@ -853,16 +955,16 @@ Documentation:
 
 ### Added
 
-- Support for [custom configuration data](docs/user_guides/configuration-guide.md#custom-data).
-- Example for using [custom LLM and multiple KBs](examples/configs/rag/multi_kb/README.md)
-- Support for [`PROMPTS_DIR`](docs/user_guides/advanced/prompt-customization.md#prompt-configuration).
-- [#101](https://github.com/NVIDIA-NeMo/Guardrails/pull/101) Support for [using OpenAI embeddings](docs/user_guides/configuration-guide.md#the-embeddings-model) models in addition to SentenceTransformers.
+- Support for [custom configuration data](./docs/configure-rails/custom-initialization/custom-data.mdx).
+- Example for using custom LLM and multiple KBs.
+- Support for [`PROMPTS_DIR`](./docs/configure-rails/yaml-schema/prompt-configuration.mdx).
+- [#101](https://github.com/NVIDIA-NeMo/Guardrails/pull/101) Support for [using OpenAI embeddings](./docs/configure-rails/custom-initialization/custom-embedding-providers.mdx) models in addition to SentenceTransformers.
 - First set of end-to-end QA tests for the example configurations.
-- Support for configurable [embedding search providers](docs/user_guides/advanced/embedding-search-providers.md)
+- Support for configurable [embedding search providers](./docs/configure-rails/other-configurations/embedding-search-providers.mdx)
 
 ### Changed
 
-- Moved to using `nest_asyncio` for [implementing the blocking API](docs/user_guides/advanced/nested-async-loop.md). Fixes [#3](https://github.com/NVIDIA-NeMo/Guardrails/issues/3) and [#32](https://github.com/NVIDIA-NeMo/Guardrails/issues/32).
+- Moved to using `nest_asyncio` for [implementing the blocking API](./docs/run-rails/using-python-apis/core-classes.mdx). Fixes [#3](https://github.com/NVIDIA-NeMo/Guardrails/issues/3) and [#32](https://github.com/NVIDIA-NeMo/Guardrails/issues/32).
 - Improved event property validation in `new_event_dict`.
 - Refactored imports to allow installing from source without Annoy/SentenceTransformers (would need a custom embedding search provider to work).
 
@@ -876,17 +978,17 @@ Documentation:
 
 ### Added
 
-- [Event-based API](docs/user_guides/advanced/event-based-api.md) for guardrails.
-- Support for message with type "event" in [`LLMRails.generate_async`](./docs/api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsgenerate_async).
-- Support for [bot message instructions](docs/user_guides/advanced/bot-message-instructions.md).
-- Support for [using variables inside bot message definitions](docs/user_guides/colang-language-syntax-guide.md#bot-messages-with-variables).
+- [Event-based API](./docs/run-rails/using-python-apis/event-based-api.mdx) for guardrails.
+- Support for message with type "event" in [`LLMRails.generate_async`](/guardrails-python-sdk/nemoguardrails/rails/llm/llmrails#nemoguardrails-rails-llm-llmrails-LLMRails).
+- Support for [bot message instructions](./docs/configure-rails/colang/usage-examples/bot-message-instructions.mdx).
+- Support for [using variables inside bot message definitions](./docs/configure-rails/colang/colang-1/colang-language-syntax-guide.mdx#bot-messages-with-variables).
 - Support for `vicuna-7b-v1.3` and `mpt-7b-instruct`.
 - Topical evaluation results for `vicuna-7b-v1.3` and `mpt-7b-instruct`.
 - Support to use different models for different LLM tasks.
-- Support for [red-teaming](docs/user_guides/advanced/red-teaming.md) using challenges.
+- Support for [red-teaming](./docs/evaluation/llm-vulnerability-scanning.mdx) using challenges.
 - Support to disable the Chat UI when running the server using `--disable-chat-ui`.
 - Support for accessing the API request headers in server mode.
-- Support to [enable CORS settings](docs/user_guides/server-guide.md#cors) for the guardrails server.
+- Support to [enable CORS settings](./docs/run-rails/using-fastapi-server/overview.mdx) for the guardrails server.
 
 ### Changed
 
@@ -910,20 +1012,20 @@ Documentation:
 
 ### Added
 
-- Support for defining [subflows](docs/user_guides/colang-language-syntax-guide.md#subflows).
-- Improved support for [customizing LLM prompts](docs/user_guides/advanced/prompt-customization.md)
+- Support for defining [subflows](./docs/configure-rails/colang/colang-1/colang-language-syntax-guide.mdx#subflows).
+- Improved support for [customizing LLM prompts](./docs/configure-rails/yaml-schema/prompt-configuration.mdx)
   - Support for using filters to change how variables are included in a prompt template.
   - Output parsers for prompt templates.
   - The `verbose_v1` formatter and output parser to be used for smaller models that don't understand Colang very well in a few-shot manner.
   - Support for including context variables in prompt templates.
   - Support for chat models i.e. prompting with a sequence of messages.
-- Experimental support for allowing the LLM to generate [multi-step flows](docs/user_guides/configuration-guide.md#multi-step-generation).
+- Experimental support for allowing the LLM to generate [multi-step flows](./docs/configure-rails/yaml-schema/guardrails-configuration.mdx).
 - Example of using Llama Index from a guardrails configuration (#40).
 - [Example](examples/configs/llm/hf_endpoint) for using HuggingFace Endpoint LLMs with a guardrails configuration.
 - [Example](examples/configs/llm/hf_pipeline_dolly) for using HuggingFace Pipeline LLMs with a guardrails configuration.
 - Support to alter LLM parameters passed as `model_kwargs` in LangChain.
 - CLI tool for running evaluations on the different steps (e.g., canonical form generation, next steps, bot message) and on existing rails implementation (e.g., moderation, jailbreak, fact-checking, and hallucination).
-- [Initial evaluation](nemoguardrails/eval/README.md) results for `text-davinci-003` and `gpt-3.5-turbo`.
+- [Initial evaluation](./docs/evaluation/evaluate-guardrails.mdx) results for `text-davinci-003` and `gpt-3.5-turbo`.
 - The `lowest_temperature` can be set through the guardrails config (to be used for deterministic tasks).
 
 ### Changed
@@ -942,10 +1044,10 @@ Documentation:
 
 ### Added
 
-- Support to [connect any LLM](docs/user_guides/configuration-guide.md#supported-llm-models) that implements the BaseLanguageModel interface from  LangChain.
-- Support for [customizing the prompts](docs/user_guides/configuration-guide.md#llm-prompts) for specific LLM models.
-- Support for [custom initialization](docs/user_guides/configuration-guide.md#configuration-guide) when loading a configuration through `config.py`.
-- Support to extract [user-provided values](docs/user_guides/advanced/extract-user-provided-values.md) from utterances.
+- Support to [connect any LLM](./docs/about/supported-llms.mdx) that implements the BaseLanguageModel interface from  LangChain.
+- Support for [customizing the prompts](./docs/configure-rails/yaml-schema/prompt-configuration.mdx) for specific LLM models.
+- Support for [custom initialization](./docs/configure-rails/custom-initialization/index.mdx) when loading a configuration through `config.py`.
+- Support to extract [user-provided values](./docs/configure-rails/colang/usage-examples/extract-user-provided-values.mdx) from utterances.
 
 ### Changed
 
