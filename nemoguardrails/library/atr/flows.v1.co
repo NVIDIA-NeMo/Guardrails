@@ -1,0 +1,14 @@
+define flow atr detection
+  """
+  Block user input that matches Agent Threat Rules (prompt injection, tool
+  poisoning, MCP attacks, skill compromise).
+  """
+  $response = execute atr_detection(text=$user_message)
+  $join_separator = ", "
+  if $response["flagged"]
+    if $config.enable_rails_exceptions
+      create event AtrDetectionRailException(message="Input not allowed. The input was blocked by the 'atr detection' flow.")
+      stop
+    else
+      bot say "I'm sorry, your request triggered Agent Threat Rules ({{ response.rules | join(join_separator) }}) and can't be processed."
+      stop

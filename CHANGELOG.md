@@ -68,6 +68,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Support aiohttp 3.14 in aioresponses mocks ([#2091](https://github.com/NVIDIA-NeMo/Guardrails/issues/2091))
 - Remove flaky streaming timing diagnostic ([#2097](https://github.com/NVIDIA-NeMo/Guardrails/issues/2097))
 
+## [Unreleased]
+
+### 🚀 Features
+
+- *(library)* Add an Agent Threat Rules (ATR) detection rail that evaluates input against the open ATR detection standard (prompt injection, jailbreak, tool poisoning, MCP attacks) via the `pyatr` package, with no API key or network call.
+
 ## [0.22.0] - 2026-05-22
 
 ### 🚀 Features
