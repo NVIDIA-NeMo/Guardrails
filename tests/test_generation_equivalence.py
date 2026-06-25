@@ -405,6 +405,40 @@ def test_single_call_intent_steps_message():
     assert llm.calls == [("generate", None)]
 
 
+def test_single_call_multimodal_input():
+    """Multimodal (list) user content is normalized before intent detection.
+
+    generate_intent_steps_message previously passed event["text"] (a list) to the
+    index search unchanged; it now joins the text parts like generate_user_intent.
+    """
+    config = RailsConfig.from_content(
+        """
+        define user express greeting
+            "hello"
+        define flow
+            user express greeting
+            bot express greeting
+        """
+    )
+    config.rails.dialog.single_call.enabled = True
+    llm = RecordingFakeLLM(responses=['  express greeting\nbot express greeting\n  "Hello, there!"'])
+    chat = TestChat(config, llm=llm)
+    response = cast(
+        GenerationResponse,
+        chat.app.generate(
+            messages=[{"role": "user", "content": [{"type": "text", "text": "hello there!"}]}],
+            options=LOG_OPTS,
+        ),
+    )
+
+    assert event_sequence(response) == [
+        "UserIntent:express greeting|cache:bot_intent_event,bot_message_event",
+        "BotIntent:express greeting",
+        "BotMessage:Hello, there!",
+    ]
+    assert llm_tasks(response) == ["generate_intent_steps_message"]
+
+
 def test_single_call_streaming_handoff():
     """The ``<<STREAMING[uid]>>`` handoff streams the bot message via stop tokens.
 
