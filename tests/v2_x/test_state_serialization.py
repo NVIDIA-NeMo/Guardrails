@@ -140,7 +140,7 @@ async def test_serialization():
     assert output_events[0]["script"] == "Hello again!"
 
 
-@pytest.mark.skip(reason="Flaky wall-clock performance assertion.")
+@pytest.mark.perf
 @pytest.mark.asyncio
 async def test_serialization_performance():
     _, _, state = await _process_initial_events()
