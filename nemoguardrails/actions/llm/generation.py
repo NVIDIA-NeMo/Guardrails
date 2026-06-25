@@ -222,11 +222,8 @@ class LLMGenerationActions:
                     self.user_messages[flow.name] = [message]
 
             elif spec_op.op == "await":
-                # The SpecOp.spec type is Union[Spec, dict]. Need to convert to Dict to have `elements` field
-                # which isn't in the Spec definition
-                await_spec_dict: Dict[str, Any] = (
-                    asdict(spec_op.spec) if isinstance(spec_op.spec, Spec) else cast(Dict, spec_op.spec)
-                )
+                # Convert to Dict to have the `elements` field, which isn't in the Spec definition.
+                await_spec_dict: Dict[str, Any] = _spec_op_as_dict(spec_op)
 
                 if isinstance(await_spec_dict, dict) and await_spec_dict.get("_type") == "spec_or":
                     specs = await_spec_dict.get("elements", None)
@@ -255,11 +252,7 @@ class LLMGenerationActions:
             return
 
         spec_op: SpecOp = el
-        spec: Dict[str, Any] = (
-            asdict(spec_op.spec)  # TODO! Refactor this function as it's duplicated in many places
-            if isinstance(spec_op.spec, Spec)
-            else cast(Dict, spec_op.spec)
-        )
+        spec: Dict[str, Any] = _spec_op_as_dict(spec_op)
 
         if spec.get("_type") in ("spec_or", "spec_and"):
             return
@@ -1459,6 +1452,15 @@ class LLMGenerationActions:
                 streaming_handler=streaming_handler,
                 kb=kb,
             )
+
+
+def _spec_op_as_dict(spec_op: SpecOp) -> Dict[str, Any]:
+    """Return a ``SpecOp``'s spec as a dict.
+
+    ``SpecOp.spec`` is ``Union[Spec, dict]``; callers that need dict-only fields
+    (such as ``elements``) use this to normalize it.
+    """
+    return asdict(spec_op.spec) if isinstance(spec_op.spec, Spec) else cast(Dict, spec_op.spec)
 
 
 def _unpack_passthrough_output(raw_output):
