@@ -23,7 +23,7 @@ import sys
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from time import time
-from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
@@ -1214,6 +1214,98 @@ class LLMGenerationActions:
             log.error(f"Error evaluating value: {value}. Error: {str(e)}")
             raise ValueError(f"Invalid LLM response: `{value}`")
 
+    async def _build_intent_steps_examples(self, text: str) -> Tuple[List[str], List[str]]:
+        """Build the few-shot examples and candidate intents for the single call.
+
+        Searches the user-message index for utterances similar to ``text``, pairs
+        each candidate intent with a flow (and its bot message, if any) from the
+        flows / bot-message indexes, and returns up to five formatted examples
+        plus the list of candidate user intents.
+        """
+        examples: List[str] = []
+        potential_user_intents: List[str] = []
+        intent_results = []
+        flow_results = {}
+
+        if self.user_message_index:
+            # Get the top 10 intents even if we use less in the selected examples.
+            # Some of these intents might not have an associated flow and will be
+            # skipped from the few-shot examples.
+            intent_results = await self.user_message_index.search(text=text, max_results=10, threshold=None)
+
+            # We fill in the list of potential user intents
+            for result in intent_results:
+                if result.meta["intent"] not in potential_user_intents:
+                    potential_user_intents.append(result.meta["intent"])
+
+        if self.flows_index:
+            for intent in potential_user_intents:
+                flow_results_intent = await self._search_flows_index(text=intent, max_results=2)
+                flow_results[intent] = flow_results_intent
+
+        # We add the intent to the examples in reverse order
+        # so the most relevant is towards the end.
+        for result in intent_results:
+            # Stop after the first 5 flow examples, in case more than 5 intents
+            # have been selected from the index.
+            if len(examples) >= 5:
+                break
+
+            intent = result.meta["intent"]
+            example = f'user "{result.text}"\n  {intent}\n'
+
+            flow_results_intent = flow_results.get(intent, [])
+            found_flow_for_intent = False
+            for result_flow in flow_results_intent:
+                # Assumption: each flow should contain at least two lines, the first is the user intent.
+                # Just in case there are some flows with only one line
+                if "\n" not in result_flow.text:
+                    continue
+                (flow_user_intent, flow_continuation) = result_flow.text.split("\n", 1)
+                flow_user_intent = flow_user_intent[5:]
+                if flow_user_intent == intent:
+                    found_flow_for_intent = True
+                    example += f"{flow_continuation}\n"
+
+                    # Also add the bot message if the last line in the flow is a bot canonical form
+                    last_flow_line = flow_continuation
+                    if "\n" in flow_continuation:
+                        (_, last_flow_line) = flow_continuation.rsplit("\n", 1)
+                    if last_flow_line.startswith("bot "):
+                        bot_canonical_form = last_flow_line[4:]
+
+                        found_bot_message = False
+                        if self.bot_message_index:
+                            bot_messages_results = await self.bot_message_index.search(
+                                text=bot_canonical_form,
+                                max_results=1,
+                                threshold=None,
+                            )
+
+                            for bot_message_result in bot_messages_results:
+                                if bot_message_result.text == bot_canonical_form:
+                                    found_bot_message = True
+                                    example += f'  "{bot_message_result.meta["text"]}"\n'
+                                    # Only use the first bot message for now
+                                    break
+
+                        if not found_bot_message:
+                            # This is for canonical forms that do not have an associated message.
+                            # Create a simple message for the bot canonical form.
+                            # In a later version we could generate a message with the LLM at app initialization.
+                            example += f"  # On the next line generate a bot message related to {bot_canonical_form}\n"
+
+                    # For now, only use the first flow for each intent.
+                    break
+            if not found_flow_for_intent:
+                # Skip intents that do not have an associated flow.
+                continue
+
+            example += "\n"
+            examples.append(example)
+
+        return examples, potential_user_intents
+
     @action(is_system_action=True)
     async def generate_intent_steps_message(
         self,
@@ -1259,89 +1351,7 @@ class LLMGenerationActions:
                 text = event["text"]
 
             # We search for the most relevant similar user utterance
-            examples = []
-            potential_user_intents = []
-            intent_results = []
-            flow_results = {}
-
-            if self.user_message_index:
-                # Get the top 10 intents even if we use less in the selected examples.
-                # Some of these intents might not have an associated flow and will be
-                # skipped from the few-shot examples.
-                intent_results = await self.user_message_index.search(text=text, max_results=10, threshold=None)
-
-                # We fill in the list of potential user intents
-                for result in intent_results:
-                    if result.meta["intent"] not in potential_user_intents:
-                        potential_user_intents.append(result.meta["intent"])
-
-            if self.flows_index:
-                for intent in potential_user_intents:
-                    flow_results_intent = await self._search_flows_index(text=intent, max_results=2)
-                    flow_results[intent] = flow_results_intent
-
-            # We add the intent to the examples in reverse order
-            # so the most relevant is towards the end.
-            for result in intent_results:
-                # Stop after the first 5 flow examples, in case more than 5 intents
-                # have been selected from the index.
-                if len(examples) >= 5:
-                    break
-
-                intent = result.meta["intent"]
-                example = f'user "{result.text}"\n  {intent}\n'
-
-                flow_results_intent = flow_results.get(intent, [])
-                found_flow_for_intent = False
-                for result_flow in flow_results_intent:
-                    # Assumption: each flow should contain at least two lines, the first is the user intent.
-                    # Just in case there are some flows with only one line
-                    if "\n" not in result_flow.text:
-                        continue
-                    (flow_user_intent, flow_continuation) = result_flow.text.split("\n", 1)
-                    flow_user_intent = flow_user_intent[5:]
-                    if flow_user_intent == intent:
-                        found_flow_for_intent = True
-                        example += f"{flow_continuation}\n"
-
-                        # Also add the bot message if the last line in the flow is a bot canonical form
-                        last_flow_line = flow_continuation
-                        if "\n" in flow_continuation:
-                            (_, last_flow_line) = flow_continuation.rsplit("\n", 1)
-                        if last_flow_line.startswith("bot "):
-                            bot_canonical_form = last_flow_line[4:]
-
-                            found_bot_message = False
-                            if self.bot_message_index:
-                                bot_messages_results = await self.bot_message_index.search(
-                                    text=bot_canonical_form,
-                                    max_results=1,
-                                    threshold=None,
-                                )
-
-                                for bot_message_result in bot_messages_results:
-                                    if bot_message_result.text == bot_canonical_form:
-                                        found_bot_message = True
-                                        example += f'  "{bot_message_result.meta["text"]}"\n'
-                                        # Only use the first bot message for now
-                                        break
-
-                            if not found_bot_message:
-                                # This is for canonical forms that do not have an associated message.
-                                # Create a simple message for the bot canonical form.
-                                # In a later version we could generate a message with the LLM at app initialization.
-                                example += (
-                                    f"  # On the next line generate a bot message related to {bot_canonical_form}\n"
-                                )
-
-                        # For now, only use the first flow for each intent.
-                        break
-                if not found_flow_for_intent:
-                    # Skip intents that do not have an associated flow.
-                    continue
-
-                example += "\n"
-                examples.append(example)
+            examples, potential_user_intents = await self._build_intent_steps_examples(text)
 
             if kb:
                 chunks = await kb.search_relevant_chunks(text)
