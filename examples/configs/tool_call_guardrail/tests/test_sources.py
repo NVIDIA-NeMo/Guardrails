@@ -25,7 +25,7 @@ write genuinely new documents.
 import pytest
 from scanner.acquire import acquire
 from scanner.scan import SourceDoc, _source_url, _title
-from scanner.sources import ArxivFetcher, FeedFetcher, urllib_http
+from scanner.sources import ArxivFetcher, FeedFetcher, html_to_text, urllib_http
 
 ARXIV_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -69,6 +69,19 @@ ATOM_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
     <summary>Injection via the path argument of a file read.</summary>
   </entry>
 </feed>
+"""
+
+ARXIV_HTML_FIXTURE = b"""<!doctype html>
+<html><head><style>.x{color:red}</style><title>ignored chrome</title></head>
+<body>
+  <h1>Confused Deputy Attacks on LLM Agents</h1>
+  <section>
+    <p>We show that a tool-using agent can be coerced by a crafted file into
+       calling write_file with a path argument outside its workspace.</p>
+    <p>The mitigation is to bound the path argument on every call.</p>
+  </section>
+  <script>var noise = 'do-not-include-this';</script>
+</body></html>
 """
 
 
@@ -175,3 +188,53 @@ def test_acquire_skips_a_failing_source(tmp_path):
         str(tmp_path / "seen.json"),
     )
     assert len(result.written) == 1  # the healthy source still produced its doc
+
+
+def test_html_to_text_strips_script_and_style():
+    text = html_to_text(ARXIV_HTML_FIXTURE.decode())
+    assert "do-not-include-this" not in text
+    assert "color:red" not in text
+    assert "ignored chrome" not in text
+
+
+def test_html_to_text_preserves_body_content():
+    text = html_to_text(ARXIV_HTML_FIXTURE.decode())
+    assert "Confused Deputy" in text
+    assert "write_file" in text
+    assert "bound the path argument" in text
+
+
+def test_html_to_text_truncates_at_max_chars():
+    long_html = "<p>" + "x" * 200 + "</p>"
+    result = html_to_text(long_html, max_chars=50)
+    assert len(result) <= 50 + len("\n\n[... truncated ...]")
+    assert result.endswith("[... truncated ...]")
+
+
+def test_arxiv_fetcher_full_text_uses_html_body():
+    calls = []
+
+    def http(url: str) -> bytes:
+        calls.append(url)
+        if "html/" in url:
+            return ARXIV_HTML_FIXTURE
+        return ARXIV_FIXTURE
+
+    docs = list(ArxivFetcher("q", http, full_text=True).fetch())
+    # HTML endpoint was fetched for each entry
+    assert any("html/" in u for u in calls)
+    # Body comes from the HTML, not the abstract
+    assert "write_file" in docs[0].text
+    # Provenance URL is still the /abs/ canonical link
+    assert docs[0].url.startswith("http://arxiv.org/abs/")
+
+
+def test_arxiv_fetcher_full_text_falls_back_to_abstract_on_error():
+    def http(url: str) -> bytes:
+        if "html/" in url:
+            raise OSError("no rendering")
+        return ARXIV_FIXTURE
+
+    docs = list(ArxivFetcher("q", http, full_text=True).fetch())
+    # Falls back to the abstract summary text
+    assert "turned into confused deputies" in docs[0].text
