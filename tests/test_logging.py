@@ -21,9 +21,28 @@ from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
-from nemoguardrails.logging.processing_log import processing_log_var
+from nemoguardrails.logging.processing_log import compute_generation_log, processing_log_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.types import LLMResponse, UsageInfo
+
+
+def test_compute_generation_log_includes_tool_rails():
+    generation_log = compute_generation_log(
+        [
+            {"type": "step", "flow_id": "process bot tool call", "timestamp": 0.0, "next_steps": []},
+            {"type": "event", "timestamp": 1.0, "data": {"type": "StartToolOutputRail", "flow_id": "check tool call"}},
+            {"type": "event", "timestamp": 1.25, "data": {"type": "ToolOutputRailFinished"}},
+            {"type": "step", "flow_id": "process user tool messages", "timestamp": 2.0, "next_steps": []},
+            {"type": "event", "timestamp": 3.0, "data": {"type": "StartToolInputRail", "flow_id": "check tool result"}},
+            {"type": "event", "timestamp": 3.5, "data": {"type": "ToolInputRailFinished"}},
+        ]
+    )
+
+    activated_rails = generation_log.activated_rails
+
+    assert [rail.type for rail in activated_rails] == ["tool_output", "tool_input"]
+    assert [rail.name for rail in activated_rails] == ["check tool call", "check tool result"]
+    assert [rail.duration for rail in activated_rails] == [0.25, 0.5]
 
 
 @pytest.mark.asyncio

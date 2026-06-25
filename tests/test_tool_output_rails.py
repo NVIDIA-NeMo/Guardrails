@@ -19,6 +19,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
 from tests.utils import FakeLLMModel, TestChat
 
@@ -190,3 +191,54 @@ async def test_multiple_tool_output_rails():
 
         assert result["tool_calls"] is not None
         assert result["tool_calls"][0]["name"] == "test_tool"
+
+
+@pytest.mark.asyncio
+async def test_assistant_tool_calls_run_tool_output_rails_when_dialog_disabled():
+    config = RailsConfig.from_content(
+        """
+        define subflow validate tool parameters
+          $valid = execute validate_tool_parameters(tool_calls=$tool_calls)
+
+          if not $valid
+            bot refuse dangerous tool parameters
+            abort
+
+        define bot refuse dangerous tool parameters
+          "I cannot execute this tool request because the parameters may be unsafe."
+        """,
+        """
+        models: []
+        passthrough: true
+        rails:
+          tool_output:
+            flows:
+              - validate tool parameters
+        """,
+    )
+    rails = LLMRails(config)
+    rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+
+    messages = [
+        {"role": "user", "content": "Use the requested tool"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_bad",
+                    "type": "function",
+                    "function": {
+                        "name": "dangerous_tool",
+                        "arguments": {"param": "eval('malicious code')"},
+                    },
+                }
+            ],
+        },
+    ]
+
+    result = await rails.generate_async(messages=messages, options={"rails": {"dialog": False}})
+
+    assert isinstance(result, GenerationResponse)
+    assert isinstance(result.response, list)
+    assert "parameters may be unsafe" in result.response[0]["content"]
