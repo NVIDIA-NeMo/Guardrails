@@ -877,6 +877,58 @@ class LLMGenerationActions:
 
         return template.render(render_context)
 
+    async def _bot_message_from_single_call_cache(
+        self,
+        user_intent_event: dict,
+        events: List[dict],
+        streaming_handler: Optional[StreamingHandler],
+    ) -> Optional[ActionResult]:
+        """Return the bot message cached by the single LLM call, or None to fall back.
+
+        Returns None when the cache cannot be used -- the last user-intent event
+        is not a ``UserIntent``, or its cached bot intent does not match the bot
+        intent now being generated -- in which case the caller regenerates.
+        """
+        if user_intent_event["type"] != "UserIntent":
+            return None
+
+        payload = read_single_call_payload(user_intent_event)
+        bot_message_event = payload.bot_message_event
+
+        # We only need to use the bot message if it corresponds to the
+        # generate bot intent as well.
+        last_bot_intent = get_last_bot_intent_event(events)
+        if not last_bot_intent:
+            raise RuntimeError("No last bot intent found to generate bot message")
+        if last_bot_intent["intent"] != payload.bot_intent_event["intent"]:
+            return None
+
+        text = bot_message_event["text"]
+        # If the bot message is being generated in streaming mode
+        streaming_handler_uid = _streaming_handoff.parse_marker(text)
+        if streaming_handler_uid is not None:
+            _streaming_handler = _streaming_handoff.take(streaming_handler_uid)
+
+            # We pipe the content from this handler to the main one.
+            # The marker is only present when generation streamed,
+            # so the main handler is set here.
+            _streaming_handler.set_pipe_to(cast(StreamingHandler, streaming_handler))
+            await _streaming_handler.disable_buffering()
+
+            # And wait for it to finish.
+            # We stop after the closing double quotes for the bot message.
+            _streaming_handler.stop = [
+                '"\n',
+            ]
+            text = await _streaming_handler.wait()
+
+            return ActionResult(events=_bot_turn_output_events(new_event_dict("BotMessage", text=text)))
+
+        if streaming_handler:
+            await streaming_handler.push_chunk(bot_message_event["text"])
+
+        return ActionResult(events=_bot_turn_output_events(bot_message_event))
+
     @action(is_system_action=True)
     async def generate_bot_message(self, events: List[dict], context: dict, llm: Optional[LLMModel] = None):
         """Generate a bot message based on the desired bot intent."""
@@ -929,46 +981,15 @@ class LLMGenerationActions:
 
             # If using a single LLM call, use the results computed in the first call.
             if self.config.rails.dialog.single_call.enabled:
+                # NOTE: this rebinds `event` from the bot-intent event to the last
+                # user-intent event; the non-passthrough branch below still reads
+                # `event["intent"]` on the cache-miss fall-through.
                 event = get_last_user_intent_event(events)
-
                 if not event:
                     raise RuntimeError("No last user intent found to generate bot message")
-                if event["type"] == "UserIntent":
-                    payload = read_single_call_payload(event)
-                    bot_message_event = payload.bot_message_event
-
-                    # We only need to use the bot message if it corresponds to the
-                    # generate bot intent as well.
-                    last_bot_intent = get_last_bot_intent_event(events)
-                    if not last_bot_intent:
-                        raise RuntimeError("No last bot intent found to generate bot message")
-
-                    if last_bot_intent["intent"] == payload.bot_intent_event["intent"]:
-                        text = bot_message_event["text"]
-                        # If the bot message is being generated in streaming mode
-                        streaming_handler_uid = _streaming_handoff.parse_marker(text)
-                        if streaming_handler_uid is not None:
-                            _streaming_handler = _streaming_handoff.take(streaming_handler_uid)
-
-                            # We pipe the content from this handler to the main one.
-                            # The marker is only present when generation streamed,
-                            # so the main handler is set here.
-                            _streaming_handler.set_pipe_to(cast(StreamingHandler, streaming_handler))
-                            await _streaming_handler.disable_buffering()
-
-                            # And wait for it to finish.
-                            # We stop after the closing double quotes for the bot message.
-                            _streaming_handler.stop = [
-                                '"\n',
-                            ]
-                            text = await _streaming_handler.wait()
-
-                            return ActionResult(events=_bot_turn_output_events(new_event_dict("BotMessage", text=text)))
-                        else:
-                            if streaming_handler:
-                                await streaming_handler.push_chunk(bot_message_event["text"])
-
-                            return ActionResult(events=_bot_turn_output_events(bot_message_event))
+                cached_result = await self._bot_message_from_single_call_cache(event, events, streaming_handler)
+                if cached_result is not None:
+                    return cached_result
 
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
