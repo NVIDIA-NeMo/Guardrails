@@ -635,11 +635,12 @@ def test_passthrough_tool_calls():
 
 
 def test_single_call_general_no_user_messages():
-    """Single-call enabled but no user messages: the intent-steps general path.
+    """Single-call enabled but no user messages: the converged general bot turn.
 
-    This is Phase 1 site 2: ``generate_intent_steps_message`` renders the GENERAL
-    prompt with no context and calls the LLM with no ``stop``. The prompt
-    fingerprint guards the (no-context) render against the site-1 render shape.
+    After T6 this branch delegates to ``_emit_general_bot_turn``, so it behaves
+    like ``generate_user_intent``'s general path: a GENERAL prompt rendered with
+    ``relevant_chunks`` and an LLM call with ``stop=["User:"]`` (previously it
+    rendered with no context and no stop).
     """
     config = RailsConfig.from_content(yaml_content="passthrough: false\n")
     config.rails.dialog.single_call.enabled = True
@@ -648,8 +649,31 @@ def test_single_call_general_no_user_messages():
     assert response.response == "a general single-call answer"
     assert event_sequence(response) == ["BotMessage:a general single-call answer"]
     assert llm_tasks(response) == ["general"]
-    assert llm.calls == [("generate", None)]
+    assert llm.calls == [("generate", ("User:",))]
+    # The prompt is unchanged: rendering GENERAL with empty relevant_chunks is
+    # byte-identical to rendering it with no context.
     assert prompt_fingerprints(response) == ["85c3b5ec27"]
+
+
+def test_single_call_general_reasoning_trace():
+    """After T6, the single-call general path emits BotThinking like the other.
+
+    generate_intent_steps_message's else-branch previously dropped reasoning
+    traces; converging it onto _emit_general_bot_turn now packages them.
+    """
+    config = RailsConfig.from_content(yaml_content="passthrough: false\n")
+    config.rails.dialog.single_call.enabled = True
+    llm = RecordingFakeLLM(llm_responses=[LLMResponse(content="the answer", reasoning="let me think")])
+    chat = TestChat(config, llm=llm)
+    response = cast(GenerationResponse, chat.app.generate("hi", options=LOG_OPTS))
+
+    assert response.response == "the answer"
+    assert event_sequence(response) == [
+        "ctx:bot_thinking=let me think",
+        "BotThinking:let me think",
+        "BotMessage:the answer",
+    ]
+    assert llm_tasks(response) == ["general"]
 
 
 # ---------------------------------------------------------------------------
