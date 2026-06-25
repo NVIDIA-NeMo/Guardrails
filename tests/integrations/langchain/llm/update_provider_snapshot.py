@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Regenerate the langchain-community provider drift snapshot.
+"""Regenerate the langchain provider drift snapshot.
 
-Run after a langchain-community upgrade that the drift canary
-(`test_langchain_community_provider_drift`) has flagged, once the new provider
-set has been reviewed and accepted:
+Run after a langchain upgrade that the drift canary
+(`test_langchain_provider_drift`) has flagged, once the new provider set has
+been reviewed and accepted:
 
     poetry run python tests/integrations/langchain/llm/update_provider_snapshot.py
 """
@@ -29,16 +29,21 @@ from pathlib import Path
 from nemoguardrails.integrations.langchain.providers.providers import (
     _discover_langchain_community_chat_providers,
     _discover_langchain_community_llm_providers,
+    _discover_langchain_partner_chat_providers,
 )
 
 SNAPSHOT_PATH = Path(__file__).parent / "langchain_provider_snapshot.json"
 
 
 def build_snapshot():
+    # partner_chat_providers is sourced from the `langchain` core package (not
+    # langchain-community) and includes our own custom providers such as "nim".
     return {
+        "langchain_version": version("langchain"),
         "langchain_community_version": version("langchain-community"),
         "community_llm_providers": sorted(_discover_langchain_community_llm_providers().keys()),
         "community_chat_providers": sorted(_discover_langchain_community_chat_providers().keys()),
+        "partner_chat_providers": sorted(_discover_langchain_partner_chat_providers()),
     }
 
 

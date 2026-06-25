@@ -1,4 +1,5 @@
 {
+  "langchain_version": "1.3.11",
   "langchain_community_version": "0.4.2",
   "community_llm_providers": [
     "SparkLLM",
@@ -140,5 +141,34 @@
     "yi",
     "yuan2",
     "zhipuai"
+  ],
+  "partner_chat_providers": [
+    "anthropic",
+    "anthropic_bedrock",
+    "azure_ai",
+    "azure_openai",
+    "baseten",
+    "bedrock",
+    "bedrock_converse",
+    "cohere",
+    "deepseek",
+    "fireworks",
+    "google_anthropic_vertex",
+    "google_genai",
+    "google_vertexai",
+    "groq",
+    "huggingface",
+    "ibm",
+    "litellm",
+    "mistralai",
+    "nim",
+    "nvidia",
+    "ollama",
+    "openai",
+    "openrouter",
+    "perplexity",
+    "together",
+    "upstage",
+    "xai"
   ]
 }
