@@ -542,15 +542,12 @@ class LLMGenerationActions:
         if user_intent is None:
             user_intent = "unknown message"
 
-        if user_intent and user_intent.startswith("user "):
+        if user_intent.startswith("user "):
             user_intent = user_intent[5:]
 
-        log.info("Canonical form for user intent: " + (user_intent if user_intent else "None"))
+        log.info("Canonical form for user intent: " + user_intent)
 
-        if user_intent is None:
-            return ActionResult(events=[new_event_dict("UserIntent", intent="unknown message")])
-        else:
-            return ActionResult(events=[new_event_dict("UserIntent", intent=user_intent)])
+        return ActionResult(events=[new_event_dict("UserIntent", intent=user_intent)])
 
     async def _emit_general_bot_turn(
         self,
@@ -817,25 +814,10 @@ class LLMGenerationActions:
                     # Also, sometimes, there's a comma and more content
                     if "," in bot_intent:
                         bot_intent = bot_intent.split(",")[0].strip()
-
-                    next_step = {"bot": bot_intent}
                 else:
-                    next_step = {"bot": "general response"}
+                    bot_intent = "general response"
 
-                # If we have to execute an action, we return the event to start it
-                if next_step.get("execute"):
-                    return ActionResult(
-                        events=[
-                            new_event_dict(
-                                "StartInternalSystemAction",
-                                action_name=next_step["execute"],
-                            )
-                        ]
-                    )
-                else:
-                    bot_intent = next_step.get("bot")
-
-                    return ActionResult(events=[new_event_dict("BotIntent", intent=bot_intent)])
+                return ActionResult(events=[new_event_dict("BotIntent", intent=bot_intent)])
             else:
                 # Otherwise, we parse the output as a single flow.
                 # If we have a parsing error, we try to reduce size of the flow, potentially
