@@ -970,24 +970,12 @@ class LLMGenerationActions:
                             ]
                             text = await _streaming_handler.wait()
 
-                            output_events = []
-                            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
-                            if reasoning_trace:
-                                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
-                            output_events.append(new_event_dict("BotMessage", text=text))
-
-                            return ActionResult(events=output_events)
+                            return ActionResult(events=_bot_turn_output_events(new_event_dict("BotMessage", text=text)))
                         else:
                             if streaming_handler:
                                 await streaming_handler.push_chunk(bot_message_event["text"])
 
-                            output_events = []
-                            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
-                            if reasoning_trace:
-                                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
-                            output_events.append(bot_message_event)
-
-                            return ActionResult(events=output_events)
+                            return ActionResult(events=_bot_turn_output_events(bot_message_event))
 
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
@@ -1117,15 +1105,8 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(bot_utterance)
 
-            output_events = []
-            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
-            if reasoning_trace:
-                context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
-            output_events.append(new_event_dict("BotMessage", text=bot_utterance))
-
             return ActionResult(
-                events=output_events,
+                events=_bot_turn_output_events(new_event_dict("BotMessage", text=bot_utterance), context_updates),
                 context_updates=context_updates,
             )
         else:
@@ -1134,15 +1115,8 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(bot_utterance)
 
-            output_events = []
-            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
-            if reasoning_trace:
-                context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
-            output_events.append(new_event_dict("BotMessage", text=bot_utterance))
-
             return ActionResult(
-                events=output_events,
+                events=_bot_turn_output_events(new_event_dict("BotMessage", text=bot_utterance), context_updates),
                 context_updates=context_updates,
             )
 
@@ -1496,6 +1470,24 @@ def _unpack_passthrough_output(raw_output):
     if isinstance(raw_output, (tuple, list)):
         return raw_output[0], raw_output[1]
     return raw_output, None
+
+
+def _bot_turn_output_events(final_event: dict, context_updates: Optional[dict] = None) -> List[dict]:
+    """Build the output events for a bot turn: an optional BotThinking then the final event.
+
+    Pops any reasoning trace into a ``BotThinking`` event placed before
+    ``final_event``. When ``context_updates`` is provided, the reasoning trace is
+    also recorded as ``bot_thinking`` (the generated bot-message path does this;
+    the single-call cached path does not).
+    """
+    output_events = []
+    reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+    if reasoning_trace:
+        if context_updates is not None:
+            context_updates["bot_thinking"] = reasoning_trace
+        output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
+    output_events.append(final_event)
+    return output_events
 
 
 def clean_utterance_content(utterance: str) -> str:
