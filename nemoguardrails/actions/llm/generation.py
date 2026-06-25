@@ -347,6 +347,44 @@ class LLMGenerationActions:
 
         return sample_conversation
 
+    async def _generate_general_response(
+        self,
+        *,
+        generation_llm: Optional[LLMModel],
+        prompt,
+        streaming_handler: Optional[StreamingHandler] = None,
+        stream_during_call: bool = False,
+        stop: Optional[List[str]] = None,
+        llm_call_task: Task = Task.GENERAL,
+        parse_task: Task = Task.GENERAL,
+        llm_params: Optional[dict] = None,
+    ) -> str:
+        """Make a single general-response LLM call and parse its output.
+
+        This is the duplicated core of the four ``Task.GENERAL`` call sites: the
+        general user-intent fallback, the passthrough completion, the single-call
+        general branch and the passthrough bot-message branch. Prompt rendering,
+        chunk retrieval and any output stripping stay at the call sites; only the
+        ``LLMCallInfo`` set, the ``llm_call`` and the parse are shared here. The
+        ``stop``, ``stream_during_call``, ``llm_call_task`` and ``parse_task``
+        parameters preserve the per-site differences (e.g. the passthrough
+        bot-message branch reports ``GENERATE_BOT_MESSAGE`` but parses as
+        ``GENERAL``).
+        """
+        llm_call_info_var.set(LLMCallInfo(task=llm_call_task.value))
+
+        result = (
+            await llm_call(
+                generation_llm,
+                prompt,
+                streaming_handler=streaming_handler if stream_during_call else None,
+                stop=stop,
+                llm_params=llm_params,
+            )
+        ).content
+
+        return self.llm_task_manager.parse_task_output(parse_task, output=result)
+
     @action(is_system_action=True)
     async def generate_user_intent(
         self,
@@ -480,14 +518,7 @@ class LLMGenerationActions:
 
                 if self._passthrough_fn:
                     raw_output = await self._passthrough_fn(context=context, events=events)
-
-                    # If the passthrough action returns a single value, we consider that
-                    # to be the text output
-                    if isinstance(raw_output, tuple) or isinstance(raw_output, list):
-                        text, passthrough_output = raw_output[0], raw_output[1]
-                    else:
-                        text = raw_output
-                        passthrough_output = None
+                    text, passthrough_output = _unpack_passthrough_output(raw_output)
 
                     # We record the passthrough output in the context
                     output_events.append(
@@ -497,29 +528,21 @@ class LLMGenerationActions:
                         )
                     )
                 else:
-                    # Initialize the LLMCallInfo object
-                    llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
-
                     gen_options: Optional[GenerationOptions] = generation_options_var.get()
 
                     llm_params = (gen_options and gen_options.llm_params) or {}
 
                     streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
 
-                    text = (
-                        await llm_call(
-                            generation_llm,
-                            prompt,
-                            streaming_handler=streaming_handler,
-                            llm_params=llm_params,
-                        )
-                    ).content
-                    text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
+                    text = await self._generate_general_response(
+                        generation_llm=generation_llm,
+                        prompt=prompt,
+                        streaming_handler=streaming_handler,
+                        stream_during_call=True,
+                        llm_params=llm_params,
+                    )
 
             else:
-                # Initialize the LLMCallInfo object
-                llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
-
                 if kb:
                     chunks = await kb.search_relevant_chunks(event["text"])
                     relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
@@ -537,17 +560,14 @@ class LLMGenerationActions:
                 generation_options: Optional[GenerationOptions] = generation_options_var.get()
                 llm_params = (generation_options and generation_options.llm_params) or {}
 
-                result = (
-                    await llm_call(
-                        generation_llm,
-                        prompt,
-                        streaming_handler=streaming_handler,
-                        stop=["User:"],
-                        llm_params=llm_params,
-                    )
-                ).content
-
-                text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
+                text = await self._generate_general_response(
+                    generation_llm=generation_llm,
+                    prompt=prompt,
+                    streaming_handler=streaming_handler,
+                    stream_during_call=True,
+                    stop=["User:"],
+                    llm_params=llm_params,
+                )
                 text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
@@ -863,14 +883,7 @@ class LLMGenerationActions:
                 if self._passthrough_fn:
                     prompt = None
                     raw_output = await self._passthrough_fn(context=context, events=events)
-
-                    # If the passthrough action returns a single value, we consider that
-                    # to be the text output
-                    if isinstance(raw_output, tuple) or isinstance(raw_output, list):
-                        result, passthrough_output = raw_output[0], raw_output[1]
-                    else:
-                        result = raw_output
-                        passthrough_output = None
+                    result, passthrough_output = _unpack_passthrough_output(raw_output)
 
                     # We record the passthrough output in the context
                     context_updates["passthrough_output"] = passthrough_output
@@ -878,9 +891,6 @@ class LLMGenerationActions:
                     # Otherwise, we call the LLM with the prompt coming from the user.
 
                     t0 = time()
-
-                    # Initialize the LLMCallInfo object
-                    llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_BOT_MESSAGE.value))
 
                     # In passthrough mode, we should use the full conversation history
                     # instead of just the last user message to preserve tool message context
@@ -905,16 +915,15 @@ class LLMGenerationActions:
 
                     if not prompt:
                         raise RuntimeError("No prompt found to generate bot message")
-                    result = (
-                        await llm_call(
-                            generation_llm,
-                            prompt,
-                            streaming_handler=streaming_handler,
-                            llm_params=llm_params,
-                        )
-                    ).content
-
-                    result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
+                    result = await self._generate_general_response(
+                        generation_llm=generation_llm,
+                        prompt=prompt,
+                        streaming_handler=streaming_handler,
+                        stream_during_call=True,
+                        llm_call_task=Task.GENERATE_BOT_MESSAGE,
+                        parse_task=Task.GENERAL,
+                        llm_params=llm_params,
+                    )
 
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
@@ -1354,15 +1363,17 @@ class LLMGenerationActions:
         else:
             prompt = self.llm_task_manager.render_task_prompt(task=Task.GENERAL, events=events)
 
-            # Initialize the LLMCallInfo object
-            llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
-
             # We make this call with temperature 0 to have it as deterministic as possible.
             gen_options: Optional[GenerationOptions] = generation_options_var.get()
             llm_params = (gen_options and gen_options.llm_params) or {}
-            result = (await llm_call(generation_llm, prompt, llm_params=llm_params)).content
+            result = await self._generate_general_response(
+                generation_llm=generation_llm,
+                prompt=prompt,
+                streaming_handler=streaming_handler,
+                stream_during_call=False,
+                llm_params=llm_params,
+            )
 
-            result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
             text = result.strip()
             if text.startswith('"'):
                 text = text[1:-1]
@@ -1374,6 +1385,17 @@ class LLMGenerationActions:
             return ActionResult(
                 events=[new_event_dict("BotMessage", text=text)],
             )
+
+
+def _unpack_passthrough_output(raw_output):
+    """Split a passthrough fn result into ``(text, passthrough_output)``.
+
+    A tuple/list result carries an explicit passthrough output as its second
+    element; any other return value is treated as the text output alone.
+    """
+    if isinstance(raw_output, (tuple, list)):
+        return raw_output[0], raw_output[1]
+    return raw_output, None
 
 
 def clean_utterance_content(utterance: str) -> str:
