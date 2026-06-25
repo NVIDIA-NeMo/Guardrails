@@ -1263,6 +1263,12 @@ class LLMGenerationActions:
 
             log.info("Generate all three phases in one LLM call...")
 
+            # Normalize multimodal input to text, mirroring generate_user_intent.
+            if isinstance(event["text"], list):
+                text = " ".join([item["text"] for item in event["text"] if item["type"] == "text"])
+            else:
+                text = event["text"]
+
             # We search for the most relevant similar user utterance
             examples = []
             potential_user_intents = []
@@ -1273,9 +1279,7 @@ class LLMGenerationActions:
                 # Get the top 10 intents even if we use less in the selected examples.
                 # Some of these intents might not have an associated flow and will be
                 # skipped from the few-shot examples.
-                intent_results = await self.user_message_index.search(
-                    text=event["text"], max_results=10, threshold=None
-                )
+                intent_results = await self.user_message_index.search(text=text, max_results=10, threshold=None)
 
                 # We fill in the list of potential user intents
                 for result in intent_results:
@@ -1351,7 +1355,7 @@ class LLMGenerationActions:
                 examples.append(example)
 
             if kb:
-                chunks = await kb.search_relevant_chunks(event["text"])
+                chunks = await kb.search_relevant_chunks(text)
                 relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
             else:
                 relevant_chunks = ""
