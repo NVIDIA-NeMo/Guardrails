@@ -91,8 +91,18 @@ The safety properties that make this sound:
   `synthesis/catalog.py`, which maps the class to a **vetted factory** from a
   fixed `RULE_FACTORIES` table and feeds it the parameters. The worst a poisoned
   source can do is propose parameters to a factory that already exists.
-- **Unknown techniques fail closed.** A finding whose `attack_class` is not in the
-  catalog produces no candidate — it is never silently auto-acted upon.
+- **Unknown techniques fail closed, but are surfaced for triage.** A finding whose
+  `attack_class` is not in the catalog (e.g. `novel`) produces no candidate — it is
+  never silently auto-acted upon. It is not silently discarded either: it is recorded
+  in the review queue under `uncatalogued` (each `"triaged": false`) so a human sees
+  a technique the catalog cannot yet express. Acting on one means designing a new
+  rule factory (a deliberate code change); `load_approved` reads only `candidates`,
+  so an uncatalogued entry can never become a rule on its own. This closes the
+  field-learning loop without widening the trust boundary. To turn scattered
+  `novel` hits into direction, `proposals.cluster_uncatalogued` aggregates them by
+  affected tool and `format_factory_prompt` renders a ranked *"N uncatalogued
+  findings on tool X — consider a new rule factory"* report (shown by the pipeline
+  demo). It only reports — a person still writes any new factory.
 - **Nothing is applied without a human.** `review.py` writes every candidate to a
   queue with `"approved": false`; only entries a person flips to `true` (and that
   still validate against the catalog) are loaded. Applying an approved rule to a
