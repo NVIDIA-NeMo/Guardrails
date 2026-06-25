@@ -21,7 +21,7 @@ genuinely new (the document-level watermark `fetch_new()`'s comment anticipated)
 The flow is two decoupled steps:
 
     python3 scanner/acquire.py \\
-        --arxiv 'cat:cs.CR AND abs:"LLM agent"' \\
+        --arxiv 'cat:cs.CR AND abs:"LLM agent"' --arxiv-full-text \\
         --feed https://example.org/security/feed.xml \\
         --out-dir corpus/
     python3 scanner/scan.py --extractor llm --docs corpus/ --out findings.json
@@ -140,6 +140,19 @@ def main() -> int:
     )
     parser.add_argument("--max-results", type=int, default=25, help="max items per source")
     parser.add_argument(
+        "--arxiv-full-text",
+        action="store_true",
+        help="for --arxiv sources, fetch each paper's rendered HTML full text "
+        "(arxiv.org/html/<id>) instead of just the abstract; falls back to the "
+        "abstract when no HTML rendering exists",
+    )
+    parser.add_argument(
+        "--full-text-max-chars",
+        type=int,
+        default=40_000,
+        help="cap on full-text characters kept per document (default 40000)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="report what would be fetched without writing files or the ledger",
@@ -151,9 +164,16 @@ def main() -> int:
 
     ledger_path = args.ledger or os.path.join(args.out_dir, ".acquired.json")
     http = urllib_http()
-    fetchers: list[Fetcher] = [ArxivFetcher(q, http, max_results=args.max_results) for q in args.arxiv] + [
-        FeedFetcher(url, http, max_results=args.max_results) for url in args.feed
-    ]
+    fetchers: list[Fetcher] = [
+        ArxivFetcher(
+            q,
+            http,
+            max_results=args.max_results,
+            full_text=args.arxiv_full_text,
+            full_text_max_chars=args.full_text_max_chars,
+        )
+        for q in args.arxiv
+    ] + [FeedFetcher(url, http, max_results=args.max_results) for url in args.feed]
 
     result = acquire(fetchers, args.out_dir, ledger_path, dry_run=args.dry_run)
 

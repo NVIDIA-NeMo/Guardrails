@@ -38,9 +38,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sys
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 from typing import Callable, Iterator, Optional, Protocol
 
 try:  # works whether imported as a package or run from the scanner/ dir
@@ -101,19 +103,116 @@ def _slug(value: str, max_len: int = 80) -> str:
     return f"{base[:max_len]}-{digest}"
 
 
+_SKIP_TAGS = frozenset({"script", "style", "head", "noscript", "svg"})
+_BLOCK_TAGS = frozenset(
+    {
+        "p",
+        "div",
+        "section",
+        "article",
+        "header",
+        "footer",
+        "li",
+        "ul",
+        "ol",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "tr",
+        "table",
+        "blockquote",
+        "pre",
+        "figure",
+    }
+)
+
+
+class _HtmlTextParser(HTMLParser):
+    """Reduce an HTML document to readable plain text.
+
+    Drops non-content elements (script/style/head/...), turns block-level tags
+    into line breaks so paragraph structure survives, and keeps only text data.
+    Stdlib only, so full-text ingestion adds no dependency."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._parts: list = []
+        self._skip = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _SKIP_TAGS:
+            self._skip += 1
+        elif tag == "br":
+            self._parts.append("\n")
+
+    def handle_startendtag(self, tag, attrs):
+        if tag == "br":
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in _SKIP_TAGS:
+            self._skip = max(0, self._skip - 1)
+        elif tag in _BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_data(self, data):
+        if self._skip == 0:
+            self._parts.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self._parts)
+
+
+def html_to_text(html: str, max_chars: int = 40_000) -> str:
+    """Convert HTML to whitespace-normalized plain text, capped at `max_chars`.
+
+    Intra-line runs of whitespace collapse to single spaces while paragraph
+    breaks are preserved, matching the loose markdown shape `scan.py` chunks on.
+    The cap keeps a fetched paper from dwarfing the LLM context (the references
+    and appendices, which rarely carry a groundable technique, fall off the end)."""
+    parser = _HtmlTextParser()
+    parser.feed(html)
+    parser.close()
+    lines = [" ".join(line.split()) for line in parser.get_text().splitlines()]
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    if max_chars and len(text) > max_chars:
+        text = text[:max_chars].rstrip() + "\n\n[... truncated ...]"
+    return text
+
+
 class ArxivFetcher:
-    """Query the arXiv API and yield one `SourceDoc` per result (abstract as body).
+    """Query the arXiv API and yield one `SourceDoc` per result.
 
     `query` is an arXiv `search_query` expression, e.g.
     `cat:cs.CR AND (abs:"LLM agent" OR abs:"tool use")`. Results are newest-first.
+
+    By default the abstract is the document body. With `full_text=True` the
+    paper's rendered HTML (`arxiv.org/html/<id>`) is fetched through the same
+    injected transport and used instead — capped at `full_text_max_chars` — so the
+    extractor sees concrete technique descriptions rather than a high-level
+    abstract. When no HTML rendering exists or the fetch fails, the body falls back
+    to the abstract; provenance always stays the canonical `/abs/` URL.
     """
 
     API = "https://export.arxiv.org/api/query"
+    HTML = "https://arxiv.org/html/{arxiv_id}"
 
-    def __init__(self, query: str, http: Http, max_results: int = 25):
+    def __init__(
+        self,
+        query: str,
+        http: Http,
+        max_results: int = 25,
+        full_text: bool = False,
+        full_text_max_chars: int = 40_000,
+    ):
         self._query = query
         self._http = http
         self._max_results = max_results
+        self._full_text = full_text
+        self._full_text_max_chars = full_text_max_chars
 
     def fetch(self) -> Iterator[SourceDoc]:
         params = urllib.parse.urlencode(
@@ -131,19 +230,31 @@ class ArxivFetcher:
             if doc is not None:
                 yield doc
 
-    @staticmethod
-    def _entry_to_doc(entry: ET.Element) -> Optional[SourceDoc]:
+    def _entry_to_doc(self, entry: ET.Element) -> Optional[SourceDoc]:
         raw_id = (entry.findtext(f"{_ATOM}id") or "").strip()
         if not raw_id:
             return None
         arxiv_id = raw_id.rsplit("/abs/", 1)[-1]
         title = _clean(entry.findtext(f"{_ATOM}title")) or arxiv_id
         summary = _clean(entry.findtext(f"{_ATOM}summary"))
+        body = (self._fetch_full_text(arxiv_id) or summary) if self._full_text else summary
         return SourceDoc(
             id=f"arxiv-{arxiv_id}",
             url=raw_id,
-            text=render_markdown(title, raw_id, summary),
+            text=render_markdown(title, raw_id, body),
         )
+
+    def _fetch_full_text(self, arxiv_id: str) -> Optional[str]:
+        """Fetch and extract the paper's rendered HTML; `None` on any failure so
+        the caller falls back to the abstract. Only the body is enriched — the
+        `/abs/` provenance URL is unchanged."""
+        url = self.HTML.format(arxiv_id=arxiv_id)
+        try:
+            raw = self._http(url)
+        except Exception as exc:  # no HTML rendering for this paper, network error, etc.
+            print(f"warning: no full text for {arxiv_id} ({exc}); using abstract", file=sys.stderr)
+            return None
+        return html_to_text(raw.decode("utf-8", "replace"), self._full_text_max_chars) or None
 
 
 class FeedFetcher:
