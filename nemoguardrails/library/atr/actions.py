@@ -51,11 +51,18 @@ class ATRDetectionResult(TypedDict):
 
 
 def _block_severities(config: Optional[RailsConfig]) -> Set[str]:
-    """Read block severities from ``rails.config.atr``, falling back to default."""
+    """Read block severities from ``rails.config.atr``, falling back to default.
+
+    An explicitly configured ``block_severities: []`` is honored (it flags
+    nothing — useful for monitor-only mode); only an absent/None value falls
+    back to ``DEFAULT_BLOCK_SEVERITIES``.
+    """
     try:
         atr_config = config.rails.config.atr  # type: ignore[union-attr]
-        severities = getattr(atr_config, "block_severities", None) or atr_config.get("block_severities")
-        if severities:
+        severities = getattr(atr_config, "block_severities", None)
+        if severities is None and hasattr(atr_config, "get"):
+            severities = atr_config.get("block_severities")
+        if severities is not None:
             return {str(s).lower() for s in severities}
     except (AttributeError, TypeError):
         pass

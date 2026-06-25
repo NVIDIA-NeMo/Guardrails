@@ -15,6 +15,10 @@
 
 import pytest
 
+# The ATR rail requires the optional ``pyatr`` package; skip the whole module
+# (rather than erroring) when it is not installed in the test environment.
+pytest.importorskip("pyatr")
+
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.library.atr.actions import atr_detection
 
