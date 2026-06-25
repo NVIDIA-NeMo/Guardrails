@@ -1017,8 +1017,16 @@ class LLMRails(BaseGuardrails):
 
         # If the last message is from the assistant, rather than the user, then
         # we move that to the `$bot_message` variable. This is to enable a more
-        # convenient interface. (only when dialog rails are disabled)
-        if messages and messages[-1]["role"] == "assistant" and gen_options and gen_options.rails.dialog is False:
+        # convenient interface for text output rails. Tool-call assistant messages
+        # must remain in the history so they can be converted into BotToolCalls
+        # events and evaluated by tool output rails.
+        if (
+            messages
+            and messages[-1]["role"] == "assistant"
+            and not messages[-1].get("tool_calls")
+            and gen_options
+            and gen_options.rails.dialog is False
+        ):
             # We already have the first message with a context update, so we use that
             messages[0]["content"]["bot_message"] = messages[-1]["content"]
             messages = messages[0:-1]

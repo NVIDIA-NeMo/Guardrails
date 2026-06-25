@@ -47,6 +47,10 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         "run dialog rails",
         "process bot message",
         "run output rails",
+        "process bot tool call",
+        "process user tool messages",
+        "run tool output rails",
+        "run tool input rails",
     ]
     generation_flows = [
         "generate bot message",
@@ -129,6 +133,22 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                 )
                 generation_log.activated_rails.append(activated_rail)
 
+            elif event_type == "StartToolOutputRail":
+                activated_rail = ActivatedRail(
+                    type="tool_output",
+                    name=event_data["flow_id"],
+                    started_at=event["timestamp"],
+                )
+                generation_log.activated_rails.append(activated_rail)
+
+            elif event_type == "StartToolInputRail":
+                activated_rail = ActivatedRail(
+                    type="tool_input",
+                    name=event_data["flow_id"],
+                    started_at=event["timestamp"],
+                )
+                generation_log.activated_rails.append(activated_rail)
+
             elif event_type == "StartInternalSystemAction":
                 action_name = event_data["action_name"]
                 if action_name in ignored_actions:
@@ -154,7 +174,12 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                     executed_action.return_value = event_data["return_value"]
                 executed_action = None
 
-            elif event_type in ["InputRailFinished", "OutputRailFinished"]:
+            elif event_type in [
+                "InputRailFinished",
+                "OutputRailFinished",
+                "ToolOutputRailFinished",
+                "ToolInputRailFinished",
+            ]:
                 if activated_rail is not None:
                     activated_rail.finished_at = event["timestamp"]
                     if activated_rail.finished_at is not None and activated_rail.started_at is not None:
@@ -171,6 +196,8 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                 if activated_rail is not None and activated_rail.type in [
                     "input",
                     "output",
+                    "tool_output",
+                    "tool_input",
                 ]:
                     activated_rail.stop = True
                     if "stop" not in activated_rail.decisions:
@@ -188,7 +215,7 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         if activated_rail.finished_at is not None and activated_rail.started_at is not None:
             activated_rail.duration = activated_rail.finished_at - activated_rail.started_at
 
-        if activated_rail.type in ["input", "output"]:
+        if activated_rail.type in ["input", "output", "tool_output", "tool_input"]:
             activated_rail.stop = True
             if "stop" not in activated_rail.decisions:
                 activated_rail.decisions.append("stop")
