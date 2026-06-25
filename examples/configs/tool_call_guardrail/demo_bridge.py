@@ -52,8 +52,10 @@ from synthesis.catalog import (  # noqa: E402
     CLASS_TO_FACTORY,
 )
 from synthesis.proposals import (  # noqa: E402
+    cluster_uncatalogued,
     dropped_findings,
     find_gaps,
+    format_factory_prompt,
     synthesize,
 )
 from synthesis.review import apply, load_approved, write_review_queue  # noqa: E402
@@ -91,14 +93,23 @@ def main() -> int:
     candidates = synthesize(findings)
     for c in candidates:
         print(f"  - {c.tool} <- {c.factory_key}({c.params})  [from {c.finding_id}]")
-    for d in dropped_findings(findings):
-        print(f"  - DROPPED {d.id}: attack_class '{d.attack_class}' not in catalog")
+    uncatalogued = dropped_findings(findings)
+    for d in uncatalogued:
+        print(
+            f"  - UNCATALOGUED {d.id}: attack_class '{d.attack_class}' has no vetted "
+            "factory -> queued for human triage, never auto-applied"
+        )
 
     queue_path = os.path.join(tempfile.mkdtemp(prefix="t5_bridge_"), "review.json")
-    write_review_queue(candidates, gaps, queue_path)
+    write_review_queue(candidates, gaps, queue_path, uncatalogued=uncatalogued)
     _rule("4. Review queue written for the human gate")
     print(f"  {queue_path}")
-    print('  (every candidate starts "approved": false)')
+    print(
+        f'  (every candidate starts "approved": false; {len(uncatalogued)} uncatalogued finding(s) recorded for triage)'
+    )
+
+    _rule("5. New-factory signal (uncatalogued findings aggregated by tool)")
+    print(format_factory_prompt(cluster_uncatalogued(findings)))
 
     # --- Human gate (simulated) --------------------------------------------
     # In reality a person edits the queue file and flips the entries they trust.
@@ -110,14 +121,14 @@ def main() -> int:
     with open(queue_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
     approved = load_approved(queue_path)
-    _rule("5. Reviewer approved (simulated): candidates loaded back")
+    _rule("6. Reviewer approved (simulated): candidates loaded back")
     for c in approved:
         print(f"  - {c.tool} <- {c.factory_key}({c.params})")
 
     updated = apply(approved, GUARD)
     new_guard = ToolCallGuard(updated)
 
-    _rule("6. Before vs. after authorization")
+    _rule("7. Before vs. after authorization")
     checks = [
         (
             "dev-bob",
