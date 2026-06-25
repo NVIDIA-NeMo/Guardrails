@@ -159,7 +159,7 @@ what it has seen in a JSON ledger so re-runs only add genuinely new documents:
 
 ```bash
 python scanner/acquire.py \
-  --arxiv 'cat:cs.CR AND abs:"LLM agent"' \
+  --arxiv 'cat:cs.CR AND abs:"LLM agent"' --arxiv-full-text \
   --feed https://example.org/security/feed.xml \
   --out-dir corpus/
 python scanner/scan.py --extractor llm --docs corpus/ --out findings.json
@@ -167,6 +167,21 @@ python scanner/scan.py --extractor llm --docs corpus/ --out findings.json
 
 Standard library only (no new dependencies). A source that fails is skipped with a
 warning rather than aborting the run; `--dry-run` reports what would be fetched.
+
+**`--arxiv-full-text`** (recommended for real corpus runs): by default only the
+abstract is fetched as the document body. Abstracts describe research *about*
+vulnerabilities but rarely include the concrete `(tool, arg, control)` detail
+the LLM extractor needs to produce a grounded finding — in practice they yield
+zero findings. With `--arxiv-full-text` the fetcher retrieves each paper's
+rendered HTML (`arxiv.org/html/<id>`), strips non-content elements, and uses the
+full text as the body. If no HTML rendering exists for a paper the fetcher
+silently falls back to the abstract. The canonical provenance URL (`/abs/`) is
+unchanged — a reviewer can still trace any finding back to its source paper.
+
+**`--full-text-max-chars N`** (default 40 000): cap on characters kept per
+full-text document. References and appendices — which rarely carry a groundable
+technique — fall off the end, keeping each document within a reasonable LLM
+context window. Only relevant when `--arxiv-full-text` is set.
 
 ### Tests
 
