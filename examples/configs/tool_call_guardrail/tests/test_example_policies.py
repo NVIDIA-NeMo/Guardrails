@@ -49,7 +49,15 @@ def test_vulnerable_guard_has_the_known_gaps():
 
 def test_hardened_read_file_rejects_malformed_path():
     assert _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="src/app.py").allowed
+    # shell metacharacters / spaces
     assert not _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="app.py; rm -rf /").allowed
+    # parent-directory traversal, in leading and embedded positions
+    assert not _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="../../etc/passwd").allowed
+    assert not _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="src/../../../etc/passwd").allowed
+    # absolute path (escapes the workspace)
+    assert not _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="/etc/passwd").allowed
+    # '..' inside a filename is not a traversal component -> still allowed
+    assert _authorize(HARDENED_GUARD, "dev-alice", "read_file", path="weird..name.py").allowed
 
 
 def test_hardened_run_shell_tightened_ceiling():
