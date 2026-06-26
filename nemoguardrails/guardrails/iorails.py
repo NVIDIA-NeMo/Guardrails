@@ -552,10 +552,9 @@ class IORails(BaseGuardrails):
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
 
-        # Reasoning extraction prefers LLMResponse `reasoning` field if the provider
-        # supports it, falling back to extracting <think>...</think> tags otherwise.
-        # The fallback mutates response.content to remove reasoning content.
-        reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
+        # Keep reasoning traces out of user-visible content. If a model leaks
+        # reasoning through <think> tags, strip them from response.content.
+        _extract_and_remove_think_tags(response)
         response_text = response.content
 
         # Main LLM returns function calls to make based on available tools and conversation
@@ -570,9 +569,7 @@ class IORails(BaseGuardrails):
                     record_request_blocked(RailDirection.OUTPUT)
                 return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
-        # Output rails check the final answer, not reasoning traces.
-        # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
-        # rails, matching LLMRails.
+        # Output rails check the final user-visible answer content.
         # A tool-call-only response skips output rails (no text to check)
         # Tool calls have their own `ToolOutputRails` set of rails separate to `OutputRails`
         is_tool_call_only = bool(response.tool_calls) and not response_text
@@ -584,11 +581,6 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return {"role": "assistant", "content": REFUSAL_MESSAGE}
-
-        # TODO: Support returning GenerationResponse `reasoning_content` to match LLMRails
-        # For now, embed the reasoning on the content with think-tags
-        if reasoning_content:
-            response_text = f"<think>{reasoning_content}</think>\n" + response_text
 
         return _build_assistant_message(response_text, response.tool_calls)
 

@@ -195,6 +195,38 @@ class TestGenerateAsync:
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
 
     @pytest.mark.asyncio
+    async def test_generate_async_does_not_expose_reasoning_field_in_content(self, iorails):
+        """Provider reasoning stays out of the returned assistant content."""
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="Final answer", reasoning="secret internal reasoning")
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        assert result == {"role": "assistant", "content": "Final answer"}
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Final answer", enabled=True)
+
+    @pytest.mark.asyncio
+    async def test_generate_async_strips_think_tags_from_returned_content(self, iorails):
+        """Embedded <think> traces are removed before output rails and before returning to the caller."""
+        messages = [{"role": "user", "content": "hi"}]
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="<think>secret reasoning</think>\nFinal answer")
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages)
+
+        assert result == {"role": "assistant", "content": "Final answer"}
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Final answer", enabled=True)
+
+    @pytest.mark.asyncio
     async def test_generate_async_propagates_exception(self, iorails):
         """Exceptions from the LLM call propagate to the caller."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
