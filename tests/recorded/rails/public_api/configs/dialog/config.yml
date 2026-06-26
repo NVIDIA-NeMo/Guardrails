@@ -1,0 +1,9 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-5.4-nano
+    parameters:
+      max_retries: 0
+core:
+  embedding_search_provider:
+    name: simple
