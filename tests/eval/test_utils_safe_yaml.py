@@ -14,9 +14,13 @@
 # limitations under the License.
 
 
+import importlib
+import json
+
 import pytest
 import yaml
 
+import nemoguardrails.eval.utils as eval_utils
 from nemoguardrails.eval.utils import (
     load_dict_from_file,
     load_dict_from_path,
@@ -63,6 +67,28 @@ def test_load_dict_from_file_loads_benign_yaml(tmp_path):
     result = load_dict_from_file(str(config_file))
 
     assert result == {"models": [{"name": "main", "engine": "openai"}], "key": "value"}
+
+
+def test_load_dict_from_file_loads_json(tmp_path):
+    """A .json file must be parsed through the json branch of load_dict_from_file."""
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"models": [{"name": "main"}], "key": "value"}))
+
+    result = load_dict_from_file(str(config_file))
+
+    assert result == {"models": [{"name": "main"}], "key": "value"}
+
+
+def test_dumper_falls_back_to_safe_dumper_without_libyaml(monkeypatch):
+    """When the optional libyaml CSafeDumper is unavailable, the import must
+    fall back to the pure-Python SafeDumper, never the unsafe Dumper."""
+    monkeypatch.delattr(yaml, "CSafeDumper", raising=False)
+    try:
+        importlib.reload(eval_utils)
+        assert eval_utils.Dumper is yaml.SafeDumper
+    finally:
+        monkeypatch.undo()
+        importlib.reload(eval_utils)
 
 
 def test_save_dict_to_file_refuses_python_object_tags(tmp_path):
