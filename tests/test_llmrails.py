@@ -1586,3 +1586,30 @@ class TestGenerateAsyncNoMainLLMWarning:
             else:
                 await rails.generate_async(messages=messages, options=options)
         assert _count_no_llm_warnings(caplog) == expected_warnings
+
+
+def test_load_library_sorts_files_for_deterministic_overrides(tmp_path, monkeypatch):
+    """Library files are traversed in sorted order so collisions resolve identically
+    on every filesystem.
+
+    The library loader in ``LLMRails.__init__`` inserts each ``.co`` file's
+    ``bot_messages`` first-wins, so an unsorted ``os.walk`` would let the winner of a
+    message-id collision depend on filesystem ordering. This is the library-traversal
+    sibling of
+    ``test_prompt_override.py::test_load_prompts_sorts_files_for_deterministic_overrides``.
+    """
+    library_dir = tmp_path / "library"
+    library_dir.mkdir()
+    (library_dir / "z.co").write_text('define bot test det msg\n  "from_z"\n', encoding="utf-8")
+    (library_dir / "a.co").write_text('define bot test det msg\n  "from_a"\n', encoding="utf-8")
+
+    def walk(_path):
+        # Yield in non-sorted order; the loader must sort so "a.co" wins the collision.
+        yield str(library_dir), [], ["z.co", "a.co"]
+
+    monkeypatch.setattr("nemoguardrails.rails.llm.llmrails.os.walk", walk)
+
+    config = RailsConfig.from_content(yaml_content="models: []\n")
+    rails = LLMRails(config, llm=FakeLLMModel(responses=["unused"]))
+
+    assert rails.config.bot_messages["test det msg"] == ["from_a"]
