@@ -59,9 +59,13 @@ rails = LLMRails(RailsConfig.from_path("examples/configs/tool_call_guardrail"))
 print(rails.generate(messages=[{"role": "user", "content": "read the source file"}]))
 ```
 
-`flows.co` contains two canned flows (one allowed read, one blocked transfer) so
-the wiring runs deterministically; in a real agent the LLM supplies the tool name
-and arguments instead.
+`flows.co` contains canned flows (an allowed workspace read and write, a blocked
+shell call, a blocked write outside the principal's workspace, and a blocked
+metadata-egress request) so the wiring runs deterministically; in a real agent the
+LLM supplies the tool name and arguments instead. The runtime serves
+`HARDENED_GUARD` — `VULNERABLE_GUARD` with the human-approved output of the
+scanner→synthesis pipeline folded in. `demo.py` and `demo_bridge.py` run against
+`VULNERABLE_GUARD` to show the "before" gaps the scanner discovers.
 
 ## Populating policies from the field: scanner → synthesis
 

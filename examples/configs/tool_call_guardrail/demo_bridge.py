@@ -38,11 +38,11 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from example_policies import (  # noqa: E402
-    GUARD,
     PRINCIPAL_ATTRS,
     PRINCIPALS,
     TOOL_REGISTRY,
     TOOL_SCHEMAS,
+    VULNERABLE_GUARD,
 )
 from policy import Principal, ToolCall, ToolCallGuard  # noqa: E402
 from scanner.scan import KeywordExtractor, ScanContext, scan  # noqa: E402
@@ -85,7 +85,7 @@ def main() -> int:
         print(f"  - [{f.attack_class}] {f.id}: {f.title}")
 
     _rule("2. Coverage gaps in the current guard")
-    gaps = find_gaps(GUARD, TOOL_REGISTRY)
+    gaps = find_gaps(VULNERABLE_GUARD, TOOL_REGISTRY)
     for g in gaps:
         print(f"  - {g.tool}: {g.missing}")
 
@@ -125,7 +125,7 @@ def main() -> int:
     for c in approved:
         print(f"  - {c.tool} <- {c.factory_key}({c.params})")
 
-    updated = apply(approved, GUARD)
+    updated = apply(approved, VULNERABLE_GUARD)
     new_guard = ToolCallGuard(updated)
 
     _rule("7. Before vs. after authorization")
@@ -153,7 +153,7 @@ def main() -> int:
     ]
     for principal_id, call, note in checks:
         principal = PRINCIPALS.get(principal_id, Principal(principal_id))
-        before = GUARD.authorize(call, principal)
+        before = VULNERABLE_GUARD.authorize(call, principal)
         after = new_guard.authorize(call, principal)
         print(f"  - {note}")
         print(f"      before: {'ALLOW' if before.allowed else 'BLOCK'} — {before.reason}")

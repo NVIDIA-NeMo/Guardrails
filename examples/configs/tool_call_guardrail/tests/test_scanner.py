@@ -73,13 +73,27 @@ def test_keyword_scan_over_sample_docs():
     assert by_class == {
         "argument-injection",
         "ownership-bypass",
+        "prefix-ownership-bypass",
         "disallowed-target",
+        "disallowed-pattern",
         "privilege-escalation",
         "unbounded-arg",
         "novel",
     }
     # The ungrounded "bulk deploy" doc mentions no registered tool and is dropped.
     assert not any("bulk-deploy" in f.id for f in findings)
+
+
+def test_keyword_scan_classifies_new_factory_docs():
+    by_class = {f.attack_class: f for f in scan(_ctx(), KeywordExtractor())}
+
+    egress = by_class["disallowed-pattern"]
+    assert egress.affected_tools == ("http_request",)
+    assert egress.suggested_params["arg_name"] == "url"
+
+    prefix = by_class["prefix-ownership-bypass"]
+    assert prefix.affected_tools == ("write_file",)
+    assert prefix.suggested_params == {"arg_name": "path", "owned_attr": "owned_paths"}
 
 
 def test_every_finding_is_grounded_and_has_provenance():

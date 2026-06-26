@@ -35,8 +35,10 @@ from typing import Callable, Mapping, Optional
 from policy import (
     Rule,
     arg_matches_pattern,
+    deny_arg_matching,
     deny_arg_values,
     max_numeric_arg,
+    require_arg_prefix,
     require_owns_arg,
     require_principal_attr,
 )
@@ -45,8 +47,10 @@ from policy import (
 # explicit way to broaden what can be auto-proposed.
 RULE_FACTORIES: Mapping[str, Callable[..., Rule]] = {
     "require_owns_arg": require_owns_arg,
+    "require_arg_prefix": require_arg_prefix,
     "max_numeric_arg": max_numeric_arg,
     "deny_arg_values": deny_arg_values,
+    "deny_arg_matching": deny_arg_matching,
     "arg_matches_pattern": arg_matches_pattern,
     "require_principal_attr": require_principal_attr,
 }
@@ -55,8 +59,10 @@ RULE_FACTORIES: Mapping[str, Callable[..., Rule]] = {
 # here yields no candidate (fail closed — unknown classes are never auto-acted).
 CLASS_TO_FACTORY: Mapping[str, str] = {
     "ownership-bypass": "require_owns_arg",
+    "prefix-ownership-bypass": "require_arg_prefix",
     "unbounded-arg": "max_numeric_arg",
     "disallowed-target": "deny_arg_values",
+    "disallowed-pattern": "deny_arg_matching",
     "argument-injection": "arg_matches_pattern",
     "privilege-escalation": "require_principal_attr",
 }
@@ -70,6 +76,14 @@ CLASS_DESCRIPTIONS: Mapping[str, str] = {
         "the target resource to belong to the principal before the call runs. "
         "Use only for missing/insufficient ownership checks."
     ),
+    "prefix-ownership-bypass": (
+        "The principal acts on a resource outside the namespace it is scoped to, "
+        "where ownership is expressed as a set of path or URL PREFIXES rather than "
+        "exact resource names. The control requires the argument to begin with one "
+        "of the principal's allowed prefixes. Use for hierarchical resources "
+        "(workspace directories, API base URLs); for exact-membership ownership use "
+        "ownership-bypass."
+    ),
     "unbounded-arg": (
         "A single numeric argument on one call exceeds a safe maximum. The control "
         "caps that one argument at a ceiling. It does NOT address sequences, loops, "
@@ -80,6 +94,14 @@ CLASS_DESCRIPTIONS: Mapping[str, str] = {
         "package, a protected host or system resource). The control blocks the call "
         "when the argument is in a denylist. Use for enumerable prohibited values, "
         "not for formats or numeric bounds."
+    ),
+    "disallowed-pattern": (
+        "An argument may carry a known-bad SHAPE rather than one of a few exact "
+        "values — an external or metadata host in a URL, a destructive command "
+        "fragment. The control blocks the call when the argument matches a forbidden "
+        "regular expression. Use when the prohibited values are open-ended and "
+        "pattern-describable; for a short list of exact values use disallowed-target, "
+        "and for requiring a safe FORM use argument-injection."
     ),
     "argument-injection": (
         "An argument can carry malformed or injected content — path traversal, "
