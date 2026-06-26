@@ -115,6 +115,18 @@ def _validate_public_state_shape(state: Optional[dict]) -> None:
         _raise_invalid_state("Invalid state format: 'events' must be a list.")
 
 
+def validate_auto_reload_dependencies() -> None:
+    """Ensure auto-reload dependencies are installed before startup."""
+    try:
+        import watchdog.events  # noqa: F401
+        import watchdog.observers  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "The auto-reload feature requires `watchdog`. Install it with "
+            "`pip install watchdog` or `pip install nemoguardrails[server]`."
+        ) from exc
+
+
 api_description = """Guardrails Server API."""
 
 # The headers for each request
@@ -169,6 +181,7 @@ async def lifespan(app: GuardrailsApp):
                 config_module.init(app)
 
     if app.auto_reload:
+        validate_auto_reload_dependencies()
         app.loop = asyncio.get_running_loop()
         # Store the future directly as task
         app.task = app.loop.run_in_executor(None, start_auto_reload_monitoring)
@@ -775,58 +788,51 @@ def register_logger(logger: Callable):
 
 def start_auto_reload_monitoring():
     """Start a thread that monitors the config folder for changes."""
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
+
+    class Handler(FileSystemEventHandler):
+        def on_any_event(self, event):
+            if event.is_directory:
+                return None
+
+            elif event.event_type == "created" or event.event_type == "modified":
+                log.info(f"Watchdog received {event.event_type} event for file {event.src_path}")
+
+                # Compute the relative path
+                src_path_str = str(event.src_path)
+                rel_path = os.path.relpath(src_path_str, app.rails_config_path)
+
+                # The config_id is the first component
+                parts = rel_path.split(os.path.sep)
+                config_id = parts[0]
+
+                if (
+                    not parts[-1].startswith(".")
+                    and ".ipynb_checkpoints" not in parts
+                    and os.path.isfile(src_path_str)
+                ):
+                    # We just remove the config from the cache so that a new one is used next time
+                    if config_id in llm_rails_instances:
+                        instance = llm_rails_instances[config_id]
+                        del llm_rails_instances[config_id]
+                        if instance:
+                            val = instance.events_history_cache
+                            # We save the events history cache, to restore it on the new instance
+                            llm_rails_events_history_cache[config_id] = val
+
+                        log.info(f"Configuration {config_id} has changed. Clearing cache.")
+
+    observer = Observer()
+    event_handler = Handler()
+    observer.schedule(event_handler, app.rails_config_path, recursive=True)
+    observer.start()
     try:
-        from watchdog.events import FileSystemEventHandler
-        from watchdog.observers import Observer
-
-        class Handler(FileSystemEventHandler):
-            def on_any_event(self, event):
-                if event.is_directory:
-                    return None
-
-                elif event.event_type == "created" or event.event_type == "modified":
-                    log.info(f"Watchdog received {event.event_type} event for file {event.src_path}")
-
-                    # Compute the relative path
-                    src_path_str = str(event.src_path)
-                    rel_path = os.path.relpath(src_path_str, app.rails_config_path)
-
-                    # The config_id is the first component
-                    parts = rel_path.split(os.path.sep)
-                    config_id = parts[0]
-
-                    if (
-                        not parts[-1].startswith(".")
-                        and ".ipynb_checkpoints" not in parts
-                        and os.path.isfile(src_path_str)
-                    ):
-                        # We just remove the config from the cache so that a new one is used next time
-                        if config_id in llm_rails_instances:
-                            instance = llm_rails_instances[config_id]
-                            del llm_rails_instances[config_id]
-                            if instance:
-                                val = instance.events_history_cache
-                                # We save the events history cache, to restore it on the new instance
-                                llm_rails_events_history_cache[config_id] = val
-
-                            log.info(f"Configuration {config_id} has changed. Clearing cache.")
-
-        observer = Observer()
-        event_handler = Handler()
-        observer.schedule(event_handler, app.rails_config_path, recursive=True)
-        observer.start()
-        try:
-            while not app.stop_signal:
-                time.sleep(5)
-        finally:
-            observer.stop()
-            observer.join()
-
-    except ImportError:
-        # Since this is running in a separate thread, we just print the error.
-        print("The auto-reload feature requires `watchdog`. Please install using `pip install watchdog`.")
-        # Force close everything.
-        os._exit(-1)
+        while not app.stop_signal:
+            time.sleep(5)
+    finally:
+        observer.stop()
+        observer.join()
 
 
 def set_default_config_id(config_id: str):

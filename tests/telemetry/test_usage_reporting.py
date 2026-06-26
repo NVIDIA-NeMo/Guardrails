@@ -595,6 +595,26 @@ class TestIntegration:
         usage_data = send_calls[0].kwargs["args"][0]
         assert usage_data.deployment_type == "api"
 
+    def test_server_lifespan_raises_when_auto_reload_dependency_is_missing(self, tmp_path):
+        from nemoguardrails.server.api import GuardrailsApp, lifespan
+
+        server_app = GuardrailsApp(lifespan=lifespan)
+        server_app.rails_config_path = str(tmp_path)
+        server_app.auto_reload = True
+
+        async def run_lifespan():
+            async with lifespan(server_app):
+                pass
+
+        with patch(
+            "nemoguardrails.server.api.validate_auto_reload_dependencies",
+            side_effect=RuntimeError("The auto-reload feature requires `watchdog`."),
+        ):
+            with pytest.raises(RuntimeError, match="requires `watchdog`"):
+                asyncio.run(run_lifespan())
+
+        assert server_app.task is None
+
     def test_report_skipped_when_disabled(self):
         with (
             patch.object(telemetry, "_is_usage_stats_enabled", return_value=False),

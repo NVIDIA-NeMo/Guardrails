@@ -198,6 +198,11 @@ def server(
         setattr(api.app, "disable_chat_ui", True)
 
     if auto_reload:
+        try:
+            api.validate_auto_reload_dependencies()
+        except RuntimeError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
+            raise typer.Exit(1)
         setattr(api.app, "auto_reload", True)
 
     if prefix:

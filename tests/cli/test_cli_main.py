@@ -206,6 +206,21 @@ class TestServerCommand:
 
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
+    @patch(
+        "nemoguardrails.server.api.validate_auto_reload_dependencies",
+        side_effect=RuntimeError("The auto-reload feature requires `watchdog`."),
+    )
+    def test_server_with_auto_reload_missing_watchdog_fails_cleanly(
+        self, _mock_validate, mock_app, mock_uvicorn
+    ):
+        result = runner.invoke(app, ["server", "--auto-reload"])
+        assert result.exit_code == 1
+        assert "The auto-reload feature requires `watchdog`." in result.stdout
+        assert getattr(mock_app, "auto_reload", False) is not True
+        mock_uvicorn.assert_not_called()
+
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
     @patch("nemoguardrails.server.api.set_default_config_id")
     def test_server_with_default_config_id(self, mock_set_default, mock_app, mock_uvicorn):
         result = runner.invoke(app, ["server", "--default-config-id=test_config"])
