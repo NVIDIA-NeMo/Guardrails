@@ -6,7 +6,6 @@ on:
       - develop
     paths-ignore:
       - "**/*.md"
-      - ".github/**"
 
 jobs:
   develop-coverage:
