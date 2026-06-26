@@ -184,7 +184,6 @@ langchain-community = ">=0.2.5,<2.0.0"
 langchain-openai = ">=0.1.0"
 langchain-nvidia-ai-endpoints = ">=0.2.0"
 inline-snapshot = "^0.33.0"
-dirty-equals = "^0.11"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]

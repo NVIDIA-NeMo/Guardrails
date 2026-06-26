@@ -19,14 +19,17 @@ import json
 from typing import Any
 
 from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult
+from tests.recorded.cassette import normalize_body
 
 
 def normalize_rails_result(result: RailsResult) -> dict[str, Any]:
-    return {
-        "status": result.status.value,
-        "rail": result.rail,
-        "content": result.content,
-    }
+    return normalize_body(
+        {
+            "status": result.status.value,
+            "rail": result.rail,
+            "content": result.content,
+        }
+    )
 
 
 def normalize_llm_calls(result: GenerationResponse) -> list[dict[str, Any]]:
@@ -45,7 +48,7 @@ def normalize_llm_calls(result: GenerationResponse) -> list[dict[str, Any]]:
                 "total_tokens": getattr(call, "total_tokens", None),
             }
         )
-    return calls
+    return normalize_body(calls)
 
 
 def normalize_generation_response(result: GenerationResponse) -> dict[str, Any]:
@@ -60,11 +63,13 @@ def normalize_generation_response(result: GenerationResponse) -> dict[str, Any]:
             }
             for rail in result.log.activated_rails
         ]
-    return {
-        "response": result.response,
-        "activated_rails": activated_rails,
-        "llm_calls": normalize_llm_calls(result),
-    }
+    return normalize_body(
+        {
+            "response": result.response,
+            "activated_rails": activated_rails,
+            "llm_calls": normalize_llm_calls(result),
+        }
+    )
 
 
 def normalize_stream_chunks(chunks: list[Any]) -> dict[str, Any]:
@@ -91,8 +96,10 @@ def normalize_stream_chunks(chunks: list[Any]) -> dict[str, Any]:
             if metadata.get("usage"):
                 normalized["usage"] = metadata["usage"]
             normalized_chunks.append(normalized)
-    return {
-        "content": "".join(content_parts),
-        "chunks": normalized_chunks,
-        "errors": errors,
-    }
+    return normalize_body(
+        {
+            "content": "".join(content_parts),
+            "chunks": normalized_chunks,
+            "errors": errors,
+        }
+    )

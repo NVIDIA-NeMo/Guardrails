@@ -1332,20 +1332,6 @@ wrapt = ">=1.10,<3"
 dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "setuptools", "tox"]
 
 [[package]]
-name = "dirty-equals"
-version = "0.11"
-description = "Doing dirty (but extremely useful) things with equals."
-optional = false
-python-versions = ">=3.9"
-files = [
-    {file = "dirty_equals-0.11-py3-none-any.whl", hash = "sha256:b1d7093273fc2f9be12f443a8ead954ef6daaf6746fd42ef3a5616433ee85286"},
-    {file = "dirty_equals-0.11.tar.gz", hash = "sha256:f4ac74ee88f2d11e2fa0f65eb30ee4f07105c5f86f4dc92b09eb1138775027c3"},
-]
-
-[package.extras]
-pydantic = ["pydantic (>=2.4.2)"]
-
-[[package]]
 name = "distlib"
 version = "0.4.0"
 description = "Distribution utilities"
@@ -9353,4 +9339,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "140d1761ae4e45f78b80fc59ddfe6133e0985ec5132a9e838a34b8ae54f77843"
+content-hash = "89555ebef15f93613e338ac9d68a3af93bc6cf939861584ea65d70a469c1626a"

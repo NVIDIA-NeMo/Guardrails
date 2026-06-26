@@ -174,20 +174,29 @@ def test_recorded_cassette_serializer_redacts_access_tokens_from_parsed_bodies()
     assert loaded["interactions"][0]["response"]["body"]["parsed_body"]["nested"]["accessToken"] == "[REDACTED]"
 
 
-def test_recorded_cassette_serializer_normalizes_smart_chars():
+def test_recorded_cassette_serializer_preserves_smart_chars():
+    request = Request(
+        method="POST",
+        uri="https://api.openai.com/v1/chat/completions",
+        body='{"prompt":"‘prompt’ “text” – — ‑ …"}',
+        headers={"Content-Type": "application/json"},
+    )
+    response = before_record_response(
+        {
+            "headers": {"Content-Type": ["application/json"]},
+            "body": {"string": '{"answer":"‘a’ “b” – — ‑ …"}'},
+        }
+    )
     cassette = {
         "interactions": [
             {
                 "request": {
-                    "body": '{"prompt":"hi"}',
+                    "body": before_record_request(request).body,
                     "headers": {"Content-Type": ["application/json"]},
                     "method": "POST",
                     "uri": "https://api.openai.com/v1/chat/completions",
                 },
-                "response": {
-                    "headers": {"Content-Type": ["application/json"]},
-                    "body": {"string": '{"answer":"‘a’ “b” – — ‑ …"}'},
-                },
+                "response": response,
             }
         ],
         "version": 1,
@@ -195,10 +204,11 @@ def test_recorded_cassette_serializer_normalizes_smart_chars():
 
     text = ReadableYamlSerializer.serialize(cassette)
     loaded = yaml.safe_load(text)
+    prompt = loaded["interactions"][0]["request"]["parsed_body"]["prompt"]
     answer = loaded["interactions"][0]["response"]["body"]["parsed_body"]["answer"]
 
-    assert answer == "'a' \"b\" - -- - ..."
-    assert all(ord(char) < 128 for char in answer)
+    assert prompt == "‘prompt’ “text” – — ‑ …"
+    assert answer == "‘a’ “b” – — ‑ …"
 
 
 def test_recorded_body_matcher_normalizes_smart_chars_in_json_bodies():
@@ -548,5 +558,5 @@ def test_recorded_body_matcher_compares_sanitized_json_bodies():
     )
 
     recorded_body_matcher(cassette_request, replay_request)
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="Recorded request JSON body"):
         recorded_body_matcher(cassette_request, stale_request)

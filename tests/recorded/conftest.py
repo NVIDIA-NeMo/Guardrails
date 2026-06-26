@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
+import pytest_asyncio
 import yaml
 from vcr.util import read_body
 
@@ -174,14 +174,22 @@ def recorded_body_matcher(request_1: Any, request_2: Any) -> None:
     json_body_2 = _decode_match_body_json(body_2)
 
     if json_body_1 is not _NON_JSON_BODY and json_body_2 is not _NON_JSON_BODY:
-        scrubbed_1 = _scrub_request_json(json_body_1)
-        scrubbed_2 = _scrub_request_json(json_body_2)
-        if scrubbed_1 != scrubbed_2:
-            raise AssertionError(f"{scrubbed_1!r} != {scrubbed_2!r}")
+        matched_1 = normalize_body(_scrub_request_json(json_body_1))
+        matched_2 = normalize_body(_scrub_request_json(json_body_2))
+        if matched_1 != matched_2:
+            raise AssertionError(
+                "Recorded request JSON body does not match replay request after scrubbing and normalization:\n"
+                f"recorded={matched_1!r}\n"
+                f"replay={matched_2!r}"
+            )
         return
 
-    if _normalize_raw_match_body(body_1) != _normalize_raw_match_body(body_2):
-        raise AssertionError
+    matched_1 = _normalize_raw_match_body(body_1)
+    matched_2 = _normalize_raw_match_body(body_2)
+    if matched_1 != matched_2:
+        raise AssertionError(
+            f"Recorded raw request body does not match replay request:\nrecorded={matched_1!r}\nreplay={matched_2!r}"
+        )
 
 
 def _encode_body_like(original_body: Any, data: Any) -> Any:
@@ -224,7 +232,7 @@ def _header_values(headers: dict[str, Any], name: str) -> list[str]:
 
 
 def _scrub_request_json(data: Any) -> Any:
-    return normalize_body(_scrub_json(data))
+    return _scrub_json(data)
 
 
 def _scrub_response_json(data: Any) -> Any:
@@ -345,8 +353,8 @@ def vcr_config() -> Dict[str, Any]:
     return _VCR_CONFIG
 
 
-@pytest.fixture(autouse=True)
-def close_owned_http_clients(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+@pytest_asyncio.fixture(autouse=True)
+async def close_owned_http_clients(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
     from nemoguardrails.llm.clients import base
 
     tracked: List[Any] = []
@@ -362,13 +370,8 @@ def close_owned_http_clients(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     yield
 
     leaked = [client for client in tracked if client._owns_client and not client._client.is_closed]
-    if leaked:
-
-        async def _close_all() -> None:
-            for client in leaked:
-                await client._client.aclose()
-
-        asyncio.run(_close_all())
+    for client in leaked:
+        await client._client.aclose()
 
 
 _PROXY_ENV_VARS = (
