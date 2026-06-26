@@ -19,15 +19,12 @@ from typing import Any, Dict, List, Union
 
 import yaml
 
-# We try to load the efficient version of the Dumper for YAML.
-# Untrusted input is parsed with yaml.safe_load (see load_dict_from_file) to
-# avoid arbitrary object construction (CWE-502).
-# https://pyyaml.org/wiki/PyYAMLDocumentation
-# https://stackoverflow.com/questions/27743711/can-i-speedup-yaml
+# Use SafeDumper which refuses to emit !!python/... tags), maintain round-trip
+# compatibility with yaml.safe_load
 try:
-    from yaml import CDumper as Dumper
+    from yaml import CSafeDumper as Dumper
 except ImportError:
-    from yaml import Dumper
+    from yaml import SafeDumper as Dumper
 
 
 def load_dict_from_file(file_path: str) -> Dict[str, Any]:

@@ -17,7 +17,16 @@
 import pytest
 import yaml
 
-from nemoguardrails.eval.utils import load_dict_from_file, load_dict_from_path
+from nemoguardrails.eval.utils import (
+    load_dict_from_file,
+    load_dict_from_path,
+    save_dict_to_file,
+)
+
+
+# Create an arbitrary object and make sure we don't serialize it for security
+class _CustomObject:
+    pass
 
 
 def test_load_dict_from_file_rejects_python_object_tags(tmp_path):
@@ -54,3 +63,21 @@ def test_load_dict_from_file_loads_benign_yaml(tmp_path):
     result = load_dict_from_file(str(config_file))
 
     assert result == {"models": [{"name": "main", "engine": "openai"}], "key": "value"}
+
+
+def test_save_dict_to_file_refuses_python_object_tags(tmp_path):
+    """The dumper must refuse to serialize arbitrary Python objects"""
+    output = tmp_path / "out.yaml"
+
+    with pytest.raises(yaml.representer.RepresenterError):
+        save_dict_to_file({"value": _CustomObject()}, str(output))
+
+
+def test_save_dict_to_file_roundtrips_benign_data(tmp_path):
+    """Ordinary primitive data must still serialize and load back unchanged."""
+    data = {"results": [{"id": "a", "score": 1}], "logs": ["ok"]}
+    output = tmp_path / "out.yaml"
+
+    save_dict_to_file(data, str(output))
+
+    assert load_dict_from_file(str(output)) == data
