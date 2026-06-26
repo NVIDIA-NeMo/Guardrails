@@ -152,16 +152,7 @@ def _rail_types(scenario: CheckScenario) -> list[RailType] | None:
     return list(scenario.rail_types) if scenario.rail_types is not None else None
 
 
-def test_check_sync_public_contracts():
-    results = {}
-    for scenario in SCENARIOS:
-        rails = LLMRails(load_config(scenario.config), verbose=False)
-
-        result = rails.check(scenario.messages, rail_types=_rail_types(scenario))
-
-        assert_rails_result(result, status=scenario.status, content=scenario.content, rail=scenario.rail)
-        results[scenario.id] = normalize_rails_result(result)
-
+def _assert_check_contract_results(results: dict[str, dict[str, Any]]) -> None:
     assert results == snapshot(
         {
             "input-allowed": {"status": "passed", "rail": None, "content": "allowed input"},
@@ -200,6 +191,19 @@ def test_check_sync_public_contracts():
             },
         }
     )
+
+
+def test_check_sync_public_contracts():
+    results = {}
+    for scenario in SCENARIOS:
+        rails = LLMRails(load_config(scenario.config), verbose=False)
+
+        result = rails.check(scenario.messages, rail_types=_rail_types(scenario))
+
+        assert_rails_result(result, status=scenario.status, content=scenario.content, rail=scenario.rail)
+        results[scenario.id] = normalize_rails_result(result)
+
+    _assert_check_contract_results(results)
 
 
 @pytest.mark.asyncio
@@ -213,44 +217,7 @@ async def test_check_async_public_contracts():
         assert_rails_result(result, status=scenario.status, content=scenario.content, rail=scenario.rail)
         results[scenario.id] = normalize_rails_result(result)
 
-    assert results == snapshot(
-        {
-            "input-allowed": {"status": "passed", "rail": None, "content": "allowed input"},
-            "input-blocked": {
-                "status": "blocked",
-                "rail": "input rail",
-                "content": "I'm sorry, I can't respond to that.",
-            },
-            "input-modified": {"status": "modified", "rail": None, "content": "modified input"},
-            "output-allowed": {"status": "passed", "rail": None, "content": "allowed output"},
-            "output-blocked": {
-                "status": "blocked",
-                "rail": "output rail",
-                "content": "I'm sorry, I can't respond to that.",
-            },
-            "output-modified": {"status": "modified", "rail": None, "content": "modified output"},
-            "auto-input": {"status": "blocked", "rail": "input rail", "content": "I'm sorry, I can't respond to that."},
-            "auto-output": {
-                "status": "blocked",
-                "rail": "output rail",
-                "content": "I'm sorry, I can't respond to that.",
-            },
-            "auto-both": {"status": "blocked", "rail": "output rail", "content": "I'm sorry, I can't respond to that."},
-            "explicit-input": {"status": "passed", "rail": None, "content": "allowed input"},
-            "explicit-output": {"status": "passed", "rail": None, "content": "allowed output"},
-            "explicit-both": {
-                "status": "blocked",
-                "rail": "input rail",
-                "content": "I'm sorry, I can't respond to that.",
-            },
-            "parallel-pass": {"status": "passed", "rail": None, "content": "allowed parallel"},
-            "parallel-block": {
-                "status": "blocked",
-                "rail": "parallel input rail",
-                "content": "Parallel input blocked.",
-            },
-        }
-    )
+    _assert_check_contract_results(results)
 
 
 @pytest.mark.asyncio
