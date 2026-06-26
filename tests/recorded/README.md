@@ -27,12 +27,12 @@ Config constants (``OPENAI_BASELINE_CONFIG`` and friends) live in the suite-loca
 ``configs.py`` next to the tests; ``snapshot`` is the suite-local re-export in
 ``tests/recorded/snapshots.py``, not ``inline_snapshot`` directly.
 
-Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`) rather than calling `request.getfixturevalue(...)`. In modules that mix sync/async tests or vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply `@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then record once with credentials, fill the snapshot offline, and verify the replay:
+Request credentials as fixture parameters (`openai_api_key`, `nvidia_api_key`) rather than calling `request.getfixturevalue(...)`. In modules that mix sync/async tests or vcr/non-vcr tests, keep only `recorded` in `pytestmark` and apply `@pytest.mark.vcr` / `@pytest.mark.asyncio` per test. Then use the Makefile refresh workflow to record once with credentials, fill the snapshot offline, and verify the replay:
 
 ```bash
-OPENAI_API_KEY=... poetry run pytest path::test_my_case --record-mode=all
-poetry run pytest path::test_my_case --block-network --inline-snapshot=create
-poetry run pytest path::test_my_case --block-network
+OPENAI_API_KEY=... make record-cassettes \
+  RECORDED_TESTS=path::test_my_case \
+  RECORDED_REQUIRED_KEYS=OPENAI_API_KEY
 ```
 
 ## Negative paths
@@ -143,7 +143,7 @@ Parameterized tests include the parameter id in the cassette filename. Every tes
 
 JSON request and response bodies are stored as `parsed_body` and rehydrated by `ReadableYamlSerializer` during replay. SSE responses also use parseable `parsed_body` events.
 
-At serialize time the bodies are normalized to ASCII (smart quotes, en/em dashes, the hyphen family, and ellipsis are folded, then NFKC) so cassettes and inline snapshots stay stable and portable. Response headers are dropped by exact name and by prefix (`x-`, `cf-`, `openai-`); `tests/recorded/sanitization.py` holds the `ALLOWED_HEADERS` exceptions that must survive the prefix sweep (currently `content-type`).
+Cassettes preserve scrubbed JSON text without smart-character normalization so provider payloads stay inspectable. Request matching and snapshot helpers normalize smart quotes, dash variants, ellipses, and NFKC at comparison time. Response headers are dropped by exact name and by prefix (`x-`, `cf-`, `openai-`); `tests/recorded/sanitization.py` holds the `ALLOWED_HEADERS` exceptions that must survive the prefix sweep (currently `content-type`).
 
 Inspect a cassette:
 
