@@ -102,14 +102,39 @@ def test_filesystem_cache_store():
 def test_redis_cache_store():
     pytest.importorskip("redis")
     mock_redis = MagicMock()
+    mock_redis.get.return_value = b"[0.1, 0.2, 0.3]"
     cache = RedisCacheStore()
     cache._redis = mock_redis
-    cache.set("key", "value")
-    mock_redis.set.assert_called_once_with("key", "value")
-    cache.get("key")
+    cache.set("key", [0.1, 0.2, 0.3])
+    mock_redis.set.assert_called_once_with("key", "[0.1, 0.2, 0.3]")
+    assert cache.get("key") == [0.1, 0.2, 0.3]
     mock_redis.get.assert_called_once_with("key")
     cache.clear()
     mock_redis.flushall.assert_called_once()
+
+
+def test_redis_cache_store_returns_legacy_non_json_strings():
+    pytest.importorskip("redis")
+    mock_redis = MagicMock()
+    mock_redis.get.return_value = b"legacy-value"
+    cache = RedisCacheStore()
+    cache._redis = mock_redis
+
+    assert cache.get("key") == "legacy-value"
+
+
+def test_embeddings_cache_with_redis_store_round_trips_embeddings():
+    pytest.importorskip("redis")
+    mock_redis = MagicMock()
+    cache_store = RedisCacheStore()
+    cache_store._redis = mock_redis
+    embeddings_cache = EmbeddingsCache(key_generator=MD5KeyGenerator(), cache_store=cache_store)
+
+    embeddings_cache.set("text", [0.1, 0.2, 0.3])
+    stored_value = mock_redis.set.call_args.args[1]
+    mock_redis.get.return_value = stored_value.encode("utf-8")
+
+    assert embeddings_cache.get("text") == [0.1, 0.2, 0.3]
 
 
 class TestEmbeddingsCache(unittest.TestCase):

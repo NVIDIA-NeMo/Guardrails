@@ -204,10 +204,20 @@ class RedisCacheStore(CacheStore):
         self._redis = redis.Redis(host=host, port=port, db=db)
 
     def get(self, key):
-        return self._redis.get(key)
+        value = self._redis.get(key)
+        if value is None:
+            return None
+
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+
+        try:
+            return json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return value
 
     def set(self, key, value):
-        self._redis.set(key, value)
+        self._redis.set(key, json.dumps(value))
 
     def clear(self):
         self._redis.flushall()
