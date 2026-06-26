@@ -31,7 +31,12 @@ from policy import (
     ToolPolicy,
     max_numeric_arg,
 )
-from synthesis.catalog import CLASS_TO_FACTORY, RuleCandidate
+from synthesis.catalog import (
+    CLASS_DESCRIPTIONS,
+    CLASS_TO_FACTORY,
+    RULE_FACTORIES,
+    RuleCandidate,
+)
 from synthesis.findings import Finding, load_findings
 from synthesis.proposals import (
     UNTARGETED,
@@ -56,6 +61,48 @@ def _finding(attack_class: str, tool: str = "run_shell", **params) -> Finding:
         affected_tools=(tool,),
         suggested_params=params,
     )
+
+
+def test_catalog_is_internally_consistent():
+    # Every taxonomy class maps to a real factory and carries a control definition
+    # for the LLM extractor. Guards against a factory being added to one map but
+    # not the others (the exact drift that leaves a class silently undefined).
+    assert set(CLASS_DESCRIPTIONS) == set(CLASS_TO_FACTORY)
+    assert all(key in RULE_FACTORIES for key in CLASS_TO_FACTORY.values())
+
+
+def test_disallowed_pattern_factory_materializes_into_a_blocklist_rule():
+    candidate = RuleCandidate(
+        finding_id="x",
+        source="s",
+        tool="http_request",
+        factory_key="deny_arg_matching",
+        params={"arg_name": "url", "pattern": r"169\.254\.169\.254"},
+    )
+    assert candidate.is_valid()
+    rule = candidate.materialize()
+    who = Principal("p")
+    assert rule(ToolCall("http_request", {"url": "http://169.254.169.254/latest"}), who) is not None
+    assert rule(ToolCall("http_request", {"url": "https://api.example.com"}), who) is None
+    # A missing argument passes — a blocklist only fires on a present, matching value.
+    assert rule(ToolCall("http_request", {}), who) is None
+
+
+def test_prefix_ownership_factory_materializes_into_a_prefix_rule():
+    candidate = RuleCandidate(
+        finding_id="x",
+        source="s",
+        tool="write_file",
+        factory_key="require_arg_prefix",
+        params={"arg_name": "path", "owned_attr": "owned_paths"},
+    )
+    assert candidate.is_valid()
+    rule = candidate.materialize()
+    who = Principal("p", attributes={"owned_paths": frozenset({"/workspace/alice/"})})
+    assert rule(ToolCall("write_file", {"path": "/workspace/alice/notes.txt"}), who) is None
+    assert rule(ToolCall("write_file", {"path": "/workspace/bob/secret"}), who) is not None
+    # A missing required argument blocks (fail closed).
+    assert rule(ToolCall("write_file", {}), who) is not None
 
 
 def test_synthesize_maps_each_class_to_its_factory():

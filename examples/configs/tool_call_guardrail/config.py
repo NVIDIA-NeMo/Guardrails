@@ -30,7 +30,7 @@ import sys
 # (policy.py, tools.py) importable as top-level modules.
 sys.path.insert(0, os.path.dirname(__file__))
 
-from example_policies import GUARD, PRINCIPALS  # noqa: E402
+from example_policies import HARDENED_GUARD, PRINCIPALS  # noqa: E402
 from policy import Principal, ToolCall  # noqa: E402
 from tools import TOOLS  # noqa: E402
 
@@ -42,7 +42,7 @@ from nemoguardrails.actions import action  # noqa: E402
 async def safe_tool_call(tool: str, principal_id: str = "anon", **args) -> str:
     """Authorize a proposed tool call, then dispatch it only if allowed."""
     principal = PRINCIPALS.get(principal_id, Principal(principal_id))
-    decision = GUARD.authorize(ToolCall(tool, args), principal)
+    decision = HARDENED_GUARD.authorize(ToolCall(tool, args), principal)
     if not decision.allowed:
         return f"BLOCKED ({tool}): {decision.reason}"
 
