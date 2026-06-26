@@ -14,100 +14,39 @@
 # limitations under the License.
 
 import logging
-import warnings
-from typing import List, Literal, Optional, Tuple, cast
+from typing import List, Optional
 
 import typer
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import FuzzyWordCompleter
 
-from nemoguardrails.llm.providers import get_chat_provider_names, get_llm_provider_names
+from nemoguardrails.llm.providers import get_chat_provider_names
 from nemoguardrails.utils import console
 
 log = logging.getLogger(__name__)
 
 
-ProviderType = Literal["text completion", "chat completion"]
-
-
 def _list_providers() -> None:
     """List all available providers."""
-    # Suppress deprecation warning: get_llm_provider_names is deprecated for
-    # external callers but the CLI intentionally shows both categories until
-    # text completion providers are removed in 0.23.0.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        console.print("\n[bold]Text Completion Providers:[/]")
-        for provider in sorted(get_llm_provider_names()):
-            console.print(f"  • {provider}")
-
     console.print("\n[bold]Chat Completion Providers:[/]")
     for provider in sorted(get_chat_provider_names()):
         console.print(f"  • {provider}")
 
 
-def _get_provider_completions(
-    provider_type: Optional[ProviderType] = None,
-) -> List[str]:
-    """Get list of providers based on type."""
-    if provider_type == "text completion":
-        # See comment in _list_providers for why we suppress this warning.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            return sorted(get_llm_provider_names())
-    elif provider_type == "chat completion":
-        return sorted(get_chat_provider_names())
-    return []
+def _get_provider_completions() -> List[str]:
+    """Get list of available chat-completion providers."""
+    return sorted(get_chat_provider_names())
 
 
-def select_provider_type() -> Optional[ProviderType]:
-    """Let user select between text completion and chat completion providers."""
-    provider_types = ["chat completion", "text completion"]
-
-    # session with fuzzy completion
-    session = PromptSession()
-    completer = FuzzyWordCompleter(provider_types)
-
-    console.print("\n[bold]Available Provider Types:[/] (type to filter, use arrows to select)")
-    for provider_type in provider_types:
-        console.print(f"  • {provider_type}")
-
-    try:
-        result = session.prompt(
-            "\nSelect provider type: ",
-            completer=completer,
-            complete_while_typing=True,
-        ).strip()
-
-        # None for empty input
-        if not result:
-            return None
-
-        # exact match only
-        if result in provider_types:
-            return cast(ProviderType, result)  # type: ignore
-
-        # fuzzy match
-        matches = [t for t in provider_types if result.lower() in t.lower()]
-        if len(matches) == 1:
-            return matches[0]  # type: ignore
-
-        return None
-    except (EOFError, KeyboardInterrupt):
-        return None
-
-
-def select_provider(
-    provider_type: Optional[ProviderType] = None,
-) -> Optional[str]:
-    """Let user select a specific provider based on the type."""
-    providers = _get_provider_completions(provider_type)
+def select_provider() -> Optional[str]:
+    """Let user select a specific provider."""
+    providers = _get_provider_completions()
 
     # session with fuzzy completion
     session = PromptSession()
     completer = FuzzyWordCompleter(providers)
 
-    console.print(f"\n[bold]Available {provider_type} providers:[/] (type to filter, use arrows to select)")
+    console.print("\n[bold]Available chat completion providers:[/] (type to filter, use arrows to select)")
     for provider in providers:
         console.print(f"  • {provider}")
 
@@ -136,30 +75,15 @@ def select_provider(
         return None
 
 
-def select_provider_with_type() -> Optional[Tuple[str, str]]:
-    """Let user select both provider type and specific provider."""
-    provider_type = select_provider_type()
-    if not provider_type:
-        return None
-
-    provider = select_provider(provider_type)
-    if not provider:
-        return None
-
-    return (provider_type, provider)
-
-
 def find_providers(
     list_only: bool = typer.Option(False, "--list", "-l", help="Just list all available providers"),
 ):
     """List and select LLM providers interactively.
 
     This command provides an interactive interface to explore and select LLM providers.
-    It supports both text completion and chat completion providers.
 
     When run without options:
-    - Type to search for provider type (text/chat completion)
-    - Type to search for specific provider
+    - Type to search for a specific provider
     - Use arrows to navigate and Tab to complete
 
     When run with --list:
@@ -170,9 +94,8 @@ def find_providers(
         _list_providers()
         return
 
-    result = select_provider_with_type()
-    if result:
-        provider_type, provider = result
-        typer.echo(f"\nSelected {provider_type} provider: {provider}")
+    provider = select_provider()
+    if provider:
+        typer.echo(f"\nSelected chat completion provider: {provider}")
     else:
         typer.echo("No provider selected.")

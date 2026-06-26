@@ -18,17 +18,16 @@
 import logging
 import warnings
 from importlib.metadata import version
-from typing import Any, Callable, Dict, Literal, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 from langchain.chat_models import init_chat_model
 
 # from langchain_core._api.beta_decorator import LangChainBetaWarning
 # from langchain_core._api.deprecation import LangChainDeprecationWarning
-from langchain_core.language_models import BaseChatModel, BaseLLM
+from langchain_core.language_models import BaseChatModel
 
 from nemoguardrails.integrations.langchain.providers.providers import (
     _get_chat_completion_provider,
-    _get_text_completion_provider,
     _parse_version,
 )
 from nemoguardrails.llm.models.initializer import ModelInitializationError
@@ -50,39 +49,27 @@ __all__ = [
 warnings.filterwarnings("ignore", module="langchain_nvidia_ai_endpoints._common")
 
 
-ModelInitMethod = Callable[[str, str, Dict[str, Any]], Optional[Union[BaseChatModel, BaseLLM]]]
+ModelInitMethod = Callable[[str, str, Dict[str, Any]], Optional[BaseChatModel]]
 
 
 class ModelInitializer:
-    """A method for initializing a model with its supported modes."""
+    """A method for initializing a chat model."""
 
-    def __init__(
-        self,
-        init_method: ModelInitMethod,
-        supported_modes: list[Literal["chat", "text"]],
-    ):
+    def __init__(self, init_method: ModelInitMethod):
         self.init_method = init_method
-        self.supported_modes = supported_modes
 
-    def supports_mode(self, mode: Literal["chat", "text"]) -> bool:
-        """Check if this initializer supports the given mode."""
-        return mode in self.supported_modes
-
-    def execute(
-        self, model_name: str, provider_name: str, kwargs: Dict[str, Any]
-    ) -> Optional[Union[BaseChatModel, BaseLLM]]:
+    def execute(self, model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> Optional[BaseChatModel]:
         """Execute this initializer to initialize a model."""
         return self.init_method(model_name, provider_name, kwargs)
 
     def __str__(self) -> str:
-        return f"{self.init_method.__name__}(modes={self.supported_modes})"
+        return f"{self.init_method.__name__}()"
 
 
 def try_initialization_method(
     initializer: ModelInitializer,
     model_name: str,
     provider_name: str,
-    mode: Literal["chat", "text"],
     kwargs: Dict[str, Any],
 ):
     """Wrap an initialization method execution with a try/except to capture errors.
@@ -92,14 +79,6 @@ def try_initialization_method(
     3. Logs them and continues with the next initializer
     4. Only fails at the end if all initializers have been tried
     """
-    # skip initializers that don't support the requested mode
-    if not initializer.supports_mode(mode):
-        log.debug(
-            f"Skipping initializer: {initializer.init_method.__name__} for model: {model_name} "
-            f"and provider: {provider_name} as it doesn't support mode: {mode}"
-        )
-        return None
-
     try:
         log.debug(
             f"Trying initializer: {initializer.init_method.__name__} for model: {model_name} and provider: {provider_name}"
@@ -123,31 +102,24 @@ def try_initialization_method(
 def init_langchain_model(
     model_name: str,
     provider_name: str,
-    mode: Literal["chat", "text"],
     kwargs: Dict[str, Any],
-) -> Union[BaseChatModel, BaseLLM]:
-    """Initialize a LangChain model using a series of initialization methods.
+) -> BaseChatModel:
+    """Initialize a LangChain chat model using a series of initialization methods.
 
     This function tries multiple initialization methods in sequence until one succeeds.
-    Each method is attempted only if it supports the requested mode.
     """
 
-    if mode not in ["chat", "text"]:
-        raise ValueError(f"Unsupported mode: {mode}")
     if not model_name:
         raise ModelInitializationError(f"Model name is required for provider {provider_name}")
 
     # Define initialization methods in order of preference
     initializers: list[ModelInitializer] = [
-        # Try special case handlers first (handles both chat and text)
-        ModelInitializer(_handle_model_special_cases, ["chat", "text"]),
-        # For chat mode, first try the standard chat completion API
-        ModelInitializer(_init_chat_completion_model, ["chat"]),
-        # For chat mode, fall back to community chat models
-        ModelInitializer(_init_community_chat_models, ["chat"]),
-        # FIXME: is text and chat a good idea?
-        # For text mode, use text completion, we are using both text and chat as the last resort
-        ModelInitializer(_init_text_completion_model, ["text", "chat"]),
+        # Try special case handlers first
+        ModelInitializer(_handle_model_special_cases),
+        # Then try the standard chat completion API
+        ModelInitializer(_init_chat_completion_model),
+        # Fall back to community chat models
+        ModelInitializer(_init_community_chat_models),
     ]
 
     # Track the last exception for better error reporting
@@ -161,7 +133,6 @@ def init_langchain_model(
                 initializer=initializer,
                 model_name=model_name,
                 provider_name=provider_name,
-                mode=mode,
                 kwargs=kwargs,
             )
             if result is not None:
@@ -176,7 +147,7 @@ def init_langchain_model(
             last_exception = e
             log.debug(f"Initialization failed with {initializer}: {e}")
     # build the final message, preferring that first ImportError if we saw one
-    base = f"Failed to initialize model {model_name!r} with provider {provider_name!r} in {mode!r} mode"
+    base = f"Failed to initialize model {model_name!r} with provider {provider_name!r}"
 
     # if we ever hit an ImportError, surface its message:
     if first_import_error is not None:
@@ -228,30 +199,7 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
         raise
 
 
-def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM | None:
-    """Initialize a text completion model.
-
-    Args:
-        model_name: Name of the model to initialize
-        provider_name: Name of the provider to use
-        kwargs: Additional arguments to pass to the model initialization
-
-    Returns:
-        An initialized text completion model, or None if the provider is not found
-    """
-    try:
-        provider_cls = _get_text_completion_provider(provider_name)
-    except RuntimeError:
-        return None
-
-    if provider_cls is None:
-        return None
-
-    kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
-    return provider_cls(**kwargs)
-
-
-def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel | None:
+def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> Optional[BaseChatModel]:
     """Initialize community chat models.
 
     Args:
@@ -276,35 +224,6 @@ def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dic
 
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
     return provider_cls(**kwargs)
-
-
-def _init_gpt35_turbo_instruct(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM | None:
-    """Initialize GPT-3.5 Turbo Instruct model.
-
-    Currently init_chat_model from langchain infers this as a chat model.
-    This is a bug in langchain, and we need to handle it here.
-
-    This model requires text completion initialization.
-
-    Args:
-        model_name: Name of the model to initialize
-        provider_name: Name of the provider to use
-        kwargs: Additional arguments to pass to the model initialization
-
-    Returns:
-        An initialized text completion model
-
-    Raises:
-        ModelInitializationError: If model initialization fails
-    """
-    try:
-        return _init_text_completion_model(
-            model_name=model_name,
-            provider_name=provider_name,
-            kwargs=kwargs,
-        )
-    except Exception as e:
-        raise ModelInitializationError(f"Failed to initialize text completion model {model_name}: {str(e)}")
 
 
 def _init_nvidia_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel:
@@ -341,19 +260,13 @@ def _init_nvidia_model(model_name: str, provider_name: str, kwargs: Dict[str, An
         )
 
 
-_SPECIAL_MODEL_INITIALIZERS = {
-    "gpt-3.5-turbo-instruct": _init_gpt35_turbo_instruct,
-}
-
 _PROVIDER_INITIALIZERS: Dict[str, Any] = {
     "nvidia_ai_endpoints": _init_nvidia_model,
     "nim": _init_nvidia_model,
 }
 
 
-def _handle_model_special_cases(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> Optional[Union[BaseChatModel, BaseLLM]]:
+def _handle_model_special_cases(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> Optional[BaseChatModel]:
     """Handle model initialization for special cases that need custom logic.
 
     This function handles edge cases where standard initialization methods
@@ -368,23 +281,14 @@ def _handle_model_special_cases(
     Returns:
         An initialized model for special cases, or None if no special initializer exists
     """
-    initializer = None
-
-    for pattern, model_initializer in _SPECIAL_MODEL_INITIALIZERS.items():
-        if pattern in model_name:
-            initializer = model_initializer
-            break
-
-    if initializer is None and provider_name in _PROVIDER_INITIALIZERS:
-        initializer = _PROVIDER_INITIALIZERS[provider_name]
-
+    initializer = _PROVIDER_INITIALIZERS.get(provider_name)
     if initializer is None:
         return None
 
     result = initializer(model_name, provider_name, kwargs)
     if result is None:
         return None
-    if not isinstance(result, (BaseChatModel, BaseLLM)):
+    if not isinstance(result, BaseChatModel):
         raise TypeError("Initializer returned an invalid type")
     return result
 

@@ -18,7 +18,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, pipeli
 
 from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
 from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
-from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers import register_chat_provider
 
 
 @lru_cache
@@ -62,4 +62,4 @@ def get_dolly_v2_3b_llm(streaming: bool = True):
 
 HFPipelineDolly = get_llm_instance_wrapper(llm_instance=get_dolly_v2_3b_llm(), llm_type="hf_pipeline_dolly")
 
-register_llm_provider("hf_pipeline_dolly", HFPipelineDolly)
+register_chat_provider("hf_pipeline_dolly", HFPipelineDolly)

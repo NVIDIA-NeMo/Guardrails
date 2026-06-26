@@ -19,7 +19,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, pipeli
 
 from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
 from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
-from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers import register_chat_provider
 
 
 @lru_cache
@@ -61,4 +61,4 @@ def get_mpt_7b_instruct_llm():
 
 HFPipelineMosaic = get_llm_instance_wrapper(llm_instance=get_mpt_7b_instruct_llm(), llm_type="hf_pipeline_mosaic")
 
-register_llm_provider("hf_pipeline_mosaic", HFPipelineMosaic)
+register_chat_provider("hf_pipeline_mosaic", HFPipelineMosaic)

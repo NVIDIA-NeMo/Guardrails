@@ -18,7 +18,7 @@ from torch import bfloat16
 
 from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
 from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
-from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers import register_chat_provider
 
 
 @lru_cache
@@ -47,4 +47,4 @@ def get_falcon_7b_llm():
 
 HFPipelineFalcon = get_llm_instance_wrapper(llm_instance=get_falcon_7b_llm(), llm_type="hf_pipeline_falcon")
 
-register_llm_provider("hf_pipeline_falcon", HFPipelineFalcon)
+register_chat_provider("hf_pipeline_falcon", HFPipelineFalcon)
