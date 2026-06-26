@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Union
 
 import yaml
 
-# Use SafeDumper which refuses to emit !!python/... tags), maintain round-trip
+# Use SafeDumper which refuses to emit !!python/... tags, maintain round-trip
 # compatibility with yaml.safe_load
 try:
     from yaml import CSafeDumper as Dumper
