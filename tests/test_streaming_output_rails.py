@@ -290,6 +290,98 @@ async def test_external_generator_with_output_rails_allowed():
 
 
 @pytest.mark.asyncio
+async def test_external_generator_output_rails_receive_user_content():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [{"task": "self_check_output", "content": "Check: {{ bot_response }}"}],
+        },
+        colang_content="""
+        define flow self check output
+          execute self_check_output
+        """,
+    )
+    rails = LLMRails(config)
+    observed_user_messages = []
+
+    @action(name="self_check_output")
+    async def self_check_output(**kwargs):
+        observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
+        return True
+
+    rails.register_action(self_check_output, "self_check_output")
+
+    tokens = []
+    async for token in rails.stream_async(
+        generator=simple_token_generator(),
+        messages=[{"role": "user", "content": "Hello"}],
+    ):
+        tokens.append(token)
+
+    assert tokens == ["Hello", " ", "world", "!"]
+    assert observed_user_messages
+    assert set(observed_user_messages) == {"Hello"}
+
+
+@pytest.mark.asyncio
+async def test_external_generator_output_rails_use_empty_user_content_without_user_message():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [{"task": "self_check_output", "content": "Check: {{ bot_response }}"}],
+        },
+        colang_content="""
+        define flow self check output
+          execute self_check_output
+        """,
+    )
+    rails = LLMRails(config)
+    observed_user_messages = []
+
+    @action(name="self_check_output")
+    async def self_check_output(**kwargs):
+        observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
+        return True
+
+    rails.register_action(self_check_output, "self_check_output")
+
+    tokens = []
+    async for token in rails.stream_async(
+        generator=simple_token_generator(),
+        messages=[{"role": "assistant", "content": "Earlier assistant message"}],
+    ):
+        tokens.append(token)
+
+    assert tokens == ["Hello", " ", "world", "!"]
+    assert observed_user_messages
+    assert set(observed_user_messages) == {""}
+
+
+@pytest.mark.asyncio
 async def test_external_generator_with_output_rails_blocked():
     """Test that external generator content can be blocked by output rails."""
     config = RailsConfig.from_content(

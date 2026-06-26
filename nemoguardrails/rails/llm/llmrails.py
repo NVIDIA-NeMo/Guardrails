@@ -1811,13 +1811,13 @@ class LLMRails(BaseGuardrails):
 
         def _get_latest_user_message(
             messages: Optional[List[dict]] = None,
-        ) -> dict:
+        ) -> str:
             if messages is None:
-                return {}
+                return ""
             for message in reversed(messages):
                 if message.get("role") == "user":
-                    return message
-            return {}
+                    return message.get("content", "")
+            return ""
 
         def _prepare_context_for_parallel_rails(
             chunk_str: str,
