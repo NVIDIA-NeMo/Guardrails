@@ -36,6 +36,23 @@ tracing:
 |--------|-------------|---------|
 | `enabled` | Enable or disable tracing | `false` |
 | `adapters` | List of tracing adapters | `[]` |
+| `span_format` | Span structure for the LLMRails post-hoc tracing path: `opentelemetry` (recommended) or `legacy` (deprecated) | `opentelemetry` |
+| `enable_content_capture` | Capture prompt and response content on spans. May include PII. See [Content Capture](/observability/tracing/content-capture) | `false` |
+
+## Content Capture
+
+By default, traces record metadata about each request but not the prompt or response content.
+Set `enable_content_capture: true` to additionally record message content on spans:
+
+```yaml
+tracing:
+  enabled: true
+  enable_content_capture: false  # default; see privacy considerations
+```
+
+This captures user inputs and model outputs, which may include sensitive information (PII).
+The behavior, environment-variable overrides, and output format differ between the IORails and LLMRails engines.
+See [Content Capture](/observability/tracing/content-capture) for the full contract.
 
 ## Tracing Adapters
 

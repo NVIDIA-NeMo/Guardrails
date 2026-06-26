@@ -71,7 +71,7 @@ The following are the key differences between the supported span formats.
 **Development Status**: The [OpenTelemetry semantic conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) are currently in development and may undergo changes. Consider the following risks:
 
 - **Evolving Standards**: Conventions may change as they mature, potentially affecting existing implementations
-- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
+- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [Content Capture](/observability/tracing/content-capture) for the full contract and the [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
 - **Performance Impact**: Extensive telemetry collection may impact system performance, especially with large inputs/outputs
 
 ### Migration Path
@@ -90,6 +90,7 @@ Existing configurations will continue to work. However, it is strongly recommend
 - [OpenTelemetry](/observability/tracing/opentelemetry-integration) - Production-ready OpenTelemetry setup and ecosystem compatibility
 - [OpenTelemetry Logs](/observability/tracing/opentelemetry-logs) - Forward guardrails Python logs to OpenTelemetry with trace correlation
 - [Span Reference](/observability/tracing/span-reference) - Every span and attribute the LLMRails and IORails engines emit, including the token-level GenAI attributes on the LLM span
+- [Content Capture](/observability/tracing/content-capture) - Record prompt and response content on spans, with the environment variables that control capture and format
 - [Troubleshooting](/observability/tracing/troubleshooting) - Common issues and solutions
 
 ## Jupyter Notebooks

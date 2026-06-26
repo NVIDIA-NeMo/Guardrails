@@ -494,6 +494,9 @@ navigation:
           - page: Span Reference
             path: observability/tracing/span-reference.mdx
             slug: span-reference
+          - page: Content Capture
+            path: observability/tracing/content-capture.mdx
+            slug: content-capture
           - page: Troubleshooting
             path: observability/tracing/troubleshooting.mdx
             slug: troubleshooting
