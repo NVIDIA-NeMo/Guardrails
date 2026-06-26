@@ -1,0 +1,19 @@
+name: Develop Coverage
+
+on:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - "**/*.md"
+      - ".github/**"
+
+jobs:
+  develop-coverage:
+    uses: ./.github/workflows/_test.yml
+    secrets: inherit
+    with:
+      os: Ubuntu
+      image: ubuntu-latest
+      python-version: "3.11"
+      with-coverage: true
