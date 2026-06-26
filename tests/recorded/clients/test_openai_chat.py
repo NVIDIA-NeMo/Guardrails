@@ -18,18 +18,16 @@ import pytest
 
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
-from tests.recorded.utils import DUMMY_OPENAI_API_KEY, api_key_for_record_mode
+from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
 
-async def test_openai_chat_generate_text(record_mode):
-    api_key = api_key_for_record_mode("OPENAI_API_KEY", DUMMY_OPENAI_API_KEY, record_mode)
-
+async def test_openai_chat_generate_text(openai_api_key):
     async with httpx.AsyncClient() as http_client:
         client = OpenAICompatibleClient(
             base_url="https://api.openai.com/v1",
-            api_key=api_key,
+            api_key=openai_api_key,
             http_client=http_client,
             max_retries=0,
         )
@@ -37,11 +35,31 @@ async def test_openai_chat_generate_text(record_mode):
 
         result = await model.generate_async("Say hello in one word")
 
-    assert isinstance(result.content, str)
-    assert result.content
-    assert result.finish_reason in {"stop", "length", "tool_calls", "content_filter", "other"}
-    assert result.request_id
     assert result.usage is not None
-    assert result.usage.input_tokens > 0
-    assert result.usage.output_tokens > 0
-    assert result.usage.total_tokens >= result.usage.input_tokens + result.usage.output_tokens
+    assert {
+        "content": result.content,
+        "finish_reason": result.finish_reason,
+        "model": result.model,
+        "request_id": result.request_id,
+        "usage": {
+            "input_tokens": result.usage.input_tokens,
+            "output_tokens": result.usage.output_tokens,
+            "total_tokens": result.usage.total_tokens,
+            "cached_tokens": result.usage.cached_tokens,
+            "reasoning_tokens": result.usage.reasoning_tokens,
+        },
+    } == snapshot(
+        {
+            "content": "Hello!",
+            "finish_reason": "stop",
+            "model": "gpt-4o-mini-2024-07-18",
+            "request_id": "[RECORDED_RESPONSE_ID]",
+            "usage": {
+                "input_tokens": 12,
+                "output_tokens": 2,
+                "total_tokens": 14,
+                "cached_tokens": 0,
+                "reasoning_tokens": 0,
+            },
+        }
+    )

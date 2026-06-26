@@ -16,14 +16,12 @@
 import pytest
 
 from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-from tests.recorded.utils import DUMMY_OPENAI_API_KEY, api_key_for_record_mode
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr]
 
 
-def test_openai_embeddings_sync(record_mode):
-    api_key = api_key_for_record_mode("OPENAI_API_KEY", DUMMY_OPENAI_API_KEY, record_mode)
-    model = OpenAIEmbeddingModel("text-embedding-3-small", api_key=api_key, max_retries=0)
+def test_openai_embeddings_sync(openai_api_key):
+    model = OpenAIEmbeddingModel("text-embedding-3-small", api_key=openai_api_key, max_retries=0)
 
     result = model.encode(["test"])
 
