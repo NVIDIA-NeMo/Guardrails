@@ -85,3 +85,67 @@ async def test_search_speed():
     print(f"Completed {completed_requests} requests in {total_time:.2f} seconds.")
     print(f"Average latency: {total_time / completed_requests if completed_requests else 0:.2f} seconds.")
     print(f"Maximum concurrency: {concurrency}")
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_raises_for_all_waiters_if_provider_fails(monkeypatch):
+    embeddings_index = BasicEmbeddingsIndex(use_batching=True, max_batch_size=2, max_batch_hold=1.0)
+
+    async def _fail(_texts):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(embeddings_index, "_get_embeddings", _fail)
+
+    results = await asyncio.wait_for(
+        asyncio.gather(
+            embeddings_index._batch_get_embeddings("first"),
+            embeddings_index._batch_get_embeddings("second"),
+            return_exceptions=True,
+        ),
+        timeout=0.2,
+    )
+
+    assert len(results) == 2
+    for result in results:
+        assert isinstance(result, RuntimeError)
+        assert str(result) == "Failed to compute embeddings for batched request."
+        assert isinstance(result.__cause__, RuntimeError)
+        assert str(result.__cause__) == "provider down"
+
+
+@pytest.mark.asyncio
+async def test_batch_get_embeddings_recovers_after_failed_batch(monkeypatch):
+    embeddings_index = BasicEmbeddingsIndex(use_batching=True, max_batch_size=2, max_batch_hold=1.0)
+    call_count = 0
+
+    async def _maybe_fail(texts):
+        nonlocal call_count
+        call_count += 1
+
+        if call_count == 1:
+            raise RuntimeError("provider down")
+
+        return [[float(len(text))] for text in texts]
+
+    monkeypatch.setattr(embeddings_index, "_get_embeddings", _maybe_fail)
+
+    failed_results = await asyncio.wait_for(
+        asyncio.gather(
+            embeddings_index._batch_get_embeddings("first"),
+            embeddings_index._batch_get_embeddings("second"),
+            return_exceptions=True,
+        ),
+        timeout=0.2,
+    )
+
+    assert all(isinstance(result, RuntimeError) for result in failed_results)
+
+    recovered_results = await asyncio.wait_for(
+        asyncio.gather(
+            embeddings_index._batch_get_embeddings("ok"),
+            embeddings_index._batch_get_embeddings("great"),
+        ),
+        timeout=0.2,
+    )
+
+    assert recovered_results == [[2.0], [5.0]]

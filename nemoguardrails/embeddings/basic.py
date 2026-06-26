@@ -92,6 +92,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         # Data structures for batching embedding requests
         self._req_queue: Dict[int, str] = {}
         self._req_results: Dict[int, List[float]] = {}
+        self._req_errors: Dict[int, Exception] = {}
         self._req_idx: int = 0
         self._current_batch_finished_event: Optional[asyncio.Event] = None
         self._current_batch_full_event: Optional[asyncio.Event] = None
@@ -252,13 +253,23 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         # print(f"Running batch of length {len(batch)}")
 
-        # Compute the embeddings
-        embeddings = await self._get_embeddings(batch)
-        for i in range(len(embeddings)):
-            self._req_results[batch_ids[i]] = embeddings[i]
+        try:
+            embeddings = await self._get_embeddings(batch)
+            if len(embeddings) != len(batch_ids):
+                raise RuntimeError(
+                    f"Embedding batch returned {len(embeddings)} result(s) for {len(batch_ids)} request(s)."
+                )
 
-        # Signal that the batch has finished processing
-        batch_event.set()
+            for req_id, embedding in zip(batch_ids, embeddings):
+                self._req_results[req_id] = embedding
+        except Exception as exc:
+            log.exception("Failed to compute embeddings batch of size %d.", len(batch))
+            for req_id in batch_ids:
+                self._req_results.pop(req_id, None)
+                self._req_errors[req_id] = exc
+        finally:
+            # Signal that the batch has finished processing even if the provider failed.
+            batch_event.set()
 
     async def _batch_get_embeddings(self, text: str) -> List[float]:
         # As long as the queue is full, we wait for the next batch
@@ -280,11 +291,20 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             self._current_batch_full_event.set()
 
         # Wait for the batch to finish
-        await self._current_batch_finished_event.wait()
+        batch_event = self._current_batch_finished_event
+        if batch_event is None:
+            raise RuntimeError("Batch event not initialized. This should not happen.")
+
+        await batch_event.wait()
+
+        error = self._req_errors.pop(req_id, None)
+        if error is not None:
+            raise RuntimeError("Failed to compute embeddings for batched request.") from error
 
         # Remove the result and return it
-        result = self._req_results[req_id]
-        del self._req_results[req_id]
+        result = self._req_results.pop(req_id, None)
+        if result is None:
+            raise RuntimeError("Embedding batch finished without a result for the request.")
 
         return result
 
