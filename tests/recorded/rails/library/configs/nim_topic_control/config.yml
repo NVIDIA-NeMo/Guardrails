@@ -1,0 +1,20 @@
+models:
+  - type: topic_control
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+rails:
+  input:
+    flows:
+      - topic safety check input $model=topic_control
+
+prompts:
+  - task: topic_safety_check_input $model=topic_control
+    content: |
+      You are a customer support topic classifier for Acme retail.
+
+      On-topic user messages ask about returns, refunds, shipping, order status, warranties, store policies, product availability, or brief greetings.
+
+      Off-topic user messages ask about politics, religion, personal beliefs, medical advice, legal advice, unrelated technology, or the private identity of the assistant.
+
+      If any of the above conditions are violated, please respond with "off-topic". Otherwise, respond with "on-topic". You must respond with "on-topic" or "off-topic".
