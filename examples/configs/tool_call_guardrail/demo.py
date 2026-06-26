@@ -30,7 +30,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from example_policies import GUARD, PRINCIPALS  # noqa: E402
+from example_policies import PRINCIPALS, VULNERABLE_GUARD  # noqa: E402
 from policy import Principal, ToolCall  # noqa: E402
 
 # Each case: (principal_id, ToolCall, ground_truth_allowed, note).
@@ -71,7 +71,7 @@ def main() -> int:
     mismatches = 0
     for principal_id, call, truth, note in CASES:
         principal = PRINCIPALS.get(principal_id, Principal(principal_id))
-        decision = GUARD.authorize(call, principal)
+        decision = VULNERABLE_GUARD.authorize(call, principal)
         ok = decision.allowed == truth
         mismatches += not ok
         flag = "ALLOW" if decision.allowed else "BLOCK"
