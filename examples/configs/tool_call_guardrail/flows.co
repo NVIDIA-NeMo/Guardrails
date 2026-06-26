@@ -26,3 +26,42 @@ define flow run shell
   user ask to run a long command
   $result = execute safe_tool_call(tool="run_shell", principal_id="ci-bot", command="pytest -q", timeout_seconds=120)
   bot $result
+
+# The flows below exercise the rules folded in from the field scanner (the
+# HARDENED_GUARD that config.py serves).
+
+define user ask to save a workspace file
+  "save this to my workspace"
+  "write a note in my workspace"
+  "save notes.txt"
+
+define user ask to edit a system file
+  "edit /etc/hosts"
+  "write to a system config file"
+  "overwrite a protected file"
+
+define user ask to fetch an internal endpoint
+  "fetch the cloud metadata endpoint"
+  "request the instance metadata url"
+  "call the internal metadata service"
+
+# Allowed path: dev-alice is step-up elevated and writes inside her own
+# workspace prefix — both write_file rules pass.
+define flow write workspace file
+  user ask to save a workspace file
+  $result = execute safe_tool_call(tool="write_file", principal_id="dev-alice", path="/workspace/alice/notes.txt", content="hello")
+  bot $result
+
+# Blocked path: the target is outside dev-alice's owned workspace prefix
+# (prefix-ownership rule).
+define flow write system file
+  user ask to edit a system file
+  $result = execute safe_tool_call(tool="write_file", principal_id="dev-alice", path="/etc/hosts", content="x")
+  bot $result
+
+# Blocked path: outbound request to the cloud-metadata address
+# (disallowed-pattern egress rule).
+define flow fetch metadata endpoint
+  user ask to fetch an internal endpoint
+  $result = execute safe_tool_call(tool="http_request", principal_id="dev-alice", url="http://169.254.169.254/latest/meta-data/")
+  bot $result
