@@ -71,8 +71,9 @@ HARDENED_GUARD = ToolCallGuard(
     {
         "read_file": ToolPolicy(
             allowed_roles=frozenset({"developer", "ci", "reviewer"}),
-            # argument-injection: reject path traversal / metacharacters.
-            rules=[arg_matches_pattern("path", r"[\w./-]+")],
+            # argument-injection: workspace-relative paths only — reject parent-dir
+            # traversal ('..' components), absolute paths, and shell metacharacters.
+            rules=[arg_matches_pattern("path", r"(?!(?:.*/)?\.\.(?:/|$))[\w.-][\w./-]*")],
         ),
         "run_shell": ToolPolicy(
             allowed_roles=frozenset({"developer"}),
