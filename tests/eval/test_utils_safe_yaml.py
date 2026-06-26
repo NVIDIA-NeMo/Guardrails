@@ -39,7 +39,7 @@ def test_load_dict_from_file_rejects_python_object_tags(tmp_path):
     call it encodes must never run."""
     sentinel = tmp_path / "pwned"
     config_file = tmp_path / "config.yaml"
-    config_file.write_text(f'models:\n- !!python/object/apply:os.makedirs ["{sentinel}"]\n')
+    config_file.write_text(f"models:\n- !!python/object/apply:os.makedirs [{json.dumps(str(sentinel))}]\n")
 
     with pytest.raises(yaml.constructor.ConstructorError):
         load_dict_from_file(str(config_file))
@@ -51,7 +51,9 @@ def test_load_dict_from_path_rejects_python_object_tags(tmp_path):
     """The recursive directory loader must also reject !!python/object tags in
     any file it walks rather than executing them at load time."""
     sentinel = tmp_path / "pwned"
-    (tmp_path / "config.yaml").write_text(f'models:\n- !!python/object/apply:os.makedirs ["{sentinel}"]\n')
+    (tmp_path / "config.yaml").write_text(
+        f"models:\n- !!python/object/apply:os.makedirs [{json.dumps(str(sentinel))}]\n"
+    )
 
     with pytest.raises(yaml.constructor.ConstructorError):
         load_dict_from_path(str(tmp_path))
