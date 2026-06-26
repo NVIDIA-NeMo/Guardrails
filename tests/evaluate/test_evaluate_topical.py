@@ -52,6 +52,20 @@ def test_sync_wrapper_runs_async_function():
     assert sync_wrapper(add)(2, 3) == 5
 
 
+def test_sync_wrapper_falls_back_to_asyncio_run(monkeypatch):
+    import asyncio
+
+    async def add(left, right):
+        return left + right
+
+    def _no_event_loop():
+        raise RuntimeError("no current event loop")
+
+    monkeypatch.setattr(asyncio, "get_event_loop", _no_event_loop)
+
+    assert sync_wrapper(add)(2, 3) == 5
+
+
 def test_split_test_set_from_config_uses_seed_and_limits_remaining_samples():
     config = SimpleNamespace(user_messages={"greet": ["a", "b", "c", "d"]})
     test_set = {}

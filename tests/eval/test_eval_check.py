@@ -28,6 +28,7 @@ from nemoguardrails.eval.models import (
     Policy,
 )
 from nemoguardrails.eval.ui.utils import EvalData
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import Model
 
 
@@ -76,15 +77,9 @@ def test_compliance_checker_init_builds_model_task_manager_and_eval_data(tmp_pat
         ],
         prompts=[],
     )
-    task_manager = MagicMock()
-
     with (
         patch("nemoguardrails.eval.check.EvalConfig.from_path", return_value=eval_config) as mock_from_path,
         patch("nemoguardrails.eval.check.init_llm_model", return_value="llm") as mock_init_llm_model,
-        patch(
-            "nemoguardrails.eval.check.RailsConfig", side_effect=lambda **kwargs: SimpleNamespace(**kwargs)
-        ) as mock_config,
-        patch("nemoguardrails.eval.check.LLMTaskManager", return_value=task_manager) as mock_task_manager,
     ):
         checker = LLMJudgeComplianceChecker(
             eval_config_path=str(tmp_path),
@@ -104,11 +99,14 @@ def test_compliance_checker_init_builds_model_task_manager_and_eval_data(tmp_pat
         mode="chat",
         kwargs={"temperature": 0, "api_key": "token"},
     )
-    task_manager_models = mock_config.call_args.kwargs["models"]
-    assert task_manager_models[0] == eval_config.models[0]
-    assert task_manager_models[1].type == "main"
-    assert task_manager_models[1].model == "judge-model"
-    mock_task_manager.assert_called_once()
+    # The task manager is built through the real RailsConfig/LLMTaskManager path,
+    # so the models/prompts contract is validated by the actual constructors.
+    assert isinstance(checker.llm_task_manager, LLMTaskManager)
+    task_manager_models = checker.llm_task_manager.config.models
+    assert any(model.type == "judge" and model.model == "judge-model" for model in task_manager_models)
+    main_models = [model for model in task_manager_models if model.type == "main"]
+    assert len(main_models) == 1
+    assert main_models[0].model == "judge-model"
     assert checker.llm == "llm"
     assert checker.policy_ids == ["policy"]
     assert checker.eval_data.output_paths == ["run-a"]

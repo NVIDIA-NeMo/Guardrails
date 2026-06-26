@@ -89,14 +89,14 @@ def test_moderation_get_jailbreak_results_records_error_after_retries():
     evaluator = _moderation_evaluator()
     results = {"flagged": 0, "correct": 0, "error": 0, "label": "yes"}
 
-    with patch(
-        "nemoguardrails.evaluate.evaluate_moderation.llm_call",
-        AsyncMock(side_effect=RuntimeError("failed")),
-    ):
+    mock_llm_call = AsyncMock(side_effect=RuntimeError("failed"))
+    with patch("nemoguardrails.evaluate.evaluate_moderation.llm_call", mock_llm_call):
         prediction, updated = evaluator.get_jailbreak_results("prompt", results)
 
     assert prediction is None
     assert updated["error"] == 1
+    # The max_tries loop must exhaust all three attempts before recording the error.
+    assert mock_llm_call.await_count == 3
 
 
 def test_moderation_get_check_output_results_counts_flags_and_correct_predictions():
@@ -237,6 +237,8 @@ def test_hallucination_get_response_with_retries_returns_none_after_errors():
     evaluator.llm = MagicMock(side_effect=RuntimeError("failed"))
 
     assert evaluator.get_response_with_retries("prompt", max_tries=2) is None
+    # Both attempts must be made before giving up.
+    assert evaluator.llm.call_count == 2
 
 
 def test_hallucination_self_check_counts_no_as_flagged():
@@ -390,7 +392,9 @@ def test_factcheck_run_writes_positive_and_negative_predictions(tmp_path):
 def test_factcheck_run_creates_negative_samples_when_enabled(tmp_path):
     evaluator = _factcheck_evaluator()
     evaluator.create_negatives = True
-    evaluator.create_negative_samples = AsyncMock(return_value=evaluator.dataset)
+    original_dataset = evaluator.dataset
+    negatives = [{"question": "q", "evidence": "e", "answer": "a", "incorrect_answer": "sentinel"}]
+    evaluator.create_negative_samples = AsyncMock(return_value=negatives)
     evaluator.check_facts = MagicMock(
         side_effect=[
             ([{"label": "yes"}], 1, 0.1),
@@ -400,5 +404,7 @@ def test_factcheck_run_creates_negative_samples_when_enabled(tmp_path):
 
     evaluator.run()
 
-    evaluator.create_negative_samples.assert_awaited_once_with(evaluator.dataset)
+    evaluator.create_negative_samples.assert_awaited_once_with(original_dataset)
+    # run() must assign the coroutine result back onto self.dataset before checking facts.
+    assert evaluator.dataset == negatives
     assert evaluator.check_facts.call_count == 2

@@ -51,6 +51,12 @@ def _cleanup_plotly_stub():
     for _module_name, stub_module in _injected_plotly_modules.items():
         if sys.modules.get(_module_name) is stub_module:
             del sys.modules[_module_name]
+    # The eval UI modules below were imported while the plotly stub was active, so
+    # drop them too; otherwise they stay cached bound to the stubbed plotly.express
+    # and a later import in this worker would not rebind the real dependency.
+    if _injected_plotly_modules:
+        for _ui_module_name in ("nemoguardrails.eval.ui.common", "nemoguardrails.eval.ui.chart_utils"):
+            sys.modules.pop(_ui_module_name, None)
 
 
 ui_common = importlib.import_module("nemoguardrails.eval.ui.common")

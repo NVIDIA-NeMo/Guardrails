@@ -70,6 +70,9 @@ async def test_wolfram_alpha_app_id_missing(monkeypatch):
         "inform wolfram alpha app id not set",
         "stop",
     ]
+    assert [event["script"] for event in result.events if event["type"] == "StartUtteranceBotAction"] == [
+        "Wolfram Alpha app ID is not set. Please set the WOLFRAM_ALPHA_APP_ID environment variable.",
+    ]
 
 
 @pytest.mark.asyncio
@@ -99,4 +102,8 @@ async def test_wolfram_alpha_non_200_returns_action_result(monkeypatch):
     assert [event["intent"] for event in result.events if event["type"] == "BotIntent"] == [
         "inform wolfram alpha not working",
         "stop",
+    ]
+    assert [event["script"] for event in result.events if event["type"] == "StartUtteranceBotAction"] == [
+        "Apologies, but I cannot answer this question at this time. "
+        "I am having trouble getting the answer from Wolfram Alpha.",
     ]
