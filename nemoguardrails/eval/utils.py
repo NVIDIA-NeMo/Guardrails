@@ -19,14 +19,15 @@ from typing import Any, Dict, List, Union
 
 import yaml
 
-# We try to load the efficient versions of the Loader and Dumper for YAML.
+# We try to load the efficient version of the Dumper for YAML.
+# Untrusted input is parsed with yaml.safe_load (see load_dict_from_file) to
+# avoid arbitrary object construction (CWE-502).
 # https://pyyaml.org/wiki/PyYAMLDocumentation
 # https://stackoverflow.com/questions/27743711/can-i-speedup-yaml
 try:
     from yaml import CDumper as Dumper
-    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Dumper, Loader
+    from yaml import Dumper
 
 
 def load_dict_from_file(file_path: str) -> Dict[str, Any]:
@@ -36,7 +37,7 @@ def load_dict_from_file(file_path: str) -> Dict[str, Any]:
     _obj = {}
     if file_extension == ".yaml" or file_extension == ".yml":
         with open(file_path) as f:
-            _obj = yaml.load(f, Loader=Loader)
+            _obj = yaml.safe_load(f)
     elif file_extension == ".json":
         with open(file_path) as f:
             _obj = json.load(f)
