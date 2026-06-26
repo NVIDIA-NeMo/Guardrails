@@ -293,6 +293,12 @@ def extract_bot_message_from_response(
         A dictionary with at least 'role' and 'content' keys
     """
     if isinstance(response, GenerationResponse):
+        if isinstance(response.response, str):
+            return {"role": "assistant", "content": response.response}
+
+        if not response.response:
+            return {"role": "assistant", "content": ""}
+
         bot_message_content = response.response[0]
         # Ensure bot_message is always a dict
         if isinstance(bot_message_content, str):

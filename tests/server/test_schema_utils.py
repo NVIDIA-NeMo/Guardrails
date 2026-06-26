@@ -78,6 +78,20 @@ def test_extract_bot_message_from_generation_response_with_dict():
     assert result == {"role": "assistant", "content": "Response from dict"}
 
 
+def test_extract_bot_message_from_generation_response_with_plain_string():
+    """Test extracting bot message from GenerationResponse with a plain string payload."""
+    response = GenerationResponse(response="Hello from bot")
+    result = extract_bot_message_from_response(response)
+    assert result == {"role": "assistant", "content": "Hello from bot"}
+
+
+def test_extract_bot_message_from_generation_response_with_empty_list():
+    """Test extracting bot message from GenerationResponse with an empty response list."""
+    response = GenerationResponse(response=[])
+    result = extract_bot_message_from_response(response)
+    assert result == {"role": "assistant", "content": ""}
+
+
 def test_extract_bot_message_does_not_merge_generation_response_tool_calls():
     """extract_bot_message_from_response is a pure extractor; it does not merge tool_calls."""
     tool_calls = [{"name": "get_weather", "args": {"city": "Boston"}, "id": "call_1", "type": "tool_call"}]
@@ -166,6 +180,20 @@ def test_generation_response_to_chat_completion_with_empty_content():
     response = GenerationResponse(response=[{"role": "assistant", "content": ""}])
     result = generation_response_to_chat_completion(response=response, model="test_model")
     assert result.choices[0].message.content == ""
+
+
+def test_generation_response_to_chat_completion_with_empty_response_list():
+    """Test converting GenerationResponse with an empty response list."""
+    response = GenerationResponse(response=[])
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    assert result.choices[0].message.content == ""
+
+
+def test_generation_response_to_chat_completion_with_plain_string_response():
+    """Test converting GenerationResponse with a plain string response payload."""
+    response = GenerationResponse(response="Hello from bot")
+    result = generation_response_to_chat_completion(response=response, model="test_model")
+    assert result.choices[0].message.content == "Hello from bot"
 
 
 def test_normalize_dict_tool_calls_openai_format():
