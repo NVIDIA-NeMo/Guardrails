@@ -114,6 +114,19 @@ class Extractor(Protocol):
 # classification quality; swap in an LLM-backed Extractor to handle real prose.
 
 _CLASS_KEYWORDS: Mapping[str, Sequence[str]] = {
+    # More specific classes are checked first so a doc that names a prefix- or
+    # pattern-based control is not stolen by the broader ownership/denylist classes.
+    "prefix-ownership-bypass": (
+        "workspace prefix",
+        "path prefix",
+        "directory namespace",
+    ),
+    "disallowed-pattern": (
+        "regular expression",
+        "url pattern",
+        "metadata service",
+        "ssrf",
+    ),
     "ownership-bypass": (
         "confused deputy",
         "ownership check",

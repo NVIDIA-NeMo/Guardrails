@@ -187,6 +187,47 @@ def arg_matches_pattern(arg_name: str, pattern: str) -> Rule:
     return rule
 
 
+def deny_arg_matching(arg_name: str, pattern: str) -> Rule:
+    """Block when `call.args[arg_name]` matches `pattern` (regex search).
+
+    This is the inverse of `arg_matches_pattern`: use `arg_matches_pattern` to
+    allowlist a required form; use this to blocklist a known-bad shape (e.g.
+    external hostnames, destructive command fragments) when most values are fine
+    and only specific patterns should be forbidden. A missing argument passes —
+    use `arg_matches_pattern` when the argument is required."""
+
+    regex = re.compile(pattern)
+
+    def rule(call: ToolCall, principal: Principal) -> Optional[str]:
+        value = call.args.get(arg_name)
+        if value is not None and isinstance(value, str) and regex.search(value) is not None:
+            return f"{arg_name}={value!r} matches denied pattern {pattern!r}"
+        return None
+
+    return rule
+
+
+def require_arg_prefix(arg_name: str, owned_attr: str) -> Rule:
+    """Block unless `call.args[arg_name]` starts with one of the prefixes in
+    `principal.attributes[owned_attr]`.
+
+    Use for path- or URL-scoped ownership where the principal's owned set
+    contains namespace prefixes (workspace directories, API base URLs) rather
+    than exact resource names. For exact membership use `require_owns_arg`."""
+
+    def rule(call: ToolCall, principal: Principal) -> Optional[str]:
+        target = call.args.get(arg_name)
+        if target is None:
+            return f"missing required argument '{arg_name}'"
+        target_str = str(target)
+        prefixes = principal.attributes.get(owned_attr, ())
+        if any(target_str.startswith(str(p)) for p in prefixes):
+            return None
+        return f"principal '{principal.id}': {arg_name}={target!r} is outside allowed prefixes in {owned_attr!r}"
+
+    return rule
+
+
 def require_principal_attr(attr_name: str, expected: object = True) -> Rule:
     """Block unless `principal.attributes[attr_name]` equals `expected` — e.g. a
     step-up clearance like `mfa_verified` for a sensitive operation."""
