@@ -17,10 +17,12 @@
 Tests for streaming functionality in RunnableRails.
 """
 
+import asyncio
+
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.prompt_values import StringPromptValue
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -489,3 +491,80 @@ def test_streaming_chunk_types():
 
     for chunk in chunks:
         assert chunk.__class__.__name__ == "AIMessageChunk"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the transform/atransform streaming protocol (issue #1692)
+# ---------------------------------------------------------------------------
+
+
+def _join_content(chunks):
+    return "".join(chunk.content if hasattr(chunk, "content") else str(chunk) for chunk in chunks)
+
+
+@pytest.mark.asyncio
+async def test_atransform_in_runnable_sequence_streams():
+    """RunnableRails must be streamable when nested in a RunnableSequence.
+
+    Regression for #1692: placing RunnableRails in a sequence and calling
+    ``astream`` invokes ``atransform``, which previously aliased ``ainvoke`` and
+    returned a coroutine instead of an async iterator, raising
+    ``TypeError: 'async for' requires an object with __aiter__ method, got coroutine``.
+    """
+    llm = StreamingFakeLLM(responses=["Hello there! How can I help you?"])
+    config = RailsConfig.from_content(config={"models": []})
+    rails = RunnableRails(config, llm=llm)
+
+    pipeline = RunnableLambda(lambda x: x) | rails
+
+    chunks = [chunk async for chunk in pipeline.astream("Hi there")]
+
+    assert len(chunks) > 1
+    assert "Hello there!" in _join_content(chunks)
+
+
+@pytest.mark.asyncio
+async def test_atransform_returns_async_iterator():
+    """``atransform`` must be an async iterator, not a coroutine (#1692)."""
+    llm = StreamingFakeLLM(responses=["Async iterator response"])
+    config = RailsConfig.from_content(config={"models": []})
+    rails = RunnableRails(config, llm=llm)
+
+    async def _input_stream():
+        yield "Hi there"
+
+    result = rails.atransform(_input_stream())
+    assert not asyncio.iscoroutine(result)
+    assert hasattr(result, "__aiter__")
+
+    chunks = [chunk async for chunk in result]
+    assert len(chunks) > 1
+    assert "Async iterator response" in _join_content(chunks)
+
+
+def test_transform_returns_iterator():
+    """``transform`` must consume an iterator of inputs and yield outputs (#1692)."""
+    llm = StreamingFakeLLM(responses=["Sync iterator response"])
+    config = RailsConfig.from_content(config={"models": []})
+    rails = RunnableRails(config, llm=llm)
+
+    result = rails.transform(iter(["Hi there"]))
+    assert hasattr(result, "__next__")
+
+    chunks = list(result)
+    assert len(chunks) > 1
+    assert "Sync iterator response" in _join_content(chunks)
+
+
+def test_transform_in_runnable_sequence_streams():
+    """RunnableRails must be sync-streamable when nested in a RunnableSequence (#1692)."""
+    llm = StreamingFakeLLM(responses=["Sequence sync response"])
+    config = RailsConfig.from_content(config={"models": []})
+    rails = RunnableRails(config, llm=llm)
+
+    pipeline = RunnableLambda(lambda x: x) | rails
+
+    chunks = list(pipeline.stream("Hi there"))
+
+    assert len(chunks) > 1
+    assert "Sequence sync response" in _join_content(chunks)

@@ -855,24 +855,39 @@ class RunnableRails(Runnable[Input, Output]):
 
     def transform(
         self,
-        input: Input,
+        input: Iterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
-    ) -> Output:
-        """Transform the input.
+    ) -> Iterator[Output]:
+        """Transform an iterator of inputs into an iterator of outputs.
 
-        This is just an alias for invoke.
+        This follows the LangChain ``Runnable`` streaming protocol: ``transform``
+        consumes an *iterator* of inputs and yields an *iterator* of outputs. We
+        defer to the base-class implementation, which buffers the input stream and
+        delegates to :meth:`stream`, so guardrails are applied once over the fully
+        assembled input.
         """
-        return self.invoke(input, config, **kwargs)
+        yield from super().transform(input, config, **kwargs)
 
     async def atransform(
         self,
-        input: Input,
+        input: AsyncIterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
-    ) -> Output:
-        """Transform the input asynchronously.
+    ) -> AsyncIterator[Output]:
+        """Transform an async iterator of inputs into an async iterator of outputs.
 
-        This is just an alias for ainvoke.
+        This follows the LangChain ``Runnable`` streaming protocol: ``atransform``
+        consumes an *async iterator* of inputs and must itself be an async iterator.
+        We defer to the base-class implementation, which buffers the input stream and
+        delegates to :meth:`astream`, so guardrails are applied once over the fully
+        assembled input.
+
+        The previous implementation aliased this to ``ainvoke`` and returned a
+        coroutine instead of an async iterator, which raised
+        ``TypeError: 'async for' requires an object with __aiter__ method`` whenever
+        ``RunnableRails`` was placed inside a ``RunnableSequence`` and streamed
+        (see issue #1692).
         """
-        return await self.ainvoke(input, config, **kwargs)
+        async for output in super().atransform(input, config, **kwargs):
+            yield output
