@@ -9,12 +9,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
-## [Unreleased]
-
-### 🐛 Bug Fixes
-
-- *(llmrails)* Normalize OpenAI multi-part content lists to plain strings before rail evaluation, fixing garbled self-check prompts and TypeError crash in `get_colang_history` ([#1741](https://github.com/NVIDIA-NeMo/Guardrails/issues/1741))
-
 ## [0.22.0] - 2026-05-22
 
 ### 🚀 Features

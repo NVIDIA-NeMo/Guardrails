@@ -1616,11 +1616,6 @@ def test_load_library_sorts_files_for_deterministic_overrides(tmp_path, monkeypa
     assert rails.config.bot_messages["test det msg"] == ["from_a"]
 
 
-# ---------------------------------------------------------------------------
-# Tests for OpenAI multi-part content normalization (Issue #1741)
-# ---------------------------------------------------------------------------
-
-
 class TestGetContentText:
     """Unit tests for the get_content_text() normalisation helper."""
 
@@ -1662,13 +1657,24 @@ class TestGetContentText:
 
 @pytest.fixture
 def simple_rails_config():
-    return RailsConfig.parse_object(
-        {
-            "models": [{"type": "main", "engine": "fake", "model": "fake"}],
-            "user_messages": {"express greeting": ["Hello!"]},
-            "flows": [{"elements": [{"user": "express greeting"}, {"bot": "express greeting"}]}],
-            "bot_messages": {"express greeting": ["Hi there!"]},
-        }
+    return RailsConfig.from_content(
+        colang_content="""
+define user express greeting
+  "Hello!"
+
+define bot express greeting
+  "Hi there!"
+
+define flow
+  user express greeting
+  bot express greeting
+""",
+        yaml_content="""
+models:
+  - type: main
+    engine: fake
+    model: fake
+""",
     )
 
 
@@ -1721,7 +1727,7 @@ async def test_multipart_content_mixed_parts(simple_rails_config):
     result = await rails.generate_async(messages=messages)
 
     assert result["role"] == "assistant"
-    assert isinstance(result["content"], str)
+    assert result["content"] == "Hi there!"
 
 
 def test_tool_message_with_multipart_user_content(simple_rails_config):
