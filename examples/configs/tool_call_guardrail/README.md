@@ -106,7 +106,10 @@ The safety properties that make this sound:
   `novel` hits into direction, `proposals.cluster_uncatalogued` aggregates them by
   affected tool and `format_factory_prompt` renders a ranked *"N uncatalogued
   findings on tool X — consider a new rule factory"* report (shown by the pipeline
-  demo). It only reports — a person still writes any new factory.
+  demo). It only reports — a person still writes any new factory. Decisions about
+  these findings (catalogue, defer to another layer, or out of scope) are logged
+  in [`synthesis/TRIAGE.md`](synthesis/TRIAGE.md) so a recurring signal is not
+  re-litigated each scan.
 - **Nothing is applied without a human.** `review.py` writes every candidate to a
   queue with `"approved": false`; only entries a person flips to `true` (and that
   still validate against the catalog) are loaded. Applying an approved rule to a
