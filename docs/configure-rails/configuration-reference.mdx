@@ -348,20 +348,22 @@ rails:
 
 #### Tool Rails
 
-Control tool input/output processing.
+Validate tool calls and tool results when you use the IORails engine.
+The `tool_output` rails check the tool calls a model emits, and the `tool_input` rails check the tool results returned to the model.
 
 ```yaml
 rails:
   tool_output:
     flows:
-      - validate tool parameters
-    parallel: false
-
+      - tool call validation
   tool_input:
     flows:
-      - filter tool results
-    parallel: false
+      - tool result validation
 ```
+
+Each section accepts only its own flow name: `tool_output` accepts `tool call validation`, and `tool_input` accepts `tool result validation`.
+These rails run only on the IORails engine, and the `parallel` field is accepted for symmetry with other rails but is not honored for tool rails.
+For configuration details and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ### Rails Config Section
 

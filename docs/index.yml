@@ -121,6 +121,9 @@ navigation:
           - page: Agentic Security
             path: configure-rails/guardrail-catalog/agentic-security.mdx
             slug: agentic-security
+          - page: Tool Calling
+            path: configure-rails/guardrail-catalog/tool-calling.mdx
+            slug: tool-calling
           - page: Hallucinations & Fact-Checking
             path: configure-rails/guardrail-catalog/fact-checking.mdx
             slug: fact-checking
