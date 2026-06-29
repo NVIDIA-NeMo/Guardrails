@@ -71,77 +71,21 @@ rails = Guardrails(config, require_iorails=True)
 Otherwise the facade falls back to `LLMRails` and logs the reason.
 You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
 
-## Feature support matrix
+## Feature support
 
-The following matrix lists supported features per engine.
-Category names link to the matching description in [Feature details](#feature-details).
+Each section below covers one capability area, with a support table followed by a comparison of the two engines.
 
-Legend: ✓ supported · ✗ not supported · ◐ partial (see the note).
+Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
+
+### Rail types
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
-| **[Rail types](#rail-types)** | | | |
 | Input rails | ✓ | ✓ | |
 | Output rails | ✓ | ✓ | |
 | Dialog rails | ✓ | ✗ | Require the Colang runtime, which IORails does not run |
 | Retrieval (RAG and knowledge base) rails | ✓ | ✗ | LLMRails only |
 | Execution rails (custom actions) | ✓ | ✗ | LLMRails only |
-| **[Colang language support](#colang-language-support)** | | | |
-| Colang 1.0 configurations | ✓ | ✓ | |
-| Colang 2.x configurations | ✓ | ✗ | IORails accepts Colang 1.0 only |
-| **[Built-in NeMoGuard safety rails](#built-in-nemoguard-safety-rails)** | | | |
-| Content safety | ✓ | ✓ | Only output rail IORails supports |
-| Topic control | ✓ | ✓ | IORails: input only |
-| Jailbreak detection (NIM) | ✓ | ✓ | IORails: input only |
-| **[Tool calling](#tool-calling)** | | | |
-| Tool-call passthrough | ✓ | ✓ | |
-| Tool-call validation rail | ✓ | ✓ | IORails flow: `tool call validation` |
-| Tool-result validation rail | ✓ | ✓ | IORails flow: `tool result validation` |
-| **[Generation and validation API](#generation-and-validation-api)** | | | |
-| `generate` / `generate_async` | ✓ | ✓ | |
-| `stream_async` | ✓ | ✓ | |
-| Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
-| `check` / `check_async` (rails-only validation) | ✓ | ✗ | LLMRails only |
-| `GenerationOptions` | ✓ | ◐ | IORails uses `llm_params` and rail toggles; no `log` or `output_data` |
-| `GenerationResponse` (structured response object) | ✓ | ✗ | IORails returns an OpenAI-style message dict |
-| `explain()` / `ExplainInfo` | ✓ | ✗ | LLMRails only |
-| **[Streaming](#streaming)** | | | |
-| Output-rail streaming | ✓ | ✓ | |
-| Streaming usage and metadata | ✓ | ✓ | IORails: `include_metadata=True` |
-| Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
-| **[Parallelism and concurrency](#parallelism-and-concurrency)** | | | |
-| Parallel rail execution | ✓ | ✓ | `rails.input.parallel` / `rails.output.parallel` |
-| Speculative generation | ✗ | ✓ | Input rails race generation; non-streaming only |
-| Admission control and concurrency limits | ✗ | ✓ | `AsyncWorkQueue` plus a streaming semaphore |
-| **[Reasoning-model support](#reasoning-model-support)** | | | |
-| Reasoning trace handling (`<think>` tags or reasoning field) | ✓ | ✓ | |
-| `reasoning_content` in a structured response | ✓ | ✗ | Requires `GenerationResponse` |
-| **[Multimodal](#multimodal)** | | | |
-| Multimodal (vision) input and output rails | ✓ | ✗ | LLMRails only |
-| **[Observability](#observability)** | | | |
-| Tracing (OpenTelemetry spans) | ✓ | ✓ | |
-| Metrics (OpenTelemetry token and duration) | ✗ | ✓ | LLMRails surfaces token statistics through logging |
-| Prometheus export | ✗ | ✓ | Through the OpenTelemetry metrics exporter |
-| Logging (verbose and call statistics) | ✓ | ✓ | |
-| Content capture (span content) | ✓ | ✓ | |
-| **[LLM frameworks and providers](#llm-frameworks-and-providers)** | | | |
-| Default framework (OpenAI-compatible) | ✓ | ✓ | |
-| LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
-| Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
-| **[Knowledge base and embeddings](#knowledge-base-and-embeddings)** | | | |
-| Knowledge base, embeddings, and custom providers | ✓ | ✗ | LLMRails only |
-| **[Community and third-party rail catalog](#community-and-third-party-rail-catalog)** | | | |
-| Community integrations (PII, AlignScore, ActiveFence, and others) | ✓ | ✗ | Run as LLMRails actions and flows |
-| **[Server and deployment](#server-and-deployment)** | | | |
-| Guardrails server (OpenAI-compatible REST API) | ✓ | ✗ | Bundled server runs LLMRails; use IORails through the Python API |
-| Server-side threads and multi-config | ✓ | ✗ | LLMRails only |
-| **[Configuration and operations](#configuration-and-operations)** | | | |
-| Configuration serialization and conversation state | ✓ | ✗ | IORails is stateless |
-| `.railsignore` and multi-config loading | ✓ | ✓ | Shared configuration-loading layer |
-
-## Feature details
-
-### Rail types
 
 `LLMRails` runs every rail direction through the Colang runtime: input, output, dialog, retrieval, and execution (custom action) rails.
 Input and output rails wrap the model call, dialog rails drive multi-turn conversation flows, retrieval rails guard a knowledge base, and execution rails run custom Python actions.
@@ -152,12 +96,23 @@ Dialog, retrieval, and execution rails are not available on `IORails`; configura
 
 ### Colang language support
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Colang 1.0 configurations | ✓ | ✓ | |
+| Colang 2.x configurations | ✓ | ✗ | IORails accepts Colang 1.0 only |
+
 `LLMRails` runs both the Colang 1.0 and Colang 2.x runtimes, selecting the runtime from `config.colang_version`.
 
 `IORails` accepts Colang 1.0 configurations only and runs no dialog flows.
 A Colang 2.x configuration is a fallback condition: `Guardrails` routes it to `LLMRails`.
 
 ### Built-in NeMoGuard safety rails
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Content safety | ✓ | ✓ | Only output rail IORails supports |
+| Topic control | ✓ | ✓ | IORails: input only |
+| Jailbreak detection (NIM) | ✓ | ✓ | IORails: input only |
 
 Both engines support the built-in NeMoGuard safety models: content safety, topic control, and jailbreak detection.
 On `LLMRails` these run as Colang flows and can be placed on input or output as the configuration allows.
@@ -168,6 +123,12 @@ A topic-control or jailbreak flow on the output rail is a fallback condition.
 
 ### Tool calling
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Tool-call passthrough | ✓ | ✓ | |
+| Tool-call validation rail | ✓ | ✓ | IORails flow: `tool call validation` |
+| Tool-result validation rail | ✓ | ✓ | IORails flow: `tool result validation` |
+
 Both engines support passing model tool calls through to the caller and validating tool calls and tool results.
 `LLMRails` handles these through the Colang runtime and tool rails.
 
@@ -175,6 +136,16 @@ Both engines support passing model tool calls through to the caller and validati
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
 
 ### Generation and validation API
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| `generate` / `generate_async` | ✓ | ✓ | |
+| `stream_async` | ✓ | ✓ | |
+| Event-based API (`generate_events` / `process_events`) | ✓ | ✗ | Requires the Colang runtime |
+| `check` / `check_async` (rails-only validation) | ✓ | ✗ | LLMRails only |
+| `GenerationOptions` | ✓ | ◐ | IORails uses `llm_params` and rail toggles; no `log` or `output_data` |
+| `GenerationResponse` (structured response object) | ✓ | ✗ | IORails returns an OpenAI-style message dict |
+| `explain()` / `ExplainInfo` | ✓ | ✗ | LLMRails only |
 
 Both engines expose `generate`, `generate_async`, and `stream_async`.
 `LLMRails` can return a rich `GenerationResponse` and processes the full `GenerationOptions` object, including rail toggles, `llm_params`, logging options, and `output_data`.
@@ -186,6 +157,12 @@ The event-based API, `check` and `check_async`, and `explain()` are not availabl
 
 ### Streaming
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Output-rail streaming | ✓ | ✓ | |
+| Streaming usage and metadata | ✓ | ✓ | IORails: `include_metadata=True` |
+| Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
+
 Both engines stream responses through `stream_async` and support streaming output rails.
 Both can include usage and metadata; on `IORails`, pass `include_metadata=True` to receive `{"text": ..., "metadata": ...}` chunks instead of plain strings.
 
@@ -193,6 +170,12 @@ Parallel streaming output rails, where the output rail validates streamed chunks
 `IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
 
 ### Parallelism and concurrency
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Parallel rail execution | ✓ | ✓ | `rails.input.parallel` / `rails.output.parallel` |
+| Speculative generation | ✗ | ✓ | Input rails race generation; non-streaming only |
+| Admission control and concurrency limits | ✗ | ✓ | `AsyncWorkQueue` plus a streaming semaphore |
 
 Both engines run multiple rails on the same direction concurrently when `rails.input.parallel` or `rails.output.parallel` is set; the first rail to block short-circuits the result.
 
@@ -202,6 +185,11 @@ Admission control through an `AsyncWorkQueue` (and a separate semaphore for stre
 
 ### Reasoning-model support
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Reasoning trace handling (`<think>` tags or reasoning field) | ✓ | ✓ | |
+| `reasoning_content` in a structured response | ✓ | ✗ | Requires `GenerationResponse` |
+
 Both engines preserve model reasoning traces, whether the model returns them in a dedicated reasoning field or inline within `<think>` tags, and both keep reasoning out of the prompt history sent back to the model.
 
 `LLMRails` can expose reasoning in the structured response through `reasoning_content`.
@@ -209,11 +197,23 @@ Because `IORails` returns a message dictionary rather than a `GenerationResponse
 
 ### Multimodal
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Multimodal (vision) input and output rails | ✓ | ✗ | LLMRails only |
+
 Multimodal (vision) input and output rails, which run safety checks over image content alongside text, are supported by `LLMRails`.
 
 `IORails` does not run multimodal safety rails over image content on its input and output rails; multimodal configurations route to `LLMRails`.
 
 ### Observability
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Tracing (OpenTelemetry spans) | ✓ | ✓ | |
+| Metrics (OpenTelemetry token and duration) | ✗ | ✓ | LLMRails surfaces token statistics through logging |
+| Prometheus export | ✗ | ✓ | Through the OpenTelemetry metrics exporter |
+| Logging (verbose and call statistics) | ✓ | ✓ | |
+| Content capture (span content) | ✓ | ✓ | |
 
 Both engines support OpenTelemetry tracing and content capture on spans, and both emit logs.
 `LLMRails` surfaces token usage and timing through its logging and statistics output and verbose mode.
@@ -223,6 +223,12 @@ For more information, see the [Observability](/observability) documentation.
 
 ### LLM frameworks and providers
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Default framework (OpenAI-compatible) | ✓ | ✓ | |
+| LangChain integration (opt-in) | ✓ | ✗ | Passing a LangChain LLM routes to LLMRails |
+| Custom LLM injection (`llm=` / `update_llm`) | ✓ | ✗ | A custom `llm` forces LLMRails |
+
 Both engines use the default OpenAI-compatible framework to call models defined in the configuration.
 
 The LangChain integration is opt-in and available on `LLMRails`.
@@ -230,11 +236,19 @@ Passing a custom `llm` to the constructor, including a LangChain model, forces `
 
 ### Knowledge base and embeddings
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Knowledge base, embeddings, and custom providers | ✓ | ✗ | LLMRails only |
+
 The knowledge base, embedding providers, and custom embedding or embedding-search providers are part of the Colang retrieval pipeline and are supported by `LLMRails`.
 
 `IORails` does not initialize a knowledge base or embeddings; configurations that rely on retrieval route to `LLMRails`.
 
 ### Community and third-party rail catalog
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Community integrations (PII, AlignScore, ActiveFence, and others) | ✓ | ✗ | Run as LLMRails actions and flows |
 
 The community and third-party integrations in the [Guardrail Catalog](/configure-guardrails/guardrail-catalog) (for example, PII detection, AlignScore, ActiveFence, Fiddler, Pangea, and others) run as `LLMRails` actions and flows.
 
@@ -242,12 +256,22 @@ The community and third-party integrations in the [Guardrail Catalog](/configure
 
 ### Server and deployment
 
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Guardrails server (OpenAI-compatible REST API) | ✓ | ✗ | Bundled server runs LLMRails; use IORails through the Python API |
+| Server-side threads and multi-config | ✓ | ✗ | LLMRails only |
+
 The bundled Guardrails server exposes an OpenAI-compatible REST API and runs on `LLMRails`.
 Server-side threads and multi-config serving are provided through that server.
 
 `IORails` is consumed through the in-process `Guardrails` Python API rather than the bundled server.
 
 ### Configuration and operations
+
+| Feature | LLMRails | IORails | Notes |
+|---|:---:|:---:|---|
+| Configuration serialization and conversation state | ✓ | ✗ | IORails is stateless |
+| `.railsignore` and multi-config loading | ✓ | ✓ | Shared configuration-loading layer |
 
 `LLMRails` supports configuration serialization and maintains conversation state across turns, which the event-based and `process_events` APIs build on.
 
