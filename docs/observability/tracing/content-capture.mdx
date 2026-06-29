@@ -8,7 +8,7 @@ content:
   type: "how_to"
 ---
 
-By default, NeMo Guardrails traces record *metadata* about each request — span timing, model and provider names, sampling parameters, token usage, and rail decisions — but never the prompt or response *content* itself.
+By default, traces record *metadata* about each request, such as span timing, model and provider names, sampling parameters, token usage, and rail decisions. They never record the prompt or response *content* itself.
 Content capture is an opt-in feature that additionally records the user, system, assistant, and tool message text onto spans so you can inspect exactly what was sent to and returned from the model.
 
 <Warning title="Experimental Feature">
@@ -31,11 +31,11 @@ When content capture is enabled, IORails records content onto three kinds of spa
 
 | Span (kind) | Attribute or event | When recorded |
 |-------------|--------------------|---------------|
-| `guardrails.request` (SERVER) | `guardrails.request.input` — JSON-encoded list of the caller's input messages | Always, while capturing |
-| `guardrails.request` (SERVER) | `guardrails.request.output` — the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing) |
-| `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call — the main generation call and every rail-action LLM call. On the streaming path, recorded at stream end; see [Streaming](#streaming) |
-| `guardrails.rail` (INTERNAL) | `guardrails.rail.input` — JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
-| `guardrails.rail` (INTERNAL) | `guardrails.rail.reason` — the human-readable block reason | Only when the rail blocks the request |
+| `guardrails.request` (SERVER) | `guardrails.request.input`: JSON-encoded list of the caller's input messages | Always, while capturing |
+| `guardrails.request` (SERVER) | `guardrails.request.output`: the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing) |
+| `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call: the main generation call and every rail-action LLM call. On the streaming path, recorded at stream end; see [Streaming](#streaming) |
+| `guardrails.rail` (INTERNAL) | `guardrails.rail.input`: JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
+| `guardrails.rail` (INTERNAL) | `guardrails.rail.reason`: the human-readable block reason | Only when the rail blocks the request |
 
 The SERVER span and the CLIENT span deliberately use different attribute names.
 On a blocked request the CLIENT span records the raw model response while the SERVER span records the refusal message the caller actually received, so the two values are kept under distinct names to avoid confusing backends that correlate them.
@@ -66,7 +66,7 @@ Environment-variable values are matched case-insensitively with surrounding whit
 
 This example enables content capture, runs a single request, and prints the resulting spans to the console so you can see the captured content before wiring up a production exporter.
 
-1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
+1. Install the NVIDIA NeMo Guardrails library and the OpenTelemetry SDK.
 
     ```bash
     pip install "nemoguardrails[tracing]" opentelemetry-sdk
@@ -160,7 +160,7 @@ This example enables content capture, runs a single request, and prints the resu
 
 <Info>
 The host application is responsible for configuring a `TracerProvider`.
-If you enable tracing and content capture but no `TracerProvider` is set, the OpenTelemetry API returns a no-op tracer and every span — and the captured content on it — is silently discarded.
+If you enable tracing and content capture but no `TracerProvider` is set, the OpenTelemetry API returns a no-op tracer and every span, along with the captured content on it, is silently discarded.
 Always set the `TracerProvider` before constructing `Guardrails`.
 </Info>
 
@@ -210,7 +210,7 @@ Attributes are only set when non-empty, so a backend can distinguish "no system 
 On the streaming path, both the `guardrails.request` SERVER span and the `chat <model>` CLIENT span accumulate streamed chunks and record content once, when the stream ends, rather than per chunk.
 They differ in *what* they record and in their behavior when the stream exits abnormally.
 
-**`guardrails.request` SERVER span.** Accumulates the chunks the consumer actually receives and records them as `guardrails.request.output`, so the captured value is exactly what reached the caller — including any output-rail error payload injected on a block.
+**`guardrails.request` SERVER span.** Accumulates the chunks the consumer actually receives and records them as `guardrails.request.output`, so the captured value is exactly what reached the caller, including any output-rail error payload injected on a block.
 Capture runs in a `finally`, so it executes even when the stream exits early through a provider error or consumer cancellation, and an interrupted stream still records whatever was delivered.
 
 **`chat <model>` CLIENT span.** Accumulates the model's response deltas and records the LLM input plus the accumulated response in the [selected format](#output-format).
@@ -222,7 +222,7 @@ In both cases, if no content was produced the output is omitted rather than reco
 
 - Content capture is **off by default**. Prompts and responses are never written to spans unless you explicitly enable it.
 - Captured content may include PII or other sensitive data. Treat your tracing backend as a system that now holds user content, and apply the same access controls and retention limits you would to any store of conversation data.
-- Use `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` to force capture off across every service from the environment, regardless of what individual configs request — useful as a deployment-wide guardrail in regulated environments.
+- Use `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` to force capture off across every service from the environment, regardless of what individual configs request. This is useful as a deployment-wide guardrail in regulated environments.
 - The [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) recommend against capturing message content by default for exactly these privacy reasons.
 
 ## Differences on the LLMRails engine
@@ -234,7 +234,7 @@ Rather than instrumenting live spans, it captures content after the request comp
 |-----------|---------------------|----------|
 | Mechanism | Inline live spans during execution | Post-hoc extraction from the interaction log via the tracing adapter |
 | Enable control | `enable_content_capture` **and** the `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` environment variable | `enable_content_capture` config field only |
-| Format selector | `OTEL_SEMCONV_STABILITY_OPT_IN` (JSON attributes vs. current legacy events) | None — one fixed form |
+| Format selector | `OTEL_SEMCONV_STABILITY_OPT_IN` (JSON attributes vs. current legacy events) | None (one fixed form) |
 | LLM content form | `gen_ai.input.messages` / `gen_ai.output.messages` / `gen_ai.system_instructions`, or the current `gen_ai.user.message` / `gen_ai.assistant.message` / `gen_ai.system.message` / `gen_ai.choice` events | **Deprecated** `gen_ai.content.prompt` and `gen_ai.content.completion` events |
 | Request and rail content | `guardrails.request.input` / `.output`, `guardrails.rail.input` / `.reason` | No equivalent; instead emits guardrails-internal `guardrails.user_message` and `guardrails.utterance.*` events |
 | Streaming | Accumulates and records the delivered text at stream end | Not applicable (post-hoc from the log) |
@@ -243,6 +243,6 @@ Neither `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` nor `OTEL_SEMCONV_S
 
 ## Related topics
 
-- [Tracing Configuration](/configure-rails/yaml-schema/tracing-configuration) — the `tracing` config schema, including the `enable_content_capture` field.
-- [Quick Start](/observability/tracing/quick-start) — minimal setup to enable tracing.
-- [OpenTelemetry](/observability/tracing/opentelemetry-integration) — production-ready exporter setup.
+- [Tracing Configuration](/configure-guardrails/yaml-schema/tracing-configuration) - the `tracing` config schema, including the `enable_content_capture` field.
+- [Quick Start](/observability/tracing/quick-start) - minimal setup to enable tracing.
+- [OpenTelemetry](/observability/tracing/opentelemetry-integration) - production-ready exporter setup.
