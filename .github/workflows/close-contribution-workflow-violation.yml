@@ -1,0 +1,97 @@
+name: Close contribution workflow violation
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- only maintainers can apply the label;
+  # the pinned action reads event metadata and never executes PR-controlled code.
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: close-contribution-workflow-violation-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  close:
+    name: Close PR for contribution workflow violation
+    if: "github.event.label.name == 'status: contribution workflow violation'"
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Needed to comment on and close the PR.
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          COMMENT_MARKER: "<!-- contribution-workflow-violation -->"
+          TARGET_LABEL: "status: contribution workflow violation"
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = process.env.COMMENT_MARKER;
+            const targetLabel = process.env.TARGET_LABEL;
+            const pull_number = context.payload.pull_request.number;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number,
+            });
+            const author = pullRequest.user?.login;
+            const closureSubject = author ? `@${author}, this PR` : "This PR";
+
+            if (pullRequest.state !== "open") {
+              core.info(`PR #${pull_number} is already ${pullRequest.state}; skipping.`);
+              return;
+            }
+
+            const hasTargetLabel = pullRequest.labels.some((label) => {
+              return label.name === targetLabel;
+            });
+            if (!hasTargetLabel) {
+              core.info(`PR #${pull_number} no longer has the "${targetLabel}" label; skipping.`);
+              return;
+            }
+
+            const body = [
+              marker,
+              "",
+              `${closureSubject} is being closed because it was opened before completing the required contribution workflow. Every PR must link to a triaged issue assigned to the PR author; this PR does not link to such an issue.`,
+              "",
+              "The PR description must also use our current template, including the Related Issue, Verification, and AI Assistance sections. If AI tools substantially assisted with the contribution, disclose the tool and extent of assistance. The human contributor must review, verify, understand, and take responsibility for every submitted change. If no AI tools were used, select that option in the template.",
+              "",
+              "Before submitting another PR:",
+              "",
+              "1. Search for an existing issue or manually open one using the appropriate issue template.",
+              "2. Wait for a maintainer to triage the issue and assign it to you.",
+              "3. After assignment, open a new PR from `develop` using the complete PR template, a Conventional Commit-style title, and the documented validation commands.",
+              "",
+              "Please do not reopen this PR. You’re welcome to submit a new one after completing the workflow.",
+              "",
+              `See [CONTRIBUTING.md](https://github.com/${owner}/${repo}/blob/develop/CONTRIBUTING.md) and [AI_POLICY.md](https://github.com/${owner}/${repo}/blob/develop/AI_POLICY.md).`,
+            ].join("\n");
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pull_number,
+              per_page: 100,
+            });
+            const existingComment = comments.find((comment) => {
+              return comment.user?.type === "Bot" && comment.body?.startsWith(marker);
+            });
+
+            if (!existingComment) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body,
+              });
+            }
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number,
+              state: "closed",
+            });

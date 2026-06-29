@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
 import warnings
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 import pytest
 
@@ -28,172 +31,6 @@ from nemoguardrails.integrations.langchain.providers.providers import (
     get_community_chat_provider_names,
     get_llm_provider_names,
 )
-
-# valid for 0.3.13 till 0.3.21
-# previous 0.3 versions miss   -     'openllm_client',
-# 0.2 versions have more and less
-# name         : langchain-community
-# version      : 0.3.16
-# description  : Community contributed LangChain integrations.
-
-_LLM_PROVIDERS_NAMES = [
-    "ai21",
-    "aleph_alpha",
-    "amazon_api_gateway",
-    "amazon_bedrock",
-    "anthropic",
-    "anyscale",
-    "arcee",
-    "aviary",
-    "azure",
-    "azureml_endpoint",
-    "baichuan",
-    "bananadev",
-    "baseten",
-    "beam",
-    "cerebriumai",
-    "chat_glm",
-    "clarifai",
-    "cohere",
-    "ctransformers",
-    "ctranslate2",
-    "databricks",
-    "deepinfra",
-    "deepsparse",
-    "edenai",
-    "fake-list",
-    "forefrontai",
-    "friendli",
-    "giga-chat-model",
-    "google_palm",
-    "gooseai",
-    "gradient",
-    "gpt4all",
-    "huggingface_endpoint",
-    "huggingface_hub",
-    "huggingface_pipeline",
-    "huggingface_textgen_inference",
-    "human-input",
-    "koboldai",
-    "konko",
-    "llamacpp",
-    "llamafile",
-    "textgen",
-    "minimax",
-    "mlflow",
-    "mlflow-ai-gateway",
-    "mlx_pipeline",
-    "modal",
-    "mosaic",
-    "nebula",
-    "nibittensor",
-    "nlpcloud",
-    "oci_model_deployment_tgi_endpoint",
-    "oci_model_deployment_vllm_endpoint",
-    "oci_model_deployment_endpoint",
-    "oci_generative_ai",
-    "octoai_endpoint",
-    "ollama",
-    "openai",
-    "openlm",
-    "pai_eas_endpoint",
-    "petals",
-    "pipelineai",
-    "predibase",
-    "opaqueprompts",
-    "replicate",
-    "rwkv",
-    "sagemaker_endpoint",
-    "sambanovacloud",
-    "sambastudio",
-    "self_hosted",
-    "self_hosted_hugging_face",
-    "stochasticai",
-    "together",
-    "tongyi",
-    "titan_takeoff",
-    "titan_takeoff_pro",
-    "vertexai",
-    "vertexai_model_garden",
-    "openllm",
-    "outlines",
-    "vllm",
-    "vllm_openai",
-    "watsonxllm",
-    "weight_only_quantization",
-    "writer",
-    "xinference",
-    "javelin-ai-gateway",
-    "qianfan_endpoint",
-    "yandex_gpt",
-    "yuan2",
-    "VolcEngineMaasLLM",
-    "SparkLLM",
-    "yi",
-    "you",
-]
-_COMMUNITY_CHAT_PROVIDERS_NAMES = [
-    "azure_openai",
-    "bedrock",
-    "anthropic",
-    "anyscale",
-    "baichuan",
-    "naver",
-    "cohere",
-    "coze",
-    "databricks",
-    "deepinfra",
-    "everlyai",
-    "edenai",
-    "fireworks",
-    "friendli",
-    "google_palm",
-    "huggingface",
-    "hunyuan",
-    "javelin_ai_gateway",
-    "kinetica",
-    "konko",
-    "litellm",
-    "litellm_router",
-    "mlflow_ai_gateway",
-    "mlx",
-    "maritalk",
-    "mlflow",
-    "symblai_nebula",
-    "octoai",
-    "oci_generative_ai",
-    "oci_data_science",
-    "ollama",
-    "openai",
-    "outlines",
-    "reka",
-    "perplexity",
-    "sambanova",
-    "snowflake",
-    "sparkllm",
-    "tongyi",
-    "vertexai",
-    "yandex",
-    "yuan2",
-    "zhipuai",
-    "ernie",
-    "fake",
-    "gpt_router",
-    "gigachat",
-    "human",
-    "jinachat",
-    "llama_edge",
-    "minimax",
-    "moonshot",
-    "pai_eas_endpoint",
-    "promptlayer_openai",
-    "solar",
-    "baidu_qianfan_endpoint",
-    "volcengine_maas",
-    "premai",
-    "llamacpp",
-    "yi",
-]
 
 _PARTNER_CHAT_PROVIDERS_NAMES = {
     "anthropic",
@@ -338,9 +175,6 @@ def test_discover_langchain_community_chat_providers():
     assert set(chat_provider_names) == set(providers.keys()), (
         "it seems that we are registering a provider that is not in the LC community chat provider"
     )
-    assert _COMMUNITY_CHAT_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain chat community providers may have changed. please investigate and update the test if necessary."
-    )
 
 
 def test_discover_partner_chat_providers_no_providers_attr(monkeypatch):
@@ -430,9 +264,6 @@ def test_discover_langchain_community_llm_providers():
     assert set(llm_provider_names) - custom_registered_providers == set(providers.keys()), (
         "it seems that we are registering a provider that is not in the LC community llm provider"
     )
-    assert _LLM_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain LLM community providers may have changed. Please investigate and update the test if necessary."
-    )
 
 
 def test_langchain_provider_compatibility():
@@ -452,9 +283,13 @@ def test_langchain_provider_compatibility():
                 "This might be due to a version mismatch with LangChain."
             )
 
-    # check for chat providers
+    # check for chat providers; in langchain-community 0.4.x several common
+    # providers (openai, anthropic, huggingface, ...) moved to partner packages,
+    # so check the full runtime-resolvable set rather than the community-only
+    # _chat_providers dict.
+    chat_provider_names = get_chat_provider_names()
     for provider in common_chat_providers:
-        if provider not in _chat_providers:
+        if provider not in chat_provider_names:
             raise RuntimeError(
                 f"Common chat provider '{provider}' is not available. "
                 "This might be due to a version mismatch with LangChain."
@@ -477,3 +312,66 @@ def test_langchain_provider_compatibility():
 #         if version_tuple >= (0, 2, 0):
 #             #  we can check for changes introduced in version 0.2.0 for example
 #             pass
+
+
+# Path to the recorded langchain-community provider snapshot. Regenerate with
+# tests/integrations/langchain/llm/update_provider_snapshot.py after a reviewed
+# langchain-community upgrade.
+_PROVIDER_SNAPSHOT_PATH = Path(__file__).parent / "langchain_provider_snapshot.json"
+
+
+def _provider_set_diff(expected, actual):
+    """Return (added, removed) provider names of actual relative to expected."""
+    expected_set, actual_set = set(expected), set(actual)
+    return sorted(actual_set - expected_set), sorted(expected_set - actual_set)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("LANGCHAIN_PROVIDER_DRIFT_CHECK"),
+    reason="provider drift canary runs only in the latest-deps job "
+    "(set LANGCHAIN_PROVIDER_DRIFT_CHECK=1 to run locally)",
+)
+def test_langchain_provider_drift():
+    """Canary that fails when the langchain provider set drifts from the recorded
+    snapshot, covering both langchain-community (LLM and chat) and partner chat
+    providers.
+
+    Skipped by default (including the pinned PR suite) and exercised only in the
+    scheduled latest-deps job, which sets LANGCHAIN_PROVIDER_DRIFT_CHECK. A
+    failure means a newer langchain release changed which providers it exposes
+    (for example a provider moving from community to a partner package); review
+    the added/removed providers and, if expected, regenerate the snapshot with
+    update_provider_snapshot.py.
+    """
+    snapshot = json.loads(_PROVIDER_SNAPSHOT_PATH.read_text())
+
+    llm_added, llm_removed = _provider_set_diff(
+        snapshot["community_llm_providers"],
+        _discover_langchain_community_llm_providers().keys(),
+    )
+    chat_added, chat_removed = _provider_set_diff(
+        snapshot["community_chat_providers"],
+        _discover_langchain_community_chat_providers().keys(),
+    )
+    partner_added, partner_removed = _provider_set_diff(
+        snapshot["partner_chat_providers"],
+        _discover_langchain_partner_chat_providers(),
+    )
+
+    drift = []
+    if llm_added or llm_removed:
+        drift.append(f"community LLM providers: added={llm_added}, removed={llm_removed}")
+    if chat_added or chat_removed:
+        drift.append(f"community chat providers: added={chat_added}, removed={chat_removed}")
+    if partner_added or partner_removed:
+        drift.append(f"partner chat providers: added={partner_added}, removed={partner_removed}")
+
+    assert not drift, (
+        "langchain provider set drifted from the recorded snapshot "
+        f"(snapshot taken at langchain {snapshot['langchain_version']} / "
+        f"langchain-community {snapshot['langchain_community_version']}, "
+        f"installed langchain {version('langchain')} / langchain-community {version('langchain-community')}). "
+        + " ; ".join(drift)
+        + ". If this change is expected, review it and regenerate the snapshot with "
+        "tests/integrations/langchain/llm/update_provider_snapshot.py."
+    )

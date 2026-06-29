@@ -19,7 +19,7 @@ jobs:
     outputs:
       artifact_name: ${{ steps.set-artifact-name.outputs.artifact_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -42,7 +42,7 @@ jobs:
         run: poetry config virtualenvs.in-project true
 
       - name: Set up cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache
         with:
           path: .venv
@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.set-artifact-name.outputs.artifact_name }}
           path: dist/*
@@ -93,7 +93,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build-wheel.outputs.artifact_name }}
 

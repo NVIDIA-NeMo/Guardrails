@@ -41,9 +41,10 @@ concurrency:
 jobs:
   build-docs:
     name: Check Fern docs
+    if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
         with:
           persist-credentials: false
 
@@ -67,7 +68,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
         with:
           persist-credentials: false
 
@@ -92,7 +93,7 @@ jobs:
           npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force --instance "${FERN_DOCS_INSTANCE}"
 
       - name: Comment preview URL
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const previewUrl = `https://nvidia-preview-pr-${context.issue.number}.docs.buildwithfern.com/nemo/guardrails`;
@@ -126,7 +127,7 @@ jobs:
     needs: [build-docs]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
         with:
           persist-credentials: false
 
