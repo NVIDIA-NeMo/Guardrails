@@ -148,11 +148,13 @@ rails:
 You can enable either rail independently.
 To validate only the model's tool calls, configure `rails.tool_output` and leave `rails.tool_input` empty.
 
-<Note>
+<Warning>
 The flow names are fixed and direction-specific.
 `rails.tool_output` accepts only `tool call validation`, and `rails.tool_input` accepts only `tool result validation`.
-A misdirected, unknown, or duplicated tool flow makes the configuration ineligible for IORails, so the `Guardrails` facade routes it to `LLMRails` instead.
-</Note>
+A misdirected, unknown, or duplicated tool flow name makes the configuration ineligible for IORails: the `Guardrails` facade silently falls back to `LLMRails`, and none of the IORails tool rails run.
+A typo in a flow name therefore disables the tool rails you configured, with only a log warning to signal it.
+Pass `require_iorails=True` to the `Guardrails` constructor to raise instead of falling back silently.
+</Warning>
 
 <Note>
 The `parallel` field is accepted on the `tool_output` and `tool_input` sections for symmetry with other rails, but IORails does not honor it for tool rails and emits a warning if you set it to `true`.
@@ -203,6 +205,39 @@ When the model requests a tool, `generate_async` returns an assistant message th
     ],
 }
 ```
+
+After your application executes the tool, send the result back to the model.
+Resend the conversation with the original user message, the assistant turn that carried the tool call, and a `role: "tool"` message for each `tool_call_id`, then call `generate_async` again:
+
+```python
+messages = [
+    {"role": "user", "content": "What's the weather in Paris?"},
+    {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "get_weather", "arguments": "{\"city\": \"Paris\"}"},
+            }
+        ],
+    },
+    {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "name": "get_weather",
+        "content": "{\"temperature_c\": 18, \"condition\": \"cloudy\"}",
+    },
+]
+
+response = await rails.generate_async(
+    messages=messages,
+    options={"llm_params": {"tools": tools}},
+)
+```
+
+The `tool result validation` rail runs on this request before the model sees the result, and the model then returns a final text answer or more tool calls.
 
 You can also declare tools statically on the model in `config.yml`.
 IORails merges these into the set of tools the rails validate against, so a config-declared tool is honored even when a request carries no `llm_params`:
@@ -299,9 +334,9 @@ IORails streams the text response as it arrives, accumulates the tool-call fragm
 
 ## Related tool features
 
-The NeMo Guardrails library includes other tool-related capabilities that are distinct from the IORails tool-calling rails described here:
+The NVIDIA NeMo Guardrails library includes other tool-related capabilities that are distinct from the IORails tool-calling rails described here:
 
-- [Tools Integration](/integration/tools-integration) covers LangChain tool passthrough and output-rail validation on the `LLMRails` engine.
-- [Rail types](/about/rail-types) describes Colang execution rails, which run actions before and after execution within the `LLMRails` event-driven pipeline.
+- [Tools Integration](/integration-with-third-party-libraries/tools-integration) covers LangChain tool passthrough and output-rail validation on the `LLMRails` engine.
+- [Rail types](/about-nemo-guardrails-library/rail-types) describes Colang execution rails, which run actions before and after execution within the `LLMRails` event-driven pipeline.
 
 The rails on this page operate at the request and response boundary of the IORails engine and do not execute tools.
