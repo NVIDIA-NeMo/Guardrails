@@ -69,9 +69,9 @@ models:
 
 ## Configuration Examples
 
-### OpenAI
+### OpenAI Chat Completions
 
-The following example shows how to configure the OpenAI model as the main application LLM:
+The following example shows how to configure the OpenAI model as the main application LLM using the chat completions endpoint:
 
 ```yaml
 models:
@@ -79,6 +79,44 @@ models:
     engine: openai
     model: gpt-4o
 ```
+
+### OpenAI Responses API
+
+To route an OpenAI model through the [Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) instead of Chat Completions, set `use_responses_api: true` in the model's `parameters` block:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+    parameters:
+      use_responses_api: true
+```
+
+<Note>
+
+The Responses API is supported **only** under the LangChain framework. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-openai`. The default framework's built-in client only calls `/v1/chat/completions`; under it, `use_responses_api` is silently forwarded as an unknown request field and has no effect. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+
+</Note>
+
+Some OpenAI models (e.g. `gpt-5.x-pro`) only support Responses API format, while some options such as setting a `reasoning_effort` are also supported only when using Responses API for most recent OpenAI models.
+
+Function (custom) tool calls work over the Responses API in both streaming and non-streaming modes. Built-in/hosted Responses-API tools (`web_search`, `file_search`, `code_interpreter`, `computer_use`) are not surfaced as tool calls; only function-tool passthrough is supported.
+
+Self-hosted servers that expose an OpenAI-compatible `/v1/responses` endpoint (for example, vLLM) work with the same flag plus a `base_url`. Models that use the [Harmony response format](https://github.com/openai/harmony), such as `gpt-oss` or `gpt-oss-safeguard` models should use the Responses API. This still requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, since `use_responses_api` lives in the LangChain `ChatOpenAI` class:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: openai/gpt-oss-120b
+    api_key_env_var: THIS_CAN_BE_ANY_KEY
+    parameters:
+      base_url: http://localhost:8000/v1
+      use_responses_api: true
+```
+
+A complete example is available in [`examples/configs/llm/openai-responses-api`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llm/openai-responses-api).
 
 ### Azure OpenAI
 

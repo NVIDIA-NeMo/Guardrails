@@ -184,6 +184,40 @@ class TestLangChainLLMAdapter:
         assert results[1].delta_content == "lo"
 
     @pytest.mark.asyncio
+    async def test_stream_finalizes_tool_calls_on_responses_api_completed(self):
+        # Responses-API streaming closes a tool-call turn with status "completed"
+        # (-> finish_reason "stop"), not "tool_calls". The terminal chunk must
+        # still finalize the accumulated fragments and report "tool_calls".
+        chunks = [
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": "search", "args": '{"q": "wea', "id": "tc_1", "index": 0}],
+            ),
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": None, "args": 'ther"}', "id": None, "index": 0}],
+            ),
+            AIMessageChunk(content="", response_metadata={"status": "completed", "id": "resp_x"}),
+        ]
+
+        async def mock_astream(*args, **kwargs):
+            for c in chunks:
+                yield c
+
+        mock_llm = MagicMock()
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        results = [chunk async for chunk in adapter.stream_async("find weather")]
+
+        terminal = results[-1]
+        assert terminal.finish_reason == "tool_calls"
+        assert terminal.delta_tool_calls is not None
+        assert len(terminal.delta_tool_calls) == 1
+        assert terminal.delta_tool_calls[0].function.name == "search"
+        assert terminal.delta_tool_calls[0].function.arguments == {"q": "weather"}
+
+    @pytest.mark.asyncio
     async def test_generate_passes_kwargs_via_bind(self):
         mock_llm = MagicMock()
         bound_llm = AsyncMock()
@@ -511,6 +545,113 @@ class TestConversionHelpers:
 
         assert isinstance(result, LLMResponseChunk)
         assert result.delta_content == "raw string"
+
+
+class TestResponsesApiFinishReason:
+    """The OpenAI Responses API reports terminal state via ``status`` /
+    ``incomplete_details`` rather than a per-choice ``finish_reason``."""
+
+    def test_response_completed_status_maps_to_stop(self):
+        response = AIMessage(
+            content=[{"type": "text", "text": "pong"}],
+            response_metadata={
+                "id": "resp_abc",
+                "object": "response",
+                "status": "completed",
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "stop"
+        assert result.request_id == "resp_abc"
+        assert result.model == "gpt-4o-mini-2024-07-18"
+
+    def test_response_incomplete_max_tokens_maps_to_length(self):
+        response = AIMessage(
+            content=[{"type": "text", "text": "The ocean"}],
+            response_metadata={
+                "id": "resp_def",
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "length"
+
+    def test_response_incomplete_content_filter(self):
+        response = AIMessage(
+            content="",
+            response_metadata={
+                "status": "incomplete",
+                "incomplete_details": {"reason": "content_filter"},
+            },
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "content_filter"
+
+    def test_response_failed_status_maps_to_error(self):
+        response = AIMessage(content="", response_metadata={"status": "failed"})
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "error"
+
+    def test_response_incomplete_unknown_reason_maps_to_other(self):
+        response = AIMessage(
+            content="",
+            response_metadata={"status": "incomplete", "incomplete_details": {"reason": "mystery"}},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "other"
+
+    def test_explicit_finish_reason_takes_precedence_over_status(self):
+        # Chat completions still wins: a real finish_reason is never overridden
+        # by status-derived inference.
+        response = AIMessage(
+            content="",
+            response_metadata={"finish_reason": "stop", "status": "completed"},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "stop"
+
+    def test_response_tool_call_with_completed_status_maps_to_tool_calls(self):
+        # A Responses-API tool-call turn reports status "completed"; finish_reason
+        # must still surface as "tool_calls" so consumers can branch on it.
+        response = AIMessage(
+            content="",
+            tool_calls=[{"name": "fn", "args": {"x": 1}, "id": "tc1", "type": "tool_call"}],
+            response_metadata={"status": "completed", "model": "gpt-4o-mini"},
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.finish_reason == "tool_calls"
+        assert result.tool_calls is not None and len(result.tool_calls) == 1
+
+    def test_chunk_completed_status_maps_to_stop(self):
+        chunk = AIMessageChunk(
+            content="",
+            response_metadata={
+                "id": "resp_stream",
+                "object": "response",
+                "status": "completed",
+                "model": "gpt-4o-mini-2024-07-18",
+            },
+        )
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason == "stop"
+        assert result.request_id == "resp_stream"
+
+    def test_chunk_non_terminal_status_yields_no_finish_reason(self):
+        chunk = AIMessageChunk(content="pon", response_metadata={"status": "in_progress"})
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason is None
 
 
 class TestChatMessageToLangChain:
