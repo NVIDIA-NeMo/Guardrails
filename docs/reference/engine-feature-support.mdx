@@ -9,7 +9,7 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library support two engines: `LLMRails` and `IORails`.
+The NVIDIA NeMo Guardrails library supports two engines: `LLMRails` and `IORails`.
 This page explains what each engine is optimized for, how to select one, and which features each engine supports.
 
 ## The LLMRails and IORails engines
@@ -17,7 +17,7 @@ This page explains what each engine is optimized for, how to select one, and whi
 Both engines use the same `RailsConfig` object to configure their operation interchangeably.
 
 LLMRails is designed for flexibility, supporting all rail-types with Colang 1 and 2 to allow users to define custom dialog flows.
-IORails is optimized for low-latency input and output-rails only.
+IORails is optimized for low-latency input, output, and tool rails.
 
 ### LLMRails
 
@@ -86,6 +86,7 @@ Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
 | Dialog rails | ✓ | ✗ | Require the Colang runtime, which IORails does not run |
 | Retrieval (RAG and knowledge base) rails | ✓ | ✗ | LLMRails only |
 | Execution rails (custom actions) | ✓ | ✗ | LLMRails only |
+| Tool rails | ✓ | ✓ | IORails: tool-call and tool-result validation; see [Tool calling](#tool-calling) |
 
 `LLMRails` runs every rail direction through the Colang runtime: input, output, dialog, retrieval, and execution (custom action) rails.
 Input and output rails wrap the model call, dialog rails drive multi-turn conversation flows, retrieval rails guard a knowledge base, and execution rails run custom Python actions.
@@ -111,7 +112,7 @@ A Colang 2.x configuration is a fallback condition: `Guardrails` routes it to `L
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
-| Content safety | ✓ | ✓ | Only output rail IORails supports |
+| Content safety | ✓ | ✓ | IORails: input and output |
 | Topic control | ✓ | ✓ | IORails: input only |
 | Jailbreak detection (NIM) | ✓ | ✓ | IORails: input only |
 
