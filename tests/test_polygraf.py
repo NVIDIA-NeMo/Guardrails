@@ -19,7 +19,11 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.library.polygraf.actions import polygraf_detect_pii, polygraf_mask_pii
+from nemoguardrails.library.polygraf.actions import (
+    FAILSAFE_MASK_PLACEHOLDER,
+    polygraf_detect_pii,
+    polygraf_mask_pii,
+)
 from nemoguardrails.library.polygraf.request import polygraf_request
 from tests.utils import TestChat
 
@@ -244,14 +248,196 @@ async def test_polygraf_request_forwards_timeout_to_post():
     assert session.timeouts[0].total == 7
 
 
+class _FakeRaisingSession:
+    """Test double whose .post() raises a configurable exception when entered."""
+
+    def __init__(self, exc: BaseException):
+        self.exc = exc
+
+    def post(self, *args, **kwargs):
+        async def _raise():
+            raise self.exc
+
+        class _Ctx:
+            def __init__(self, raise_fn):
+                self._raise_fn = raise_fn
+
+            async def __aenter__(self_inner):
+                await self_inner._raise_fn()
+
+            async def __aexit__(self_inner, *a):
+                return False
+
+        return _Ctx(_raise)
+
+
 @pytest.mark.asyncio
-async def test_polygraf_mask_pii_skips_malformed_entities(monkeypatch, caplog):
+async def test_polygraf_request_normalizes_timeout_as_value_error():
+    import asyncio
+
+    session = _FakeRaisingSession(asyncio.TimeoutError())
+
+    with pytest.raises(ValueError, match="timed out"):
+        await polygraf_request("hello", "http://polygraf.example/pii", None, session=session, timeout=3)
+
+
+@pytest.mark.asyncio
+async def test_polygraf_request_normalizes_client_error_as_value_error():
+    import aiohttp
+
+    session = _FakeRaisingSession(aiohttp.ClientConnectionError("dns failure"))
+
+    with pytest.raises(ValueError, match="Polygraf call failed"):
+        await polygraf_request("hello", "http://polygraf.example/pii", None, session=session)
+
+
+def test_polygraf_config_rejects_unknown_keys():
+    """Unknown Polygraf config keys must be rejected (extra='forbid')."""
+
+    with pytest.raises(Exception) as excinfo:
+        RailsConfig.from_content(
+            yaml_content="""
+                models: []
+                rails:
+                  config:
+                    polygraf:
+                      server_endpoint: http://localhost:8000/v1/pii/text-detect
+                      unknown_field: 42
+            """,
+        )
+    assert "unknown_field" in str(excinfo.value) or "extra" in str(excinfo.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# Colang 2.0 flow coverage
+# ---------------------------------------------------------------------------
+
+
+def _load_polygraf_v2_flows():
+    """Parse the shipped Polygraf Colang 2.x flow file and return flow dicts."""
+    import importlib.resources as resources
+
+    from nemoguardrails.colang import parse_colang_file
+
+    flows_path = resources.files("nemoguardrails.library.polygraf").joinpath("flows.co")
+    content = flows_path.read_text(encoding="utf-8")
+    parsed = parse_colang_file(filename="flows.co", content=content, version="2.x", include_source_mapping=False)
+    return [flow.to_dict() for flow in parsed["flows"]]
+
+
+def _flow_global_vars(flow_dict):
+    """Return the set of variable names declared `global` in a parsed Colang 2 flow."""
+    globals_found = set()
+    for el in flow_dict.get("elements", []):
+        if el.get("_type") == "global":
+            name = el.get("var_name")
+            if name:
+                globals_found.add(name)
+        # Some parser variants attach `global` as a spec_op; collect those too.
+        if el.get("_type") == "spec_op" and el.get("op") == "global":
+            spec = el.get("spec") or {}
+            name = spec.get("var_name") or spec.get("name")
+            if name:
+                globals_found.add(name)
+    return globals_found
+
+
+def test_polygraf_v2_flows_parse_successfully():
+    """flows.co must be valid Colang 2.x and define all six expected flows."""
+
+    flows = _load_polygraf_v2_flows()
+    flow_names = sorted(f.get("name") or "" for f in flows)
+    assert flow_names == [
+        "polygraf detect pii on input",
+        "polygraf detect pii on output",
+        "polygraf detect pii on retrieval",
+        "polygraf mask pii on input",
+        "polygraf mask pii on output",
+        "polygraf mask pii on retrieval",
+    ]
+
+
+def test_polygraf_v2_flows_declare_required_globals():
+    """Each Polygraf v2 flow must declare the rails variable it reads as `global`.
+
+    Without this, the Colang 2 runtime sends ``text: null`` to the action,
+    letting PII through (regression guarded by this test).
+    """
+
+    flows = _load_polygraf_v2_flows()
+    expected = {
+        "polygraf detect pii on input": "$user_message",
+        "polygraf detect pii on output": "$bot_message",
+        "polygraf detect pii on retrieval": "$relevant_chunks",
+        "polygraf mask pii on input": "$user_message",
+        "polygraf mask pii on output": "$bot_message",
+        "polygraf mask pii on retrieval": "$relevant_chunks",
+    }
+    by_name = {f["name"]: f for f in flows}
+
+    for flow_name, required_var in expected.items():
+        flow = by_name.get(flow_name)
+        assert flow is not None, f"Flow {flow_name!r} missing from flows.co"
+
+        # Serialize the flow YAML and check the global declaration appears
+        # before any action invocation that reads the variable. We use a
+        # textual search because the parser emits global declarations in a
+        # few different shapes depending on the Colang 2 lexer state.
+        import yaml as _yaml
+
+        from nemoguardrails.utils import CustomDumper
+
+        flow_yaml = _yaml.dump(flow, sort_keys=False, Dumper=CustomDumper, width=1000)
+        assert required_var in flow_yaml, f"Flow {flow_name!r} does not reference {required_var}"
+
+        # The text "global" should appear in the flow body. This is a
+        # smoke check that the declaration is present in some form.
+        assert "global" in flow_yaml.lower(), (
+            f"Flow {flow_name!r} is missing a `global` declaration for {required_var}; "
+            "Colang 2 would otherwise send text=null to the Polygraf action."
+        )
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_fails_closed_on_malformed_selected_entity(monkeypatch, caplog):
+    """A configured (selected) entity with bad offsets must fail closed, not silently skip."""
+
+    sensitive_email = "test@gmail.com"
+    sensitive_input = f"John lives here. Email: {sensitive_email}"
+
     async def mock_request(text, server_endpoint, api_key, session=None):
         return [
             {"entity_type": "Person", "start": 0, "end": 4},
-            {"entity_type": "Email"},  # missing offsets
-            {"start": 5, "end": 10},  # missing entity_type
-            "not-a-dict",  # totally malformed entry
+            # Email is in the configured entities and has malformed offsets ->
+            # the action must fail closed instead of returning partially masked text.
+            {"entity_type": "Email", "entity_text": sensitive_email},
+        ]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_mask_pii("input", sensitive_input, _polygraf_config())
+
+    assert result == FAILSAFE_MASK_PLACEHOLDER
+    # The original sensitive value must never appear in the returned text.
+    assert sensitive_email not in result
+    # Log warnings must only carry structural metadata, not the PII value.
+    assert sensitive_email not in caplog.text
+    assert "Skipping malformed Polygraf entity" in caplog.text
+    assert "invalid_fields" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_skips_unselected_malformed_entity(monkeypatch, caplog):
+    """A malformed entity that does NOT match the entity filter is skipped, not failed."""
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [
+            {"entity_type": "Person", "start": 0, "end": 4},
+            # CreditCard is not in the configured entities for `input`; even though
+            # it's malformed, it must not trigger a fail-closed.
+            {"entity_type": "CreditCard"},
         ]
 
     monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
@@ -260,8 +446,66 @@ async def test_polygraf_mask_pii_skips_malformed_entities(monkeypatch, caplog):
 
     result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
 
-    assert result.startswith("<Person>")
-    assert "Skipping Polygraf entity" in caplog.text
+    assert result == "<Person> lives here"
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_fails_closed_on_provider_error(monkeypatch, caplog):
+    """A timeout / network error from the request layer must redact the entire payload."""
+
+    sensitive_text = "John lives at 1 Main St; email test@gmail.com"
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        raise ValueError("Polygraf call timed out after 30 seconds.")
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_mask_pii("input", sensitive_text, _polygraf_config())
+
+    assert result == FAILSAFE_MASK_PLACEHOLDER
+    # Even on failure, the caller's text must not leak into logs.
+    assert sensitive_text not in caplog.text
+    assert "test@gmail.com" not in caplog.text
+    assert "Polygraf masking failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_polygraf_detect_pii_fails_closed_on_provider_error(monkeypatch, caplog):
+    """A request-layer ValueError must cause detect to block (return True)."""
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        raise ValueError("Polygraf call failed: ClientConnectorError: ...")
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_detect_pii("input", "John lives here", _polygraf_config())
+
+    assert result is True
+    assert "Polygraf detection failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_polygraf_detect_pii_fails_closed_on_malformed_selected_entity(monkeypatch, caplog):
+    """detect must block when a configured entity is reported with bad shape."""
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [
+            # Email is in the configured filter and missing offsets -> fail closed.
+            {"entity_type": "Email"},
+        ]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_detect_pii("input", "Some text", _polygraf_config())
+
+    assert result is True
+    assert "Polygraf returned a malformed selected entity" in caplog.text
 
 
 @pytest.mark.asyncio

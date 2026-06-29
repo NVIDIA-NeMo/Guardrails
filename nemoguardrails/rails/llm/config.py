@@ -395,6 +395,8 @@ class GLiNERDetection(BaseModel):
 class PolygrafDetectionOptions(BaseModel):
     """Configuration options for Polygraf."""
 
+    model_config = ConfigDict(extra="forbid")
+
     entities: List[str] = Field(
         default_factory=list,
         description="The list of entities that should be detected.",
@@ -403,6 +405,8 @@ class PolygrafDetectionOptions(BaseModel):
 
 class PolygrafDetection(BaseModel):
     """Configuration for Polygraf PII detection."""
+
+    model_config = ConfigDict(extra="forbid")
 
     server_endpoint: str = Field(
         default="http://localhost:8000/v1/pii/text-detect",

@@ -17,6 +17,7 @@
 
 import logging
 import os
+from typing import Any, Dict, List, Optional, Tuple
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import action
@@ -24,6 +25,11 @@ from nemoguardrails.library.polygraf.request import polygraf_request
 from nemoguardrails.rails.llm.config import PolygrafDetection
 
 log = logging.getLogger(__name__)
+
+# Placeholder returned when masking cannot complete safely (provider failure
+# or a configured entity span is malformed). Replacing the entire payload is
+# the only fail-closed option that guarantees no raw PII passes downstream.
+FAILSAFE_MASK_PLACEHOLDER = "<REDACTED>"
 
 
 def detect_pii_mapping(result: bool) -> bool:
@@ -36,7 +42,7 @@ def detect_pii_mapping(result: bool) -> bool:
     return result
 
 
-def _get_polygraf_api_key() -> str | None:
+def _get_polygraf_api_key() -> Optional[str]:
     api_key = os.environ.get("POLYGRAF_API_KEY")
     if not api_key:
         log.warning(
@@ -44,6 +50,86 @@ def _get_polygraf_api_key() -> str | None:
             "Polygraf cloud endpoints may reject unauthenticated requests."
         )
     return api_key
+
+
+def _entity_shape(entity: Any) -> str:
+    """Return a PII-free structural description of an entity for logging."""
+    if isinstance(entity, dict):
+        return f"dict(keys={sorted(entity.keys())})"
+    return type(entity).__name__
+
+
+def _classify_entities(
+    entities: List[Any],
+    enabled_entities: Optional[List[str]],
+) -> Tuple[List[Tuple[int, int, str]], bool]:
+    """Split Polygraf entities into safe spans and report whether any selected
+    (enabled) span was malformed.
+
+    Returns:
+        (safe_spans, has_malformed_selected)
+
+        - safe_spans: list of (start, end, entity_type) for entities that pass
+          the entity-type filter and have valid integer offsets and a type.
+        - has_malformed_selected: True iff a malformed entity would have
+          matched the configured entity filter (or no filter is configured).
+          Callers should treat this as a fail-closed signal.
+    """
+    safe_spans: List[Tuple[int, int, str]] = []
+    has_malformed_selected = False
+
+    for entity in entities:
+        if not isinstance(entity, dict):
+            # Non-dict entries can't carry an entity_type, so they always
+            # count as a malformed-selected span. Log only the shape.
+            log.warning("Skipping malformed Polygraf entity: shape=%s", _entity_shape(entity))
+            has_malformed_selected = True
+            continue
+
+        entity_type = entity.get("entity_type")
+        start = entity.get("start")
+        end = entity.get("end")
+        invalid_fields = []
+        if entity_type is None:
+            invalid_fields.append("entity_type")
+        if not isinstance(start, int):
+            invalid_fields.append("start")
+        if not isinstance(end, int):
+            invalid_fields.append("end")
+
+        if invalid_fields:
+            # Log only field names and the dict's key set; never the values
+            # (entity_text and other fields may contain the very PII we are
+            # trying to protect).
+            log.warning(
+                "Skipping malformed Polygraf entity: invalid_fields=%s keys=%s",
+                invalid_fields,
+                sorted(entity.keys()),
+            )
+            if enabled_entities is None or (entity_type in enabled_entities):
+                has_malformed_selected = True
+            continue
+
+        if enabled_entities and entity_type not in enabled_entities:
+            continue
+
+        safe_spans.append((start, end, entity_type))
+
+    return safe_spans, has_malformed_selected
+
+
+def _resolve_source_config(config: RailsConfig, source: str) -> Tuple[PolygrafDetection, Any, Optional[List[str]]]:
+    """Resolve the Polygraf config and per-source entity filter, validating ``source``."""
+    polygraf_config: PolygrafDetection = getattr(config.rails.config, "polygraf")
+    source_config = getattr(polygraf_config, source, None)
+    if source_config is None:
+        valid_sources = ["input", "output", "retrieval"]
+        raise ValueError(
+            f"Polygraf can only be defined in the following flows: {valid_sources}. "
+            f"The current flow, '{source}', is not allowed."
+        )
+    enabled_entities = source_config.entities if source_config.entities else None
+    return polygraf_config, source_config, enabled_entities
 
 
 @action(is_system_action=False, output_mapping=detect_pii_mapping)
@@ -61,35 +147,43 @@ async def polygraf_detect_pii(
         config: The rails configuration object.
 
     Returns:
-        True if PII is detected, False otherwise.
+        True if PII is detected (or if the detection cannot complete safely),
+        False otherwise.
 
     Raises:
-        ValueError: If the response is invalid or source is not valid.
+        ValueError: Only if ``source`` is not one of the allowed flows.
+            Provider/network failures are caught and treated as fail-closed
+            (the action returns True so the rail blocks the message).
     """
-    polygraf_config: PolygrafDetection = getattr(config.rails.config, "polygraf")
+    polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
-    source_config = getattr(polygraf_config, source, None)
-
-    if source_config is None:
-        valid_sources = ["input", "output", "retrieval"]
-        raise ValueError(
-            f"Polygraf can only be defined in the following flows: {valid_sources}. "
-            f"The current flow, '{source}', is not allowed."
-        )
-
-    enabled_entities = source_config.entities if source_config.entities else None
     api_key = _get_polygraf_api_key()
     session = kwargs.get("session")
 
-    entities = await polygraf_request(text, server_endpoint, api_key, session=session)
+    try:
+        entities: List[Dict[str, Any]] = await polygraf_request(text, server_endpoint, api_key, session=session)
+    except ValueError as err:
+        # Fail closed: a provider failure must not allow potentially-PII text
+        # through. Log only the failure category, never the input text or
+        # exception chain (which can contain response bodies with PII).
+        log.warning("Polygraf detection failed (%s); failing closed and blocking text.", type(err).__name__)
+        return True
 
     if not entities:
         return False
 
-    if enabled_entities:
-        return any(isinstance(e, dict) and e.get("entity_type") in enabled_entities for e in entities)
+    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities)
 
-    return True
+    # If a *selected* entity was malformed, treat the whole result as untrusted
+    # and fail closed even if other valid entities had no enabled match.
+    if has_malformed_selected:
+        log.warning("Polygraf returned a malformed selected entity; failing closed and blocking text.")
+        return True
+
+    if enabled_entities is None:
+        return len(safe_spans) > 0
+
+    return len(safe_spans) > 0
 
 
 @action(is_system_action=False)
@@ -102,50 +196,41 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
         config: The rails configuration object.
 
     Returns:
-        The altered text with PII masked.
+        The altered text with PII masked. Returns ``FAILSAFE_MASK_PLACEHOLDER``
+        when masking cannot complete safely (provider failure or a configured
+        entity span is malformed), so raw PII is never sent downstream.
 
     Raises:
-        ValueError: If the response is invalid or source is not valid.
+        ValueError: Only if ``source`` is not one of the allowed flows.
+            Provider/network failures are caught and treated as fail-closed.
     """
-    polygraf_config: PolygrafDetection = getattr(config.rails.config, "polygraf")
+    polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
-    source_config = getattr(polygraf_config, source, None)
-
-    if source_config is None:
-        valid_sources = ["input", "output", "retrieval"]
-        raise ValueError(
-            f"Polygraf can only be defined in the following flows: {valid_sources}. "
-            f"The current flow, '{source}', is not allowed."
-        )
-
-    enabled_entities = source_config.entities if source_config.entities else None
     api_key = _get_polygraf_api_key()
     session = kwargs.get("session")
 
-    entities = await polygraf_request(text, server_endpoint, api_key, session=session)
+    try:
+        entities: List[Dict[str, Any]] = await polygraf_request(text, server_endpoint, api_key, session=session)
+    except ValueError as err:
+        # Fail closed: if we cannot run masking at all, redact the entire text
+        # rather than risk forwarding raw PII downstream.
+        log.warning("Polygraf masking failed (%s); replacing payload with redaction placeholder.", type(err).__name__)
+        return FAILSAFE_MASK_PLACEHOLDER
 
     if not entities:
         return text
 
-    # Drop any malformed entries defensively so a single bad item cannot
-    # break masking. Also apply the entity-type filter (if configured).
-    safe_entities = []
-    for entity in entities:
-        if not isinstance(entity, dict):
-            log.warning("Skipping non-dict Polygraf entity: %r", entity)
-            continue
-        entity_type = entity.get("entity_type")
-        start = entity.get("start")
-        end = entity.get("end")
-        if entity_type is None or not isinstance(start, int) or not isinstance(end, int):
-            log.warning("Skipping Polygraf entity with missing or invalid fields: %r", entity)
-            continue
-        if enabled_entities and entity_type not in enabled_entities:
-            continue
-        safe_entities.append((start, end, entity_type))
+    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities)
+
+    if has_malformed_selected:
+        # A configured entity was reported with invalid offsets / type. We
+        # cannot guarantee in-place masking, so fail closed by redacting the
+        # entire payload instead of returning partially-masked text.
+        log.warning("Polygraf returned a malformed selected entity; replacing payload with redaction placeholder.")
+        return FAILSAFE_MASK_PLACEHOLDER
 
     masked_text = text
-    for start, end, entity_type in sorted(safe_entities, key=lambda x: x[0], reverse=True):
+    for start, end, entity_type in sorted(safe_spans, key=lambda x: x[0], reverse=True):
         masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
     return masked_text

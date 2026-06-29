@@ -15,6 +15,7 @@
 
 """Module for handling Polygraf PII detection requests."""
 
+import asyncio
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -82,34 +83,45 @@ async def _send_polygraf_request(
     timeout: aiohttp.ClientTimeout,
 ) -> List[Dict[str, Any]]:
     try:
-        post_ctx = session.post(server_endpoint, json=payload, headers=headers, timeout=timeout)
-    except TypeError:
-        # Some test doubles do not accept a `timeout` kwarg; fall back to the
-        # session-level timeout instead.
-        post_ctx = session.post(server_endpoint, json=payload, headers=headers)
-
-    async with post_ctx as resp:
-        if resp.status != 200:
-            raise ValueError(f"Polygraf call failed with status code {resp.status}.\nDetails: {await resp.text()}")
-
         try:
-            data = await resp.json()
-        except aiohttp.ContentTypeError as err:
-            raise ValueError(
-                f"Failed to parse Polygraf response as JSON. Status: {resp.status}, Content: {await resp.text()}"
-            ) from err
+            post_ctx = session.post(server_endpoint, json=payload, headers=headers, timeout=timeout)
+        except TypeError:
+            # Some test doubles do not accept a `timeout` kwarg; fall back to the
+            # session-level timeout instead.
+            post_ctx = session.post(server_endpoint, json=payload, headers=headers)
 
-        # Polygraf may return either a raw list of entities or a wrapper object.
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            if "entities" in data:
-                entities = data["entities"]
-                if entities is None:
-                    return []
-                if isinstance(entities, list):
-                    return entities
+        async with post_ctx as resp:
+            if resp.status != 200:
+                raise ValueError(f"Polygraf call failed with status code {resp.status}.\nDetails: {await resp.text()}")
 
-        raise ValueError(
-            "Invalid response from Polygraf service: expected a list of entities or an object with an 'entities' list."
-        )
+            try:
+                data = await resp.json()
+            except aiohttp.ContentTypeError as err:
+                raise ValueError(
+                    f"Failed to parse Polygraf response as JSON. Status: {resp.status}, Content: {await resp.text()}"
+                ) from err
+    except asyncio.TimeoutError as err:
+        # `aiohttp.ClientTimeout` surfaces timeouts as asyncio.TimeoutError on
+        # both the connect and read paths. Normalize so callers see a single
+        # ValueError contract instead of asyncio plumbing exceptions.
+        raise ValueError(f"Polygraf call timed out after {timeout.total} seconds.") from err
+    except aiohttp.ClientError as err:
+        # DNS failures, connection resets, TLS errors, etc. should also surface
+        # as ValueError so the documented contract holds across all network
+        # failure modes.
+        raise ValueError(f"Polygraf call failed: {type(err).__name__}: {err}") from err
+
+    # Polygraf may return either a raw list of entities or a wrapper object.
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        if "entities" in data:
+            entities = data["entities"]
+            if entities is None:
+                return []
+            if isinstance(entities, list):
+                return entities
+
+    raise ValueError(
+        "Invalid response from Polygraf service: expected a list of entities or an object with an 'entities' list."
+    )

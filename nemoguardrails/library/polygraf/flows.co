@@ -4,6 +4,7 @@
 
 flow polygraf detect pii on input
   """Check if the user input has PII using Polygraf."""
+  global $user_message
   $has_pii = await PolygrafDetectPiiAction(source="input", text=$user_message)
 
   if $has_pii
@@ -15,6 +16,7 @@ flow polygraf detect pii on input
 
 flow polygraf detect pii on output
   """Check if the bot output has PII using Polygraf."""
+  global $bot_message
   $has_pii = await PolygrafDetectPiiAction(source="output", text=$bot_message)
 
   if $has_pii
@@ -26,14 +28,12 @@ flow polygraf detect pii on output
 
 flow polygraf detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII using Polygraf."""
+  global $relevant_chunks
   $has_pii = await PolygrafDetectPiiAction(source="retrieval", text=$relevant_chunks)
 
   if $has_pii
     bot inform answer unknown
     abort
-
-
-#######################################################
 
 
 #### POLYGRAF PII MASKING RAILS ####
@@ -42,16 +42,15 @@ flow polygraf detect pii on retrieval
 
 flow polygraf mask pii on input
   """Mask any detected PII in the user input using Polygraf."""
-  $masked_input = await PolygrafMaskPiiAction(source="input", text=$user_message)
-
   global $user_message
-  $user_message = $masked_input
+  $user_message = await PolygrafMaskPiiAction(source="input", text=$user_message)
 
 
 # OUTPUT RAILS
 
 flow polygraf mask pii on output
   """Mask any detected PII in the bot output using Polygraf."""
+  global $bot_message
   $bot_message = await PolygrafMaskPiiAction(source="output", text=$bot_message)
 
 
@@ -59,4 +58,5 @@ flow polygraf mask pii on output
 
 flow polygraf mask pii on retrieval
   """Mask any detected PII in the relevant chunks from the knowledge base using Polygraf."""
+  global $relevant_chunks
   $relevant_chunks = await PolygrafMaskPiiAction(source="retrieval", text=$relevant_chunks)

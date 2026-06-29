@@ -33,9 +33,6 @@ define subflow polygraf detect pii on retrieval
     stop
 
 
-#######################################################
-
-
 #### POLYGRAF PII MASKING RAILS ####
 
 # INPUT RAILS
