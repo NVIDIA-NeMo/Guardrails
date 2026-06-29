@@ -59,29 +59,50 @@ def _entity_shape(entity: Any) -> str:
     return type(entity).__name__
 
 
+def _is_int(value: Any) -> bool:
+    """Strict integer check.
+
+    ``bool`` is a subclass of ``int`` in Python, so a plain ``isinstance(x, int)``
+    would accept ``True``/``False`` as valid offsets. Explicitly reject booleans
+    so a Polygraf response cannot smuggle bogus span coordinates past validation.
+    """
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _classify_entities(
     entities: List[Any],
     enabled_entities: Optional[List[str]],
+    text_length: int,
 ) -> Tuple[List[Tuple[int, int, str]], bool]:
-    """Split Polygraf entities into safe spans and report whether any selected
-    (enabled) span was malformed.
+    """Split Polygraf entities into safe spans and report whether any
+    span is unsafe enough to require failing closed.
+
+    Args:
+        entities: Raw entity records returned by Polygraf.
+        enabled_entities: The configured entity-type filter (or ``None`` to
+            accept every Polygraf-reported type).
+        text_length: Length of the original payload, used to validate that
+            integer offsets actually point inside the text.
 
     Returns:
         (safe_spans, has_malformed_selected)
 
-        - safe_spans: list of (start, end, entity_type) for entities that pass
-          the entity-type filter and have valid integer offsets and a type.
-        - has_malformed_selected: True iff a malformed entity would have
-          matched the configured entity filter (or no filter is configured).
-          Callers should treat this as a fail-closed signal.
+        - safe_spans: ``(start, end, entity_type)`` triples for entities that
+          pass the entity-type filter AND have a non-empty type AND have
+          strict integer offsets satisfying ``0 <= start < end <= text_length``.
+        - has_malformed_selected: ``True`` if any entity that *might* be a
+          selected PII span is malformed. Callers must treat this as a
+          fail-closed signal because there is no safe way to either trust
+          a missing-type entity or silently drop it.
     """
     safe_spans: List[Tuple[int, int, str]] = []
     has_malformed_selected = False
 
     for entity in entities:
         if not isinstance(entity, dict):
-            # Non-dict entries can't carry an entity_type, so they always
-            # count as a malformed-selected span. Log only the shape.
+            # Non-dict entries can't carry an entity_type or offsets we can
+            # validate, so they always count as a malformed-selected span.
+            # Log only the shape, never the value.
             log.warning("Skipping malformed Polygraf entity: shape=%s", _entity_shape(entity))
             has_malformed_selected = True
             continue
@@ -89,24 +110,42 @@ def _classify_entities(
         entity_type = entity.get("entity_type")
         start = entity.get("start")
         end = entity.get("end")
-        invalid_fields = []
-        if entity_type is None:
+
+        invalid_fields: List[str] = []
+        if not isinstance(entity_type, str) or not entity_type:
             invalid_fields.append("entity_type")
-        if not isinstance(start, int):
+        if not _is_int(start):
             invalid_fields.append("start")
-        if not isinstance(end, int):
+        if not _is_int(end):
             invalid_fields.append("end")
 
         if invalid_fields:
-            # Log only field names and the dict's key set; never the values
-            # (entity_text and other fields may contain the very PII we are
-            # trying to protect).
             log.warning(
                 "Skipping malformed Polygraf entity: invalid_fields=%s keys=%s",
                 invalid_fields,
                 sorted(entity.keys()),
             )
-            if enabled_entities is None or (entity_type in enabled_entities):
+            # Fail closed conservatively:
+            #  - Unknown entity_type: we cannot tell whether the filter would
+            #    have selected it, so assume it would have.
+            #  - Known entity_type missing from the filter: silently skip.
+            if "entity_type" in invalid_fields:
+                has_malformed_selected = True
+            elif enabled_entities is None or entity_type in enabled_entities:
+                has_malformed_selected = True
+            continue
+
+        # Offsets are now known-good integers. Validate they actually point
+        # inside the text and form a non-empty, non-reversed span.
+        if not (0 <= start < end <= text_length):
+            log.warning(
+                "Skipping malformed Polygraf entity: out-of-range span (start=%d end=%d text_length=%d) keys=%s",
+                start,
+                end,
+                text_length,
+                sorted(entity.keys()),
+            )
+            if enabled_entities is None or entity_type in enabled_entities:
                 has_malformed_selected = True
             continue
 
@@ -172,16 +211,13 @@ async def polygraf_detect_pii(
     if not entities:
         return False
 
-    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities)
+    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities, len(text))
 
     # If a *selected* entity was malformed, treat the whole result as untrusted
     # and fail closed even if other valid entities had no enabled match.
     if has_malformed_selected:
         log.warning("Polygraf returned a malformed selected entity; failing closed and blocking text.")
         return True
-
-    if enabled_entities is None:
-        return len(safe_spans) > 0
 
     return len(safe_spans) > 0
 
@@ -220,7 +256,7 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
     if not entities:
         return text
 
-    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities)
+    safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities, len(text))
 
     if has_malformed_selected:
         # A configured entity was reported with invalid offsets / type. We

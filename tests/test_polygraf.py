@@ -357,6 +357,84 @@ def test_polygraf_v2_flows_parse_successfully():
     ]
 
 
+@pytest.mark.unit
+def test_polygraf_v2_input_flow_passes_actual_user_message_to_action():
+    """End-to-end Colang 2 regression test.
+
+    Reproduces the bug Pouyanpi flagged: a Colang 2 flow that reads a rails
+    variable (``$user_message``) without a ``global`` declaration ends up
+    sending ``text=null`` to the action. By registering a mock that records
+    the ``text`` the masking action received and running it through the
+    actual shipped ``polygraf mask pii on input`` flow body, we lock in the
+    fix end-to-end.
+
+    If the ``global $user_message`` line is removed from ``flows.co``, the
+    Colang 2 runtime sends ``text=None`` and this test fails.
+    """
+    captured = {}
+
+    async def fake_polygraf_mask_pii(source: str, text, **kwargs):
+        captured["source"] = source
+        captured["text"] = text
+        return f"<masked:{text}>"
+
+    # We use the SHIPPED polygraf flow body verbatim (read from flows.co)
+    # and wire it into a v2 input rail using the standard guardrails pattern
+    # used in tests/v2_x/test_input_output_rails_transformations.py. We do
+    # not go through `rails.input.flows` here because that codepath emits a
+    # deprecation warning and pulls in the whole library namespace, making
+    # the test less direct.
+    import importlib.resources as resources
+
+    flows_co = resources.files("nemoguardrails.library.polygraf").joinpath("flows.co").read_text(encoding="utf-8")
+
+    # Sanity check: this test relies on the shipped flow text being present.
+    assert "flow polygraf mask pii on input" in flows_co
+    assert "global $user_message" in flows_co
+
+    colang_content = (
+        """
+import core
+import guardrails
+
+"""
+        + flows_co
+        + """
+
+flow input rails $input_text
+    polygraf mask pii on input
+
+flow main
+    await user said "John"
+    bot say "done"
+"""
+    )
+
+    config = RailsConfig.from_content(
+        colang_content=colang_content,
+        yaml_content="""
+            colang_version: "2.x"
+            models: []
+        """,
+    )
+
+    chat = TestChat(config, llm_completions=[])
+    chat.app.register_action(fake_polygraf_mask_pii, "polygraf_mask_pii")
+
+    chat >> "John"
+    chat << "done"
+
+    # The action must have been called with the actual user text, not None.
+    # If the `global $user_message` declaration is missing from flows.co, the
+    # Colang 2 runtime would have sent text=None and this assertion would fail.
+    assert captured.get("text") == "John", (
+        f"Polygraf v2 input rail invoked action with text={captured.get('text')!r} "
+        "instead of the actual user message. The most likely cause is a missing "
+        "`global $user_message` declaration in flows.co."
+    )
+    assert captured.get("source") == "input"
+
+
 def test_polygraf_v2_flows_declare_required_globals():
     """Each Polygraf v2 flow must declare the rails variable it reads as `global`.
 
@@ -430,7 +508,7 @@ async def test_polygraf_mask_pii_fails_closed_on_malformed_selected_entity(monke
 
 @pytest.mark.asyncio
 async def test_polygraf_mask_pii_skips_unselected_malformed_entity(monkeypatch, caplog):
-    """A malformed entity that does NOT match the entity filter is skipped, not failed."""
+    """A *known-type* malformed entity that does NOT match the entity filter is skipped, not failed."""
 
     async def mock_request(text, server_endpoint, api_key, session=None):
         return [
@@ -447,6 +525,68 @@ async def test_polygraf_mask_pii_skips_unselected_malformed_entity(monkeypatch, 
     result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
 
     assert result == "<Person> lives here"
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_fails_closed_on_missing_entity_type(monkeypatch, caplog):
+    """An entity with no entity_type cannot be safely classified -> fail closed even with a filter set."""
+
+    sensitive = "John lives here"
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [
+            {"start": 0, "end": 4, "entity_text": "John"},
+        ]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+    caplog.set_level("WARNING")
+
+    result = await polygraf_mask_pii("input", sensitive, _polygraf_config())
+
+    assert result == FAILSAFE_MASK_PLACEHOLDER
+    assert "John" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "bad_offsets",
+    [
+        {"start": True, "end": 4},  # bool start (subclass of int) must be rejected
+        {"start": 0, "end": False},  # bool end
+        {"start": -1, "end": 4},  # negative start
+        {"start": 5, "end": 3},  # reversed
+        {"start": 0, "end": 9999},  # end past text length
+        {"start": 0, "end": 0},  # empty span
+    ],
+)
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_fails_closed_on_out_of_range_offsets(monkeypatch, bad_offsets):
+    """Invalid offsets (bool, negative, reversed, beyond text, empty) must fail closed for a selected entity."""
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [{"entity_type": "Person", **bad_offsets}]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
+
+    assert result == FAILSAFE_MASK_PLACEHOLDER
+
+
+@pytest.mark.asyncio
+async def test_polygraf_detect_pii_fails_closed_on_missing_entity_type(monkeypatch):
+    """detect must block when an entity has no entity_type (cannot prove it's safe)."""
+
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [{"start": 0, "end": 4, "entity_text": "John"}]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_detect_pii("input", "John lives here", _polygraf_config())
+
+    assert result is True
 
 
 @pytest.mark.asyncio

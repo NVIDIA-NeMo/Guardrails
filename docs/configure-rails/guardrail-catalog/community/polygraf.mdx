@@ -116,7 +116,11 @@ You can customize the PII handling behavior by modifying the `entities` lists un
 
 For a complete list of supported entity types, refer to the [Polygraf documentation](https://polygraf.ai/api-agents/).
 
-## Notes
+## Failure Handling
 
-- Polygraf requests use a default per-call timeout of 30 seconds. If the endpoint is slow or unreachable, the integration raises a `ValueError` rather than blocking the rail indefinitely.
-- If the `POLYGRAF_API_KEY` environment variable is not set, the integration logs a warning since cloud endpoints typically reject unauthenticated requests.
+The integration is fail-closed: a Polygraf failure must not allow potentially-PII text to pass through the rail.
+
+- **Provider/network failure** (timeout, DNS, TLS, non-200 response, invalid JSON, malformed response shape). The underlying HTTP helper raises `ValueError`, which the actions catch internally. `polygraf detect pii on …` returns `True` (the rail blocks the message). `polygraf mask pii on …` replaces the entire payload with the `<REDACTED>` placeholder. The actions log a structural warning (failure category only); request bodies, response bodies, and entity values are never logged.
+- **Malformed entity span** (Polygraf returns an entry without a known `entity_type`, or with non-integer offsets, or with offsets outside `0 <= start < end <= len(text)`). The actions also fail closed: detection blocks the message and masking redacts the whole payload, rather than silently skipping the malformed span and forwarding the rest.
+- **Default timeout**: `30` seconds per call. Slow or unreachable endpoints cannot hang the rail pipeline.
+- **Missing API key**: if `POLYGRAF_API_KEY` is not set, the integration logs a warning since cloud endpoints typically reject unauthenticated requests, and proceeds to call the endpoint without an `Authorization` header.
