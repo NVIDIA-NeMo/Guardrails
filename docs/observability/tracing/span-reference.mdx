@@ -60,6 +60,12 @@ Every span also carries a `span.kind` attribute mirroring the OpenTelemetry span
 | `user.id` | string | When available | User identifier, when supplied. |
 | `session.id` | string | When available | Session identifier, when supplied. |
 
+<Note>
+`service.name` appears here as a **span** attribute, not the OpenTelemetry **resource** attribute of the same name.
+LLMRails reconstructs spans after the request and attaches no Resource, so it records `service.name` on the span itself.
+It coexists with — and does not replace — any `service.name` you set on your `TracerProvider` resource.
+</Note>
+
 **`guardrails.rail`** — one span per activated rail. Span kind `INTERNAL`.
 
 | Attribute | Type | When set | Description |
@@ -298,7 +304,7 @@ They differ in how the spans are produced and how tracing is configured.
 | Span production | Spans are reconstructed from the interaction log after the request completes and handed to a tracing adapter. | Spans are created while the request executes and emitted directly to the OpenTelemetry API. |
 | Configuration | `tracing.enabled: true` plus `tracing.adapters` (for example `OpenTelemetry`) and `span_format` (`opentelemetry` or `legacy`). | `tracing.enabled: true`. The `adapters` and `span_format` fields are ignored. |
 | Metrics | Not supported. | Supported. See [Metrics](/observability/metrics). |
-| LLM API spans | No equivalent span. | Emits a dedicated `api {name}` span for non-LLM API calls such as jailbreak detection. |
+| Non-LLM API spans | No equivalent span. | Emits a dedicated `api {name}` span for non-LLM API calls such as jailbreak detection. |
 
 <Note>
 The `tracing.adapters` and `tracing.span_format` configuration fields apply only to LLMRails.
@@ -316,6 +322,7 @@ The emitted attributes are the same across both engines except for the following
 | `gen_ai.usage.total_tokens` | ✓ | — | This attribute was removed from the current GenAI spec. IORails does not emit it; LLMRails continues to for backward compatibility. |
 | `llm.cache.hit` | ✓ | — | LLMRails has an LLM cache layer to report on. IORails does not. |
 | `span.kind` | ✓ | — | LLMRails sets a `span.kind` attribute mirroring the OpenTelemetry span kind; IORails relies on the native span kind only. |
+| `action.has_llm_calls`, `action.llm_calls_count`, `action.param.{name}` | ✓ | — | LLMRails sets these on the `guardrails.action` span; IORails sets only `action.name`. |
 
 All other attributes — the identifiers (`gen_ai.operation.name`, `gen_ai.request.model`, `gen_ai.provider.name`), `gen_ai.usage.input_tokens` / `output_tokens`, the `gen_ai.response.*` attributes, and the `gen_ai.request.*` sampling parameters — are emitted by both engines.
 `gen_ai.response.model` is emitted by both, but LLMRails always sets it while IORails sets it only when the provider returns it.
