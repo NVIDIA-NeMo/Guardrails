@@ -15,7 +15,7 @@ concurrency:
 jobs:
   close:
     name: Close PR for contribution workflow violation
-    if: "${{ github.event.label.name == 'status: contribution workflow violation' }}"
+    if: "github.event.label.name == 'status: contribution workflow violation'"
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # Needed to comment on and close the PR.
@@ -23,18 +23,32 @@ jobs:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           COMMENT_MARKER: "<!-- contribution-workflow-violation -->"
+          TARGET_LABEL: "status: contribution workflow violation"
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const marker = process.env.COMMENT_MARKER;
-            const pullRequest = context.payload.pull_request;
-            const pull_number = pullRequest.number;
+            const targetLabel = process.env.TARGET_LABEL;
+            const pull_number = context.payload.pull_request.number;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number,
+            });
             const author = pullRequest.user?.login;
             const closureSubject = author ? `@${author}, this PR` : "This PR";
 
             if (pullRequest.state !== "open") {
               core.info(`PR #${pull_number} is already ${pullRequest.state}; skipping.`);
+              return;
+            }
+
+            const hasTargetLabel = pullRequest.labels.some((label) => {
+              return label.name === targetLabel;
+            });
+            if (!hasTargetLabel) {
+              core.info(`PR #${pull_number} no longer has the "${targetLabel}" label; skipping.`);
               return;
             }
 
