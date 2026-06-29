@@ -12,8 +12,9 @@ By default, NeMo Guardrails traces record *metadata* about each request — span
 Content capture is an opt-in feature that additionally records the user, system, assistant, and tool message text onto spans so you can inspect exactly what was sent to and returned from the model.
 
 <Warning title="Experimental Feature">
-Inline content capture with the environment-variable controls described on this page requires the opt-in IORails engine.
-Enable it either by constructing `Guardrails(config, use_iorails=True)` (the form used in this guide) or by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which aliases the top-level `LLMRails` import to `Guardrails`.
+The `tracing.enable_content_capture` config flag works on both the IORails and `LLMRails` engines.
+The *environment-variable controls* and *inline-span behavior* described on this page are specific to the opt-in IORails engine.
+Enable IORails either by constructing `Guardrails(config, use_iorails=True)` (the form used in this guide) or by setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which aliases the top-level `LLMRails` import to `Guardrails`.
 IORails is an early-release feature, and span names and attributes can change as the OpenTelemetry GenAI semantic conventions evolve.
 The legacy `LLMRails` engine supports a narrower form of content capture; see [Differences on the LLMRails engine](#differences-on-the-llmrails-engine) below.
 </Warning>
