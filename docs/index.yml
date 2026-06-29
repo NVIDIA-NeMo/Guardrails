@@ -562,6 +562,9 @@ navigation:
       - page: Use Case Diagrams
         path: reference/use-case-diagrams.mdx
         slug: use-case-diagrams
+      - page: Engine Feature Support
+        path: reference/engine-feature-support.mdx
+        slug: engine-feature-support
       - folder: _static/python-sdk-reference/guardrails-python-sdk
         title: Python SDK Reference
         collapsed: true
