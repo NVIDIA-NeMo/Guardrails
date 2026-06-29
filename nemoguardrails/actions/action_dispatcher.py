@@ -21,7 +21,7 @@ import logging
 import os
 from importlib.machinery import ModuleSpec
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from nemoguardrails import utils
 from nemoguardrails.exceptions import LLMCallException
@@ -48,7 +48,7 @@ class ActionDispatcher:
         """
         log.info("Initializing action dispatcher")
 
-        self._registered_actions: Dict[str, Union[Type, Callable[..., Any]]] = {}
+        self._registered_actions: Dict[str, Any] = {}
 
         if load_all_actions:
             # TODO: check for better way to find actions dir path or use constants.py

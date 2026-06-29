@@ -197,8 +197,6 @@ include = [
   "nemoguardrails/logging/**",
   "nemoguardrails/tracing/**",
   "nemoguardrails/server/**",
-  "tests/test_callbacks.py",
-  "nemoguardrails/benchmark/**",
   "nemoguardrails/guardrails/**"
 ]
 exclude = [
