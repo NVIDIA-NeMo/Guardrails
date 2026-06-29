@@ -47,7 +47,7 @@ Set `enable_content_capture: true` to additionally record message content on spa
 ```yaml
 tracing:
   enabled: true
-  enable_content_capture: false  # default; see privacy considerations
+  enable_content_capture: true  # caution: may capture PII; see privacy considerations
 ```
 
 This captures user inputs and model outputs, which may include sensitive information (PII).

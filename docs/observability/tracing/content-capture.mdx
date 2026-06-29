@@ -33,7 +33,7 @@ When content capture is enabled, IORails records content onto three kinds of spa
 |-------------|--------------------|---------------|
 | `guardrails.request` (SERVER) | `guardrails.request.input` — JSON-encoded list of the caller's input messages | Always, while capturing |
 | `guardrails.request` (SERVER) | `guardrails.request.output` — the text actually returned to the caller | When output is produced (a blocked request records the refusal message; an empty stream records nothing) |
-| `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call — the main generation call and every rail-action LLM call |
+| `chat <model>` (CLIENT) | LLM input and output, in the [selected format](#output-format) | Once per LLM call — the main generation call and every rail-action LLM call. On the streaming path, recorded at stream end; see [Streaming](#streaming) |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.input` — JSON-encoded `{"messages": ..., "bot_response": ...}` snapshot | Every rail execution, while capturing |
 | `guardrails.rail` (INTERNAL) | `guardrails.rail.reason` — the human-readable block reason | Only when the rail blocks the request |
 
@@ -207,11 +207,16 @@ Attributes are only set when non-empty, so a backend can distinguish "no system 
 
 ## Streaming
 
-On the streaming path, content capture accumulates the chunks the consumer actually receives and records them once, when the stream ends, on the `guardrails.request` span.
-The captured `guardrails.request.output` is therefore exactly what reached the caller — including any output-rail error payload injected on a block.
+On the streaming path, both the `guardrails.request` SERVER span and the `chat <model>` CLIENT span accumulate streamed chunks and record content once, when the stream ends, rather than per chunk.
+They differ in *what* they record and in their behavior when the stream exits abnormally.
 
-Capture runs even when the stream exits early through an error or consumer cancellation, so an interrupted stream still records whatever was delivered.
-If the stream produced no content at all, the output attribute is omitted rather than recorded as an empty string.
+**`guardrails.request` SERVER span.** Accumulates the chunks the consumer actually receives and records them as `guardrails.request.output`, so the captured value is exactly what reached the caller — including any output-rail error payload injected on a block.
+Capture runs in a `finally`, so it executes even when the stream exits early through a provider error or consumer cancellation, and an interrupted stream still records whatever was delivered.
+
+**`chat <model>` CLIENT span.** Accumulates the model's response deltas and records the LLM input plus the accumulated response in the [selected format](#output-format).
+This capture runs only on natural completion of the stream: if the stream is cancelled by the consumer or the provider raises, the partial model output is intentionally **not** recorded on the CLIENT span.
+
+In both cases, if no content was produced the output is omitted rather than recorded as an empty string.
 
 ## Privacy considerations
 
