@@ -867,19 +867,13 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     )
     parallel_chat.app.register_action(test_self_check_output)
 
-    import time
-
-    start_time = time.time()
     sequential_chunks = []
     async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
-    sequential_time = time.time() - start_time
 
-    start_time = time.time()
     parallel_chunks = []
     async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
-    parallel_time = time.time() - start_time
 
     # both should produce the same successful output
     sequential_response = "".join(sequential_chunks)
@@ -904,12 +898,6 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
         f"Sequential: {sequential_response}\n"
         f"Parallel: {parallel_response}"
     )
-
-    # log timing comparison (parallel should be faster or similar for single rail)
-    print("\nTiming Comparison:")
-    print(f"Sequential: {sequential_time:.4f}s")
-    print(f"Parallel: {parallel_time:.4f}s")
-    print(f"Speedup: {sequential_time / parallel_time:.2f}x")
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
