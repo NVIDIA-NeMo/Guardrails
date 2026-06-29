@@ -89,6 +89,7 @@ Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
 
 `LLMRails` runs every rail direction through the Colang runtime: input, output, dialog, retrieval, and execution (custom action) rails.
 Input and output rails wrap the model call, dialog rails drive multi-turn conversation flows, retrieval rails guard a knowledge base, and execution rails run custom Python actions.
+Execution rails govern those custom actions; validating the model's own tool calls and tool results is covered separately under [Tool calling](#tool-calling).
 
 `IORails` runs input, output, and tool rails only, and it does so without the Colang runtime.
 Input rails run before the model call and output rails run after it, using a fixed set of built-in flows.
