@@ -1,0 +1,373 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Span Reference"
+sidebar-title: "Span Reference"
+description: "Every span and attribute the LLMRails and IORails engines emit when tracing is enabled, including the token-level GenAI attributes on the LLM span."
+content:
+    type: "reference"
+---
+
+The NeMo Guardrails library emits OpenTelemetry spans, allowing you to trace individual requests.
+This reference documents the spans and attributes each engine produces. It covers the default LLMRails engine first, then the opt-in IORails engine.
+
+## LLMRails
+
+LLMRails is the default engine.
+It records each request in an interaction log and, after the request completes, reconstructs the spans from that log and passes them to the configured tracing adapter.
+With the OpenTelemetry adapter and `span_format: opentelemetry` (the default), the reconstructed spans carry the OpenTelemetry GenAI semantic-convention attributes, including the token-level usage and response attributes on the LLM span.
+
+### Enable Tracing for LLMRails
+
+LLMRails is the default engine, so no opt-in flag is needed.
+Configure an OpenTelemetry `TracerProvider` in your application (see [Quick Start](/observability/tracing/quick-start)), then enable tracing and route spans through the OpenTelemetry adapter.
+
+```yaml
+tracing:
+    enabled: true
+    span_format: opentelemetry # default
+    adapters:
+        - name: OpenTelemetry
+```
+
+- Unlike IORails, LLMRails routes spans through a tracing adapter, so `OpenTelemetry` must be listed under `tracing.adapters`.
+- `span_format` selects `opentelemetry` (GenAI semantic-convention attributes, the default) or `legacy` (a flat metrics dictionary, deprecated). The token-level attributes documented here require `opentelemetry`.
+
+### LLMRails Span Hierarchy
+
+A single request produces one tree.
+
+```text
+guardrails.request                  SERVER     one per request
+└─ guardrails.rail                  INTERNAL   one per activated rail
+   └─ guardrails.action             INTERNAL   one per action the rail runs
+      └─ {operation} {model}        CLIENT     one per LLM call
+```
+
+LLMRails reconstructs these spans from the interaction log after the request completes, so the nesting reflects the rails and actions that ran.
+With `span_format: legacy` the trace is a flat metrics dictionary instead, and the GenAI attributes below are not emitted.
+
+### LLMRails Span Reference
+
+LLMRails sets the attributes below when `span_format: opentelemetry`.
+Every span also carries a `span.kind` attribute mirroring the OpenTelemetry span kind.
+
+**`guardrails.request`** is the root span. Span kind `SERVER`.
+
+| Attribute               | Type   | When set       | Description                        |
+| ----------------------- | ------ | -------------- | ---------------------------------- |
+| `gen_ai.operation.name` | string | Always         | The value `guardrails`.            |
+| `service.name`          | string | Always         | The value `nemo_guardrails`.       |
+| `request.id`            | string | When available | Request identifier.                |
+| `user.id`               | string | When available | User identifier, when supplied.    |
+| `session.id`            | string | When available | Session identifier, when supplied. |
+
+<Note>
+    `service.name` appears here as a **span** attribute, not the OpenTelemetry
+    **resource** attribute of the same name. LLMRails reconstructs spans after
+    the request and attaches no Resource, so it records `service.name` on the
+    span itself. It coexists with, and does not replace, any `service.name` you
+    set on your `TracerProvider` resource.
+</Note>
+
+**`guardrails.rail`** is one span per activated rail. Span kind `INTERNAL`.
+
+| Attribute        | Type     | When set | Description                                 |
+| ---------------- | -------- | -------- | ------------------------------------------- |
+| `rail.type`      | string   | Always   | For example `input`, `output`, or `dialog`. |
+| `rail.name`      | string   | Always   | The rail name.                              |
+| `rail.stop`      | boolean  | When set | Whether the rail stopped execution.         |
+| `rail.decisions` | string[] | When set | Decisions made by the rail.                 |
+
+**`guardrails.action`** is one span per action. Span kind `INTERNAL`.
+
+| Attribute                | Type    | When set             | Description                                |
+| ------------------------ | ------- | -------------------- | ------------------------------------------ |
+| `action.name`            | string  | Always               | The action name.                           |
+| `action.has_llm_calls`   | boolean | Always               | Whether the action made LLM calls.         |
+| `action.llm_calls_count` | int     | Always               | Number of LLM calls the action made.       |
+| `action.param.{name}`    | scalar  | Per scalar parameter | One attribute per scalar action parameter. |
+
+**`{operation} {model}`** is one span per LLM call, named following the GenAI convention. Span kind `CLIENT`.
+
+These attributes are always set:
+
+| Attribute               | Type    | Description                                                                             |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------- |
+| `gen_ai.operation.name` | string  | The task that issued the call, or `completion` when no task is set.                     |
+| `gen_ai.request.model`  | string  | The model requested.                                                                    |
+| `gen_ai.response.model` | string  | The model that responded.                                                               |
+| `gen_ai.provider.name`  | string  | The provider, for example `openai`.                                                     |
+| `llm.cache.hit`         | boolean | Whether the response was served from the LLMRails cache. Always set, including `false`. |
+
+These are read from the response and request when available:
+
+| Attribute                          | Type     | When set             | Description                         |
+| ---------------------------------- | -------- | -------------------- | ----------------------------------- |
+| `gen_ai.usage.input_tokens`        | int      | Returned by provider | Tokens in the prompt.               |
+| `gen_ai.usage.output_tokens`       | int      | Returned by provider | Tokens in the completion.           |
+| `gen_ai.usage.total_tokens`        | int      | Returned by provider | Total tokens for the call.          |
+| `gen_ai.response.id`               | string   | Returned by provider | The provider's response identifier. |
+| `gen_ai.response.finish_reasons`   | string[] | Returned by provider | Finish reasons for the response.    |
+| `gen_ai.request.temperature`       | double   | Set on request       | Sampling temperature.               |
+| `gen_ai.request.max_tokens`        | int      | Set on request       | Maximum tokens to generate.         |
+| `gen_ai.request.top_p`             | double   | Set on request       | Nucleus sampling probability.       |
+| `gen_ai.request.top_k`             | int      | Set on request       | Top-k sampling cutoff.              |
+| `gen_ai.request.frequency_penalty` | double   | Set on request       | Frequency penalty.                  |
+| `gen_ai.request.presence_penalty`  | double   | Set on request       | Presence penalty.                   |
+| `gen_ai.request.stop_sequences`    | string[] | Set on request       | Stop sequences.                     |
+
+LLMRails does not set `gen_ai.usage.reasoning.output_tokens` or `gen_ai.request.stream`.
+See [LLMRails and IORails Attribute Differences](#llmrails-and-iorails-attribute-differences) for the full comparison.
+
+## IORails
+
+This section describes every span the IORails engine emits.
+IORails creates spans while a request executes and emits them directly to the OpenTelemetry API.
+To enable tracing, set `tracing.enabled: true` and configure a `TracerProvider` in your application.
+The LLM span carries the token-level GenAI attributes for token usage, response metadata, and request sampling parameters that follow the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/).
+
+<Warning title="Experimental Feature">
+    The spans in this section are emitted by the opt-in IORails engine. Enable
+    it either by constructing `Guardrails(config, use_iorails=True)` or by
+    setting `NEMO_GUARDRAILS_IORAILS_ENGINE=1`, which aliases the top-level
+    `LLMRails` import to `Guardrails`. IORails is an early-release feature, and
+    span names and attributes can change as the OpenTelemetry GenAI semantic
+    conventions evolve.
+</Warning>
+
+### Enable Tracing for IORails
+
+Tracing needs two things: the IORails engine selected, and an OpenTelemetry `TracerProvider` configured by your application.
+The library depends on the OpenTelemetry API only; without a `TracerProvider` the API returns a no-op tracer and every span is silently discarded.
+
+1. Install the library with tracing support and the OpenTelemetry SDK.
+
+    ```bash
+    pip install "nemoguardrails[tracing]" opentelemetry-sdk
+    ```
+
+2. Configure the SDK before constructing the engine, select IORails, and enable tracing in the config.
+
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.resources import Resource
+
+    from nemoguardrails import Guardrails, RailsConfig
+
+    # Configure the TracerProvider BEFORE constructing Guardrails so the engine
+    # resolves a real tracer when it creates spans.
+    resource = Resource.create({"service.name": "guardrails-app"})
+    tracer_provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(tracer_provider)
+    tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+
+    config_yaml = """
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4o-mini
+
+    tracing:
+      enabled: true
+    """
+
+    config = RailsConfig.from_content(yaml_content=config_yaml)
+
+    # use_iorails=True selects IORails; require_iorails=True raises a ValueError
+    # if the config is incompatible with IORails.
+    rails = Guardrails(config, use_iorails=True, require_iorails=True)
+    response = rails.generate(messages=[{"role": "user", "content": "Hello!"}])
+    print(f"Response: {response}")
+    ```
+
+For production exporters (OTLP) and ecosystem compatibility, see [OpenTelemetry](/observability/tracing/opentelemetry-integration).
+The configuration above does not set `adapters` or `span_format`; IORails does not use them.
+
+### IORails Span Hierarchy
+
+A single request produces one tree.
+Span nesting follows execution, so the parent of an LLM or API span depends on where the call is made.
+
+```text
+guardrails.request                  SERVER     one per generate_async() call
+├─ guardrails.rail                  INTERNAL   one per rail that runs
+│  └─ guardrails.action             INTERNAL   one per action the rail invokes
+│     ├─ chat {model}               CLIENT     LLM call issued by the action (for example a content-safety model)
+│     └─ api {name}                 CLIENT     non-LLM API call issued by the action (for example jailbreak detection)
+└─ chat {model}                     CLIENT     the main protected-model generation call
+```
+
+- The main generation call is a child of `guardrails.request`.
+- An LLM or API call made by a rail action is a child of that `guardrails.action` span.
+- Streaming requests propagate trace context across the internal task boundary, so streamed spans keep the same parent.
+
+Every span sets ERROR status and records the exception when one propagates through it.
+
+### IORails Span Reference
+
+**`guardrails.request`** is the root span for a request. Span kind `SERVER`.
+
+| Attribute                   | Type   | When set           | Description                                                                                                           |
+| --------------------------- | ------ | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `gen_ai.operation.name`     | string | Always             | The value `guardrails`, marking the request boundary.                                                                 |
+| `request.id`                | string | Always             | Request identifier derived from the OpenTelemetry trace ID.                                                           |
+| `guardrails.request.input`  | string | Content capture on | JSON-encoded input messages received from the caller.                                                                 |
+| `guardrails.request.output` | string | Content capture on | The text actually returned to the caller. On a blocked request this is the refusal message, not the raw model output. |
+
+When speculative generation is active, the request span also carries these attributes:
+
+| Attribute                                | Type    | When set                  | Description                                                     |
+| ---------------------------------------- | ------- | ------------------------- | --------------------------------------------------------------- |
+| `speculative_generation.mode_active`     | boolean | Speculative generation on | The value `true`.                                               |
+| `speculative_generation.first_completed` | string  | Speculative generation on | The branch that completed first: `input_rails` or `generation`. |
+| `speculative_generation.first_rejector`  | string  | Speculative generation on | The branch that rejected the request: `input_rails` or `none`.  |
+
+**`guardrails.rail`** is one span per rail that runs, wrapping the rail's execution. Span kind `INTERNAL`.
+
+| Attribute                | Type    | When set                       | Description                                                                                       |
+| ------------------------ | ------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `rail.type`              | string  | Always                         | `Input` or `Output`.                                                                              |
+| `rail.name`              | string  | Always                         | The rail's flow name.                                                                             |
+| `rail.stop`              | boolean | When the rail blocks           | Set to `true` only when this rail blocked the request. A passing rail leaves the attribute unset. |
+| `guardrails.rail.input`  | string  | Content capture on             | JSON-encoded snapshot of the rail's inputs.                                                       |
+| `guardrails.rail.reason` | string  | Content capture on, block only | The human-readable reason the rail blocked the request.                                           |
+
+**`guardrails.action`** is one span per action a rail invokes. Span kind `INTERNAL`.
+
+| Attribute     | Type   | When set | Description                            |
+| ------------- | ------ | -------- | -------------------------------------- |
+| `action.name` | string | Always   | The name of the action being executed. |
+
+**`chat {model}`** is a `CLIENT` span for one LLM call, named `{operation} {model}`, such as `chat gpt-4o-mini`.
+The operation is `chat` because IORails issues chat completions.
+This span carries the token-level GenAI attributes; see [Token-Level Attributes](#token-level-attributes) for the emission semantics.
+
+The three identifier attributes are always set:
+
+| Attribute               | Type   | Description                           |
+| ----------------------- | ------ | ------------------------------------- |
+| `gen_ai.operation.name` | string | The operation, `chat`.                |
+| `gen_ai.request.model`  | string | The model name passed in the request. |
+| `gen_ai.provider.name`  | string | The provider, for example `openai`.   |
+
+The response and usage attributes are read from the model response. Each is set only when its source value is present, so backends can distinguish an absent value from a real zero:
+
+| Attribute                              | Type     | When set                          | Description                                                                          |
+| -------------------------------------- | -------- | --------------------------------- | ------------------------------------------------------------------------------------ |
+| `gen_ai.response.model`                | string   | Returned by provider              | The model that produced the response.                                                |
+| `gen_ai.response.id`                   | string   | Returned by provider              | The provider's response identifier.                                                  |
+| `gen_ai.response.finish_reasons`       | string[] | Returned by provider              | The finish reason, wrapped in a single-element list to match the spec's array shape. |
+| `gen_ai.usage.input_tokens`            | int      | Provider returns usage            | Tokens in the prompt.                                                                |
+| `gen_ai.usage.output_tokens`           | int      | Provider returns usage            | Tokens in the completion.                                                            |
+| `gen_ai.usage.reasoning.output_tokens` | int      | Provider returns reasoning tokens | Reasoning tokens, for reasoning models that report them.                             |
+
+The request sampling parameters are read from the request kwargs. Each is set only when present on the request:
+
+| Attribute                          | Type     | When set                | Description                                                                                                    |
+| ---------------------------------- | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `gen_ai.request.temperature`       | double   | Set on request          | Sampling temperature.                                                                                          |
+| `gen_ai.request.max_tokens`        | int      | Set on request          | Maximum tokens to generate. Both `max_tokens` and the `max_completion_tokens` alias map here.                  |
+| `gen_ai.request.top_p`             | double   | Set on request          | Nucleus sampling probability.                                                                                  |
+| `gen_ai.request.top_k`             | int      | Set on request          | Top-k sampling cutoff.                                                                                         |
+| `gen_ai.request.frequency_penalty` | double   | Set on request          | Frequency penalty.                                                                                             |
+| `gen_ai.request.presence_penalty`  | double   | Set on request          | Presence penalty.                                                                                              |
+| `gen_ai.request.stop_sequences`    | string[] | Set on request          | Stop sequences. Read from `stop` or `stop_sequences` and normalized to a list; an empty value is skipped.      |
+| `gen_ai.request.stream`            | boolean  | Streaming requests only | Set to `true` for streaming calls; omitted on non-streaming calls, per the spec's conditionally-required rule. |
+
+When content capture is enabled, the LLM span also records the prompt and completion. See [Capturing Message Content](#capturing-message-content).
+
+**`api {name}`** is a `CLIENT` span for a non-LLM API call, such as a jailbreak-detection endpoint, named `api {name}`. Span kind `CLIENT`.
+
+| Attribute  | Type   | When set | Description                       |
+| ---------- | ------ | -------- | --------------------------------- |
+| `api.name` | string | Always   | The name of the API being called. |
+
+These endpoints are plain HTTP services rather than GenAI operations, so the span uses `api.name` instead of the `gen_ai.*` attributes. HTTP transport attributes can be added later without conflict.
+
+## Token-Level Attributes
+
+The response, usage, and request-parameter attributes on the LLM span are non-sensitive telemetry.
+Both engines record them whenever the span exists. There is no content-capture gate and no metrics gate.
+Enabling tracing is sufficient to get them.
+
+How the values are sourced differs by engine:
+
+- **LLMRails** reconstructs them from the recorded LLM call after the request completes.
+- **IORails** reads them inline as the call runs. For non-streaming calls the values come off the model response. For streaming calls, the values are accumulated across chunks: the model and response ID arrive on early chunks, the finish reason and token usage on the terminal chunk, and the values are written to the span once the stream ends.
+
+For streaming IORails responses, token usage is present only when the upstream provider returns a `usage` field, which commonly requires forwarding `stream_options.include_usage=true`.
+When usage is absent, the usage attributes are not set, which is deliberately distinct from recording zero tokens.
+
+<Note>
+    `gen_ai.usage.reasoning.output_tokens` is a span attribute, not a metric
+    label. The `gen_ai.client.token.usage` metric's required `gen_ai.token.type`
+    label takes only `input` or `output`; reasoning tokens are exposed here on
+    the span instead. See [Metric Reference](/observability/metrics/reference).
+</Note>
+
+## How LLMRails and IORails Tracing Differ
+
+Both engines emit OpenTelemetry spans, and both populate the GenAI semantic-convention attributes on the LLM span.
+They differ in how the spans are produced and how tracing is configured.
+
+|                   | LLMRails                                                                                                                       | IORails                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Span production   | Spans are reconstructed from the interaction log after the request completes and handed to a tracing adapter.                  | Spans are created while the request executes and emitted directly to the OpenTelemetry API. |
+| Configuration     | `tracing.enabled: true` plus `tracing.adapters` (for example `OpenTelemetry`) and `span_format` (`opentelemetry` or `legacy`). | `tracing.enabled: true`. The `adapters` and `span_format` fields are ignored.               |
+| Metrics           | Not supported.                                                                                                                 | Supported. See [Metrics](/observability/metrics).                                           |
+| Non-LLM API spans | No equivalent span.                                                                                                            | Emits a dedicated `api {name}` span for non-LLM API calls such as jailbreak detection.      |
+
+<Note>
+    The `tracing.adapters` and `tracing.span_format` configuration fields apply
+    only to LLMRails. IORails reads `tracing.enabled` and otherwise ignores
+    them. There is no adapter to select because spans are emitted straight to
+    the OpenTelemetry API.
+</Note>
+
+## LLMRails and IORails Attribute Differences
+
+The emitted attributes are the same across both engines except for the following.
+
+| Attribute                                                               | LLMRails | IORails | Reason                                                                                                                              |
+| ----------------------------------------------------------------------- | :------: | :-----: | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `gen_ai.usage.reasoning.output_tokens`                                  |    No    |   Yes   | IORails records reasoning tokens when the provider returns them.                                                                    |
+| `gen_ai.request.stream`                                                 |    No    |   Yes   | IORails marks streaming calls; LLMRails does not emit this attribute.                                                               |
+| `gen_ai.usage.total_tokens`                                             |   Yes    |   No    | This attribute was removed from the current GenAI spec. IORails does not emit it; LLMRails continues to for backward compatibility. |
+| `llm.cache.hit`                                                         |   Yes    |   No    | LLMRails has an LLM cache layer to report on. IORails does not.                                                                     |
+| `span.kind`                                                             |   Yes    |   No    | LLMRails sets a `span.kind` attribute mirroring the OpenTelemetry span kind; IORails relies on the native span kind only.           |
+| `action.has_llm_calls`, `action.llm_calls_count`, `action.param.{name}` |   Yes    |   No    | LLMRails sets these on the `guardrails.action` span; IORails sets only `action.name`.                                               |
+
+All other attributes, including the identifiers (`gen_ai.operation.name`, `gen_ai.request.model`, `gen_ai.provider.name`), `gen_ai.usage.input_tokens` / `output_tokens`, the `gen_ai.response.*` attributes, and the `gen_ai.request.*` sampling parameters, are emitted by both engines.
+`gen_ai.response.model` is emitted by both, but LLMRails always sets it while IORails sets it only when the provider returns it.
+
+## Capturing Message Content
+
+Prompt and completion content is gated and off by default, because it can contain sensitive data.
+Both engines gate it on `tracing.enable_content_capture` (default `false`).
+
+**LLMRails.** When enabled, LLMRails records the prompt and completion as span events on the LLM span (currently the `gen_ai.content.prompt` and `gen_ai.content.completion` events), along with conversation events.
+
+**IORails.** Enable with `tracing.enable_content_capture: true` or the `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` environment variable, which overrides the config value.
+When enabled, IORails records content on the request span (`guardrails.request.input` / `guardrails.request.output`), the rail spans (`guardrails.rail.input`, and `guardrails.rail.reason` on a block), and the LLM span.
+On the LLM span the format depends on the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable:
+
+- When it contains `gen_ai_latest_experimental`, content is written as the JSON span attributes `gen_ai.input.messages` and `gen_ai.output.messages`.
+- Otherwise, content is written as span events (`gen_ai.user.message`, `gen_ai.assistant.message`, `gen_ai.system.message`, and `gen_ai.choice`).
+
+The `OTEL_SEMCONV_STABILITY_OPT_IN` selector controls the IORails content format and is independent of the `tracing.span_format` field, which selects the LLMRails adapter format.
+
+## Public API Stability
+
+The span names and attribute names on this page are part of each engine's observable contract, so dashboards and queries can reference them.
+Attribute names follow the OpenTelemetry GenAI semantic conventions, which are still under active development and can change as the spec matures.
+Pin your `opentelemetry-sdk` version and review release notes before upgrading.
+
+## Related Resources
+
+- [Quick Start](/observability/tracing/quick-start): Minimal tracing setup with the OpenTelemetry SDK.
+- [OpenTelemetry](/observability/tracing/opentelemetry-integration): Production exporters and ecosystem compatibility.
+- [Metric Reference](/observability/metrics/reference): The metrics IORails emits, including the `gen_ai.client.token.usage` histogram.
+- [OpenTelemetry GenAI spans specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): Upstream semantic conventions for span names and attributes.

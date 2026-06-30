@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import os
-from unittest.mock import patch
+from importlib.metadata import version
+from unittest.mock import Mock, patch
 
 import pytest
+from aiohttp import ClientResponse
+from packaging.version import Version
 
 from tests.testing.embeddings import (
     DeterministicEmbeddingSearchProvider,
@@ -35,6 +39,28 @@ _REAL_EMBEDDING_ENV_VARS = (
     "LIVE_TEST_MODE",
     "TEST_LIVE_MODE",
 )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def patch_aioresponses_client_response():
+    from aioresponses import core
+
+    if "stream_writer" not in inspect.signature(ClientResponse).parameters:
+        yield
+        return
+
+    if Version(version("aioresponses")) > Version("0.7.9"):
+        pytest.fail(
+            "aioresponses has advanced beyond 0.7.9; verify aiohttp compatibility and remove patch_aioresponses_client_response."
+        )
+
+    class CompatibleClientResponse(ClientResponse):
+        def __init__(self, *args, **kwargs):
+            kwargs.setdefault("stream_writer", Mock(output_size=0))
+            super().__init__(*args, **kwargs)
+
+    with patch.object(core, "ClientResponse", CompatibleClientResponse):
+        yield
 
 
 @pytest.fixture(autouse=True)
