@@ -82,7 +82,9 @@ models:
 
 ### OpenAI Responses API
 
-To route an OpenAI model through the [Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) instead of Chat Completions, set `use_responses_api: true` in the model's `parameters` block:
+Use the [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) (`/v1/responses`) when an OpenAI model or option requires it. For example, some models, such as `gpt-5-pro`, require the Responses API, and recent OpenAI models support options such as `reasoning_effort` through the Responses API.
+
+The NVIDIA NeMo Guardrails library supports this option through the LangChain framework. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, install `langchain-openai`, and set `use_responses_api: true` in the model's `parameters` block:
 
 ```yaml
 models:
@@ -95,15 +97,15 @@ models:
 
 <Note>
 
-The Responses API is supported **only** under the LangChain framework. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-openai`. The default framework's built-in client only calls `/v1/chat/completions`; under it, `use_responses_api` is silently forwarded as an unknown request field and has no effect. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
+The built-in default framework does not support the Responses API. It calls `/v1/chat/completions` and forwards `use_responses_api` as an unknown request field, so the flag has no effect. For background, refer to [Migrating to 0.22](/reference/0-22#using-langchain).
 
 </Note>
 
-Some OpenAI models (e.g. `gpt-5-pro`) only support Responses API format, while some options such as setting a `reasoning_effort` are also supported only when using Responses API for most recent OpenAI models.
+Function tool calls work over the Responses API in streaming and non-streaming modes. The adapter surfaces function calls on `LLMResponse.tool_calls` and `LLMResponseChunk.delta_tool_calls`, and reports `finish_reason` as `tool_calls`.
 
-Function (custom) tool calls work over the Responses API in both streaming and non-streaming modes. Built-in/hosted Responses-API tools (`web_search`, `file_search`, `code_interpreter`, `computer_use`) are not surfaced as tool calls; only function-tool passthrough is supported.
+Built-in Responses API tools, such as `web_search`, `file_search`, `code_interpreter`, and `computer_use`, are not surfaced as tool calls. The API returns those tools as response output items, not function calls, so only function-tool passthrough is supported.
 
-Self-hosted servers that expose an OpenAI-compatible `/v1/responses` endpoint (for example, vLLM) work with the same flag plus a `base_url`. Models that use the [Harmony response format](https://github.com/openai/harmony), such as `gpt-oss` or `gpt-oss-safeguard` models should use the Responses API. This still requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`, since `use_responses_api` lives in the LangChain `ChatOpenAI` class:
+Self-hosted servers that expose an OpenAI-compatible `/v1/responses` endpoint, such as vLLM, work with the same flag plus `parameters.base_url`. Confirm that your server implements `/v1/responses` before you enable the flag. Models that use the [Harmony response format](https://github.com/openai/harmony), such as `gpt-oss` or `gpt-oss-safeguard`, should use the Responses API.
 
 ```yaml
 models:
