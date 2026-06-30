@@ -109,7 +109,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          uv run python - <<'PY'
+          uv run --no-project python - <<'PY'
           import os
           import re
           from pathlib import Path
