@@ -45,6 +45,8 @@ jobs:
           file: Dockerfile
           load: true
           tags: ${{ env.TEST_TAG }}
+          cache-from: type=gha,scope=nemoguardrails-test
+          cache-to: type=gha,mode=max,scope=nemoguardrails-test
 
       # Start the container in detached mode
       - name: Start container
