@@ -216,6 +216,23 @@ async def test_kb_cache_load_rejects_index_item_count_mismatch(tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
+async def test_kb_search_passes_explicit_threshold():
+    class RequiredThresholdIndex:
+        async def search(self, text, max_results, threshold):
+            assert text == "query"
+            assert max_results == 2
+            assert threshold is None
+            return [IndexItem(text="result", meta={"body": "match"})]
+
+    kb = KnowledgeBase([], KnowledgeBaseConfig(), lambda _: BasicEmbeddingsIndex())
+    kb.index = RequiredThresholdIndex()
+
+    result = await kb.search_relevant_chunks("query", max_results=2)
+
+    assert result == [{"body": "match"}]
+
+
+@pytest.mark.asyncio
 async def test_search_before_build_raises():
     idx = _make_index([[1.0, 0.0]], [1.0, 0.0])
     with pytest.raises(ValueError):

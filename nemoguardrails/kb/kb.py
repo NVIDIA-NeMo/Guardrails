@@ -166,7 +166,7 @@ class KnowledgeBase:
         if self.index is None:
             return []
 
-        results = await self.index.search(text, max_results=max_results)
+        results = await self.index.search(text, max_results=max_results, threshold=None)
 
         # Return the chunks directly
         return [result.meta for result in results]
