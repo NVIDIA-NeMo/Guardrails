@@ -33,7 +33,7 @@ defaults:
   run:
     shell: bash
 env:
-  POETRY_VERSION: 1.8.2
+  UV_VERSION: "0.11.17"
 
 jobs:
   tests:
@@ -56,42 +56,24 @@ jobs:
         id: runner-arch
         run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
 
-      - name: Bootstrap poetry (Linux and macOS)
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
-
-      - name: Update PATH (Linux and macOS)
-        if: runner.os != 'Windows'
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Update PATH for Windows
-        if: runner.os == 'Windows'
-        run: echo "$APPDATA\\Python\\Scripts" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Set up cache
-        uses: actions/cache@v5
-        id: cache
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
+          version: ${{ env.UV_VERSION }}
+          enable-caching: true
+          cache-dependency-glob: "uv.lock"
+          cache-suffix: ${{ inputs.python-version }}
 
-      - name: Ensure cache is healthy
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: timeout 10s poetry run pip --version || rm -rf .venv
-
-      - name: Check Poetry .lock
-        run: poetry check --lock
+      - name: Check lock file
+        run: uv lock --check
 
       - name: Install dependencies
         run: |
           if [ "${{ inputs.upgrade-deps}}" = "true" ]; then
-            poetry update
-            poetry install --all-extras --with dev
+            uv lock --upgrade
+            uv sync --all-extras --group dev
           else
-            poetry install --with dev
+            uv sync --group dev
           fi
 
       - name: Run pytest with coverage

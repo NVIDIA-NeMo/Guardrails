@@ -14,7 +14,7 @@ jobs:
   build-wheel:
     runs-on: ubuntu-latest
     env:
-      POETRY_VERSION: "1.8.2"
+      UV_VERSION: "0.11.17"
       PYTHON_VERSION: "3.11"
     outputs:
       artifact_name: ${{ steps.set-artifact-name.outputs.artifact_name }}
@@ -31,26 +31,12 @@ jobs:
         run: |
           echo "version=$(python -c 'import sys; print(\"-\".join(str(v) for v in sys.version_info[:3]))')" >> $GITHUB_OUTPUT
 
-      - name: Bootstrap poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
-
-      - name: Update PATH (Linux and macOS)
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Set up cache
-        uses: actions/cache@v5
-        id: cache
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Ensure cache is healthy
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: timeout 10s poetry run pip --version || rm -rf .venv
+          version: ${{ env.UV_VERSION }}
+          enable-caching: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Make build script executable
         run: chmod +x ./.github/scripts/build.sh
@@ -103,7 +89,6 @@ jobs:
       - name: Install Wheel
         run: |
           pip install --upgrade pip
-          pip install poetry==1.8.2
           WHEEL=$(ls nemoguardrails-*.whl)
           pip install "${WHEEL}[server]"
 

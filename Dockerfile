@@ -1,5 +1,5 @@
 
-# syntax=docker/dockerfile:experimental
+# syntax=docker/dockerfile:1
 
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
@@ -20,18 +20,23 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Set POETRY_VERSION environment variable
-ENV POETRY_VERSION=1.8.2
+COPY --from=ghcr.io/astral-sh/uv:0.11.17 /uv /uvx /bin/
 
-# Install Poetry
-RUN pip install --no-cache-dir poetry==$POETRY_VERSION
+ENV UV_COMPILE_BYTECODE=1
+# Use copy mode so the BuildKit cache mount below works across the mount boundary
+ENV UV_LINK_MODE=copy
 
-# Copy project files
 WORKDIR /nemoguardrails
-COPY pyproject.toml poetry.lock /nemoguardrails/
-# Copy the rest of the project files
+# Install deps first (cached layer — only invalidated when pyproject.toml/uv.lock change).
+# The cache mount persists uv's download/build cache across image builds.
+COPY pyproject.toml uv.lock /nemoguardrails/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --all-extras --no-dev --locked --no-install-project
+# Copy source and install the project itself
 COPY . /nemoguardrails
-RUN poetry config virtualenvs.create false && poetry install --all-extras --no-interaction --no-ansi
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --all-extras --no-dev --locked
+ENV PATH="/nemoguardrails/.venv/bin:$PATH"
 
 
 # Make port 8000 available to the world outside this container
@@ -49,5 +54,5 @@ RUN python -c "from fastembed.embedding import FlagEmbedding; FlagEmbedding('sen
 
 RUN nemoguardrails --help
 
-ENTRYPOINT ["poetry", "run", "nemoguardrails"]
+ENTRYPOINT ["nemoguardrails"]
 CMD ["server", "--verbose", "--config=/config"]

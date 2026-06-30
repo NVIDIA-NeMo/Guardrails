@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  POETRY_VERSION: 1.8.2
+  UV_VERSION: "0.11.17"
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -32,27 +32,15 @@ jobs:
         id: runner-arch
         run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
 
-      - name: Bootstrap poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Set up cache
-        uses: actions/cache@v5
-        id: cache
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Ensure cache is healthy
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: timeout 10s poetry run pip --version || rm -rf .venv
+          version: ${{ env.UV_VERSION }}
+          enable-caching: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: poetry install --with dev
+        run: uv sync --group dev
 
       - name: Run pre-commit hooks
-        run: poetry run make pre-commit
+        run: uv run make pre-commit

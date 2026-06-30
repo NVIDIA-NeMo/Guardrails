@@ -12,7 +12,7 @@ WORKERS ?= auto
 # worksteal dynamically rebalances queued tests; override DIST when debugging or grouping matters.
 DIST ?= worksteal
 
-PYTEST ?= poetry run pytest
+PYTEST ?= uv run pytest
 RECORDED_TESTS ?= tests/recorded
 RECORDED_RECORD_MODE ?= once
 RECORDED_SNAPSHOT_MODE ?= create
@@ -40,7 +40,7 @@ test-benchmark:
 	$(PYTEST) $(ARGS) benchmark/tests
 
 test-watch:
-	poetry run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
+	uv run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
 
 test-coverage:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) --cov=nemoguardrails --cov-report=xml:coverage.xml $(ARGS) $(TEST)
@@ -76,7 +76,7 @@ check-record-test-env:
 	fi
 
 warm-fastembed-cache:
-	$(FASTEMBED_ENV) poetry run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
+	$(FASTEMBED_ENV) uv run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
 docs-fern: docs-fern-strict
 
@@ -103,8 +103,8 @@ docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
 pre-commit:
-	poetry run pre-commit install
-	poetry run pre-commit run --all-files
+	uv run pre-commit install
+	uv run pre-commit run --all-files
 
 help:
 	@printf '%s\n' \

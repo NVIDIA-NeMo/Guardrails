@@ -26,7 +26,7 @@ __pycache__
 venv*
 env*
 /releases/*
-/poetry.toml
+/uv.toml
 
 # Unit test / coverage reports
 .coverage

@@ -12,7 +12,7 @@ on:
     paths:
       - "Dockerfile"
       - "pyproject.toml"
-      - "poetry.lock"
+      - "uv.lock"
       - ".github/workflows/test-docker.yml"
 
 jobs:
