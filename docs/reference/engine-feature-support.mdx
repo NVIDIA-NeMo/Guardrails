@@ -40,7 +40,8 @@ rails = LLMRails(config)
 It runs the built-in NeMoGuard safety models (content safety, topic control, and jailbreak detection) and tool validation directly against the model endpoints, with parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
 It does not run the Colang dialog runtime, retrieval, custom actions, or accept a custom LLM, and it accepts Colang 1.0 configurations only.
 
-`IORails` requires a `start()` and `stop()` lifecycle for non-streaming generation.
+`IORails` has a `start()` / `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
+Both `generate_async()` and `stream_async()` call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to pre-warm the clients and `stop()` at shutdown to release them.
 When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
 
 ### Choosing an engine
