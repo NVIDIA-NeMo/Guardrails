@@ -55,9 +55,11 @@ from nemoguardrails.server.schemas.utils import (
 )
 
 try:
-    from chainlit.utils import mount_chainlit
+    from chainlit.utils import mount_chainlit as _mount_chainlit
 except ImportError:
-    mount_chainlit = None
+    mount_chainlit: Optional[Callable[..., Any]] = None
+else:
+    mount_chainlit = _mount_chainlit
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)

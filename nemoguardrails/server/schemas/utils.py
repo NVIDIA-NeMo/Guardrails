@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import httpx
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_message_custom_tool_call import ChatCompletionMessageCustomToolCall
+from openai.types.chat.chat_completion_message_function_tool_call import ChatCompletionMessageFunctionToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
     Function,
@@ -209,9 +211,9 @@ def _generate_fallback_tool_call_id(tc: dict) -> str:
 
 def normalize_tool_calls_openai(
     tool_calls: List[dict],
-) -> List[ChatCompletionMessageToolCall]:
+) -> List[Union[ChatCompletionMessageFunctionToolCall, ChatCompletionMessageCustomToolCall]]:
     """Convert internal tool call dicts to OpenAI function tool call objects."""
-    openai_tool_calls: List[ChatCompletionMessageToolCall] = []
+    openai_tool_calls: List[Union[ChatCompletionMessageFunctionToolCall, ChatCompletionMessageCustomToolCall]] = []
     for tc in tool_calls:
         name, arguments_str = _parse_tool_call_name_and_arguments(tc)
         openai_tool_calls.append(
@@ -250,7 +252,7 @@ def build_chat_completion_message(
     return ChatCompletionMessage(
         role="assistant",
         content=content,
-        tool_calls=openai_tool_calls,  # pyright: ignore[reportArgumentType]
+        tool_calls=openai_tool_calls,
     )
 
 
