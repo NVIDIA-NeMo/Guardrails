@@ -18,6 +18,10 @@ include = [
   "nemoguardrails/**/*.json",
   "nemoguardrails/**/*.lark",
 ]
+exclude = [
+  "nemoguardrails/AGENTS.md",
+  "nemoguardrails/CLAUDE.md",
+]
 
 classifiers = [
   "Development Status :: 4 - Beta",
