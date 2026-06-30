@@ -120,7 +120,7 @@ class LLMGenerationActions:
 
         el = elements[1]
         if isinstance(el, SpecOp):
-            spec_op: SpecOp = cast(SpecOp, el)
+            spec_op: SpecOp = el
 
             if spec_op.op == "match":
                 # The SpecOp.spec type is Union[Spec, dict]. Convert Dict to Spec if it's provided
@@ -170,7 +170,7 @@ class LLMGenerationActions:
         if not isinstance(el, SpecOp):
             return
 
-        spec_op: SpecOp = cast(SpecOp, el)
+        spec_op: SpecOp = el
         spec: Dict[str, Any] = (
             asdict(spec_op.spec)  # TODO! Refactor this function as it's duplicated in many places
             if isinstance(spec_op.spec, Spec)
@@ -1286,7 +1286,9 @@ class LLMGenerationActions:
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value))
 
                 gen_options: Optional[GenerationOptions] = generation_options_var.get()
-                llm_params = (gen_options and gen_options.llm_params) or {}
+                llm_params = (
+                    gen_options.llm_params if gen_options is not None and gen_options.llm_params is not None else {}
+                )
                 additional_params = {
                     **llm_params,
                     "temperature": self.config.lowest_temperature,

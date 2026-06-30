@@ -21,12 +21,28 @@ import logging
 import os
 from importlib.machinery import ModuleSpec
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Tuple, Type, TypeAlias, Union, cast
 
 from nemoguardrails import utils
 from nemoguardrails.exceptions import LLMCallException
 
 log = logging.getLogger(__name__)
+
+
+class AsyncInvokableAction(Protocol):
+    def ainvoke(self, *args: Any, **kwargs: Any) -> Awaitable[Any]: ...
+
+
+class RunnableAction(Protocol):
+    def run(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+RegisteredAction: TypeAlias = Union[
+    Callable[..., Any],
+    Type[Any],
+    AsyncInvokableAction,
+    RunnableAction,
+]
 
 
 class ActionDispatcher:
@@ -48,7 +64,7 @@ class ActionDispatcher:
         """
         log.info("Initializing action dispatcher")
 
-        self._registered_actions: Dict[str, Any] = {}
+        self._registered_actions: Dict[str, RegisteredAction] = {}
 
         if load_all_actions:
             # TODO: check for better way to find actions dir path or use constants.py
@@ -117,17 +133,19 @@ class ActionDispatcher:
         if os.path.exists(actions_py_path):
             self._registered_actions.update(self._load_actions_from_module(actions_py_path))
 
-    def register_action(self, action: Callable, name: Optional[str] = None, override: bool = True):
+    def register_action(self, action: RegisteredAction, name: Optional[str] = None, override: bool = True):
         """Registers an action with the given name.
 
         Args:
-            action (Callable): The action function.
+            action (RegisteredAction): The action function or runnable object.
             name (Optional[str]): The name of the action. Defaults to None.
             override (bool): If an action already exists, whether it should be overridden or not.
         """
         if name is None:
             action_meta = getattr(action, "action_meta", None)
-            action_name = action_meta["name"] if action_meta else action.__name__
+            action_name = action_meta["name"] if action_meta else getattr(action, "__name__", None)
+            if not isinstance(action_name, str) or not action_name:
+                raise ValueError("An explicit name is required for actions without __name__.")
         else:
             action_name = name
 
@@ -165,7 +183,7 @@ class ActionDispatcher:
         name = self._normalize_action_name(name)
         return name in self.registered_actions
 
-    def get_action(self, name: str) -> Optional[Callable]:
+    def get_action(self, name: str) -> Optional[RegisteredAction]:
         """Get the registered action by name.
 
         Args:
@@ -194,11 +212,11 @@ class ActionDispatcher:
 
         if action_name in self._registered_actions:
             log.info("Executing registered action: %s", action_name)
-            maybe_fn: Optional[Callable] = self._registered_actions.get(action_name, None)
+            maybe_fn: Optional[RegisteredAction] = self._registered_actions.get(action_name, None)
             if not maybe_fn:
                 raise Exception(f"Action '{action_name}' is not registered.")
 
-            fn = cast(Callable, maybe_fn)
+            fn: Any = maybe_fn
             # Actions that are registered as classes are initialized lazy, when
             # they are first used.
             if inspect.isclass(fn):
@@ -216,10 +234,11 @@ class ActionDispatcher:
                         else:
                             log.warning(f"Synchronous action `{action_name}` has been called.")
 
-                    elif hasattr(fn, "ainvoke") and callable(fn.ainvoke):  # type: ignore[union-attr]
+                    elif callable(ainvoke := getattr(fn, "ainvoke", None)):
                         # Duck-type check for LangChain Runnables (or any object
                         # with ainvoke) to avoid importing langchain in core.
-                        result = await fn.ainvoke(input=params)  # type: ignore[union-attr]
+                        async_invoke = cast(Callable[..., Awaitable[Any]], ainvoke)
+                        result = await async_invoke(input=params)
                     else:
                         # TODO: there should be a common base class here
                         fn_run_func = getattr(fn, "run", None)

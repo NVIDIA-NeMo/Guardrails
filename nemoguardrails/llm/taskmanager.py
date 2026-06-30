@@ -375,7 +375,9 @@ class LLMTaskManager:
 
     def register_filter(self, filter_fn: Callable, name: Optional[str] = None):
         """Register a custom filter for the rails configuration."""
-        name = name or filter_fn.__name__
+        name = name or getattr(filter_fn, "__name__", None)
+        if not isinstance(name, str) or not name:
+            raise ValueError("An explicit name is required for filters without __name__.")
         self.env.filters[name] = filter_fn
 
     def register_output_parser(self, output_parser: Callable, name: str):
