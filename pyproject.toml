@@ -176,6 +176,20 @@ exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
 ]
 
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+  "aioredis",
+  "cohere",
+  "google.genai",
+]
+
+[[tool.ty.overrides]]
+include = ["nemoguardrails/actions/v2_x/generation.py"]
+
+[tool.ty.overrides.rules]
+invalid-method-override = "ignore"
+
+
 [tool.pytest.ini_options]
 addopts = "-p no:warnings"
 log-level = "DEBUG"
