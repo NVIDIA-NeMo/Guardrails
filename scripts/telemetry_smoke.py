@@ -82,6 +82,7 @@ import argparse
 import json
 import os
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -1366,7 +1367,8 @@ def main() -> int:
     print(f"manifest: {manifest_path}")
     print(f"kibana filter: {kibana_filter}")
     print(
-        f"offline verify: uv run python scripts/kibana_verify_export.py --manifest {manifest_path} --export kibana.json"
+        f"offline verify: uv run python scripts/kibana_verify_export.py "
+        f"--manifest {shlex.quote(str(manifest_path))} --export kibana.json"
     )
 
     return 0 if all(result["verdict"] == "PASS" for result in results) else 1
