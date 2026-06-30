@@ -336,11 +336,11 @@ class LLMTaskManager:
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 
-    def parse_task_output(self, task: Task, output: str, forced_output_parser: Optional[str] = None) -> str:
+    def parse_task_output(self, task: Union[str, Task], output: str, forced_output_parser: Optional[str] = None) -> str:
         """Parses the output of a task using the configured output parser.
 
         Args:
-            task (Task): The task for which the output is being parsed.
+            task (Union[str, Task]): The task for which the output is being parsed.
             output (str): The output string to be parsed.
             forced_output_parser (Optional[str]): An optional parser name to force
 
