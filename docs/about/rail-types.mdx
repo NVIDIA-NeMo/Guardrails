@@ -16,9 +16,13 @@ content:
     type: "concept"
 ---
 
-The NeMo Guardrails library applies guardrails at multiple stages of the LLM interaction. Input rails apply guardrails before the LLM is called by validating and sanitizing user inputs. Retrieval rails filter and validate retrieved knowledge (documents and chunks) to ensure only trusted context is provided to the LLM. Dialog rails steer and constrain the multi‑turn conversation, enforcing flow logic and policies across turns. Execution rails control and validate tool/function calls, their arguments, and results to safely interact with external systems. Output rails evaluate and post‑process model responses, filtering, editing, or blocking unsafe or off‑policy content before it reaches users.
+The NVIDIA NeMo Guardrails library applies guardrails at multiple stages of an LLM interaction. A rail type identifies where a guardrail runs in the request lifecycle, such as before the LLM call, during retrieval, across a conversation, around tool or function execution, or after the model generates a response.
 
-Input and Output rails are the most common.
+Use rail types to decide which part of your LLM application to protect. Input and output rails are the most common, and retrieval, dialog, and execution rails help when your application uses retrieved context, multi-turn flows, or external systems.
+
+## How Rail Types Fit the Request Lifecycle
+
+The following table summarizes where each rail type runs and which use cases it commonly supports.
 
 | Stage            | Rail Type       | Common Use Cases                                                |
 | ---------------- | --------------- | --------------------------------------------------------------- |
@@ -28,11 +32,15 @@ Input and Output rails are the most common.
 | **Tool calls**   | Execution rails | Action input/output validation                                  |
 | **After LLM**    | Output rails    | Response filtering, fact checking, sensitive data removal       |
 
-![Programmable Guardrails Flow](../_static/images/programmable_guardrails_flow.png "Programmable Guardrails Flow")
+Input rails apply guardrails before the LLM is called by validating and sanitizing user inputs. Retrieval rails filter and validate retrieved knowledge, such as documents and chunks, to ensure only trusted context is provided to the LLM. Dialog rails steer and constrain the multi-turn conversation by enforcing flow logic and policies across turns. Execution rails control and validate tool or function calls, their arguments, and results to safely interact with external systems. Output rails evaluate and post-process model responses by filtering, editing, or blocking unsafe or off-policy content before it reaches users.
+
+The following diagram shows how rail stages fit into a programmable guardrails flow:
+
+![Guardrails request flow showing input, retrieval, dialog, execution, and output rails around LLM, knowledge base, and custom action stages](../_static/images/programmable_guardrails_flow.png "Programmable Guardrails Flow")
 
 ## Use Cases and Applicable Rails
 
-The following table summarizes which rail types apply to each use case.
+Use the following table to match a protection goal to the rail types that commonly apply.
 
 | Use Case                 | Input | Retrieval | Dialog | Execution | Output |
 | ------------------------ | :---: | :-------: | :----: | :-------: | :----: |
@@ -43,3 +51,13 @@ The following table summarizes which rail types apply to each use case.
 | **Knowledge Base / RAG** |       |    ✅     |        |           |   ✅   |
 | **Agentic Security**     |       |           |        |    ✅     |        |
 | **Custom Rails**         |  ✅   |    ✅     |   ✅   |    ✅     |   ✅   |
+
+## Related Topics
+
+Use the following pages to configure rails, browse pre-built guardrails, and understand how rail stages fit into the broader request flow.
+
+- [Architecture Overview](/about-nemo-guardrails-library/how-it-works)
+- [Guardrails Configuration](/configure-guardrails/yaml-schema/guardrails-configuration)
+- [YAML Schema Reference](/configure-guardrails/configuration-reference)
+- [Guardrail Catalog](/configure-guardrails/guardrail-catalog)
+- [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling)

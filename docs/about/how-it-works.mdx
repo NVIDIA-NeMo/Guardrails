@@ -16,9 +16,11 @@ Use this page to understand the guardrails process at a high level. For deeper e
 
 ## High-Level Architecture Diagram
 
-The following diagram shows how guardrails intervene in the application's request flow.
+The following diagram shows a user request moving from your application into the guardrails runtime. The runtime evaluates the request with configured rails, calls LLMs, retrieval systems, custom actions, or guardrail services when needed, and returns the approved response or configured safe alternative.
 
-![Programmable Guardrails Flow](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
+![User request flows from an application into the guardrails runtime, where configured rails can call LLMs, retrieval systems, custom actions, and guardrail services before returning a response.](../_static/images/programmable_guardrails.png "Programmable Guardrails Flow")
+
+The diagram highlights the library boundary: your application sends messages through one guardrailed interface, and the NVIDIA NeMo Guardrails library coordinates the configured checks and external calls behind that interface. This model lets you add or change rails without moving orchestration logic into the application.
 
 ## Functional Layers
 
@@ -31,15 +33,17 @@ The NVIDIA NeMo Guardrails library separates application integration, policy con
 | **Runtime orchestration**    | Loads the configuration, processes events, executes rails, calls actions, and coordinates LLM requests.      |
 | **External systems**         | Provide LLM inference, retrieval content, moderation services, tool calls, or other custom validation logic. |
 
-## Request Flow
+## Data Flow
 
-When an application sends a user message, the NVIDIA NeMo Guardrails library evaluates the message in the configured order:
+When an application sends a user message, the NVIDIA NeMo Guardrails library evaluates the message in the configured order. The request flow can include the following rail types:
 
 1. **Input rails** inspect the user message before the application LLM is called. These rails can allow, alter, or reject the message.
 2. **Retrieval rails** run when the configuration uses a knowledge base or retrieved context. These rails can filter or transform retrieved chunks before they enter the prompt.
 3. **Dialog rails** use Colang flows and runtime events to guide the conversation, choose the next step, or decide whether the bot should respond or execute an action.
 4. **Execution rails** validate and control custom actions or tools, including their inputs and outputs.
 5. **Output rails** inspect the generated response before it returns to the user. These rails can allow, edit, or block the response.
+
+The configured rails determine which steps run for a request. For example, retrieval rails run when the configuration uses a knowledge base or retrieved context, and execution rails run when the workflow calls custom actions or tools.
 
 For more information about where each rail type runs, refer to [Guardrail Types](/about-nemo-guardrails-library/rail-types).
 

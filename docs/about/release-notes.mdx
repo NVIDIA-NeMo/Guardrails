@@ -9,8 +9,7 @@ content:
     type: "reference"
 ---
 
-The following sections summarize and highlight the changes for each release.
-For a complete record of changes in a release, refer to the
+This page summarizes the latest documented release for the NVIDIA NeMo Guardrails library. For a complete record of changes in a release, refer to the
 [CHANGELOG.md](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
 ---
@@ -18,8 +17,15 @@ For a complete record of changes in a release, refer to the
 <a id="v0-22-0"></a>
 ## 0.22.0
 
+Version 0.22.0 focuses on the default OpenAI-compatible framework, optional
+LangChain integration, `IORails` streaming and observability updates, and
+migration guidance for existing configurations. Review the breaking change
+before you upgrade configurations that use `IORails` directly.
+
 <a id="v0-22-0-features"></a>
-### Key Features
+### Highlights
+
+This release contains the following key changes:
 
 - LangChain is now optional. `pip install nemoguardrails` no longer pulls
   LangChain or any provider-specific `langchain-*` packages. The NVIDIA NeMo
@@ -77,13 +83,20 @@ For a complete record of changes in a release, refer to the
 <a id="v0-22-0-breaking-changes"></a>
 ### Breaking Changes
 
+Review this change before you upgrade configurations that instantiate
+`Guardrails` directly or enable the `IORails` engine with an environment
+variable.
+
 - Moved `AsyncWorkQueue` from the top-level `Guardrails` object to
   `IORails`. This removes buffering for non-streaming `LLMRails` requests when
-  you use the top-level `Guardrails` object. This change only affects existing implementations that
-  set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` or instantiate `Guardrails` directly.
+  you use the top-level `Guardrails` object. This change only affects existing
+  implementations that set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` or instantiate
+  `Guardrails` directly.
 
 <a id="v0-22-0-enhancements"></a>
 ### Enhancements
+
+This release also includes developer-facing integration and testing updates.
 
 - The GLiNER PII connector documentation and notebook are updated for the new
   GLiNER PII NIM. The examples cover both remote and local deployment modes
@@ -104,7 +117,9 @@ For a complete record of changes in a release, refer to the
   guardrails configuration without calling a real model.
 
 <a id="v0-22-0-doc-and-behavior-fixes"></a>
-### Documentation and Behavior Fixes
+### Documentation and Bug Fixes
+
+This release includes the following documentation and bug fixes.
 
 - Fixed the example query and expected output in the Guardrails Agent
   Middleware integration guide so the example matches the configured blocked
@@ -119,7 +134,10 @@ For a complete record of changes in a release, refer to the
 
 ---
 
-## Previous Releases
+<a id="previous-releases"></a>
+## Release Notes for Previous Versions
+
+Use the following links to review documentation for previous versions.
 
 - [0.21.0](https://archive.docs.nvidia.com/nemo/guardrails/0.21.0/index.html)
 - [0.20.0](https://archive.docs.nvidia.com/nemo/guardrails/0.20.0/index.html)

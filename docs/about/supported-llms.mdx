@@ -9,17 +9,34 @@ content:
   type: "reference"
 ---
 
-The NVIDIA NeMo Guardrails library supports a wide range of LLM providers and models, including base, instruct-tuned, and reasoning models. You can serve these models locally on the same machine as the library or at a remote network endpoint. This flexible approach supports applications from edge deployments on resource-constrained devices to horizontally scalable backend clusters.
+The NVIDIA NeMo Guardrails library supports a wide range of LLM providers and models, including base, instruct-tuned, and reasoning models. Use this page as a compatibility and configuration lookup when you need to choose an LLM engine, inference framework, LangChain wrapper, or embedding provider.
+
+This page lists provider paths and support qualifiers that appear in the configuration tables. It does not replace provider-specific setup docs or guarantee that every model behind a provider supports every capability.
 
 ## LLM Types
 
-Integrating the library improves the safety and security of an application LLM, which generates responses to the end user. The library can also use the same application LLM to run guardrails, which simplifies deployments and reduces onboarding friction. Two examples are self-check rails and dialog rails. Self-check rails use the application LLM to decide whether a user request or LLM response is safe. Dialog rails use the application LLM to guide the user through a predefined conversational flow.
+Integrating the NVIDIA NeMo Guardrails library improves the safety and security of an application LLM, which generates responses to the end user. It can also use the same application LLM to run guardrails, which simplifies deployments and reduces onboarding friction. Two examples are self-check rails and dialog rails. Self-check rails use the application LLM to decide whether a user request or LLM response is safe. Dialog rails use the application LLM to guide the user through a predefined conversational flow.
 
-The library can also call models for a specific guardrail on behalf of the client. Guardrail-specific models let you use smaller fine-tuned models that specialize in the guardrails task. For example, the NVIDIA NemoGuard collection of models includes [content-safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3), [topic-control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [jailbreak-detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) models. You can access these models on [build.nvidia.com](https://build.nvidia.com/) for rapid prototyping or on [NGC Catalog](https://catalog.ngc.nvidia.com/) for deployment with NIM Docker containers.
+The NVIDIA NeMo Guardrails library can also call models for a specific guardrail on behalf of the client. Guardrail-specific models let you use smaller fine-tuned models that specialize in the guardrails task. For example, the NVIDIA NemoGuard collection of models includes [content-safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3), [topic-control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [jailbreak-detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) models. You can access these models on [build.nvidia.com](https://build.nvidia.com/) for rapid prototyping or on [NGC Catalog](https://catalog.ngc.nvidia.com/) for deployment with NIM Docker containers.
+
+## Support Status Terms
+
+Use these terms to interpret the provider tables:
+
+| Term | Meaning |
+| --- | --- |
+| `yes` | The capability is supported for that engine or provider path, subject to the notes in the row. |
+| `yes (where supported)` | The capability is available when the backing model or endpoint exposes it. |
+| `varies` | Support depends on the deployed endpoint, model, or wrapper behavior. |
+| `wrapper-dependent` | Support depends on the LangChain wrapper for that provider. |
+| `n/a` | The capability does not apply to that engine or provider path. |
+| `Built-in` | The engine uses the NVIDIA NeMo Guardrails library framework without a LangChain dependency. |
+| `LangChain (opt-in)` | The engine requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the matching LangChain provider package. |
+| `legacy` | The engine remains available through the LangChain path, but the notes identify the preferred configuration path for new OpenAI-compatible deployments. |
 
 ## Inference Providers
 
-Each engine is served by a framework that manages the underlying HTTP or SDK calls. The library ships with a built-in framework that talks to OpenAI-compatible endpoints over `httpx` with no LangChain dependency. For engines whose API is not OpenAI-compatible, opt into the LangChain framework by setting `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and installing the matching `langchain-<provider>` package. To add a custom framework, implement the `LLMFramework` protocol from `nemoguardrails.types`.
+Each engine is served by a framework that manages the underlying HTTP or SDK calls. The NVIDIA NeMo Guardrails library ships with a built-in framework that talks to OpenAI-compatible endpoints over `httpx` with no LangChain dependency. For engines whose API is not OpenAI-compatible, opt into the LangChain framework by setting `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and installing the matching `langchain-<provider>` package. To add a custom framework, implement the `LLMFramework` protocol from `nemoguardrails.types`.
 
 ```{raw} html
 <button type="button" class="table-expand-button" data-table-title="Inference Providers">
@@ -44,15 +61,13 @@ Each engine is served by a framework that manages the underlying HTTP or SDK cal
 | `vllm_openai`, `deepseek` | LangChain (opt-in) | yes | yes | yes | Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
 | `<provider_name>` | LangChain (opt-in) | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
 
-For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](/reference/0-22).
-
 ## LangChain-Backed Providers
 
-The library supports LLM providers from the LangChain Community, including text completion and chat completion providers. Refer to [Chat model integrations](https://python.langchain.com/docs/integrations/chat/) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](/reference/cli#find-providers-command) CLI command to discover available providers.
+The NVIDIA NeMo Guardrails library supports LLM providers from the LangChain Community, including text completion and chat completion providers. Use the LangChain documentation and the `nemoguardrails find-providers` CLI command in Next Steps to discover available providers.
 
 ## Embedding Model Providers
 
-The library uses embedding models for vector similarity search in dialog rails, `embeddings_only` intent matching, and knowledge base retrieval. The following table lists the supported embedding model providers and their corresponding engine names.
+The NVIDIA NeMo Guardrails library uses embedding models for vector similarity search in dialog rails, `embeddings_only` intent matching, and knowledge base retrieval. The following table lists the supported embedding model providers and their corresponding engine names.
 
 | Provider | Engine | Notes |
 | --- | --- | --- |
@@ -65,4 +80,9 @@ The library uses embedding models for vector similarity search in dialog rails, 
 | SentenceTransformers | `sentence_transformers` | SentenceTransformers embedding model provider |
 | Google | `google` | Google embedding model provider |
 
-For more information about configuring embedding providers, refer to [Embedding Search Providers](/configure-guardrails/other-configurations/embedding-search-providers).
+## Next Steps
+
+- For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](/reference/0-22).
+- To browse LangChain-backed LLM wrappers, see [Chat model integrations](https://python.langchain.com/docs/integrations/chat/) in the LangChain documentation.
+- To discover available providers from your environment, use the [`nemoguardrails find-providers`](/reference/cli#find-providers-command) CLI command.
+- To configure embedding providers, see [Embedding Search Providers](/configure-guardrails/other-configurations/embedding-search-providers).
