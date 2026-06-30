@@ -46,11 +46,11 @@ class OpenAIEmbeddingModel(EmbeddingModel):
         **kwargs,
     ):
         try:
-            import openai  # type: ignore
-            from openai import OpenAI  # type: ignore
+            import openai
+            from openai import OpenAI
         except ImportError:
             raise ImportError("Could not import openai, please install it with `pip install openai`.")
-        if openai.__version__ < "1.0.0":  # type: ignore
+        if openai.__version__ < "1.0.0":
             raise RuntimeError(
                 "`openai<1.0.0` is no longer supported. Please upgrade using `pip install openai>=1.0.0`."
             )
