@@ -96,22 +96,16 @@ jobs:
         run: |
           echo "Waiting for server to start..."
           for i in {1..30}; do
-            if curl --output /dev/null --silent --head --fail http://localhost:8000; then
+            RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs || true)
+            if [ "$RESPONSE_CODE" = "200" ]; then
               echo "Server is up!"
-              break
-            else
-              echo "Waiting..."
-              sleep 1
+              exit 0
             fi
+            echo "Waiting..."
+            sleep 1
           done
-
-      - name: Check server status
-        run: |
-          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
-          if [ "$RESPONSE_CODE" -ne 200 ]; then
-            echo "Server responded with code $RESPONSE_CODE."
-            exit 1
-          fi
+          echo "Server failed to start."
+          exit 1
 
       - name: Stop server
         if: ${{ success() }}
