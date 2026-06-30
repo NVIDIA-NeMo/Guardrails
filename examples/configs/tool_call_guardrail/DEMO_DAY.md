@@ -30,9 +30,9 @@ Pre-generate the JSON the dashboard would replay (if you show the web app later)
 
 **Title:** *Agentic guardrails: authorize the action, not the text.*
 
-**Say:** "Today's guardrails mostly filter the words going into and out of a model. But an agent does damage through the *actions* it takes — the tools it calls. This is a guardrail that sits between an agent's *decision* to call a tool and the tool's *execution*, and authorizes the `(tool, arguments, principal)` triple first. Everything you're about to see is real, working code — the tools are deliberately mocked so I can show you a metadata-exfil attack without actually running one."
+**Say:** "Today's guardrails mostly filter the words going into and out of a model. But an agent does damage through the *actions* it takes — the tools it calls. This is a guardrail that sits between an agent's *decision* to call a tool and the tool's *execution*, and authorizes the `(tool, arguments, principal)` triple first. And the hard part isn't writing the first rule — it's keeping the rules current as attackers get more creative. Hold onto that question, because it's where this ends up. Everything you're about to see is real, working code — the tools are deliberately mocked so I can show you a metadata-exfil attack without actually running one."
 
-*(That last sentence is the credibility pre-empt. Land it early.)*
+*(Two jobs for the open: plant "who keeps the rules current?" — the close pays it off with the scanner-agent ask — and land the credibility pre-empt (real code, mocked tools) early.)*
 
 ---
 
@@ -80,7 +80,9 @@ Pre-generate the JSON the dashboard would replay (if you show the web app later)
 
 **Say:** "Two ideas. One: guard the action, not just the text. Two: keep the policy current from the field, with a human in the loop — and when a technique outgrows per-call rules, add a layer rather than pretend the old one covers it. It's NeMo Guardrails-native today, with the authorization core deliberately portable so it can become a runtime-agnostic library."
 
-**Ask / next step:** *(fill in your actual ask — e.g., "I'm looking for one design partner team running agents in prod to pressure-test the policy surface.")*
+**Ask / next step:** "My ask: I'd like to bring this into the Guardrails team's toolkit — a scanner agent that continuously reads the AI-safety literature and *proposes* edits to guardrail configs that protect other agents when they call tools, with a human approving every rule. If that's a direction the team wants, I'd love to build it with you."
+
+> *Delivery note:* lead into it from Act 3 — "you just watched that pipeline propose human-approved rules; that's the agent I want to bring to the team." The strength of this ask is **propose**, not edit: emphasize the human gate so it reads as augmenting the team, not automating them out of the loop.
 
 ---
 
