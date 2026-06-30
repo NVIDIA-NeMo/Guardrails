@@ -64,7 +64,7 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
 ## Alternative Installation Methods
 
-Install the NeMo Guardrails library from source using pip or Poetry. Choose this method if you want to contribute to the library or use the latest development version.
+Install the NeMo Guardrails library from source using pip or uv. Choose this method if you want to contribute to the library or use the latest development version.
 
 <Tabs>
 
@@ -80,20 +80,18 @@ pip install -e .
 
 </Tab>
 
-<Tab title="Poetry">
+<Tab title="uv">
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
 cd nemoguardrails
-python -m venv .venv
-source .venv/bin/activate
-poetry install
+uv sync
 ```
 
-When using Poetry, prefix CLI commands with `poetry run`:
+When using uv, prefix CLI commands with `uv run`:
 
 ```bash
-poetry run nemoguardrails server --config examples/configs
+uv run nemoguardrails server --config examples/configs
 ```
 
 </Tab>

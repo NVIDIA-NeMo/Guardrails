@@ -34,8 +34,8 @@ skill discovery.
 - Do not add license headers manually. Pre-commit handles license insertion.
 - Do not add comments unless explicitly requested; keep existing comments,
   docstrings, and license headers unless your change makes them inaccurate.
-- Use Poetry for Python commands: `poetry run python ...`,
-  `poetry run pytest ...`, `poetry run pre-commit ...`.
+- Use uv for Python commands: `uv run python ...`,
+  `uv run pytest ...`, `uv run pre-commit ...`.
 
 ## Repository Map
 
@@ -49,18 +49,18 @@ skill discovery.
 - Install development dependencies:
 
   ```bash
-  poetry install --with dev
+  uv sync --group dev
   ```
 
 - Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
   `fern/fern.config.json` and invoked through `npx`; no separate Python docs
   dependency group is required.
 
-- Do not add dependencies to `pyproject.toml` or update `poetry.lock` unless the
+- Do not add dependencies to `pyproject.toml` or update `uv.lock` unless the
   task requires it. For temporary local investigation, use:
 
   ```bash
-  poetry run pip install <package-name>
+  uv pip install <package-name>
   ```
 
 - When a dependency change is required, keep it in the narrowest appropriate
@@ -79,15 +79,15 @@ as tox and package coverage.
 | Focused test | `make test TEST=path/to/test_file.py::test_name` (extra flags via `ARGS="-k ... -q"`) |
 | Serial, deterministic run | `make test WORKERS=1` (no parallelism, still unsets live keys) |
 | Coverage | `make test-coverage` |
-| Pre-commit hooks | `poetry run pre-commit run --all-files` |
+| Pre-commit hooks | `uv run pre-commit run --all-files` |
 | Docs check | `make docs-fern` |
-| Ruff diagnosis | `poetry run ruff check path/to/file.py` |
-| Ruff formatting diagnosis | `poetry run ruff format path/to/file.py` |
-| Pyright diagnosis | `poetry run pyright` |
+| Ruff diagnosis | `uv run ruff check path/to/file.py` |
+| Ruff formatting diagnosis | `uv run ruff format path/to/file.py` |
+| Pyright diagnosis | `uv run pyright` |
 
 | Change type | Minimum validation |
 | --- | --- |
-| Docs or repository metadata only | `poetry run pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
+| Docs or repository metadata only | `uv run pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
 | Runtime bug fix | Focused regression test plus pre-commit on changed files; broaden when shared behavior is touched |
 | Public API, config, or Colang behavior | Focused tests plus related docs/examples; add broader package tests when compatibility risk is meaningful |
 | Server, streaming, tracing, actions, or generation | Targeted tests for the changed path and fallback/unsupported path |
@@ -104,7 +104,7 @@ as tox and package coverage.
 - Diagnose isolation flakiness by comparing `make test` with `make test
   WORKERS=1` (same env-safety, no parallelism); `serial`/`slow` markers in
   `pytest.ini` are advisory and not enforced by the parallel runner.
-- `make test-serial` and bare `poetry run pytest` do NOT unset live-provider
+- `make test-serial` and bare `uv run pytest` do NOT unset live-provider
   keys; prefer `make test` / `make test WORKERS=1` so unit tests cannot reach
   live services.
 

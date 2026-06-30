@@ -43,17 +43,17 @@ def optional_import(
         return importlib.import_module(module_name)
     except ImportError as e:
         if error == "raise":
-            extra_msg = f" Install with: poetry install -E {extra}" if extra else ""
+            extra_msg = f" Install with: uv sync --extra {extra}" if extra else ""
             msg = (
                 f"Missing optional dependency '{package_name}'. "
-                f"Use pip install {package_name} or poetry add {package_name}.{extra_msg}"
+                f"Use pip install {package_name} or uv add {package_name}.{extra_msg}"
             )
             raise ImportError(msg) from e
         elif error == "warn":
-            extra_msg = f" Install with: poetry install -E {extra}" if extra else ""
+            extra_msg = f" Install with: uv sync --extra {extra}" if extra else ""
             msg = (
                 f"Missing optional dependency '{package_name}'. "
-                f"Use pip install {package_name} or poetry add {package_name}.{extra_msg}"
+                f"Use pip install {package_name} or uv add {package_name}.{extra_msg}"
             )
             warnings.warn(msg, ImportWarning, stacklevel=2)
         return None
@@ -106,10 +106,10 @@ def import_optional_dependency(
         module = importlib.import_module(name)
     except ImportError:
         if errors == "raise":
-            extra_msg = f" Install it via poetry install -E {extra}" if extra else ""
+            extra_msg = f" Install it via uv sync --extra {extra}" if extra else ""
             raise ImportError(f"Missing optional dependency '{install_name}'.{extra_msg}")
         elif errors == "warn":
-            extra_msg = f" Install it via poetry install -E {extra}" if extra else ""
+            extra_msg = f" Install it via uv sync --extra {extra}" if extra else ""
             warnings.warn(
                 f"Missing optional dependency '{install_name}'.{extra_msg} Functionality will be limited.",
                 ImportWarning,
