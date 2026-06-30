@@ -155,6 +155,13 @@ dev = [
 [tool.uv]
 package = true
 
+# Flat layout: the importable package is ./nemoguardrails (not under ./src).
+# uv_build ships everything under the module dir (Python plus the .co/.lark/.yml
+# data files). The build helper stages the top-level examples under the module.
+[tool.uv.build-backend]
+module-root = ""
+module-name = "nemoguardrails"
+
 # Directories in which to run Pyright type-checking
 [tool.pyright]
 include = [
@@ -200,5 +207,5 @@ repository = "https://github.com/NVIDIA-NeMo/Guardrails"
 
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.11.17,<0.12.0"]
+build-backend = "uv_build"
