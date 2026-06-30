@@ -898,7 +898,7 @@ class LLMRails(BaseGuardrails):
 
         return explain_info
 
-    def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
+    def _validate_public_state(self, state: Optional[Union[Dict[str, Any], State]]) -> None:
         """Validate public dict state passed through generate/generate_async."""
         if not isinstance(state, dict) or not state:
             return
@@ -913,7 +913,7 @@ class LLMRails(BaseGuardrails):
                     "Invalid Colang 1.0 state format: state must contain an 'events' key. "
                     "Use an empty dict {} to start a new conversation."
                 )
-            if not isinstance(state["events"], list):
+            if not isinstance(state.get("events"), list):
                 raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
@@ -929,7 +929,7 @@ class LLMRails(BaseGuardrails):
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
-        state: Optional[Union[dict, State]] = None,
+        state: Optional[Union[Dict[str, Any], State]] = None,
         streaming_handler: Optional[StreamingHandler] = None,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate a completion or a next message.
@@ -1032,7 +1032,8 @@ class LLMRails(BaseGuardrails):
             and gen_options.rails.dialog is False
         ):
             # We already have the first message with a context update, so we use that
-            messages[0]["content"]["bot_message"] = messages[-1]["content"]
+            context_message = cast(Dict[str, Any], messages[0]["content"])
+            context_message["bot_message"] = messages[-1]["content"]
             messages = messages[0:-1]
 
         # TODO: Add support to load back history of events, next to history of messages
@@ -1053,7 +1054,7 @@ class LLMRails(BaseGuardrails):
             state_events = []
             if state:
                 assert isinstance(state, dict)
-                state_events = state["events"]
+                state_events = cast(Dict[str, Any], state)["events"]
 
             new_events = []
             # Compute the new events.
@@ -1071,7 +1072,7 @@ class LLMRails(BaseGuardrails):
                     error_payload: str = json.dumps(error_dict)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
-                    await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                    await streaming_handler.push_chunk(END_OF_STREAM)
                 # Re-raise the exact exception
                 raise
         else:
@@ -1180,7 +1181,7 @@ class LLMRails(BaseGuardrails):
         streaming_handler = streaming_handler_var.get()
         if streaming_handler:
             # print("Closing the stream handler explicitly")
-            await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+            await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs
         original_log_options = None
@@ -1209,8 +1210,9 @@ class LLMRails(BaseGuardrails):
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.
-            if prompt:
-                res = GenerationResponse(response=new_message["content"])
+            message_content = new_message["content"]
+            if prompt and isinstance(message_content, str):
+                res = GenerationResponse(response=message_content)
             else:
                 res = GenerationResponse(response=[new_message])
 
@@ -1338,9 +1340,10 @@ class LLMRails(BaseGuardrails):
         else:
             # If a prompt is used, we only return the content of the message.
 
-            if reasoning_content:
+            message_content = new_message["content"]
+            if reasoning_content and isinstance(message_content, str):
                 thinking_trace = f"<think>{reasoning_content}</think>\n"
-                new_message["content"] = thinking_trace + new_message["content"]
+                new_message["content"] = thinking_trace + message_content
 
             if prompt:
                 return new_message["content"]
@@ -1441,7 +1444,7 @@ class LLMRails(BaseGuardrails):
                 error_dict = extract_error_json(error_message)
                 error_payload = json.dumps(error_dict)
                 await streaming_handler.push_chunk(error_payload)
-                await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                await streaming_handler.push_chunk(END_OF_STREAM)
 
         task = asyncio.create_task(_generation_task())
 
