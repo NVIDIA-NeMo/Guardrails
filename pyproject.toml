@@ -102,7 +102,7 @@ all = [
 
 [dependency-groups]
 lint = ["ruff==0.14.6"]
-typing = ["pyright>=1.1.405,<2.0.0"]
+typing = ["ty==0.0.56"]
 test = [
   "pytest>=7.2.2,<9.0.0",
   "pytest-asyncio>=0.21.0,<1.0.0",
@@ -158,8 +158,8 @@ source-exclude = [
   "/nemoguardrails/CLAUDE.md",
 ]
 
-# Directories in which to run Pyright type-checking
-[tool.pyright]
+# Directories in which to run ty type-checking
+[tool.ty.src]
 include = [
   "nemoguardrails/rails/**",
   "nemoguardrails/actions/**",

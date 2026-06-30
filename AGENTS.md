@@ -79,15 +79,15 @@ as tox and package coverage.
 | Focused test | `make test TEST=path/to/test_file.py::test_name` (extra flags via `ARGS="-k ... -q"`) |
 | Serial, deterministic run | `make test WORKERS=1` (no parallelism, still unsets live keys) |
 | Coverage | `make test-coverage` |
-| Pre-commit hooks | `uv run pre-commit run --all-files` |
+| Pre-commit hooks | `make pre-commit` |
 | Docs check | `make docs-fern` |
 | Ruff diagnosis | `uv run ruff check path/to/file.py` |
 | Ruff formatting diagnosis | `uv run ruff format path/to/file.py` |
-| Pyright diagnosis | `uv run pyright` |
+| ty diagnosis | `uv run --locked --group=dev ty check` |
 
 | Change type | Minimum validation |
 | --- | --- |
-| Docs or repository metadata only | `uv run pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
+| Docs or repository metadata only | `uv run --locked --group=dev pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
 | Runtime bug fix | Focused regression test plus pre-commit on changed files; broaden when shared behavior is touched |
 | Public API, config, or Colang behavior | Focused tests plus related docs/examples; add broader package tests when compatibility risk is meaningful |
 | Server, streaming, tracing, actions, or generation | Targeted tests for the changed path and fallback/unsupported path |

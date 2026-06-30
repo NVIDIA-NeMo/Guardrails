@@ -33,4 +33,4 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Run pre-commit hooks
-        run: uv run make pre-commit
+        run: make pre-commit
