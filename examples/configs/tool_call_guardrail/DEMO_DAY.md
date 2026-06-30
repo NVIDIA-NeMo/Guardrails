@@ -13,13 +13,15 @@
 | Beat | Command | ~time |
 | --- | --- | --- |
 | Open (slide) | — | 0:30 |
-| Act 1 — the gap | `python demo_epg.py --act 1 --pause` (or let the full run land here) | 0:45 |
+| Act 1 — the gap | starts here (Enter advances) | 0:45 |
 | Act 2 — the guardrail | continues on Enter | 1:00 |
 | Act 3 — keeping it current | continues on Enter | 1:15 |
 | Act 4 — the next layer | continues on Enter | 1:00 |
 | Close (slide) | — | 0:30 |
 
 Total ≈ 5 min. For a 3-min slot, cut Act 3's before/after detail and the Act 2 ground-truth proof (keep the 7/7 tally line).
+
+On stage it's a single `python demo_epg.py --pause` run — press Enter to advance between acts. The per-act `--act N` commands are only for rehearsing one act in isolation.
 
 Pre-generate the JSON the dashboard would replay (if you show the web app later):
 `python demo_epg.py --emit-trace trace.json`
@@ -32,7 +34,7 @@ Pre-generate the JSON the dashboard would replay (if you show the web app later)
 
 **Say:** "Today's guardrails mostly filter the words going into and out of a model. But an agent does damage through the *actions* it takes — the tools it calls. This is a guardrail that sits between an agent's *decision* to call a tool and the tool's *execution*, and authorizes the `(tool, arguments, principal)` triple first. And the hard part isn't writing the first rule — it's keeping the rules current as attackers get more creative. Hold onto that question, because it's where this ends up. Everything you're about to see is real, working code — the tools are deliberately mocked so I can show you a metadata-exfil attack without actually running one."
 
-*(Two jobs for the open: plant "who keeps the rules current?" — the close pays it off with the scanner-agent ask — and land the credibility pre-empt (real code, mocked tools) early.)*
+*(Two jobs for the open: plant "who keeps the rules current?" — the close pays it off with the open contribution flywheel (anyone mines the literature, contributes guardrails back) — and land the credibility pre-empt (real code, mocked tools) early.)*
 
 ---
 
@@ -78,11 +80,11 @@ Pre-generate the JSON the dashboard would replay (if you show the web app later)
 
 ## Closing slide
 
-**Say:** "Two ideas. One: guard the action, not just the text. Two: keep the policy current from the field, with a human in the loop — and when a technique outgrows per-call rules, add a layer rather than pretend the old one covers it. It's NeMo Guardrails-native today, with the authorization core deliberately portable so it can become a runtime-agnostic library."
+**Say:** "Two ideas. One: guard the action, not just the text. Two: keep the policy current from the field, with a human in the loop — and when a technique outgrows per-call rules, add a layer rather than pretend the old one covers it."
 
-**Ask / next step:** "My ask: I'd like to bring this into the Guardrails team's toolkit — a scanner agent that continuously reads the AI-safety literature and *proposes* edits to guardrail configs that protect other agents when they call tools, with a human approving every rule. If that's a direction the team wants, I'd love to build it with you."
+**Ask / next step:** "My ask: this shouldn't live on my branch. It's an open example in the Guardrails repo — anyone can point it at the latest AI-safety research, have it generate guardrails for the attacks it recognizes, and open a PR to harden the shared example for everyone. Every rule is human-reviewed twice: once at the tool's approval gate, once at PR review. The flywheel I want is simple — the field's newest attacks become everyone's defaults. Try it on your own agents — and when it surfaces something, open an issue or a PR against the example. Want a hand landing your first one? Grab me after."
 
-> *Delivery note:* lead into it from Act 3 — "you just watched that pipeline propose human-approved rules; that's the agent I want to bring to the team." The strength of this ask is **propose**, not edit: emphasize the human gate so it reads as augmenting the team, not automating them out of the loop.
+> *Delivery note:* lead into it from Act 3 — "you just watched that pipeline propose human-approved rules; this is the same loop, open to anyone." The strength of this ask is **open + human-reviewed**: it's a community flywheel, not your inbox. Route findings to the *repo* (issue/PR), and offer yourself as the on-ramp — the guide, not the gatekeeper.
 
 ---
 
@@ -93,6 +95,7 @@ Pre-generate the JSON the dashboard would replay (if you show the web app later)
 - **"Does the scanner auto-update the live policy?"** — No, by design. Nothing applies without a human flipping `approved`, and a finding can only ever instantiate a *pre-vetted* rule factory.
 - **"How does this relate to sandboxing / NemoClaw?"** — Complementary. This is *prevention* (the action never runs); a sandbox is *containment* (the action runs, isolated). Different layers; you'd want both.
 - **"LLM in the loop?"** — The production scanner uses an LLM extractor to read prose; this demo uses a deterministic keyword extractor so it runs offline. The guardrail itself needs no model.
+- **"Is this locked to NeMo Guardrails?"** — It's Guardrails-native today, and the authorization core has no Guardrails dependency by design, so it can generalize later. Guardrails is where it should prove out first — and as an open example, anyone can extend it there.
 
 ---
 
