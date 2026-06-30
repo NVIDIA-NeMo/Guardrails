@@ -1,15 +1,14 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-title: "Tracing Configuration for NeMo Guardrails"
+title: "Tracing Configuration for the NVIDIA NeMo Guardrails Library"
 sidebar-title: "Tracing"
 description: "Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails."
 content:
-  type: "reference"
+    type: "reference"
 ---
 
-<a id="tracing-configuration"></a>
-# Tracing Configuration
+<a id="tracing-configuration"></a># Tracing Configuration
 
 This section describes how to configure tracing and monitoring in the `config.yml` file.
 
@@ -24,20 +23,20 @@ Configure tracing in `config.yml`:
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: FileSystem
-      filepath: "./logs/traces.jsonl"
+    enabled: true
+    adapters:
+        - name: FileSystem
+          filepath: "./logs/traces.jsonl"
 ```
 
 ## Configuration Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `enabled` | Enable or disable tracing | `false` |
-| `adapters` | List of tracing adapters | `[]` |
-| `span_format` | Span structure for LLMRails tracing path: `opentelemetry` (recommended) or `legacy` (deprecated) | `opentelemetry` |
-| `enable_content_capture` | Capture prompt and response content on spans. May include PII. See [Content Capture](/observability/tracing/content-capture) | `false` |
+| Option                   | Description                                                                                                                  | Default         |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `enabled`                | Enable or disable tracing                                                                                                    | `false`         |
+| `adapters`               | List of tracing adapters                                                                                                     | `[]`            |
+| `span_format`            | Span structure for LLMRails tracing path: `opentelemetry` (recommended) or `legacy` (deprecated)                             | `opentelemetry` |
+| `enable_content_capture` | Capture prompt and response content on spans. May include PII. See [Content Capture](/observability/tracing/content-capture) | `false`         |
 
 ## Content Capture
 
@@ -46,12 +45,12 @@ Set `enable_content_capture: true` to additionally record message content on spa
 
 ```yaml
 tracing:
-  enabled: true
-  enable_content_capture: true  # caution: may capture PII; see privacy considerations
+    enabled: true
+    enable_content_capture: true # caution: may capture PII; see privacy considerations
 ```
 
-This captures user inputs and model outputs, which may include sensitive information (PII).
-The behavior, environment-variable overrides, and output format differ between the IORails and LLMRails engines.
+Content capture records user inputs and model outputs, which can include sensitive information (PII).
+The behavior, environment variable overrides, and output format differ between the IORails and LLMRails engines.
 See [Content Capture](/observability/tracing/content-capture) for the full contract.
 
 ## Tracing Adapters
@@ -62,14 +61,14 @@ Log traces to local JSON files (recommended for development):
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: FileSystem
-      filepath: "./logs/traces.jsonl"
+    enabled: true
+    adapters:
+        - name: FileSystem
+          filepath: "./logs/traces.jsonl"
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option     | Description                   |
+| ---------- | ----------------------------- |
 | `filepath` | Path to the trace output file |
 
 ### OpenTelemetry Adapter
@@ -78,9 +77,9 @@ Integrate with observability platforms (recommended for production):
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: OpenTelemetry
+    enabled: true
+    adapters:
+        - name: OpenTelemetry
 ```
 
 <Info>
@@ -93,15 +92,15 @@ To use OpenTelemetry tracing, install the tracing dependencies:
 <Note>
 
 OpenTelemetry integration requires configuring the OpenTelemetry SDK in your application code.
-NeMo Guardrails follows OpenTelemetry best practices where libraries use only the API and applications configure the SDK.
+The NeMo Guardrails library follows OpenTelemetry best practices where libraries use only the API and applications configure the SDK.
 
 </Note>
 
 ## Adapter Comparison
 
-| Adapter | Use Case | Configuration |
-|---------|----------|---------------|
-| FileSystem | Development, debugging, simple logging | `filepath: "./logs/traces.jsonl"` |
+| Adapter       | Use Case                                              | Configuration                                |
+| ------------- | ----------------------------------------------------- | -------------------------------------------- |
+| FileSystem    | Development, debugging, simple logging                | `filepath: "./logs/traces.jsonl"`            |
 | OpenTelemetry | Production, monitoring platforms, distributed systems | Requires application-level SDK configuration |
 
 ## Multiple Adapters
@@ -110,25 +109,25 @@ Configure multiple adapters simultaneously:
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: FileSystem
-      filepath: "./logs/traces.jsonl"
-    - name: OpenTelemetry
+    enabled: true
+    adapters:
+        - name: FileSystem
+          filepath: "./logs/traces.jsonl"
+        - name: OpenTelemetry
 ```
 
 ## Trace Information
 
 Traces capture the following information:
 
-| Data | Description |
-|------|-------------|
-| **Rail Activation** | Which rails get triggered during the conversation |
-| **LLM Calls** | LLM invocations, prompts, and responses |
-| **Flow Execution** | Colang flow execution paths and timing |
-| **Actions** | Custom action invocations and results |
-| **Errors** | Error conditions and debugging information |
-| **Timing** | Duration of each operation |
+| Data                | Description                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| **Rail Activation** | Which rails get triggered during the conversation                                                   |
+| **LLM Calls**       | LLM invocations, parameters, token usage, and prompts and responses when content capture is enabled |
+| **Flow Execution**  | Colang flow execution paths and timing                                                              |
+| **Actions**         | Custom action invocations and results                                                               |
+| **Errors**          | Error conditions and debugging information                                                          |
+| **Timing**          | Duration of each operation                                                                          |
 
 ## Example Configurations
 
@@ -136,32 +135,32 @@ Traces capture the following information:
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: FileSystem
-      filepath: "./logs/traces.jsonl"
+    enabled: true
+    adapters:
+        - name: FileSystem
+          filepath: "./logs/traces.jsonl"
 ```
 
 ### Production Configuration
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    - name: OpenTelemetry
+    enabled: true
+    adapters:
+        - name: OpenTelemetry
 ```
 
 ### Comprehensive Configuration
 
 ```yaml
 tracing:
-  enabled: true
-  adapters:
-    # Local logs for debugging
-    - name: FileSystem
-      filepath: "./logs/traces.jsonl"
-    # Export to observability platform
-    - name: OpenTelemetry
+    enabled: true
+    adapters:
+        # Local logs for debugging
+        - name: FileSystem
+          filepath: "./logs/traces.jsonl"
+        # Export to observability platform
+        - name: OpenTelemetry
 ```
 
 ## OpenTelemetry Setup

@@ -5,13 +5,12 @@ title: "Tracing Guardrails"
 sidebar-title: "Tracing"
 description: "Enable distributed tracing with OpenTelemetry to monitor guardrails execution and LLM calls."
 content:
-  type: "how_to"
+    type: "how_to"
 ---
 
-<a id="tracing"></a>
-# Tracing Guardrails
+<a id="tracing"></a># Tracing Guardrails
 
-Tracing enhances the observability of guardrails execution. This section explains the configuration process for implementing tracing with the NeMo Guardrails library.
+Tracing enhances the observability of guardrails execution. This section explains how to configure tracing with the NVIDIA NeMo Guardrails library.
 
 With tracing, you can:
 
@@ -22,7 +21,7 @@ With tracing, you can:
 
 ## Span Formats
 
-Starting with the NeMo Guardrails library v0.16.0, the tracing system has transitioned to OpenTelemetry semantic conventions for Generative AI (GenAI), moving away from the legacy span format. This change enhances observability standardization and improves monitoring capabilities for AI workloads.
+Starting with v0.16.0, the NeMo Guardrails library uses OpenTelemetry semantic conventions for Generative AI (GenAI) instead of the legacy span format. This change standardizes observability and improves monitoring for AI workloads.
 
 **Reference Documentation:**
 
@@ -43,9 +42,9 @@ You can control the span format through the tracing configuration:
 
 ```yaml
 tracing:
-  enabled: true
-  span_format: "opentelemetry"  # default
-  enable_content_capture: false  # default, see privacy considerations below
+    enabled: true
+    span_format: "opentelemetry" # default
+    enable_content_capture: false # default, see privacy considerations below
 ```
 
 ### Key Differences
@@ -71,7 +70,7 @@ The following are the key differences between the supported span formats.
 **Development Status**: The [OpenTelemetry semantic conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) are currently in development and may undergo changes. Consider the following risks:
 
 - **Evolving Standards**: Conventions may change as they mature, potentially affecting existing implementations
-- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [Content Capture](/observability/tracing/content-capture) for the full contract and the [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
+- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which can include sensitive information (PII). Only enable it when necessary, and ensure compliance with data protection regulations. See [Content Capture](/observability/tracing/content-capture) for the full contract and the [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
 - **Performance Impact**: Extensive telemetry collection may impact system performance, especially with large inputs/outputs
 
 ### Migration Path
