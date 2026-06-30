@@ -164,6 +164,10 @@ package = true
 [tool.uv.build-backend]
 module-root = ""
 module-name = "nemoguardrails"
+source-exclude = [
+  "/nemoguardrails/AGENTS.md",
+  "/nemoguardrails/CLAUDE.md",
+]
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]
