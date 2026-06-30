@@ -316,10 +316,10 @@ _INCOMPLETE_REASON_MAP: Dict[str, FinishReason] = {
 }
 
 # Terminal finish reasons under which accumulated streaming tool-call fragments
-# should be finalized. Chat completions ends a tool-call turn with "tool_calls";
-# the Responses API ends it with status "completed" (-> "stop"); "length" covers
-# a tool call truncated by the token limit.
-_TOOL_CALL_TERMINAL_REASONS: frozenset = frozenset({"tool_calls", "stop", "length"})
+# should be finalized as a *complete* tool call. Chat completions ends a clean
+# tool-call turn with "tool_calls"; the Responses API ends it with status
+# "completed" (-> "stop").
+_TOOL_CALL_TERMINAL_REASONS: frozenset = frozenset({"tool_calls", "stop"})
 
 
 def _finish_reason_from_status(response_metadata: Dict[str, Any]) -> Optional[FinishReason]:

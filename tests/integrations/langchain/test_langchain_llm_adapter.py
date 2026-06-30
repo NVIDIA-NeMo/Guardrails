@@ -218,6 +218,34 @@ class TestLangChainLLMAdapter:
         assert terminal.delta_tool_calls[0].function.arguments == {"q": "weather"}
 
     @pytest.mark.asyncio
+    async def test_stream_truncated_tool_call_preserves_length_finish_reason(self):
+        # A tool call cut off by the token limit ends with finish_reason "length"
+        # and incomplete JSON args. It must NOT be relabeled "tool_calls" (which
+        # would mask the truncation behind an empty-args call). finish_reason stays
+        # "length" and no tool calls are surfaced.
+        chunks = [
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{"name": "search", "args": '{"q": "wea', "id": "tc_1", "index": 0}],
+            ),
+            AIMessageChunk(content="", response_metadata={"finish_reason": "length"}),
+        ]
+
+        async def mock_astream(*args, **kwargs):
+            for c in chunks:
+                yield c
+
+        mock_llm = MagicMock()
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        results = [chunk async for chunk in adapter.stream_async("find weather")]
+
+        terminal = results[-1]
+        assert terminal.finish_reason == "length"
+        assert terminal.delta_tool_calls is None
+
+    @pytest.mark.asyncio
     async def test_generate_passes_kwargs_via_bind(self):
         mock_llm = MagicMock()
         bound_llm = AsyncMock()
