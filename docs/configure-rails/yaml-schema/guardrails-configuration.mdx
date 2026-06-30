@@ -206,31 +206,32 @@ You can configure input and output rails to run in parallel. This can improve la
 
 ### IORails Engine
 
-The IORails engine is an optimized execution engine that runs NemoGuard input and output rails in
-parallel with dedicated model management. The IORails engine is an opt-in feature. By default, the
-NeMo Guardrails library uses the LLMRails engine.
+The IORails engine is an optimized execution engine for supported input, output, and tool rails.
+It runs supported NeMoGuard safety flows with dedicated model management, parallel rail execution, admission control, metrics, and optional speculative generation.
 
 <Note>
-    IORails is an early-release feature and currently does not support
-    streaming, reasoning models, and telemetry as in LLMRails.
+    This section covers `config.yml` settings that affect IORails and shared
+    rail parallelism. For a complete comparison of `LLMRails` and `IORails`
+    capabilities, see [Engine Feature Support](/reference/engine-feature-support).
 </Note>
 
 #### Supported Flows
 
-The IORails engine supports the following flows:
+In `config.yml`, the IORails engine supports the following built-in safety flows:
 
 - `content safety check input` / `content safety check output`
 - `topic safety check input`
 - `jailbreak detection model`
 
-When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
+When IORails is enabled and the configuration uses only supported flows, the engine runs them in parallel.
 Configurations that include custom flows, dialog rails, or other unsupported flows
-silently fall back to the LLMRails engine and emit a warning. Pass `require_iorails=True`
+fall back to the LLMRails engine and emit a warning. Pass `require_iorails=True`
 to `Guardrails(...)` to raise a `ValueError` at initialization instead.
 
 #### Enabling IORails
 
-To enable the IORails engine, set the `NEMO_GUARDRAILS_IORAILS_ENGINE` environment variable to `1`:
+To enable the IORails engine for command-line workflows that instantiate `LLMRails`, set the
+`NEMO_GUARDRAILS_IORAILS_ENGINE` environment variable to `1`:
 
 ```bash
 NEMO_GUARDRAILS_IORAILS_ENGINE=1 nemoguardrails chat --config examples/configs/content_safety

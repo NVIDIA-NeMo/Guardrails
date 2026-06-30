@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Engine Feature Support"
 sidebar-title: "Engine Feature Support"
-description: "Compare which NeMo Guardrails features are supported by the LLMRails and IORails engines."
+description: "Compare feature support between the LLMRails and IORails engines in the NVIDIA NeMo Guardrails library."
 keywords: ["llmrails", "iorails", "guardrails engines", "feature support", "engine comparison"]
 content:
   type: "reference"
@@ -12,12 +12,12 @@ content:
 The NVIDIA NeMo Guardrails library supports two engines: `LLMRails` and `IORails`.
 This page explains what each engine is optimized for, how to select one, and which features each engine supports.
 
-## The LLMRails and IORails engines
+## The LLMRails and IORails Engines
 
-Both engines use the same `RailsConfig` object to configure their operation interchangeably.
+Both engines read the same `RailsConfig` object, but they support different feature sets.
 
-LLMRails is designed for flexibility, supporting all rail-types with Colang 1 and 2 to allow users to define custom dialog flows.
-IORails is optimized for low-latency input, output, and tool rails.
+LLMRails is designed for flexibility, and it supports all rail types with Colang 1.0 and 2.x so that you can define custom dialog flows.
+IORails is optimized for low-latency input, output, and tool rails, and the `Guardrails` facade can select it automatically when the configuration uses supported flows.
 
 ### LLMRails
 
@@ -40,11 +40,11 @@ rails = LLMRails(config)
 It runs the built-in NeMoGuard safety models (content safety, topic control, and jailbreak detection) and tool validation directly against the model endpoints, with parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
 It does not run the Colang dialog runtime, retrieval, custom actions, or accept a custom LLM, and it accepts Colang 1.0 configurations only.
 
-`IORails` has a `start()` / `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
-Both `generate_async()` and `stream_async()` call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to pre-warm the clients and `stop()` at shutdown to release them.
+`IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
+Both `generate_async()` and `stream_async()` call `start()` automatically (it is idempotent), so a bare `IORails` does not need a manual `start()` before use; call `start()` at service startup to warm the clients and `stop()` at shutdown to release them.
 When you use the `Guardrails` facade described below, that lifecycle is managed for you through `startup()` and `shutdown()` (or by using `Guardrails` as an async context manager).
 
-### Choosing an engine
+### Choosing an Engine
 
 The recommended entry point is the `Guardrails` facade, which routes a configuration to the appropriate engine automatically.
 
@@ -72,13 +72,13 @@ rails = Guardrails(config, require_iorails=True)
 Otherwise the facade falls back to `LLMRails` and logs the reason.
 You can inspect that decision directly with `IORails.unsupported_reason(config, llm)`, which returns the human-readable fallback reason, or `None` when `IORails` can handle the config.
 
-## Feature support
+## Feature Support
 
 Each section below covers one capability area, with a support table followed by a comparison of the two engines.
 
 Legend: ✓ supported · ✗ not supported · ◐ partial (see notes).
 
-### Rail types
+### Rail Types
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -97,7 +97,7 @@ Execution rails govern those custom actions; validating the model's own tool cal
 Input rails run before the model call and output rails run after it, using a fixed set of built-in flows.
 Dialog, retrieval, and execution rails are not available on `IORails`; configurations that use them fall back to `LLMRails`.
 
-### Colang language support
+### Colang Language Support
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -109,7 +109,7 @@ Dialog, retrieval, and execution rails are not available on `IORails`; configura
 `IORails` accepts Colang 1.0 configurations only and runs no dialog flows.
 A Colang 2.x configuration is a fallback condition: `Guardrails` routes it to `LLMRails`.
 
-### Built-in NeMoGuard safety rails
+### Built-In NeMoGuard Safety Rails
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -124,7 +124,7 @@ On `LLMRails` these run as Colang flows and can be placed on input or output as 
 On input it supports content safety, topic control, and jailbreak detection; on output it supports content safety only.
 A topic-control or jailbreak flow on the output rail is a fallback condition.
 
-### Tool calling
+### Tool Calling
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -138,7 +138,7 @@ Both engines support passing model tool calls through to the caller and validati
 `IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
 
-### Generation and validation API
+### Generation and Validation API
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -167,12 +167,13 @@ The event-based API, `check` and `check_async`, and `explain()` are not availabl
 | Parallel streaming output rails | ✓ | ✗ | LLMRails streaming-buffer feature |
 
 Both engines stream responses through `stream_async` and support streaming output rails.
-Both can include usage and metadata; on `IORails`, pass `include_metadata=True` to receive `{"text": ..., "metadata": ...}` chunks instead of plain strings.
+Both can include streaming metadata; on `IORails`, pass `include_metadata=True` to receive dictionary-framed chunks such as `{"text": ...}` instead of plain strings.
+`IORails` does not add a separate `metadata` field to each streamed text chunk.
 
 Parallel streaming output rails, where the output rail validates streamed chunks using the streaming buffer, is an `LLMRails` feature.
 `IORails` runs output rails over the streamed response but does not use the parallel streaming-buffer path, and speculative generation falls back to sequential execution while streaming.
 
-### Parallelism and concurrency
+### Parallelism and Concurrency
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -180,13 +181,15 @@ Parallel streaming output rails, where the output rail validates streamed chunks
 | Speculative generation | ✗ | ✓ | Input rails race generation; non-streaming only |
 | Admission control and concurrency limits | ✗ | ✓ | `AsyncWorkQueue` plus a streaming semaphore |
 
-Both engines run multiple rails on the same direction concurrently when `rails.input.parallel` or `rails.output.parallel` is set; the first rail to block short-circuits the result.
+Both engines run multiple rails in the same direction concurrently when `rails.input.parallel` or `rails.output.parallel` is set; the first rail to block short-circuits the result.
+For YAML examples, see [Parallel Execution of Input and Output Rails](/configure-guardrails/yaml-schema/guardrails-configuration#parallel-execution-of-input-and-output-rails).
 
 `IORails` adds two concurrency capabilities that `LLMRails` does not provide.
 Speculative generation (`rails.input.speculative_generation`) runs input rails concurrently with model generation and discards the generation if an input rail blocks, reducing latency on the safe path; it applies to non-streaming generation only.
+For a configuration example, see [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation).
 Admission control through an `AsyncWorkQueue` (and a separate semaphore for streaming) bounds the number of in-flight requests and rejects work when the queue is full.
 
-### Reasoning-model support
+### Reasoning-Model Support
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -224,7 +227,7 @@ Both engines support OpenTelemetry tracing and content capture on spans, and bot
 OpenTelemetry token and duration metrics (for example, `gen_ai.client.token.usage` and `gen_ai.client.operation.duration`) are an `IORails` capability, and those metrics can be exported to Prometheus through an OpenTelemetry metrics exporter.
 For more information, see the [Observability](/observability) documentation.
 
-### LLM frameworks and providers
+### LLM Frameworks and Providers
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -237,7 +240,7 @@ Both engines use the default OpenAI-compatible framework to call models defined 
 The LangChain integration is opt-in and available on `LLMRails`.
 Passing a custom `llm` to the constructor, including a LangChain model, forces `LLMRails`, because `IORails` resolves its models from the configuration rather than from an injected LLM and does not support `update_llm`.
 
-### Knowledge base and embeddings
+### Knowledge Base and Embeddings
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -247,7 +250,7 @@ The knowledge base, embedding providers, and custom embedding or embedding-searc
 
 `IORails` does not initialize a knowledge base or embeddings; configurations that rely on retrieval route to `LLMRails`.
 
-### Community and third-party rail catalog
+### Community and Third-Party Rail Catalog
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -257,7 +260,7 @@ The community and third-party integrations in the [Guardrail Catalog](/configure
 
 `IORails` ships only the built-in NeMoGuard safety models and tool validation, so catalog integrations route to `LLMRails`.
 
-### Server and deployment
+### Server and Deployment
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
@@ -269,7 +272,7 @@ Server-side threads and multi-config serving are provided through that server.
 
 `IORails` is consumed through the in-process `Guardrails` Python API rather than the bundled server.
 
-### Configuration and operations
+### Configuration and Operations
 
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
