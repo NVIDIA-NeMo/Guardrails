@@ -931,18 +931,23 @@ def get_and_clear_tool_calls_contextvar() -> Optional[list]:
 
 
 def extract_tool_calls_from_events(events: list) -> Optional[list]:
-    """Extract tool_calls from BotToolCalls events.
+    """Extract tool_calls from runtime events.
 
-    Args:
-        events: List of events to search through
-
-    Returns:
-        tool_calls if found in BotToolCalls event, None otherwise
+    ``StartToolCallBotAction`` carries the tool calls that passed tool-output
+    rails and should be returned to the caller. ``BotToolCalls`` is used as a
+    fallback for paths that do not emit the post-rail action event.
     """
+    bot_tool_calls = None
+
     for event in events:
-        if event.get("type") == "BotToolCalls":
-            return event.get("tool_calls")
-    return None
+        if event.get("type") == "StartToolCallBotAction":
+            tool_calls = event.get("tool_calls")
+            if tool_calls is not None:
+                return tool_calls
+        elif event.get("type") == "BotToolCalls":
+            bot_tool_calls = event.get("tool_calls")
+
+    return bot_tool_calls
 
 
 def extract_bot_thinking_from_events(events: list):
