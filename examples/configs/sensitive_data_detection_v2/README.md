@@ -9,15 +9,8 @@ This example demonstrates how to detect and redact sensitive data using [Presidi
   You can install it with:
 
   ```bash
-  uv run pip install presidio-analyzer presidio-anonymizer
+  uv sync --group dev --extra sdd
   ```
-
-  > **Note**
-  >
-  > Presidio may come with an unsupported version of `numpy`. To reinstall the supported version, run:
-  > ```bash
-  > uv sync --group dev
-  > ```
 
 - `en_core_web_lg` spaCy model
 

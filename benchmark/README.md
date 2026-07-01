@@ -34,7 +34,7 @@ The honcho package is used to read the [`Procfile`](Procfile) and bring up the O
 
 ```shell
 $ uv sync --group dev --extra server
-$ uv run pip install honcho
+$ uv pip install honcho
 ```
 
 Now all the dependencies are installed in the uv-managed virtual environment, you'll use honcho to run the Procfile.
