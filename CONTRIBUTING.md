@@ -181,7 +181,6 @@ Run Python commands through uv.
 | --- | --- |
 | Focused tests | `make test TEST=path/to/test_file.py::test_name` |
 | Full test suite | `make test` |
-| Supported Python versions | `uv run tox` |
 | Pre-commit hooks | `make pre-commit` |
 | Docs check | `make docs-fern` |
 | Package coverage | `make test-coverage` |
