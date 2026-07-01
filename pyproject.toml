@@ -207,23 +207,6 @@ exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
 ]
 
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-toml = "^0.10.2"
-sphinx-reredirects = "<0.2"
-sphinx = "<=7.5"
-myst-parser = "<=5"
-sphinx-copybutton = "<=0.6"
-sphinx-design = "*"
-sphinx-autobuild = "*"
-sphinx-autodoc-typehints = "*"
-sphinxcontrib-mermaid = "*"
-nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
-watchdog = "^6.0.0"
-
-
 [tool.pytest.ini_options]
 addopts = "-p no:warnings"
 log-level = "DEBUG"

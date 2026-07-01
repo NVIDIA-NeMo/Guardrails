@@ -138,11 +138,9 @@ cd nemoguardrails
 poetry install --with dev
 ```
 
-Install documentation dependencies when working on docs:
-
-```bash
-poetry install --with dev,docs
-```
+Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
+`fern/fern.config.json` and invoked through `npx`; no separate Python docs
+dependency group is required.
 
 Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
 `multilingual`, `server`, `chat-ui`, and `all`. For example:
