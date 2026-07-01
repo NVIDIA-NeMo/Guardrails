@@ -52,7 +52,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.1.0
         with:
           version: ${{ env.UV_VERSION }}
-          enable-caching: true
+          enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ inputs.python-version }}
 
