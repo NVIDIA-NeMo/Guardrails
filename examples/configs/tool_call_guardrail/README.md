@@ -22,6 +22,7 @@ works standalone; the pipeline is how its policies are kept current.
 | Layer | Files | Depends on Guardrails? |
 | --- | --- | --- |
 | **Portable policy core** | `policy.py` | No |
+| **Session-aware egress backstop** (optional, prototype — off by default) | `egress.py` | No |
 | **Example config** (policies, principals, mock tools) | `example_policies.py`, `tools.py` | No |
 | **Guardrails wiring** | `config.py`, `config.yml`, `flows.co` | Yes |
 | **Offline demo** | `demo.py` | No |
@@ -66,6 +67,26 @@ LLM supplies the tool name and arguments instead. The runtime serves
 `HARDENED_GUARD` — `VULNERABLE_GUARD` with the human-approved output of the
 scanner→synthesis pipeline folded in. `demo.py` and `demo_bridge.py` run against
 `VULNERABLE_GUARD` to show the "before" gaps the scanner discovers.
+
+### Optional: session-aware egress backstop
+
+`safe_tool_call` always runs the stateless per-call guard above. It can
+*additionally* route each call through a session-aware **egress monitor**
+(`egress.py`) that watches the *sequence* of outbound calls within a conversation
+and vetoes aggregate behavior no single-call rule can see — too many distinct
+destination hosts, too much cumulative outbound volume, or too high a request
+burst. The per-call guard runs first either way (a metadata-egress URL is blocked
+before the monitor is ever consulted).
+
+This layer is a **prototype and is off by default**. Enable it by setting
+`TCG_EGRESS=1` in the environment before loading the config:
+
+```bash
+export TCG_EGRESS=1   # opt into the session-aware egress layer (default: off)
+```
+
+See `EGRESS_PROTOTYPE.md` for the design and `demo_egress.py` for an offline
+demonstration of the four aggregate signals.
 
 ## Populating policies from the field: scanner → synthesis
 
