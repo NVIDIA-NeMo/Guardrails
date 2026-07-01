@@ -9,7 +9,6 @@ on:
   workflow_dispatch:
 
 env:
-  UV_VERSION: "0.11.17"
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -27,7 +26,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
         with:
-          version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 

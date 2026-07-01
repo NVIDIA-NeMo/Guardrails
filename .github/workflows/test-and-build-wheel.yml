@@ -14,7 +14,6 @@ jobs:
   build-wheel:
     runs-on: ubuntu-latest
     env:
-      UV_VERSION: "0.11.17"
       PYTHON_VERSION: "3.11"
     outputs:
       artifact_name: ${{ steps.set-artifact-name.outputs.artifact_name }}
@@ -29,7 +28,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
         with:
-          version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 

@@ -32,8 +32,6 @@ on:
 defaults:
   run:
     shell: bash
-env:
-  UV_VERSION: "0.11.17"
 
 jobs:
   tests:
@@ -51,7 +49,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
         with:
-          version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ inputs.python-version }}
