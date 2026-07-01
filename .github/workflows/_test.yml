@@ -63,9 +63,9 @@ jobs:
         run: |
           if [ "${{ inputs.upgrade-deps}}" = "true" ]; then
             uv lock --upgrade
-            uv sync --all-extras --group dev
+            uv sync --locked --all-extras --group dev
           else
-            uv sync --group dev
+            uv sync --locked --group dev
           fi
 
       - name: Run pytest with coverage

@@ -102,7 +102,7 @@ jobs:
             && rm CHANGELOG.new.md
 
       - name: Update version with uv
-        run: uv version ${{ steps.version.outputs.version }}
+        run: uv version --no-sync "${{ steps.version.outputs.version }}"
 
       - name: Update version in README.md
         env:
