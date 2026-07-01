@@ -13,82 +13,64 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🚀 Features
 
-- *(library)* Add support for huggingface lightweight classifiers  ([#1853](https://github.com/NVIDIA-NeMo/Guardrails/issues/1853)) 
-- *(embeddings)* Replace Annoy with exact NumPy search ([#1957](https://github.com/NVIDIA-NeMo/Guardrails/issues/1957)) 
-- *(benchmark)* Add Annoy migration benchmarks ([#1958](https://github.com/NVIDIA-NeMo/Guardrails/issues/1958)) 
-- *(iorails)* Telemetry - Content capture ([#1972](https://github.com/NVIDIA-NeMo/Guardrails/issues/1972)) 
-- *(iorails)* Telemetry - Add usage, request, response attributes to LLM span ([#2009](https://github.com/NVIDIA-NeMo/Guardrails/issues/2009)) 
-- *(iorails)* Tool-calling - non-streaming tool calling to main LLM ([#2016](https://github.com/NVIDIA-NeMo/Guardrails/issues/2016)) 
-- *(library)* Add context bloat detection rail ([#1941](https://github.com/NVIDIA-NeMo/Guardrails/issues/1941)) 
-- *(iorails)* Tool-calling - streaming tools from main LLM ([#2024](https://github.com/NVIDIA-NeMo/Guardrails/issues/2024)) 
-- *(server)* Add `/v1/guardrail/checks` endpoint ([#2013](https://github.com/NVIDIA-NeMo/Guardrails/issues/2013)) 
-- *(server)* Add tool calling support ([#1942](https://github.com/NVIDIA-NeMo/Guardrails/issues/1942)) 
-- *(iorails)* Add tool-calling rails to RailsManager and ModelRegistry ([#2030](https://github.com/NVIDIA-NeMo/Guardrails/issues/2030)) 
-- *(iorails)* Connect tool-calling up in IORails ([#2058](https://github.com/NVIDIA-NeMo/Guardrails/issues/2058)) 
-- *(examples)* Introduce NIM-based example notebooks, retire superseded ones (NGUARD-724) ([#1906](https://github.com/NVIDIA-NeMo/Guardrails/issues/1906)) 
-- *(library)* Add Polygraf PII detection and masking integration ([#1693](https://github.com/NVIDIA-NeMo/Guardrails/issues/1693)) 
+- *(library)* Add lightweight Hugging Face classifier rails for input, output, and retrieval, with local Transformers, vLLM, KServe, and FMS backends ([#1853](https://github.com/NVIDIA-NeMo/Guardrails/issues/1853))
+- *(embeddings)* Replace Annoy with exact NumPy search and add migration benchmarks ([#1957](https://github.com/NVIDIA-NeMo/Guardrails/issues/1957), [#1958](https://github.com/NVIDIA-NeMo/Guardrails/issues/1958))
+- *(iorails)* Add opt-in OpenTelemetry content capture and LLM request, response, and usage attributes ([#1972](https://github.com/NVIDIA-NeMo/Guardrails/issues/1972), [#2009](https://github.com/NVIDIA-NeMo/Guardrails/issues/2009))
+- *(iorails)* Add streaming and non-streaming tool calling and local rails for validating tool calls and results ([#2016](https://github.com/NVIDIA-NeMo/Guardrails/issues/2016), [#2024](https://github.com/NVIDIA-NeMo/Guardrails/issues/2024), [#2030](https://github.com/NVIDIA-NeMo/Guardrails/issues/2030), [#2058](https://github.com/NVIDIA-NeMo/Guardrails/issues/2058))
+- *(library)* Add context bloat detection rail ([#1941](https://github.com/NVIDIA-NeMo/Guardrails/issues/1941))
+- *(server)* Add `/v1/checks` endpoint for standalone input and output rail validation ([#2013](https://github.com/NVIDIA-NeMo/Guardrails/issues/2013))
+- *(server)* Add tool calling support ([#1942](https://github.com/NVIDIA-NeMo/Guardrails/issues/1942))
+- *(examples)* Introduce NIM-based example notebooks, retire superseded ones ([#1906](https://github.com/NVIDIA-NeMo/Guardrails/issues/1906))
+- *(library)* Add Polygraf PII detection and masking integration ([#1693](https://github.com/NVIDIA-NeMo/Guardrails/issues/1693))
 
 ### 🐛 Bug Fixes
 
-- *(library)* `detect_regex_pattern()` crashes with TypeError during output streaming ([#1932](https://github.com/NVIDIA-NeMo/Guardrails/issues/1932)) 
-- *(library)* `detect_regex_pattern()` matches during output streaming but does not block ([#1937](https://github.com/NVIDIA-NeMo/Guardrails/issues/1937)) 
-- *(actions)* Avoid empty-string crash in create_event ([#1701](https://github.com/NVIDIA-NeMo/Guardrails/issues/1701)) 
-- *(iorails)* Make OTEL recording best-effort ([#1997](https://github.com/NVIDIA-NeMo/Guardrails/issues/1997)) 
-- *(docs)* Skip Fern bash-script tests on Windows ([#2017](https://github.com/NVIDIA-NeMo/Guardrails/issues/2017)) 
-- *(iorails)* Apply inference-time llm_params on top of Model.parameters in ModelEngine ([#2020](https://github.com/NVIDIA-NeMo/Guardrails/issues/2020)) 
-- *(llm)* Handle multi-line bot say responses in flow continuation([#1650](https://github.com/NVIDIA-NeMo/Guardrails/issues/1650)) 
-- *(generation)* Use correct task enum for stop tokens in generate_value ([#1699](https://github.com/NVIDIA-NeMo/Guardrails/issues/1699)) 
-- *(colang)* Guard ' or' line continuation at end of file ([#1947](https://github.com/NVIDIA-NeMo/Guardrails/issues/1947)) 
-- *(iorails)* Add no-op events_history_cache when IORails is used ([#2072](https://github.com/NVIDIA-NeMo/Guardrails/issues/2072)) 
-- *(llmrails)* Load library files deterministically (2/5) ([#1975](https://github.com/NVIDIA-NeMo/Guardrails/issues/1975)) 
-- *(embeddings)* EmbeddingsCache.from_dict drops store_config on round-trip ([#1951](https://github.com/NVIDIA-NeMo/Guardrails/issues/1951)) 
-- *(eval)* Use safe dumper and yaml load ([#2082](https://github.com/NVIDIA-NeMo/Guardrails/issues/2082)) 
-- *(streaming)* Pass user content to output rails ([#2081](https://github.com/NVIDIA-NeMo/Guardrails/issues/2081)) 
-- *(streaming)* Avoid duplicate usage metadata chunk ([#2079](https://github.com/NVIDIA-NeMo/Guardrails/issues/2079)) 
-- *(streaming)* Don't reuse stale  across output-rail chunks ([#1935](https://github.com/NVIDIA-NeMo/Guardrails/issues/1935)) ([#1943](https://github.com/NVIDIA-NeMo/Guardrails/issues/1943)) 
-- *(ci)* Update README version during releases ([#2104](https://github.com/NVIDIA-NeMo/Guardrails/issues/2104)) 
-- *(actions)* Preserve tool calls for LLMRails tool rails ([#2073](https://github.com/NVIDIA-NeMo/Guardrails/issues/2073)) 
-- *(langchain)* OpenAI Responses API and Harmony response format support ([#2102](https://github.com/NVIDIA-NeMo/Guardrails/issues/2102)) 
+- *(library)* Fix regex detection during output streaming so matches block correctly without raising `TypeError` ([#1932](https://github.com/NVIDIA-NeMo/Guardrails/issues/1932), [#1937](https://github.com/NVIDIA-NeMo/Guardrails/issues/1937))
+- *(actions)* Avoid empty-string crash in create_event ([#1701](https://github.com/NVIDIA-NeMo/Guardrails/issues/1701))
+- *(iorails)* Make OTEL recording best-effort ([#1997](https://github.com/NVIDIA-NeMo/Guardrails/issues/1997))
+- *(docs)* Skip Fern bash-script tests on Windows ([#2017](https://github.com/NVIDIA-NeMo/Guardrails/issues/2017))
+- *(iorails)* Apply inference-time llm_params on top of Model.parameters in ModelEngine ([#2020](https://github.com/NVIDIA-NeMo/Guardrails/issues/2020))
+- *(llm)* Handle multi-line bot say responses in flow continuation([#1650](https://github.com/NVIDIA-NeMo/Guardrails/issues/1650))
+- *(generation)* Use correct task enum for stop tokens in generate_value ([#1699](https://github.com/NVIDIA-NeMo/Guardrails/issues/1699))
+- *(colang)* Guard ' or' line continuation at end of file ([#1947](https://github.com/NVIDIA-NeMo/Guardrails/issues/1947))
+- *(iorails)* Add no-op events_history_cache when IORails is used ([#2072](https://github.com/NVIDIA-NeMo/Guardrails/issues/2072))
+- *(llmrails)* Load library files deterministically ([#1975](https://github.com/NVIDIA-NeMo/Guardrails/issues/1975))
+- *(embeddings)* EmbeddingsCache.from_dict drops store_config on round-trip ([#1951](https://github.com/NVIDIA-NeMo/Guardrails/issues/1951))
+- *(eval)* Use safe dumper and yaml load ([#2082](https://github.com/NVIDIA-NeMo/Guardrails/issues/2082))
+- *(streaming)* Pass user content to output rails ([#2081](https://github.com/NVIDIA-NeMo/Guardrails/issues/2081))
+- *(streaming)* Avoid duplicate usage metadata chunk ([#2079](https://github.com/NVIDIA-NeMo/Guardrails/issues/2079))
+- *(streaming)* Don't reuse resolved action parameters across output-rail chunks or requests ([#1935](https://github.com/NVIDIA-NeMo/Guardrails/issues/1935), [#1943](https://github.com/NVIDIA-NeMo/Guardrails/issues/1943))
+- *(ci)* Update README version during releases ([#2104](https://github.com/NVIDIA-NeMo/Guardrails/issues/2104))
+- *(llmrails)* Preserve tool calls for LLMRails tool rails ([#2073](https://github.com/NVIDIA-NeMo/Guardrails/issues/2073))
+- *(langchain)* OpenAI Responses API and Harmony response format support ([#2102](https://github.com/NVIDIA-NeMo/Guardrails/issues/2102))
 
 ### 💼 Other
 
-- Stop bundling examples and repo files in the wheel (10x smaller) ([#2069](https://github.com/NVIDIA-NeMo/Guardrails/issues/2069)) 
+- Stop bundling examples and repo files in the wheel (10x smaller) ([#2069](https://github.com/NVIDIA-NeMo/Guardrails/issues/2069))
 
 ### 🚜 Refactor
 
-- Guardrails public API ([#1933](https://github.com/NVIDIA-NeMo/Guardrails/issues/1933)) 
-- Refactor validators and fields to support pydantic v2 ([#967](https://github.com/NVIDIA-NeMo/Guardrails/issues/967)) 
+- Refine the Guardrails public API and deprecate direct access to internal `LLMRails` attributes ([#1933](https://github.com/NVIDIA-NeMo/Guardrails/issues/1933))
+- [**breaking**] Require Pydantic `>=2.5,<3.0` and migrate validators and model APIs to Pydantic 2 ([#967](https://github.com/NVIDIA-NeMo/Guardrails/issues/967))
 
 ### 📚 Documentation
 
-- Clarify NGC_API_KEY handling for local GLiNER/PII NIM deployment ([#1945](https://github.com/NVIDIA-NeMo/Guardrails/issues/1945)) 
-- Migration to Fern ([#1973](https://github.com/NVIDIA-NeMo/Guardrails/issues/1973)) 
-- Document Fern docs publishing workflow ([#2015](https://github.com/NVIDIA-NeMo/Guardrails/issues/2015)) 
-- Fix remaining links after migration and rm temporary local link checker ([#2018](https://github.com/NVIDIA-NeMo/Guardrails/issues/2018)) 
-- *(readme)* Fix broken links to Gurdrails website ([#2046](https://github.com/NVIDIA-NeMo/Guardrails/issues/2046)) 
-- *(skills)* Add skills ([#2025](https://github.com/NVIDIA-NeMo/Guardrails/issues/2025)) 
-- Improve pages referred in the docs template lib ([#2019](https://github.com/NVIDIA-NeMo/Guardrails/issues/2019)) 
-- *(iorails)* Telemetry - Span Reference Docs ([#2098](https://github.com/NVIDIA-NeMo/Guardrails/issues/2098)) 
-- *(iorails)* Tool calling docs ([#2099](https://github.com/NVIDIA-NeMo/Guardrails/issues/2099)) 
-- *(iorails)* Telemetry - Content Capture docs ([#2083](https://github.com/NVIDIA-NeMo/Guardrails/issues/2083)) 
+- Clarify NGC_API_KEY handling for local GLiNER/PII NIM deployment ([#1945](https://github.com/NVIDIA-NeMo/Guardrails/issues/1945))
+- Migrate documentation to Fern, document the publishing workflow, and complete link and template cleanup ([#1973](https://github.com/NVIDIA-NeMo/Guardrails/issues/1973), [#2015](https://github.com/NVIDIA-NeMo/Guardrails/issues/2015), [#2018](https://github.com/NVIDIA-NeMo/Guardrails/issues/2018), [#2019](https://github.com/NVIDIA-NeMo/Guardrails/issues/2019))
+- *(readme)* Fix broken links to the Guardrails website ([#2046](https://github.com/NVIDIA-NeMo/Guardrails/issues/2046))
+- *(skills)* Add skills ([#2025](https://github.com/NVIDIA-NeMo/Guardrails/issues/2025))
+- *(iorails)* Telemetry - Span Reference Docs ([#2098](https://github.com/NVIDIA-NeMo/Guardrails/issues/2098))
+- *(iorails)* Tool calling docs ([#2099](https://github.com/NVIDIA-NeMo/Guardrails/issues/2099))
+- *(iorails)* Telemetry - Content Capture docs ([#2083](https://github.com/NVIDIA-NeMo/Guardrails/issues/2083))
 
 ### 🧪 Testing
 
-- Make xdist the default Makefile test path ([#1970](https://github.com/NVIDIA-NeMo/Guardrails/issues/1970)) 
-- Isolate flaky wall-clock perf tests behind a perf marker ([#2070](https://github.com/NVIDIA-NeMo/Guardrails/issues/2070)) 
-- *(recorded)* Add replay harness (1/5) ([#1974](https://github.com/NVIDIA-NeMo/Guardrails/issues/1974)) 
-- *(langchain)* Make provider compat tests version-tolerant, add drift canary ([#2071](https://github.com/NVIDIA-NeMo/Guardrails/issues/2071)) 
-- *(recorded)* Add client cassette coverage (3/5) ([#1976](https://github.com/NVIDIA-NeMo/Guardrails/issues/1976)) 
-- *(recorded)* Add rails public API coverage (4/5) ([#1977](https://github.com/NVIDIA-NeMo/Guardrails/issues/1977)) 
-- *(recorded)* Add rails library coverage (5/5) ([#1978](https://github.com/NVIDIA-NeMo/Guardrails/issues/1978)) 
-- Support aiohttp 3.14 in aioresponses mocks ([#2091](https://github.com/NVIDIA-NeMo/Guardrails/issues/2091)) 
-- Remove flaky streaming timing diagnostic ([#2097](https://github.com/NVIDIA-NeMo/Guardrails/issues/2097)) 
-
-### ⚙️ Miscellaneous Tasks
-
-- Bump to 0.23.0.dev0 ([#1939](https://github.com/NVIDIA-NeMo/Guardrails/issues/1939)) 
-- Bump to 0.23.0-rc1 ([#2110](https://github.com/NVIDIA-NeMo/Guardrails/issues/2110)) 
-
+- Make xdist the default Makefile test path ([#1970](https://github.com/NVIDIA-NeMo/Guardrails/issues/1970))
+- Isolate flaky wall-clock perf tests behind a perf marker ([#2070](https://github.com/NVIDIA-NeMo/Guardrails/issues/2070))
+- *(recorded)* Add a replay harness, client cassette coverage, public API coverage, and rails library coverage ([#1974](https://github.com/NVIDIA-NeMo/Guardrails/issues/1974), [#1976](https://github.com/NVIDIA-NeMo/Guardrails/issues/1976), [#1977](https://github.com/NVIDIA-NeMo/Guardrails/issues/1977), [#1978](https://github.com/NVIDIA-NeMo/Guardrails/issues/1978))
+- *(langchain)* Make provider compat tests version-tolerant, add drift canary ([#2071](https://github.com/NVIDIA-NeMo/Guardrails/issues/2071))
+- Support aiohttp 3.14 in aioresponses mocks ([#2091](https://github.com/NVIDIA-NeMo/Guardrails/issues/2091))
+- Remove flaky streaming timing diagnostic ([#2097](https://github.com/NVIDIA-NeMo/Guardrails/issues/2097))
 
 ## [0.22.0] - 2026-05-22
 
