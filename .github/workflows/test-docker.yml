@@ -24,7 +24,7 @@ jobs:
       #
       # Checkout the code
       - name: Checkout
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
 
       # Get runner architecture
       - name: Get runner architecture
