@@ -17,7 +17,8 @@ This page explains what each engine is optimized for, how to select one, and whi
 Both engines read the same `RailsConfig` object, but they support different feature sets.
 
 LLMRails is designed for flexibility, and it supports all rail types with Colang 1.0 and 2.x so that you can define custom dialog flows.
-IORails is optimized for low-latency input, output, and tool rails, and the `Guardrails` facade can select it automatically when the configuration uses supported flows.
+IORails is optimized for low-latency input, output, and tool rails.
+The `Guardrails` facade selects the optimal engine to use, based on the Guardrails configuration.
 
 ### LLMRails
 
@@ -37,7 +38,8 @@ rails = LLMRails(config)
 ### IORails
 
 `IORails` is optimized for accelerated input and output rail inference.
-It runs the built-in NeMoGuard safety models (content safety, topic control, and jailbreak detection) and tool validation directly against the model endpoints, with parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
+It includes tool-calling rails.
+It runs the built-in NeMoGuard safety models (content safety, topic control, and jailbreak detection) and tool validation directly against the model endpoints, with optional parallel rail execution, admission control through an `AsyncWorkQueue`, OpenTelemetry token metrics, and optional speculative generation.
 It does not run the Colang dialog runtime, retrieval, custom actions, or accept a custom LLM, and it accepts Colang 1.0 configurations only.
 
 `IORails` has a `start()` and `stop()` lifecycle that initializes and releases the engine's model clients and work queue.
