@@ -42,6 +42,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### 💼 Other
 
 - Stop bundling examples and repo files in the wheel (10x smaller) ([#2069](https://github.com/NVIDIA-NeMo/Guardrails/issues/2069))
+- Exclude repository agent instruction files from source and wheel packages ([#2111](https://github.com/NVIDIA-NeMo/Guardrails/issues/2111))
 
 ### 🚜 Refactor
 
