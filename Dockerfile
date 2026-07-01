@@ -20,7 +20,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.26@sha256:3d868e555f8f1dbc324afa005066cd11e1053fc4743b9808ca8025283e65efa5 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1
 # Use copy mode so the BuildKit cache mount below works across the mount boundary
