@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import inspect
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -21,6 +22,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
+from nemoguardrails.manifests import ActionRef
+
+
+def _lazy_test_action(value: str = "ok") -> str:
+    return value
+
+
+setattr(_lazy_test_action, "action_meta", {"name": "lazy_test_action"})
 
 
 @pytest.fixture
@@ -87,6 +96,48 @@ async def test_execute_action_with_async_invoke():
     dispatcher.register_action(AsyncInvokeAction(), name="async_invoke")
 
     result = await dispatcher.execute_action("async_invoke", params={"value": "done"})
+
+    assert result == ("done", "success")
+
+
+def test_load_all_actions_registers_builtin_library_action_refs_lazily():
+    action_module = "nemoguardrails.library.content_safety.actions"
+    sys.modules.pop(action_module, None)
+
+    dispatcher = ActionDispatcher(load_all_actions=True)
+
+    assert "content_safety_check_input" in dispatcher.get_registered_actions()
+    assert action_module not in sys.modules
+    registered_actions = dispatcher.registered_actions
+    assert action_module not in sys.modules
+    assert callable(registered_actions["content_safety_check_input"])
+    assert action_module in sys.modules
+
+
+def test_load_all_actions_preserves_unmanifested_library_actions():
+    dispatcher = ActionDispatcher(load_all_actions=True)
+
+    assert "GetCurrentDateTimeAction" in dispatcher.get_registered_actions()
+    assert "GetAttentionPercentageAction" in dispatcher.get_registered_actions()
+    assert not isinstance(dispatcher.registered_actions["GetCurrentDateTimeAction"], ActionRef)
+
+
+@pytest.mark.asyncio
+async def test_lazy_action_ref_resolves_and_caches():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name="lazy_test_action",
+            target="tests.test_action_dispatcher:_lazy_test_action",
+        )
+    )
+
+    assert dispatcher.has_registered("lazy_test_action")
+    assert isinstance(dispatcher._lazy_action_refs["lazy_test_action"], ActionRef)
+    assert dispatcher.get_action("lazy_test_action") is _lazy_test_action
+    assert dispatcher.registered_actions["lazy_test_action"] is _lazy_test_action
+
+    result = await dispatcher.execute_action("lazy_test_action", params={"value": "done"})
 
     assert result == ("done", "success")
 
