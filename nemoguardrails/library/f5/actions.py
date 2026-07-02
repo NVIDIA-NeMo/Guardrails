@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -85,6 +86,16 @@ async def f5_guardrails_scan(
 
                 result = await response.json()
                 return result
+        except asyncio.TimeoutError:
+            log.error("F5 Guardrails API call timed out after 30 seconds")
+
+            if fail_open:
+                log.warning(
+                    "F5 Guardrails API call timed out, but F5_GUARDRAILS_FAIL_OPEN is enabled, allowing content."
+                )
+                return {"result": {"outcome": "cleared"}}
+
+            raise RuntimeError("F5 Guardrails API request timed out") from None
         except aiohttp.ClientError as e:
             log.error(f"Error connecting to F5 Guardrails API: {str(e)}")
 

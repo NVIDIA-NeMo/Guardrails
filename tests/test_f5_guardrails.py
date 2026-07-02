@@ -13,10 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.library.f5.actions import f5_guardrails_scan
 from tests.utils import TestChat
 
 
@@ -38,6 +41,13 @@ def config():  # language=yaml
                   - f5 guardrails scan output
         """,
     )
+
+
+def test_f5_guardrails_api_key_not_set(config, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "")
+    chat = TestChat(config)
+    chat.user("Hello! How are you?")
+    chat.bot("I'm sorry, an internal error has occurred.")
 
 
 def test_f5_guardrails_input_cleared(config, monkeypatch):
@@ -129,3 +139,34 @@ def test_f5_guardrails_fail_open(config, monkeypatch):
         chat >> "Hello!"
         chat << "express greeting"
         chat << "Hello! How can I assist you today?"
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_timeout_fail_open(monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    monkeypatch.setenv("F5_GUARDRAILS_FAIL_OPEN", "true")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            exception=asyncio.TimeoutError(),
+        )
+
+        result = await f5_guardrails_scan(text="Hello!")
+
+    assert result == {"result": {"outcome": "cleared"}}
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_timeout_fail_closed(monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    monkeypatch.setenv("F5_GUARDRAILS_FAIL_OPEN", "false")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            exception=asyncio.TimeoutError(),
+        )
+
+        with pytest.raises(RuntimeError, match="timed out"):
+            await f5_guardrails_scan(text="Hello!")
