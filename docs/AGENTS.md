@@ -45,6 +45,6 @@ Treat `docs/` as the source of truth for published product documentation and pro
 
 - Run `make docs-fern` when rendering, links, examples, or docs configuration may be affected.
 - Run `make docs-fern-live` only when an interactive local preview is useful.
-- Run `make docs-check-links` when link changes are broad or risky.
+- Run `make docs-fern-strict` when link changes are broad or risky.
 - For docs-only changes, run `poetry run pre-commit run --files <changed files>` before handoff when practical.
 - Report any skipped validation clearly.

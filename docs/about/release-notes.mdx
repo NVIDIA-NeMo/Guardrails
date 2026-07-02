@@ -15,6 +15,97 @@ For a complete record of changes in a release, refer to the
 
 ---
 
+<a id="v0-23-0"></a>
+## 0.23.0
+
+<a id="v0-23-0-features"></a>
+### Key Features
+
+- `IORails` adds tool-calling rails for OpenAI Chat Completions-style tool
+  traffic. The engine can validate model-emitted tool calls and application
+  tool results in streaming and non-streaming flows, without making extra LLM or
+  provider calls. For more information, refer to
+  [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling) and
+  [Engine Feature Support](/reference/engine-feature-support).
+
+- The guardrail catalog adds Polygraf PII detection and masking integration.
+  You can configure Polygraf for input, output, and retrieval flows, including
+  fail-closed handling for provider failures or malformed entity spans. For more
+  information, refer to
+  [Polygraf Integration](/configure-guardrails/guardrail-catalog/third-party/polygraf).
+
+- The library adds lightweight Hugging Face classifier rails and a context bloat
+  detection rail. The classifier rails can run on input, output, or retrieval
+  text with local Transformers, vLLM, KServe, or FMS backends. The context bloat
+  rail detects padded, oversized, low-entropy, or repetitive user and retrieval
+  text before it can consume context budget.
+
+- The Guardrails server adds `/v1/checks` for standalone guardrail validation.
+  The endpoint accepts stored or inline configurations, runs `check_async`, and
+  returns whether the messages passed, were modified, or were blocked, along
+  with the processed content and blocking rail when available.
+
+- Observability adds opt-in OpenTelemetry content capture and richer LLM span
+  attributes. You can record request, response, rail, and model-call content
+  when tracing is enabled, and LLM spans now include request, response, and usage
+  attributes for both `LLMRails` and `IORails`. For more information, refer to
+  [Capturing Prompt and Response Content](/observability/tracing/content-capture)
+  and [Span Reference](/observability/tracing/span-reference).
+
+<a id="v0-23-0-breaking-changes"></a>
+### Breaking Changes
+
+- The NVIDIA NeMo Guardrails library now requires Pydantic `>=2.5,<3.0`.
+  Configuration schemas and validators use Pydantic 2 APIs. Update custom code
+  that imports, subclasses, or depends on Pydantic 1 behavior from the library's
+  configuration models before upgrading.
+
+<a id="v0-23-0-enhancements"></a>
+### Enhancements
+
+- The default embedding search implementation now uses exact NumPy search
+  instead of Annoy. Existing default knowledge-base caches are regenerated
+  automatically, and the change removes Annoy's native extension from the
+  default dependency path. For more information, refer to
+  [Embedding Search Providers](/configure-guardrails/other-configurations/embedding-search-providers).
+
+- OpenAI Responses API guidance and compatibility are improved for the LangChain
+  framework path. Function tool calls are surfaced in streaming and
+  non-streaming modes, and Harmony response format models can use the Responses
+  API configuration. For more information, refer to
+  [Model Configuration](/configure-guardrails/yaml-schema/model-configuration#openai-responses-api).
+
+- The public API is refined around the modern `Guardrails` facade and documented
+  top-level imports. Direct access to internal `LLMRails` attributes is
+  deprecated so applications can move toward stable public entry points.
+
+- The Python package is smaller because examples, repository files, and agent
+  instruction files are no longer bundled in the wheel or source distribution.
+  The release also introduces NIM-based example notebooks and retires superseded
+  examples.
+
+<a id="v0-23-0-doc-and-behavior-fixes"></a>
+### Documentation and Behavior Fixes
+
+- Streaming output rails now pass user content correctly, avoid duplicate usage
+  metadata chunks, and do not reuse resolved action parameters across chunks or
+  requests. Regex detection during output streaming now blocks matched content
+  correctly without raising `TypeError`. For more information, refer to
+  [Streaming](/run-guardrailed-inference/using-python-apis/streaming).
+
+- Tool-call metadata is preserved for `LLMRails` tool rails and processing logs,
+  so tool-aware integrations can inspect tool calls after guardrail execution.
+
+- Configuration and cache handling are more deterministic. Library files load in
+  a stable order, `EmbeddingsCache.from_dict` preserves `store_config`, and
+  evaluation YAML handling uses safe load and dump behavior.
+
+- Colang and generation fixes cover multiline `bot say` flow continuations,
+  `or` line continuations at the end of a file, and task-specific stop-token
+  selection in `generate_value`.
+
+---
+
 <a id="v0-22-0"></a>
 ## 0.22.0
 

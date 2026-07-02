@@ -4,7 +4,7 @@ description = "NeMo Guardrails is an open-source toolkit for easily adding progr
 authors = ["NVIDIA <nemoguardrails@nvidia.com>"]
 license = "LICENSE.md"
 readme = "README.md"
-version = "0.23.0-rc1"
+version = "0.24.0.dev0"
 packages = [{ include = "nemoguardrails" }]
 
 
@@ -17,6 +17,10 @@ include = [
   "nemoguardrails/**/*.txt",
   "nemoguardrails/**/*.json",
   "nemoguardrails/**/*.lark",
+]
+exclude = [
+  "nemoguardrails/AGENTS.md",
+  "nemoguardrails/CLAUDE.md",
 ]
 
 classifiers = [
@@ -202,23 +206,6 @@ include = [
 exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
 ]
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-toml = "^0.10.2"
-sphinx-reredirects = "<0.2"
-sphinx = "<=7.5"
-myst-parser = "<=5"
-sphinx-copybutton = "<=0.6"
-sphinx-design = "*"
-sphinx-autobuild = "*"
-sphinx-autodoc-typehints = "*"
-sphinxcontrib-mermaid = "*"
-nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
-watchdog = "^6.0.0"
-
 
 [tool.pytest.ini_options]
 addopts = "-p no:warnings"
