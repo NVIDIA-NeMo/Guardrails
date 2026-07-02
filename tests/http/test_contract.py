@@ -138,6 +138,15 @@ async def test_recording_client_requires_a_scripted_response():
         await client.request("GET", "https://example.com")
 
 
+@pytest.mark.asyncio
+async def test_recording_client_accepts_responses_after_construction():
+    response = HTTPResponse(status_code=200)
+    client = RecordingHTTPClient()
+    client.add_response(response)
+
+    assert await client.request("GET", "https://example.com") is response
+
+
 def test_neutral_transport_errors_have_a_shared_base():
     assert issubclass(HTTPConnectionError, HTTPClientError)
     assert issubclass(HTTPTimeoutError, HTTPClientError)
