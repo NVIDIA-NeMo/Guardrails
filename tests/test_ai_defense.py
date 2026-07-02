@@ -999,6 +999,7 @@ async def test_ai_defense_inspect_http_504_gateway_timeout(httpx_mock):
             url="https://test.example.com/api/v1/inspect/chat",
             status_code=504,
             text="Gateway Timeout",
+            is_reusable=True,
         )
 
         # Create a minimal config for the test (fail_open defaults to False)
@@ -1178,6 +1179,7 @@ async def test_ai_defense_inspect_api_failure_fail_closed(httpx_mock):
             method="POST",
             url="https://test.example.com/api/v1/inspect/chat",
             status_code=500,
+            is_reusable=True,
         )
 
         # With fail_closed, should return is_blocked=True instead of raising
@@ -1228,6 +1230,7 @@ async def test_ai_defense_inspect_api_failure_fail_open(httpx_mock):
             method="POST",
             url="https://test.example.com/api/v1/inspect/chat",
             status_code=500,
+            is_reusable=True,
         )
 
         result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
