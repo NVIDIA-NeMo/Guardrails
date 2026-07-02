@@ -72,6 +72,26 @@ def load_hitlog(path: str) -> list[dict]:
     return entries
 
 
+def plugin_cache_resolver(cache_path: str) -> ProbeTagResolver:
+    """Build a `ProbeTagResolver` backed by garak's ``plugin_cache.json`` (ships
+    with garak / the ``garak_api`` package). Reads the file once; resolves a
+    probe's tags trying both the bare classname and the ``probes.``-prefixed key
+    garak uses in the cache, so it works whichever form the hitlog records.
+    Depends only on the data file, not the ``garak_api`` package — so it runs
+    wherever a copy of the cache is reachable."""
+    with open(cache_path, "r", encoding="utf-8") as fh:
+        cache = json.load(fh)
+    probes = cache.get("probes", {}) if isinstance(cache, dict) else {}
+
+    def resolve(probe_classname: str) -> tuple[str, ...]:
+        entry = probes.get(probe_classname) or probes.get(f"probes.{probe_classname}")
+        if not isinstance(entry, dict):
+            return ()
+        return tuple(t for t in entry.get("tags", []) if isinstance(t, str))
+
+    return resolve
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower() or "x"
 
