@@ -1397,6 +1397,51 @@ class RailsConfigData(BaseModel):
         description="Configuration for context bloat / context manipulation detection.",
     )
 
+    human_approval: Optional["HumanApprovalConfig"] = Field(
+        default_factory=lambda: HumanApprovalConfig(),
+        description="Configuration for human-in-the-loop approval rail.",
+    )
+
+
+class HumanApprovalConfig(BaseModel):
+    """Configuration for human-in-the-loop approval rail."""
+
+    patterns: List[str] = Field(
+        default_factory=list,
+        description="Regex patterns that trigger human approval when matched.",
+    )
+    approval_keywords: List[str] = Field(
+        default=["approve", "yes", "approved"],
+        description="Keywords the human can use to approve the action.",
+    )
+    approval_message: str = Field(
+        default="This action matched a restricted pattern and requires approval. Reply 'approve' to proceed.",
+        description="Message shown to the human when approval is required.",
+    )
+    rejection_message: str = Field(
+        default="Action rejected by reviewer.",
+        description="Message shown when the human rejects the action.",
+    )
+
+    _compiled_patterns: List["re.Pattern[str]"] = PrivateAttr(default_factory=list)
+
+    @model_validator(mode="after")
+    def compile_patterns(self) -> "HumanApprovalConfig":
+        """Pre-compile regex patterns at config load time."""
+        compiled = []
+        for i, pattern in enumerate(self.patterns):
+            try:
+                compiled.append(re.compile(pattern, re.IGNORECASE))
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
+        object.__setattr__(self, "_compiled_patterns", compiled)
+        return self
+
+    @property
+    def compiled_patterns(self) -> List["re.Pattern[str]"]:
+        """Return the pre-compiled regex patterns."""
+        return self._compiled_patterns
+
 
 class Rails(BaseModel):
     """Configuration of specific rails."""

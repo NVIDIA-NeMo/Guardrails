@@ -1,0 +1,27 @@
+# Example Colang 2.x config for human-in-the-loop approval on bot output.
+#
+# Wire the flow in your rails.co (see examples/configs/human_approval_v2/).
+
+colang_version: "2.x"
+
+models: []
+
+rails:
+  config:
+    human_approval:
+      # Regex patterns that trigger human approval when matched in bot output.
+      patterns:
+        - "delete|drop|truncate"
+        - "rm\\s+-rf"
+        - "sudo"
+        - "exec|execute"
+
+      # Keywords the human can use to approve the action (case-insensitive).
+      approval_keywords:
+        - "approve"
+        - "yes"
+        - "approved"
+
+      approval_message: "This action matched a restricted pattern and requires approval. Reply 'approve' to proceed."
+
+      rejection_message: "Action rejected by reviewer."
