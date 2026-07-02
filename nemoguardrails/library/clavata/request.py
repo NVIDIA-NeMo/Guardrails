@@ -20,10 +20,9 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional, Type, TypeVar
 
-import aiohttp
 from pydantic import BaseModel, Field, ValidationError
 
-from nemoguardrails.library.clavata.utils import exponential_backoff
+from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call, resolve_http_client
 
 from .errs import (
     ClavataPluginAPIError,
@@ -46,8 +45,7 @@ class AuthHeader:
 
     def to_headers(self) -> Dict[str, str]:
         """
-        Converts the auth token into a dictionary that can be used with aiohttp
-        to supply headers for the request.
+        Converts the auth token into request headers.
         """
         api_key = self.api_key or _CLAVATA_API_KEY
         if api_key is None:
@@ -133,8 +131,14 @@ class ClavataClient:
     base_endpoint: str
     api_key: Optional[str]
 
-    def __init__(self, base_endpoint: str, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        base_endpoint: str,
+        api_key: Optional[str] = None,
+        http_client: HTTPClient | None = None,
+    ):
         self.base_endpoint = base_endpoint
+        self.http_client = http_client
 
         # API key can be passed or set in the environment variable CLAVATA_API_KEY
         self.api_key = api_key or os.environ.get("CLAVATA_API_KEY")
@@ -150,7 +154,6 @@ class ClavataClient:
     def _get_headers(self) -> Dict[str, str]:
         return AuthHeader(api_key=self.api_key).to_headers()
 
-    @exponential_backoff(initial_delay=0.1, retry_exceptions=(ClavataPluginAPIRateLimitError,))
     async def _make_request(
         self,
         endpoint: str,
@@ -158,36 +161,38 @@ class ClavataClient:
         response_model: Type[ResponseModelT],
     ) -> ResponseModelT:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with resolve_http_client(self.http_client) as client:
+                response = await http_call(
+                    client,
+                    "POST",
                     self._get_full_endpoint(endpoint),
                     json=payload.model_dump(),
                     headers=self._get_headers(),
-                ) as resp:
-                    if resp.status == 429:
-                        # Trigger exponential backoff on rate limit errors
-                        raise ClavataPluginAPIRateLimitError(
-                            f"Clavata API rate limit exceeded. Status code: {resp.status}"
-                        )
+                    raise_for_status=False,
+                )
 
-                    if resp.status != 200:
-                        raise ClavataPluginAPIError(
-                            f"Clavata call failed with status code {resp.status}.\nDetails: {await resp.text()}"
-                        )
+            if response.status_code == 429:
+                raise ClavataPluginAPIRateLimitError(
+                    f"Clavata API rate limit exceeded. Status code: {response.status_code}"
+                )
 
-                    try:
-                        parsed_response = await resp.json()
-                    except aiohttp.ContentTypeError as e:
-                        raise ClavataPluginValueError(
-                            f"Failed to parse Clavata response as JSON. Status: {resp.status}, "
-                            f"Content: {await resp.text()}"
-                        ) from e
+            if response.status_code != 200:
+                raise ClavataPluginAPIError(
+                    f"Clavata call failed with status code {response.status_code}.\nDetails: {response.text}"
+                )
 
-                    # Now we actually parse the JSON into a meaningful object
-                    try:
-                        return response_model.model_validate(parsed_response)
-                    except ValidationError as e:
-                        raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
+            try:
+                parsed_response = response.json()
+            except HTTPResponseDecodeError as e:
+                raise ClavataPluginValueError(
+                    f"Failed to parse Clavata response as JSON. Status: {response.status_code}, "
+                    f"Content: {response.text}"
+                ) from e
+
+            try:
+                return response_model.model_validate(parsed_response)
+            except ValidationError as e:
+                raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
 
         except Exception as e:
             raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {e}") from e
