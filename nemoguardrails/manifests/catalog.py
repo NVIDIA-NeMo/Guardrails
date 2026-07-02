@@ -1,0 +1,166 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""In-memory registry of rail manifests and the surfaces they expose.
+
+Collects `RailManifestRecord` entries (built-in rails discovered under
+`nemoguardrails/library` plus enabled plugin entry points) into an immutable
+`RailCatalog` that enforces global uniqueness of rail names, config keys,
+action names, and surface keys.
+"""
+
+import importlib
+import importlib.metadata
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Iterable, Mapping, Optional, Tuple
+
+from nemoguardrails.manifests.manifest import ActionRef, RailDirection, RailManifest, RailSurface
+
+
+@dataclass(frozen=True, slots=True)
+class RailManifestRecord:
+    manifest: RailManifest
+    source: str
+    distribution: Optional[str] = None
+    built_in: bool = True
+
+
+class RailCatalog:
+    """Immutable index of rail manifests keyed by name and surface.
+
+    Constructing a catalog validates the combined set of records and raises
+    `ValueError` on any collision: duplicate manifest names, duplicate config
+    keys, duplicate action names, or two rails claiming the same
+    `(direction, surface name)`. It also rejects a surface whose action is not
+    declared in that surface's own manifest.
+    """
+
+    def __init__(self, records: Iterable[RailManifestRecord] = ()) -> None:
+        records_by_name: Dict[str, RailManifestRecord] = {}
+        surfaces: Dict[Tuple[RailDirection, str], RailSurface] = {}
+        surface_owners: Dict[Tuple[RailDirection, str], str] = {}
+        config_owners: Dict[str, str] = {}
+        action_owners: Dict[str, Tuple[str, ActionRef]] = {}
+        for record in records:
+            manifest = record.manifest
+            declared_actions = set(manifest.actions.refs if manifest.actions is not None else ())
+            existing = records_by_name.get(manifest.name)
+            if existing is not None:
+                raise ValueError(
+                    f"Rail manifest {manifest.name!r} is already provided by {existing.source!r}; "
+                    f"cannot also provide it from {record.source!r}."
+                )
+            if manifest.config_schema is not None:
+                key = manifest.config_schema.key
+                owner = config_owners.get(key)
+                if owner is not None:
+                    raise ValueError(
+                        f"Rail config key {key!r} is already provided by {owner!r}; "
+                        f"cannot also provide it from {manifest.name!r}."
+                    )
+                config_owners[key] = manifest.name
+            if manifest.actions is not None:
+                for action_ref in manifest.actions.refs:
+                    existing_action = action_owners.get(action_ref.name)
+                    if existing_action is not None:
+                        raise ValueError(
+                            f"Rail action {action_ref.name!r} is already provided by {existing_action[0]!r}; "
+                            f"cannot also provide it from {manifest.name!r}."
+                        )
+                    action_owners[action_ref.name] = (manifest.name, action_ref)
+            for surface in manifest.surfaces:
+                if surface.action not in declared_actions:
+                    raise ValueError(
+                        f"Rail surface {surface.name!r} from {manifest.name!r} references action "
+                        f"{surface.action.name!r}, which is not declared in that manifest."
+                    )
+                key = (surface.direction, surface.name)
+                owner = surface_owners.get(key)
+                if owner is not None:
+                    raise ValueError(
+                        f"Rail surface {surface.name!r} for direction {surface.direction.value!r} is already "
+                        f"provided by {owner!r}; cannot also provide it from {manifest.name!r}."
+                    )
+                surfaces[key] = surface
+                surface_owners[key] = manifest.name
+            records_by_name[manifest.name] = record
+        self._records = records_by_name
+        self._surfaces = surfaces
+
+    @classmethod
+    def discover_built_ins(cls, library_path: Optional[Path] = None) -> "RailCatalog":
+        if library_path is None:
+            library_path = Path(__file__).resolve().parents[1] / "library"
+        records = []
+        for manifest_file in sorted(library_path.rglob("rail.py")):
+            relative_module = manifest_file.relative_to(library_path).with_suffix("")
+            module_name = ".".join(("nemoguardrails", "library", *relative_module.parts))
+            module = importlib.import_module(module_name)
+            manifest = getattr(module, "RAIL", None)
+            if not isinstance(manifest, RailManifest):
+                raise TypeError(f"Rail manifest module {module_name!r} must define RAIL as a RailManifest.")
+            manifest = manifest.model_copy(update={"origin": module_name})
+            records.append(RailManifestRecord(manifest=manifest, source=module_name))
+        return cls(records)
+
+    def with_plugins(self, enabled: Iterable[str]) -> "RailCatalog":
+        enabled_names = tuple(dict.fromkeys(enabled))
+        if not enabled_names:
+            return self
+        discovered = importlib.metadata.entry_points()
+        candidates = list(discovered.select(group="nemoguardrails.rails"))
+        by_name: Dict[str, list] = {}
+        for candidate in candidates:
+            by_name.setdefault(candidate.name, []).append(candidate)
+        records = list(self._records.values())
+        for name in enabled_names:
+            matches = by_name.get(name, [])
+            if not matches:
+                raise ValueError(f"Enabled rail plugin {name!r} is not installed.")
+            if len(matches) != 1:
+                distributions = sorted(
+                    (candidate.dist.name if candidate.dist is not None else "unknown") for candidate in matches
+                )
+                raise ValueError(f"Rail plugin {name!r} is provided by multiple distributions: {distributions}.")
+            candidate = matches[0]
+            manifest = candidate.load()
+            if callable(manifest) and not isinstance(manifest, RailManifest):
+                manifest = manifest()
+            if not isinstance(manifest, RailManifest):
+                raise TypeError(f"Rail plugin entry point {name!r} must resolve to a RailManifest.")
+            if manifest.name != name:
+                raise ValueError(f"Rail plugin entry point {name!r} returned manifest {manifest.name!r}.")
+            distribution = candidate.dist.name if candidate.dist is not None else None
+            records.append(
+                RailManifestRecord(
+                    manifest=manifest.model_copy(update={"origin": candidate.value}),
+                    source=candidate.value,
+                    distribution=distribution,
+                    built_in=False,
+                )
+            )
+        return type(self)(records)
+
+    @property
+    def records(self) -> Mapping[str, RailManifestRecord]:
+        return dict(self._records)
+
+    @property
+    def manifests(self) -> Mapping[str, RailManifest]:
+        return {name: record.manifest for name, record in self._records.items()}
+
+    def surfaces(self, direction: Optional[RailDirection] = None) -> Dict:
+        return {key: surface for key, surface in self._surfaces.items() if direction is None or key[0] == direction}
