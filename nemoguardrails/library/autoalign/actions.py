@@ -19,10 +19,9 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import aiohttp
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 
 log = logging.getLogger(__name__)
@@ -150,6 +149,7 @@ async def autoalign_infer(
     task_config: Optional[Dict[Any, Any]] = None,
     show_toxic_phrases: bool = False,
     multi_language: bool = False,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Checks whether the given text passes through the applied guardrails."""
     api_key = os.environ.get("AUTOALIGN_API_KEY")
@@ -168,22 +168,23 @@ async def autoalign_infer(
 
     guardrails_configured = []
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url=request_url,
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            request_url,
             headers=headers,
             json=request_body,
-        ) as response:
-            if response.status != 200:
-                raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
-                )
-            async for line in response.content:
-                line_text = line.strip()
-                if len(line_text) > 0:
-                    resp = json.loads(line_text)
-                    guardrails_configured.append(resp)
-            processed_response = process_autoalign_output(guardrails_configured, show_toxic_phrases)
+            raise_for_status=False,
+        )
+    if response.status_code != 200:
+        raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
+    for line in response.content.splitlines():
+        line_text = line.strip()
+        if len(line_text) > 0:
+            resp = json.loads(line_text)
+            guardrails_configured.append(resp)
+    processed_response = process_autoalign_output(guardrails_configured, show_toxic_phrases)
     return processed_response
 
 
@@ -192,6 +193,7 @@ async def autoalign_groundedness_infer(
     text: str,
     documents: List[str],
     guardrails_config: Optional[Dict[Any, Any]] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Checks the groundedness for the text using the given documents and provides a fact-checking score"""
     groundness_config = copy.deepcopy(default_groundedness_config)
@@ -202,21 +204,22 @@ async def autoalign_groundedness_infer(
     if guardrails_config:
         groundness_config.update(guardrails_config)
     request_body = {"prompt": text, "documents": documents, "config": groundness_config}
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url=request_url,
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            request_url,
             headers=headers,
             json=request_body,
-        ) as response:
-            if response.status != 200:
-                raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
-                )
-            async for line in response.content:
-                resp = json.loads(line)
-                if resp["task"] == "groundedness_checker":
-                    if resp["response"].startswith("Factcheck Score: "):
-                        return float(resp["response"][17:])
+            raise_for_status=False,
+        )
+    if response.status_code != 200:
+        raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
+    for line in response.content.splitlines():
+        resp = json.loads(line)
+        if resp["task"] == "groundedness_checker":
+            if resp["response"].startswith("Factcheck Score: "):
+                return float(resp["response"][17:])
     return 1.0
 
 
@@ -226,6 +229,7 @@ async def autoalign_factcheck_infer(
     bot_message: str,
     guardrails_config: Optional[Dict[str, Any]] = None,
     multi_language: bool = False,
+    http_client: Optional[HTTPClient] = None,
 ):
     api_key = os.environ.get("AUTOALIGN_API_KEY")
     if api_key is None:
@@ -244,18 +248,19 @@ async def autoalign_factcheck_infer(
         "config": guardrails_config,
         "multi_language": multi_language,
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url=request_url,
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            request_url,
             headers=headers,
             json=request_body,
-        ) as response:
-            if response.status != 200:
-                raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
-                )
-            factcheck_response = await response.json()
-            return factcheck_response["all_overall_fact_scores"][0]
+            raise_for_status=False,
+        )
+    if response.status_code != 200:
+        raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
+    factcheck_response = response.json()
+    return factcheck_response["all_overall_fact_scores"][0]
     return 1.0
 
 
@@ -265,6 +270,7 @@ async def autoalign_input_api(
     context: Optional[dict] = None,
     show_autoalign_message: bool = True,
     show_toxic_phrases: bool = False,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Calls AutoAlign API for the user message and guardrail configuration provided"""
@@ -279,12 +285,14 @@ async def autoalign_input_api(
         raise ValueError("Provide the guardrails and their configuration")
     text = user_message
 
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     autoalign_response = await autoalign_infer(
         autoalign_api_url,
         text,
         task_config,
         show_toxic_phrases,
         multi_language=multi_language,
+        **request_kwargs,
     )
     if autoalign_response["guardrails_triggered"] and show_autoalign_message:
         log.warning(
@@ -305,6 +313,7 @@ async def autoalign_output_api(
     context: Optional[dict] = None,
     show_autoalign_message: bool = True,
     show_toxic_phrases: bool = False,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Calls AutoAlign API for the bot message and guardrail configuration provided"""
@@ -319,12 +328,14 @@ async def autoalign_output_api(
         raise ValueError("Provide the guardrails and their configuration")
 
     text = bot_message
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     autoalign_response = await autoalign_infer(
         autoalign_api_url,
         text,
         task_config,
         show_toxic_phrases,
         multi_language=multi_language,
+        **request_kwargs,
     )
     if autoalign_response["guardrails_triggered"] and show_autoalign_message:
         log.warning(
@@ -340,6 +351,7 @@ async def autoalign_groundedness_output_api(
     context: Optional[dict] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Calls AutoAlign groundedness check API and checks whether the bot message is factually grounded according to given
@@ -354,11 +366,13 @@ async def autoalign_groundedness_output_api(
     if not autoalign_groundedness_api_url:
         raise ValueError("Provide the autoalign groundedness check endpoint in the config")
     text = bot_message
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     score = await autoalign_groundedness_infer(
         request_url=autoalign_groundedness_api_url,
         text=text,
         documents=documents,
         guardrails_config=guardrails_config,
+        **request_kwargs,
     )
     if score < factcheck_threshold and show_autoalign_message:
         log.warning(
@@ -373,6 +387,7 @@ async def autoalign_factcheck_output_api(
     context: Optional[dict] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Calls Autoalign Factchecker API and checks if the user message is factually answered by the bot message"""
 
@@ -385,12 +400,14 @@ async def autoalign_factcheck_output_api(
     guardrails_config = getattr(autoalign_config.output, "guardrails_config", None)
     if not autoalign_factcheck_api_url:
         raise ValueError("Provide the autoalign fact check endpoint in the config")
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     score = await autoalign_factcheck_infer(
         request_url=autoalign_factcheck_api_url,
         user_message=user_message,
         bot_message=bot_message,
         guardrails_config=guardrails_config,
         multi_language=multi_language,
+        **request_kwargs,
     )
 
     if score < factcheck_threshold and show_autoalign_message:

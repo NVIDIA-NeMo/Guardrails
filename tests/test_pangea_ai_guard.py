@@ -230,7 +230,7 @@ async def test_pangea_ai_guard_api_error_returns_allow_outcome(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
-    httpx_mock.add_response(status_code=500, json={"result": {}})
+    httpx_mock.add_response(is_reusable=True, status_code=500, json={"result": {}})
 
     outcome = await pangea_ai_guard(
         mode="output",
