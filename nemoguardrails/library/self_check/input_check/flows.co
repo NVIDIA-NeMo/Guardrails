@@ -1,6 +1,5 @@
-
-flow self check input
-  $allowed = await SelfCheckInputAction
+flow self check input $task="self_check_input"
+  $allowed = await SelfCheckInputAction(task=$task)
 
   if not $allowed
     if $system.config.enable_rails_exceptions

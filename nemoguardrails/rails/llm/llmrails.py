@@ -53,7 +53,7 @@ from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
+from nemoguardrails.colang.v1_0.runtime.flows import _get_flow_params, _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
@@ -1859,10 +1859,11 @@ class LLMRails(BaseGuardrails):
             bot_response_chunk: str,
             prompt: Optional[str] = None,
             messages: Optional[List[dict]] = None,
-            action_params: Dict[str, Any] = {},
+            action_params: Optional[Dict[str, Any]] = None,
         ):
             context_message = _get_last_context_message(messages)
             user_message = prompt or _get_latest_user_message(messages)
+            flow_params = _get_flow_params(flow_id)
 
             context = {
                 "user_message": user_message,
@@ -1871,18 +1872,20 @@ class LLMRails(BaseGuardrails):
 
             if context_message:
                 context.update(context_message["content"])
+            context["triggered_output_rail"] = flow_id
 
             model_name = flow_id.split("$")[-1].split("=")[-1].strip('"')
 
-            # Resolve $bot_message / $user_message into a new dict. action_params
-            # is the shared flow config (reused across chunks and requests) and
-            # must not be mutated in place.
-            resolved_params = dict(action_params or {})
-            for key, value in resolved_params.items():
-                if value == "$bot_message":
-                    resolved_params[key] = bot_response_chunk
-                elif value == "$user_message":
-                    resolved_params[key] = user_message
+            context_params = {
+                "bot_message": bot_response_chunk,
+                "user_message": user_message,
+                **flow_params,
+            }
+            resolved_action_params = {}
+            for key, value in (action_params or {}).items():
+                if isinstance(value, str) and value.startswith("$"):
+                    value = context_params.get(value[1:], value)
+                resolved_action_params[key] = value
 
             return {
                 # TODO:: are there other context variables that need to be passed?
@@ -1894,7 +1897,7 @@ class LLMRails(BaseGuardrails):
                 "model_name": model_name,
                 "llms": self.runtime.registered_action_params.get("llms", {}),
                 "llm": self.runtime.registered_action_params.get(f"{action_name}_llm", self.llm),
-                **resolved_params,
+                **resolved_action_params,
             }
 
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
