@@ -25,7 +25,6 @@ Note about token usage testing:
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.context import llm_stats_var
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from tests.utils import TestChat
 
@@ -284,12 +283,15 @@ async def test_token_usage_not_set_for_unsupported_provider():
         token_usage=token_usage_data,
     )
 
-    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Hi!"}])
+    # Read the per-call stats from the response log rather than the request-scoped
+    # llm_stats_var contextvar, which generation_context now resets on request close.
+    result = await chat.app.generate_async(
+        messages=[{"role": "user", "content": "Hi!"}],
+        options={"log": {"llm_calls": True}},
+    )
 
-    assert result["content"] == "Hello there!"
+    assert result.response[-1]["content"] == "Hello there!"
 
-    llm_stats = llm_stats_var.get()
-
-    assert llm_stats is not None
-    assert llm_stats.get_stat("total_tokens") == 0
-    assert llm_stats.get_stat("total_calls") == 1
+    assert result.log is not None
+    assert result.log.stats.llm_calls_total_tokens == 0
+    assert result.log.stats.llm_calls_count == 1

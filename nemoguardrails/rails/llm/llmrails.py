@@ -42,11 +42,8 @@ from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
-from nemoguardrails.rails.llm.config import (
-    OutputRailsStreamingConfig,
-    RailsConfig,
-)
-from nemoguardrails.rails.llm.conversation.conversation_events import events_for_messages
+from nemoguardrails.rails.llm.checks import rails_check
+from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig, RailsConfig
 from nemoguardrails.rails.llm.generation.generation_context import (
     ensure_explain_info,
     explain_info_for_current_context,
@@ -57,13 +54,7 @@ from nemoguardrails.rails.llm.generation.generation_request import (
     validate_public_state,
 )
 from nemoguardrails.rails.llm.generation.generation_workflow import generate_standard_async
-from nemoguardrails.rails.llm.options import (
-    GenerationOptions,
-    GenerationResponse,
-    RailsResult,
-    RailStatus,
-    RailType,
-)
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.rails.llm.runtime.colang_runtime import runtime_for_colang_version
 from nemoguardrails.rails.llm.runtime.colang_turns import (
     generate_colang_events,
@@ -231,17 +222,10 @@ class LLMRails(BaseGuardrails):
 
     @property
     def passthrough_fn(self):
-        """The optional passthrough function that bypasses LLM generation.
-
-        When set, the rails pipeline calls this function instead of the main LLM
-        for generating responses. LLMGenerationActions is private, expose only
-        `passthrough_fn` as a public API
-        """
         return self._llm_generation_actions._passthrough_fn
 
     @passthrough_fn.setter
     def passthrough_fn(self, fn):
-        """LLMGenerationActions is private, set passthrough_fn directly"""
         self._llm_generation_actions._passthrough_fn = fn
 
     @property
@@ -367,12 +351,6 @@ class LLMRails(BaseGuardrails):
         load_llm_action_models(self, init_llm=init_llm_model)
         initialize_llm_action_caches(self)
 
-    def _get_embeddings_search_provider_instance(self, esp_config=None):
-        return self.embedding_search.get_provider_instance(esp_config)
-
-    def _get_events_for_messages(self, messages: List[dict], state: Any):
-        return events_for_messages(self, messages, state)
-
     @staticmethod
     def _ensure_explain_info() -> ExplainInfo:
         """Ensure that the ExplainInfo variable is present in the current context
@@ -382,9 +360,8 @@ class LLMRails(BaseGuardrails):
         """
         return ensure_explain_info()
 
-    def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
-        """Validate public dict state passed through generate/generate_async."""
-        validate_public_state(self.config, state)
+    def _get_embeddings_search_provider_instance(self, esp_config=None):
+        return self.embedding_search.get_provider_instance(esp_config)
 
     async def generate_async(
         self,
@@ -662,38 +639,7 @@ class LLMRails(BaseGuardrails):
 
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
         """
-        if rail_types is not None:
-            options: Optional[dict] = {"rails": [r.value for r in rail_types]}
-        else:
-            options = _determine_rails_from_messages(messages)
-
-        if options is None:
-            last_content = messages[-1].get("content", "") if messages else ""
-            return RailsResult(status=RailStatus.PASSED, content=last_content)
-
-        rails_to_run = options["rails"]
-        if "output" in rails_to_run:
-            original_content = _get_last_content_by_role(messages, "assistant")
-        else:
-            original_content = _get_last_content_by_role(messages, "user")
-
-        messages = _normalize_messages_for_rails(messages, rails_to_run)
-        options["log"] = {"activated_rails": True}
-
-        response = await self.generate_async(messages=messages, options=options)
-
-        if not isinstance(response, GenerationResponse):
-            raise RuntimeError(f"Expected GenerationResponse, got {type(response).__name__}")
-
-        blocking_rail = _get_blocking_rail(response)
-        result_content = _get_last_response_content(response)
-
-        if blocking_rail:
-            return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
-
-        if result_content != original_content:
-            return RailsResult(status=RailStatus.MODIFIED, content=result_content)
-        return RailsResult(status=RailStatus.PASSED, content=result_content)
+        return await rails_check.check_messages(self, messages, rail_types=rail_types)
 
     def check(
         self,
@@ -720,22 +666,38 @@ class LLMRails(BaseGuardrails):
         return loop.run_until_complete(self.check_async(messages, rail_types=rail_types))
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
-        """Register a custom action for the rails configuration."""
+        """Register a custom action for the rails configuration.
+
+        This mutates the runtime action registry and is intended to be called
+        during application startup, before concurrent generation requests begin.
+        """
         self.runtime.register_action(action, name)
         return self
 
     def register_action_param(self, name: str, value: Any) -> Self:
-        """Registers a custom action parameter."""
+        """Register a custom action parameter.
+
+        This mutates runtime action dependencies and is intended to be called
+        during application startup, before concurrent generation requests begin.
+        """
         self.runtime.register_action_param(name, value)
         return self
 
     def register_filter(self, filter_fn: Callable, name: Optional[str] = None) -> Self:
-        """Register a custom filter for the rails configuration."""
+        """Register a custom filter for the rails configuration.
+
+        This mutates the runtime task manager and is intended to be called
+        during application startup, before concurrent generation requests begin.
+        """
         self.runtime.llm_task_manager.register_filter(filter_fn, name)
         return self
 
     def register_output_parser(self, output_parser: Callable, name: str) -> Self:
-        """Register a custom output parser for the rails configuration."""
+        """Register a custom output parser for the rails configuration.
+
+        This mutates the runtime task manager and is intended to be called
+        during application startup, before concurrent generation requests begin.
+        """
         self.runtime.llm_task_manager.register_output_parser(output_parser, name)
         return self
 
@@ -744,6 +706,9 @@ class LLMRails(BaseGuardrails):
 
         :name: The name of the variable or function that will be used.
         :value_or_fn: The value or function that will be used to generate the value.
+
+        This mutates the runtime task manager and is intended to be called
+        during application startup, before concurrent generation requests begin.
         """
         self.runtime.llm_task_manager.register_prompt_context(name, value_or_fn)
         return self
@@ -754,6 +719,9 @@ class LLMRails(BaseGuardrails):
         Args:
             name: The name of the embedding search provider that will be used.
             cls: The class that will be used to generate and search embedding
+
+        This updates the instance provider registry. Register providers during
+        startup so knowledge-base and generation-action setup can see them.
         """
 
         self.embedding_search.register_provider(name, cls)
@@ -769,6 +737,9 @@ class LLMRails(BaseGuardrails):
         Raises:
             ValueError: If the engine name is not provided and the model does not have an engine name.
             ValueError: If the model does not have 'encode' or 'encode_async' methods.
+
+        This updates the process-global embedding provider registry and is
+        intended to be called during application startup.
         """
         register_embedding_provider(engine_name=name, model=cls)
         return self
@@ -810,58 +781,3 @@ class LLMRails(BaseGuardrails):
             stream_first=stream_first,
         ):
             yield chunk
-
-
-def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:
-    roles = {msg.get("role") for msg in reversed(messages)}
-    has_user = "user" in roles
-    has_assistant = "assistant" in roles
-
-    if not has_user and not has_assistant:
-        log.warning(
-            "check() called with no user or assistant messages. "
-            "Only system, context, or tool messages found. "
-            "Returning passing result without running rails."
-        )
-        return None
-
-    if has_user and has_assistant:
-        return {"rails": ["input", "output"]}
-    if has_user:
-        return {"rails": ["input"]}
-    return {"rails": ["output"]}
-
-
-def _normalize_messages_for_rails(
-    messages: List[dict],
-    rails: List[str],
-) -> List[dict]:
-    if rails == ["output"]:
-        has_user = any(msg.get("role") == "user" for msg in messages)
-        if not has_user:
-            return [{"role": "user", "content": ""}] + messages
-
-    return messages
-
-
-def _get_last_content_by_role(messages: List[dict], role: str) -> str:
-    for msg in reversed(messages):
-        if msg.get("role") == role:
-            return msg.get("content", "")
-    return ""
-
-
-def _get_blocking_rail(response: "GenerationResponse") -> Optional[str]:
-    if response.log and response.log.activated_rails:
-        for rail in response.log.activated_rails:
-            if rail.stop:
-                return rail.name
-    return None
-
-
-def _get_last_response_content(response: "GenerationResponse") -> str:
-    if isinstance(response.response, list) and response.response:
-        return response.response[-1].get("content", "")
-    if isinstance(response.response, str):
-        return response.response
-    return ""
