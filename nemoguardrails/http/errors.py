@@ -14,24 +14,11 @@
 # limitations under the License.
 
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit, urlunsplit
+
+from nemoguardrails.http._url import sanitize_url
 
 if TYPE_CHECKING:
     from nemoguardrails.http.types import HTTPRequest, HTTPResponse
-
-
-def _safe_url(url: str) -> str:
-    parts = urlsplit(url)
-    hostname = parts.hostname
-    if hostname is None:
-        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
-    host = f"[{hostname}]" if ":" in hostname else hostname
-    try:
-        port = parts.port
-    except ValueError:
-        port = None
-    netloc = f"{host}:{port}" if port is not None else host
-    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
 class HTTPClientError(Exception):
@@ -52,10 +39,11 @@ class HTTPStatusError(HTTPClientError):
     def __init__(self, response: "HTTPResponse", request: "HTTPRequest | None" = None):
         message = f"HTTP request failed with status {response.status_code}"
         if request is not None:
-            message = f"{message}: {request.method.upper()} {_safe_url(request.url)}"
+            message = f"{message}: {request.method.upper()} {sanitize_url(request.url)}"
         super().__init__(message)
         self.response = response
         self.request = request
+        self.retry_count = int(response.extensions.get("retry_count", 0))
 
 
 class HTTPResponseDecodeError(HTTPClientError):
