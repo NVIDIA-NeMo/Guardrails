@@ -22,6 +22,7 @@ import pytest
 from nemoguardrails.http import (
     HTTPConnectionError,
     HTTPTimeoutError,
+    HTTPTLSConfig,
     HttpxHTTPClient,
 )
 
@@ -144,3 +145,42 @@ def test_httpx_transport_can_enable_redirects_explicitly():
         HttpxHTTPClient(follow_redirects=True)
 
     assert factory.call_args.kwargs["follow_redirects"] is True
+
+
+def test_httpx_transport_configures_owned_client_tls():
+    constructed = mock.MagicMock()
+
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=constructed) as factory:
+        client = HttpxHTTPClient(
+            timeout=12.0,
+            tls=HTTPTLSConfig(
+                ca_bundle="/ca.pem",
+                client_certificate="/cert.pem",
+                client_key="/key.pem",
+            ),
+        )
+
+    assert client._client is constructed
+    assert client._timeout == 12.0
+    assert factory.call_args.kwargs["timeout"] is None
+    assert factory.call_args.kwargs["verify"] == "/ca.pem"
+    assert factory.call_args.kwargs["cert"] == ("/cert.pem", "/key.pem")
+
+
+def test_httpx_transport_rejects_tls_with_injected_client():
+    injected = mock.MagicMock(spec=httpx.AsyncClient)
+
+    with pytest.raises(ValueError, match="TLS configuration"):
+        HttpxHTTPClient(injected, tls=HTTPTLSConfig(verify=False))
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"client_certificate": "/cert.pem"},
+        {"client_key": "/key.pem"},
+    ],
+)
+def test_http_tls_config_requires_complete_client_credentials(kwargs):
+    with pytest.raises(ValueError, match="configured together"):
+        HTTPTLSConfig(**kwargs)

@@ -23,6 +23,7 @@ from nemoguardrails.http.client import ClosableHTTPClient
 from nemoguardrails.http.instrumentation import InstrumentedHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
+from nemoguardrails.http.types import HTTPTLSConfig
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -36,12 +37,14 @@ def create_http_client(
     retry_policy: RetryPolicy | None = None,
     tracer: Tracer | None = None,
     follow_redirects: bool = False,
+    tls: HTTPTLSConfig | None = None,
 ) -> ClosableHTTPClient:
     transport = HttpxHTTPClient(
         httpx_client,
         timeout=timeout,
         limits=limits,
         follow_redirects=follow_redirects,
+        tls=tls,
     )
     client: ClosableHTTPClient = transport
     if retry_policy is not None:
