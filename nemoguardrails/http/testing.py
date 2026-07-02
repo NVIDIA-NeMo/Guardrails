@@ -32,6 +32,9 @@ class RecordingHTTPClient:
         self._responses = deque(responses)
         self.close_calls = 0
 
+    def add_response(self, response: HTTPResponse | BaseException) -> None:
+        self._responses.append(response)
+
     async def request(
         self,
         method: str,
