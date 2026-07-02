@@ -71,6 +71,17 @@ async def test_http_call_raises_status_error_with_retry_context():
 
 
 @pytest.mark.asyncio
+async def test_http_call_ignores_invalid_retry_metadata():
+    response = HTTPResponse(status_code=503, extensions={"retry_count": "unknown"})
+    client = RecordingHTTPClient([response])
+
+    with pytest.raises(HTTPStatusError) as exc_info:
+        await http_call(client, "GET", "https://example.com/check")
+
+    assert exc_info.value.retry_count == 0
+
+
+@pytest.mark.asyncio
 async def test_http_call_can_return_error_response_without_raising():
     response = HTTPResponse(status_code=404)
     client = RecordingHTTPClient([response])

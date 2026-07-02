@@ -91,7 +91,8 @@ class InstrumentedHTTPClient:
             set_status_on_exception=False,
         ) as span:
             self._set_request_attributes(span, normalized_method, url, content)
-            self._capture_request_body(span, url, headers, json, content)
+            with suppress(Exception):
+                self._capture_request_body(span, url, headers, json, content)
             try:
                 response = await self._client.request(
                     method,
@@ -106,7 +107,8 @@ class InstrumentedHTTPClient:
                 self._record_error(span, error, StatusCode)
                 raise
             self._set_response_attributes(span, response, StatusCode)
-            self._capture_response_body(span, url, response)
+            with suppress(Exception):
+                self._capture_response_body(span, url, response)
             return response
 
     def _set_request_attributes(self, span: "Span", method: str, url: str, content: bytes | str | None) -> None:
@@ -140,7 +142,7 @@ class InstrumentedHTTPClient:
             retry_count = getattr(error, "retry_count", 0)
             if isinstance(retry_count, int) and retry_count > 0:
                 span.set_attribute("http.request.resend_count", retry_count)
-            span.record_exception(error)
+            span.add_event("exception", {"exception.type": type(error).__name__})
             span.set_status(status_code_type.ERROR)
 
     def _capture_request_body(
