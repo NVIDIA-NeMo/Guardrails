@@ -21,6 +21,7 @@ from nemoguardrails.http.errors import (
     HTTPStatusError,
     HTTPTimeoutError,
 )
+from nemoguardrails.http.transport import HttpxHTTPClient
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "HTTPResponseDecodeError",
     "HTTPStatusError",
     "HTTPTimeoutError",
+    "HttpxHTTPClient",
     "ManagedHTTPClient",
 ]
