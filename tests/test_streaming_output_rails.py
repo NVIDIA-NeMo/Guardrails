@@ -367,7 +367,7 @@ async def test_external_generator_output_rails_receive_user_content():
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
         observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -413,7 +413,7 @@ async def test_external_generator_output_rails_use_empty_user_content_without_us
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
         observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -624,11 +624,11 @@ async def test_streaming_output_rails_no_stale_substituted_param():
 
     seen = []
 
-    @action(name="capture_output", output_mapping=lambda result: not result)
+    @action(name="capture_output")
     async def capture_output(**params):
         # the substituted `text` kwarg must match this chunk's bot_message
         seen.append((params.get("text"), params["context"]["bot_message"]))
-        return True
+        return RailOutcome.allow()
 
     chat = TestChat(
         config,
@@ -681,11 +681,11 @@ async def test_streaming_output_rails_substitutes_user_message_param():
 
     seen = []
 
-    @action(name="capture_output", output_mapping=lambda result: not result)
+    @action(name="capture_output")
     async def capture_output(**params):
         # the substituted `text` kwarg must be the resolved user message
         seen.append((params.get("text"), params["context"]["user_message"]))
-        return True
+        return RailOutcome.allow()
 
     chat = TestChat(
         config,
