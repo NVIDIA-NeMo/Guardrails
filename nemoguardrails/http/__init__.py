@@ -22,6 +22,7 @@ from nemoguardrails.http.errors import (
     HTTPTimeoutError,
 )
 from nemoguardrails.http.instrumentation import HTTPBodyCapturePolicy, InstrumentedHTTPClient
+from nemoguardrails.http.request import http_call
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
@@ -41,4 +42,5 @@ __all__ = [
     "ManagedHTTPClient",
     "RetryPolicy",
     "RetryingHTTPClient",
+    "http_call",
 ]
