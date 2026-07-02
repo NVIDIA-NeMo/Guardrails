@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Section C parity baseline: a broad regression net over rail-pipeline assembly.
+"""Parity baseline: a broad regression net over rail-pipeline assembly.
 
 This module is the ``generate_async`` leg of a three-legged deterministic parity
 backstop. Each public entry point gets a matrix over the same rule-based rail configs

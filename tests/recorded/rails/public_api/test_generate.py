@@ -405,7 +405,7 @@ async def test_generate_async_with_prompt_and_messages_raises():
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_openai_generate_async_options_returns_generation_response(openai_api_key):
-    """A1.3: passing ``options`` switches the return type to a ``GenerationResponse``.
+    """Passing ``options`` switches the return type to a ``GenerationResponse``.
 
     Pins the full assembled shape (response + activated_rails + llm_calls) the
     generation_response module produces when log options are requested.
@@ -447,7 +447,7 @@ async def test_openai_generate_async_options_returns_generation_response(openai_
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_dialog_generate_async_llm_output_is_none(openai_api_key):
-    """B1.9: ``llm_output=True`` is currently a no-op, ``llm_output`` stays ``None``.
+    """``llm_output=True`` is currently a no-op, ``llm_output`` stays ``None``.
 
     FINDING (pre-existing, not a refactor regression): ``GenerationResponse.llm_output``
     is assembled from each generation LLM call's ``LLMCallInfo.raw_response``, but
@@ -528,7 +528,7 @@ If you tell me what you're trying to do (write something, answer a question, pla
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_nim_generate_async_options_surfaces_reasoning_content(nvidia_api_key):
-    """B6.1: reasoning is split out of the response into ``reasoning_content``.
+    """Reasoning is split out of the response into ``reasoning_content``.
 
     With ``options`` the result is a ``GenerationResponse``; the NIM thinking trace
     is extracted into ``reasoning_content`` rather than prepended to the response as
@@ -579,7 +579,7 @@ User probably wants to see if I'll overcomplicate things. Nah, they said "one sh
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_openai_generate_async_log_stats_token_counts(openai_api_key):
-    """B1.14: ``log.stats`` carries the per-generation token and call counts.
+    """``log.stats`` carries the per-generation token and call counts.
 
     Only token/call counts are asserted, wall-clock durations in ``stats`` are
     non-deterministic and deliberately excluded.

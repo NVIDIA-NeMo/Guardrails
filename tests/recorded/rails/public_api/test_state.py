@@ -37,7 +37,7 @@ pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 
 
 async def test_dialog_generate_async_state_round_trips_across_turns():
-    """A1.5 / B4.1: a Colang 1.0 ``state`` object round-trips and advances the flow.
+    """A Colang 1.0 ``state`` object round-trips and advances the flow.
 
     Turn 1 starts from an empty state (``{}``) and returns ``GenerationResponse.state``
     as ``{"events": [...]}``. Threading that state into turn 2 continues the multi-step
@@ -120,7 +120,7 @@ async def test_dialog_generate_async_state_round_trips_across_turns():
 
 
 async def test_baseline_generate_async_log_does_not_leak_across_sequential_calls():
-    """A6.2: per-call ``log.llm_calls`` isolation across two calls on one ``LLMRails``.
+    """Per-call ``log.llm_calls`` isolation across two calls on one ``LLMRails``.
 
     Invariant (holds both pre- and post-decomposition): a call's
     ``GenerationResponse.log.llm_calls`` contains only that call's LLM calls, never the

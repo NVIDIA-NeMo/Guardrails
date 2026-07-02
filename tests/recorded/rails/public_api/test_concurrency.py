@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Concurrency & contextvar isolation under ``asyncio.gather`` (RECORDED_TEST_PLAN §5.1).
+"""Concurrency & contextvar isolation under ``asyncio.gather``.
 
 Cassette replay serializes requests, so it cannot prove that concurrent
 ``generate_async`` calls do not cross-talk through the per-request contextvars
@@ -25,13 +25,12 @@ rails / stats into each other.
 
 ``asyncio.gather`` runs each coroutine in its own copied context, so the correct
 behavior is that concurrency changes nothing: the per-request result is identical to
-running the same request alone. These tests assert exactly that. They are the
-parallel-task complement to A6.2 (which covers the sequential, single-task slice), are
-fully deterministic (``FakeLLMModel``, no cassette), and pass identically on both
-pre-refactor and the decomposed refactor.
+running the same request alone. These tests assert exactly that. They complement the
+sequential, single-task slice, are fully deterministic (``FakeLLMModel``, no cassette),
+and pass identically on both pre-refactor and the decomposed refactor.
 
 Assertions stay on the stable ``log.llm_calls`` invariant (not ``explain()``, whose
-accumulate-vs-reset semantics differ across the two code paths — see A6.2).
+accumulate-vs-reset semantics differ across the two code paths).
 """
 
 from __future__ import annotations

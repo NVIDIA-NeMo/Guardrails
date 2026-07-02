@@ -37,7 +37,7 @@ pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 
 
 async def test_colang_v2_generate_async_runs_deterministic_flow():
-    """B7.1: basic ``generate_async`` on a Colang 2.x config runs the matched flow (no LLM)."""
+    """Basic ``generate_async`` on a Colang 2.x config runs the matched flow (no LLM)."""
     rails = LLMRails(load_config(COLANG_V2_CONFIG), verbose=False)
 
     result = await rails.generate_async(messages=[{"role": "user", "content": "hi"}])
@@ -46,7 +46,7 @@ async def test_colang_v2_generate_async_runs_deterministic_flow():
 
 
 async def test_colang_v2_generate_async_rejects_llm_output_option():
-    """B7.2: the ``llm_output`` option is not supported for Colang 2.0 and raises ``ValueError``."""
+    """The ``llm_output`` option is not supported for Colang 2.0 and raises ``ValueError``."""
     rails = LLMRails(load_config(COLANG_V2_CONFIG), verbose=False)
 
     with pytest.raises(ValueError, match="not supported for Colang 2.0"):
@@ -54,7 +54,7 @@ async def test_colang_v2_generate_async_rejects_llm_output_option():
 
 
 async def test_runtime_selection_by_colang_version():
-    """B7.3: the runtime class is chosen by ``colang_version`` (1.0 -> RuntimeV1_0, 2.x -> RuntimeV2_x)."""
+    """The runtime class is chosen by ``colang_version`` (1.0 -> RuntimeV1_0, 2.x -> RuntimeV2_x)."""
     rails_v1 = LLMRails(load_config(INPUT_RAILS_CONFIG), verbose=False)
     rails_v2 = LLMRails(load_config(COLANG_V2_CONFIG), verbose=False)
 
@@ -63,7 +63,7 @@ async def test_runtime_selection_by_colang_version():
 
 
 async def test_colang_v2_process_events_async_injects_event_and_returns_state():
-    """A5.2: ``process_events_async`` injects an external user event and returns output events plus
+    """``process_events_async`` injects an external user event and returns output events plus
     a live ``State`` (the Colang 2.x stateful entry point). Full multi-turn continuity is covered
     by ``tests/v2_x``; here we pin the event-injection + State-round-trip contract."""
     rails = LLMRails(load_config(COLANG_V2_CONFIG), verbose=False)

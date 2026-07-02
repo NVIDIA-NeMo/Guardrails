@@ -86,7 +86,7 @@ def _test_call(config_id):
 
 
 def test_colang_1_state_round_trip_continues_conversation():
-    """B4.3: the HTTP API returns state that continues the next Colang 1.0 turn."""
+    """The HTTP API returns state that continues the next Colang 1.0 turn."""
     api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
     _test_call("config_1")
 

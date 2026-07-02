@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Knowledge-base retrieval and prompt injection through ``generate_async`` (B3.1).
+"""Knowledge-base retrieval and prompt injection through ``generate_async``.
 
 The KB is embedded with the OpenAI embeddings provider (a recorded HTTP call), and
 the retrieved chunk is both returned via ``output_vars=["relevant_chunks"]`` and
@@ -65,7 +65,7 @@ async def test_openai_kb_generate_async_retrieves_and_injects_chunks(
         chat_bodies = [payload for payload in bodies if "messages" in payload]
         assert chat_bodies
         assert any(KB_MARKER in json.dumps(body) for body in chat_bodies)
-        # B3.3: the embedding provider request-body fingerprint (model + input) is recorded too.
+        # The embedding provider request-body fingerprint (model + input) is recorded too.
         embedding_requests = [payload for payload in bodies if "input" in payload and "messages" not in payload]
         assert len(embedding_requests) == 2
         assert all(payload.get("model") == "text-embedding-3-small" for payload in embedding_requests)

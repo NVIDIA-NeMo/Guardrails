@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tool calling surfaced through the public ``generate_async`` API (B5.1).
+"""Tool calling surfaced through the public ``generate_async`` API.
 
 The tools schema is supplied per-call via ``options.llm_params`` (which are spread as
 kwargs onto the provider request); ``tool_choice`` forces the call so the recorded
@@ -98,7 +98,7 @@ async def test_openai_generate_async_surfaces_tool_calls(openai_api_key, record_
 
 
 async def test_tool_messages_reach_openai_request_body():
-    """B5.2: assistant tool calls and tool results survive into the provider request body."""
+    """Assistant tool calls and tool results survive into the provider request body."""
     captured = []
     async with simulated_model("openai_generate_text.json", on_request=captured.append) as model:
         rails = LLMRails(load_config(OPENAI_TOOLS_CONFIG), llm=model, verbose=False)

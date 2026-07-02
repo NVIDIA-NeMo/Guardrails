@@ -67,7 +67,7 @@ class _ToolCallStreamingModel(FakeLLMModel):
 
 
 async def test_include_generation_metadata_matches_include_metadata():
-    """A3.3: the deprecated metadata flag remains an exact alias for ``include_metadata``."""
+    """The deprecated metadata flag remains an exact alias for ``include_metadata``."""
     messages = [{"role": "user", "content": "hi"}]
     current = LLMRails(
         load_config(STREAMING_PASSTHROUGH_CONFIG),
@@ -92,7 +92,7 @@ async def test_include_generation_metadata_matches_include_metadata():
 
 
 async def test_streaming_output_rail_allows_then_blocks_at_buffer_boundary():
-    """A3.7: a later blocked buffer stops the stream after the already allowed prefix."""
+    """A later blocked buffer stops the stream after the already allowed prefix."""
 
     @action(is_system_action=True, output_mapping=lambda result: not result)
     def block_marker(context=None, **params):
@@ -129,7 +129,7 @@ async def test_streaming_output_rail_buffer_configuration(
     stream_first,
     expected_checks,
 ):
-    """A3.8: chunk, context, and stream-first settings control observable buffering."""
+    """Chunk, context, and stream-first settings control observable buffering."""
     checks = []
     trace = []
 
@@ -168,7 +168,7 @@ async def test_streaming_output_rail_buffer_configuration(
 
 
 async def test_stream_async_tool_call_deltas_are_not_surfaced():
-    """A3.11: legacy ``LLMRails.stream_async`` currently drops accumulated tool-call deltas."""
+    """Legacy ``LLMRails.stream_async`` currently drops accumulated tool-call deltas."""
     rails = LLMRails(
         load_config(STREAMING_PASSTHROUGH_CONFIG),
         llm=_ToolCallStreamingModel(responses=[""]),
@@ -182,7 +182,7 @@ async def test_stream_async_tool_call_deltas_are_not_surfaced():
 
 
 async def test_input_rail_blocks_before_stream_generation():
-    """A3.12: a blocking input rail prevents the streaming model call from starting."""
+    """A blocking input rail prevents the streaming model call from starting."""
     model = FakeLLMModel(responses=["must not run"])
     rails = LLMRails(load_config(INPUT_RAIL_STREAMING_CONFIG), llm=model, verbose=False)
 
@@ -384,7 +384,7 @@ async def test_streaming_output_rails_disabled_validation():
 async def test_nim_stream_async_reasoning_not_inlined_in_streamed_text(
     nvidia_api_key, record_mode, recorded_cassette_path
 ):
-    """A3.10: while streaming, the NIM provider sends ``reasoning_content`` deltas, but the
+    """While streaming, the NIM provider sends ``reasoning_content`` deltas, but the
     user-facing streamed text is the answer only, the reasoning is NOT inlined as a ``<think>``
     block the way it is in non-streaming ``generate`` (see ``test_nim_generate_async_public_contract``).
 

@@ -17,7 +17,7 @@
 
 Deterministic (FakeLLMModel + rule-based input rail), no cassette. Exercises the
 conversation_events / colang_turns assembly the decomposition moved. The Colang 2.x
-``process_events_async`` event/state path (A5.2 / A5.3) lives in ``test_colang_v2.py``.
+``process_events_async`` event/state path lives in ``test_colang_v2.py``.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ _USER_EVENT = {"type": "UtteranceUserActionFinished", "final_transcript": "allow
 
 
 async def test_generate_events_async_returns_event_stream():
-    """A5.1: events in -> the full internal event stream out.
+    """Events in -> the full internal event stream out.
 
     A ``UtteranceUserActionFinished`` is processed through the input rail and generation
     (fake main), producing the ordered internal event stream. Event ids/timestamps are
@@ -84,7 +84,7 @@ async def test_generate_events_async_returns_event_stream():
 
 
 async def test_process_events_async_raises_on_colang_1():
-    """A5.x boundary: ``process_events_async`` is a Colang 2.x API; on a Colang 1.0 config the
+    """``process_events_async`` is a Colang 2.x API; on a Colang 1.0 config the
     1.0 runtime does not implement it and raises ``NotImplementedError``. Pinned so the
     decomposition preserves the boundary (the Colang 2.x path is covered in test_colang_v2)."""
     rails = LLMRails(load_config(INPUT_RAILS_CONFIG), llm=FakeLLMModel(responses=["hi"]), verbose=False)

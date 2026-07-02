@@ -50,7 +50,7 @@ async def _generate(config, messages, options, *, main_output):
 
 
 async def test_input_rails_disabled_by_options_skips_input_rail():
-    """B1.1: ``options.rails.input=False`` removes the input rail from the pipeline.
+    """``options.rails.input=False`` removes the input rail from the pipeline.
 
     The same blocking input is run twice. With default options the input rail fires
     and stops generation (refusal); with ``rails.input=False`` the input rail never
@@ -121,7 +121,7 @@ async def test_input_rails_disabled_by_options_skips_input_rail():
 
 
 async def test_activated_rails_ordering_and_decisions():
-    """B1.10: ``log.activated_rails`` preserves pipeline order and per-rail decisions.
+    """``log.activated_rails`` preserves pipeline order and per-rail decisions.
 
     Input passes, dialog/generation runs, then the output rail blocks. The ordered
     list (input -> generation -> output) plus each rail's decisions and ``stop`` flag
@@ -173,7 +173,7 @@ async def test_activated_rails_ordering_and_decisions():
 
 
 async def test_generation_options_object_matches_dict_equivalent():
-    """A1.4: a ``GenerationOptions`` object and the equivalent dict produce the same result."""
+    """A ``GenerationOptions`` object and the equivalent dict produce the same result."""
     message = [{"role": "user", "content": "hi"}]
     dict_result = await _generate(OUTPUT_RAILS_CONFIG, message, {"log": {"activated_rails": True}}, main_output="safe")
     obj_result = await _generate(
@@ -200,7 +200,7 @@ async def test_generation_options_object_matches_dict_equivalent():
 
 
 async def test_output_rails_disabled_by_options_skips_output_rail():
-    """B1.2: ``options.rails.output=False`` removes the output rail; bot output passes through."""
+    """``options.rails.output=False`` removes the output rail; bot output passes through."""
     message = [{"role": "user", "content": "hi"}]
     log_options = {"log": {"activated_rails": True}}
 
@@ -255,7 +255,7 @@ async def test_output_rails_disabled_by_options_skips_output_rail():
 
 
 async def test_dialog_disabled_by_options_skips_generation():
-    """B1.4: ``options.rails.dialog=False`` skips dialog/generation; only input rails run."""
+    """``options.rails.dialog=False`` skips dialog/generation; only input rails run."""
     result = await _generate(
         INPUT_OUTPUT_RAILS_CONFIG,
         [{"role": "user", "content": "allowed input"}],
@@ -275,7 +275,7 @@ async def test_dialog_disabled_by_options_skips_generation():
 
 
 async def test_output_vars_true_returns_full_context():
-    """B1.7: ``options.output_vars=True`` returns the whole context in ``output_data``."""
+    """``options.output_vars=True`` returns the whole context in ``output_data``."""
     result = await _generate(
         INPUT_RAILS_CONFIG, [{"role": "user", "content": "modify input"}], {"output_vars": True}, main_output="x"
     )
@@ -298,7 +298,7 @@ async def test_output_vars_true_returns_full_context():
 
 
 async def test_output_vars_list_returns_subset():
-    """B1.8: ``options.output_vars=[names]`` returns only those context keys."""
+    """``options.output_vars=[names]`` returns only those context keys."""
     result = await _generate(
         INPUT_RAILS_CONFIG,
         [{"role": "user", "content": "modify input"}],
@@ -310,7 +310,7 @@ async def test_output_vars_list_returns_subset():
 
 
 async def test_log_internal_events_populated():
-    """B1.12: ``options.log.internal_events=True`` attaches the internal event stream."""
+    """``options.log.internal_events=True`` attaches the internal event stream."""
     result = await _generate(
         OUTPUT_RAILS_CONFIG, [{"role": "user", "content": "hi"}], {"log": {"internal_events": True}}, main_output="safe"
     )
@@ -352,7 +352,7 @@ async def test_log_internal_events_populated():
 
 
 async def test_retrieval_rail_disabled_by_options_skips_retrieval_rail():
-    """B1.5: ``options.rails.retrieval=False`` skips configured retrieval rails."""
+    """``options.rails.retrieval=False`` skips configured retrieval rails."""
     options = {
         "output_vars": ["relevant_chunks"],
         "log": {"activated_rails": True},
@@ -375,7 +375,7 @@ async def test_retrieval_rail_disabled_by_options_skips_retrieval_rail():
 
 
 async def test_colang_history_log_matches_explain_and_llm_summary(capsys):
-    """A6.3 / B1.13: Colang history and the LLM-call summary are exposed consistently."""
+    """Colang history and the LLM-call summary are exposed consistently."""
     rails = LLMRails(load_config(OUTPUT_RAILS_CONFIG), llm=FakeLLMModel(responses=["safe"]), verbose=False)
     result = await rails.generate_async(
         messages=[{"role": "user", "content": "hi"}],
@@ -396,7 +396,7 @@ async def test_colang_history_log_matches_explain_and_llm_summary(capsys):
 
 
 async def test_input_rails_name_list_behaves_like_true_in_colang_1():
-    """B1.3: a name-list for ``options.rails.input`` does NOT select a subset in the Colang 1.0
+    """A name-list for ``options.rails.input`` does NOT select a subset in the Colang 1.0
     ``generate_async`` path — it behaves like ``True`` (all configured input rails run).
 
     FINDING (pre-existing, not a refactor regression): ``llm_flows.co`` uses

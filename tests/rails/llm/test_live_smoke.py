@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Live provider smoke suite — contract-drift backstop (RECORDED_TEST_PLAN §5.5).
+"""Live provider smoke suite — contract-drift backstop.
 
 Cassettes are frozen, so a provider that changes its response schema keeps the recorded
 suite green (false confidence). These ``@pytest.mark.live`` tests hit the **real**

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tracing is output- and request-neutral (B2.1).
+"""Tracing is output- and request-neutral.
 
 Enabling ``tracing`` must change neither the assembled output nor the provider request
 body. Response neutrality is proven deterministically with ``FakeLLMModel`` (the
@@ -42,7 +42,7 @@ _OPTIONS = {"log": {"activated_rails": True, "llm_calls": True}}
 
 
 async def test_tracing_output_neutral_with_fake_main():
-    """B2.1 (response): the same fake provider output assembles identically with and
+    """The same fake provider output assembles identically with and
     without tracing enabled."""
     baseline_rails = LLMRails(
         load_config(OPENAI_BASELINE_CONFIG), llm=FakeLLMModel(responses=["a neutral reply"]), verbose=False
@@ -122,7 +122,7 @@ async def test_openai_generate_async_untraced_request(openai_api_key):
 async def test_openai_generate_async_traced_request_matches_untraced(
     openai_api_key, record_mode, recorded_cassette_path
 ):
-    """B2.1 (request): the traced config sends the same chat request body as baseline."""
+    """The traced config sends the same chat request body as baseline."""
     rails = LLMRails(load_config(OPENAI_TRACING_CONFIG), verbose=False)
 
     result = await rails.generate_async(messages=_PROMPT, options=_OPTIONS)

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Streaming cancellation / teardown / partial-on-abort (RECORDED_TEST_PLAN §5.4, A3.13).
+"""Streaming cancellation / teardown / partial-on-abort.
 
 Cassette replay returns the whole recorded body in one shot, so it can never reproduce
 a consumer that stops early or a cancelled task. ``stream_async`` returns the external
@@ -70,7 +70,7 @@ def _tracking_generator(values: list[str], teardown: dict) -> AsyncIterator[str]
 
 
 async def test_consumer_break_closes_external_generator():
-    """A3.13: breaking the consumer delivers only the pre-abort prefix and closes the source."""
+    """Breaking the consumer delivers only the pre-abort prefix and closes the source."""
     teardown = {"closed": False}
     rails = LLMRails(load_config(STREAMING_PASSTHROUGH_CONFIG), llm=FakeLLMModel(responses=["unused"]), verbose=False)
 
@@ -103,8 +103,8 @@ async def test_consumer_break_through_output_rail_does_not_close_source_generato
     decomposition regression. The break itself is still clean (no exception, only the
     pre-abort prefix delivered).
 
-    See ``KNOWN_ISSUES.md`` #3. When the wrapper is fixed to propagate teardown, flip the
-    final assertion to ``teardown["closed"] is True`` and rename this test.
+    When the wrapper is fixed to propagate teardown, flip the final assertion to
+    ``teardown["closed"] is True`` and rename this test.
     """
     teardown = {"closed": False}
     rails = LLMRails(load_config(STREAMING_OUTPUT_RAILS_CONFIG), verbose=False)
