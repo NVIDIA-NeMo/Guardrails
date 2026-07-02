@@ -48,7 +48,7 @@ async def call_policyai_api(
     text: Optional[str] = None,
     tag_name: Optional[str] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """
     Call the PolicyAI API to evaluate content.
 
