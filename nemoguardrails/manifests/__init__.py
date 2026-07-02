@@ -15,7 +15,7 @@
 
 """Public API for rail manifests, catalog access, and configured surface references."""
 
-from nemoguardrails.manifests.catalog import RailCatalog, RailManifestRecord
+from nemoguardrails.manifests.catalog import RailCatalog, RailFlowSource, RailManifestRecord
 from nemoguardrails.manifests.manifest import (
     ActionRef,
     Binding,
@@ -66,6 +66,7 @@ __all__ = [
     "RailConfigSchema",
     "RailDirection",
     "RailFlows",
+    "RailFlowSource",
     "RailLifecycle",
     "RailManifest",
     "RailManifestRecord",

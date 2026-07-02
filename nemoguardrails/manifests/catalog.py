@@ -23,6 +23,7 @@ flow names, action names, and surface keys.
 
 import importlib
 import importlib.metadata
+import importlib.resources
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Tuple
@@ -38,6 +39,13 @@ class RailManifestRecord:
     source: str
     distribution: Optional[str] = None
     built_in: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class RailFlowSource:
+    rail_name: str
+    filename: str
+    content: str
 
 
 class RailCatalog:
@@ -186,3 +194,33 @@ class RailCatalog:
     def owner_for_flow(self, flow_name: str) -> Optional[str]:
         """Return the manifest that owns a declared public flow name."""
         return self._flow_owners.get(flow_name)
+
+    def flow_sources(self, colang_version: str, *, built_in: Optional[bool] = None) -> Tuple[RailFlowSource, ...]:
+        sources = []
+        for record in self._records.values():
+            if built_in is not None and record.built_in != built_in:
+                continue
+            manifest = record.manifest
+            if manifest.flows is None:
+                continue
+            filenames = manifest.flows.v1_files if colang_version == "1.0" else manifest.flows.files
+            module_name = manifest.origin.partition(":")[0]
+            module = importlib.import_module(module_name)
+            package = module.__package__
+            if not package:
+                raise ValueError(f"Rail manifest {manifest.name!r} has no package for flow resources.")
+            root = importlib.resources.files(package)
+            for filename in filenames:
+                resource = root.joinpath(filename)
+                if not resource.is_file():
+                    raise FileNotFoundError(
+                        f"Rail manifest {manifest.name!r} flow resource {filename!r} does not exist in {package!r}."
+                    )
+                sources.append(
+                    RailFlowSource(
+                        rail_name=manifest.name,
+                        filename=filename,
+                        content=resource.read_text(encoding="utf-8"),
+                    )
+                )
+        return tuple(sources)

@@ -18,9 +18,10 @@
 import logging
 import os
 import warnings
+from collections.abc import Mapping
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union, cast
 
 import yaml
 from pydantic import (
@@ -31,6 +32,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from typing_extensions import Self
 
 from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
@@ -571,6 +573,35 @@ class Rails(BaseModel):
     )
 
 
+def _enabled_rail_plugins(value: Any) -> Tuple[str, ...]:
+    if not isinstance(value, Mapping):
+        return ()
+    rails = value.get("rails") or {}
+    if isinstance(rails, Rails):
+        enabled = rails.plugins.enabled
+    elif isinstance(rails, Mapping):
+        plugins = rails.get("plugins") or {}
+        enabled = plugins.get("enabled") or () if isinstance(plugins, Mapping) else ()
+    else:
+        return ()
+    if isinstance(enabled, str) or not isinstance(enabled, (list, tuple, set, frozenset)):
+        return ()
+    return tuple(sorted({name for name in enabled if isinstance(name, str)}))
+
+
+def _load_plugin_colang_files(raw_config: dict) -> None:
+    enabled_plugins = _enabled_rail_plugins(raw_config)
+    if not enabled_plugins:
+        return
+    from nemoguardrails.manifests import rail_catalog
+
+    colang_version = raw_config.get("colang_version", "1.0")
+    for source in rail_catalog(enabled_plugins).flow_sources(colang_version, built_in=False):
+        parsed = parse_colang_file(source.filename, content=source.content, version=colang_version)
+        if parsed:
+            _join_config(raw_config, parsed)
+
+
 def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
     """Merges the fields of two dictionaries recursively."""
     for key, value in dict_2.items():
@@ -861,6 +892,16 @@ class RailsConfig(BaseModel):
 
     TODO: add typed config for user_messages, bot_messages, and flows.
     """
+
+    @model_validator(mode="before")
+    @classmethod
+    def require_plugin_specific_model(cls, values):
+        if cls is RailsConfig and _enabled_rail_plugins(values):
+            raise ValueError(
+                "Direct RailsConfig construction does not support enabled rail plugins; "
+                "use RailsConfig.for_plugins(...), RailsConfig.model_validate(...), from_content(...), or from_path(...)."
+            )
+        return values
 
     models: List[Model] = Field(description="The list of models used by the rails configuration.")
 
@@ -1215,6 +1256,43 @@ class RailsConfig(BaseModel):
         return _rails_config_model_for_plugins(names)
 
     @classmethod
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: Optional[bool] = None,
+        extra: Any = None,
+        from_attributes: Optional[bool] = None,
+        context: Any = None,
+        by_alias: Optional[bool] = None,
+        by_name: Optional[bool] = None,
+    ) -> Self:
+        enabled_plugins = _enabled_rail_plugins(obj)
+        if cls is RailsConfig and enabled_plugins:
+            plugin_model = _rails_config_model_for_plugins(enabled_plugins)
+            return cast(
+                Self,
+                plugin_model.model_validate(
+                    obj,
+                    strict=strict,
+                    extra=extra,
+                    from_attributes=from_attributes,
+                    context=context,
+                    by_alias=by_alias,
+                    by_name=by_name,
+                ),
+            )
+        return super().model_validate(
+            obj,
+            strict=strict,
+            extra=extra,
+            from_attributes=from_attributes,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+
+    @classmethod
     def from_path(
         cls,
         config_path: str,
@@ -1228,6 +1306,7 @@ class RailsConfig(BaseModel):
         if os.path.isfile(config_path) and config_path.endswith((".yaml", ".yml")):
             with open(config_path) as f:
                 raw_config = yaml.safe_load(f.read())
+            _load_plugin_colang_files(raw_config)
 
         elif os.path.isdir(config_path):
             raw_config, colang_files = _load_path(config_path)
@@ -1237,7 +1316,9 @@ class RailsConfig(BaseModel):
                 _load_imported_paths(raw_config, colang_files)
 
             # Parse the colang files after we know the colang version
-            _parse_colang_files_recursively(raw_config, colang_files, parsed_colang_files=[])
+            parsed_colang_files = []
+            _load_plugin_colang_files(raw_config)
+            _parse_colang_files_recursively(raw_config, colang_files, parsed_colang_files)
 
         else:
             raise ValueError(f"Invalid config path {config_path}.")
@@ -1296,6 +1377,8 @@ class RailsConfig(BaseModel):
         if raw_config.get("import_paths"):
             _load_imported_paths(raw_config, colang_files)
 
+        _load_plugin_colang_files(raw_config)
+
         # Next, we parse any additional files recursively
         _parse_colang_files_recursively(raw_config, colang_files, parsed_colang_files)
 
@@ -1317,7 +1400,7 @@ class RailsConfig(BaseModel):
                 if flow_data.get("elements") and not flow_data["elements"][0].get("_type"):
                     flow_data["elements"] = parse_flow_elements(flow_data["elements"])
 
-        enabled_plugins = tuple(sorted(set((((obj.get("rails") or {}).get("plugins") or {}).get("enabled") or []))))
+        enabled_plugins = _enabled_rail_plugins(obj)
         if cls is RailsConfig and enabled_plugins:
             return _rails_config_model_for_plugins(enabled_plugins).parse_object(obj)
         return cls.model_validate(obj)
@@ -1494,7 +1577,10 @@ def _get_flow_model(flow_text) -> Optional[str]:
     """Helper to return a model name from a flow definition"""
     if MODEL_PREFIX not in flow_text:
         return None
-    return flow_text.split(MODEL_PREFIX)[-1].strip()
+    from nemoguardrails.manifests import parse_configured_surface
+
+    _, parameters = parse_configured_surface(flow_text)
+    return parameters.get("model")
 
 
 def _validate_self_check_rail_prompts(

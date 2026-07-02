@@ -1,0 +1,2 @@
+define subflow example plugin check input
+  $result = execute example_plugin_check
