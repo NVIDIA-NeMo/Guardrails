@@ -2,9 +2,9 @@ flow content safety check input $model
   $response = await ContentSafetyCheckInputAction(model_name=$model)
 
   global $allowed
-  $allowed = $response["allowed"]
+  $allowed = not $response.is_blocked
   global $policy_violations
-  $policy_violations = $response["policy_violations"]
+  $policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $system.config.enable_rails_exceptions
@@ -21,9 +21,9 @@ flow content safety check input $model
 flow content safety check output $model
   $response = await ContentSafetyCheckOutputAction(model_name=$model)
   global $allowed
-  $allowed = $response["allowed"]
+  $allowed = not $response.is_blocked
   global $policy_violations
-  $policy_violations = $response["policy_violations"]
+  $policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $system.config.enable_rails_exceptions

@@ -59,8 +59,8 @@ async def test_content_safety_cache_stores_result_and_stats(fake_llm_with_stats,
         model_caches={"test_model": cache},
     )
 
-    assert result["allowed"] is True
-    assert result["policy_violations"] == ["policy1"]
+    assert result.is_blocked is False
+    assert result.metadata["policy_violations"] == ["policy1"]
     assert cache.size() == 1
 
     llm_call_info = llm_call_info_var.get()
@@ -170,7 +170,7 @@ async def test_content_safety_without_cache_does_not_store(fake_llm_with_stats, 
         context={"user_message": "test input"},
     )
 
-    assert result["allowed"] is True
+    assert result.is_blocked is False
     assert llm_call_info.from_cache is False
 
 
@@ -219,8 +219,8 @@ async def test_content_safety_check_output_cache_stores_result(fake_llm_with_sta
         model_caches={"test_model": cache},
     )
 
-    assert result["allowed"] is True
-    assert result["policy_violations"] == ["policy2"]
+    assert result.is_blocked is False
+    assert result.metadata["policy_violations"] == ["policy2"]
     assert cache.size() == 1
 
 
@@ -295,8 +295,8 @@ async def test_content_safety_check_output_cache_miss(fake_llm_with_stats, mock_
         model_caches={"test_model": cache},
     )
 
-    assert result["allowed"] is True
-    assert result["policy_violations"] == ["policy2"]
+    assert result.is_blocked is False
+    assert result.metadata["policy_violations"] == ["policy2"]
     assert cache.size() == 2
 
     llm_call_info = llm_call_info_var.get()

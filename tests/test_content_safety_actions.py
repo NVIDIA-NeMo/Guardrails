@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.content_safety.actions import (
     DEFAULT_REFUSAL_MESSAGES,
     SUPPORTED_LANGUAGES,
@@ -109,8 +110,8 @@ async def test_content_safety_parsing(
         model_name="test_model",
         context=context,
     )
-    assert result["allowed"] is expected_allowed
-    assert result["policy_violations"] == expected_violations
+    assert result.is_blocked == (not expected_allowed)
+    assert result.metadata["policy_violations"] == expected_violations
 
 
 @pytest.mark.asyncio
@@ -140,14 +141,14 @@ async def test_content_safety_check_input_model_not_found():
 
 def test_content_safety_check_output_mapping_allowed():
     """Test content_safety_check_output_mapping returns False when content is allowed."""
-    result = {"allowed": True, "policy_violations": []}
+    result = RailOutcome.allow(policy_violations=[])
     assert content_safety_check_output_mapping(result) is False
 
 
 def test_content_safety_check_output_mapping_blocked():
     """Test content_safety_check_output_mapping returns True when content should be blocked."""
 
-    result = {"allowed": False, "policy_violations": ["violence"]}
+    result = RailOutcome.block(policy_violations=["violence"])
     assert content_safety_check_output_mapping(result) is True
 
 
@@ -155,13 +156,7 @@ def test_content_safety_check_output_mapping_blocked_policy_violations_only():
     """Test content_safety_check_output_mapping returns True when content should be blocked."""
 
     # TODO:@trebedea is this the expected behavior?
-    result = {"allowed": True, "policy_violations": ["violence"]}
-    assert content_safety_check_output_mapping(result) is False
-
-
-def test_content_safety_check_output_mapping_default():
-    """Test content_safety_check_output_mapping defaults to allowed=False when key is missing."""
-    result = {"policy_violations": []}
+    result = RailOutcome.allow(policy_violations=["violence"])
     assert content_safety_check_output_mapping(result) is False
 
 

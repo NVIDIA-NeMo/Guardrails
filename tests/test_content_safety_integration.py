@@ -89,8 +89,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is expected_allowed
-        assert result["policy_violations"] == expected_violations
+        assert result.is_blocked == (not expected_allowed)
+        assert result.metadata["policy_violations"] == expected_violations
 
     @pytest.mark.asyncio
     async def test_content_safety_input_with_is_content_safe_parser_safe_with_violations(
@@ -108,10 +108,10 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is True
+        assert result.is_blocked is False
         # following assertion fails
-        # assert result["policy_violations"] == ["S1", "S8"]
-        assert result["policy_violations"] == []
+        # assert result.metadata["policy_violations"] == ["S1", "S8"]
+        assert result.metadata["policy_violations"] == []
 
     @pytest.mark.parametrize(
         "response,expected_allowed,expected_violations",
@@ -135,8 +135,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is expected_allowed
-        assert result["policy_violations"] == expected_violations
+        assert result.is_blocked == (not expected_allowed)
+        assert result.metadata["policy_violations"] == expected_violations
 
     @pytest.mark.asyncio
     async def test_content_safety_input_with_nemoguard_parser_safe(self):
@@ -153,8 +153,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is True
-        assert result["policy_violations"] == []
+        assert result.is_blocked is False
+        assert result.metadata["policy_violations"] == []
 
     @pytest.mark.asyncio
     async def test_content_safety_input_with_nemoguard_parser_unsafe_with_categories(
@@ -173,8 +173,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is False
-        assert result["policy_violations"] == ["S1", "S8", "S10"]
+        assert result.is_blocked is True
+        assert result.metadata["policy_violations"] == ["S1", "S8", "S10"]
 
     @pytest.mark.parametrize(
         "json_response,expected_allowed,expected_violations",
@@ -202,8 +202,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is expected_allowed
-        assert result["policy_violations"] == expected_violations
+        assert result.is_blocked == (not expected_allowed)
+        assert result.metadata["policy_violations"] == expected_violations
 
     @pytest.mark.asyncio
     async def test_content_safety_input_with_nemoguard_parser_json_parsing_failed(
@@ -222,8 +222,8 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is False
-        assert result["policy_violations"] == ["JSON parsing failed"]
+        assert result.is_blocked is True
+        assert result.metadata["policy_violations"] == ["JSON parsing failed"]
 
 
 class TestIterableUnpackingIntegration:
@@ -398,8 +398,8 @@ class TestNemotronReasoningParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is expected_allowed
-        assert result["policy_violations"] == []
+        assert result.is_blocked == (not expected_allowed)
+        assert result.metadata["policy_violations"] == []
 
     @pytest.mark.parametrize(
         "response,expected_allowed",
@@ -424,5 +424,5 @@ class TestNemotronReasoningParserIntegration:
             context=context,
         )
 
-        assert result["allowed"] is expected_allowed
-        assert result["policy_violations"] == []
+        assert result.is_blocked == (not expected_allowed)
+        assert result.metadata["policy_violations"] == []

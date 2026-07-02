@@ -17,6 +17,7 @@ import pytest
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_output_mapping,
 )
@@ -82,8 +83,8 @@ def content_safety_action(result):
 
 
 def test_content_safety_mapping_characterization_for_p3_golden():
-    assert is_output_blocked({"allowed": False}, content_safety_action) is True
-    assert is_output_blocked({"allowed": True}, content_safety_action) is False
+    assert is_output_blocked(RailOutcome.block(), content_safety_action) is True
+    assert is_output_blocked(RailOutcome.allow(), content_safety_action) is False
 
 
 @pytest.mark.parametrize(

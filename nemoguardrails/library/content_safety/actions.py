@@ -18,6 +18,7 @@ from typing import Dict, FrozenSet, Optional
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -46,7 +47,7 @@ async def content_safety_check_input(
     context: Optional[dict] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     _MAX_TOKENS = 1024
     user_input: str = ""
 
@@ -108,7 +109,11 @@ async def content_safety_check_input(
 
     is_safe, *violated_policies = result
 
-    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = (
+        RailOutcome.allow(policy_violations=violated_policies)
+        if is_safe
+        else RailOutcome.block(policy_violations=violated_policies)
+    )
 
     if cache:
         cache_key = create_normalized_cache_key(check_input_prompt)
@@ -123,20 +128,16 @@ async def content_safety_check_input(
     return final_result
 
 
-def content_safety_check_output_mapping(result: dict) -> bool:
+def content_safety_check_output_mapping(result: RailOutcome) -> bool:
     """
     Mapping function for content_safety_check_output.
 
-    Assumes result is a dictionary with:
-      - "allowed": a boolean where True means the content is safe.
-      - "policy_violations": a list of policies that were violated (optional in the mapping logic).
+    Reads the neutral RailOutcome the action returns.
 
     Returns:
-        True if the content should be blocked (i.e. allowed is False),
-        False if the content is safe.
+        True if the content should be blocked, False if the content is safe.
     """
-    allowed = result.get("allowed", True)
-    return not allowed
+    return result.is_blocked
 
 
 @action(output_mapping=content_safety_check_output_mapping)
@@ -147,7 +148,7 @@ async def content_safety_check_output(
     context: Optional[dict] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     _MAX_TOKENS = 1024
     user_input: str = ""
     bot_response: str = ""
@@ -212,7 +213,11 @@ async def content_safety_check_output(
 
     is_safe, *violated_policies = result
 
-    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = (
+        RailOutcome.allow(policy_violations=violated_policies)
+        if is_safe
+        else RailOutcome.block(policy_violations=violated_policies)
+    )
 
     if cache:
         cache_key = create_normalized_cache_key(check_output_prompt)

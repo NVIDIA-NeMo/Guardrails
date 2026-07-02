@@ -228,16 +228,16 @@ FIXTURES = [
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
-    *_legacy_cases(
+    *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
-        allow_return={"allowed": True, "policy_violations": []},
-        block_return={"allowed": False, "policy_violations": ["violence"]},
+        allow_return=RailOutcome.allow(policy_violations=[]),
+        block_return=RailOutcome.block(policy_violations=["violence"]),
         include_exception_case=True,
     ),
-    *_legacy_cases(
+    *_rail_outcome_cases(
         CONTENT_SAFETY_OUTPUT,
-        allow_return={"allowed": True, "policy_violations": []},
-        block_return={"allowed": False, "policy_violations": ["violence"]},
+        allow_return=RailOutcome.allow(policy_violations=[]),
+        block_return=RailOutcome.block(policy_violations=["violence"]),
         include_exception_case=True,
     ),
     *_legacy_cases(
@@ -328,8 +328,6 @@ def _decision_from_observable(observable: ObservableOutcome) -> FlowDecision:
 def _outcome_decision(raw_return: Any, action_name: str) -> FlowDecision:
     if isinstance(raw_return, RailOutcome):
         blocked = raw_return.is_blocked
-    elif action_name in {"content_safety_check_input", "content_safety_check_output"}:
-        blocked = not raw_return["allowed"]
     elif action_name == "topic_safety_check_input":
         blocked = not raw_return["on_topic"]
     elif action_name in {"jailbreak_detection_heuristics", "jailbreak_detection_model"}:
