@@ -19,12 +19,11 @@ import re
 from collections.abc import Mapping
 from typing import List, Literal, Optional, Tuple, Union
 
-import aiohttp
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -157,6 +156,7 @@ async def patronus_evaluate_request(
     user_input: Optional[str] = None,
     bot_response: Optional[str] = None,
     provided_context: Optional[Union[str, List[str]]] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> Optional[dict]:
     """
     Make a call to the Patronus Evaluate API.
@@ -196,34 +196,36 @@ async def patronus_evaluate_request(
         "Content-Type": "application/json",
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url=url,
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            url,
             headers=headers,
             json=data,
-        ) as response:
-            if 400 <= response.status < 500:
-                raise ValueError(
-                    f"The Patronus Evaluate API call failed with status code {response.status}. "
-                    f"Details: {await response.text()}"
-                )
+            raise_for_status=False,
+        )
+    if 400 <= response.status_code < 500:
+        raise ValueError(
+            f"The Patronus Evaluate API call failed with status code {response.status_code}. Details: {response.text}"
+        )
 
-            if response.status != 200:
-                log.error(
-                    "The Patronus Evaluate API call failed with status code %s. Details: %s",
-                    response.status,
-                    await response.text(),
-                )
-                return None
+    if response.status_code != 200:
+        log.error(
+            "The Patronus Evaluate API call failed with status code %s. Details: %s",
+            response.status_code,
+            response.text,
+        )
+        return None
 
-            response_json = await response.json()
-            return response_json
+    return response.json()
 
 
 @action(name="patronus_api_check_output")
 async def patronus_api_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """
     Check the user message, bot response, and/or provided context
@@ -237,11 +239,13 @@ async def patronus_api_check_output(
     evaluate_config = getattr(patronus_config, "evaluate_config", {})
     success_strategy: Literal["all_pass", "any_pass"] = getattr(evaluate_config, "success_strategy", "all_pass")
     api_params = getattr(evaluate_config, "params", {})
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     response = await patronus_evaluate_request(
         api_params=api_params,
         user_input=user_input,
         bot_response=bot_response,
         provided_context=provided_context,
+        **request_kwargs,
     )
     passed = check_guardrail_pass(response=response, success_strategy=success_strategy)
     metadata = {"pass": passed}

@@ -19,11 +19,10 @@ import logging
 import os
 from typing import Any, Optional
 
-import httpx
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call, resolve_http_client
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +41,7 @@ async def ai_defense_inspect(
     config: RailsConfig,
     user_prompt: Optional[str] = None,
     bot_response: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     # Get configuration with defaults
@@ -89,44 +89,48 @@ async def ai_defense_inspect(
     if metadata:
         payload["metadata"] = metadata
 
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(api_endpoint, headers=headers, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError) as e:
-            msg = f"Error calling AI Defense API: {e}"
-            log.error(msg)
-            if fail_open:
-                # Fail open: allow content when API call fails
-                log.warning("AI Defense API call failed, but fail_open=True, allowing content.")
-                return _ai_defense_outcome(False)
-            else:
-                # Fail closed: block content when API call fails
-                log.warning("AI Defense API call failed, fail_open=False, blocking content.")
-                return _ai_defense_outcome(True)
-
-        # Compose a consistent return structure for flows
-        # Handle malformed responses based on fail_open setting
-        if "is_safe" not in data:
-            # Malformed response - respect fail_open setting
-            if fail_open:
-                log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content."
-                )
-                is_blocked = False
-            else:
-                log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content."
-                )
-                is_blocked = True
+    try:
+        async with resolve_http_client(http_client) as client:
+            response = await http_call(
+                client,
+                "POST",
+                api_endpoint,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+        data = response.json()
+    except HTTPClientError as e:
+        msg = f"Error calling AI Defense API: {e}"
+        log.error(msg)
+        if fail_open:
+            log.warning("AI Defense API call failed, but fail_open=True, allowing content.")
+            return _ai_defense_outcome(False)
         else:
-            is_blocked = not bool(data.get("is_safe", False))
+            log.warning("AI Defense API call failed, fail_open=False, blocking content.")
+            return _ai_defense_outcome(True)
 
-        rules = data.get("rules") or []
-        if is_blocked and rules:
-            entries = [f"{r.get('rule_name')} ({r.get('classification')})" for r in rules if isinstance(r, dict)]
-            if entries:
-                log.debug("AI Defense matched rules: %s", ", ".join(entries))
+    # Compose a consistent return structure for flows
+    # Handle malformed responses based on fail_open setting
+    if "is_safe" not in data:
+        # Malformed response - respect fail_open setting
+        if fail_open:
+            log.warning(
+                "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content."
+            )
+            is_blocked = False
+        else:
+            log.warning(
+                "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content."
+            )
+            is_blocked = True
+    else:
+        is_blocked = not bool(data.get("is_safe", False))
 
-        return _ai_defense_outcome(is_blocked)
+    rules = data.get("rules") or []
+    if is_blocked and rules:
+        entries = [f"{r.get('rule_name')} ({r.get('classification')})" for r in rules if isinstance(r, dict)]
+        if entries:
+            log.debug("AI Defense matched rules: %s", ", ".join(entries))
+
+    return _ai_defense_outcome(is_blocked)

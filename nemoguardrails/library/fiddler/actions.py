@@ -17,11 +17,10 @@ import logging
 import os
 from typing import Callable, Optional
 
-import aiohttp
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call, resolve_http_client
 from nemoguardrails.rails.llm.config import FiddlerGuardrails
 
 log = logging.getLogger(__name__)
@@ -41,6 +40,7 @@ async def call_fiddler_guardrail(
     threshold: float,
     compare: Callable[[float, float], bool],
     default_score: float,
+    http_client: Optional[HTTPClient] = None,
 ) -> bool:
     api_key = os.environ.get("FIDDLER_API_KEY")
 
@@ -53,34 +53,41 @@ async def call_fiddler_guardrail(
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(endpoint, headers=headers, json={"data": data}) as response:
-                if response.status != 200:
-                    log.error(f"{guardrail_name} could not be run. Fiddler API returned status code {response.status}")
-                    return False
+        async with resolve_http_client(http_client) as client:
+            response = await http_call(
+                client,
+                "POST",
+                endpoint,
+                headers=headers,
+                json={"data": data},
+                raise_for_status=False,
+            )
+        if response.status_code != 200:
+            log.error(f"{guardrail_name} could not be run. Fiddler API returned status code {response.status_code}")
+            return False
 
-                response_json = await response.json()
-                if score_key == "safety":
-                    detection_score = max(
-                        response_json.get(key, default_score)
-                        for key in [
-                            "fdl_harmful",
-                            "fdl_violent",
-                            "fdl_unethical",
-                            "fdl_illegal",
-                            "fdl_sexual",
-                            "fdl_racist",
-                            "fdl_jailbreaking",
-                            "fdl_harassing",
-                            "fdl_hateful",
-                            "fdl_sexist",
-                            "fdl_roleplaying",
-                        ]
-                    )
-                else:
-                    detection_score = response_json.get(score_key, default_score)
-                return compare(detection_score, threshold)
-    except aiohttp.ClientError as e:
+        response_json = response.json()
+        if score_key == "safety":
+            detection_score = max(
+                response_json.get(key, default_score)
+                for key in [
+                    "fdl_harmful",
+                    "fdl_violent",
+                    "fdl_unethical",
+                    "fdl_illegal",
+                    "fdl_sexual",
+                    "fdl_racist",
+                    "fdl_jailbreaking",
+                    "fdl_harassing",
+                    "fdl_hateful",
+                    "fdl_sexist",
+                    "fdl_roleplaying",
+                ]
+            )
+        else:
+            detection_score = response_json.get(score_key, default_score)
+        return compare(detection_score, threshold)
+    except HTTPClientError as e:
         log.error(f"{guardrail_name} request failed: {e}")
         return False
     except (KeyError, ValueError, IndexError) as e:
@@ -89,7 +96,11 @@ async def call_fiddler_guardrail(
 
 
 @action(name="call_fiddler_safety_user", is_system_action=True)
-async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
+async def call_fiddler_safety_user(
+    config: RailsConfig,
+    context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
+) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint
@@ -104,6 +115,7 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": user_message}
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -112,12 +124,17 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
+        **request_kwargs,
     )
     return _fiddler_outcome(blocked)
 
 
 @action(name="call_fiddler_safety_bot", is_system_action=True)
-async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
+async def call_fiddler_safety_bot(
+    config: RailsConfig,
+    context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
+) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint
@@ -132,6 +149,7 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": bot_message}
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -140,12 +158,17 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
+        **request_kwargs,
     )
     return _fiddler_outcome(blocked)
 
 
 @action(name="call_fiddler_faithfulness", is_system_action=True)
-async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
+async def call_fiddler_faithfulness(
+    config: RailsConfig,
+    context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
+) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint
@@ -161,6 +184,7 @@ async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict]
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"context": knowledge, "response": bot_message}
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-response-faithfulness",
         data=data,
@@ -169,5 +193,6 @@ async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict]
         threshold=fiddler_config.faithfulness_threshold,
         compare=lambda score, threshold: score <= threshold,
         default_score=1,
+        **request_kwargs,
     )
     return _fiddler_outcome(blocked)
