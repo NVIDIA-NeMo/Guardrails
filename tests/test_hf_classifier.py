@@ -30,6 +30,8 @@ from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
+from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
     _classify_and_check,
@@ -190,10 +192,10 @@ class TestHeaders:
 
 class TestSSLTimeout:
     def test_timeout_default(self):
-        assert _get_timeout(_remote()) == httpx.Timeout(30.0)
+        assert _get_timeout(_remote()) == 30.0
 
     def test_timeout_custom(self):
-        assert _get_timeout(_remote(parameters={"timeout": 10.0})) == httpx.Timeout(10.0)
+        assert _get_timeout(_remote(parameters={"timeout": 10.0})) == 10.0
 
     def test_ssl_default(self):
         cfg = _build_ssl_config(_remote())
@@ -286,6 +288,27 @@ class TestVLLMBackend:
         httpx_mock.add_response(url=self._URL, method="POST", json={"wrong": []})
         with pytest.raises(ValueError, match="Unexpected vLLM"):
             await self._backend().classify("text")
+
+    @pytest.mark.asyncio
+    async def test_uses_injected_http_client(self):
+        client = RecordingHTTPClient(
+            [
+                HTTPResponse(
+                    status_code=200,
+                    content=b'{"data":[{"label":"safe","probs":[0.95]}]}',
+                )
+            ]
+        )
+        backend = VLLMBackend(
+            _remote(engine="vllm", base_url="http://vllm:8000"),
+            http_client=client,
+        )
+
+        result = await backend.classify("text")
+
+        assert result == [ClassificationResult(label="safe", score=0.95)]
+        assert client.requests[0].url == self._URL
+        assert client.close_calls == 0
 
 
 class TestKServeBackend:
@@ -758,7 +781,7 @@ class TestConnectionError:
         backend = VLLMBackend(_remote(engine="vllm", base_url="http://vllm:8000"))
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"), url="http://vllm:8000/classify")
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"), url="http://vllm:8000/classify")
-        with pytest.raises(httpx.ConnectError):
+        with pytest.raises(HTTPConnectionError):
             await backend.classify("text")
 
     @pytest.mark.asyncio
@@ -766,7 +789,7 @@ class TestConnectionError:
         backend = FMSBackend(_remote(engine="fms", base_url="http://fms:9000"))
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"), url="http://fms:9000/api/v1/text/contents")
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"), url="http://fms:9000/api/v1/text/contents")
-        with pytest.raises(httpx.ConnectError):
+        with pytest.raises(HTTPConnectionError):
             await backend.classify("text")
 
     @pytest.mark.asyncio
@@ -797,7 +820,7 @@ class TestConnectionError:
         backend = VLLMBackend(_remote(engine="vllm", base_url="http://vllm:8000"))
         httpx_mock.add_exception(httpx.ReadTimeout("timed out"), url="http://vllm:8000/classify")
         httpx_mock.add_exception(httpx.ReadTimeout("timed out"), url="http://vllm:8000/classify")
-        with pytest.raises(httpx.ReadTimeout):
+        with pytest.raises(HTTPTimeoutError):
             await backend.classify("text")
 
 
