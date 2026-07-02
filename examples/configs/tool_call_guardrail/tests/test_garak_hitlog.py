@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 
-from scanner.garak_hitlog import GARAK_HIT_CLASS, hitlog_to_findings, load_hitlog
+from scanner.garak_hitlog import GARAK_HIT_CLASS, hitlog_to_findings, load_hitlog, plugin_cache_resolver
 from synthesis.catalog import CLASS_TO_FACTORY
 from synthesis.proposals import cluster_uncatalogued, dropped_findings, synthesize
 
@@ -120,3 +120,18 @@ def test_load_hitlog_parses_jsonl_and_skips_noise(tmp_path):
     entries = load_hitlog(str(path))
     assert len(entries) == 2  # skips blank, malformed, and probe-less lines
     assert {e["probe_classname"] for e in entries} == {"agent_breaker.AgentBreaker", "dan.DanInTheWild"}
+
+
+def test_plugin_cache_resolver_looks_up_tags_with_prefix_fallback(tmp_path):
+    # garak's plugin_cache.json keys probes with a "probes." prefix; the resolver
+    # must find them whether the hitlog records the bare or prefixed classname.
+    cache = tmp_path / "plugin_cache.json"
+    cache.write_text(
+        json.dumps(
+            {"probes": {"probes.agent_breaker.AgentBreaker": {"tags": ["owasp:llm06", "payload:agentic:exploitation"]}}}
+        )
+    )
+    resolve = plugin_cache_resolver(str(cache))
+    assert resolve("agent_breaker.AgentBreaker") == ("owasp:llm06", "payload:agentic:exploitation")  # prefix fallback
+    assert resolve("probes.agent_breaker.AgentBreaker") == ("owasp:llm06", "payload:agentic:exploitation")
+    assert resolve("nonexistent.Probe") == ()  # unknown probe -> no tags
