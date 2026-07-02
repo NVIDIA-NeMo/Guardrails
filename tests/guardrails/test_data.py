@@ -299,3 +299,33 @@ NEMOGUARDS_SPECULATIVE_CONFIG = {
         "input": {**NEMOGUARDS_CONFIG["rails"]["input"], "speculative_generation": True},
     },
 }
+
+# Speculative generation for streaming: output-rail streaming enabled with
+# check-first (stream_first=False), the only mode speculative streaming supports.
+NEMOGUARDS_SPECULATIVE_STREAMING_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "input": {**NEMOGUARDS_CONFIG["rails"]["input"], "speculative_generation": True},
+        "output": {
+            **NEMOGUARDS_CONFIG["rails"]["output"],
+            "streaming": {
+                "enabled": True,
+                "chunk_size": 3,
+                "context_size": 1,
+                "stream_first": False,
+            },
+        },
+    },
+}
+
+# Speculative streaming with input rails only (no output rails) — exercises the
+# buffer-and-release path where raw tokens are held until input rails pass.
+NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "input": {**NEMOGUARDS_CONFIG["rails"]["input"], "speculative_generation": True},
+        "output": {"flows": []},
+    },
+}

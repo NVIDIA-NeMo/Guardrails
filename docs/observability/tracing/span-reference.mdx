@@ -219,11 +219,21 @@ Every span sets ERROR status and records the exception when one propagates throu
 
 When speculative generation is active, the request span also carries these attributes:
 
-| Attribute                                | Type    | When set                  | Description                                                     |
-| ---------------------------------------- | ------- | ------------------------- | --------------------------------------------------------------- |
-| `speculative_generation.mode_active`     | boolean | Speculative generation on | The value `true`.                                               |
-| `speculative_generation.first_completed` | string  | Speculative generation on | The branch that completed first: `input_rails` or `generation`. |
-| `speculative_generation.first_rejector`  | string  | Speculative generation on | The branch that rejected the request: `input_rails` or `none`.  |
+| Attribute                                              | Type    | When set                  | Description                                                                                                             |
+| ------------------------------------------------------ | ------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `speculative_generation.mode_active`                   | boolean | Speculative generation on | The value `true`.                                                                                                     |
+| `speculative_generation.first_completed`               | string  | Speculative generation on | The branch that completed first: `input_rails`, `generation`, or `output_rails`.                                      |
+| `speculative_generation.first_rejector`                | string  | Speculative generation on | The branch that rejected the request: `input_rails`, `output_rails`, or `none`.                                        |
+| `speculative_generation.rails_duration_ms`             | float   | Speculative generation on | Wall-clock time for the input rails.                                                                                  |
+| `speculative_generation.generation_duration_ms`        | float   | Speculative generation on | Wall-clock time for the main LLM generation.                                                                          |
+| `speculative_generation.overlap_ms`                    | float   | Speculative generation on | Time the input rails and generation ran concurrently.                                                                 |
+| `speculative_generation.time_saved_ms`                 | float   | Speculative generation on | Estimated saving versus sequential execution (the overlap for safe requests, `0` for rejected requests).             |
+| `speculative_generation.cancellation_event`            | string  | Speculative generation on | Which task was cancelled: `none`, `generation_cancelled`, `input_rails_cancelled`, or `output_rails_cancelled`.       |
+| `speculative_generation.output_rails_early_reject`     | boolean | Streaming speculation     | Output rails rejected during the speculation window (short-circuit before the input verdict).                        |
+| `speculative_generation.output_rails_speculation_chunks` | int   | Streaming speculation     | Number of chunks output rails processed during the speculation window.                                               |
+| `speculative_generation.output_rails_wasted_chunks`    | int     | Streaming speculation     | Validated chunks discarded because the request was rejected.                                                          |
+| `speculative_generation.release_queue_duration_ms`     | float   | Streaming speculation     | Time validated tokens were held in the awaiting-release buffer.                                                       |
+| `speculative_generation.release_queue_token_count`     | int     | Streaming speculation     | Number of validated tokens held awaiting the input-rail verdict.                                                     |
 
 **`guardrails.rail`** is one span per rail that runs, wrapping the rail's execution. Span kind `INTERNAL`.
 

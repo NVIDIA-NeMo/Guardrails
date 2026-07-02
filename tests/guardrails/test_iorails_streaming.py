@@ -77,7 +77,20 @@ _INPUT_ONLY_SPECULATIVE_CONFIG = {
     },
 }
 
-_SPECULATIVE_STREAM_WARNING = "speculative_generation is not supported for streaming; falling back to sequential"
+_SPECULATIVE_STREAM_FIRST_WARNING = (
+    "speculative_generation with stream_first=True is not supported for streaming; "
+    "forcing check-first behavior for this request"
+)
+
+
+def _make_speculative_streaming_config(*, stream_first: bool = False) -> dict:
+    """NEMOGUARDS_CONFIG with output-rail streaming AND speculative_generation enabled."""
+    config = _make_streaming_config(stream_first=stream_first)
+    config["rails"] = {
+        **config["rails"],
+        "input": {**config["rails"]["input"], "speculative_generation": True},
+    }
+    return config
 
 
 async def _mock_stream(model_type, messages, **kwargs):
@@ -194,18 +207,32 @@ class TestStreamAsyncValidation:
         assert len(chunks) > 0
 
     @pytest.mark.asyncio
-    async def test_speculative_generation_streaming_warning_recorded_once(self):
-        """Default warning filtering records the speculative streaming warning once per call site."""
+    async def test_speculative_streaming_runs_no_warning_for_input_only(self):
+        """Speculative streaming now runs for streaming requests (no fallback warning)."""
+        async with started_iorails(_INPUT_ONLY_SPECULATIVE_CONFIG) as iorails:
+            _wire_mocks(iorails)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                chunks = await _collect(iorails.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        # Speculation produced streamed content and emitted no stream_first warning
+        # (input-only config has no output rails, so check-first override is moot).
+        assert "".join(c for c in chunks if isinstance(c, str)) == "Hello from the streaming LLM! Have a nice day"
+        assert not [w for w in caught if str(w.message) == _SPECULATIVE_STREAM_FIRST_WARNING]
+
+    @pytest.mark.asyncio
+    async def test_speculative_stream_first_warns_and_forces_check_first(self):
+        """speculative_generation + stream_first=True warns once and forces check-first."""
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-            iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_SPECULATIVE_CONFIG))
+            iorails = IORails(RailsConfig.from_content(config=_make_speculative_streaming_config(stream_first=True)))
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("default")
             for _ in range(2):
                 iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
 
-        matching_warnings = [warning for warning in caught if str(warning.message) == _SPECULATIVE_STREAM_WARNING]
-        assert len(matching_warnings) == 1
+        matching = [w for w in caught if str(w.message) == _SPECULATIVE_STREAM_FIRST_WARNING]
+        assert len(matching) == 1
 
     @pytest.mark.asyncio
     async def test_tools_in_llm_params_forwarded_on_stream_async(self, iorails_input_only):

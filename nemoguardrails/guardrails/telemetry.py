@@ -382,23 +382,60 @@ def set_speculative_span_attrs(
     span: Optional["Span"],
     first_completed: str,
     first_rejector: str,
+    *,
+    rails_duration_ms: Optional[float] = None,
+    generation_duration_ms: Optional[float] = None,
+    overlap_ms: Optional[float] = None,
+    time_saved_ms: Optional[float] = None,
+    cancellation_event: Optional[str] = None,
+    output_rails_early_reject: Optional[bool] = None,
+    output_rails_speculation_chunks: Optional[int] = None,
+    output_rails_wasted_chunks: Optional[int] = None,
+    release_queue_duration_ms: Optional[float] = None,
+    release_queue_token_count: Optional[int] = None,
 ) -> None:
     """Stamp speculative-generation outcome attributes on a request span.
 
     Records which branch of the speculative race finished first
-    (input rails vs. main LLM generation) and which one ultimately
-    rejected the request, on the IORails ``guardrails.request`` span.
-    Safe to call with ``None`` (no-op) so callers don't have to branch
-    on whether tracing is enabled — matches the ``record_span_error`` /
-    ``mark_rail_stop`` idiom.
+    (input rails, main LLM generation, or output rails) and which one
+    ultimately rejected the request, on the IORails ``guardrails.request``
+    span.  Safe to call with ``None`` (no-op) so callers don't have to
+    branch on whether tracing is enabled — matches the ``record_span_error``
+    / ``mark_rail_stop`` idiom.
+
+    The keyword-only timing/streaming signals are optional: the
+    non-streaming SG1 path leaves them unset, while the streaming SG2 path
+    supplies the ones it measures.  Each is stamped only when provided, so
+    absent signals never appear as attributes.
     """
     if span is None:
         return
     span.set_attribute(GuardrailsAttributes.SPECULATIVE_MODE_ACTIVE, True)
     span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED, first_completed)
     span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_REJECTOR, first_rejector)
-    # TODO: Add it to metrics on next version
-    # span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
+
+    if rails_duration_ms is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_RAILS_DURATION_MS, rails_duration_ms)
+    if generation_duration_ms is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_GENERATION_DURATION_MS, generation_duration_ms)
+    if overlap_ms is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_OVERLAP_MS, overlap_ms)
+    if time_saved_ms is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
+    if cancellation_event is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_CANCELLATION_EVENT, cancellation_event)
+    if output_rails_early_reject is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_OUTPUT_RAILS_EARLY_REJECT, output_rails_early_reject)
+    if output_rails_speculation_chunks is not None:
+        span.set_attribute(
+            GuardrailsAttributes.SPECULATIVE_OUTPUT_RAILS_SPECULATION_CHUNKS, output_rails_speculation_chunks
+        )
+    if output_rails_wasted_chunks is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_OUTPUT_RAILS_WASTED_CHUNKS, output_rails_wasted_chunks)
+    if release_queue_duration_ms is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_RELEASE_QUEUE_DURATION_MS, release_queue_duration_ms)
+    if release_queue_token_count is not None:
+        span.set_attribute(GuardrailsAttributes.SPECULATIVE_RELEASE_QUEUE_TOKEN_COUNT, release_queue_token_count)
 
 
 # Maps an OpenAI-style ``role`` to the OTEL GenAI legacy event name used

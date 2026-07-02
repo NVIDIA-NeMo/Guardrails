@@ -17,6 +17,7 @@
 
 import asyncio
 import copy
+import json
 import logging
 from unittest.mock import AsyncMock, patch
 
@@ -28,11 +29,16 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails, _is_stream_error_chunk
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import started_iorails
-from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
+from tests.guardrails.test_data import (
+    NEMOGUARDS_CONFIG,
+    NEMOGUARDS_SPECULATIVE_CONFIG,
+    NEMOGUARDS_SPECULATIVE_STREAMING_CONFIG,
+    NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG,
+)
 
 MESSAGES = [{"role": "user", "content": "hi"}]
 
@@ -471,3 +477,246 @@ class TestSpeculativeGenerationTelemetry:
         assert "speculative_generation.mode_active" not in attrs
         assert "speculative_generation.first_completed" not in attrs
         assert "speculative_generation.first_rejector" not in attrs
+
+
+# ── Streaming speculative generation (SG2) ──
+
+STREAM_TOKENS = ["Hello", " from", " the", " streaming", " LLM", "!"]
+
+
+def _token_stream(*, delay: float = 0.0, tokens=STREAM_TOKENS, emitted=None):
+    """Build a mock LLM stream over ``tokens`` with an optional per-token delay.
+
+    ``emitted`` (if given) records each token as it is produced, so tests can
+    assert whether the generation ran to completion or was aborted mid-stream.
+    """
+
+    async def _stream(model_type, messages, **kwargs):
+        for tok in tokens:
+            if delay:
+                await asyncio.sleep(delay)
+            if emitted is not None:
+                emitted.append(tok)
+            yield LLMResponseChunk(delta_content=tok)
+
+    return _stream
+
+
+async def _collect(async_iter):
+    return [chunk async for chunk in async_iter]
+
+
+def _content_of(chunks):
+    """Join the plain content chunks, excluding any error/violation payloads."""
+    return "".join(c for c in chunks if isinstance(c, str) and not _is_stream_error_chunk(c))
+
+
+def _error_chunks(chunks):
+    return [c for c in chunks if isinstance(c, str) and _is_stream_error_chunk(c)]
+
+
+def _wire_stream(iorails, *, input_safe=True, input_delay=0.0, output_safe=True, stream=None):
+    """Attach input/tool/output rail mocks and a streaming LLM to an IORails instance."""
+
+    async def _input(messages, *, enabled=True):
+        if input_delay:
+            await asyncio.sleep(input_delay)
+        return RailResult(is_safe=input_safe, reason=None if input_safe else "blocked")
+
+    iorails.rails_manager.are_tool_results_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = _input
+    iorails.rails_manager.is_output_safe = AsyncMock(
+        return_value=RailResult(is_safe=output_safe, reason=None if output_safe else "blocked")
+    )
+    iorails.engine_registry.stream_model_call = stream if stream is not None else _token_stream()
+
+
+@pytest_asyncio.fixture
+async def iorails_spec_stream():
+    """Speculative streaming with output rails (check-first)."""
+    async with started_iorails(NEMOGUARDS_SPECULATIVE_STREAMING_CONFIG) as instance:
+        yield instance
+
+
+@pytest_asyncio.fixture
+async def iorails_spec_stream_input_only():
+    """Speculative streaming with input rails only (buffer-and-release path)."""
+    async with started_iorails(NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG) as instance:
+        yield instance
+
+
+class TestSpeculativeStreaming:
+    """Streaming speculation (SG2): input rails race the LLM + output rails."""
+
+    @pytest.mark.asyncio
+    async def test_streaming_pass_rails_first(self, iorails_spec_stream):
+        """Fast passing input rails: all validated tokens are delivered, no error."""
+        _wire_stream(iorails_spec_stream, stream=_token_stream(delay=0.005))
+        chunks = await _collect(iorails_spec_stream.stream_async(MESSAGES))
+        assert _content_of(chunks) == "".join(STREAM_TOKENS)
+        assert not _error_chunks(chunks)
+
+    @pytest.mark.asyncio
+    async def test_streaming_pass_held_then_released(self, iorails_spec_stream):
+        """Slow (but passing) input rails: tokens are held during speculation, then flushed."""
+        _wire_stream(iorails_spec_stream, input_delay=0.2, stream=_token_stream(delay=0.0))
+        chunks = await _collect(iorails_spec_stream.stream_async(MESSAGES))
+        assert _content_of(chunks) == "".join(STREAM_TOKENS)
+        assert not _error_chunks(chunks)
+
+    @pytest.mark.asyncio
+    async def test_streaming_input_reject_no_leak_and_aborts(self, iorails_spec_stream):
+        """Input rails reject: no content leaks, refusal emitted, generation aborted mid-stream."""
+        emitted = []
+        many = [f"tok{i} " for i in range(50)]
+        _wire_stream(
+            iorails_spec_stream,
+            input_safe=False,
+            input_delay=0.02,
+            stream=_token_stream(delay=0.01, tokens=many, emitted=emitted),
+        )
+        chunks = await asyncio.wait_for(_collect(iorails_spec_stream.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""  # nothing leaked before the input verdict
+        errs = _error_chunks(chunks)
+        assert errs and json.loads(errs[0])["error"]["param"] == "input_rails"
+        assert len(emitted) < len(many), "generation should be aborted, not run to completion"
+
+    @pytest.mark.asyncio
+    async def test_streaming_output_early_reject(self, iorails_spec_stream):
+        """Output rails reject during speculation: refusal before input verdict, no leak."""
+        emitted = []
+        many = [f"tok{i} " for i in range(50)]
+        _wire_stream(
+            iorails_spec_stream,
+            input_safe=True,
+            input_delay=1.0,  # input rails still running when output rejects
+            output_safe=False,
+            stream=_token_stream(delay=0.01, tokens=many, emitted=emitted),
+        )
+        chunks = await asyncio.wait_for(_collect(iorails_spec_stream.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""
+        errs = _error_chunks(chunks)
+        assert errs and json.loads(errs[0])["error"]["param"] == "output_rails"
+
+    @pytest.mark.asyncio
+    async def test_streaming_backpressure_no_drop(self, iorails_spec_stream_input_only):
+        """A small release buffer applies backpressure without dropping tokens."""
+        iorails_spec_stream_input_only._speculative_max_buffered_tokens = 2
+        _wire_stream(iorails_spec_stream_input_only, input_delay=0.05, stream=_token_stream(delay=0.0))
+        chunks = await _collect(iorails_spec_stream_input_only.stream_async(MESSAGES))
+        assert _content_of(chunks) == "".join(STREAM_TOKENS)
+
+    @pytest.mark.asyncio
+    async def test_streaming_input_only_buffer_and_release(self, iorails_spec_stream_input_only):
+        """No output rails: raw tokens are held until input passes, then released."""
+        _wire_stream(iorails_spec_stream_input_only, input_delay=0.1, stream=_token_stream(delay=0.0))
+        chunks = await _collect(iorails_spec_stream_input_only.stream_async(MESSAGES))
+        assert _content_of(chunks) == "".join(STREAM_TOKENS)
+
+    @pytest.mark.asyncio
+    async def test_streaming_input_only_reject_no_leak(self, iorails_spec_stream_input_only):
+        """No output rails + input reject: no raw tokens leak, refusal emitted."""
+        many = [f"t{i} " for i in range(30)]
+        _wire_stream(
+            iorails_spec_stream_input_only,
+            input_safe=False,
+            input_delay=0.02,
+            stream=_token_stream(delay=0.01, tokens=many),
+        )
+        chunks = await asyncio.wait_for(_collect(iorails_spec_stream_input_only.stream_async(MESSAGES)), timeout=3.0)
+        assert _content_of(chunks) == ""
+        assert _error_chunks(chunks)
+
+    @pytest.mark.asyncio
+    async def test_streaming_tool_result_reject_uses_tool_input_param(self, iorails_spec_stream_input_only):
+        """Tool-result-rail rejection surfaces param=tool_input_rails, matching the non-speculative path."""
+        io = iorails_spec_stream_input_only
+        io.rails_manager.are_tool_results_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unlinked tool result")
+        )
+        io.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.engine_registry.stream_model_call = _token_stream(delay=0.01)
+
+        chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""
+        errs = _error_chunks(chunks)
+        assert errs and json.loads(errs[0])["error"]["param"] == "tool_input_rails"
+
+
+def _make_speculative_streaming_tracing_config():
+    cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_STREAMING_CONFIG)
+    cfg["tracing"] = {"enabled": True}
+    return cfg
+
+
+@pytest_asyncio.fixture
+async def iorails_spec_stream_tracing(test_tracer):
+    """Speculative streaming with OTEL tracing, backed by an in-memory exporter."""
+    with patch.object(telemetry, "_tracer", test_tracer):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_speculative_streaming_tracing_config())
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
+
+
+class TestSpeculativeStreamingTelemetry:
+    """Verify speculative span attributes for streaming outcomes."""
+
+    async def _request_attrs(self, span_exporter):
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        return dict(request_spans[0].attributes)
+
+    @pytest.mark.asyncio
+    async def test_streaming_pass_span_attrs(self, iorails_spec_stream_tracing, span_exporter):
+        """Passing stream: mode_active, no rejector, time_saved recorded."""
+        _wire_stream(iorails_spec_stream_tracing, stream=_token_stream(delay=0.0))
+        await _collect(iorails_spec_stream_tracing.stream_async(MESSAGES))
+
+        attrs = await self._request_attrs(span_exporter)
+        assert attrs["speculative_generation.mode_active"] is True
+        assert attrs["speculative_generation.first_rejector"] == "none"
+        assert attrs["speculative_generation.output_rails_early_reject"] is False
+        # both task durations recorded → time_saved present for a safe request
+        assert attrs["speculative_generation.time_saved_ms"] >= 0.0
+
+    @pytest.mark.asyncio
+    async def test_streaming_input_reject_span_attrs(self, iorails_spec_stream_tracing, span_exporter):
+        """Input reject: first_rejector=input_rails, generation cancelled."""
+        many = [f"tok{i} " for i in range(50)]
+        _wire_stream(
+            iorails_spec_stream_tracing,
+            input_safe=False,
+            input_delay=0.02,
+            stream=_token_stream(delay=0.01, tokens=many),
+        )
+        await asyncio.wait_for(_collect(iorails_spec_stream_tracing.stream_async(MESSAGES)), timeout=3.0)
+
+        attrs = await self._request_attrs(span_exporter)
+        assert attrs["speculative_generation.first_rejector"] == "input_rails"
+        assert attrs["speculative_generation.cancellation_event"] == "generation_cancelled"
+
+    @pytest.mark.asyncio
+    async def test_streaming_output_early_reject_span_attrs(self, iorails_spec_stream_tracing, span_exporter):
+        """Output early reject: first_rejector=output_rails, output_rails_early_reject=True."""
+        many = [f"tok{i} " for i in range(50)]
+        _wire_stream(
+            iorails_spec_stream_tracing,
+            input_safe=True,
+            input_delay=1.0,
+            output_safe=False,
+            stream=_token_stream(delay=0.01, tokens=many),
+        )
+        await asyncio.wait_for(_collect(iorails_spec_stream_tracing.stream_async(MESSAGES)), timeout=3.0)
+
+        attrs = await self._request_attrs(span_exporter)
+        assert attrs["speculative_generation.first_rejector"] == "output_rails"
+        assert attrs["speculative_generation.first_completed"] == "output_rails"
+        assert attrs["speculative_generation.output_rails_early_reject"] is True
+        assert attrs["speculative_generation.cancellation_event"] == "input_rails_cancelled"

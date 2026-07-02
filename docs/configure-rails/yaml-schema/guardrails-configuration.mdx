@@ -331,9 +331,12 @@ To decide whether Speculative Generation makes sense for your use-case, explore 
 <Warning title="Experimental Feature">
     Speculative generation currently requires the opt-in IORails engine. To
     enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`. Speculative
-    generation is supported only for non-streaming requests (`generate_async`).
-    When speculative generation is enabled, streaming requests (`stream_async`)
-    fall back to sequential execution and emit a warning.
+    generation is supported for both non-streaming requests (`generate_async`)
+    and streaming requests (`stream_async`). Streaming speculation only supports
+    check-first behavior: if `rails.output.streaming.stream_first` is `True`, it
+    is overridden to check-first for speculative requests (with a warning), since
+    tokens cannot reach the client before the input verdict is known. Streaming
+    speculation with output rails requires `rails.output.streaming.enabled: True`.
 </Warning>
 
 ### How Speculative Generation Works
@@ -365,6 +368,22 @@ The engine handles three outcomes:
 
 Output rails always run after the main LLM completes.
 Speculative generation does not change the output-rail path.
+
+### Streaming Speculative Generation
+
+For streaming requests (`stream_async`), speculative generation runs the input rails, the main LLM, and the output rails concurrently.
+While the input-rail verdict is still pending (the *speculation window*), validated tokens are held in a bounded in-memory buffer instead of being sent to the client — no token reaches the caller before the input is confirmed safe.
+
+1. Start the input rails and the main LLM stream in parallel. Output rails process tokens as they stream (check-first), at the LLM's natural generation rate.
+2. Hold output-rail-validated tokens in the awaiting-release buffer.
+3. Resolve the race:
+    - **Input rails pass:** flush the held buffer to the client and continue streaming normally.
+    - **Input rails reject:** discard the held buffer, abort the generation, and return the refusal message. No tokens are leaked.
+    - **Output rails reject during the speculation window:** return the refusal early and cancel the still-running input rails — the request is refused before the input verdict is known.
+
+Streaming speculation only supports check-first behavior. If `rails.output.streaming.stream_first` is `True`, it is overridden to check-first for speculative requests and a warning is emitted.
+
+The awaiting-release buffer is bounded by `rails.input.speculative_max_buffered_tokens` (default `4096`, counted in chunks). The buffer fills when the input rails are slower than the main LLM plus output rails, so validated chunks accumulate while the input verdict is still pending. When the bound is reached, the engine pauses speculative processing and waits for the input verdict before buffering more validated chunks (releasing on pass, tearing down on reject). This caps the release buffer only — the main LLM continues generating into the internal stream buffer — so total speculative memory is bounded by the model's finite output and the input-rail latency, not by stopping the backend.
 
 ### Configuration Example
 
