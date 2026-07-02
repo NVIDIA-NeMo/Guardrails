@@ -18,7 +18,7 @@ from typing import Any, Mapping
 import httpx
 
 from nemoguardrails.http.errors import HTTPConnectionError, HTTPTimeoutError
-from nemoguardrails.http.types import HTTPResponse
+from nemoguardrails.http.types import HTTPResponse, HTTPTLSConfig
 
 
 class HttpxHTTPClient:
@@ -28,11 +28,16 @@ class HttpxHTTPClient:
         *,
         timeout: float = 30.0,
         limits: httpx.Limits | None = None,
+        tls: HTTPTLSConfig | None = None,
     ):
+        if client is not None and tls is not None:
+            raise ValueError("TLS configuration cannot be combined with an injected httpx client")
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
             limits=limits or httpx.Limits(max_connections=100, max_keepalive_connections=20),
+            verify=tls.verify if tls is not None else True,
+            cert=tls.cert if tls is not None else None,
         )
         self._closed = False
 

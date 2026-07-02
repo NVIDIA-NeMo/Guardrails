@@ -25,6 +25,7 @@ from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
 from nemoguardrails.http.instrumentation import HTTPBodyCapturePolicy, InstrumentedHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
+from nemoguardrails.http.types import HTTPTLSConfig
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -38,8 +39,9 @@ def create_http_client(
     retry_policy: RetryPolicy | None = None,
     tracer: Tracer | None = None,
     body_capture: HTTPBodyCapturePolicy | None = None,
+    tls: HTTPTLSConfig | None = None,
 ) -> InstrumentedHTTPClient:
-    transport = HttpxHTTPClient(httpx_client, timeout=timeout, limits=limits)
+    transport = HttpxHTTPClient(httpx_client, timeout=timeout, limits=limits, tls=tls)
     retrying = RetryingHTTPClient(transport, retry_policy)
     return InstrumentedHTTPClient(retrying, tracer, body_capture=body_capture)
 

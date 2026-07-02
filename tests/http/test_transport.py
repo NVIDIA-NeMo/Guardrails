@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import httpx
 import pytest
 
 from nemoguardrails.http import (
     HTTPConnectionError,
     HTTPTimeoutError,
+    HTTPTLSConfig,
     HttpxHTTPClient,
 )
 
@@ -113,3 +116,25 @@ async def test_httpx_transport_closes_owned_client_once():
     await client.close()
 
     assert owned.is_closed
+
+
+def test_httpx_transport_configures_owned_client_tls():
+    constructed = mock.MagicMock()
+
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=constructed) as factory:
+        client = HttpxHTTPClient(
+            timeout=12.0,
+            tls=HTTPTLSConfig(verify="/ca.pem", cert=("/cert.pem", "/key.pem")),
+        )
+
+    assert client._client is constructed
+    assert factory.call_args.kwargs["timeout"] == 12.0
+    assert factory.call_args.kwargs["verify"] == "/ca.pem"
+    assert factory.call_args.kwargs["cert"] == ("/cert.pem", "/key.pem")
+
+
+def test_httpx_transport_rejects_tls_with_injected_client():
+    injected = mock.MagicMock(spec=httpx.AsyncClient)
+
+    with pytest.raises(ValueError, match="TLS configuration"):
+        HttpxHTTPClient(injected, tls=HTTPTLSConfig(verify=False))

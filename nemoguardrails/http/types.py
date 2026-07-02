@@ -22,6 +22,12 @@ from nemoguardrails.http.errors import HTTPResponseDecodeError, HTTPStatusError
 
 
 @dataclass(frozen=True)
+class HTTPTLSConfig:
+    verify: bool | str = True
+    cert: tuple[str, str] | None = None
+
+
+@dataclass(frozen=True)
 class HTTPRequest:
     method: str
     url: str
