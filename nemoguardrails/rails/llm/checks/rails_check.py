@@ -18,7 +18,7 @@
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, List, Optional, Protocol
+from typing import List, Optional
 
 from nemoguardrails.rails.llm.options import (
     GenerationResponse,
@@ -26,22 +26,11 @@ from nemoguardrails.rails.llm.options import (
     RailStatus,
     RailType,
 )
+from nemoguardrails.rails.llm.types import RailsCheckSurface
 
 log = logging.getLogger(__name__)
 
-__all__ = ["RailsCheckRuntime", "check_messages"]
-
-
-class RailsCheckRuntime(Protocol):
-    config: Any
-    runtime: Any
-
-    async def generate_async(
-        self,
-        *,
-        messages: List[dict],
-        options: dict,
-    ) -> object: ...
+__all__ = ["RailsCheckSurface", "check_messages"]
 
 
 @dataclass
@@ -52,7 +41,7 @@ class RailsCheckPlan:
 
 
 async def check_messages(
-    rails: RailsCheckRuntime,
+    rails: RailsCheckSurface,
     messages: List[dict],
     rail_types: Optional[List[RailType]] = None,
 ) -> RailsResult:

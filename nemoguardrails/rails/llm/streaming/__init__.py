@@ -14,21 +14,17 @@
 # limitations under the License.
 
 from nemoguardrails.rails.llm.streaming.generation_stream import (
-    GenerationStreamRails,
+    GenerationStreamSurface,
     generation_token_stream,
 )
 from nemoguardrails.rails.llm.streaming.streaming_output_rails import (
-    StreamingOutputActionDispatcher,
-    StreamingOutputRails,
-    StreamingOutputRuntime,
+    StreamingOutputSurface,
     run_output_rails_in_streaming,
 )
 
 __all__ = [
-    "GenerationStreamRails",
-    "StreamingOutputActionDispatcher",
-    "StreamingOutputRails",
-    "StreamingOutputRuntime",
+    "GenerationStreamSurface",
+    "StreamingOutputSurface",
     "generation_token_stream",
     "run_output_rails_in_streaming",
 ]

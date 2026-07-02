@@ -16,25 +16,18 @@
 """Conversation message conversion to Colang events."""
 
 from collections.abc import MutableMapping
-from typing import Any, List, Protocol
+from typing import Any, List
 
 from nemoguardrails.colang.v2_x.runtime.flows import Action
+from nemoguardrails.rails.llm.types import ConversationEventSurface
 from nemoguardrails.rails.llm.utils import get_history_cache_key
 from nemoguardrails.utils import new_event_dict, new_uuid
 
 __all__ = [
-    "ConversationEventRails",
+    "ConversationEventSurface",
     "events_for_messages",
     "events_history_cache_prefix",
 ]
-
-
-class ConversationEventRails(Protocol):
-    @property
-    def config(self) -> Any: ...
-
-    @property
-    def events_history_cache(self) -> MutableMapping[str, list[dict]]: ...
 
 
 def events_history_cache_prefix(
@@ -58,7 +51,7 @@ def events_history_cache_prefix(
     return 0, []
 
 
-def events_for_messages(rails: ConversationEventRails, messages: List[dict], state: Any) -> List[dict]:
+def events_for_messages(rails: ConversationEventSurface, messages: List[dict], state: Any) -> List[dict]:
     """Return Colang events corresponding to OpenAI-style messages."""
     events = []
 

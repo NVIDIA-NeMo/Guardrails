@@ -25,6 +25,7 @@ from nemoguardrails.rails.llm.startup.knowledge_base import (
     build_knowledge_base_for_docs,
     init_knowledge_base,
 )
+from nemoguardrails.rails.llm.types import KnowledgeBaseSurface
 
 
 class RuntimeWithActionParams:
@@ -137,7 +138,7 @@ def test_init_knowledge_base_uses_thread_path_and_registers_kb(monkeypatch):
     monkeypatch.setattr(knowledge_base.threading, "Thread", FakeThread)
     monkeypatch.setattr(knowledge_base, "get_or_create_event_loop", lambda: object())
 
-    init_knowledge_base(rails)
+    init_knowledge_base(cast(KnowledgeBaseSurface, rails))
 
     assert rails._kb is built_kb
     assert rails.runtime.registered_action_params["kb"] is built_kb

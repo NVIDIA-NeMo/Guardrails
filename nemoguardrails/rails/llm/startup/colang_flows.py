@@ -29,7 +29,7 @@ from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 from nemoguardrails.exceptions import InvalidRailsConfigurationError
 from nemoguardrails.rails.llm.config import RailsConfig
 
-log = logging.getLogger("nemoguardrails.rails.llm.llmrails")
+log = logging.getLogger(__name__)
 
 _NEMOGUARDRAILS_PACKAGE = "nemoguardrails"
 

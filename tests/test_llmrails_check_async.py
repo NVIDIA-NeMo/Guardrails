@@ -572,7 +572,7 @@ NO_MAIN_LLM_WARNING = "No main LLM specified in the config and no LLM provided v
 
 class TestNoMainLLMWarning:
     def test_init_logs_info_not_warning(self, no_main_llm_config, caplog):
-        with caplog.at_level(logging.INFO, logger="nemoguardrails.rails.llm.llmrails"):
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.rails.llm.startup.llm_action_models"):
             LLMRails(no_main_llm_config)
         matches = [r for r in caplog.records if NO_MAIN_LLM_WARNING in r.message]
         assert len(matches) == 1
