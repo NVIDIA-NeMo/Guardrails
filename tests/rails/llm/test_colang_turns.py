@@ -14,19 +14,22 @@
 # limitations under the License.
 
 import asyncio
+import json
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
 
-from nemoguardrails.context import llm_stats_var
+from nemoguardrails.context import llm_stats_var, streaming_handler_var
 from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.rails.llm import llmrails as llmrails_module
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.runtime.colang_turns import (
     generate_colang_events,
     process_colang_events,
+    run_colang_turn,
 )
+from nemoguardrails.streaming import END_OF_STREAM
 
 
 class FakeRails:
@@ -52,6 +55,128 @@ def reset_llm_stats_context():
         yield
     finally:
         llm_stats_var.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_run_colang_turn_v1_prepends_state_events_and_passes_processing_log():
+    class Runtime:
+        def __init__(self):
+            self.events = None
+            self.processing_log = None
+
+        async def generate_events(self, events, processing_log):
+            self.events = events
+            self.processing_log = processing_log
+            processing_log.append({"event": "generated"})
+            return [{"type": "BotIntent", "intent": "express greeting"}]
+
+    runtime = Runtime()
+    processing_log = []
+
+    new_events = await run_colang_turn(
+        make_rails("1.0", runtime),
+        events=[{"type": "UserMessage", "text": "Hi"}],
+        state={"events": [{"type": "ContextUpdate"}]},
+        processing_log=processing_log,
+    )
+
+    assert runtime.events == [
+        {"type": "ContextUpdate"},
+        {"type": "UserMessage", "text": "Hi"},
+    ]
+    assert runtime.processing_log is processing_log
+    assert processing_log == [{"event": "generated"}]
+    assert new_events == [{"type": "BotIntent", "intent": "express greeting"}]
+
+
+@pytest.mark.asyncio
+async def test_run_colang_turn_v1_streams_error_chunk_before_reraising():
+    class Runtime:
+        async def generate_events(self, events, processing_log):
+            raise RuntimeError("boom")
+
+    class StreamingHandler:
+        def __init__(self):
+            self.chunks = []
+
+        async def push_chunk(self, chunk):
+            self.chunks.append(chunk)
+
+    streaming_handler = StreamingHandler()
+    token = streaming_handler_var.set(streaming_handler)
+    try:
+        with pytest.raises(RuntimeError, match="boom"):
+            await run_colang_turn(
+                make_rails("1.0", Runtime()),
+                events=[{"type": "UserMessage", "text": "Hi"}],
+                state=None,
+                processing_log=[],
+            )
+    finally:
+        streaming_handler_var.reset(token)
+
+    assert json.loads(streaming_handler.chunks[0]) == {"error": {"message": "boom"}}
+    assert streaming_handler.chunks[1] == END_OF_STREAM
+
+
+@pytest.mark.asyncio
+async def test_run_colang_turn_v2_processes_events_with_default_instant_actions():
+    class Runtime:
+        def __init__(self):
+            self.calls = []
+
+        async def process_events(self, events, state, instant_actions, blocking):
+            self.calls.append(
+                {
+                    "events": events,
+                    "state": state,
+                    "instant_actions": instant_actions,
+                    "blocking": blocking,
+                }
+            )
+            return [{"type": "StartUtteranceBotAction", "script": "Hi"}], object()
+
+    runtime = Runtime()
+    events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
+    state = object()
+
+    new_events = await run_colang_turn(
+        make_rails("2.x", runtime),
+        events=events,
+        state=state,
+        processing_log=[],
+    )
+
+    assert runtime.calls == [
+        {
+            "events": events,
+            "state": state,
+            "instant_actions": ["UtteranceBotAction"],
+            "blocking": True,
+        }
+    ]
+    assert new_events == [{"type": "StartUtteranceBotAction", "script": "Hi"}]
+
+
+@pytest.mark.asyncio
+async def test_run_colang_turn_v2_honors_configured_instant_actions():
+    class Runtime:
+        def __init__(self):
+            self.instant_actions = None
+
+        async def process_events(self, events, state, instant_actions, blocking):
+            self.instant_actions = instant_actions
+            return [], object()
+
+    runtime = Runtime()
+    await run_colang_turn(
+        make_rails("2.x", runtime, instant_actions=["CustomAction"]),
+        events=[],
+        state=None,
+        processing_log=[],
+    )
+
+    assert runtime.instant_actions == ["CustomAction"]
 
 
 @pytest.mark.asyncio
