@@ -23,9 +23,17 @@ import json
 import logging
 import os
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
-import httpx
+from nemoguardrails.http import (
+    HTTPClient,
+    HTTPResponse,
+    HTTPTLSConfig,
+    RetryPolicy,
+    create_http_client,
+    http_call,
+    resolve_http_client,
+)
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import (
@@ -76,28 +84,15 @@ def _build_headers(config: RemoteHFClassifierConfig) -> Dict[str, str]:
     return headers
 
 
-def _get_timeout(config: RemoteHFClassifierConfig) -> httpx.Timeout:
-    total = config.parameters.get("timeout", _DEFAULT_TIMEOUT)
-    return httpx.Timeout(total)
+def _get_timeout(config: RemoteHFClassifierConfig) -> float:
+    return float(config.parameters.get("timeout", _DEFAULT_TIMEOUT))
 
 
-class _HTTPXSSLConfig:
-    """Stores httpx-compatible SSL parameters (verify, cert)."""
-
-    def __init__(
-        self,
-        verify: Union[str, bool] = True,
-        cert: Optional[tuple] = None,
-    ) -> None:
-        self.verify = verify
-        self.cert = cert
+_ssl_cache: Dict[tuple, HTTPTLSConfig] = {}
 
 
-_ssl_cache: Dict[tuple, _HTTPXSSLConfig] = {}
-
-
-def _build_ssl_config(config: RemoteHFClassifierConfig) -> _HTTPXSSLConfig:
-    """Build httpx SSL params from config parameters (cached).
+def _build_ssl_config(config: RemoteHFClassifierConfig) -> HTTPTLSConfig:
+    """Build HTTP transport SSL params from config parameters (cached).
 
     Reads from ``config.parameters``:
       - ``verify_ssl`` (bool, default True): set to False to skip TLS verification.
@@ -120,11 +115,11 @@ def _build_ssl_config(config: RemoteHFClassifierConfig) -> _HTTPXSSLConfig:
 
     cert = (client_cert, client_key) if client_cert else None
     if verify is False:
-        result = _HTTPXSSLConfig(verify=False, cert=cert)
+        result = HTTPTLSConfig(verify=False, cert=cert)
     elif ca_cert:
-        result = _HTTPXSSLConfig(verify=ca_cert, cert=cert)
+        result = HTTPTLSConfig(verify=ca_cert, cert=cert)
     else:
-        result = _HTTPXSSLConfig(verify=True, cert=cert)
+        result = HTTPTLSConfig(verify=True, cert=cert)
 
     _ssl_cache[cache_key] = result
     return result
@@ -295,37 +290,38 @@ class LocalBackend(ClassifierBackend):
         return results
 
 
-_TRANSIENT_ERRORS = (httpx.NetworkError, httpx.TimeoutException, httpx.RemoteProtocolError, OSError, ValueError)
-
-
 class _RemoteBackend(ClassifierBackend):
-    """Base class for remote HTTP classifier backends.
+    """Base class for remote HTTP classifier backends."""
 
-    Uses a fresh httpx client per request — no connection pool state to manage.
-    Classifier calls are infrequent and latency-tolerant (inference >> TLS
-    handshake), so connection reuse provides negligible benefit while introducing
-    stale-connection complexity.
-    """
-
-    def __init__(self, config: RemoteHFClassifierConfig) -> None:
+    def __init__(self, config: RemoteHFClassifierConfig, http_client: HTTPClient | None = None) -> None:
         self._config = config
+        self._http_client = http_client
         self._timeout = _get_timeout(config)
         self._ssl = _build_ssl_config(config)
 
-    async def _post(self, url: str, json: Dict[str, Any]) -> httpx.Response:
-        """POST with one automatic retry on transient failures."""
-        headers = _build_headers(self._config)
-        for attempt in range(2):
-            try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout, verify=self._ssl.verify, cert=self._ssl.cert
-                ) as client:
-                    return await client.post(url, json=json, headers=headers)
-            except _TRANSIENT_ERRORS:
-                if attempt > 0:
-                    raise
-                log.debug("Classifier request to %s failed, retrying.", url)
-        raise RuntimeError("unreachable")
+    def _create_http_client(self) -> HTTPClient:
+        return create_http_client(
+            timeout=self._timeout,
+            retry_policy=RetryPolicy(
+                max_attempts=2,
+                retryable_status_codes=frozenset(),
+                initial_delay=0,
+                max_delay=0,
+            ),
+            tls=self._ssl,
+        )
+
+    async def _post(self, url: str, json: Dict[str, Any]) -> HTTPResponse:
+        async with resolve_http_client(self._http_client, factory=self._create_http_client) as client:
+            return await http_call(
+                client,
+                "POST",
+                url,
+                json=json,
+                headers=_build_headers(self._config),
+                timeout=self._timeout,
+                raise_for_status=False,
+            )
 
 
 class VLLMBackend(_RemoteBackend):
@@ -339,8 +335,8 @@ class VLLMBackend(_RemoteBackend):
     ``label``), indicating an API change.
     """
 
-    def __init__(self, config: RemoteHFClassifierConfig) -> None:
-        super().__init__(config)
+    def __init__(self, config: RemoteHFClassifierConfig, http_client: HTTPClient | None = None) -> None:
+        super().__init__(config, http_client)
         self._url = config.base_url + "/classify"
         self._model_name = config.model
 
@@ -389,8 +385,8 @@ class KServeBackend(_RemoteBackend):
     has an unrecognised type.
     """
 
-    def __init__(self, config: RemoteHFClassifierConfig) -> None:
-        super().__init__(config)
+    def __init__(self, config: RemoteHFClassifierConfig, http_client: HTTPClient | None = None) -> None:
+        super().__init__(config, http_client)
         self._url = f"{config.base_url}/v1/models/{config.model}:predict"
 
     async def classify(self, text: str) -> List[ClassificationResult]:
@@ -445,8 +441,8 @@ class FMSBackend(_RemoteBackend):
     entries lack required keys.
     """
 
-    def __init__(self, config: RemoteHFClassifierConfig) -> None:
-        super().__init__(config)
+    def __init__(self, config: RemoteHFClassifierConfig, http_client: HTTPClient | None = None) -> None:
+        super().__init__(config, http_client)
         self._url = config.base_url + "/api/v1/text/contents"
         self._threshold = config.threshold
 
@@ -489,14 +485,20 @@ _BACKENDS = {
 _backend_instances: Dict[str, ClassifierBackend] = {}
 
 
-def get_backend(config: HFClassifierConfig, name: str = "") -> ClassifierBackend:
+def get_backend(
+    config: HFClassifierConfig,
+    name: str = "",
+    http_client: HTTPClient | None = None,
+) -> ClassifierBackend:
     """Get or create a cached backend instance from classifier config."""
+    cls = _BACKENDS.get(config.engine)
+    if cls is None:
+        raise ValueError(f"Unknown hf_classifier engine: '{config.engine}'. Supported: {', '.join(_BACKENDS)}")
+    if http_client is not None and config.engine != "local":
+        return cls(config, http_client=http_client)
     cache_key = json.dumps({"name": name, "config": config.model_dump(mode="json")}, sort_keys=True)
     cached = _backend_instances.get(cache_key)
     if cached is not None:
         return cached
-    cls = _BACKENDS.get(config.engine)
-    if cls is None:
-        raise ValueError(f"Unknown hf_classifier engine: '{config.engine}'. Supported: {', '.join(_BACKENDS)}")
     _backend_instances[cache_key] = cls(config)
     return _backend_instances[cache_key]
