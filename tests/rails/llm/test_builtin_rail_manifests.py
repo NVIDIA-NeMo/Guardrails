@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import ast
+import inspect
+from pathlib import Path
+
+from nemoguardrails.manifests import (
+    ActionRef,
+    Binding,
+    ConfigSpecRef,
+    all_rail_manifests,
+    iter_manifest_import_refs,
+    resolve_import_ref,
+)
+
+
+def test_builtin_manifests_are_discovered_from_rail_modules():
+    manifests = all_rail_manifests()
+
+    assert manifests
+    for name, manifest in manifests.items():
+        assert manifest.name == name
+        assert manifest.origin.endswith(".rail")
+        assert manifest.metadata.display_name
+        assert manifest.metadata.description
+
+
+def test_builtin_rail_modules_only_import_manifest_types():
+    allowed_imports = {"nemoguardrails.manifests"}
+    disallowed_imports = []
+
+    for path in sorted(Path("nemoguardrails/library").rglob("rail.py")):
+        module = ast.parse(path.read_text(encoding="utf-8"))
+        for node in module.body:
+            if isinstance(node, ast.Import):
+                disallowed_imports.extend(
+                    f"{path}: import {alias.name}" for alias in node.names if alias.name not in allowed_imports
+                )
+            elif isinstance(node, ast.ImportFrom):
+                module_name = node.module or ""
+                if module_name not in allowed_imports:
+                    disallowed_imports.append(f"{path}: from {module_name} import ...")
+
+    assert disallowed_imports == []
+
+
+def test_builtin_manifest_refs_resolve_lazily():
+    for manifest in all_rail_manifests().values():
+        for ref in iter_manifest_import_refs(manifest):
+            assert isinstance(ref, (ActionRef, ConfigSpecRef))
+            assert callable(resolve_import_ref(ref))
+
+
+def test_builtin_action_refs_match_decorated_names_and_bindings():
+    for manifest in all_rail_manifests().values():
+        if manifest.actions is None:
+            continue
+        for action_ref in manifest.actions.refs:
+            action = resolve_import_ref(action_ref)
+            assert action.action_meta["name"] == action_ref.name
+        for surface in manifest.surfaces:
+            action = resolve_import_ref(surface.action)
+            parameters = inspect.signature(action).parameters
+            accepts_kwargs = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+            for binding in surface.bindings:
+                assert accepts_kwargs or binding.action_param in parameters
+
+
+def test_self_check_surfaces_bind_optional_variant():
+    manifests = all_rail_manifests()
+
+    for rail_name in ("self_check.input_check", "self_check.output_check"):
+        surface = manifests[rail_name].surfaces[0]
+        assert surface.bindings == (Binding.surface_param(action_param="variant", name="variant", required=False),)

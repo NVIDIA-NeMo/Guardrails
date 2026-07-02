@@ -50,7 +50,7 @@ async def self_check_hallucination(
     use_llm_checking: bool = True,
     config: Optional[RailsConfig] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
 
     :return: A blocking outcome if hallucination is detected, otherwise an allowing outcome.
