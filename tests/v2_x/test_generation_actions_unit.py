@@ -207,7 +207,7 @@ async def test_generate_user_intent_and_bot_action_success_and_error(monkeypatch
     patch_llm_call(
         monkeypatch,
         'user intent: ask help\nbot intent: provide help\nbot action: bot say "Here"',
-        "assistant response only",
+        'user intent: ask help\nbot intent: provide help\nbot action: bot say "Here"',
     )
 
     result = await actions.generate_user_intent_and_bot_action(state, [], "help")
@@ -312,7 +312,7 @@ async def test_generate_flow_continuation_success_fallback_and_error(monkeypatch
         monkeypatch,
         'bot intent: provide answer\nbot action: bot say "Answer"',
         "\n",
-        "assistant response only",
+        'bot intent: provide answer\nbot action: bot say "Answer"',
     )
 
     generated = await actions.generate_flow_continuation(state, [], temperature=0.3)
