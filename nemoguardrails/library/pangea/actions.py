@@ -18,13 +18,13 @@ import os
 from collections.abc import Mapping
 from typing import Any, Optional
 
-import httpx
 from pydantic import BaseModel
 from pydantic_core import to_json
 from typing_extensions import Literal, cast
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
 from nemoguardrails.rails.llm.config import PangeaRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ async def pangea_ai_guard(
     context: Mapping[str, Any] = {},
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     pangea_base_url_template = os.getenv("PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud")
     pangea_api_token = os.getenv("PANGEA_API_TOKEN")
@@ -117,13 +118,14 @@ async def pangea_ai_guard(
         else (pangea_config.output.recipe if mode == "output" and pangea_config.output else None)
     )
 
-    async with httpx.AsyncClient(base_url=pangea_base_url_template.format(SERVICE_NAME="ai-guard")) as client:
-        data = {"messages": messages, "recipe": recipe}
-        # Remove `None` values.
-        data = {k: v for k, v in data.items() if v is not None}
-
-        response = await client.post(
-            "/v1/text/guard",
+    data = {"messages": messages, "recipe": recipe}
+    data = {k: v for k, v in data.items() if v is not None}
+    endpoint = pangea_base_url_template.format(SERVICE_NAME="ai-guard").rstrip("/") + "/v1/text/guard"
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            endpoint,
             content=to_json(data),
             headers={
                 "Accept": "application/json",
@@ -131,27 +133,28 @@ async def pangea_ai_guard(
                 "Content-Type": "application/json",
                 "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
             },
+            raise_for_status=False,
         )
-        try:
-            response.raise_for_status()
-            text_guard_response = TextGuardResponse(**response.json())
-        except Exception as e:
-            log.error("Error calling Pangea AI Guard API: %s", e)
-            return _pangea_outcome(
-                TextGuardResult(
-                    prompt_messages=messages,
-                    blocked=False,
-                    transformed=False,
-                    bot_message=bot_message,
-                    user_message=user_message,
-                ),
-                mode,
-            )
+    try:
+        response.raise_for_status()
+        text_guard_response = TextGuardResponse(**response.json())
+    except Exception as e:
+        log.error("Error calling Pangea AI Guard API: %s", e)
+        return _pangea_outcome(
+            TextGuardResult(
+                prompt_messages=messages,
+                blocked=False,
+                transformed=False,
+                bot_message=bot_message,
+                user_message=user_message,
+            ),
+            mode,
+        )
 
-        result = text_guard_response.result
-        prompt_messages = result.prompt_messages or []
+    result = text_guard_response.result
+    prompt_messages = result.prompt_messages or []
 
-        result.bot_message = next((m.content for m in prompt_messages if m.role == "assistant"), bot_message)
-        result.user_message = next((m.content for m in prompt_messages if m.role == "user"), user_message)
+    result.bot_message = next((m.content for m in prompt_messages if m.role == "assistant"), bot_message)
+    result.user_message = next((m.content for m in prompt_messages if m.role == "user"), user_message)
 
-        return _pangea_outcome(result, mode)
+    return _pangea_outcome(result, mode)

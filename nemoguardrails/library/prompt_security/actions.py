@@ -19,10 +19,9 @@ import logging
 import os
 from typing import Optional
 
-import httpx
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ async def ps_protect_api_async(
     system_prompt: Optional[str] = None,
     response: Optional[str] = None,
     user: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Calls Prompt Security Protect API asynchronously.
 
@@ -69,23 +69,30 @@ async def ps_protect_api_async(
         "response": response,
         "user": user,
     }
-    async with httpx.AsyncClient() as client:
-        modified_text = None
-        ps_action = "log"
-        try:
-            ret = await client.post(ps_protect_url, headers=headers, json=payload)
-            res = ret.json()
-            ps_action = res.get("result", {}).get("action", "log")
-            if ps_action == "modify":
-                key = "response" if response else "prompt"
-                modified_text = res.get("result", {}).get(key, {}).get("modified_text")
-        except Exception as e:
-            log.error("Error calling Prompt Security Protect API: %s", e)
-        return {
-            "is_blocked": ps_action == "block",
-            "is_modified": ps_action == "modify",
-            "modified_text": modified_text,
-        }
+    modified_text = None
+    ps_action = "log"
+    try:
+        async with resolve_http_client(http_client) as client:
+            result = await http_call(
+                client,
+                "POST",
+                ps_protect_url,
+                headers=headers,
+                json=payload,
+                raise_for_status=False,
+            )
+        data = result.json()
+        ps_action = data.get("result", {}).get("action", "log")
+        if ps_action == "modify":
+            key = "response" if response else "prompt"
+            modified_text = data.get("result", {}).get(key, {}).get("modified_text")
+    except Exception as e:
+        log.error("Error calling Prompt Security Protect API: %s", e)
+    return {
+        "is_blocked": ps_action == "block",
+        "is_modified": ps_action == "modify",
+        "modified_text": modified_text,
+    }
 
 
 def _protect_text_outcome(result: dict, target: TransformTarget) -> RailOutcome:
@@ -101,6 +108,7 @@ def _protect_text_outcome(result: dict, target: TransformTarget) -> RailOutcome:
 async def protect_text(
     user_prompt: Optional[str] = None,
     bot_response: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Protects the given user_prompt or bot_response.
@@ -125,14 +133,16 @@ async def protect_text(
         raise ValueError("PS_APP_ID env variable is required for Prompt Security.")
 
     if bot_response:
+        request_kwargs = {"http_client": http_client} if http_client is not None else {}
         return _protect_text_outcome(
-            await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response),
+            await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response, **request_kwargs),
             TransformTarget.BOT_MESSAGE,
         )
 
     if user_prompt:
+        request_kwargs = {"http_client": http_client} if http_client is not None else {}
         return _protect_text_outcome(
-            await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt),
+            await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt, **request_kwargs),
             TransformTarget.USER_MESSAGE,
         )
 
