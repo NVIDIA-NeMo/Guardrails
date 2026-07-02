@@ -118,6 +118,29 @@ CLASS_DESCRIPTIONS: Mapping[str, str] = {
 }
 
 
+# OWASP LLM Top 10 (2025) tags per attack class, in garak's `owasp:llmNN` string
+# form so findings join directly against garak probe/hitlog tags. Primary category
+# first; a class carries secondaries where its vector spans categories. The guard
+# as a whole is an Excessive Agency (LLM06) control, so LLM06 recurs. `novel` is
+# intentionally absent — an uncatalogued finding has no fixed category; a human
+# assigns one at triage rather than the catalog fabricating it.
+CLASS_TO_OWASP: Mapping[str, tuple[str, ...]] = {
+    "argument-injection": ("owasp:llm05", "owasp:llm06"),
+    "ownership-bypass": ("owasp:llm06",),
+    "prefix-ownership-bypass": ("owasp:llm06", "owasp:llm05"),
+    "unbounded-arg": ("owasp:llm10",),
+    "disallowed-target": ("owasp:llm03", "owasp:llm06"),
+    "disallowed-pattern": ("owasp:llm06", "owasp:llm02"),
+    "privilege-escalation": ("owasp:llm06",),
+}
+
+
+def owasp_tags(attack_class: str) -> tuple[str, ...]:
+    """OWASP LLM Top 10 tags for an attack class (primary first), or () for an
+    uncatalogued class (e.g. `novel`) — never fabricates a category."""
+    return CLASS_TO_OWASP.get(attack_class, ())
+
+
 def _required_params(factory: Callable[..., Rule]) -> tuple:
     """The parameter names a factory needs (those without defaults)."""
     return tuple(
