@@ -19,8 +19,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-import aiohttp
-
+from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call, resolve_http_client
 from nemoguardrails.library.gliner.models import GLiNERRequest
 
 log = logging.getLogger(__name__)
@@ -36,6 +35,7 @@ async def gliner_request(
     flat_ner: Optional[bool] = None,
     api_key: Optional[str] = None,
     model: str = "nvidia/gliner-pii",
+    http_client: Optional[HTTPClient] = None,
 ) -> Dict[str, Any]:
     """Send a PII detection request to the GLiNER API.
 
@@ -107,44 +107,48 @@ async def gliner_request(
     if request.labels:
         payload["labels"] = request.labels
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(server_endpoint, json=payload, headers=headers) as resp:
-            if resp.status != 200:
-                raise ValueError(f"GLiNER call failed with status code {resp.status}.\nDetails: {await resp.text()}")
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            server_endpoint,
+            json=payload,
+            headers=headers,
+            raise_for_status=False,
+        )
+    if response.status_code != 200:
+        raise ValueError(f"GLiNER call failed with status code {response.status_code}.\nDetails: {response.text}")
 
-            try:
-                raw = await resp.json()
-            except aiohttp.ContentTypeError as err:
-                raise ValueError(
-                    f"Failed to parse GLiNER response as JSON. Status: {resp.status}, Content: {await resp.text()}"
-                ) from err
+    try:
+        raw = response.json()
+    except HTTPResponseDecodeError as error:
+        raise ValueError(
+            f"Failed to parse GLiNER response as JSON. Status: {response.status_code}, Content: {response.text}"
+        ) from error
 
-            if not use_chat_completions:
-                return raw
+    if not use_chat_completions:
+        return raw
 
-            # Unwrap chat completions envelope and normalize entity field names.
-            # NIM uses: text, label, start, end
-            # Custom server uses: value, suggested_label, start_position, end_position
-            try:
-                nim_data = json.loads(raw["choices"][0]["message"]["content"])
-            except (KeyError, IndexError, json.JSONDecodeError, TypeError) as e:
-                raise ValueError(f"Failed to parse NIM response content: {e}") from e
+    try:
+        nim_data = json.loads(raw["choices"][0]["message"]["content"])
+    except (KeyError, IndexError, json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"Failed to parse NIM response content: {e}") from e
 
-            if not isinstance(nim_data, dict):
-                raise ValueError(f"Expected NIM response content to be a JSON object, got {type(nim_data).__name__}")
+    if not isinstance(nim_data, dict):
+        raise ValueError(f"Expected NIM response content to be a JSON object, got {type(nim_data).__name__}")
 
-            normalized_entities = [
-                {
-                    "value": e.get("text", e.get("value", "")),
-                    "suggested_label": e.get("label", e.get("suggested_label", "")),
-                    "start_position": e.get("start", e.get("start_position", 0)),
-                    "end_position": e.get("end", e.get("end_position", 0)),
-                    "score": e.get("score", 0.0),
-                }
-                for e in (nim_data.get("entities") or [])
-            ]
-            return {
-                "entities": normalized_entities,
-                "total_entities": nim_data.get("total_entities", len(normalized_entities)),
-                "tagged_text": nim_data.get("tagged_text", ""),
-            }
+    normalized_entities = [
+        {
+            "value": e.get("text", e.get("value", "")),
+            "suggested_label": e.get("label", e.get("suggested_label", "")),
+            "start_position": e.get("start", e.get("start_position", 0)),
+            "end_position": e.get("end", e.get("end_position", 0)),
+            "score": e.get("score", 0.0),
+        }
+        for e in (nim_data.get("entities") or [])
+    ]
+    return {
+        "entities": normalized_entities,
+        "total_entities": nim_data.get("total_entities", len(normalized_entities)),
+        "tagged_text": nim_data.get("tagged_text", ""),
+    }
