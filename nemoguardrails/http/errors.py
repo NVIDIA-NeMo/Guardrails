@@ -35,7 +35,9 @@ def _safe_url(url: str) -> str:
 
 
 class HTTPClientError(Exception):
-    pass
+    def __init__(self, *args: object):
+        super().__init__(*args)
+        self.retry_count = 0
 
 
 class HTTPConnectionError(HTTPClientError):
