@@ -19,11 +19,12 @@ from typing import Any, Dict, List, Optional, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.rails.llm.config import GLiNERDetection
 from tests.utils import TestChat
 
@@ -737,6 +738,11 @@ def _wrap_in_chat_completions(content) -> dict:
     return {"choices": [{"message": {"content": inner}}]}
 
 
+def _http_response(payload=None, *, status: int = 200, body: str | None = None) -> HTTPResponse:
+    content = body.encode() if body is not None else json.dumps(payload).encode()
+    return HTTPResponse(status_code=status, content=content)
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_gliner_request_chat_completions_normalizes_entities():
@@ -751,9 +757,8 @@ async def test_gliner_request_chat_completions_normalizes_entities():
         "total_entities": 2,
         "tagged_text": "[John](first_name) ... [test@example.com](email)",
     }
-    with aioresponses() as m:
-        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions(nim_content))
-        result = await gliner_request(text="Hi I'm John", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(_wrap_in_chat_completions(nim_content))])
+    result = await gliner_request(text="Hi I'm John", server_endpoint=NIM_ENDPOINT, http_client=client)
 
     assert result["total_entities"] == 2
     assert result["tagged_text"] == nim_content["tagged_text"]
@@ -787,9 +792,8 @@ async def test_gliner_request_custom_endpoint_returns_raw():
         "total_entities": 1,
         "tagged_text": "[John](first_name)",
     }
-    with aioresponses() as m:
-        m.post(CUSTOM_ENDPOINT, payload=custom_response)
-        result = await gliner_request(text="John", server_endpoint=CUSTOM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(custom_response)])
+    result = await gliner_request(text="John", server_endpoint=CUSTOM_ENDPOINT, http_client=client)
 
     assert result == custom_response
 
@@ -800,15 +804,17 @@ async def test_gliner_request_forwards_api_key_as_bearer_header():
     """When api_key is set, an Authorization: Bearer <key> header is sent."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(
-            NIM_ENDPOINT,
-            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
-        )
-        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, api_key="nvapi-test-key")
+    client = RecordingHTTPClient(
+        [_http_response(_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}))]
+    )
+    await gliner_request(
+        text="hi",
+        server_endpoint=NIM_ENDPOINT,
+        api_key="nvapi-test-key",
+        http_client=client,
+    )
 
-    sent = next(iter(m.requests.values()))[0]
-    headers = sent.kwargs.get("headers") or {}
+    headers = client.requests[0].headers or {}
     assert headers.get("Authorization") == "Bearer nvapi-test-key"
     assert headers.get("Content-Type") == "application/json"
 
@@ -819,15 +825,12 @@ async def test_gliner_request_no_api_key_omits_authorization_header():
     """When api_key is None, no Authorization header is sent."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(
-            NIM_ENDPOINT,
-            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
-        )
-        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient(
+        [_http_response(_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}))]
+    )
+    await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, http_client=client)
 
-    sent = next(iter(m.requests.values()))[0]
-    headers = sent.kwargs.get("headers") or {}
+    headers = client.requests[0].headers or {}
     assert "Authorization" not in headers
 
 
@@ -837,10 +840,9 @@ async def test_gliner_request_non_200_status_raises():
     """Non-200 responses raise ValueError with the status code in the message."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(NIM_ENDPOINT, status=500, body="Internal Server Error")
-        with pytest.raises(ValueError, match=r"GLiNER call failed with status code 500"):
-            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(status=500, body="Internal Server Error")])
+    with pytest.raises(ValueError, match=r"GLiNER call failed with status code 500"):
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, http_client=client)
 
 
 @pytest.mark.unit
@@ -849,10 +851,9 @@ async def test_gliner_request_non_json_response_raises():
     """If the server returns a 200 with non-JSON Content-Type, ValueError is raised."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(NIM_ENDPOINT, status=200, body="not json", content_type="text/plain")
-        with pytest.raises(ValueError, match=r"Failed to parse GLiNER response as JSON"):
-            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(body="not json")])
+    with pytest.raises(ValueError, match=r"Failed to parse GLiNER response as JSON"):
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, http_client=client)
 
 
 @pytest.mark.unit
@@ -861,10 +862,9 @@ async def test_gliner_request_nim_content_unparseable_raises():
     """Chat completions: when message.content is not valid JSON, ValueError is raised."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions("this is not json {"))
-        with pytest.raises(ValueError, match=r"Failed to parse NIM response content"):
-            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(_wrap_in_chat_completions("this is not json {"))])
+    with pytest.raises(ValueError, match=r"Failed to parse NIM response content"):
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, http_client=client)
 
 
 @pytest.mark.unit
@@ -873,10 +873,9 @@ async def test_gliner_request_nim_content_not_dict_raises():
     """Chat completions: when message.content parses to a non-dict, ValueError is raised."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions(["entities", "as", "list"]))
-        with pytest.raises(ValueError, match=r"Expected NIM response content to be a JSON object"):
-            await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+    client = RecordingHTTPClient([_http_response(_wrap_in_chat_completions(["entities", "as", "list"]))])
+    with pytest.raises(ValueError, match=r"Expected NIM response content to be a JSON object"):
+        await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT, http_client=client)
 
 
 @pytest.mark.unit
@@ -885,23 +884,21 @@ async def test_gliner_request_forwards_all_optional_params_to_payload():
     """All optional params flow into the JSON payload sent to the server."""
     from nemoguardrails.library.gliner.request import gliner_request
 
-    with aioresponses() as m:
-        m.post(
-            NIM_ENDPOINT,
-            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
-        )
-        await gliner_request(
-            text="hello",
-            server_endpoint=NIM_ENDPOINT,
-            enabled_entities=["email", "first_name"],
-            threshold=0.7,
-            chunk_length=512,
-            overlap=64,
-            flat_ner=True,
-        )
+    client = RecordingHTTPClient(
+        [_http_response(_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}))]
+    )
+    await gliner_request(
+        text="hello",
+        server_endpoint=NIM_ENDPOINT,
+        enabled_entities=["email", "first_name"],
+        threshold=0.7,
+        chunk_length=512,
+        overlap=64,
+        flat_ner=True,
+        http_client=client,
+    )
 
-    sent = next(iter(m.requests.values()))[0]
-    payload = sent.kwargs.get("json") or {}
+    payload = client.requests[0].json or {}
     assert payload["threshold"] == 0.7
     assert payload["chunk_length"] == 512
     assert payload["overlap"] == 64

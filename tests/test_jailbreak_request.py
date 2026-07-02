@@ -103,5 +103,6 @@ class TestJailbreakRequestChanges:
             "nim_url",
             "nim_auth_token",
             "nim_classification_path",
+            "http_client",
         ]
         assert params == expected_params, f"Expected {expected_params}, got {params}"

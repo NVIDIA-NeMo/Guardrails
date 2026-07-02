@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
@@ -55,6 +56,7 @@ async def detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
+    http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks whether the provided text contains any PII.
@@ -86,11 +88,13 @@ async def detect_pii(
             f"The current flow, '{source}', is not allowed."
         )
 
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     private_ai_response = await private_ai_request(
         text,
         enabled_entities,
         server_endpoint,
         pai_api_key,
+        **request_kwargs,
     )
 
     try:
@@ -101,7 +105,12 @@ async def detect_pii(
 
 
 @action(is_system_action=False)
-async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
+async def mask_pii(
+    source: str,
+    text: str,
+    config: RailsConfig,
+    http_client: HTTPClient | None = None,
+) -> RailOutcome:
     """Masks any detected PII in the provided text.
 
     Args:
@@ -131,11 +140,13 @@ async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
             f"The current flow, '{source}', is not allowed."
         )
 
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     private_ai_response = await private_ai_request(
         text,
         enabled_entities,
         server_endpoint,
         pai_api_key,
+        **request_kwargs,
     )
 
     if not private_ai_response or not isinstance(private_ai_response, list):

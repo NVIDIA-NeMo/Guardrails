@@ -19,6 +19,7 @@ from typing import Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.factchecking.align_score.request import alignscore_request
 from nemoguardrails.library.self_check.facts.actions import _fact_check_outcome, self_check_facts
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -33,6 +34,7 @@ async def alignscore_check_facts(
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks the facts for the bot response using an information alignment score."""
@@ -45,7 +47,8 @@ async def alignscore_check_facts(
     evidence = context.get("relevant_chunks", [])
     response = context.get("bot_message")
 
-    alignscore = await alignscore_request(alignscore_api_url, evidence, response)
+    request_kwargs = {"http_client": http_client} if http_client is not None else {}
+    alignscore = await alignscore_request(alignscore_api_url, evidence, response, **request_kwargs)
     if alignscore is None:
         log.warning("AlignScore endpoint not set up properly. Falling back to the ask_llm approach for fact-checking.")
         if fallback_to_self_check:

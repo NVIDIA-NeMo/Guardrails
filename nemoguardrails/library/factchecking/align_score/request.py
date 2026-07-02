@@ -16,9 +16,8 @@
 import logging
 from typing import Optional
 
-import aiohttp
-
 from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +27,7 @@ async def alignscore_request(
     api_url: str = "http://localhost:5000/alignscore_large",
     evidence: Optional[list] = None,
     response: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Checks the facts for the bot response by making a request to the AlignScore API."""
     if not evidence:
@@ -35,17 +35,23 @@ async def alignscore_request(
 
     payload = {"evidence": evidence, "claim": response}
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(api_url, json=payload) as resp:
-            if resp.status != 200:
-                log.error(f"AlignScore API request failed with status {resp.status}")
-                return None
+    async with resolve_http_client(http_client) as client:
+        http_response = await http_call(
+            client,
+            "POST",
+            api_url,
+            json=payload,
+            raise_for_status=False,
+        )
+    if http_response.status_code != 200:
+        log.error(f"AlignScore API request failed with status {http_response.status_code}")
+        return None
 
-            result = await resp.json()
+    result = http_response.json()
 
-            log.info(f"AlignScore was {result}.")
-            try:
-                result = result["alignscore"]
-            except Exception:
-                result = None
-            return result
+    log.info(f"AlignScore was {result}.")
+    try:
+        result = result["alignscore"]
+    except Exception:
+        result = None
+    return result
