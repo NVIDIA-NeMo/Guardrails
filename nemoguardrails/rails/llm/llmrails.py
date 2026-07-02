@@ -49,7 +49,7 @@ from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang.v1_0.runtime.flows import compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime
-from nemoguardrails.colang.v2_x.runtime.flows import Action, State
+from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.context import (
     explain_info_var,
@@ -76,6 +76,7 @@ from nemoguardrails.rails.llm.config import (
     OutputRailsStreamingConfig,
     RailsConfig,
 )
+from nemoguardrails.rails.llm.conversation.conversation_events import events_for_messages
 from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationOptions,
@@ -85,6 +86,11 @@ from nemoguardrails.rails.llm.options import (
     RailType,
 )
 from nemoguardrails.rails.llm.runtime.colang_runtime import runtime_for_colang_version
+from nemoguardrails.rails.llm.runtime.colang_turns import (
+    generate_colang_events,
+    process_colang_events,
+    process_events_semaphore,
+)
 from nemoguardrails.rails.llm.startup.config_preparation import prepare_llmrails_config
 from nemoguardrails.rails.llm.startup.config_py import load_config_py_modules, run_config_py_init_hooks
 from nemoguardrails.rails.llm.startup.config_validation import validate_llmrails_config
@@ -107,13 +113,9 @@ from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import (
     extract_error_json,
     get_or_create_event_loop,
-    new_event_dict,
-    new_uuid,
 )
 
 log = logging.getLogger(__name__)
-
-process_events_semaphore = asyncio.Semaphore(1)
 
 
 def _wrap_legacy_llm(llm):
@@ -392,156 +394,7 @@ class LLMRails(BaseGuardrails):
         return self.embedding_search.get_provider_instance(esp_config)
 
     def _get_events_for_messages(self, messages: List[dict], state: Any):
-        """Return the list of events corresponding to the provided messages.
-
-        Tries to find a prefix of messages for which we have already a list of events
-        in the cache. For the rest, they are converted as is.
-
-        The reason this cache exists is that we want to benefit from events generated in
-        previous turns, which can't be computed again because it would be expensive (e.g.,
-        involving multiple LLM calls).
-
-        When an explicit state object will be added, this mechanism can be removed.
-
-        Args:
-            messages: The list of messages.
-
-        Returns:
-            A list of events.
-        """
-        events = []
-
-        if self.config.colang_version == "1.0":
-            # We try to find the longest prefix of messages for which we have a cache
-            # of events.
-            p = len(messages) - 1
-            while p > 0:
-                cache_key = get_history_cache_key(messages[0:p])
-                if cache_key in self.events_history_cache:
-                    events = self.events_history_cache[cache_key].copy()
-                    break
-
-                p -= 1
-
-            # For the rest of the messages, we transform them directly into events.
-            # TODO: Move this to separate function once more types of messages are supported.
-            for idx in range(p, len(messages)):
-                msg = messages[idx]
-                if msg["role"] == "user":
-                    events.append(
-                        {
-                            "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
-                        }
-                    )
-
-                    # If it's not the last message, we also need to add the `UserMessage` event
-                    if idx != len(messages) - 1:
-                        events.append(
-                            {
-                                "type": "UserMessage",
-                                "text": msg["content"],
-                            }
-                        )
-
-                elif msg["role"] == "assistant":
-                    if msg.get("tool_calls"):
-                        events.append({"type": "BotToolCalls", "tool_calls": msg["tool_calls"]})
-                    else:
-                        action_uid = new_uuid()
-                        start_event = new_event_dict(
-                            "StartUtteranceBotAction",
-                            script=msg["content"],
-                            action_uid=action_uid,
-                        )
-                        finished_event = new_event_dict(
-                            "UtteranceBotActionFinished",
-                            final_script=msg["content"],
-                            is_success=True,
-                            action_uid=action_uid,
-                        )
-                        events.extend([start_event, finished_event])
-                elif msg["role"] == "context":
-                    events.append({"type": "ContextUpdate", "data": msg["content"]})
-                elif msg["role"] == "event":
-                    events.append(msg["event"])
-                elif msg["role"] == "system":
-                    # Handle system messages - convert them to SystemMessage events
-                    events.append({"type": "SystemMessage", "content": msg["content"]})
-                elif msg["role"] == "tool":
-                    # For the last tool message, create grouped tool event and synthetic UserMessage
-                    if idx == len(messages) - 1:
-                        # Find the original user message for response generation
-                        user_message = None
-                        for prev_msg in reversed(messages[:idx]):
-                            if prev_msg["role"] == "user":
-                                user_message = prev_msg["content"]
-                                break
-
-                        if user_message:
-                            # If tool input rails are configured, group all tool messages
-                            if self.config.rails.tool_input.flows:
-                                # Collect all tool messages for grouped processing
-                                tool_messages = []
-                                for tool_idx in range(len(messages)):
-                                    if messages[tool_idx]["role"] == "tool":
-                                        tool_messages.append(
-                                            {
-                                                "content": messages[tool_idx]["content"],
-                                                "name": messages[tool_idx].get("name", "unknown"),
-                                                "tool_call_id": messages[tool_idx].get("tool_call_id", ""),
-                                            }
-                                        )
-
-                                events.append(
-                                    {
-                                        "type": "UserToolMessages",
-                                        "tool_messages": tool_messages,
-                                    }
-                                )
-
-                            else:
-                                events.append({"type": "UserMessage", "text": user_message})
-
-        else:
-            for idx in range(len(messages)):
-                msg = messages[idx]
-                if msg["role"] == "user":
-                    events.append(
-                        {
-                            "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
-                        }
-                    )
-
-                elif msg["role"] == "assistant":
-                    raise ValueError(
-                        "Providing `assistant` messages as input is not supported for Colang 2.0 configurations."
-                    )
-                elif msg["role"] == "context":
-                    events.append({"type": "ContextUpdate", "data": msg["content"]})
-                elif msg["role"] == "event":
-                    events.append(msg["event"])
-                elif msg["role"] == "system":
-                    # Handle system messages - convert them to SystemMessage events
-                    events.append({"type": "SystemMessage", "content": msg["content"]})
-                elif msg["role"] == "tool":
-                    action_uid = msg["tool_call_id"]
-                    return_value = msg["content"]
-                    action: Action = state.actions[action_uid]
-                    events.append(
-                        new_event_dict(
-                            f"{action.name}Finished",
-                            action_uid=action_uid,
-                            action_name=action.name,
-                            status="success",
-                            is_success=True,
-                            return_value=return_value,
-                            events=[],
-                        )
-                    )
-
-        return events
+        return events_for_messages(self, messages, state)
 
     @staticmethod
     def _ensure_explain_info() -> ExplainInfo:
@@ -1185,26 +1038,7 @@ class LLMRails(BaseGuardrails):
             The newly generate event(s).
 
         """
-        t0 = time.time()
-
-        # Initialize the LLM stats
-        llm_stats = LLMStats()
-        llm_stats_var.set(llm_stats)
-
-        # Compute the new events.
-        processing_log = []
-        new_events = await self.runtime.generate_events(events, processing_log=processing_log)
-
-        # If logging is enabled, we log the conversation
-        # TODO: add support for logging flag
-        if self.verbose:
-            history = get_colang_history(events)
-            log.info(f"Conversation history so far: \n{history}")
-
-        log.info("--- :: Total processing took %.2f seconds." % (time.time() - t0))
-        log.info("--- :: Stats: %s" % llm_stats)
-
-        return new_events
+        return await generate_colang_events(self, events)
 
     def generate_events(
         self,
@@ -1240,23 +1074,13 @@ class LLMRails(BaseGuardrails):
             (output_events, output_state) Returns a sequence of output events and an output
               state.
         """
-        t0 = time.time()
-        llm_stats = LLMStats()
-        llm_stats_var.set(llm_stats)
-
-        # Compute the new events.
-        # We need to protect 'process_events' to be called only once at a time
-        # TODO (cschueller): Why is this?
-        async with process_events_semaphore:
-            output_events, output_state = await self.runtime.process_events(events, state, blocking)
-
-        took = time.time() - t0
-        # Small tweak, disable this when there were no events (or it was just too fast).
-        if took > 0.1:
-            log.info("--- :: Total processing took %.2f seconds." % took)
-            log.info("--- :: Stats: %s" % llm_stats)
-
-        return output_events, output_state
+        return await process_colang_events(
+            self,
+            events,
+            state,
+            blocking,
+            semaphore=process_events_semaphore,
+        )
 
     def process_events(
         self,
