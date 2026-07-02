@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.polygraf.request import polygraf_request
 from nemoguardrails.rails.llm.config import PolygrafDetection
 
@@ -32,14 +33,22 @@ log = logging.getLogger(__name__)
 FAILSAFE_MASK_PLACEHOLDER = "<REDACTED>"
 
 
-def detect_pii_mapping(result: bool) -> bool:
-    """
-    Mapping for polygraf_detect_pii.
+def _detection_outcome(has_pii: bool) -> RailOutcome:
+    if has_pii:
+        return RailOutcome.block(has_pii=True)
+    return RailOutcome.allow(has_pii=False)
 
-    Since the function returns True when PII is detected,
-    we block if result is True.
-    """
-    return result
+
+def _mask_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
+    targets = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+    metadata = {"source": source, "text": original_text, "masked_text": masked_text}
+    if masked_text != original_text:
+        return RailOutcome.transform([(targets[source], masked_text)], **metadata)
+    return RailOutcome.allow(**metadata)
 
 
 def _get_polygraf_api_key() -> Optional[str]:
@@ -171,13 +180,13 @@ def _resolve_source_config(config: RailsConfig, source: str) -> Tuple[PolygrafDe
     return polygraf_config, source_config, enabled_entities
 
 
-@action(is_system_action=False, output_mapping=detect_pii_mapping)
+@action(is_system_action=False)
 async def polygraf_detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-) -> bool:
+) -> RailOutcome:
     """Checks whether the provided text contains any PII using Polygraf.
 
     Args:
@@ -186,13 +195,13 @@ async def polygraf_detect_pii(
         config: The rails configuration object.
 
     Returns:
-        True if PII is detected (or if the detection cannot complete safely),
-        False otherwise.
+        RailOutcome.block() if PII is detected or detection cannot complete safely,
+        RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: Only if ``source`` is not one of the allowed flows.
             Provider/network failures are caught and treated as fail-closed
-            (the action returns True so the rail blocks the message).
+            (the action returns a blocking outcome).
     """
     polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
@@ -206,10 +215,10 @@ async def polygraf_detect_pii(
         # through. Log only the failure category, never the input text or
         # exception chain (which can contain response bodies with PII).
         log.warning("Polygraf detection failed (%s); failing closed and blocking text.", type(err).__name__)
-        return True
+        return _detection_outcome(True)
 
     if not entities:
-        return False
+        return _detection_outcome(False)
 
     safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities, len(text))
 
@@ -217,13 +226,13 @@ async def polygraf_detect_pii(
     # and fail closed even if other valid entities had no enabled match.
     if has_malformed_selected:
         log.warning("Polygraf returned a malformed selected entity; failing closed and blocking text.")
-        return True
+        return _detection_outcome(True)
 
-    return len(safe_spans) > 0
+    return _detection_outcome(len(safe_spans) > 0)
 
 
 @action(is_system_action=False)
-async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwargs) -> str:
+async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwargs) -> RailOutcome:
     """Masks any detected PII in the provided text using Polygraf.
 
     Args:
@@ -232,9 +241,8 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
         config: The rails configuration object.
 
     Returns:
-        The altered text with PII masked. Returns ``FAILSAFE_MASK_PLACEHOLDER``
-        when masking cannot complete safely (provider failure or a configured
-        entity span is malformed), so raw PII is never sent downstream.
+        A transform outcome with PII masked. The transform uses
+        ``FAILSAFE_MASK_PLACEHOLDER`` when masking cannot complete safely.
 
     Raises:
         ValueError: Only if ``source`` is not one of the allowed flows.
@@ -251,10 +259,10 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
         # Fail closed: if we cannot run masking at all, redact the entire text
         # rather than risk forwarding raw PII downstream.
         log.warning("Polygraf masking failed (%s); replacing payload with redaction placeholder.", type(err).__name__)
-        return FAILSAFE_MASK_PLACEHOLDER
+        return _mask_outcome(source, text, FAILSAFE_MASK_PLACEHOLDER)
 
     if not entities:
-        return text
+        return _mask_outcome(source, text, text)
 
     safe_spans, has_malformed_selected = _classify_entities(entities, enabled_entities, len(text))
 
@@ -263,10 +271,10 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
         # cannot guarantee in-place masking, so fail closed by redacting the
         # entire payload instead of returning partially-masked text.
         log.warning("Polygraf returned a malformed selected entity; replacing payload with redaction placeholder.")
-        return FAILSAFE_MASK_PLACEHOLDER
+        return _mask_outcome(source, text, FAILSAFE_MASK_PLACEHOLDER)
 
     masked_text = text
     for start, end, entity_type in sorted(safe_spans, key=lambda x: x[0], reverse=True):
         masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
-    return masked_text
+    return _mask_outcome(source, text, masked_text)

@@ -19,6 +19,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.polygraf.actions import (
     FAILSAFE_MASK_PLACEHOLDER,
     polygraf_detect_pii,
@@ -65,11 +66,13 @@ def create_polygraf_mock_response(
 
 
 def create_mock_polygraf_detect_pii(entities_to_detect: Optional[List[str]] = None):
-    """Create a mock polygraf_detect_pii action that returns True when PII is detected."""
+    """Create a mock polygraf_detect_pii action."""
 
     async def mock_polygraf_detect_pii(source: str, text: str, config, **kwargs):
         entities = create_polygraf_mock_response(text, entities_to_detect)
-        return len(entities) > 0
+        if entities:
+            return RailOutcome.block(has_pii=True)
+        return RailOutcome.allow(has_pii=False)
 
     return mock_polygraf_detect_pii
 
@@ -80,7 +83,7 @@ def create_mock_polygraf_mask_pii(entities_to_detect: Optional[List[str]] = None
     async def mock_polygraf_mask_pii(source: str, text: str, config, **kwargs):
         entities = create_polygraf_mock_response(text, entities_to_detect)
         if not entities:
-            return text
+            return RailOutcome.allow(source=source, text=text, masked_text=text)
 
         masked_text = text
         for entity in sorted(entities, key=lambda x: x["start"], reverse=True):
@@ -89,7 +92,17 @@ def create_mock_polygraf_mask_pii(entities_to_detect: Optional[List[str]] = None
             entity_type = entity["entity_type"]
             masked_text = masked_text[:start] + f"<{entity_type}>" + masked_text[end:]
 
-        return masked_text
+        targets = {
+            "input": TransformTarget.USER_MESSAGE,
+            "output": TransformTarget.BOT_MESSAGE,
+            "retrieval": TransformTarget.RELEVANT_CHUNKS,
+        }
+        return RailOutcome.transform(
+            [(targets[source], masked_text)],
+            source=source,
+            text=text,
+            masked_text=masked_text,
+        )
 
     return mock_polygraf_mask_pii
 
@@ -376,7 +389,7 @@ def test_polygraf_v2_input_flow_passes_actual_user_message_to_action():
     async def fake_polygraf_mask_pii(source: str, text, **kwargs):
         captured["source"] = source
         captured["text"] = text
-        return f"<masked:{text}>"
+        return RailOutcome.transform([(TransformTarget.USER_MESSAGE, f"<masked:{text}>")])
 
     # We use the SHIPPED polygraf flow body verbatim (read from flows.co)
     # and wire it into a v2 input rail using the standard guardrails pattern
@@ -497,9 +510,9 @@ async def test_polygraf_mask_pii_fails_closed_on_malformed_selected_entity(monke
 
     result = await polygraf_mask_pii("input", sensitive_input, _polygraf_config())
 
-    assert result == FAILSAFE_MASK_PLACEHOLDER
+    assert result.transform_text["user_message"] == FAILSAFE_MASK_PLACEHOLDER
     # The original sensitive value must never appear in the returned text.
-    assert sensitive_email not in result
+    assert sensitive_email not in result.transform_text["user_message"]
     # Log warnings must only carry structural metadata, not the PII value.
     assert sensitive_email not in caplog.text
     assert "Skipping malformed Polygraf entity" in caplog.text
@@ -524,7 +537,7 @@ async def test_polygraf_mask_pii_skips_unselected_malformed_entity(monkeypatch, 
 
     result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
 
-    assert result == "<Person> lives here"
+    assert result.transform_text["user_message"] == "<Person> lives here"
 
 
 @pytest.mark.asyncio
@@ -544,7 +557,7 @@ async def test_polygraf_mask_pii_fails_closed_on_missing_entity_type(monkeypatch
 
     result = await polygraf_mask_pii("input", sensitive, _polygraf_config())
 
-    assert result == FAILSAFE_MASK_PLACEHOLDER
+    assert result.transform_text["user_message"] == FAILSAFE_MASK_PLACEHOLDER
     assert "John" not in caplog.text
 
 
@@ -571,7 +584,7 @@ async def test_polygraf_mask_pii_fails_closed_on_out_of_range_offsets(monkeypatc
 
     result = await polygraf_mask_pii("input", "John lives here", _polygraf_config())
 
-    assert result == FAILSAFE_MASK_PLACEHOLDER
+    assert result.transform_text["user_message"] == FAILSAFE_MASK_PLACEHOLDER
 
 
 @pytest.mark.asyncio
@@ -586,7 +599,7 @@ async def test_polygraf_detect_pii_fails_closed_on_missing_entity_type(monkeypat
 
     result = await polygraf_detect_pii("input", "John lives here", _polygraf_config())
 
-    assert result is True
+    assert result.is_blocked
 
 
 @pytest.mark.asyncio
@@ -604,7 +617,7 @@ async def test_polygraf_mask_pii_fails_closed_on_provider_error(monkeypatch, cap
 
     result = await polygraf_mask_pii("input", sensitive_text, _polygraf_config())
 
-    assert result == FAILSAFE_MASK_PLACEHOLDER
+    assert result.transform_text["user_message"] == FAILSAFE_MASK_PLACEHOLDER
     # Even on failure, the caller's text must not leak into logs.
     assert sensitive_text not in caplog.text
     assert "test@gmail.com" not in caplog.text
@@ -624,7 +637,7 @@ async def test_polygraf_detect_pii_fails_closed_on_provider_error(monkeypatch, c
 
     result = await polygraf_detect_pii("input", "John lives here", _polygraf_config())
 
-    assert result is True
+    assert result.is_blocked
     assert "Polygraf detection failed" in caplog.text
 
 
@@ -644,7 +657,7 @@ async def test_polygraf_detect_pii_fails_closed_on_malformed_selected_entity(mon
 
     result = await polygraf_detect_pii("input", "Some text", _polygraf_config())
 
-    assert result is True
+    assert result.is_blocked
     assert "Polygraf returned a malformed selected entity" in caplog.text
 
 
@@ -660,7 +673,7 @@ async def test_polygraf_actions_warn_when_api_key_missing(monkeypatch, caplog):
 
     result = await polygraf_detect_pii("input", "John", _polygraf_config())
 
-    assert result is False
+    assert not result.is_blocked
     assert "POLYGRAF_API_KEY environment variable is not set" in caplog.text
 
 
@@ -678,7 +691,7 @@ async def test_polygraf_mask_pii_accepts_extra_kwargs_and_shared_session(monkeyp
 
     result = await polygraf_mask_pii("input", "John", _polygraf_config(), session=sentinel_session, extra="ignored")
 
-    assert result == "<Person>"
+    assert result.transform_text["user_message"] == "<Person>"
 
 
 @pytest.mark.unit
