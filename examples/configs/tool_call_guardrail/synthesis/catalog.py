@@ -141,6 +141,14 @@ def owasp_tags(attack_class: str) -> tuple[str, ...]:
     return CLASS_TO_OWASP.get(attack_class, ())
 
 
+def classes_for_owasp(tag: str) -> tuple[str, ...]:
+    """Catalogued attack classes that carry the given OWASP tag (any position) —
+    the reverse of `CLASS_TO_OWASP`. Used to suggest which guardrail rules a
+    tag-bearing external finding (e.g. a garak hit) might map to; returns () for a
+    tag no class carries."""
+    return tuple(cls for cls, tags in CLASS_TO_OWASP.items() if tag in tags)
+
+
 def _required_params(factory: Callable[..., Rule]) -> tuple:
     """The parameter names a factory needs (those without defaults)."""
     return tuple(
