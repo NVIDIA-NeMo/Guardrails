@@ -1,0 +1,42 @@
+name: GitHub Actions security
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+      - ".github/zizmor.yml"
+      - "**/action.yml"
+      - "**/action.yaml"
+  push:
+    branches: [develop]
+    paths:
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+      - ".github/zizmor.yml"
+      - "**/action.yml"
+      - "**/action.yaml"
+  schedule:
+    - cron: "17 8 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  zizmor:
+    name: Run zizmor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+        with:
+          advanced-security: false
+          online-audits: true
+          token: ${{ github.token }}
+          version: "1.26.1"
