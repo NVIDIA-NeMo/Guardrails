@@ -67,6 +67,21 @@ def _iter_colang_resources(resource: Traversable) -> Iterator[Traversable]:
             yield from _iter_colang_resources(child)
 
 
+def _flow_config_key(flow_config: dict) -> str | None:
+    return flow_config.get("id") or flow_config.get("name")
+
+
+def _extend_missing_flow_configs(config: RailsConfig, flow_configs: list[dict]) -> None:
+    existing_flow_keys = {_flow_config_key(flow_config) for flow_config in config.flows}
+    for flow_config in flow_configs:
+        flow_key = _flow_config_key(flow_config)
+        if flow_key is not None and flow_key in existing_flow_keys:
+            continue
+
+        config.flows.append(flow_config)
+        existing_flow_keys.add(flow_key)
+
+
 def load_default_colang_1_flows(config: RailsConfig) -> None:
     """Load the built-in Colang 1.0 LLM flows into the rails config."""
     if config.colang_version != "1.0":
@@ -79,7 +94,7 @@ def load_default_colang_1_flows(config: RailsConfig) -> None:
     for flow_config in default_flows:
         flow_config["is_system_flow"] = True
 
-    config.flows.extend(default_flows)
+    _extend_missing_flow_configs(config, default_flows)
 
 
 def load_guardrails_library_flows_and_bot_messages(config: RailsConfig) -> None:
@@ -101,7 +116,7 @@ def load_guardrails_library_flows_and_bot_messages(config: RailsConfig) -> None:
         for flow_config in content["flows"]:
             flow_config["is_system_flow"] = True
 
-        config.flows.extend(content["flows"])
+        _extend_missing_flow_configs(config, content["flows"])
 
         for message_id, utterances in content.get("bot_messages", {}).items():
             if message_id not in config.bot_messages:

@@ -127,14 +127,34 @@ def generation_token_stream(
         base_iterator = streaming_handler
 
     async def wrapped_iterator():
+        stream_completed = False
+        terminal_output_rail_error = False
         try:
             async for chunk in base_iterator:
                 if chunk is not None:
+                    if output_rail_streaming_enabled and _is_stream_error_chunk(chunk):
+                        terminal_output_rail_error = True
                     yield chunk
+            stream_completed = True
         finally:
-            await task
+            await _finish_generation_task(
+                task,
+                stream_completed=stream_completed and not terminal_output_rail_error,
+            )
 
     return wrapped_iterator()
+
+
+def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
+    if not isinstance(chunk, str):
+        return False
+
+    try:
+        chunk_data = json.loads(chunk)
+    except json.JSONDecodeError:
+        return False
+
+    return isinstance(chunk_data, dict) and "error" in chunk_data
 
 
 def _track_generation_task(rails: GenerationStreamSurface, task: asyncio.Task) -> None:
@@ -148,3 +168,21 @@ def _track_generation_task(rails: GenerationStreamSurface, task: asyncio.Task) -
         task_holder._active_tasks.discard(task)
 
     task.add_done_callback(task_done_callback)
+
+
+async def _finish_generation_task(
+    task: asyncio.Task,
+    *,
+    stream_completed: bool,
+) -> None:
+    """Finalize a background generation task for a stream consumer."""
+    cancelled_by_stream_close = False
+    if not stream_completed and not task.done():
+        task.cancel()
+        cancelled_by_stream_close = True
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        if not cancelled_by_stream_close:
+            raise
