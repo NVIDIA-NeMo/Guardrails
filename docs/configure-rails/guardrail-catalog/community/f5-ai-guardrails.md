@@ -21,6 +21,7 @@ The following environment variables can be used to configure the integration:
 
 - `F5_GUARDRAILS_API_KEY`: The API key for the F5 Guardrails API.
 - `F5_GUARDRAILS_API_URL`: The base URL for the F5 Guardrails API (defaults to https://us1.calypsoai.app).
+- `F5_GUARDRAILS_FAIL_OPEN`: When set to `true` (also accepts `yes` or `1`) to enable fail-open behavior so content is allowed when connection fails. Defaults to `false` (fail closed).
 
 
 ## Customization

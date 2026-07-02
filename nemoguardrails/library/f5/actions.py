@@ -74,7 +74,7 @@ async def f5_guardrails_scan(
             async with session.post(endpoint, headers=headers, json=payload) as response:
                 if response.status != 200:
                     error_detail = await response.text()
-                    log.error(f"F5 Guardrails API call failed: {response.status} - {error_detail}")
+                    log.error(f"F5 Guardrails API call failed: {response.status} - {error_detail[:200]}")
 
                     if fail_open:
                         log.warning(
@@ -85,14 +85,11 @@ async def f5_guardrails_scan(
 
                 result = await response.json()
                 return result
-        except Exception as e:
+        except aiohttp.ClientError as e:
             log.error(f"Error connecting to F5 Guardrails API: {str(e)}")
 
             if fail_open:
                 log.warning("F5 Guardrails API call failed, but F5_GUARDRAILS_FAIL_OPEN is enabled, allowing content.")
                 return {"result": {"outcome": "cleared"}}
 
-            if isinstance(e, aiohttp.ClientError):
-                raise RuntimeError(f"Connection error to F5 Guardrails API: {str(e)}") from e
-
-            raise e
+            raise RuntimeError(f"Connection error to F5 Guardrails API: {str(e)}") from e

@@ -123,6 +123,7 @@ def test_f5_guardrails_fail_open(config, monkeypatch):
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=500,
+            repeat=True,
         )
 
         chat >> "Hello!"
