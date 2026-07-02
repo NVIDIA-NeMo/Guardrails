@@ -131,7 +131,7 @@ class HasEventsHistoryCache(Protocol):
 
 
 class HasVerbose(Protocol):
-    """Reads the verbose flag (a ``property`` on the concrete class)."""
+    """Reads the verbose flag."""
 
     @property
     def verbose(self) -> bool: ...
@@ -177,7 +177,7 @@ class ConversationEventSurface(HasConfig, HasEventsHistoryCache, Protocol):
 
 
 class ColangTurnSurface(HasConfig, HasRuntime, HasVerbose, Protocol):
-    """Surface used by ``runtime.colang_turns`` to run a Colang turn."""
+    """Surface used by ``colang_turns.colang_turns`` to run a Colang turn."""
 
 
 class StandardGenerationSurface(ConversationEventSurface, ColangTurnSurface, HasExplainInfo, HasLogAdapters, Protocol):

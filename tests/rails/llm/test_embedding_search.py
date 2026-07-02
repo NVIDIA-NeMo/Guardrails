@@ -18,22 +18,21 @@ import pytest
 from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, Model, RailsConfig
-from nemoguardrails.rails.llm.startup import embedding_search as startup_embedding_search
-from nemoguardrails.rails.llm.startup.embedding_search import (
+from nemoguardrails.rails.llm.embedding import embedding_search as embedding_search_module
+from nemoguardrails.rails.llm.embedding.embedding_search import (
     DEFAULT_EMBEDDING_ENGINE,
     DEFAULT_EMBEDDING_MODEL,
     EmbeddingSearchState,
-    apply_embedding_model_config,
     get_embedding_search_provider_instance,
 )
+from nemoguardrails.rails.llm.startup.embedding_config import apply_embedding_model_config
 
 
-def test_embedding_search_startup_module_exports_public_helpers():
-    assert startup_embedding_search.__all__ == [
+def test_embedding_search_module_exports_public_helpers():
+    assert embedding_search_module.__all__ == [
         "DEFAULT_EMBEDDING_ENGINE",
         "DEFAULT_EMBEDDING_MODEL",
         "EmbeddingSearchState",
-        "apply_embedding_model_config",
         "get_embedding_search_provider_instance",
     ]
 

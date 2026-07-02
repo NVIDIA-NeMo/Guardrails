@@ -18,18 +18,31 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import (
     GenerationLogOptions,
     GenerationOptions,
     GenerationResponse,
 )
+from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 __all__ = [
     "GenerationTracingState",
+    "create_startup_tracing_adapters",
     "export_generation_trace",
     "prepare_generation_tracing",
     "restore_generation_trace_log",
 ]
+
+
+def create_startup_tracing_adapters(config: RailsConfig) -> list[InteractionLogAdapter] | None:
+    """Build the tracing log adapters configured at startup (None when tracing is off)."""
+    if not config.tracing:
+        return None
+
+    from nemoguardrails.tracing import create_log_adapters
+
+    return create_log_adapters(config.tracing)
 
 
 @dataclass

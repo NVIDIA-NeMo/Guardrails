@@ -39,6 +39,7 @@ def test_generation_request_exports():
         "PreparedGenerationRequest",
         "normalize_generation_request",
         "prepare_generation_request_for_runtime",
+        "validate_prompt_or_messages",
     ]
 
 

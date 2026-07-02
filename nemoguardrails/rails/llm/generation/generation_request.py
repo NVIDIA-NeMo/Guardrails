@@ -28,6 +28,7 @@ __all__ = [
     "PreparedGenerationRequest",
     "normalize_generation_request",
     "prepare_generation_request_for_runtime",
+    "validate_prompt_or_messages",
 ]
 
 
@@ -49,6 +50,18 @@ class PreparedGenerationRequest:
     needs_llm: bool
 
 
+def validate_prompt_or_messages(
+    prompt: Optional[str],
+    messages: Optional[List[dict]],
+) -> None:
+    """Validate that exactly one of prompt or messages is provided."""
+    if prompt is None and messages is None:
+        raise ValueError("Either prompt or messages must be provided.")
+
+    if prompt is not None and messages is not None:
+        raise ValueError("Only one of prompt or messages can be provided.")
+
+
 def normalize_generation_request(
     *,
     prompt: Optional[str],
@@ -57,11 +70,7 @@ def normalize_generation_request(
     state: Optional[Union[dict, State]],
 ) -> GenerationRequest:
     """Normalize public generate inputs into the internal request shape."""
-    if prompt is None and messages is None:
-        raise ValueError("Either prompt or messages must be provided.")
-
-    if prompt is not None and messages is not None:
-        raise ValueError("Only one of prompt or messages can be provided.")
+    validate_prompt_or_messages(prompt, messages)
 
     if prompt is not None:
         messages = [{"role": "user", "content": prompt}]

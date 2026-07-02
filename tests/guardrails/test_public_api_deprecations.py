@@ -35,8 +35,8 @@ import pytest
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.embedding.embedding_search import EmbeddingSearchState
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.startup.embedding_search import EmbeddingSearchState
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 
 

@@ -19,6 +19,7 @@ from typing import Optional, Union
 
 from nemoguardrails.actions.llm.utils import get_colang_history
 from nemoguardrails.colang.v2_x.runtime.flows import State
+from nemoguardrails.rails.llm.colang_turns.colang_turns import run_colang_turn
 from nemoguardrails.rails.llm.conversation.conversation_events import events_for_messages
 from nemoguardrails.rails.llm.generation.bot_messages import bot_message_from_colang_events
 from nemoguardrails.rails.llm.generation.generation_context import (
@@ -29,13 +30,12 @@ from nemoguardrails.rails.llm.generation.generation_response import (
     generation_event_metadata,
     generation_response_from_colang_turn,
 )
-from nemoguardrails.rails.llm.generation.generation_tracing import (
+from nemoguardrails.rails.llm.generation.tracing import (
     export_generation_trace,
     prepare_generation_tracing,
     restore_generation_trace_log,
 )
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
-from nemoguardrails.rails.llm.runtime.colang_turns import run_colang_turn
 from nemoguardrails.rails.llm.types import StandardGenerationSurface
 from nemoguardrails.rails.llm.utils import get_history_cache_key
 
