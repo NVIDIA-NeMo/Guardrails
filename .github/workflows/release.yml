@@ -36,15 +36,8 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Bootstrap poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 python -
-
-      - name: Update PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Install git-cliff
         # not allowed by NVIDIA
@@ -103,17 +96,15 @@ jobs:
             && mv CHANGELOG.tmp CHANGELOG.md \
             && rm CHANGELOG.new.md
 
-      - name: Update version with Poetry
-        run: |
-          # Use Poetry to update the version
-          poetry version ${{ steps.version.outputs.version }}
+      - name: Update version with uv
+        run: uv version --no-sync "${{ steps.version.outputs.version }}"
 
       - name: Update version in README.md
         env:
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          poetry run python - <<'PY'
+          uv run --no-project python - <<'PY'
           import os
           import re
           from pathlib import Path
@@ -175,7 +166,7 @@ jobs:
           add-paths: |
             CHANGELOG.md
             pyproject.toml
-            poetry.lock
+            uv.lock
             README.md
           commit-message: "chore(release): prepare for v${{ steps.version.outputs.version }}"
 

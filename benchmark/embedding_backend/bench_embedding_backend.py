@@ -26,8 +26,8 @@ It records the Annoy baseline and reports:
   - index memory (best-effort RSS delta)
 
 Run:
-    poetry run python benchmark/embedding_backend/bench_embedding_backend.py
-    poetry run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
+    uv run python benchmark/embedding_backend/bench_embedding_backend.py
+    uv run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
 
 Notes on equivalence:
   Annoy "angular" distance is monotonic with cosine similarity for normalized vectors.
@@ -234,7 +234,12 @@ def main() -> None:
         + (
             f"Annoy: metric={ANNOY_METRIC} n_trees={ANNOY_N_TREES}\n"
             if "annoy" in BACKENDS
-            else "Annoy not installed -- run `poetry run python -m pip install annoy` to reproduce the baseline comparison.\n"
+            else (
+                "Annoy not installed -- run "
+                '`ANNOY_COMPILER_ARGS="-DANNOYLIB_MULTITHREADED_BUILD" '
+                'uv pip install --no-cache --no-binary annoy "annoy==1.17.3"` '
+                "to reproduce the baseline comparison.\n"
+            )
         )
     )
     rows = run(args.sizes, args.dim, args.k, args.queries, args.seed)

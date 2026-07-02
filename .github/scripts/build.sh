@@ -12,8 +12,8 @@ EXAMPLES_DST="$PACKAGE_DIR/examples/bots"
 mkdir -p "$PACKAGE_DIR/examples"
 cp -r "$EXAMPLES_SRC" "$EXAMPLES_DST"
 
-# Build the wheel using Poetry
-poetry build
+# Build the wheel using uv
+uv build
 
 # Remove the copied directories after building
 rm -rf "$PACKAGE_DIR/examples"

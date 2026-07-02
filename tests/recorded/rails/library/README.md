@@ -25,11 +25,11 @@ When output rails need deterministic main-model text, prefer `FakeLLMModel` for 
 Run:
 
 ```bash
-poetry run pytest tests/recorded/rails/library --block-network -v
+uv run pytest tests/recorded/rails/library --block-network -v
 ```
 
 Refresh:
 
 ```bash
-poetry run pytest tests/recorded/rails/library --record-mode=rewrite -m "not fake_cassette" -v
+uv run pytest tests/recorded/rails/library --record-mode=rewrite -m "not fake_cassette" -v
 ```

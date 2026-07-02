@@ -42,7 +42,9 @@ class TestOptionalImport:
         with pytest.raises(ImportError) as exc_info:
             optional_import("nonexistent_module_xyz", error="raise", extra="test")
         assert "Missing optional dependency" in str(exc_info.value)
-        assert "poetry install -E test" in str(exc_info.value)
+        assert "uv add nonexistent_module_xyz. To install the project extra, run uv sync --extra test." in str(
+            exc_info.value
+        )
 
     def test_missing_module_raise_with_package_name(self):
         with pytest.raises(ImportError) as exc_info:
@@ -65,7 +67,7 @@ class TestOptionalImport:
             result = optional_import("nonexistent_module_xyz", error="warn", extra="test")
             assert result is None
             assert len(w) == 1
-            assert "poetry install -E test" in str(w[0].message)
+            assert "uv sync --extra test" in str(w[0].message)
 
     def test_missing_module_ignore(self):
         result = optional_import("nonexistent_module_xyz", error="ignore")
@@ -97,12 +99,13 @@ class TestImportOptionalDependency:
             import_optional_dependency("nonexistent_module_xyz", errors="raise")
         assert "Missing optional dependency" in str(exc_info.value)
         assert "nonexistent_module_xyz" in str(exc_info.value)
+        assert isinstance(exc_info.value.__cause__, ImportError)
 
     def test_missing_module_raise_with_extra(self):
         with pytest.raises(ImportError) as exc_info:
             import_optional_dependency("nonexistent_module_xyz", errors="raise", extra="test")
         assert "Missing optional dependency" in str(exc_info.value)
-        assert "poetry install -E test" in str(exc_info.value)
+        assert "uv sync --extra test" in str(exc_info.value)
 
     def test_missing_module_warn(self):
         with warnings.catch_warnings(record=True) as w:
@@ -119,7 +122,7 @@ class TestImportOptionalDependency:
             result = import_optional_dependency("nonexistent_module_xyz", errors="warn", extra="test")
             assert result is None
             assert len(w) == 1
-            assert "poetry install -E test" in str(w[0].message)
+            assert "uv sync --extra test" in str(w[0].message)
 
     def test_missing_module_ignore(self):
         result = import_optional_dependency("nonexistent_module_xyz", errors="ignore")

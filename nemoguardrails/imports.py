@@ -42,19 +42,15 @@ def optional_import(
     try:
         return importlib.import_module(module_name)
     except ImportError as e:
+        msg = (
+            f"Missing optional dependency '{package_name}'. "
+            f"Install it with pip install {package_name} or uv add {package_name}."
+        )
+        if extra:
+            msg += f" To install the project extra, run uv sync --extra {extra}."
         if error == "raise":
-            extra_msg = f" Install with: poetry install -E {extra}" if extra else ""
-            msg = (
-                f"Missing optional dependency '{package_name}'. "
-                f"Use pip install {package_name} or poetry add {package_name}.{extra_msg}"
-            )
             raise ImportError(msg) from e
         elif error == "warn":
-            extra_msg = f" Install with: poetry install -E {extra}" if extra else ""
-            msg = (
-                f"Missing optional dependency '{package_name}'. "
-                f"Use pip install {package_name} or poetry add {package_name}.{extra_msg}"
-            )
             warnings.warn(msg, ImportWarning, stacklevel=2)
         return None
 
@@ -104,14 +100,14 @@ def import_optional_dependency(
 
     try:
         module = importlib.import_module(name)
-    except ImportError:
+    except ImportError as e:
+        extra_msg = f" Install it with uv sync --extra {extra}." if extra else ""
+        msg = f"Missing optional dependency '{install_name}'.{extra_msg}"
         if errors == "raise":
-            extra_msg = f" Install it via poetry install -E {extra}" if extra else ""
-            raise ImportError(f"Missing optional dependency '{install_name}'.{extra_msg}")
+            raise ImportError(msg) from e
         elif errors == "warn":
-            extra_msg = f" Install it via poetry install -E {extra}" if extra else ""
             warnings.warn(
-                f"Missing optional dependency '{install_name}'.{extra_msg} Functionality will be limited.",
+                f"{msg} Functionality will be limited.",
                 ImportWarning,
                 stacklevel=2,
             )
