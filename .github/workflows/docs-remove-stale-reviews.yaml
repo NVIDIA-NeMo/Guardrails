@@ -12,4 +12,4 @@ permissions:
 
 jobs:
     remove:
-        uses: nvidia-merlin/.github/.github/workflows/docs-remove-stale-reviews-common.yaml@main
+        uses: nvidia-merlin/.github/.github/workflows/docs-remove-stale-reviews-common.yaml@1f3193bfbcf2ee0e740b03ff6e60860a9a35fdfe # main
