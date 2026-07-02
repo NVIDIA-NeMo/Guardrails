@@ -23,6 +23,7 @@ from nemoguardrails.http.errors import (
     HTTPStatusError,
     HTTPTimeoutError,
 )
+from nemoguardrails.http.instrumentation import HTTPBodyCapturePolicy, InstrumentedHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
@@ -37,7 +38,9 @@ __all__ = [
     "HTTPResponseDecodeError",
     "HTTPStatusError",
     "HTTPTimeoutError",
+    "HTTPBodyCapturePolicy",
     "HttpxHTTPClient",
+    "InstrumentedHTTPClient",
     "RetryPolicy",
     "RetryingHTTPClient",
 ]

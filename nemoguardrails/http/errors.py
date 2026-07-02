@@ -58,6 +58,7 @@ class HTTPStatusError(HTTPClientError):
         super().__init__(message)
         self.response = response
         self.request = request
+        self.retry_count = int(response.extensions.get("retry_count", 0))
 
 
 class HTTPResponseDecodeError(HTTPClientError):
