@@ -34,8 +34,10 @@ from policy import (
 from synthesis.catalog import (
     CLASS_DESCRIPTIONS,
     CLASS_TO_FACTORY,
+    CLASS_TO_OWASP,
     RULE_FACTORIES,
     RuleCandidate,
+    owasp_tags,
 )
 from synthesis.findings import Finding, load_findings
 from synthesis.proposals import (
@@ -69,6 +71,36 @@ def test_catalog_is_internally_consistent():
     # not the others (the exact drift that leaves a class silently undefined).
     assert set(CLASS_DESCRIPTIONS) == set(CLASS_TO_FACTORY)
     assert all(key in RULE_FACTORIES for key in CLASS_TO_FACTORY.values())
+
+
+def test_every_catalogued_class_has_owasp_tags():
+    # OWASP mapping must cover exactly the catalogued classes — the same no-drift
+    # guard as the factory/description maps. `novel` is deliberately excluded.
+    assert set(CLASS_TO_OWASP) == set(CLASS_TO_FACTORY)
+
+
+def test_owasp_tags_use_garak_tag_format():
+    # Tags must be garak's literal `owasp:llmNN` (01-10) so findings join directly
+    # against garak probe/hitlog tags.
+    valid = {f"owasp:llm{n:02d}" for n in range(1, 11)}
+    for cls, tags in CLASS_TO_OWASP.items():
+        assert tags, f"{cls} has no OWASP tags"
+        assert all(tag in valid for tag in tags), f"{cls} has a non-OWASP tag: {tags}"
+
+
+def test_owasp_primary_category_per_class():
+    # The first tag is the primary category; spot-check the ones whose primary is
+    # distinct from the LLM06 Excessive-Agency backbone.
+    assert owasp_tags("unbounded-arg")[0] == "owasp:llm10"  # Unbounded Consumption
+    assert owasp_tags("disallowed-target")[0] == "owasp:llm03"  # Supply Chain
+    assert owasp_tags("argument-injection")[0] == "owasp:llm05"  # Improper Output Handling
+    assert owasp_tags("privilege-escalation")[0] == "owasp:llm06"  # Excessive Agency
+
+
+def test_owasp_tags_returns_empty_for_uncatalogued():
+    # A novel/unknown class gets no fabricated category.
+    assert owasp_tags("novel") == ()
+    assert owasp_tags("does-not-exist") == ()
 
 
 def test_disallowed_pattern_factory_materializes_into_a_blocklist_rule():
