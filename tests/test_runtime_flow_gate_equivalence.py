@@ -457,16 +457,6 @@ CONTENT_SAFETY_OUTPUT = RailSpec(
     output_parser="nemoguard_parse_prompt_safety",
 )
 
-CONTENT_SAFETY_INPUT = RailSpec(
-    name="content_safety_input",
-    flow="content safety check input $model=content_safety",
-    direction="input",
-    action="content_safety_check_input",
-    model_type="content_safety",
-    task="content_safety_check_input $model=content_safety",
-    output_parser="nemoguard_parse_prompt_safety",
-)
-
 TOPIC_SAFETY_INPUT = RailSpec(
     name="topic_safety_input",
     flow="topic safety check input $model=topic_control",
