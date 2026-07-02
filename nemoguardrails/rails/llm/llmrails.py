@@ -16,12 +16,9 @@
 """LLM Rails entry point."""
 
 import asyncio
-import importlib.util
 import json
 import logging
-import os
 import re
-import threading
 import time
 import warnings
 from functools import partial
@@ -42,7 +39,6 @@ from typing import (
 
 from typing_extensions import Self
 
-from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
     extract_bot_thinking_from_events,
     extract_tool_calls_from_events,
@@ -50,11 +46,9 @@ from nemoguardrails.actions.llm.utils import (
     get_colang_history,
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
-from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
-from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
-from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
+from nemoguardrails.colang.v1_0.runtime.flows import compute_context
+from nemoguardrails.colang.v1_0.runtime.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.context import (
@@ -68,17 +62,10 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.exceptions import (
-    InvalidModelConfigurationError,
-    InvalidRailsConfigurationError,
     InvalidStateError,
     StreamingNotSupportedError,
 )
-from nemoguardrails.kb.kb import KnowledgeBase
-from nemoguardrails.llm.cache import CacheInterface, LFUCache
-from nemoguardrails.llm.models.initializer import (
-    ModelInitializationError,
-    init_llm_model,
-)
+from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.logging.processing_log import compute_generation_log
 from nemoguardrails.logging.stats import LLMStats
@@ -86,7 +73,6 @@ from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import (
-    EmbeddingSearchProvider,
     OutputRailsStreamingConfig,
     RailsConfig,
 )
@@ -98,6 +84,20 @@ from nemoguardrails.rails.llm.options import (
     RailStatus,
     RailType,
 )
+from nemoguardrails.rails.llm.runtime.colang_runtime import runtime_for_colang_version
+from nemoguardrails.rails.llm.startup.config_preparation import prepare_llmrails_config
+from nemoguardrails.rails.llm.startup.config_py import load_config_py_modules, run_config_py_init_hooks
+from nemoguardrails.rails.llm.startup.config_validation import validate_llmrails_config
+from nemoguardrails.rails.llm.startup.embedding_search import EmbeddingSearchState, apply_embedding_model_config
+from nemoguardrails.rails.llm.startup.generation_actions import register_llm_generation_actions
+from nemoguardrails.rails.llm.startup.knowledge_base import init_knowledge_base
+from nemoguardrails.rails.llm.startup.llm_action_caches import initialize_llm_action_caches
+from nemoguardrails.rails.llm.startup.llm_action_models import (
+    load_llm_action_models,
+    model_kwargs_from_config,
+    sync_update_llm_bindings,
+)
+from nemoguardrails.rails.llm.startup.tracing import create_startup_tracing_adapters
 from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
     get_history_cache_key,
@@ -137,6 +137,11 @@ class LLMRails(BaseGuardrails):
     """Rails based on a given configuration."""
 
     config: RailsConfig
+    embedding_search: EmbeddingSearchState
+    _explain_info: Optional[ExplainInfo]
+    _kb: Any
+    _llm_generation_actions: Any
+    _verbose: bool
     llm: Optional[LLMModel]
     runtime: Runtime
 
@@ -158,7 +163,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._embedding_search_providers
+        return self.embedding_search.providers
 
     @property
     def default_embedding_model(self):
@@ -167,7 +172,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._default_embedding_model
+        return self.embedding_search.default_model
 
     @default_embedding_model.setter
     def default_embedding_model(self, value):
@@ -176,7 +181,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        self._default_embedding_model = value
+        self.embedding_search.default_model = value
 
     @property
     def default_embedding_engine(self):
@@ -185,7 +190,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._default_embedding_engine
+        return self.embedding_search.default_engine
 
     @default_embedding_engine.setter
     def default_embedding_engine(self, value):
@@ -194,7 +199,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        self._default_embedding_engine = value
+        self.embedding_search.default_engine = value
 
     @property
     def default_embedding_params(self):
@@ -203,7 +208,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._default_embedding_params
+        return self.embedding_search.default_params
 
     @default_embedding_params.setter
     def default_embedding_params(self, value):
@@ -212,7 +217,7 @@ class LLMRails(BaseGuardrails):
             DeprecationWarning,
             stacklevel=2,
         )
-        self._default_embedding_params = value
+        self.embedding_search.default_params = value
 
     @property
     def explain_info(self):
@@ -260,6 +265,14 @@ class LLMRails(BaseGuardrails):
         """LLMGenerationActions is private, set passthrough_fn directly"""
         self._llm_generation_actions._passthrough_fn = fn
 
+    @property
+    def verbose(self) -> bool:
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, verbose: bool) -> None:
+        self._verbose = verbose
+
     def __init__(
         self,
         config: RailsConfig,
@@ -284,184 +297,58 @@ class LLMRails(BaseGuardrails):
         if self.verbose:
             set_verbose(True, llm_calls=True)
 
-        # We allow the user to register additional embedding search providers, so we keep
-        # an index of them.
-        self._embedding_search_providers = {}
-
-        # The default embeddings model is using FastEmbed
-        self._default_embedding_model = "all-MiniLM-L6-v2"
-        self._default_embedding_engine = "FastEmbed"
-        self._default_embedding_params = {}
+        self.embedding_search = EmbeddingSearchState.default()
 
         # We keep a cache of the events history associated with a sequence of user messages.
         # TODO: when we update the interface to allow to return a "state object", this
         #   should be removed
         self.events_history_cache = {}
 
-        # We also load the default flows from the `default_flows.yml` file in the current folder.
-        # But only for version 1.0.
-        # TODO: decide on the default flows for 2.x.
-        if config.colang_version == "1.0":
-            # We also load the default flows from the `llm_flows.co` file in the current folder.
-            current_folder = os.path.dirname(__file__)
-            default_flows_file = "llm_flows.co"
-            default_flows_path = os.path.join(current_folder, default_flows_file)
-            with open(default_flows_path, "r") as f:
-                default_flows_content = f.read()
-                default_flows = parse_colang_file(default_flows_file, default_flows_content)["flows"]
-
-            # We mark all the default flows as system flows.
-            for flow_config in default_flows:
-                flow_config["is_system_flow"] = True
-
-            # We add the default flows to the config.
-            self.config.flows.extend(default_flows)
-
-            # We also need to load the content from the components library.
-            # Sort entries so the traversal order is filesystem-independent;
-            # otherwise the order in which library bot_messages are inserted
-            # (and which definition wins on collisions) varies between platforms.
-            library_path = os.path.join(os.path.dirname(__file__), "../../library")
-            for root, dirs, files in os.walk(library_path):
-                dirs.sort()
-                for file in sorted(files):
-                    # Extract the full path for the file
-                    full_path = os.path.join(root, file)
-                    if file.endswith(".co"):
-                        log.debug(f"Loading file: {full_path}")
-                        with open(full_path, "r", encoding="utf-8") as f:
-                            content = parse_colang_file(file, content=f.read(), version=config.colang_version)
-                            if not content:
-                                continue
-
-                        # We mark all the flows coming from the guardrails library as system flows.
-                        for flow_config in content["flows"]:
-                            flow_config["is_system_flow"] = True
-
-                        # We load all the flows
-                        self.config.flows.extend(content["flows"])
-
-                        # And all the messages as well, if they have not been overwritten
-                        for message_id, utterances in content.get("bot_messages", {}).items():
-                            if message_id not in self.config.bot_messages:
-                                self.config.bot_messages[message_id] = utterances
-
-        # Last but not least, we mark all the flows that are used in any of the rails
-        # as system flows (so they don't end up in the prompt).
-
-        rail_flow_ids = config.rails.input.flows + config.rails.output.flows + config.rails.retrieval.flows
-
-        for flow_config in self.config.flows:
-            if flow_config.get("id") in rail_flow_ids:
-                flow_config["is_system_flow"] = True
-
-                # We also mark them as subflows by default, to simplify the syntax
-                flow_config["is_subflow"] = True
+        self.config = prepare_llmrails_config(config=self.config)
 
         # We check if the configuration or any of the imported ones have config.py modules.
-        config_modules = []
-        for _path in list(self.config.imported_paths.values() if self.config.imported_paths else []) + [
-            self.config.config_path
-        ]:
-            if _path:
-                filepath = os.path.join(_path, "config.py")
-                if os.path.exists(filepath):
-                    filename = os.path.basename(filepath)
-                    spec = importlib.util.spec_from_file_location(filename, filepath)
-                    if spec and spec.loader:
-                        config_module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(config_module)
-                        config_modules.append(config_module)
-
-        colang_version_to_runtime: Dict[str, Type[Runtime]] = {
-            "1.0": RuntimeV1_0,
-            "2.x": RuntimeV2_x,
-        }
-        if config.colang_version not in colang_version_to_runtime:
-            raise InvalidRailsConfigurationError(
-                f"Unsupported colang version: {config.colang_version}. Supported versions: {list(colang_version_to_runtime.keys())}"
-            )
+        config_modules = load_config_py_modules(self.config)
 
         # First, we initialize the runtime.
-        self.runtime = colang_version_to_runtime[config.colang_version](config=config, verbose=verbose)
+        self.runtime = runtime_for_colang_version(config=self.config, verbose=verbose)
 
         # If we have a config_modules with an `init` function, we call it.
         # We need to call this here because the `init` might register additional
         # LLM providers.
-        for config_module in config_modules:
-            if hasattr(config_module, "init"):
-                config_module.init(self)
+        run_config_py_init_hooks(self, config_modules)
 
-        # If we have a customized embedding model, we'll use it.
-        for model in self.config.models:
-            if model.type == "embeddings":
-                self._default_embedding_model = model.model
-                self._default_embedding_engine = model.engine
-                self._default_embedding_params = model.parameters or {}
+        default_embedding_model, default_embedding_engine, default_embedding_params = apply_embedding_model_config(
+            config=self.config,
+            default_embedding_model=self.embedding_search.default_model,
+            default_embedding_engine=self.embedding_search.default_engine,
+            default_embedding_params=self.embedding_search.default_params,
+        )
+        self.embedding_search.update_defaults(
+            default_model=default_embedding_model,
+            default_engine=default_embedding_engine,
+            default_params=default_embedding_params,
+        )
 
-                for esp in [
-                    self.config.core.embedding_search_provider,
-                    self.config.knowledge_base.embedding_search_provider,
-                ]:
-                    if esp.name != "default":
-                        continue
-                    if "embedding_model" not in esp.parameters and model.model is not None:
-                        esp.parameters["embedding_model"] = model.model
-                    if "embedding_engine" not in esp.parameters and model.engine is not None:
-                        esp.parameters["embedding_engine"] = model.engine
-
-                break
-
-        # InteractionLogAdapters used for tracing
-        # We ensure that it is used after config.py is loaded
-        if config.tracing:
-            from nemoguardrails.tracing import create_log_adapters
-
-            self._log_adapters = create_log_adapters(config.tracing)
-        else:
-            self._log_adapters = None
+        self._log_adapters = create_startup_tracing_adapters(self.config)
 
         # We run some additional checks on the config
-        self._validate_config()
+        validate_llmrails_config(self.config)
 
         # Next, we initialize the LLM engines (main engine and action engines if specified).
         self._init_llms()
 
         # Next, we initialize the LLM Generate actions and register them.
-        llm_generation_actions_class = (
-            LLMGenerationActions if config.colang_version == "1.0" else LLMGenerationActionsV2dotx
-        )
-        self._llm_generation_actions = llm_generation_actions_class(
-            config=config,
-            llm=self.llm,
-            llm_task_manager=self.runtime.llm_task_manager,
-            get_embedding_search_provider_instance=self._get_embeddings_search_provider_instance,
-            verbose=verbose,
-        )
+        register_llm_generation_actions(self, verbose=verbose)
 
-        # If there's already an action registered, we don't override.
-        self.runtime.register_actions(self._llm_generation_actions, override=False)
-
-        # Next, we initialize the Knowledge Base
-        # There are still some edge cases not covered by nest_asyncio.
-        # Using a separate thread always for now.
-        loop = get_or_create_event_loop()
-        if True or check_sync_call_from_async_loop():
-            t = threading.Thread(target=asyncio.run, args=(self._init_kb(),))
-            t.start()
-            t.join()
-        else:
-            loop.run_until_complete(self._init_kb())
-
-        # We also register the kb as a parameter that can be passed to actions.
-        self.runtime.register_action_param("kb", self._kb)
+        # Next, we initialize the Knowledge Base.
+        init_knowledge_base(self)
 
         # Reference to the general ExplainInfo object.
         self._explain_info = None
 
         from nemoguardrails.telemetry import report_usage
 
-        report_usage(config, deployment_type="library", rails_engine="LLMRails")
+        report_usage(self.config, deployment_type="library", rails_engine="LLMRails")
 
     def update_llm(self, llm: LLMModel):
         """Replace the main LLM with the provided one.
@@ -471,55 +358,7 @@ class LLMRails(BaseGuardrails):
         """
         if not isinstance(llm, LLMModel):
             llm = _wrap_legacy_llm(llm)
-        self.llm = llm
-        self._llm_generation_actions.llm = llm
-        self.runtime.register_action_param("llm", llm)
-
-    def _validate_config(self):
-        """Runs additional validation checks on the config."""
-
-        if self.config.colang_version == "1.0":
-            existing_flows_names = set([flow.get("id") for flow in self.config.flows])
-        else:
-            existing_flows_names = set([flow.get("name") for flow in self.config.flows])
-
-        for flow_name in self.config.rails.input.flows:
-            # content safety check input/output flows are special as they have parameters
-            flow_name = _normalize_flow_id(flow_name)
-            if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(f"The provided input rail flow `{flow_name}` does not exist")
-
-        for flow_name in self.config.rails.output.flows:
-            flow_name = _normalize_flow_id(flow_name)
-            if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(f"The provided output rail flow `{flow_name}` does not exist")
-
-        for flow_name in self.config.rails.retrieval.flows:
-            if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(f"The provided retrieval rail flow `{flow_name}` does not exist")
-
-        # If both passthrough mode and single call mode are specified, we raise an exception.
-        if self.config.passthrough and self.config.rails.dialog.single_call.enabled:
-            raise InvalidRailsConfigurationError(
-                "The passthrough mode and the single call dialog rails mode can't be used at the same time. "
-                "The single call mode needs to use an altered prompt when prompting the LLM. "
-            )
-
-    async def _init_kb(self):
-        """Initializes the knowledge base."""
-        self._kb = None
-
-        if not self.config.docs:
-            return
-
-        documents = [doc.content for doc in self.config.docs]
-        self._kb = KnowledgeBase(
-            documents=documents,
-            config=self.config.knowledge_base,
-            get_embedding_search_provider_instance=self._get_embeddings_search_provider_instance,
-        )
-        self._kb.init()
-        await self._kb.build()
+        sync_update_llm_bindings(self, llm)
 
     def _prepare_model_kwargs(self, model_config):
         """
@@ -531,15 +370,7 @@ class LLMRails(BaseGuardrails):
         Returns:
             dict: The prepared kwargs for model initialization
         """
-        kwargs = model_config.parameters or {}
-
-        # If the optional API Key Environment Variable is set, add it to kwargs
-        if model_config.api_key_env_var:
-            api_key = os.environ.get(model_config.api_key_env_var)
-            if api_key:
-                kwargs["api_key"] = api_key
-
-        return kwargs
+        return model_kwargs_from_config(model_config)
 
     def _init_llms(self):
         """
@@ -554,183 +385,11 @@ class LLMRails(BaseGuardrails):
         Raises:
             ModelInitializationError: If any model initialization fails
         """
-        from nemoguardrails._compat.langchain_kwargs import check_langchain_kwargs
-        from nemoguardrails.llm.frameworks import get_default_framework
+        load_llm_action_models(self, init_llm=init_llm_model)
+        initialize_llm_action_caches(self)
 
-        models_to_check = (
-            [model for model in self.config.models if model.type != "main"] if self.llm else self.config.models
-        )
-        check_langchain_kwargs(models_to_check, get_default_framework())
-
-        # If the user supplied an already-constructed LLM via the constructor we
-        # treat it as the *main* model, but **still** iterate through the
-        # configuration to load any additional models (e.g. `content_safety`).
-
-        if self.llm:
-            # If an LLM was provided via constructor, use it as the main LLM
-            # Log a warning if a main LLM is also specified in the config
-            if any(model.type == "main" for model in self.config.models):
-                log.warning(
-                    "Both an LLM was provided via constructor and a main LLM is specified in the config. "
-                    "The LLM provided via constructor will be used and the main LLM from config will be ignored."
-                )
-            self.runtime.register_action_param("llm", self.llm)
-
-        else:
-            # Otherwise, initialize the main LLM from the config
-            main_model = next((model for model in self.config.models if model.type == "main"), None)
-
-            if main_model and main_model.model:
-                kwargs = self._prepare_model_kwargs(main_model)
-                self.llm = init_llm_model(
-                    model_name=main_model.model,
-                    provider_name=main_model.engine,
-                    mode="chat",
-                    kwargs=kwargs,
-                )
-                self.runtime.register_action_param("llm", self.llm)
-
-            else:
-                log.info("No main LLM specified in the config and no LLM provided via constructor.")
-
-        llms = dict()
-
-        for llm_config in self.config.models:
-            if llm_config.type in ["embeddings", "jailbreak_detection"]:
-                continue
-
-            # If a constructor LLM is provided, skip initializing any 'main' model from config
-            if self.llm and llm_config.type == "main":
-                continue
-
-            try:
-                model_name = llm_config.model
-                if not model_name:
-                    raise InvalidModelConfigurationError(
-                        f"`model` field must be set in model configuration: {llm_config.model_dump_json()}"
-                    )
-
-                provider_name = llm_config.engine
-                kwargs = self._prepare_model_kwargs(llm_config)
-                mode = llm_config.mode
-
-                llm_model = init_llm_model(
-                    model_name=model_name,
-                    provider_name=provider_name,
-                    mode=mode,
-                    kwargs=kwargs,
-                )
-
-                # Configure the model based on its type
-                if llm_config.type == "main":
-                    # If a main LLM was already injected, skip creating another
-                    # one. Otherwise, create and register it.
-                    if not self.llm:
-                        self.llm = llm_model
-                        self.runtime.register_action_param("llm", self.llm)
-                else:
-                    model_name = f"{llm_config.type}_llm"
-                    if not hasattr(self, model_name):
-                        setattr(self, model_name, llm_model)
-                    self.runtime.register_action_param(model_name, getattr(self, model_name))
-                    # this is used for content safety and topic control
-                    llms[llm_config.type] = getattr(self, model_name)
-
-            except ModelInitializationError as e:
-                log.error("Failed to initialize model: %s", str(e))
-                raise
-            except Exception as e:
-                log.error("Unexpected error initializing model: %s", str(e))
-                raise
-
-        self.runtime.register_action_param("llms", llms)
-
-        self._initialize_model_caches()
-
-    def _create_model_cache(self, model) -> LFUCache:
-        """
-        Create cache instance for a model based on its configuration.
-
-        Args:
-            model: The model configuration object
-
-        Returns:
-            LFUCache: The cache instance
-        """
-
-        if model.cache.maxsize <= 0:
-            raise ValueError(
-                f"Invalid cache maxsize for model '{model.type}': {model.cache.maxsize}. "
-                "Capacity must be greater than 0. Skipping cache creation."
-            )
-
-        stats_logging_interval = None
-        if model.cache.stats.enabled and model.cache.stats.log_interval is not None:
-            stats_logging_interval = model.cache.stats.log_interval
-
-        cache = LFUCache(
-            maxsize=model.cache.maxsize,
-            track_stats=model.cache.stats.enabled,
-            stats_logging_interval=stats_logging_interval,
-        )
-
-        log.info(f"Created cache for model '{model.type}' with maxsize {model.cache.maxsize}")
-
-        return cache
-
-    def _initialize_model_caches(self) -> None:
-        """Initialize caches for configured models."""
-        model_caches: Optional[Dict[str, CacheInterface]] = dict()
-        for model in self.config.models:
-            if model.type in ["main", "embeddings"]:
-                continue
-
-            if model.cache and model.cache.enabled:
-                cache = self._create_model_cache(model)
-                model_caches[model.type] = cache
-
-                log.info(
-                    f"Initialized model '{model.type}' with cache %s",
-                    "enabled" if cache else "disabled",
-                )
-
-        if model_caches:
-            self.runtime.register_action_param("model_caches", model_caches)
-
-    def _get_embeddings_search_provider_instance(
-        self, esp_config: Optional[EmbeddingSearchProvider] = None
-    ) -> EmbeddingsIndex:
-        if esp_config is None:
-            esp_config = EmbeddingSearchProvider()
-
-        if esp_config.name == "default":
-            from nemoguardrails.embeddings.basic import BasicEmbeddingsIndex
-
-            return BasicEmbeddingsIndex(
-                embedding_model=esp_config.parameters.get("embedding_model", self._default_embedding_model),
-                embedding_engine=esp_config.parameters.get("embedding_engine", self._default_embedding_engine),
-                embedding_params=esp_config.parameters.get("embedding_parameters", self._default_embedding_params),
-                cache_config=esp_config.cache,
-                # We make sure we also pass additional relevant params.
-                **{
-                    k: v
-                    for k, v in esp_config.parameters.items()
-                    if k
-                    in [
-                        "use_batching",
-                        "max_batch_size",
-                        "matx_batch_hold",
-                        "search_threshold",
-                    ]
-                    and v is not None
-                },
-            )
-        else:
-            if esp_config.name not in self._embedding_search_providers:
-                raise Exception(f"Unknown embedding search provider: {esp_config.name}")
-            else:
-                kwargs = esp_config.parameters
-                return self._embedding_search_providers[esp_config.name](**kwargs)
+    def _get_embeddings_search_provider_instance(self, esp_config=None):
+        return self.embedding_search.get_provider_instance(esp_config)
 
     def _get_events_for_messages(self, messages: List[dict], state: Any):
         """Return the list of events corresponding to the provided messages.
@@ -1759,7 +1418,7 @@ class LLMRails(BaseGuardrails):
             cls: The class that will be used to generate and search embedding
         """
 
-        self._embedding_search_providers[name] = cls
+        self.embedding_search.register_provider(name, cls)
         return self
 
     def register_embedding_provider(self, cls: Type[EmbeddingModel], name: Optional[str] = None) -> Self:
