@@ -24,6 +24,24 @@ from nemoguardrails.http.errors import HTTPResponseDecodeError, HTTPStatusError
 
 
 @dataclass(frozen=True)
+class HTTPTLSConfig:
+    """Configure TLS verification and optional mutual authentication.
+
+    A custom CA bundle applies only when verification is enabled. Client
+    certificate and key paths must be supplied together.
+    """
+
+    verify: bool = True
+    ca_bundle: str | None = None
+    client_certificate: str | None = None
+    client_key: str | None = None
+
+    def __post_init__(self) -> None:
+        if bool(self.client_certificate) != bool(self.client_key):
+            raise ValueError("client_certificate and client_key must be configured together")
+
+
+@dataclass(frozen=True)
 class HTTPRequest:
     """Describe an outbound HTTP request without transport-specific objects.
 
