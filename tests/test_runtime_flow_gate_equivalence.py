@@ -176,43 +176,6 @@ def _rail_outcome_cases(
     return cases
 
 
-def _legacy_cases(
-    spec: RailSpec,
-    *,
-    allow_return: Any,
-    block_return: Any,
-    include_exception_case: bool = False,
-) -> list[FlowEquivalenceCase]:
-    cases = [
-        _case(
-            f"{spec.name}_allows_legacy_return",
-            spec,
-            allow_return,
-            ObservableOutcome.ALLOW,
-            FlowDecision.ALLOW,
-        ),
-        _case(
-            f"{spec.name}_blocks_legacy_return",
-            spec,
-            block_return,
-            ObservableOutcome.REFUSAL,
-            FlowDecision.BLOCK,
-        ),
-    ]
-    if include_exception_case:
-        cases.append(
-            _case(
-                f"{spec.name}_blocks_legacy_return_exception",
-                spec,
-                block_return,
-                ObservableOutcome.EXCEPTION,
-                FlowDecision.BLOCK,
-                enable_rails_exceptions=True,
-            )
-        )
-    return cases
-
-
 FIXTURES = [
     _case(
         "self_check_output_allows_true",
@@ -240,22 +203,16 @@ FIXTURES = [
         block_return=RailOutcome.block(policy_violations=["violence"]),
         include_exception_case=True,
     ),
-    *_legacy_cases(
+    *_rail_outcome_cases(
         TOPIC_SAFETY_INPUT,
-        allow_return={"on_topic": True},
-        block_return={"on_topic": False},
         include_exception_case=True,
     ),
-    *_legacy_cases(
+    *_rail_outcome_cases(
         JAILBREAK_HEURISTICS_INPUT,
-        allow_return=False,
-        block_return=True,
         include_exception_case=True,
     ),
-    *_legacy_cases(
+    *_rail_outcome_cases(
         JAILBREAK_MODEL_INPUT,
-        allow_return=False,
-        block_return=True,
         include_exception_case=True,
     ),
 ]
@@ -328,10 +285,6 @@ def _decision_from_observable(observable: ObservableOutcome) -> FlowDecision:
 def _outcome_decision(raw_return: Any, action_name: str) -> FlowDecision:
     if isinstance(raw_return, RailOutcome):
         blocked = raw_return.is_blocked
-    elif action_name == "topic_safety_check_input":
-        blocked = not raw_return["on_topic"]
-    elif action_name in {"jailbreak_detection_heuristics", "jailbreak_detection_model"}:
-        blocked = raw_return
     elif isinstance(raw_return, bool):
         blocked = not raw_return
     elif isinstance(raw_return, (int, float)):

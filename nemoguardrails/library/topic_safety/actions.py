@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -52,7 +53,7 @@ async def topic_safety_check_input(
     events: Optional[List[dict]] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
-) -> dict:
+) -> RailOutcome:
     _MAX_TOKENS = TOPIC_SAFETY_MAX_TOKENS
     user_input: str = ""
 
@@ -129,7 +130,7 @@ async def topic_safety_check_input(
     else:
         on_topic = True
 
-    final_result = {"on_topic": on_topic}
+    final_result = RailOutcome.allow() if on_topic else RailOutcome.block()
 
     if cache:
         cache_key = create_normalized_cache_key(messages)
