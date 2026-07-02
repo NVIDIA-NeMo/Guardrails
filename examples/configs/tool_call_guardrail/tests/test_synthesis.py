@@ -37,6 +37,7 @@ from synthesis.catalog import (
     CLASS_TO_OWASP,
     RULE_FACTORIES,
     RuleCandidate,
+    classes_for_owasp,
     owasp_tags,
 )
 from synthesis.findings import Finding, load_findings
@@ -101,6 +102,14 @@ def test_owasp_tags_returns_empty_for_uncatalogued():
     # A novel/unknown class gets no fabricated category.
     assert owasp_tags("novel") == ()
     assert owasp_tags("does-not-exist") == ()
+
+
+def test_classes_for_owasp_reverse_lookup():
+    # Reverse of CLASS_TO_OWASP: llm10 is unique to unbounded-arg; llm06 is the
+    # Excessive-Agency backbone carried by several classes; an unused tag -> ().
+    assert classes_for_owasp("owasp:llm10") == ("unbounded-arg",)
+    assert {"ownership-bypass", "privilege-escalation", "disallowed-pattern"} <= set(classes_for_owasp("owasp:llm06"))
+    assert classes_for_owasp("owasp:llm99") == ()
 
 
 def test_disallowed_pattern_factory_materializes_into_a_blocklist_rule():
