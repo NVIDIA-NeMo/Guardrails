@@ -32,6 +32,7 @@ from tests.recorded.rails.public_api.configs import (
     INPUT_OUTPUT_RAILS_CONFIG,
     INPUT_RAILS_CONFIG,
     OUTPUT_RAILS_CONFIG,
+    RETRIEVAL_RAILS_CONFIG,
     TWO_INPUT_RAILS_CONFIG,
 )
 from tests.recorded.rails_config import load_config
@@ -348,6 +349,50 @@ async def test_log_internal_events_populated():
             "Listen",
         ]
     )
+
+
+async def test_retrieval_rail_disabled_by_options_skips_retrieval_rail():
+    """B1.5: ``options.rails.retrieval=False`` skips configured retrieval rails."""
+    options = {
+        "output_vars": ["relevant_chunks"],
+        "log": {"activated_rails": True},
+    }
+    default = await _generate(
+        RETRIEVAL_RAILS_CONFIG,
+        [{"role": "user", "content": "hi"}],
+        options,
+        main_output="  ask retrieval",
+    )
+    disabled = await _generate(
+        RETRIEVAL_RAILS_CONFIG,
+        [{"role": "user", "content": "hi"}],
+        {**options, "rails": {"retrieval": False}},
+        main_output="  ask retrieval",
+    )
+
+    assert default.output_data == {"relevant_chunks": "retrieval rail ran"}
+    assert disabled.output_data == {"relevant_chunks": "\n"}
+
+
+async def test_colang_history_log_matches_explain_and_llm_summary(capsys):
+    """A6.3 / B1.13: Colang history and the LLM-call summary are exposed consistently."""
+    rails = LLMRails(load_config(OUTPUT_RAILS_CONFIG), llm=FakeLLMModel(responses=["safe"]), verbose=False)
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "hi"}],
+        options={"log": {"colang_history": True}},
+    )
+
+    assert isinstance(result, GenerationResponse)
+    assert result.log is not None
+    assert result.log.colang_history
+    explain = rails.explain()
+    assert result.log.colang_history == explain.colang_history
+    assert len(explain.llm_calls) == 1
+
+    explain.print_llm_calls_summary()
+    summary = capsys.readouterr().out
+    assert "Summary: 1 LLM call(s)" in summary
+    assert "Task `general`" in summary
 
 
 async def test_input_rails_name_list_behaves_like_true_in_colang_1():

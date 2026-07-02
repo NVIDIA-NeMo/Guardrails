@@ -102,6 +102,30 @@ OUTPUT_RAILS_CONFIG = RailsConfigSource.from_content(
     """,
 )
 
+RETRIEVAL_RAILS_CONFIG = RailsConfigSource.from_content(
+    name="retrieval_rails",
+    yaml_content="""
+    rails:
+      retrieval:
+        flows:
+          - retrieval rail
+    """,
+    colang_content="""
+    define user ask retrieval
+      "hi"
+
+    define bot answer retrieval
+      "safe"
+
+    define flow answer with retrieval
+      user ask retrieval
+      bot answer retrieval
+
+    define flow retrieval rail
+      $relevant_chunks = "retrieval rail ran"
+    """,
+)
+
 INPUT_OUTPUT_RAILS_CONFIG = RailsConfigSource.from_content(
     name="input_output_rails",
     yaml_content="""

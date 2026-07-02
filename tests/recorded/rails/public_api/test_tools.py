@@ -29,12 +29,13 @@ import pytest
 
 from nemoguardrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
+from tests.llm.clients._helpers import simulated_model
 from tests.recorded.assertions import assert_request_payload
 from tests.recorded.rails.public_api.configs import OPENAI_TOOLS_CONFIG, OPENAI_TOOLS_MODEL
 from tests.recorded.rails_config import load_config
 from tests.recorded.snapshots import snapshot
 
-pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
+pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 
 WEATHER_TOOLS = [
     {
@@ -57,6 +58,7 @@ WEATHER_TOOLS = [
 WEATHER_TOOL_CHOICE = {"type": "function", "function": {"name": "get_weather"}}
 
 
+@pytest.mark.vcr
 async def test_openai_generate_async_surfaces_tool_calls(openai_api_key, record_mode, recorded_cassette_path):
     rails = LLMRails(load_config(OPENAI_TOOLS_CONFIG), verbose=False)
 
@@ -93,3 +95,46 @@ async def test_openai_generate_async_surfaces_tool_calls(openai_api_key, record_
             }
         ]
     )
+
+
+async def test_tool_messages_reach_openai_request_body():
+    """B5.2: assistant tool calls and tool results survive into the provider request body."""
+    captured = []
+    async with simulated_model("openai_generate_text.json", on_request=captured.append) as model:
+        rails = LLMRails(load_config(OPENAI_TOOLS_CONFIG), llm=model, verbose=False)
+        await rails.generate_async(
+            messages=[
+                {"role": "user", "content": "What is the weather in Paris?"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_weather",
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": {"city": "Paris"}},
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": '{"temperature": 18}',
+                    "tool_call_id": "call_weather",
+                },
+                {"role": "user", "content": "Summarize the result."},
+            ]
+        )
+
+    assert len(captured) == 1
+    payload = json.loads(captured[0].content)
+    assistant = next(message for message in payload["messages"] if message["role"] == "assistant")
+    tool = next(message for message in payload["messages"] if message["role"] == "tool")
+    assert assistant["tool_calls"][0]["function"] == {
+        "name": "get_weather",
+        "arguments": '{"city": "Paris"}',
+    }
+    assert tool == {
+        "role": "tool",
+        "content": '{"temperature": 18}',
+        "tool_call_id": "call_weather",
+    }

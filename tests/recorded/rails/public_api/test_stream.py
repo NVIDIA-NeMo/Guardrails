@@ -20,7 +20,9 @@ from collections.abc import AsyncIterator
 import pytest
 
 from nemoguardrails import LLMRails
+from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.recorded.assertions import (
     assert_blocked_stream_error,
     assert_llm_call_usage,
@@ -31,14 +33,17 @@ from tests.recorded.assertions import (
 from tests.recorded.cassette import recorded_chat_response
 from tests.recorded.normalization import normalize_stream_chunks
 from tests.recorded.rails.public_api.configs import (
+    INPUT_RAIL_STREAMING_CONFIG,
     NIM_BASELINE_CONFIG,
     OPENAI_BASELINE_CONFIG,
     OPENAI_MODEL,
     STREAMING_DISABLED_CONFIG,
     STREAMING_OUTPUT_RAILS_CONFIG,
+    STREAMING_PASSTHROUGH_CONFIG,
 )
 from tests.recorded.rails_config import load_config
 from tests.recorded.snapshots import snapshot
+from tests.utils import FakeLLMModel
 
 pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 
@@ -46,6 +51,145 @@ pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 async def _chunks(values: list[str]) -> AsyncIterator[str]:
     for value in values:
         yield value
+
+
+class _ToolCallStreamingModel(FakeLLMModel):
+    async def stream_async(self, prompt, *, stop=None, **kwargs):
+        yield LLMResponseChunk(
+            delta_tool_calls=[
+                ToolCall(
+                    id="call_weather",
+                    function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+                )
+            ],
+            finish_reason="tool_calls",
+        )
+
+
+async def test_include_generation_metadata_matches_include_metadata():
+    """A3.3: the deprecated metadata flag remains an exact alias for ``include_metadata``."""
+    messages = [{"role": "user", "content": "hi"}]
+    current = LLMRails(
+        load_config(STREAMING_PASSTHROUGH_CONFIG),
+        llm=FakeLLMModel(responses=["Hello world"]),
+        verbose=False,
+    )
+    deprecated = LLMRails(
+        load_config(STREAMING_PASSTHROUGH_CONFIG),
+        llm=FakeLLMModel(responses=["Hello world"]),
+        verbose=False,
+    )
+
+    current_chunks = [chunk async for chunk in current.stream_async(messages=messages, include_metadata=True)]
+    with pytest.warns(DeprecationWarning, match="include_generation_metadata is deprecated"):
+        deprecated_chunks = [
+            chunk async for chunk in deprecated.stream_async(messages=messages, include_generation_metadata=True)
+        ]
+
+    assert deprecated_chunks == current_chunks
+    assert current_chunks
+    assert all(isinstance(chunk, dict) for chunk in current_chunks)
+
+
+async def test_streaming_output_rail_allows_then_blocks_at_buffer_boundary():
+    """A3.7: a later blocked buffer stops the stream after the already allowed prefix."""
+
+    @action(is_system_action=True, output_mapping=lambda result: not result)
+    def block_marker(context=None, **params):
+        return "BLOCK" not in (context or {}).get("bot_message", "")
+
+    rails = LLMRails(load_config(STREAMING_OUTPUT_RAILS_CONFIG), verbose=False)
+    rails.register_action(block_marker, "self_check_streaming_output")
+
+    chunks = [
+        chunk
+        async for chunk in rails.stream_async(
+            messages=[{"role": "user", "content": "stream"}],
+            generator=_chunks(["safe ", "BLOCK", "tail"]),
+        )
+    ]
+
+    assert chunks[0] == "safe "
+    assert len(chunks) == 2
+    assert_blocked_stream_error(chunks)
+
+
+@pytest.mark.parametrize(
+    ("chunk_size", "context_size", "stream_first", "expected_checks"),
+    [
+        (1, 1, False, ["a", "ab", "bc", "c"]),
+        (2, 1, False, ["ab", "bc", "c"]),
+        (2, 2, False, ["ab", "abc", "bc"]),
+        (2, 1, True, ["ab", "bc", "c"]),
+    ],
+)
+async def test_streaming_output_rail_buffer_configuration(
+    chunk_size,
+    context_size,
+    stream_first,
+    expected_checks,
+):
+    """A3.8: chunk, context, and stream-first settings control observable buffering."""
+    checks = []
+    trace = []
+
+    @action(is_system_action=True, output_mapping=lambda result: not result)
+    def capture_buffer(context=None, **params):
+        checks.append((context or {}).get("bot_message", ""))
+        trace.append("check")
+        return True
+
+    async def source():
+        for value in ["a", "b", "c"]:
+            trace.append(f"source:{value}")
+            yield value
+
+    config = load_config(STREAMING_OUTPUT_RAILS_CONFIG)
+    config.rails.output.streaming.chunk_size = chunk_size
+    config.rails.output.streaming.context_size = context_size
+    config.rails.output.streaming.stream_first = stream_first
+    rails = LLMRails(config, verbose=False)
+    rails.register_action(capture_buffer, "self_check_streaming_output")
+
+    output = []
+    async for chunk in rails.stream_async(
+        messages=[{"role": "user", "content": "stream"}],
+        generator=source(),
+    ):
+        output.append(chunk)
+        trace.append(f"yield:{chunk}")
+
+    assert output == ["a", "b", "c"]
+    assert checks == expected_checks
+    if stream_first:
+        assert trace.index("yield:a") < trace.index("check")
+    else:
+        assert trace.index("check") < trace.index("yield:a")
+
+
+async def test_stream_async_tool_call_deltas_are_not_surfaced():
+    """A3.11: legacy ``LLMRails.stream_async`` currently drops accumulated tool-call deltas."""
+    rails = LLMRails(
+        load_config(STREAMING_PASSTHROUGH_CONFIG),
+        llm=_ToolCallStreamingModel(responses=[""]),
+        verbose=False,
+    )
+
+    chunks = [chunk async for chunk in rails.stream_async(messages=[{"role": "user", "content": "weather"}])]
+
+    assert chunks
+    assert all(chunk == "" for chunk in chunks)
+
+
+async def test_input_rail_blocks_before_stream_generation():
+    """A3.12: a blocking input rail prevents the streaming model call from starting."""
+    model = FakeLLMModel(responses=["must not run"])
+    rails = LLMRails(load_config(INPUT_RAIL_STREAMING_CONFIG), llm=model, verbose=False)
+
+    chunks = [chunk async for chunk in rails.stream_async(messages=[{"role": "user", "content": "block input"}])]
+
+    assert chunks == ["I'm sorry, I can't respond to that."]
+    assert model.inference_count == 0
 
 
 @pytest.mark.vcr
