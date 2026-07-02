@@ -22,8 +22,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.polygraf.rail_config import PolygrafDetection
 from nemoguardrails.library.polygraf.request import polygraf_request
-from nemoguardrails.rails.llm.config import PolygrafDetection
 
 log = logging.getLogger(__name__)
 

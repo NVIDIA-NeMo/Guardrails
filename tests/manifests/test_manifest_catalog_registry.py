@@ -17,7 +17,7 @@ import nemoguardrails.manifests as manifests_pkg
 from nemoguardrails.manifests import RailCatalog, registry
 
 
-def test_package_accessors_with_no_built_in_rails():
+def test_package_accessors_with_built_in_rails():
     registry._reset_rail_manifest_cache()
     try:
         catalog = manifests_pkg.default_rail_catalog()
@@ -25,6 +25,7 @@ def test_package_accessors_with_no_built_in_rails():
         # a second call returns the cached instance rather than rediscovering
         assert manifests_pkg.default_rail_catalog() is catalog
 
-        assert manifests_pkg.all_rail_manifests() == {}
+        assert manifests_pkg.all_rail_manifests() == dict(catalog.manifests)
+        assert manifests_pkg.all_rail_manifests()
     finally:
         registry._reset_rail_manifest_cache()
