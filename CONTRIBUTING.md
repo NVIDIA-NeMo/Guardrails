@@ -130,6 +130,21 @@ See [AI_POLICY.md](./AI_POLICY.md) for the full policy.
 NeMo Guardrails supports Python 3.10 through 3.13. Install Git, uv, and the
 compiler/dev tools needed to build Annoy on your platform.
 
+The required uv version is pinned by `[tool.uv].required-version` in
+`pyproject.toml`. If uv reports a version mismatch, install that exact version
+using the command for your installation method:
+
+```bash
+# Standalone installer
+uv self update 0.11.26
+
+# pipx
+pipx install --force "uv==0.11.26"
+
+# pip
+python -m pip install --upgrade "uv==0.11.26"
+```
+
 Clone the repository and install development dependencies:
 
 ```bash
