@@ -120,7 +120,7 @@ async def test_instrumented_client_records_status_errors(otel):
 @pytest.mark.asyncio
 async def test_instrumented_client_preserves_exceptions(otel):
     tracer, exporter = otel
-    error = HTTPConnectionError("unavailable")
+    error = HTTPConnectionError("request failed with token=secret")
     error.retry_count = 2
     client = InstrumentedHTTPClient(RecordingHTTPClient([error]), tracer)
 
@@ -133,6 +133,8 @@ async def test_instrumented_client_preserves_exceptions(otel):
     assert span.attributes["http.request.resend_count"] == 2
     assert span.status.status_code == StatusCode.ERROR
     assert span.events[0].name == "exception"
+    assert span.events[0].attributes == {"exception.type": "HTTPConnectionError"}
+    assert "secret" not in repr(span.events)
 
 
 @pytest.mark.asyncio
