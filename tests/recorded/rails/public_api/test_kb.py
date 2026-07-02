@@ -27,6 +27,7 @@ import json
 import pytest
 
 from nemoguardrails import LLMRails
+from nemoguardrails.kb import kb as kb_module
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.recorded.cassette import cassette_request_jsons
 from tests.recorded.normalization import normalize_generation_response
@@ -41,8 +42,9 @@ KB_MARKER = "guardrails-kb-marker-7f3a"
 
 
 async def test_openai_kb_generate_async_retrieves_and_injects_chunks(
-    openai_api_key, record_mode, recorded_cassette_path
+    openai_api_key, record_mode, recorded_cassette_path, monkeypatch, tmp_path
 ):
+    monkeypatch.setattr(kb_module, "CACHE_FOLDER", str(tmp_path / "kb-cache"))
     rails = LLMRails(load_config(OPENAI_KB_CONFIG), verbose=False)
 
     result = await rails.generate_async(
@@ -65,9 +67,12 @@ async def test_openai_kb_generate_async_retrieves_and_injects_chunks(
         assert any(KB_MARKER in json.dumps(body) for body in chat_bodies)
         # B3.3: the embedding provider request-body fingerprint (model + input) is recorded too.
         embedding_requests = [payload for payload in bodies if "input" in payload and "messages" not in payload]
-        assert embedding_requests, "expected a recorded embeddings request"
+        assert len(embedding_requests) == 2
         assert all(payload.get("model") == "text-embedding-3-small" for payload in embedding_requests)
         assert all(payload.get("input") for payload in embedding_requests)
+        embedding_inputs = [value for payload in embedding_requests for value in payload["input"]]
+        assert any(KB_MARKER in value for value in embedding_inputs)
+        assert "What is NeMo Guardrails?" in embedding_inputs
 
     assert result.output_data == snapshot(
         {
