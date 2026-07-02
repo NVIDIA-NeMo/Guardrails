@@ -15,10 +15,11 @@
 
 import logging
 from abc import abstractmethod
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Mapping, Optional, Tuple
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.manifests import rail_catalog
 from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
@@ -34,27 +35,19 @@ class Runtime:
         # Register the actions with the dispatcher.
         self.action_dispatcher = ActionDispatcher(
             config_path=config.config_path,
-            import_paths=list(config.imported_paths.values()),
+            import_paths=list((config.imported_paths or {}).values()),
+            rail_catalog=rail_catalog(config.rails.plugins.enabled),
         )
 
-        if hasattr(self, "_run_output_rails_in_parallel_streaming"):
-            self.action_dispatcher.register_action(
-                self._run_output_rails_in_parallel_streaming,
-                name="run_output_rails_in_parallel_streaming",
-            )
-
-        if hasattr(self, "_run_flows_in_parallel"):
-            self.action_dispatcher.register_action(self._run_flows_in_parallel, name="run_flows_in_parallel")
-
-        if hasattr(self, "_run_input_rails_in_parallel"):
-            self.action_dispatcher.register_action(
-                self._run_input_rails_in_parallel, name="run_input_rails_in_parallel"
-            )
-
-        if hasattr(self, "_run_output_rails_in_parallel"):
-            self.action_dispatcher.register_action(
-                self._run_output_rails_in_parallel, name="run_output_rails_in_parallel"
-            )
+        for action_name in (
+            "run_output_rails_in_parallel_streaming",
+            "run_flows_in_parallel",
+            "run_input_rails_in_parallel",
+            "run_output_rails_in_parallel",
+        ):
+            action = getattr(self, f"_{action_name}", None)
+            if action is not None:
+                self.action_dispatcher.register_action(action, name=action_name)
 
         # The list of additional parameters that can be passed to the actions.
         self.registered_action_params: dict = {}
@@ -89,7 +82,7 @@ class Runtime:
         self.action_dispatcher.register_actions(actions_obj, override=override)
 
     @property
-    def registered_actions(self) -> dict:
+    def registered_actions(self) -> Mapping[str, Any]:
         """Return registered actions."""
         return self.action_dispatcher.registered_actions
 
