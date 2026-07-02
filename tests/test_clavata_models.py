@@ -16,9 +16,12 @@
 import pytest
 from pydantic import ValidationError
 
+from nemoguardrails.http import HTTPResponse, RetryingHTTPClient, RetryPolicy
+from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.library.clavata.actions import LabelResult, PolicyResult
 from nemoguardrails.library.clavata.errs import ClavataPluginAPIError
 from nemoguardrails.library.clavata.request import (
+    ClavataClient,
     CreateJobResponse,
     Job,
     Report,
@@ -263,6 +266,34 @@ class TestCreateJobResponse:
         assert section2.name == "CatMeowing"
         assert section2.message == "No cat sounds detected"
         assert section2.result == "OUTCOME_FALSE"
+
+    @pytest.mark.asyncio
+    async def test_clavata_client_uses_shared_retry_policy(self):
+        response = CreateJobResponse(
+            job=Job(
+                status="JOB_STATUS_COMPLETED",
+                results=[Result(report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[]))],
+            )
+        )
+        transport = RecordingHTTPClient(
+            [
+                HTTPResponse(status_code=429),
+                HTTPResponse(status_code=200, content=response.model_dump_json().encode()),
+            ]
+        )
+        client = RetryingHTTPClient(
+            transport,
+            RetryPolicy(max_attempts=2, initial_delay=0, max_delay=0),
+        )
+
+        job = await ClavataClient(
+            "https://clavata.example",
+            api_key="test-key",
+            http_client=client,
+        ).create_job("hello", "policy-id")
+
+        assert job.status == "JOB_STATUS_COMPLETED"
+        assert len(transport.requests) == 2
 
     def test_model_validate_missing_fields(self):
         """Test that CreateJobResponse validation fails on missing required fields"""
