@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-import aiohttp
+from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call, resolve_http_client
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ async def private_ai_request(
     enabled_entities: List[str],
     server_endpoint: str,
     api_key: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ):
     """Send a PII detection request to the Private AI API.
 
@@ -66,16 +67,21 @@ async def private_ai_request(
     if enabled_entities:
         payload["entity_detection"]["entity_types"] = [{"type": "ENABLE", "value": enabled_entities}]
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(server_endpoint, json=payload, headers=headers) as resp:
-            if resp.status != 200:
-                raise ValueError(
-                    f"Private AI call failed with status code {resp.status}.\nDetails: {await resp.text()}"
-                )
+    async with resolve_http_client(http_client) as client:
+        response = await http_call(
+            client,
+            "POST",
+            server_endpoint,
+            json=payload,
+            headers=headers,
+            raise_for_status=False,
+        )
+    if response.status_code != 200:
+        raise ValueError(f"Private AI call failed with status code {response.status_code}.\nDetails: {response.text}")
 
-            try:
-                return await resp.json()
-            except aiohttp.ContentTypeError:
-                raise ValueError(
-                    f"Failed to parse Private AI response as JSON. Status: {resp.status}, Content: {await resp.text()}"
-                )
+    try:
+        return response.json()
+    except HTTPResponseDecodeError as error:
+        raise ValueError(
+            f"Failed to parse Private AI response as JSON. Status: {response.status_code}, Content: {response.text}"
+        ) from error

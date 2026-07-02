@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -20,6 +21,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
 from nemoguardrails.library.polygraf.actions import (
     FAILSAFE_MASK_PLACEHOLDER,
     _entity_shape,
@@ -27,6 +29,7 @@ from nemoguardrails.library.polygraf.actions import (
     polygraf_mask_pii,
 )
 from nemoguardrails.library.polygraf.request import polygraf_request
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 
@@ -233,62 +236,69 @@ class _FakeSession:
         return _FakePostContextManager(self.response)
 
 
+def _http_response(payload=None, *, status: int = 200, text: str = "") -> HTTPResponse:
+    content = text.encode() if text else json.dumps(payload if payload is not None else []).encode()
+    return HTTPResponse(status_code=status, content=content)
+
+
 @pytest.mark.asyncio
-async def test_polygraf_request_uses_shared_session_and_bearer_auth():
-    session = _FakeSession(
-        _FakeResponse(
-            payload=[
-                {
-                    "entity_type": "Person",
-                    "entity_text": "John",
-                    "start": 0,
-                    "end": 4,
-                    "score": 0.99,
-                }
-            ]
-        )
+async def test_polygraf_request_uses_shared_client_and_bearer_auth():
+    client = RecordingHTTPClient(
+        [
+            _http_response(
+                [
+                    {
+                        "entity_type": "Person",
+                        "entity_text": "John",
+                        "start": 0,
+                        "end": 4,
+                        "score": 0.99,
+                    }
+                ]
+            )
+        ]
     )
 
-    entities = await polygraf_request("John", "http://polygraf.example/pii", "secret", session=session)
+    entities = await polygraf_request("John", "http://polygraf.example/pii", "secret", http_client=client)
 
     assert entities[0]["entity_type"] == "Person"
-    assert session.requests[0]["headers"]["Authorization"] == "Bearer secret"
-    assert session.requests[0]["json"]["detect_pid"] is True
-    assert session.requests[0]["json"]["aggregate_entities"] is True
+    assert client.requests[0].headers["Authorization"] == "Bearer secret"
+    assert client.requests[0].json["detect_pid"] is True
+    assert client.requests[0].json["aggregate_entities"] is True
 
 
 @pytest.mark.asyncio
 async def test_polygraf_request_accepts_wrapped_entities_response():
-    session = _FakeSession(_FakeResponse(payload={"entities": [{"entity_type": "Email"}]}))
+    client = RecordingHTTPClient([_http_response({"entities": [{"entity_type": "Email"}]})])
 
-    entities = await polygraf_request("test@gmail.com", "http://polygraf.example/pii", None, session=session)
+    entities = await polygraf_request("test@gmail.com", "http://polygraf.example/pii", None, http_client=client)
 
     assert entities == [{"entity_type": "Email"}]
 
 
 @pytest.mark.asyncio
 async def test_polygraf_request_accepts_null_entities_as_empty_response():
-    session = _FakeSession(_FakeResponse(payload={"entities": None}))
+    client = RecordingHTTPClient([_http_response({"entities": None})])
 
-    entities = await polygraf_request("hello", "http://polygraf.example/pii", None, session=session)
+    entities = await polygraf_request("hello", "http://polygraf.example/pii", None, http_client=client)
 
     assert entities == []
 
 
 @pytest.mark.asyncio
 async def test_polygraf_request_raises_for_invalid_response_shape():
-    session = _FakeSession(_FakeResponse(payload={"unexpected": []}))
+    client = RecordingHTTPClient([_http_response({"unexpected": []})])
 
     with pytest.raises(ValueError, match="Invalid response from Polygraf service"):
-        await polygraf_request("John", "http://polygraf.example/pii", None, session=session)
+        await polygraf_request("John", "http://polygraf.example/pii", None, http_client=client)
 
 
 @pytest.mark.asyncio
 async def test_polygraf_request_raises_for_non_200_response():
-    session = _FakeSession(_FakeResponse(status=401, text="missing token"))
+    client = RecordingHTTPClient([_http_response(status=401, text="missing token")])
 
     with pytest.raises(ValueError, match="Polygraf call failed with status code 401"):
-        await polygraf_request("John", "http://polygraf.example/pii", None, session=session)
+        await polygraf_request("John", "http://polygraf.example/pii", None, http_client=client)
 
 
 class _FakeSessionWithTimeoutKwarg:
@@ -302,15 +312,12 @@ class _FakeSessionWithTimeoutKwarg:
 
 
 @pytest.mark.asyncio
-async def test_polygraf_request_forwards_timeout_to_post():
-    import aiohttp
+async def test_polygraf_request_forwards_timeout_to_client():
+    client = RecordingHTTPClient([_http_response([])])
 
-    session = _FakeSessionWithTimeoutKwarg(_FakeResponse(payload=[]))
+    await polygraf_request("hello", "http://polygraf.example/pii", None, http_client=client, timeout=7)
 
-    await polygraf_request("hello", "http://polygraf.example/pii", None, session=session, timeout=7)
-
-    assert isinstance(session.timeouts[0], aiohttp.ClientTimeout)
-    assert session.timeouts[0].total == 7
+    assert client.requests[0].timeout == 7
 
 
 class _FakeRaisingSession:
@@ -338,22 +345,18 @@ class _FakeRaisingSession:
 
 @pytest.mark.asyncio
 async def test_polygraf_request_normalizes_timeout_as_value_error():
-    import asyncio
-
-    session = _FakeRaisingSession(asyncio.TimeoutError())
+    client = RecordingHTTPClient([HTTPTimeoutError("timed out")])
 
     with pytest.raises(ValueError, match="timed out"):
-        await polygraf_request("hello", "http://polygraf.example/pii", None, session=session, timeout=3)
+        await polygraf_request("hello", "http://polygraf.example/pii", None, http_client=client, timeout=3)
 
 
 @pytest.mark.asyncio
 async def test_polygraf_request_normalizes_client_error_as_value_error():
-    import aiohttp
-
-    session = _FakeRaisingSession(aiohttp.ClientConnectionError("dns failure"))
+    client = RecordingHTTPClient([HTTPConnectionError("dns failure")])
 
     with pytest.raises(ValueError, match="Polygraf call failed"):
-        await polygraf_request("hello", "http://polygraf.example/pii", None, session=session)
+        await polygraf_request("hello", "http://polygraf.example/pii", None, http_client=client)
 
 
 def test_polygraf_config_rejects_unknown_keys():
@@ -730,18 +733,24 @@ async def test_polygraf_actions_warn_when_api_key_missing(monkeypatch, caplog):
 
 
 @pytest.mark.asyncio
-async def test_polygraf_mask_pii_accepts_extra_kwargs_and_shared_session(monkeypatch):
-    sentinel_session = object()
+async def test_polygraf_mask_pii_accepts_extra_kwargs_and_shared_client(monkeypatch):
+    sentinel_client = RecordingHTTPClient()
 
-    async def mock_request(text, server_endpoint, api_key, session=None):
+    async def mock_request(text, server_endpoint, api_key, http_client=None):
         assert api_key == "secret"
-        assert session is sentinel_session
+        assert http_client is sentinel_client
         return [{"entity_type": "Person", "entity_text": "John", "start": 0, "end": 4, "score": 0.99}]
 
     monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
     monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
 
-    result = await polygraf_mask_pii("input", "John", _polygraf_config(), session=sentinel_session, extra="ignored")
+    result = await polygraf_mask_pii(
+        "input",
+        "John",
+        _polygraf_config(),
+        http_client=sentinel_client,
+        extra="ignored",
+    )
 
     assert result.transform_text["user_message"] == "<Person>"
 

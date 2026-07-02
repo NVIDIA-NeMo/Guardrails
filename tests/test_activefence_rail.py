@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from aioresponses import aioresponses
-
 from nemoguardrails import RailsConfig
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
+
+
+def _response(payload: dict) -> HTTPResponse:
+    import json
+
+    return HTTPResponse(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=json.dumps(payload).encode(),
+    )
 
 
 def test_input(monkeypatch):
@@ -53,41 +63,39 @@ def test_input(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        # First call to ActiveFence should flag no violations.
-        m.post(
-            "https://apis.activefence.com/sync/v3/content/text",
-            payload={
-                "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
-                "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
-                "entity_type": "content",
-                "violations": [],
-                "errors": [],
-            },
-        )
+    http_client = RecordingHTTPClient(
+        [
+            _response(
+                {
+                    "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
+                    "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
+                    "entity_type": "content",
+                    "violations": [],
+                    "errors": [],
+                }
+            ),
+            _response(
+                {
+                    "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
+                    "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
+                    "entity_type": "content",
+                    "violations": [
+                        {
+                            "violation_type": "abusive_or_harmful.harassment_or_bullying",
+                            "risk_score": 0.95,
+                        }
+                    ],
+                    "errors": [],
+                }
+            ),
+        ]
+    )
+    chat.app.register_action_param("http_client", http_client)
 
-        chat >> "Hello!"
-        chat << "Hello! How can I assist you today?"
-
-        # Second call will flag an abusive_or_harmful violation.
-        m.post(
-            "https://apis.activefence.com/sync/v3/content/text",
-            payload={
-                "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
-                "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
-                "entity_type": "content",
-                "violations": [
-                    {
-                        "violation_type": "abusive_or_harmful.harassment_or_bullying",
-                        "risk_score": 0.95,
-                    }
-                ],
-                "errors": [],
-            },
-        )
-
-        chat >> "you are stupid!"
-        chat << "I'm sorry, I can't respond to that."
+    chat >> "Hello!"
+    chat << "Hello! How can I assist you today?"
+    chat >> "you are stupid!"
+    chat << "I'm sorry, I can't respond to that."
 
 
 def test_output(monkeypatch):
@@ -113,22 +121,25 @@ def test_output(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
-        m.post(
-            "https://apis.activefence.com/sync/v3/content/text",
-            payload={
-                "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
-                "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
-                "entity_type": "content",
-                "violations": [
-                    {
-                        "violation_type": "abusive_or_harmful.profanity",
-                        "risk_score": 0.95,
-                    }
-                ],
-                "errors": [],
-            },
-        )
+    http_client = RecordingHTTPClient(
+        [
+            _response(
+                {
+                    "response_id": "36f76a43-ddbe-4308-bc86-1a2b068a00ea",
+                    "entity_id": "59fe8fe0-5036-494f-970c-8e28305a3716",
+                    "entity_type": "content",
+                    "violations": [
+                        {
+                            "violation_type": "abusive_or_harmful.profanity",
+                            "risk_score": 0.95,
+                        }
+                    ],
+                    "errors": [],
+                }
+            )
+        ]
+    )
+    chat.app.register_action_param("http_client", http_client)
 
-        chat >> "Hello!"
-        chat << "I'm sorry, I can't respond to that."
+    chat >> "Hello!"
+    chat << "I'm sorry, I can't respond to that."
