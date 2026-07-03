@@ -113,13 +113,18 @@ def _build_ssl_config(config: RemoteHFClassifierConfig) -> HTTPTLSConfig:
         provided, missing = ("client_cert", "client_key") if client_cert else ("client_key", "client_cert")
         raise ValueError(f"mTLS requires both 'client_cert' and 'client_key'; got '{provided}' without '{missing}'.")
 
-    cert = (client_cert, client_key) if client_cert else None
     if verify is False:
-        result = HTTPTLSConfig(verify=False, cert=cert)
-    elif ca_cert:
-        result = HTTPTLSConfig(verify=ca_cert, cert=cert)
+        result = HTTPTLSConfig(
+            verify=False,
+            client_certificate=client_cert,
+            client_key=client_key,
+        )
     else:
-        result = HTTPTLSConfig(verify=True, cert=cert)
+        result = HTTPTLSConfig(
+            ca_bundle=ca_cert,
+            client_certificate=client_cert,
+            client_key=client_key,
+        )
 
     _ssl_cache[cache_key] = result
     return result
