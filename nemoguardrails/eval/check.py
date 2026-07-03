@@ -23,7 +23,7 @@ from typing import List, Optional, Union
 from rich.progress import Progress
 from rich.text import Text
 
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import RailsConfig
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.eval.models import (
@@ -36,12 +36,24 @@ from nemoguardrails.eval.models import (
     InteractionSet,
 )
 from nemoguardrails.eval.ui.utils import EvalData
+from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.utils import console, new_uuid
 
 executor = ThreadPoolExecutor(max_workers=1)
+
+
+def _prepare_model_kwargs(model_config: Model):
+    kwargs = dict(model_config.parameters or {})
+
+    if model_config.api_key_env_var:
+        api_key = os.environ.get(model_config.api_key_env_var)
+        if api_key:
+            kwargs["api_key"] = api_key
+
+    return kwargs
 
 
 class LLMJudgeComplianceChecker:
@@ -107,15 +119,20 @@ class LLMJudgeComplianceChecker:
             console.print(f"The model `{self.llm_judge_model}` is not defined in the evaluation configuration.")
             exit(1)
 
-        model_cls, kwargs = LLMRails.get_model_cls_and_kwargs(model_config)
-        self.llm = model_cls(**kwargs)
+        self.llm = init_llm_model(
+            model_name=model_config.model,
+            provider_name=model_config.engine,
+            mode=model_config.mode,
+            kwargs=_prepare_model_kwargs(model_config),
+        )
 
         # We create a minimal RailsConfig object, so we can initialize an LLMTaskManager.
         # We add a placeholder main model, to avoid some edge case errors when one is not defined.
-        _config = RailsConfig(
-            models=self.eval_config.models + [Model(type="main", engine="", model="")],
-            prompts=self.eval_config.prompts,
-        )
+        task_manager_models = list(self.eval_config.models)
+        if not any(_model.type == "main" for _model in task_manager_models):
+            task_manager_models.append(model_config.model_copy(update={"type": "main"}))
+
+        _config = RailsConfig(models=task_manager_models, prompts=self.eval_config.prompts)
         # Initializer the LLMTaskManager
         self.llm_task_manager = LLMTaskManager(config=_config)
 
