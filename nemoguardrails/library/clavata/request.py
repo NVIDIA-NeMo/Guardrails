@@ -22,7 +22,14 @@ from typing import Dict, List, Literal, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
 
-from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call, resolve_http_client
+from nemoguardrails.http import (
+    HTTPClient,
+    HTTPResponseDecodeError,
+    RetryPolicy,
+    create_http_client,
+    http_call,
+    resolve_http_client,
+)
 
 from .errs import (
     ClavataPluginAPIError,
@@ -154,6 +161,18 @@ class ClavataClient:
     def _get_headers(self) -> Dict[str, str]:
         return AuthHeader(api_key=self.api_key).to_headers()
 
+    @staticmethod
+    def _create_http_client() -> HTTPClient:
+        return create_http_client(
+            retry_policy=RetryPolicy(
+                max_attempts=3,
+                retryable_status_codes=frozenset({429}),
+                initial_delay=0.1,
+                max_delay=10.0,
+                retry_transport_errors=False,
+            )
+        )
+
     async def _make_request(
         self,
         endpoint: str,
@@ -161,7 +180,7 @@ class ClavataClient:
         response_model: Type[ResponseModelT],
     ) -> ResponseModelT:
         try:
-            async with resolve_http_client(self.http_client) as client:
+            async with resolve_http_client(self.http_client, factory=self._create_http_client) as client:
                 response = await http_call(
                     client,
                     "POST",

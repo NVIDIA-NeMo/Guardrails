@@ -42,8 +42,10 @@ def create_http_client(
     tls: HTTPTLSConfig | None = None,
 ) -> InstrumentedHTTPClient:
     transport = HttpxHTTPClient(httpx_client, timeout=timeout, limits=limits, tls=tls)
-    retrying = RetryingHTTPClient(transport, retry_policy)
-    return InstrumentedHTTPClient(retrying, tracer, body_capture=body_capture)
+    client: HTTPClient = transport
+    if retry_policy is not None:
+        client = RetryingHTTPClient(transport, retry_policy)
+    return InstrumentedHTTPClient(client, tracer, body_capture=body_capture)
 
 
 class HTTPClientManager:
