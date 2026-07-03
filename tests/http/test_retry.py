@@ -86,7 +86,10 @@ def test_retry_policy_parses_retry_after_date():
 @pytest.mark.asyncio
 async def test_retry_client_respects_retry_override():
     transport = RecordingHTTPClient([HTTPResponse(status_code=503, headers={"X-Should-Retry": "false"})])
-    client = RetryingHTTPClient(transport)
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(honor_retry_override_header=True),
+    )
 
     response = await client.request("GET", "https://example.com")
 
@@ -96,17 +99,9 @@ async def test_retry_client_respects_retry_override():
 
 
 @pytest.mark.asyncio
-async def test_retry_client_can_disable_retry_override():
-    transport = RecordingHTTPClient(
-        [
-            HTTPResponse(status_code=200, headers={"X-Should-Retry": "true"}),
-            HTTPResponse(status_code=503),
-        ]
-    )
-    client = RetryingHTTPClient(
-        transport,
-        RetryPolicy(honor_retry_override_header=False),
-    )
+async def test_retry_client_ignores_nonstandard_override_by_default():
+    transport = RecordingHTTPClient([HTTPResponse(status_code=200, headers={"X-Should-Retry": "true"})])
+    client = RetryingHTTPClient(transport)
 
     response = await client.request("POST", "https://example.com")
 

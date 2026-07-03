@@ -42,7 +42,7 @@ class RetryPolicy:
     max_delay: float = 8.0
     max_retry_after: float = 60.0
     retry_transport_errors: bool = True
-    honor_retry_override_header: bool = True
+    honor_retry_override_header: bool = False
     clamp_retry_after: bool = False
 
     def __post_init__(self) -> None:
