@@ -88,9 +88,7 @@ class ToolResultRailAction(ToolRailAction):
             if rail_result:
                 return rail_result
 
-            if result.call_id is None:
-                raise ValueError("ToolResult is missing a call_id; cannot look up the prior call.")
-            prior = calls_by_id[result.call_id]
+            prior = calls_by_id[result.call_id]  # ty: ignore[invalid-argument-type]
             rail_result = self._validate_result_name(result, prior)
             if rail_result:
                 return rail_result

@@ -898,7 +898,7 @@ class LLMRails(BaseGuardrails):
 
         return explain_info
 
-    def _validate_public_state(self, state: Optional[Union[Dict[str, Any], State]]) -> None:
+    def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
         """Validate public dict state passed through generate/generate_async."""
         if not isinstance(state, dict) or not state:
             return
@@ -913,7 +913,7 @@ class LLMRails(BaseGuardrails):
                     "Invalid Colang 1.0 state format: state must contain an 'events' key. "
                     "Use an empty dict {} to start a new conversation."
                 )
-            if not isinstance(state.get("events"), list):
+            if not isinstance(cast(Dict[str, Any], state)["events"], list):
                 raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
@@ -929,7 +929,7 @@ class LLMRails(BaseGuardrails):
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
-        state: Optional[Union[Dict[str, Any], State]] = None,
+        state: Optional[Union[dict, State]] = None,
         streaming_handler: Optional[StreamingHandler] = None,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate a completion or a next message.
@@ -1032,8 +1032,7 @@ class LLMRails(BaseGuardrails):
             and gen_options.rails.dialog is False
         ):
             # We already have the first message with a context update, so we use that
-            context_message = cast(Dict[str, Any], messages[0]["content"])
-            context_message["bot_message"] = messages[-1]["content"]
+            cast(Dict[str, Any], messages[0]["content"])["bot_message"] = messages[-1]["content"]
             messages = messages[0:-1]
 
         # TODO: Add support to load back history of events, next to history of messages
