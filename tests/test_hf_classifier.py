@@ -300,6 +300,27 @@ class TestVLLMBackend:
         assert client.requests[0].url == self._URL
         assert client.close_calls == 0
 
+    @pytest.mark.asyncio
+    async def test_injected_http_client_preserves_transport_retry(self):
+        client = RecordingHTTPClient(
+            [
+                HTTPConnectionError("offline"),
+                HTTPResponse(
+                    status_code=200,
+                    content=b'{"data":[{"label":"safe","probs":[0.95]}]}',
+                ),
+            ]
+        )
+        backend = VLLMBackend(
+            _remote(engine="vllm", base_url="http://vllm:8000"),
+            http_client=client,
+        )
+
+        result = await backend.classify("text")
+
+        assert result == [ClassificationResult(label="safe", score=0.95)]
+        assert len(client.requests) == 2
+
 
 class TestKServeBackend:
     _URL = "http://ks:8080/v1/models/m:predict"
