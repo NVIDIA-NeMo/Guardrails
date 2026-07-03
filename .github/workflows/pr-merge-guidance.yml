@@ -1,6 +1,9 @@
 name: PR Merge Guidance
 
 on:
+  # zizmor: ignore[dangerous-triggers] -- needed to comment on fork PRs; the
+  # job runs actions/github-script only and never checks out or executes PR
+  # head code, so untrusted code cannot run with the elevated token.
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
@@ -34,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Post PR merge guidance
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        uses: actions/github-script@v9
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
           BASE_BRANCH: ${{ github.event_name == 'push' && github.ref_name || '' }}

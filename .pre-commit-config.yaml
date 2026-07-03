@@ -25,6 +25,11 @@ repos:
           - --license-filepath
           - LICENSE.md
           - --use-current-year
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.26.1
+    hooks:
+      - id: zizmor
+
   - repo: local
     hooks:
       - id: ty

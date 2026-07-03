@@ -1,6 +1,11 @@
 name: Build and Test Distribution
 
 on:
+  # zizmor: ignore[cache-poisoning] -- this workflow has no pull_request
+  # trigger; it runs only on push to main/develop/tags and on schedule, so the
+  # restored .venv cache is only ever written by trusted refs (fork PRs cannot
+  # write a cache these runs restore). The build env can influence the wheel,
+  # so trigger scoping -- not the cache contents -- is what makes this safe.
   push:
     branches:
       - main
@@ -9,6 +14,9 @@ on:
       - "v*"
   schedule:
     - cron: "0 23 * * *" # 11:00 PM UTC, daily
+
+permissions:
+  contents: read
 
 jobs:
   build-wheel:
@@ -19,6 +27,8 @@ jobs:
       artifact_name: ${{ steps.set-artifact-name.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -47,11 +57,13 @@ jobs:
       - name: Set Artifact Name
         id: set-artifact-name
         run: |
-          if [ -n "${{ steps.get-tag-name.outputs.tag_name }}" ]; then
-            echo "artifact_name=${{ steps.get-tag-name.outputs.tag_name }}-build" >> $GITHUB_OUTPUT
+          if [ -n "${STEPS_GET_TAG_NAME_OUTPUTS_TAG_NAME}" ]; then
+            echo "artifact_name=${STEPS_GET_TAG_NAME_OUTPUTS_TAG_NAME}-build" >> $GITHUB_OUTPUT
           else
             echo "artifact_name=pr-build" >> $GITHUB_OUTPUT
           fi
+        env:
+          STEPS_GET_TAG_NAME_OUTPUTS_TAG_NAME: ${{ steps.get-tag-name.outputs.tag_name }}
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7

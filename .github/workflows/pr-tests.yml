@@ -6,6 +6,9 @@ on:
       - "**/*.md"
       - ".github/**"
 
+permissions:
+  contents: read
+
 jobs:
   pr-tests-matrix:
     strategy:
@@ -19,7 +22,8 @@ jobs:
             with-coverage: true
       fail-fast: false
     uses: ./.github/workflows/_test.yml
-    secrets: inherit
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     with:
       os: ${{ matrix.os }}
       image: ${{ matrix.image }}

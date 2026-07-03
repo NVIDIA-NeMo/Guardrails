@@ -1,6 +1,10 @@
 name: Publish to PyPI (with Approval)
 
 on:
+  # zizmor: ignore[dangerous-triggers] -- workflow_run fires only after the
+  # trusted "Build and Test Distribution" workflow succeeds; the head_branch is
+  # validated against a strict vX.Y.Z regex before any checkout, and checkout
+  # uses that validated tag, not attacker-controlled head code.
   workflow_run:
     workflows: ["Build and Test Distribution"]
     types:
@@ -20,9 +24,9 @@ jobs:
     steps:
       - name: Detect version tag from workflow event
         id: version
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-
           echo "Workflow triggered by: $HEAD_BRANCH"
 
           if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -47,16 +51,19 @@ jobs:
         with:
           ref: ${{ steps.version.outputs.tag }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate version matches tag
         run: |
           VERSION_IN_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          TAG_VERSION="${{ steps.version.outputs.version }}"
+          TAG_VERSION="${STEPS_VERSION_OUTPUTS_VERSION}"
           if [ "$VERSION_IN_FILE" != "$TAG_VERSION" ]; then
             echo "❌ Version mismatch: pyproject.toml=$VERSION_IN_FILE, tag=$TAG_VERSION"
             exit 1
           fi
           echo "✅ Version validated: $VERSION_IN_FILE matches tag $TAG_VERSION"
+        env:
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -71,7 +78,7 @@ jobs:
         run: ls -la dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           verbose: true
           packages-dir: dist/
@@ -80,13 +87,15 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          STEPS_VERSION_OUTPUTS_TAG: ${{ steps.version.outputs.tag }}
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag }}"
+          TAG_NAME="${STEPS_VERSION_OUTPUTS_TAG}"
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          CHANGELOG_SECTION=$(awk -v version="${{ steps.version.outputs.version }}" '
+          CHANGELOG_SECTION=$(awk -v version="${STEPS_VERSION_OUTPUTS_VERSION}" '
             /^## \[/ {
               if (found) exit
               if ($0 ~ "\\[" version "\\]") {
