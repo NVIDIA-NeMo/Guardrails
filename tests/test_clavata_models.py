@@ -16,7 +16,7 @@
 import pytest
 from pydantic import ValidationError
 
-from nemoguardrails.http import HTTPResponse, RetryingHTTPClient, RetryPolicy
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
 from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.library.clavata.actions import LabelResult, PolicyResult
 from nemoguardrails.library.clavata.errs import ClavataPluginAPIError
@@ -281,19 +281,27 @@ class TestCreateJobResponse:
                 HTTPResponse(status_code=200, content=response.model_dump_json().encode()),
             ]
         )
-        client = RetryingHTTPClient(
-            transport,
-            RetryPolicy(max_attempts=2, initial_delay=0, max_delay=0),
-        )
-
         job = await ClavataClient(
             "https://clavata.example",
             api_key="test-key",
-            http_client=client,
+            http_client=transport,
         ).create_job("hello", "policy-id")
 
         assert job.status == "JOB_STATUS_COMPLETED"
         assert len(transport.requests) == 2
+
+    @pytest.mark.asyncio
+    async def test_clavata_client_does_not_retry_ambiguous_transport_failure(self):
+        transport = RecordingHTTPClient([HTTPConnectionError("connection lost")])
+
+        with pytest.raises(ClavataPluginAPIError):
+            await ClavataClient(
+                "https://clavata.example",
+                api_key="test-key",
+                http_client=transport,
+            ).create_job("hello", "policy-id")
+
+        assert len(transport.requests) == 1
 
     def test_model_validate_missing_fields(self):
         """Test that CreateJobResponse validation fails on missing required fields"""

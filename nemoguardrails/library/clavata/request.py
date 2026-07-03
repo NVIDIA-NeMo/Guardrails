@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, ValidationError
 from nemoguardrails.http import (
     HTTPClient,
     HTTPResponseDecodeError,
+    RetryingHTTPClient,
     RetryPolicy,
     create_http_client,
     http_call,
@@ -42,6 +43,13 @@ log = logging.getLogger(__name__)
 
 
 _CLAVATA_API_KEY = os.environ.get("CLAVATA_API_KEY")
+_CLAVATA_RETRY_POLICY = RetryPolicy(
+    max_attempts=3,
+    retryable_status_codes=frozenset({429}),
+    initial_delay=0.1,
+    max_delay=10.0,
+    retry_transport_errors=False,
+)
 
 
 @dataclass
@@ -163,15 +171,7 @@ class ClavataClient:
 
     @staticmethod
     def _create_http_client() -> HTTPClient:
-        return create_http_client(
-            retry_policy=RetryPolicy(
-                max_attempts=3,
-                retryable_status_codes=frozenset({429}),
-                initial_delay=0.1,
-                max_delay=10.0,
-                retry_transport_errors=False,
-            )
-        )
+        return create_http_client()
 
     async def _make_request(
         self,
@@ -181,8 +181,9 @@ class ClavataClient:
     ) -> ResponseModelT:
         try:
             async with resolve_http_client(self.http_client, factory=self._create_http_client) as client:
+                retrying_client = RetryingHTTPClient(client, _CLAVATA_RETRY_POLICY)
                 response = await http_call(
-                    client,
+                    retrying_client,
                     "POST",
                     self._get_full_endpoint(endpoint),
                     json=payload.model_dump(),
