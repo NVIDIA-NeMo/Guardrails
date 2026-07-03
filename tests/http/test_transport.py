@@ -124,7 +124,11 @@ def test_httpx_transport_configures_owned_client_tls():
     with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=constructed) as factory:
         client = HttpxHTTPClient(
             timeout=12.0,
-            tls=HTTPTLSConfig(verify="/ca.pem", cert=("/cert.pem", "/key.pem")),
+            tls=HTTPTLSConfig(
+                ca_bundle="/ca.pem",
+                client_certificate="/cert.pem",
+                client_key="/key.pem",
+            ),
         )
 
     assert client._client is constructed
@@ -138,3 +142,15 @@ def test_httpx_transport_rejects_tls_with_injected_client():
 
     with pytest.raises(ValueError, match="TLS configuration"):
         HttpxHTTPClient(injected, tls=HTTPTLSConfig(verify=False))
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"client_certificate": "/cert.pem"},
+        {"client_key": "/key.pem"},
+    ],
+)
+def test_http_tls_config_requires_complete_client_credentials(kwargs):
+    with pytest.raises(ValueError, match="configured together"):
+        HTTPTLSConfig(**kwargs)

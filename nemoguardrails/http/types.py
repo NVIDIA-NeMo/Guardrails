@@ -23,8 +23,14 @@ from nemoguardrails.http.errors import HTTPResponseDecodeError, HTTPStatusError
 
 @dataclass(frozen=True)
 class HTTPTLSConfig:
-    verify: bool | str = True
-    cert: tuple[str, str] | None = None
+    verify: bool = True
+    ca_bundle: str | None = None
+    client_certificate: str | None = None
+    client_key: str | None = None
+
+    def __post_init__(self) -> None:
+        if bool(self.client_certificate) != bool(self.client_key):
+            raise ValueError("client_certificate and client_key must be configured together")
 
 
 @dataclass(frozen=True)

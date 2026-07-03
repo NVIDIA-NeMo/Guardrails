@@ -32,12 +32,19 @@ class HttpxHTTPClient:
     ):
         if client is not None and tls is not None:
             raise ValueError("TLS configuration cannot be combined with an injected httpx client")
+        tls_config = tls or HTTPTLSConfig()
+        verify: bool | str = tls_config.verify
+        if tls_config.verify and tls_config.ca_bundle is not None:
+            verify = tls_config.ca_bundle
+        cert = None
+        if tls_config.client_certificate is not None and tls_config.client_key is not None:
+            cert = (tls_config.client_certificate, tls_config.client_key)
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
             limits=limits or httpx.Limits(max_connections=100, max_keepalive_connections=20),
-            verify=tls.verify if tls is not None else True,
-            cert=tls.cert if tls is not None else None,
+            verify=verify,
+            cert=cert,
         )
         self._closed = False
 
