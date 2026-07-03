@@ -182,7 +182,7 @@ Run Python commands through uv.
 | Focused tests | `make test TEST=path/to/test_file.py::test_name` |
 | Full test suite | `make test` |
 | Supported Python versions | `uv run tox` |
-| Pre-commit hooks | `uv run pre-commit run --all-files` |
+| Pre-commit hooks | `make pre-commit` |
 | Docs check | `make docs-fern` |
 | Package coverage | `make test-coverage` |
 
@@ -193,11 +193,11 @@ tracing, or docs.
 Set up local pre-commit hooks if you want checks to run before every commit:
 
 ```bash
-uv run pre-commit install
+make pre-commit-install
 ```
 
 The pre-commit configuration runs Ruff, Ruff format, license-header insertion,
-and Pyright.
+and ty.
 
 ## Documentation and Notebooks
 

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.utils import TestChat
 
 config = RailsConfig.from_content(
@@ -89,3 +90,26 @@ def test_self_check_output_exception():
 
     assert new_message["role"] == "exception"
     assert new_message["content"]["type"] == "OutputRailException"
+
+
+def test_prompt_exception_with_options_returns_generation_response():
+    chat = TestChat(config, llm_completions=["Yes"])
+
+    result = chat.app.generate(prompt="Hi 1!", options={"log": {"activated_rails": True}})
+
+    assert isinstance(result, GenerationResponse)
+    assert isinstance(result.response, list)
+    assert result.response[0]["role"] == "exception"
+    assert result.response[0]["content"]["type"] == "InputRailException"
+
+
+def test_prompt_exception_does_not_prepend_reasoning(monkeypatch):
+    monkeypatch.setattr(
+        "nemoguardrails.rails.llm.llmrails.extract_bot_thinking_from_events",
+        lambda _: "reasoning",
+    )
+    chat = TestChat(config, llm_completions=["Yes"])
+
+    result = chat.app.generate(prompt="Hi 1!")
+
+    assert result["type"] == "InputRailException"

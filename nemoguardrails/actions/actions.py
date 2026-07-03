@@ -23,7 +23,6 @@ from typing import (
     TypedDict,
     TypeVar,
     Union,
-    cast,
 )
 
 
@@ -58,7 +57,7 @@ def action(
         callable: The decorated function or class.
     """
 
-    def decorator(fn_or_cls: Union[Callable, Type]) -> Union[Callable, Type]:
+    def decorator(fn_or_cls: T) -> T:
         """Inner decorator function to add metadata to the action.
 
         Args:
@@ -67,7 +66,9 @@ def action(
         fn_or_cls_target = getattr(fn_or_cls, "__func__", fn_or_cls)
 
         # Action name is optional for the decorator, but mandatory for ActionMeta TypedDict
-        action_name: str = cast(str, name or fn_or_cls.__name__)
+        action_name = name or getattr(fn_or_cls, "__name__", None)
+        if not isinstance(action_name, str) or not action_name:
+            raise ValueError("An explicit name is required for actions without __name__.")
 
         action_meta: ActionMeta = {
             "name": action_name,
@@ -79,7 +80,7 @@ def action(
         setattr(fn_or_cls_target, "action_meta", action_meta)
         return fn_or_cls
 
-    return decorator  # pyright: ignore (TODO - resolve how the Actionable Protocol doesn't resolve the issue)
+    return decorator
 
 
 @dataclass

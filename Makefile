@@ -1,7 +1,7 @@
 .PHONY: help
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
-.PHONY: pre-commit
+.PHONY: pre-commit pre-commit-install
 
 .DEFAULT_GOAL := help
 
@@ -103,8 +103,10 @@ docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
 pre-commit:
-	uv run pre-commit install
-	uv run pre-commit run --all-files
+	uv run --locked --group=dev pre-commit run --all-files
+
+pre-commit-install:
+	uv run --locked --group=dev pre-commit install
 
 help:
 	@printf '%s\n' \
@@ -145,4 +147,5 @@ help:
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
 		'' \
 		'Maintenance:' \
-		'  pre-commit            Install and run pre-commit hooks'
+		'  pre-commit            Run pre-commit hooks against all files' \
+		'  pre-commit-install    Install the Git pre-commit hook'

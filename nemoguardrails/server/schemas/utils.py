@@ -21,7 +21,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import httpx
 from openai.types.chat.chat_completion import Choice
@@ -250,7 +250,7 @@ def build_chat_completion_message(
     return ChatCompletionMessage(
         role="assistant",
         content=content,
-        tool_calls=openai_tool_calls,  # pyright: ignore[reportArgumentType]
+        tool_calls=cast(Any, openai_tool_calls),
     )
 
 

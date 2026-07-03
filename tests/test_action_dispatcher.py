@@ -66,6 +66,31 @@ def test_load_actions_from_module(temp_module):
     assert inspect.isclass(actions["test_action_class"])
 
 
+def test_register_callable_without_name_raises():
+    class CallableAction:
+        def __call__(self):
+            return None
+
+    dispatcher = ActionDispatcher(load_all_actions=False)
+
+    with pytest.raises(ValueError, match="explicit name"):
+        dispatcher.register_action(CallableAction())
+
+
+@pytest.mark.asyncio
+async def test_execute_action_with_async_invoke():
+    class AsyncInvokeAction:
+        async def ainvoke(self, *, input):
+            return input["value"]
+
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher.register_action(AsyncInvokeAction(), name="async_invoke")
+
+    result = await dispatcher.execute_action("async_invoke", params={"value": "done"})
+
+    assert result == ("done", "success")
+
+
 def test_load_actions_from_nonexistent_module():
     """Test loading actions from a non-existent module"""
 

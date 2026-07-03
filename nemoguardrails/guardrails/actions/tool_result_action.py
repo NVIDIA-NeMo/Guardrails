@@ -88,7 +88,7 @@ class ToolResultRailAction(ToolRailAction):
             if rail_result:
                 return rail_result
 
-            prior = calls_by_id[result.call_id]  # type: ignore[index]
+            prior = calls_by_id[result.call_id]  # ty: ignore[invalid-argument-type]
             rail_result = self._validate_result_name(result, prior)
             if rail_result:
                 return rail_result

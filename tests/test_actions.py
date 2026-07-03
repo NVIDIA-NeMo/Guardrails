@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
 from nemoguardrails.actions.actions import ActionResult, action
 
@@ -40,6 +41,15 @@ def test_action_decorator_with_output_mapping():
     assert sample_action.action_meta["output_mapping"] is not None
     assert sample_action.action_meta["output_mapping"]("blocked") is True
     assert sample_action.action_meta["output_mapping"]("not_blocked") is False
+
+
+def test_action_decorator_requires_name_for_callable_instance():
+    class CallableAction:
+        def __call__(self):
+            return None
+
+    with pytest.raises(ValueError, match="explicit name"):
+        action()(CallableAction())
 
 
 def test_action_result():
