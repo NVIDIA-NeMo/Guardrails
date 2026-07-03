@@ -150,7 +150,7 @@ Clone the repository and install development dependencies:
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
 cd nemoguardrails
-uv sync --group dev
+uv sync
 ```
 
 Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
@@ -161,7 +161,7 @@ Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
 `multilingual`, `server`, `chat-ui`, and `all`. For example:
 
 ```bash
-uv sync --group dev --extra server --extra tracing
+uv sync --extra server --extra tracing
 ```
 
 For temporary local investigation tools, use the uv-managed environment

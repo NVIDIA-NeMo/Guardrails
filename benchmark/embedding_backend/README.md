@@ -38,7 +38,7 @@ regardless.
 Sync the project's development environment:
 
 ```bash
-uv sync --group dev
+uv sync
 ```
 
 > **Note (Annoy native build).** Annoy is a C++ extension. On a machine without a prebuilt

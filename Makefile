@@ -103,10 +103,10 @@ docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
 pre-commit:
-	uv run --locked --group=dev pre-commit run --all-files
+	uv run --locked pre-commit run --all-files
 
 pre-commit-install:
-	uv run --locked --group=dev pre-commit install
+	uv run --locked pre-commit install
 
 help:
 	@printf '%s\n' \

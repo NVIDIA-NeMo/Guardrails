@@ -141,7 +141,6 @@ dev = [
 [tool.uv]
 package = true
 required-version = "==0.11.26"
-default-groups = []
 
 # Flat layout: the importable package is ./nemoguardrails (not under ./src).
 # uv_build ships everything under the module dir (Python plus the .co/.lark/.yml

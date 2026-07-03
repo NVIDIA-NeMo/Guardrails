@@ -49,7 +49,7 @@ skill discovery.
 - Install development dependencies:
 
   ```bash
-  uv sync --group dev
+  uv sync
   ```
 
 - Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
@@ -83,11 +83,11 @@ as tox and package coverage.
 | Docs check | `make docs-fern` |
 | Ruff diagnosis | `uv run ruff check path/to/file.py` |
 | Ruff formatting diagnosis | `uv run ruff format path/to/file.py` |
-| ty diagnosis | `uv run --locked --group=dev ty check` |
+| ty diagnosis | `uv run --locked ty check` |
 
 | Change type | Minimum validation |
 | --- | --- |
-| Docs or repository metadata only | `uv run --locked --group=dev pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
+| Docs or repository metadata only | `uv run --locked pre-commit run --files <changed files>`; build docs when rendering, links, examples, or docs configuration may be affected |
 | Runtime bug fix | Focused regression test plus pre-commit on changed files; broaden when shared behavior is touched |
 | Public API, config, or Colang behavior | Focused tests plus related docs/examples; add broader package tests when compatibility risk is meaningful |
 | Server, streaming, tracing, actions, or generation | Targeted tests for the changed path and fallback/unsupported path |
