@@ -27,6 +27,7 @@ from nemoguardrails.http import (
     HTTPResponse,
     InstrumentedHTTPClient,
     RetryingHTTPClient,
+    RetryPolicy,
 )
 from nemoguardrails.http.testing import RecordingHTTPClient
 
@@ -93,7 +94,11 @@ async def test_instrumented_client_creates_one_span_for_all_retry_attempts(otel)
     async def sleep(delay: float) -> None:
         return None
 
-    retrying = RetryingHTTPClient(transport, sleep=sleep)
+    retrying = RetryingHTTPClient(
+        transport,
+        RetryPolicy(retryable_methods=frozenset({"POST"})),
+        sleep=sleep,
+    )
     client = InstrumentedHTTPClient(retrying, tracer)
 
     await client.request("POST", "https://example.com/check", json={"text": "hello"})

@@ -45,6 +45,7 @@ log = logging.getLogger(__name__)
 _CLAVATA_API_KEY = os.environ.get("CLAVATA_API_KEY")
 _CLAVATA_RETRY_POLICY = RetryPolicy(
     max_attempts=3,
+    retryable_methods=frozenset({"POST"}),
     retryable_status_codes=frozenset({429}),
     initial_delay=0.1,
     max_delay=10.0,

@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 _HF_RETRY_POLICY = RetryPolicy(
     max_attempts=2,
+    retryable_methods=frozenset({"POST"}),
     retryable_status_codes=frozenset(),
     initial_delay=0,
     max_delay=0,

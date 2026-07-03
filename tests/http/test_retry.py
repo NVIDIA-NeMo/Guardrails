@@ -36,7 +36,12 @@ async def test_retry_client_retries_status_and_preserves_request():
     async def sleep(delay: float) -> None:
         delays.append(delay)
 
-    client = RetryingHTTPClient(transport, sleep=sleep, random_value=lambda: 0.5)
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(retryable_methods=frozenset({"POST"})),
+        sleep=sleep,
+        random_value=lambda: 0.5,
+    )
 
     response = await client.request(
         "POST",
@@ -111,6 +116,23 @@ async def test_retry_client_ignores_nonstandard_override_by_default():
 
 
 @pytest.mark.asyncio
+async def test_retry_client_does_not_retry_post_by_default():
+    transport = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=503),
+            HTTPResponse(status_code=200),
+        ]
+    )
+    client = RetryingHTTPClient(transport)
+
+    response = await client.request("POST", "https://example.com/jobs")
+
+    assert response.status_code == 503
+    assert response.extensions["retry_count"] == 0
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_retry_client_raises_transport_error_after_max_attempts():
     transport = RecordingHTTPClient(
         [
@@ -139,7 +161,11 @@ async def test_transport_error_is_not_retried_when_disabled():
     transport = RecordingHTTPClient([HTTPConnectionError("offline")])
     client = RetryingHTTPClient(
         transport,
-        RetryPolicy(max_attempts=3, retry_transport_errors=False),
+        RetryPolicy(
+            max_attempts=3,
+            retryable_methods=frozenset({"POST"}),
+            retry_transport_errors=False,
+        ),
     )
 
     with pytest.raises(HTTPConnectionError) as exc_info:
