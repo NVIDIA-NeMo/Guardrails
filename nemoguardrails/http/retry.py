@@ -34,7 +34,9 @@ def _header(headers: Mapping[str, str], name: str) -> str | None:
 @dataclass(frozen=True)
 class RetryPolicy:
     max_attempts: int = 3
-    retryable_methods: frozenset[str] | None = None
+    retryable_methods: frozenset[str] = field(
+        default_factory=lambda: frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PUT", "TRACE"})
+    )
     retryable_status_codes: frozenset[int] = field(
         default_factory=lambda: frozenset({408, 409, 429, 500, 502, 503, 504})
     )
@@ -54,10 +56,7 @@ class RetryPolicy:
             raise ValueError("max_delay must be greater than or equal to initial_delay")
         if self.max_retry_after < 0:
             raise ValueError("max_retry_after must not be negative")
-        if self.retryable_methods is not None:
-            object.__setattr__(
-                self, "retryable_methods", frozenset(method.upper() for method in self.retryable_methods)
-            )
+        object.__setattr__(self, "retryable_methods", frozenset(method.upper() for method in self.retryable_methods))
 
     def should_retry(self, response: HTTPResponse) -> bool:
         if self.honor_retry_override_header:
@@ -70,7 +69,7 @@ class RetryPolicy:
         return response.status_code in self.retryable_status_codes
 
     def can_retry_method(self, method: str) -> bool:
-        return self.retryable_methods is None or method.upper() in self.retryable_methods
+        return method.upper() in self.retryable_methods
 
     def retry_after(self, response: HTTPResponse, *, now: datetime) -> float | None:
         value = _header(response.headers, "retry-after")
