@@ -62,8 +62,6 @@ multilingual = ["fast-langdetect (>=1.0.0)"]
 
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 
-hf-classifier = ["transformers (>=4.35.0)", "torch (>=2.0.0)"]
-
 # eval
 eval = [
   "tqdm (>=4.65,<5.0)",
@@ -96,8 +94,6 @@ all = [
   "uvicorn (>=0.23)",
   "watchdog (>=3.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
-  "transformers (>=4.35.0)",
-  "torch (>=2.0.0)",
 ]
 
 [dependency-groups]
