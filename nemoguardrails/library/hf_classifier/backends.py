@@ -29,6 +29,7 @@ from nemoguardrails.http import (
     HTTPClient,
     HTTPResponse,
     HTTPTLSConfig,
+    RetryingHTTPClient,
     RetryPolicy,
     create_http_client,
     http_call,
@@ -43,6 +44,12 @@ if TYPE_CHECKING:
     )
 
 log = logging.getLogger(__name__)
+_HF_RETRY_POLICY = RetryPolicy(
+    max_attempts=2,
+    retryable_status_codes=frozenset(),
+    initial_delay=0,
+    max_delay=0,
+)
 
 
 class ClassificationResult(TypedDict):
@@ -307,19 +314,14 @@ class _RemoteBackend(ClassifierBackend):
     def _create_http_client(self) -> HTTPClient:
         return create_http_client(
             timeout=self._timeout,
-            retry_policy=RetryPolicy(
-                max_attempts=2,
-                retryable_status_codes=frozenset(),
-                initial_delay=0,
-                max_delay=0,
-            ),
             tls=self._ssl,
         )
 
     async def _post(self, url: str, json: Dict[str, Any]) -> HTTPResponse:
         async with resolve_http_client(self._http_client, factory=self._create_http_client) as client:
+            retrying_client = RetryingHTTPClient(client, _HF_RETRY_POLICY)
             return await http_call(
-                client,
+                retrying_client,
                 "POST",
                 url,
                 json=json,
