@@ -228,7 +228,7 @@ def _get_or_create_pipeline(
         except ImportError:
             raise ImportError(
                 "The 'transformers' package is required for the local HF classifier "
-                "backend. Install it with: pip install nemoguardrails[hf-classifier]"
+                "backend. Install it with: pip install transformers torch"
             )
         kwargs = {k: v for k, v in parameters.items() if k not in _HTTP_ONLY_PARAMS}
         pipe = pipeline(task=task, model=model_name, **kwargs)
