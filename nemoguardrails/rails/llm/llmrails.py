@@ -913,7 +913,7 @@ class LLMRails(BaseGuardrails):
                     "Invalid Colang 1.0 state format: state must contain an 'events' key. "
                     "Use an empty dict {} to start a new conversation."
                 )
-            if not isinstance(cast(Dict[str, Any], state)["events"], list):
+            if not isinstance(state["events"], list):  # ty: ignore[invalid-argument-type]
                 raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
@@ -1032,7 +1032,7 @@ class LLMRails(BaseGuardrails):
             and gen_options.rails.dialog is False
         ):
             # We already have the first message with a context update, so we use that
-            cast(Dict[str, Any], messages[0]["content"])["bot_message"] = messages[-1]["content"]
+            messages[0]["content"]["bot_message"] = messages[-1]["content"]  # ty: ignore[invalid-assignment]
             messages = messages[0:-1]
 
         # TODO: Add support to load back history of events, next to history of messages
@@ -1053,7 +1053,7 @@ class LLMRails(BaseGuardrails):
             state_events = []
             if state:
                 assert isinstance(state, dict)
-                state_events = cast(Dict[str, Any], state)["events"]
+                state_events = state["events"]  # ty: ignore[invalid-argument-type]
 
             new_events = []
             # Compute the new events.
