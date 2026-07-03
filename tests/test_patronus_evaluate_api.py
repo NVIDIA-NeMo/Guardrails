@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import json
-from contextlib import asynccontextmanager
 
 import pytest
 
@@ -22,7 +21,6 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.http import HTTPResponse
 from nemoguardrails.http.testing import RecordingHTTPClient
-from nemoguardrails.library.patronusai import actions as patronus_actions
 from nemoguardrails.library.patronusai.actions import (
     check_guardrail_pass,
     patronus_evaluate_request,
@@ -30,7 +28,7 @@ from nemoguardrails.library.patronusai.actions import (
 from tests.utils import TestChat
 
 
-class aioresponses:
+class RecordedHTTPResponses:
     def __init__(self):
         self.client = RecordingHTTPClient()
         self.urls = []
@@ -41,17 +39,9 @@ class aioresponses:
         self.urls.append(url)
 
     def __enter__(self):
-        self.original_resolver = patronus_actions.resolve_http_client
-
-        @asynccontextmanager
-        async def resolve(client=None):
-            yield client or self.client
-
-        patronus_actions.resolve_http_client = resolve
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        patronus_actions.resolve_http_client = self.original_resolver
         if exc_type is None:
             assert all(request.url in self.urls for request in self.client.requests)
 
@@ -121,7 +111,8 @@ def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -188,7 +179,8 @@ def test_patronus_evaluate_api_success_strategy_all_pass_fails_when_one_failure(
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -254,7 +246,8 @@ def test_patronus_evaluate_api_success_strategy_any_pass_passes_when_one_failure
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -320,7 +313,8 @@ def test_patronus_evaluate_api_success_strategy_any_pass_fails_when_all_fail(
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -383,7 +377,8 @@ def test_patronus_evaluate_api_internal_error_when_no_env_set():
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -439,7 +434,8 @@ def test_patronus_evaluate_api_internal_error_when_no_evaluators_provided():
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -502,7 +498,8 @@ def test_patronus_evaluate_api_internal_error_when_evaluator_dict_does_not_have_
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -569,7 +566,8 @@ def test_patronus_evaluate_api_default_success_strategy_is_all_pass_happy_case(
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -636,7 +634,8 @@ def test_patronus_evaluate_api_default_success_strategy_all_pass_fails_when_one_
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -703,7 +702,8 @@ def test_patronus_evaluate_api_internal_error_when_400_status_code(
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -751,7 +751,8 @@ def test_patronus_evaluate_api_default_response_when_500_status_code(
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
+        chat.app.register_action_param("http_client", m.client)
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             PATRONUS_EVALUATE_API_URL,
@@ -826,7 +827,7 @@ def test_check_guardrail_pass_malformed_evaluation_results():
 async def test_patronus_evaluate_request_success(monkeypatch):
     """Test successful API request to Patronus Evaluate endpoint"""
     monkeypatch.setenv("PATRONUS_API_KEY", "xxx")
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             PATRONUS_EVALUATE_API_URL,
             payload={
@@ -851,6 +852,7 @@ async def test_patronus_evaluate_request_success(monkeypatch):
             user_input="Does NeMo Guardrails integrate with the Patronus API?",
             bot_response="Yes, NeMo Guardrails integrates with the Patronus API.",
             provided_context="Yes, NeMo Guardrails integrates with the Patronus API.",
+            http_client=m.client,
         )
 
         assert "results" in response
@@ -862,7 +864,7 @@ async def test_patronus_evaluate_request_success(monkeypatch):
 async def test_patronus_evaluate_request_400_error(monkeypatch):
     """Test that ValueError is raised with correct message for 400 status code"""
     monkeypatch.setenv("PATRONUS_API_KEY", "xxx")
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             PATRONUS_EVALUATE_API_URL,
             status=400,
@@ -876,6 +878,7 @@ async def test_patronus_evaluate_request_400_error(monkeypatch):
                 user_input="test",
                 bot_response="test",
                 provided_context="test",
+                http_client=m.client,
             )
         assert "The Patronus Evaluate API call failed with status code 400." in str(exc_info.value)
 
@@ -884,7 +887,7 @@ async def test_patronus_evaluate_request_400_error(monkeypatch):
 async def test_patronus_evaluate_request_500_error(monkeypatch):
     """Test that None is returned for 500 status code and no ValueError is raised"""
     monkeypatch.setenv("PATRONUS_API_KEY", "xxx")
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             PATRONUS_EVALUATE_API_URL,
             status=500,
@@ -897,6 +900,7 @@ async def test_patronus_evaluate_request_500_error(monkeypatch):
             user_input="test",
             bot_response="test",
             provided_context="test",
+            http_client=m.client,
         )
 
         assert response is None
