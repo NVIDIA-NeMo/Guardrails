@@ -19,8 +19,13 @@ from typing import Optional
 from unittest.mock import patch
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.http import HTTPClientManager, HTTPResponse, InstrumentedHTTPClient
+from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationOptions
@@ -65,6 +70,61 @@ def rails_config():
             },
         }
     )
+
+
+@pytest.mark.asyncio
+async def test_llmrails_manages_injected_http_client(rails_config):
+    llm = FakeLLMModel(responses=[])
+    owned = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=200),
+            HTTPResponse(status_code=200),
+        ]
+    )
+
+    with patch(
+        "nemoguardrails.rails.llm.llmrails.create_http_client",
+        return_value=owned,
+    ) as factory:
+        rails = LLMRails(config=rails_config, llm=llm)
+        manager = rails.runtime.registered_action_params["http_client"]
+
+        assert isinstance(manager, HTTPClientManager)
+        await rails.start()
+        await manager.request("POST", "https://example.com/first")
+        await manager.request("POST", "https://example.com/second")
+        await rails.stop()
+
+    factory.assert_called_once_with(tracer=None)
+    assert len(owned.requests) == 2
+    assert owned.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_llmrails_http_client_uses_configured_tracer(rails_config):
+    config = rails_config.model_copy(deep=True)
+    config.tracing.enabled = True
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("test")
+    transport = RecordingHTTPClient([HTTPResponse(status_code=200)])
+
+    with (
+        patch("nemoguardrails.rails.llm.llmrails.get_tracer", return_value=tracer),
+        patch("nemoguardrails.tracing.create_log_adapters", return_value=[]),
+        patch(
+            "nemoguardrails.rails.llm.llmrails.create_http_client",
+            return_value=InstrumentedHTTPClient(transport, tracer),
+        ),
+    ):
+        async with LLMRails(config=config, llm=FakeLLMModel(responses=[])) as rails:
+            client = rails.runtime.registered_action_params["http_client"]
+            await client.request("POST", "https://example.com/check")
+
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "HTTP POST"
 
 
 @pytest.mark.asyncio

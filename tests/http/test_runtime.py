@@ -124,6 +124,44 @@ async def test_manager_creates_a_fresh_owned_client_after_restart():
 
 
 @pytest.mark.asyncio
+async def test_manager_scopes_requests_until_activated():
+    created: list[RecordingHTTPClient] = []
+
+    def factory() -> RecordingHTTPClient:
+        client = RecordingHTTPClient([HTTPResponse(status_code=200)])
+        created.append(client)
+        return client
+
+    manager = HTTPClientManager(factory=factory)
+
+    await manager.request("POST", "https://example.com/check")
+    await manager.request("POST", "https://example.com/check")
+
+    assert len(created) == 2
+    assert [client.close_calls for client in created] == [1, 1]
+
+
+@pytest.mark.asyncio
+async def test_activated_manager_lazily_reuses_client():
+    owned = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=200),
+            HTTPResponse(status_code=200),
+        ]
+    )
+    manager = HTTPClientManager(factory=lambda: owned)
+
+    manager.activate()
+    await manager.request("POST", "https://example.com/check")
+    await manager.request("POST", "https://example.com/check")
+
+    assert len(owned.requests) == 2
+    assert owned.close_calls == 0
+    await manager.stop()
+    assert owned.close_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_resolver_closes_only_the_client_it_creates():
     owned = RecordingHTTPClient()
 

@@ -73,6 +73,8 @@ from nemoguardrails.exceptions import (
     InvalidStateError,
     StreamingNotSupportedError,
 )
+from nemoguardrails.guardrails.telemetry import get_tracer, is_tracing_enabled
+from nemoguardrails.http import HTTPClientManager, create_http_client
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
 from nemoguardrails.llm.models.initializer import (
@@ -421,6 +423,12 @@ class LLMRails(BaseGuardrails):
         else:
             self._log_adapters = None
 
+        self._http_client_manager = None
+        if "http_client" not in self.runtime.registered_action_params:
+            tracer = get_tracer() if is_tracing_enabled(config.tracing) else None
+            self._http_client_manager = HTTPClientManager(factory=partial(create_http_client, tracer=tracer))
+            self.runtime.register_action_param("http_client", self._http_client_manager)
+
         # We run some additional checks on the config
         self._validate_config()
 
@@ -462,6 +470,23 @@ class LLMRails(BaseGuardrails):
         from nemoguardrails.telemetry import report_usage
 
         report_usage(config, deployment_type="library", rails_engine="LLMRails")
+
+    async def start(self) -> None:
+        manager = getattr(self, "_http_client_manager", None)
+        if manager is not None:
+            manager.activate()
+
+    async def stop(self) -> None:
+        manager = getattr(self, "_http_client_manager", None)
+        if manager is not None:
+            await manager.stop()
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.stop()
 
     def update_llm(self, llm: LLMModel):
         """Replace the main LLM with the provided one.

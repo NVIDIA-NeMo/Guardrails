@@ -21,6 +21,7 @@ automatically based on config) and provides a streamlined API for generating
 LLM responses with programmable guardrails.
 """
 
+import inspect
 import logging
 import warnings
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
@@ -501,6 +502,10 @@ class Guardrails(BaseGuardrails):
             return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
+        else:
+            start = getattr(self.rails_engine, "start", None)
+            if inspect.iscoroutinefunction(start):
+                await start()
         self._started = True
 
     async def shutdown(self) -> None:
@@ -512,6 +517,10 @@ class Guardrails(BaseGuardrails):
             return
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
+        else:
+            stop = getattr(self.rails_engine, "stop", None)
+            if inspect.iscoroutinefunction(stop):
+                await stop()
         self._started = False
 
     async def __aenter__(self):

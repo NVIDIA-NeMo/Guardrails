@@ -15,9 +15,9 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -25,7 +25,7 @@ from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
 from nemoguardrails.http.instrumentation import HTTPBodyCapturePolicy, InstrumentedHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
-from nemoguardrails.http.types import HTTPTLSConfig
+from nemoguardrails.http.types import HTTPResponse, HTTPTLSConfig
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -74,7 +74,7 @@ class HTTPClientManager:
         return self._client
 
     async def start(self) -> HTTPClient:
-        if self._running:
+        if self._running and self._client is not None:
             return self.client
         if self._client is None:
             client = self._factory()
@@ -84,6 +84,57 @@ class HTTPClientManager:
             self._owns_client = True
         self._running = True
         return self.client
+
+    def activate(self) -> None:
+        self._running = True
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        params: Mapping[str, Any] | None = None,
+        json: Any = None,
+        content: bytes | str | None = None,
+        timeout: float | None = None,
+    ) -> HTTPResponse:
+        if self._running:
+            client = await self.start()
+            return await client.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json,
+                content=content,
+                timeout=timeout,
+            )
+        if self._client is not None:
+            return await self._client.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json,
+                content=content,
+                timeout=timeout,
+            )
+        client = self._factory()
+        if not isinstance(client, ManagedHTTPClient):
+            raise TypeError("HTTP client factory must return a managed HTTP client")
+        try:
+            return await client.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json,
+                content=content,
+                timeout=timeout,
+            )
+        finally:
+            await client.close()
 
     async def stop(self) -> None:
         if not self._running:
