@@ -34,7 +34,7 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: uv run --locked --group=dev ty check
+        entry: uv run --locked ty check
         language: system
         pass_filenames: false
         always_run: true

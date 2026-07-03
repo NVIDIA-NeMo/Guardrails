@@ -47,7 +47,7 @@ def optional_import(
             f"Install it with pip install {package_name} or uv add {package_name}."
         )
         if extra:
-            msg += f" To install the project extra, run uv sync --extra {extra}."
+            msg += f" To install the project extra, run uv sync --no-dev --extra {extra}."
         if error == "raise":
             raise ImportError(msg) from e
         elif error == "warn":
@@ -101,7 +101,7 @@ def import_optional_dependency(
     try:
         module = importlib.import_module(name)
     except ImportError as e:
-        extra_msg = f" Install it with uv sync --extra {extra}." if extra else ""
+        extra_msg = f" Install it with uv sync --no-dev --extra {extra}." if extra else ""
         msg = f"Missing optional dependency '{install_name}'.{extra_msg}"
         if errors == "raise":
             raise ImportError(msg) from e

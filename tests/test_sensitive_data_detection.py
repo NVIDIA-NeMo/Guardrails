@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # We detect if the environment is set up correct for SDD (presidio + downloaded spacy model)
-# uv sync --extra sdd --group dev
+# uv sync --extra sdd
 # python -m spacy download en_core_web_lg
 
 import subprocess

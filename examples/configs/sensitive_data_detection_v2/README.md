@@ -9,7 +9,7 @@ This example demonstrates how to detect and redact sensitive data using [Presidi
   You can install it with:
 
   ```bash
-  uv sync --group dev --extra sdd
+  uv sync --no-dev --extra sdd
   ```
 
 - `en_core_web_lg` spaCy model
