@@ -160,6 +160,13 @@ def test_httpx_transport_configures_owned_client_tls():
     assert factory.call_args.kwargs["follow_redirects"] is False
 
 
+def test_httpx_transport_can_enable_redirects_explicitly():
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient") as factory:
+        HttpxHTTPClient(follow_redirects=True)
+
+    assert factory.call_args.kwargs["follow_redirects"] is True
+
+
 def test_httpx_transport_rejects_tls_with_injected_client():
     injected = mock.MagicMock(spec=httpx.AsyncClient)
 
