@@ -200,7 +200,8 @@ class TestSSLTimeout:
     def test_ssl_default(self):
         cfg = _build_ssl_config(_remote())
         assert cfg.verify is True
-        assert cfg.cert is None
+        assert cfg.ca_bundle is None
+        assert cfg.client_certificate is None
 
     def test_ssl_disabled(self):
         cfg = _build_ssl_config(_remote(parameters={"verify_ssl": False}))
@@ -587,13 +588,15 @@ class TestStreamingOutputFallback:
 class TestSSLCerts:
     def test_ca_cert(self):
         cfg = _build_ssl_config(_remote(parameters={"ca_cert": "/ca.pem"}))
-        assert cfg.verify == "/ca.pem"
-        assert cfg.cert is None
+        assert cfg.verify is True
+        assert cfg.ca_bundle == "/ca.pem"
+        assert cfg.client_certificate is None
 
     def test_mtls(self):
         cfg = _build_ssl_config(_remote(parameters={"client_cert": "/cert.pem", "client_key": "/key.pem"}))
         assert cfg.verify is True
-        assert cfg.cert == ("/cert.pem", "/key.pem")
+        assert cfg.client_certificate == "/cert.pem"
+        assert cfg.client_key == "/key.pem"
 
     def test_ca_cert_plus_mtls(self):
         cfg = _build_ssl_config(
@@ -605,8 +608,10 @@ class TestSSLCerts:
                 }
             )
         )
-        assert cfg.verify == "/ca.pem"
-        assert cfg.cert == ("/cert.pem", "/key.pem")
+        assert cfg.verify is True
+        assert cfg.ca_bundle == "/ca.pem"
+        assert cfg.client_certificate == "/cert.pem"
+        assert cfg.client_key == "/key.pem"
 
     def test_client_cert_without_key_raises(self):
         with pytest.raises(ValueError, match="client_key"):
