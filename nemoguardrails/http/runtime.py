@@ -34,14 +34,21 @@ if TYPE_CHECKING:
 def create_http_client(
     *,
     httpx_client: httpx.AsyncClient | None = None,
-    timeout: float = 30.0,
+    timeout: float | None = 30.0,
     limits: httpx.Limits | None = None,
     retry_policy: RetryPolicy | None = None,
     tracer: Tracer | None = None,
     body_capture: HTTPBodyCapturePolicy | None = None,
     tls: HTTPTLSConfig | None = None,
+    follow_redirects: bool = False,
 ) -> InstrumentedHTTPClient:
-    transport = HttpxHTTPClient(httpx_client, timeout=timeout, limits=limits, tls=tls)
+    transport = HttpxHTTPClient(
+        httpx_client,
+        timeout=timeout,
+        limits=limits,
+        tls=tls,
+        follow_redirects=follow_redirects,
+    )
     client: HTTPClient = transport
     if retry_policy is not None:
         client = RetryingHTTPClient(transport, retry_policy)

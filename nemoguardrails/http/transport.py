@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from typing import Any, Mapping
 
 import httpx
@@ -26,12 +27,15 @@ class HttpxHTTPClient:
         self,
         client: httpx.AsyncClient | None = None,
         *,
-        timeout: float = 30.0,
+        timeout: float | None = 30.0,
         limits: httpx.Limits | None = None,
         tls: HTTPTLSConfig | None = None,
+        follow_redirects: bool = False,
     ):
         if client is not None and tls is not None:
             raise ValueError("TLS configuration cannot be combined with an injected httpx client")
+        if timeout is not None and timeout <= 0:
+            raise ValueError("HTTP timeout must be greater than zero")
         tls_config = tls or HTTPTLSConfig()
         verify: bool | str = tls_config.verify
         if tls_config.verify and tls_config.ca_bundle is not None:
@@ -40,11 +44,13 @@ class HttpxHTTPClient:
         if tls_config.client_certificate is not None and tls_config.client_key is not None:
             cert = (tls_config.client_certificate, tls_config.client_key)
         self._owns_client = client is None
+        self._timeout = timeout if self._owns_client else None
         self._client = client or httpx.AsyncClient(
-            timeout=timeout,
+            timeout=None,
             limits=limits or httpx.Limits(max_connections=100, max_keepalive_connections=20),
             verify=verify,
             cert=cert,
+            follow_redirects=follow_redirects,
         )
         self._closed = False
 
@@ -65,10 +71,16 @@ class HttpxHTTPClient:
             "json": json,
             "content": content,
         }
-        if timeout is not None:
-            kwargs["timeout"] = timeout
+        deadline = timeout if timeout is not None else self._timeout
+        if deadline is not None and deadline <= 0:
+            raise ValueError("HTTP timeout must be greater than zero")
         try:
-            response = await self._client.request(method, url, **kwargs)
+            response = await asyncio.wait_for(
+                self._client.request(method, url, **kwargs),
+                timeout=deadline,
+            )
+        except asyncio.TimeoutError as error:
+            raise HTTPTimeoutError("HTTP request timed out") from error
         except httpx.TimeoutException as error:
             raise HTTPTimeoutError("HTTP request timed out") from error
         except httpx.TransportError as error:

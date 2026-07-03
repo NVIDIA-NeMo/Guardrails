@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from unittest import mock
 
 import httpx
@@ -60,7 +61,6 @@ async def test_httpx_transport_forwards_request_and_returns_neutral_response():
     assert str(requests[0].url) == "https://example.com/items?version=1"
     assert requests[0].headers["authorization"] == "Bearer secret"
     assert requests[0].read() == b'{"name":"item"}'
-    assert requests[0].extensions["timeout"] == {"connect": 4.0, "read": 4.0, "write": 4.0, "pool": 4.0}
 
     await client.close()
     assert not injected.is_closed
@@ -118,6 +118,27 @@ async def test_httpx_transport_closes_owned_client_once():
     assert owned.is_closed
 
 
+@pytest.mark.asyncio
+async def test_httpx_transport_enforces_total_request_deadline():
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.05)
+        return httpx.Response(200, request=request)
+
+    injected = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = HttpxHTTPClient(injected)
+
+    with pytest.raises(HTTPTimeoutError):
+        await client.request("GET", "https://example.com/slow", timeout=0.01)
+
+    await injected.aclose()
+
+
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_httpx_transport_rejects_invalid_total_timeout(timeout):
+    with pytest.raises(ValueError, match="greater than zero"):
+        HttpxHTTPClient(timeout=timeout)
+
+
 def test_httpx_transport_configures_owned_client_tls():
     constructed = mock.MagicMock()
 
@@ -132,9 +153,11 @@ def test_httpx_transport_configures_owned_client_tls():
         )
 
     assert client._client is constructed
-    assert factory.call_args.kwargs["timeout"] == 12.0
+    assert client._timeout == 12.0
+    assert factory.call_args.kwargs["timeout"] is None
     assert factory.call_args.kwargs["verify"] == "/ca.pem"
     assert factory.call_args.kwargs["cert"] == ("/cert.pem", "/key.pem")
+    assert factory.call_args.kwargs["follow_redirects"] is False
 
 
 def test_httpx_transport_rejects_tls_with_injected_client():
