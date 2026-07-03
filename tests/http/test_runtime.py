@@ -51,6 +51,26 @@ async def test_default_factory_composes_a_managed_client():
 
 
 @pytest.mark.asyncio
+async def test_default_factory_does_not_retry():
+    request_count = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(503, request=request)
+
+    injected = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = create_http_client(httpx_client=injected)
+
+    response = await client.request("POST", "https://example.com/check")
+
+    assert response.status_code == 503
+    assert request_count == 1
+    assert "retry_count" not in response.extensions
+    await injected.aclose()
+
+
+@pytest.mark.asyncio
 async def test_manager_owns_factory_client_and_closes_it_once():
     owned = RecordingHTTPClient([HTTPResponse(status_code=200)])
     manager = HTTPClientManager(factory=lambda: owned)
