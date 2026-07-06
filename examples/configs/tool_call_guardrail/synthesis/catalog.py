@@ -149,6 +149,32 @@ def classes_for_owasp(tag: str) -> tuple[str, ...]:
     return tuple(cls for cls, tags in CLASS_TO_OWASP.items() if tag in tags)
 
 
+# garak's payload-taxonomy prefixes that denote agent/tool-call exploitation, mapped
+# to the guardrail classes that govern tool calls. This complements the OWASP join:
+# garak marks agentic probes with `payload:agentic:*`, but its OWASP numbers are not
+# reliable for them (e.g. agent_breaker.AgentBreaker is the ONLY probe tagged
+# owasp:llm07/llm08 — inconsistent with the 36 probes that use owasp:llm06 for
+# excessive agency, and with its own docstring citing LLM06). The payload taxonomy is
+# stable across OWASP revisions, so joining on it — not just the OWASP number — is
+# what surfaces candidate classes for the most on-theme (agentic) probes. Every
+# catalogued class governs a tool call, so an agentic hit is a candidate for any of
+# them; the human narrows using the finding's per-tool evidence.
+PAYLOAD_PREFIX_TO_CLASSES: Mapping[str, tuple[str, ...]] = {
+    "payload:agentic": tuple(CLASS_TO_FACTORY),
+}
+
+
+def classes_for_payload(tag: str) -> tuple[str, ...]:
+    """Catalogued attack classes suggested by a garak `payload:` taxonomy tag — the
+    version-independent companion to `classes_for_owasp`. Matches a tag against known
+    payload prefixes (`payload:agentic` also matches `payload:agentic:exploitation`);
+    returns () for a tag no prefix covers."""
+    for prefix, classes in PAYLOAD_PREFIX_TO_CLASSES.items():
+        if tag == prefix or tag.startswith(prefix + ":"):
+            return classes
+    return ()
+
+
 def _required_params(factory: Callable[..., Rule]) -> tuple:
     """The parameter names a factory needs (those without defaults)."""
     return tuple(
