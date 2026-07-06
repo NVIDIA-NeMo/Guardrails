@@ -77,8 +77,14 @@ HARDENED_GUARD = ToolCallGuard(
         ),
         "run_shell": ToolPolicy(
             allowed_roles=frozenset({"developer"}),
-            # unbounded-arg: tighten the loose 3600s ceiling to 300s.
-            rules=[max_numeric_arg("timeout_seconds", ceiling=300)],
+            rules=[
+                # unbounded-arg: tighten the loose 3600s ceiling to 300s.
+                max_numeric_arg("timeout_seconds", ceiling=300),
+                # disallowed-pattern: block the command injection an AgentBreaker
+                # audit demonstrated (run_shell read /etc/passwd) — sensitive-file
+                # reads, destructive rm, and shell chaining/expansion metacharacters.
+                deny_arg_matching("command", r"/etc/(passwd|shadow)|\brm\s+-rf\b|[;&|`]|\$\("),
+            ],
         ),
         "git_push": ToolPolicy(
             allowed_roles=frozenset({"developer"}),
@@ -102,7 +108,16 @@ HARDENED_GUARD = ToolCallGuard(
         "http_request": ToolPolicy(
             allowed_roles=frozenset({"developer"}),
             # disallowed-pattern: block egress to cloud-metadata / internal hosts.
-            rules=[deny_arg_matching("url", r"(169\.254\.169\.254|^https?://(localhost|127\.|10\.|192\.168\.))")],
+            # Broadened after an AgentBreaker SSRF hit (169.254.169.254 IMDS) to cover
+            # the whole link-local range, RFC-1918 172.16/12, the GCP/Azure metadata
+            # hostname, and the IPv6 metadata address.
+            rules=[
+                deny_arg_matching(
+                    "url",
+                    r"(169\.254\.\d{1,3}\.\d{1,3}|metadata\.google\.internal|\[?fd00:ec2::254\]?|"
+                    r"^https?://(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.))",
+                )
+            ],
         ),
     }
 )

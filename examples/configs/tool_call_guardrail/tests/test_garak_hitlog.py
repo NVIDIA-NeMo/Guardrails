@@ -88,16 +88,36 @@ def test_evidence_carries_probe_tags_goal_and_related_classes():
     assert "owasp:llm06" in agentic.evidence
     assert "payload:agentic:exploitation" in agentic.evidence
     assert "goal:" in agentic.evidence
-    # OWASP reverse-lookup surfaces candidate guardrail classes for the human.
-    assert "guardrail classes sharing these OWASP tags" in agentic.evidence
+    # Reverse-lookup surfaces candidate guardrail classes for the human.
+    assert "guardrail classes matching this probe's tags" in agentic.evidence
 
 
 def test_out_of_domain_probe_gets_no_class_hint():
-    # A jailbreak probe (owasp:llm01 only) shares no OWASP tag with any tool-call
-    # guardrail class, so it carries no class hint — honest partial crosswalk.
+    # A jailbreak probe (owasp:llm01 only, no payload:agentic) shares no tag with any
+    # tool-call guardrail class, so it carries no class hint — honest partial crosswalk.
     findings = hitlog_to_findings(SYNTHETIC, _resolve, target="t")
     jailbreak = next(f for f in findings if "dan" in f.id)
-    assert "guardrail classes sharing these OWASP tags" not in jailbreak.evidence
+    assert "guardrail classes matching this probe's tags" not in jailbreak.evidence
+
+
+def test_agentic_payload_tag_surfaces_classes_despite_off_theme_owasp():
+    # The real gap: garak tags agent_breaker with owasp:llm01/llm07/llm08 (NOT the
+    # llm06 the guardrail classes map to) but also payload:agentic:exploitation. The
+    # payload join must surface candidate classes even though no OWASP tag matches.
+    entries = [
+        {
+            "probe_classname": "agent_breaker.AgentBreaker",
+            "goal": "tool manipulation",
+            "detector_results": {"agent_breaker.AgentBreakerResult": [1.0]},
+            "notes": {"current_target": "run_shell"},
+        }
+    ]
+    resolve = lambda probe: ("owasp:llm01", "owasp:llm07", "owasp:llm08", "payload:agentic:exploitation")  # noqa: E731
+    finding = hitlog_to_findings(entries, resolve, target="t")[0]
+    assert "guardrail classes matching this probe's tags" in finding.evidence
+    # every tool-call-authz class is a candidate for an agentic hit
+    for cls in CLASS_TO_FACTORY:
+        assert cls in finding.evidence
 
 
 def test_cluster_uncatalogued_reports_garak_hits_for_triage():
@@ -120,6 +140,41 @@ def test_load_hitlog_parses_jsonl_and_skips_noise(tmp_path):
     entries = load_hitlog(str(path))
     assert len(entries) == 2  # skips blank, malformed, and probe-less lines
     assert {e["probe_classname"] for e in entries} == {"agent_breaker.AgentBreaker", "dan.DanInTheWild"}
+
+
+def test_splits_agentic_hits_by_tool():
+    # AgentBreaker names the attacked tool in notes.current_target; the adapter emits
+    # one finding per (probe, tool), each carrying that tool in affected_tools.
+    entries = [
+        {
+            "probe_classname": "agent_breaker.AgentBreaker",
+            "goal": "tool manipulation",
+            "detector_results": {"agent_breaker.AgentBreakerResult": [1.0]},
+            "notes": {"current_target": "run_shell", "vulnerability_info": "verbatim command -> RCE"},
+        },
+        {
+            "probe_classname": "agent_breaker.AgentBreaker",
+            "goal": "tool manipulation",
+            "detector_results": {"agent_breaker.AgentBreakerResult": [1.0]},
+            "notes": {"current_target": "http_request", "vulnerability_info": "SSRF to metadata"},
+        },
+    ]
+    findings = hitlog_to_findings(entries, _resolve, target="t")
+    assert {f.affected_tools for f in findings} == {("run_shell",), ("http_request",)}
+    shell = next(f for f in findings if f.affected_tools == ("run_shell",))
+    assert "target tool: run_shell" in shell.evidence
+    assert "vulnerability: verbatim command -> RCE" in shell.evidence  # per-tool vuln carried
+
+
+def test_only_detector_hits_become_findings():
+    # A garak *report* carries non-hit attempts (score below threshold); those are
+    # not demonstrated vulnerabilities and must not become findings.
+    entries = [
+        {"probe_classname": "p.A", "detector_results": {"d": [1.0]}, "notes": {"current_target": "run_shell"}},
+        {"probe_classname": "p.A", "detector_results": {"d": [0.0]}, "notes": {"current_target": "read_file"}},
+    ]
+    findings = hitlog_to_findings(entries, _resolve, target="t")
+    assert [f.affected_tools for f in findings] == [("run_shell",)]  # read_file miss dropped
 
 
 def test_plugin_cache_resolver_looks_up_tags_with_prefix_fallback(tmp_path):
