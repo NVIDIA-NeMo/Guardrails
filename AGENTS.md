@@ -71,7 +71,7 @@ skill discovery.
 
 Canonical command reference: `CONTRIBUTING.md` Validation. The table below adds
 agent-operational diagnosis commands; see `CONTRIBUTING.md` for shared rows such
-as tox and package coverage.
+as package coverage.
 
 | Task | Command |
 | --- | --- |
