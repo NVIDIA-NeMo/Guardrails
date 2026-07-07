@@ -57,6 +57,7 @@ from nemoguardrails.manifests.validation import (
     RailValidationResult,
     RequirementCheck,
     RequirementStatus,
+    configured_rail_manifests,
     require_python_package,
     validate_rail_requirements,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "RequirementStatus",
     "TransformTarget",
     "all_rail_manifests",
+    "configured_rail_manifests",
     "default_rail_catalog",
     "import_ref_target",
     "iter_manifest_import_refs",

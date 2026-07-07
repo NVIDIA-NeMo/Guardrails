@@ -23,7 +23,9 @@ from typing import Iterable, Tuple
 from packaging.markers import Marker
 from packaging.specifiers import SpecifierSet
 
+from nemoguardrails.manifests.catalog import RailCatalog
 from nemoguardrails.manifests.manifest import PythonPackage, RailManifest
+from nemoguardrails.manifests.surface_reference import normalize_configured_surface_name
 
 
 class RequirementStatus(str, Enum):
@@ -115,13 +117,11 @@ def _package_check(requirement: PythonPackage, runtime: bool) -> RequirementChec
     if runtime:
         try:
             importlib.import_module(requirement.import_name)
-        except ModuleNotFoundError as error:
-            if error.name == requirement.import_name or requirement.import_name.startswith(f"{error.name}."):
-                status = RequirementStatus.ERROR if requirement.required else RequirementStatus.WARNING
-                return RequirementCheck(
-                    "python_package", package_name, status, requirement.required, "runtime import failed"
-                )
-            raise
+        except ImportError:
+            status = RequirementStatus.ERROR if requirement.required else RequirementStatus.WARNING
+            return RequirementCheck(
+                "python_package", package_name, status, requirement.required, "runtime import failed"
+            )
     return RequirementCheck(
         "python_package", package_name, RequirementStatus.OK, requirement.required, f"installed ({installed})"
     )
@@ -155,6 +155,28 @@ def validate_rail_requirements(manifests: Iterable[RailManifest], *, runtime: bo
             )
         results.append(RailValidationResult(manifest.name, tuple(checks)))
     return RailValidationReport(tuple(results))
+
+
+def configured_rail_manifests(config, catalog: RailCatalog) -> Tuple[RailManifest, ...]:
+    names = set()
+    rail_groups = (
+        config.rails.input,
+        config.rails.output,
+        config.rails.retrieval,
+        config.rails.tool_input,
+        config.rails.tool_output,
+    )
+    for group in rail_groups:
+        for configured_flow in group.flows:
+            flow_name = normalize_configured_surface_name(configured_flow)
+            owner = catalog.owner_for_flow(flow_name)
+            if owner is not None:
+                names.add(owner)
+    for config_key in config.rails.config.model_fields_set:
+        owner = catalog.owner_for_config_key(config_key)
+        if owner is not None:
+            names.add(owner)
+    return tuple(catalog.manifests[name] for name in sorted(names))
 
 
 def require_python_package(rail_name: str, requirement: PythonPackage):

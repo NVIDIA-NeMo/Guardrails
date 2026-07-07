@@ -25,6 +25,7 @@ from nemoguardrails import __version__
 from nemoguardrails.cli.chat import run_chat
 from nemoguardrails.cli.migration import migrate
 from nemoguardrails.cli.providers import _list_providers, select_provider_with_type
+from nemoguardrails.cli.rails import app as rails_app
 from nemoguardrails.eval import cli as eval_cli
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.utils import init_random_seed
@@ -41,6 +42,7 @@ _COLANG_VERSIONS = [version.value for version in ColangVersions]
 app = typer.Typer()
 
 app.add_typer(eval_cli.app, name="eval", short_help="Evaluation a guardrail configuration.")
+app.add_typer(rails_app, name="rails", short_help="Inspect and validate catalog rails.")
 app.pretty_exceptions_enable = False
 
 logging.getLogger().setLevel(logging.WARNING)
