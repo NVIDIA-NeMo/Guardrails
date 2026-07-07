@@ -35,6 +35,11 @@ from typing import Dict, Optional
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.library.jailbreak_detection.rail import (
+    HUGGINGFACE_HUB_PACKAGE,
+    TORCH_PACKAGE,
+    TRANSFORMERS_PACKAGE,
+)
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -49,6 +54,7 @@ from nemoguardrails.llm.cache.utils import (
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
+from nemoguardrails.manifests import raise_for_missing_package
 
 log = logging.getLogger(__name__)
 
@@ -69,10 +75,15 @@ async def jailbreak_detection_heuristics(
     prompt = context.get("user_message")
 
     if not jailbreak_api_url:
-        from nemoguardrails.library.jailbreak_detection.heuristics.checks import (
-            check_jailbreak_length_per_perplexity,
-            check_jailbreak_prefix_suffix_perplexity,
-        )
+        try:
+            from nemoguardrails.library.jailbreak_detection.heuristics.checks import (
+                check_jailbreak_length_per_perplexity,
+                check_jailbreak_prefix_suffix_perplexity,
+            )
+        except ModuleNotFoundError as error:
+            raise_for_missing_package(
+                "jailbreak_detection", (TRANSFORMERS_PACKAGE, TORCH_PACKAGE, HUGGINGFACE_HUB_PACKAGE), error
+            )
 
         log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
         lp_check = check_jailbreak_length_per_perplexity(prompt, lp_threshold)
@@ -132,9 +143,14 @@ async def jailbreak_detection_model(
     api_start_time = time()
 
     if not jailbreak_api_url and not nim_base_url:
-        from nemoguardrails.library.jailbreak_detection.model_based.checks import (
-            check_jailbreak,
-        )
+        try:
+            from nemoguardrails.library.jailbreak_detection.model_based.checks import (
+                check_jailbreak,
+            )
+        except ModuleNotFoundError as error:
+            raise_for_missing_package(
+                "jailbreak_detection", (TRANSFORMERS_PACKAGE, TORCH_PACKAGE, HUGGINGFACE_HUB_PACKAGE), error
+            )
 
         log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
         try:
@@ -143,12 +159,6 @@ async def jailbreak_detection_model(
             jailbreak_result = jailbreak["jailbreak"]
         except RuntimeError as e:
             log.error(f"Jailbreak detection model not available: {e}")
-            jailbreak_result = False
-        except ImportError as e:
-            log.error(
-                "Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
-                exc_info=e,
-            )
             jailbreak_result = False
     else:
         if nim_base_url:

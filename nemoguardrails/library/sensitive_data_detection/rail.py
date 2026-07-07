@@ -18,6 +18,7 @@ from nemoguardrails.manifests import (
     Binding,
     ConfigSpecRef,
     ModelRequirement,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -38,6 +39,24 @@ DETECT_SENSITIVE_DATA = ActionRef(
 MASK_SENSITIVE_DATA = ActionRef(
     name="mask_sensitive_data",
     target="nemoguardrails.library.sensitive_data_detection.actions:mask_sensitive_data",
+)
+PRESIDIO_ANALYZER_PACKAGE = PythonPackage(
+    distribution="presidio-analyzer",
+    import_name="presidio_analyzer",
+    version=">=2.2",
+    marker="python_version < '3.13'",
+)
+PRESIDIO_ANONYMIZER_PACKAGE = PythonPackage(
+    distribution="presidio-anonymizer",
+    import_name="presidio_anonymizer",
+    version=">=2.2",
+    marker="python_version < '3.13'",
+)
+SPACY_PACKAGE = PythonPackage(
+    distribution="spacy",
+    import_name="spacy",
+    version=">=3.4.4,<4,!=3.7.0",
+    marker="python_version < '3.13'",
 )
 
 RAIL = RailManifest(
@@ -108,9 +127,8 @@ RAIL = RailManifest(
             ),
         ),
         requirements=RailRequirements(
-            extras=("sdd",),
+            python_packages=(PRESIDIO_ANALYZER_PACKAGE, PRESIDIO_ANONYMIZER_PACKAGE, SPACY_PACKAGE),
             models=(ModelRequirement(type="spacy:en_core_web_lg", required=True),),
-            optional_dependencies=("presidio-analyzer", "presidio-anonymizer", "spacy"),
         ),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True, sends_retrieved_chunks=True),
     ),

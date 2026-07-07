@@ -18,6 +18,8 @@ from typing import Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.cleanlab.rail import CLEANLAB_PACKAGE
+from nemoguardrails.manifests import require_python_package
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +45,8 @@ async def call_cleanlab_api(
     if api_key is None:
         raise ValueError("CLEANLAB_API_KEY environment variable not set.")
 
-    try:
-        from cleanlab_studio import Studio  # type: ignore[reportMissingImports]
-    except ImportError:
-        raise ImportError("Please install cleanlab-studio using 'pip install --upgrade cleanlab-studio' command")
+    cleanlab_studio = require_python_package("cleanlab", CLEANLAB_PACKAGE)
+    Studio = cleanlab_studio.Studio
 
     context = context or {}
     bot_response = context.get("bot_message")

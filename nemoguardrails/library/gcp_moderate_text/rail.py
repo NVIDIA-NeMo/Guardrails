@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     EnvVar,
+    PythonPackage,
     RailActions,
     RailDirection,
     RailFlows,
@@ -32,6 +33,9 @@ from nemoguardrails.manifests import (
 CALL_GCP_TEXT_MODERATION_API = ActionRef(
     name="call_gcpnlp_api",
     target="nemoguardrails.library.gcp_moderate_text.actions:call_gcp_text_moderation_api",
+)
+GCP_LANGUAGE_PACKAGE = PythonPackage(
+    distribution="google-cloud-language", import_name="google.cloud.language_v2", version=">=2.14"
 )
 
 RAIL = RailManifest(
@@ -64,7 +68,7 @@ RAIL = RailManifest(
         requirements=RailRequirements(
             env_vars=(EnvVar(name="GOOGLE_APPLICATION_CREDENTIALS", required=False),),
             services=(ServiceRequirement(name="Google Cloud Natural Language API", required=True),),
-            optional_dependencies=("google-cloud-language",),
+            python_packages=(GCP_LANGUAGE_PACKAGE,),
         ),
         privacy=RailPrivacy(sends_user_text=True, remote_services=("Google Cloud Natural Language API",)),
     ),

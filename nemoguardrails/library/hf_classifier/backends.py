@@ -27,6 +27,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 import httpx
 
+from nemoguardrails.library.hf_classifier.rail import TORCH_PACKAGE, TRANSFORMERS_PACKAGE
+from nemoguardrails.manifests import raise_for_missing_package, require_python_package
+
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import (
         HFClassifierConfig,
@@ -223,15 +226,13 @@ def _get_or_create_pipeline(
         return pending.wait()
 
     try:
-        try:
-            from transformers import pipeline
-        except ImportError:
-            raise ImportError(
-                "The 'transformers' package is required for the local HF classifier "
-                "backend. Install it with: pip install transformers torch"
-            )
+        transformers = require_python_package("hf_classifier", TRANSFORMERS_PACKAGE)
+        pipeline = transformers.pipeline
         kwargs = {k: v for k, v in parameters.items() if k not in _HTTP_ONLY_PARAMS}
-        pipe = pipeline(task=task, model=model_name, **kwargs)
+        try:
+            pipe = pipeline(task=task, model=model_name, **kwargs)
+        except ModuleNotFoundError as error:
+            raise_for_missing_package("hf_classifier", (TRANSFORMERS_PACKAGE, TORCH_PACKAGE), error)
     except BaseException as exc:
         loading.error = exc
         loading.ready.set()

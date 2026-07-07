@@ -17,6 +17,8 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    EnvVar,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -43,6 +45,10 @@ HF_CLASSIFIER_CHECK_RETRIEVAL = ActionRef(
     name="hf_classifier_check_retrieval",
     target="nemoguardrails.library.hf_classifier.actions:hf_classifier_check_retrieval",
 )
+TRANSFORMERS_PACKAGE = PythonPackage(
+    distribution="transformers", import_name="transformers", version=">=4.35", required=False
+)
+TORCH_PACKAGE = PythonPackage(distribution="torch", import_name="torch", version=">=2", required=False)
 
 RAIL = RailManifest(
     name="hf_classifier",
@@ -94,12 +100,13 @@ RAIL = RailManifest(
             ),
         ),
         requirements=RailRequirements(
+            python_packages=(TRANSFORMERS_PACKAGE, TORCH_PACKAGE),
+            env_vars=(EnvVar(name="HF_TOKEN", required=False),),
             services=(
                 ServiceRequirement(name="vLLM classifier endpoint", required=False),
                 ServiceRequirement(name="KServe classifier endpoint", required=False),
                 ServiceRequirement(name="FMS guardrails-detectors endpoint", required=False),
             ),
-            optional_dependencies=("transformers",),
         ),
         privacy=RailPrivacy(
             sends_user_text=True,

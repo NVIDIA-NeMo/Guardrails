@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     ConfigSpecRef,
     EnvVar,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -38,6 +39,11 @@ JAILBREAK_DETECTION_MODEL = ActionRef(
     name="jailbreak_detection_model",
     target="nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_model",
 )
+TRANSFORMERS_PACKAGE = PythonPackage(
+    distribution="transformers", import_name="transformers", version=">=4.35", required=False
+)
+TORCH_PACKAGE = PythonPackage(distribution="torch", import_name="torch", version=">=2", required=False)
+HUGGINGFACE_HUB_PACKAGE = PythonPackage(distribution="huggingface-hub", import_name="huggingface_hub", required=False)
 RAIL = RailManifest(
     name="jailbreak_detection",
     metadata=RailMetadata(
@@ -75,6 +81,7 @@ RAIL = RailManifest(
             ),
         ),
         requirements=RailRequirements(
+            python_packages=(TRANSFORMERS_PACKAGE, TORCH_PACKAGE, HUGGINGFACE_HUB_PACKAGE),
             env_vars=(
                 EnvVar(
                     name="NVIDIA_API_KEY",
@@ -108,7 +115,6 @@ RAIL = RailManifest(
                 ),
             ),
             services=(ServiceRequirement(name="NVIDIA NIM", required=False),),
-            optional_dependencies=("scikit-learn", "torch"),
         ),
         privacy=RailPrivacy(sends_user_text=True, remote_services=("NVIDIA NIM",)),
     ),

@@ -29,23 +29,21 @@
 # limitations under the License.
 
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, TypedDict, Union
-
-yara = None
-try:
-    import yara
-except ImportError:
-    pass
 
 from nemoguardrails import RailsConfig  # noqa: E402
 from nemoguardrails.actions import action  # noqa: E402
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget  # noqa: E402
+from nemoguardrails.library.injection_detection.rail import YARA_PACKAGE
 from nemoguardrails.library.injection_detection.yara_config import ActionOptions, Rules  # noqa: E402
+from nemoguardrails.manifests import require_python_package
 
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 
 log = logging.getLogger(__name__)
+yara = None
 
 
 class InjectionDetectionResult(TypedDict):
@@ -66,6 +64,13 @@ def _injection_detection_outcome(
     if result["text"] != original_text:
         return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], metadata=metadata)
     return RailOutcome.allow(metadata=metadata)
+
+
+@lru_cache
+def _load_yara():
+    if yara is not None:
+        return yara
+    return require_python_package("injection_detection", YARA_PACKAGE)
 
 
 def _check_yara_available():
@@ -183,6 +188,7 @@ def _load_rules(
         log.warning("Injection config was provided but no modules were specified. Returning None.")
         return None
 
+    yara = _load_yara()
     try:
         if yara_rules:
             rules_source = {name: rule for name, rule in yara_rules.items() if name in rule_names}
@@ -336,7 +342,7 @@ async def injection_detection(text: str, config: RailsConfig) -> RailOutcome:
         NotImplementedError: If an unsupported action is encountered.
         ImportError: If the yara module is not installed.
     """
-    _check_yara_available()
+    _load_yara()
 
     _validate_injection_config(config)
 

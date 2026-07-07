@@ -195,7 +195,7 @@ class TestJailbreakDetectionActions:
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_import_error(self, monkeypatch, caplog):
-        """Test ImportError handling when dependencies are missing."""
+        """Test unrelated local model import errors are preserved."""
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,
         )
@@ -223,11 +223,8 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
         context = {"user_message": "test prompt"}
 
-        result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result.is_blocked is False
-
-        assert "Failed to import required dependencies for local model" in caplog.text
-        assert "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
+        with pytest.raises(ImportError, match="sklearn"):
+            await jailbreak_detection_model(llm_task_manager, context)
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_success(self, monkeypatch, caplog):

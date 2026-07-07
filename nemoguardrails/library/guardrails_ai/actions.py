@@ -20,25 +20,12 @@ import logging
 from functools import lru_cache
 from typing import Any, Dict, Optional, Type
 
-try:
-    from guardrails import Guard  # type: ignore[reportAttributeAccessIssue]
-except ImportError:
-
-    class Guard:
-        def __init__(self):
-            pass
-
-        def use(self, validator):
-            return self
-
-        def validate(self, text, metadata=None):
-            return None
-
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.guardrails_ai.errors import GuardrailsAIValidationError
+from nemoguardrails.library.guardrails_ai.rail import GUARDRAILS_AI_PACKAGE
 from nemoguardrails.library.guardrails_ai.registry import get_validator_info
+from nemoguardrails.manifests import RailDependencyError, require_python_package
 from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
@@ -46,7 +33,16 @@ log = logging.getLogger(__name__)
 
 # cache for loaded validator classes and guard instances
 _validator_class_cache: Dict[str, Type] = {}
-_guard_cache: Dict[tuple, Guard] = {}
+_guard_cache: Dict[tuple, Any] = {}
+Guard = None
+
+
+@lru_cache
+def _load_guard_class():
+    if Guard is not None:
+        return Guard
+    module = require_python_package("guardrails_ai", GUARDRAILS_AI_PACKAGE)
+    return module.Guard
 
 
 def _guardrails_ai_validation_passed(result: Dict[str, Any]) -> bool:
@@ -221,6 +217,8 @@ def validate_guardrails_ai(validator_name: str, text: str, **kwargs) -> Dict[str
 
             return {"validation_result": FailedValidation()}
 
+    except RailDependencyError:
+        raise
     except Exception as e:
         log.error(f"Error validating with {validator_name}: {str(e)}")
         raise GuardrailsAIValidationError(f"Validation failed: {str(e)}")
@@ -259,8 +257,10 @@ def _load_validator_class(validator_name: str) -> Type:
         raise ImportError(f"Failed to load validator {validator_name}: {str(e)}")
 
 
-def _get_guard(validator_name: str, **validator_params) -> Guard:
+def _get_guard(validator_name: str, **validator_params):
     """Get or create a Guard instance for a validator."""
+
+    guard_class = _load_guard_class()
 
     # create a hashable cache key
     def make_hashable(obj):
@@ -287,7 +287,7 @@ def _get_guard(validator_name: str, **validator_params) -> Guard:
             log.error(f"Failed to instantiate {validator_name} with params {validator_params}: {str(e)}")
             raise
 
-        guard = Guard().use(validator_instance)
+        guard = guard_class().use(validator_instance)
         _guard_cache[cache_key] = guard
 
     return _guard_cache[cache_key]

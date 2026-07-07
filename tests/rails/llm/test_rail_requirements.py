@@ -16,16 +16,20 @@
 import importlib
 import importlib.metadata
 
+import pytest
+
 from nemoguardrails.manifests import (
     EnvVar,
     PythonPackage,
     RailCatalog,
+    RailDependencyError,
     RailManifest,
     RailManifestRecord,
     RailRequirements,
     RailSpec,
     RequirementStatus,
     configured_rail_manifests,
+    require_python_package,
     validate_rail_requirements,
 )
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -103,6 +107,35 @@ def test_runtime_validation_reports_transitive_import_failure(monkeypatch):
     assert report.results[0].checks[0].message == "runtime import failed"
 
 
+def test_runtime_import_translates_only_matching_missing_package(monkeypatch):
+    requirement = PythonPackage(distribution="example", import_name="example")
+
+    def missing(name):
+        raise ModuleNotFoundError("missing", name=name)
+
+    monkeypatch.setattr(importlib, "import_module", missing)
+
+    with pytest.raises(RailDependencyError) as exc_info:
+        require_python_package("test", requirement)
+
+    assert exc_info.value.rail_name == "test"
+    assert exc_info.value.requirement == requirement
+
+
+def test_runtime_import_preserves_transitive_missing_package(monkeypatch):
+    requirement = PythonPackage(distribution="example", import_name="example")
+
+    def missing(name):
+        raise ModuleNotFoundError("missing", name="transitive_dependency")
+
+    monkeypatch.setattr(importlib, "import_module", missing)
+
+    with pytest.raises(ModuleNotFoundError) as exc_info:
+        require_python_package("test", requirement)
+
+    assert exc_info.value.name == "transitive_dependency"
+
+
 def test_environment_validation_does_not_expose_values(monkeypatch):
     monkeypatch.setenv("SECRET_TOKEN", "top-secret")
     manifest = _manifest(env_vars=(EnvVar(name="SECRET_TOKEN", required=True),))
@@ -146,3 +179,26 @@ rails:
     )
 
     assert tuple(item.name for item in configured_rail_manifests(config, catalog)) == ("sensitive_data_detection",)
+
+
+def test_built_in_runtime_package_declarations():
+    from nemoguardrails.manifests import default_rail_catalog
+
+    expected = {
+        "cleanlab": ("cleanlab-studio",),
+        "content_safety": ("fast-langdetect",),
+        "gcp_moderate_text": ("google-cloud-language",),
+        "guardrails_ai": ("guardrails-ai",),
+        "hf_classifier": ("transformers", "torch"),
+        "injection_detection": ("yara-python",),
+        "jailbreak_detection": ("transformers", "torch", "huggingface-hub"),
+        "sensitive_data_detection": ("presidio-analyzer", "presidio-anonymizer", "spacy"),
+    }
+
+    catalog = default_rail_catalog()
+
+    for rail_name, distributions in expected.items():
+        requirements = catalog.manifests[rail_name].requirements
+        assert tuple(package.distribution for package in requirements.python_packages) == distributions
+        assert requirements.extras == ()
+        assert requirements.optional_dependencies == ()

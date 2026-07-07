@@ -58,6 +58,7 @@ from nemoguardrails.manifests.validation import (
     RequirementCheck,
     RequirementStatus,
     configured_rail_manifests,
+    raise_for_missing_package,
     require_python_package,
     validate_rail_requirements,
 )
@@ -99,6 +100,7 @@ __all__ = [
     "iter_manifest_import_refs",
     "normalize_configured_surface_name",
     "parse_configured_surface",
+    "raise_for_missing_package",
     "require_python_package",
     "resolve_import_ref",
     "validate_rail_requirements",

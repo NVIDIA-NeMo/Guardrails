@@ -186,3 +186,12 @@ def require_python_package(rail_name: str, requirement: PythonPackage):
         if error.name == requirement.import_name or requirement.import_name.startswith(f"{error.name}."):
             raise RailDependencyError(rail_name, requirement) from error
         raise
+
+
+def raise_for_missing_package(
+    rail_name: str, requirements: Iterable[PythonPackage], error: ModuleNotFoundError
+) -> None:
+    for requirement in requirements:
+        if error.name == requirement.import_name or requirement.import_name.startswith(f"{error.name}."):
+            raise RailDependencyError(rail_name, requirement) from error
+    raise error
