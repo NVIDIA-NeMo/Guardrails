@@ -1,0 +1,4 @@
+rails:
+  input:
+    flows:
+      - multi turn jailbreak detection

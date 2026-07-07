@@ -1,0 +1,17 @@
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define subflow multi turn jailbreak detection
+  """
+  Detects multi-turn jailbreak patterns including persona injection arcs
+  (C2 / Gradual Identity Substitution) and refusal counterfactual attacks
+  that span multiple conversation turns.
+  """
+  $is_jailbreak = execute multi_turn_jailbreak_detection
+
+  if $is_jailbreak
+    if $config.enable_rails_exceptions
+      create event MultiTurnJailbreakDetectionRailException(message="Multi-turn jailbreak attempt detected. The conversation shows signs of gradual persona injection or a bypass-by-rephrase attack. Please ensure your messages adhere to the guidelines.")
+    else
+      bot refuse to respond
+    stop
