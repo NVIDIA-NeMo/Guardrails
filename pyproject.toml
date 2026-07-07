@@ -49,17 +49,6 @@ tracing = ["opentelemetry-api (>=1.27.0,<2.0.0)", "aiofiles (>=24.1.0)"]
 
 server = ["aiofiles (>=24.1.0)", "openai (>=1.0.0,<3.0.0)", "fastapi (>=0.103.0)", "starlette (>=0.49.1)", "uvicorn (>=0.23)", "watchdog (>=3.0.0)"]
 
-sdd = [
-  "presidio-analyzer (>=2.2) ; python_version<'3.13'",
-  "presidio-anonymizer (>=2.2) ; python_version<'3.13'",
-]
-
-gcp = ["google-cloud-language (>=2.14.0)"]
-
-jailbreak = ["yara-python (>=4.5.1,<5.0.0)"]
-
-multilingual = ["fast-langdetect (>=1.0.0)"]
-
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 
 # eval
@@ -72,10 +61,7 @@ eval = [
   "numpy (>=1.26) ; python_version>='3.12' and python_version<'3.13'",
   "numpy (>=2.1.0) ; python_version>='3.13'",
 ]
-
 all = [
-  "presidio-analyzer (>=2.2) ; python_version<'3.13'",
-  "presidio-anonymizer (>=2.2) ; python_version<'3.13'",
   "tqdm (>=4.65,<5.0)",
   "streamlit (>=1.37.0,<2.0.0) ; python_version>='3.10' and python_version<'3.14'",
   "tornado (>=6.5.0) ; python_version>='3.10' and python_version<'3.14'",
@@ -84,11 +70,8 @@ all = [
   "numpy (>=1.26) ; python_version>='3.12' and python_version<'3.13'",
   "numpy (>=2.1.0) ; python_version>='3.13'",
   "openai (>=1.0.0,<3.0.0)",
-  "google-cloud-language (>=2.14.0)",
   "opentelemetry-api (>=1.27.0,<2.0.0)",
   "aiofiles (>=24.1.0)",
-  "yara-python (>=4.5.1,<5.0.0)",
-  "fast-langdetect (>=1.0.0)",
   "fastapi (>=0.103.0)",
   "starlette (>=0.49.1)",
   "uvicorn (>=0.23)",

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -382,3 +383,52 @@ class TestEvalCommand:
         assert result.exit_code == 0
         assert "run" in result.stdout
         assert "check-compliance" in result.stdout
+
+
+class TestRailsValidateCommand:
+    @staticmethod
+    def _write_config(path: Path):
+        path.mkdir()
+        path.joinpath("config.yml").write_text(
+            "models: []\nrails:\n  output:\n    flows:\n      - cleanlab trustworthiness\n",
+            encoding="utf-8",
+        )
+
+    @patch("nemoguardrails.manifests.validation.importlib.metadata.version")
+    def test_explicit_config_reports_install_guidance_and_failure(self, mock_version, tmp_path):
+        from importlib.metadata import PackageNotFoundError
+
+        mock_version.side_effect = PackageNotFoundError("cleanlab-studio")
+        config = tmp_path / "guardrails"
+        self._write_config(config)
+
+        result = runner.invoke(app, ["rails", "validate", "--config", str(config)])
+
+        assert result.exit_code == 1
+        assert "cleanlab:" in result.stdout
+        assert "pip install 'cleanlab-studio'" in result.stdout
+
+    @patch("nemoguardrails.manifests.validation.importlib.metadata.version")
+    def test_default_config_path(self, mock_version, monkeypatch, tmp_path):
+        from importlib.metadata import PackageNotFoundError
+
+        mock_version.side_effect = PackageNotFoundError("cleanlab-studio")
+        monkeypatch.chdir(tmp_path)
+        self._write_config(Path("config"))
+        result = runner.invoke(app, ["rails", "validate"])
+
+        assert result.exit_code == 1
+        assert "cleanlab-studio" in result.stdout
+
+    @patch("nemoguardrails.cli.rails.validate_rail_requirements")
+    def test_runtime_flag_is_forwarded(self, mock_validate, tmp_path):
+        from nemoguardrails.manifests import RailValidationReport
+
+        mock_validate.return_value = RailValidationReport(())
+        config = tmp_path / "guardrails"
+        self._write_config(config)
+
+        result = runner.invoke(app, ["rails", "validate", "--runtime", "--config", str(config)])
+
+        assert result.exit_code == 0
+        assert mock_validate.call_args.kwargs == {"runtime": True}

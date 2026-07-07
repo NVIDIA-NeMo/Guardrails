@@ -158,8 +158,7 @@ Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
 `fern/fern.config.json` and invoked through `npx`; no separate Python docs
 dependency group is required.
 
-Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
-`multilingual`, `server`, `chat-ui`, and `all`. For example:
+Valid optional extras are `eval`, `tracing`, `server`, `chat-ui`, and `all`. For example:
 
 ```bash
 uv sync --locked --extra server --extra tracing
