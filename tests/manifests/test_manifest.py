@@ -20,11 +20,13 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
     RailManifest,
     RailMetadata,
+    RailRequirements,
     RailSpec,
     RailSurface,
     import_ref_target,
@@ -76,6 +78,34 @@ def test_config_schema_preserves_export_names_when_serialized():
 def test_spec_rejects_unknown_keys():
     with pytest.raises(ValidationError):
         RailSpec.model_validate({"unknown_field": 1})
+
+
+def test_python_package_requirement_round_trip():
+    package = PythonPackage(
+        distribution="example-package",
+        import_name="example_package",
+        version=">=1,<2",
+        marker="python_version < '3.13'",
+        description="Example runtime",
+    )
+
+    assert PythonPackage.model_validate(package.model_dump()) == package
+
+
+@pytest.mark.parametrize("field,value", [("version", ">>1"), ("marker", "python_version ??? '3.12'")])
+def test_python_package_rejects_invalid_constraints(field, value):
+    with pytest.raises(ValueError):
+        PythonPackage(distribution="example", import_name="example", **{field: value})
+
+
+def test_requirements_reject_duplicate_python_packages():
+    with pytest.raises(ValueError, match="cannot be declared more than once"):
+        RailRequirements(
+            python_packages=(
+                PythonPackage(distribution="Example_Package", import_name="example"),
+                PythonPackage(distribution="example-package", import_name="example"),
+            )
+        )
 
 
 @pytest.mark.parametrize(

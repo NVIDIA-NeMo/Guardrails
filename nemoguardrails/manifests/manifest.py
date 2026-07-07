@@ -26,6 +26,8 @@ import importlib
 from enum import Enum
 from typing import Any, Literal, Optional, Tuple, Union
 
+from packaging.markers import InvalidMarker, Marker
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
@@ -278,9 +280,48 @@ class ModelRequirement(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class PythonPackage(BaseModel):
+    distribution: str
+    import_name: str
+    version: Optional[str] = None
+    required: bool = True
+    marker: Optional[str] = None
+    description: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @field_validator("distribution", "import_name")
+    @classmethod
+    def _name_must_not_be_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Python package names must not be empty.")
+        return value
+
+    @field_validator("version")
+    @classmethod
+    def _version_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            try:
+                SpecifierSet(value)
+            except InvalidSpecifier as error:
+                raise ValueError(f"Invalid Python package version specifier {value!r}.") from error
+        return value
+
+    @field_validator("marker")
+    @classmethod
+    def _marker_must_be_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            try:
+                Marker(value)
+            except InvalidMarker as error:
+                raise ValueError(f"Invalid Python package environment marker {value!r}.") from error
+        return value
+
+
 class RailRequirements(BaseModel):
     """Installation and runtime resources declared by a rail."""
 
+    python_packages: Tuple[PythonPackage, ...] = ()
     extras: Tuple[str, ...] = ()
     env_vars: Tuple[EnvVar, ...] = ()
     services: Tuple[ServiceRequirement, ...] = ()
@@ -288,6 +329,14 @@ class RailRequirements(BaseModel):
     optional_dependencies: Tuple[str, ...] = ()
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @model_validator(mode="after")
+    def _python_packages_must_be_unique(self) -> "RailRequirements":
+        normalized = [package.distribution.lower().replace("_", "-") for package in self.python_packages]
+        duplicates = sorted({name for name in normalized if normalized.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"Python package requirements cannot be declared more than once: {duplicates}.")
+        return self
 
 
 class RailPrivacy(BaseModel):
