@@ -33,7 +33,7 @@ jobs:
         run: uv lock --check
 
       - name: Install dependencies
-        run: make install
+        run: uv sync --locked --all-extras --group dev
 
       - name: Run pre-commit hooks
         run: make pre-commit
