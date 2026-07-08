@@ -12,7 +12,7 @@ The driver lives at [`scripts/telemetry_smoke.py`](../scripts/telemetry_smoke.py
 
 ## Prerequisites
 
-- `uv sync` so `jsonschema` is available for local schema validation.
+- `uv sync --locked` so `jsonschema` is available for local schema validation.
 - `tests/telemetry/smoke_fixtures/{cfg1,cfg2,cfg3,rich}/` and `examples/configs/nemoguards/` are present in the working tree.
 - `CI`, `GITHUB_ACTIONS`, and `PYTEST_CURRENT_TEST` must NOT be exported in the calling shell. The driver refuses to start otherwise. `unset` them first.
 
@@ -24,7 +24,7 @@ Before driving the full script, send a single event and verify it lands in Kiban
 unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
 export NEMO_GUARDRAILS_SMOKE_STAGING_URL=<internal-staging-events-url>/v1.1/events/json
 NEMO_GUARDRAILS_USAGE_STATS_SERVER="$NEMO_GUARDRAILS_SMOKE_STAGING_URL" \
-  uv run python - <<'PY'
+  uv run --locked python - <<'PY'
 import json
 import time
 from nemoguardrails import LLMRails, RailsConfig, telemetry
@@ -55,13 +55,13 @@ Do not commit internal staging endpoint URLs to this repo; keep them in your she
 ```bash
 unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
 export NEMO_GUARDRAILS_SMOKE_STAGING_URL=<internal-staging-events-url>/v1.1/events/json
-uv run python scripts/telemetry_smoke.py
+uv run --locked python scripts/telemetry_smoke.py
 ```
 
 To target a different endpoint or override config paths:
 
 ```bash
-uv run python scripts/telemetry_smoke.py \
+uv run --locked python scripts/telemetry_smoke.py \
   --staging-url "$NEMO_GUARDRAILS_SMOKE_STAGING_URL" \
   --library-config tests/telemetry/smoke_fixtures/cfg1 \
   --rich-config tests/telemetry/smoke_fixtures/rich \
@@ -74,13 +74,13 @@ uv run python scripts/telemetry_smoke.py \
 To run a single scenario (useful while iterating):
 
 ```bash
-uv run python scripts/telemetry_smoke.py --scenario library_llmrails
+uv run --locked python scripts/telemetry_smoke.py --scenario library_llmrails
 ```
 
 For a quick local regression check while editing the smoke driver, use an intentionally unreachable telemetry URL and run the scenarios most likely to catch local regressions:
 
 ```bash
-uv run python scripts/telemetry_smoke.py \
+uv run --locked python scripts/telemetry_smoke.py \
   --staging-url http://127.0.0.1:9 \
   --run-dir /tmp/smoke-rewrite-check \
   --scenario library_feature_aliases \
@@ -145,7 +145,7 @@ For accounts that have Kibana Discover access but cannot issue API keys (no Secu
 8. Run:
 
    ```bash
-   uv run python scripts/kibana_verify_export.py \
+   uv run --locked python scripts/kibana_verify_export.py \
      --manifest <run_dir>/manifest.json \
      --export kibana.json
    ```

@@ -129,7 +129,7 @@ class TestRecordedOpenAI:
     system_fingerprint that hand-written mocks would miss.
 
     If OpenAI changes their response format, re-record fixtures with:
-        uv run python tests/llm/clients/record_fixtures.py
+        uv run --locked python tests/llm/clients/record_fixtures.py
     """
 
     def test_parse_text_response(self):

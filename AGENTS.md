@@ -34,8 +34,8 @@ skill discovery.
 - Do not add license headers manually. Pre-commit handles license insertion.
 - Do not add comments unless explicitly requested; keep existing comments,
   docstrings, and license headers unless your change makes them inaccurate.
-- Use uv for Python commands: `uv run python ...`,
-  `uv run pytest ...`, `uv run pre-commit ...`.
+- Use uv for Python commands: `uv run --locked python ...`,
+  `uv run --locked pytest ...`, `uv run --locked pre-commit ...`.
 
 ## Repository Map
 
@@ -49,7 +49,7 @@ skill discovery.
 - Install development dependencies:
 
   ```bash
-  uv sync
+  make install
   ```
 
 - Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
@@ -81,8 +81,8 @@ as package coverage.
 | Coverage | `make test-coverage` |
 | Pre-commit hooks | `make pre-commit` |
 | Docs check | `make docs-fern` |
-| Ruff diagnosis | `uv run ruff check path/to/file.py` |
-| Ruff formatting diagnosis | `uv run ruff format path/to/file.py` |
+| Ruff diagnosis | `uv run --locked ruff check path/to/file.py` |
+| Ruff formatting diagnosis | `uv run --locked ruff format path/to/file.py` |
 | ty diagnosis | `uv run --locked ty check` |
 
 | Change type | Minimum validation |
@@ -104,7 +104,7 @@ as package coverage.
 - Diagnose isolation flakiness by comparing `make test` with `make test
   WORKERS=1` (same env-safety, no parallelism); `serial`/`slow` markers in
   `pytest.ini` are advisory and not enforced by the parallel runner.
-- `make test-serial` and bare `uv run pytest` do NOT unset live-provider
+- `make test-serial` and bare `uv run --locked pytest` do NOT unset live-provider
   keys; prefer `make test` / `make test WORKERS=1` so unit tests cannot reach
   live services.
 

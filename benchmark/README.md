@@ -33,7 +33,7 @@ Next you'll install the NeMo Guardrails uv-managed virtual environment and honch
 The honcho package is used to read the [`Procfile`](Procfile) and bring up the OpenAI service and Mock LLMs for benchmarking.
 
 ```shell
-$ uv sync --extra server
+$ uv sync --locked --extra server
 $ uv pip install honcho
 ```
 
@@ -46,7 +46,7 @@ Note these messages are likely not on consecutive lines.
 
 ```shell
 $ cd benchmark
-$ uv run honcho start
+$ uv run --locked honcho start
 13:40:33 system    | gr.1 started (pid=93634)
 13:40:33 system    | app_llm.1 started (pid=93635)
 13:40:33 system    | cs_llm.1 started (pid=93636)

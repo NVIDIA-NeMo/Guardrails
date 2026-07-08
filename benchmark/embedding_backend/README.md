@@ -38,7 +38,7 @@ regardless.
 Sync the project's development environment:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
 > **Note (Annoy native build).** Annoy is a C++ extension. On a machine without a prebuilt
@@ -55,10 +55,10 @@ uv sync
 
 ```bash
 # Default sweep: N = 100, 1k, 10k, 100k
-uv run python benchmark/embedding_backend/bench_embedding_backend.py
+uv run --locked python benchmark/embedding_backend/bench_embedding_backend.py
 
 # Quick subset
-uv run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
+uv run --locked python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
 
 # Flags
 #   --sizes    list of index sizes (default: 100 1000 10000 100000)
@@ -76,7 +76,7 @@ compiler/headers noted above):
 
 ```bash
 ANNOY_COMPILER_ARGS="-DANNOYLIB_MULTITHREADED_BUILD" uv pip install --no-cache --no-binary annoy "annoy==1.17.3"
-uv run python benchmark/embedding_backend/bench_embedding_backend.py
+uv run --locked python benchmark/embedding_backend/bench_embedding_backend.py
 ```
 
 If `annoy` is not importable, the script automatically runs the NumPy backend only and

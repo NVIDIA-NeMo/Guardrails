@@ -26,8 +26,8 @@ It records the Annoy baseline and reports:
   - index memory (best-effort RSS delta)
 
 Run:
-    uv run python benchmark/embedding_backend/bench_embedding_backend.py
-    uv run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
+    uv run --locked python benchmark/embedding_backend/bench_embedding_backend.py
+    uv run --locked python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
 
 Notes on equivalence:
   Annoy "angular" distance is monotonic with cosine similarity for normalized vectors.

@@ -33,9 +33,9 @@ Intended for use in a sync workflow: fetch upstream's
 non-empty diff means the upstream contract moved.
 
 Usage:
-    uv run python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH
-    uv run python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH OUTPUT_PATH
-    uv run python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH -
+    uv run --locked python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH
+    uv run --locked python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH OUTPUT_PATH
+    uv run --locked python scripts/extract_telemetry_snapshot.py UPSTREAM_PATH -
 
 If ``OUTPUT_PATH`` is omitted, writes to
 ``schemas/anonymous_events.snapshot.json`` next to the repo root.
