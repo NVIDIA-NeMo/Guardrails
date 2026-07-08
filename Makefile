@@ -8,11 +8,13 @@
 TEST ?=
 ARGS ?=
 WORKERS ?= auto
+UV_LOCKED ?= true
+export UV_LOCKED
 # pytest-xdist --dist strategy for $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST).
 # worksteal dynamically rebalances queued tests; override DIST when debugging or grouping matters.
 DIST ?= worksteal
 
-PYTEST ?= uv run --locked pytest
+PYTEST ?= uv run pytest
 RECORDED_TESTS ?= tests/recorded
 RECORDED_RECORD_MODE ?= once
 RECORDED_SNAPSHOT_MODE ?= create
@@ -29,7 +31,7 @@ FERN_STAGING_INSTANCE ?= nvidia-nemo-guardrails-staging.docs.buildwithfern.com/n
 FERN_PUBLIC_INSTANCE ?= nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
 
 install:
-	uv sync --locked --group dev
+	uv sync --group dev
 
 test:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST)
@@ -43,7 +45,7 @@ test-benchmark:
 	$(PYTEST) $(ARGS) benchmark/tests
 
 test-watch:
-	uv run --locked ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
+	uv run ptw --snapshot-update --now . -- -vv $(ARGS) $(TEST)
 
 test-coverage:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) --cov=nemoguardrails --cov-report=xml:coverage.xml $(ARGS) $(TEST)
@@ -79,7 +81,7 @@ check-record-test-env:
 	fi
 
 warm-fastembed-cache:
-	$(FASTEMBED_ENV) uv run --locked python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
+	$(FASTEMBED_ENV) uv run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
 docs-fern: docs-fern-strict
 
@@ -106,10 +108,10 @@ docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
 pre-commit:
-	uv run --locked pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 pre-commit-install:
-	uv run --locked pre-commit install
+	uv run pre-commit install
 
 help:
 	@printf '%s\n' \
