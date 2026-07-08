@@ -251,6 +251,48 @@ def test_load_inline_yara_rules():
     assert matches[0].namespace == inline_rule_name
 
 
+def test_inline_yara_rules_missing_injection_name_raises_value_error():
+    """Requested `injections` names absent from inline `yara_rules` must raise a
+    clear ValueError instead of an opaque KeyError.
+
+    Regression test: `_load_rules` previously indexed the inline rules dict with
+    every name in `injections`, so listing a rule name that was not defined in
+    `yara_rules` (e.g. mixing a built-in rule name with an inline custom rule)
+    crashed with `KeyError` inside the YARA compile call, and neither
+    `_validate_injection_config` nor `_extract_injection_config` caught it.
+    """
+    inline_rule_name = "custom_rule"
+    inline_rule_content = 'rule custom_rule { strings: $a = "foo" condition: $a }'
+
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - sqli
+                        - {inline_rule_name}
+                      action:
+                        reject
+                      yara_rules:
+                        {inline_rule_name}: |-
+                          {inline_rule_content}
+            """,
+        colang_content="",
+    )
+
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
+
+    # "sqli" is requested via `injections` but is not defined in `yara_rules`.
+    assert "sqli" in rule_names
+    assert "sqli" not in yara_rules
+
+    with pytest.raises(ValueError, match="sqli"):
+        _load_rules(yara_path, rule_names, yara_rules)
+
+
 @pytest.mark.asyncio
 async def test_omit_injection_action():
     """Test the omit action for injection detection."""

@@ -168,10 +168,25 @@ def _load_rules(
         log.warning("Injection config was provided but no modules were specified. Returning None.")
         return None
 
+    if yara_rules:
+        # When inline `yara_rules` are provided, only those rules are available
+        # (built-in rules are not loaded in this mode). Every requested rule name
+        # in `injections` must therefore be present in `yara_rules`; otherwise we
+        # fail with a clear, actionable error instead of an opaque KeyError.
+        missing_rules = [name for name in rule_names if name not in yara_rules]
+        if missing_rules:
+            msg = (
+                "Provided set of `injections` in injection config contains rule names "
+                "not present in the inline `yara_rules`: %r. Available inline rules are %r. "
+                "Note that built-in rules are not loaded when `yara_rules` is provided."
+            ) % (missing_rules, sorted(yara_rules))
+            log.error(msg)
+            raise ValueError(msg)
+
     try:
         if yara_rules:
-            rules_source = {name: rule for name, rule in yara_rules.items() if name in rule_names}
-            rules = yara.compile(sources={rule_name: rules_source[rule_name] for rule_name in rule_names})
+            rules_source = {rule_name: yara_rules[rule_name] for rule_name in rule_names}
+            rules = yara.compile(sources=rules_source)
         else:
             rules_to_load = {rule_name: str(yara_path.joinpath(f"{rule_name}.yara")) for rule_name in rule_names}
             rules = yara.compile(filepaths=rules_to_load)
