@@ -1,5 +1,5 @@
 name: Set up uv
-description: Install the canonical uv version used by CI
+description: Install the canonical uv version used by GitHub Actions
 
 inputs:
   enable-cache:

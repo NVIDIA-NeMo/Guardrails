@@ -132,12 +132,16 @@ compiler/dev tools needed to build Annoy on your platform. Follow the
 [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
 for your platform.
 
-CI uses the uv version pinned in
+GitHub Actions uses the uv version pinned in
 [`.github/actions/setup-uv/action.yml`](./.github/actions/setup-uv/action.yml)
 as the canonical version. Use that version when changing dependencies or
 `uv.lock`. If another project requires a different uv version, use a
 directory-aware version manager or repository-scoped installation rather than
 replacing a shared global executable.
+
+When updating the canonical uv version, update
+`.github/actions/setup-uv/action.yml`, `.gitlab-ci.yml`, and the uv image version
+and digest in `Dockerfile` together.
 
 Clone the repository and install development dependencies:
 
