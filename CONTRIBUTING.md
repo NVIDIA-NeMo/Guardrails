@@ -127,8 +127,7 @@ See [AI_POLICY.md](./AI_POLICY.md) for the full policy.
 
 ## Development Setup
 
-NeMo Guardrails supports Python 3.10 through 3.13. Install Git, uv, and the
-compiler/dev tools needed to build Annoy on your platform. Follow the
+NeMo Guardrails supports Python 3.10 through 3.13. Install Git and uv. Follow the
 [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
 for your platform.
 
