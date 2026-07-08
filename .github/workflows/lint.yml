@@ -29,11 +29,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          version: "0.11.26"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+        uses: ./.github/actions/setup-uv
 
       - name: Install dependencies
         run: uv sync --locked --group dev
