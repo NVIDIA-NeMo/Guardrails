@@ -128,29 +128,27 @@ See [AI_POLICY.md](./AI_POLICY.md) for the full policy.
 ## Development Setup
 
 NeMo Guardrails supports Python 3.10 through 3.13. Install Git, uv, and the
-compiler/dev tools needed to build Annoy on your platform.
+compiler/dev tools needed to build Annoy on your platform. Follow the
+[uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
+for your platform.
 
-The required uv version is pinned by `[tool.uv].required-version` in
-`pyproject.toml`. If uv reports a version mismatch, install that exact version
-using the command for your installation method:
+GitHub Actions uses the uv version pinned in
+[`.github/actions/setup-uv/action.yml`](./.github/actions/setup-uv/action.yml)
+as the canonical version. Use that version when changing dependencies or
+`uv.lock`. If another project requires a different uv version, use a
+directory-aware version manager or repository-scoped installation rather than
+replacing a shared global executable.
 
-```bash
-# Standalone installer
-uv self update 0.11.26
-
-# pipx
-pipx install --force "uv==0.11.26"
-
-# pip
-python -m pip install --upgrade "uv==0.11.26"
-```
+When updating the canonical uv version, update
+`.github/actions/setup-uv/action.yml`, `.gitlab-ci.yml`, and the uv image version
+and digest in `Dockerfile` together.
 
 Clone the repository and install development dependencies:
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
 cd nemoguardrails
-uv sync
+make install
 ```
 
 Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
@@ -161,7 +159,7 @@ Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
 `multilingual`, `server`, `chat-ui`, and `all`. For example:
 
 ```bash
-uv sync --extra server --extra tracing
+uv sync --locked --extra server --extra tracing
 ```
 
 For temporary local investigation tools, use the uv-managed environment

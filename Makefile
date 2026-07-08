@@ -1,4 +1,4 @@
-.PHONY: help
+.PHONY: help install
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit pre-commit-install
@@ -8,6 +8,8 @@
 TEST ?=
 ARGS ?=
 WORKERS ?= auto
+UV_LOCKED ?= true
+export UV_LOCKED
 # pytest-xdist --dist strategy for $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST).
 # worksteal dynamically rebalances queued tests; override DIST when debugging or grouping matters.
 DIST ?= worksteal
@@ -27,6 +29,9 @@ FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
 FASTEMBED_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE)
 FERN_STAGING_INSTANCE ?= nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails
 FERN_PUBLIC_INSTANCE ?= nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
+
+install:
+	uv sync --group dev
 
 test:
 	$(UNIT_TEST_ENV) $(PYTEST) -n $(WORKERS) --dist $(DIST) $(ARGS) $(TEST)
@@ -103,15 +108,16 @@ docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
 pre-commit:
-	uv run --locked pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 pre-commit-install:
-	uv run --locked pre-commit install
+	uv run pre-commit install
 
 help:
 	@printf '%s\n' \
 		'' \
 		'Usage:' \
+		'  make install' \
 		'  make test [TEST=path] [WORKERS=auto] [ARGS="-q --tb=short"]' \
 		'  make test-serial [TEST=path] [ARGS="-q"]' \
 		'  make test-benchmark [ARGS="-q"]' \
@@ -121,6 +127,9 @@ help:
 		'  make rewrite-cassettes [RECORDED_TESTS=tests/recorded] [RECORDED_REQUIRED_KEYS="OPENAI_API_KEY NVIDIA_API_KEY"]' \
 		'  make replay-cassettes [RECORDED_TESTS=tests/recorded]' \
 		'  make snapshot-cassettes [RECORDED_TESTS=tests/recorded]' \
+		'' \
+		'Setup:' \
+		'  install               Install locked development dependencies' \
 		'' \
 		'Tests:' \
 		'  test                  Run pytest.ini testpaths with pytest-xdist' \

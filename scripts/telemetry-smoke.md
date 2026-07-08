@@ -12,7 +12,7 @@ The driver lives at [`scripts/telemetry_smoke.py`](../scripts/telemetry_smoke.py
 
 ## Prerequisites
 
-- `uv sync` so `jsonschema` is available for local schema validation.
+- `uv sync --locked` so `jsonschema` is available for local schema validation.
 - `tests/telemetry/smoke_fixtures/{cfg1,cfg2,cfg3,rich}/` and `examples/configs/nemoguards/` are present in the working tree.
 - `CI`, `GITHUB_ACTIONS`, and `PYTEST_CURRENT_TEST` must NOT be exported in the calling shell. The driver refuses to start otherwise. `unset` them first.
 
