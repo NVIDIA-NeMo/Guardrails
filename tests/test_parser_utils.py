@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from nemoguardrails.colang.v1_0.lang.utils import get_numbered_lines, split_args
 
 
@@ -44,3 +46,12 @@ def test_get_numbered_lines_or_continuation_merges():
     # A valid " or" continuation still merges onto the next line.
     lines = get_numbered_lines("define flow test\n  a or\n  b")
     assert [line["text"] for line in lines] == ["define flow test", "a or b"]
+
+
+@pytest.mark.parametrize("args_str", [")", "a)b", "foo]", "x=1, y)", "}"])
+def test_split_args_unbalanced_closing_bracket_raises_value_error(args_str):
+    # A stray closing bracket with no matching opener previously indexed an empty
+    # `stack` (`closing_char[stack[-1]]`), raising an uncaught IndexError instead of
+    # the ValueError the function uses to report invalid syntax.
+    with pytest.raises(ValueError):
+        split_args(args_str)
