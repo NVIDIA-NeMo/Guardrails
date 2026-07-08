@@ -1,0 +1,45 @@
+name: Latest uv Compatibility
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: Test Latest uv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install latest uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          cache-suffix: latest
+
+      - name: Check lock file
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run pre-commit hooks
+        run: make pre-commit
+
+      - name: Run tests
+        run: make test
+
+      - name: Build distributions
+        run: uv build
