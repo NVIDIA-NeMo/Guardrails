@@ -5,7 +5,7 @@ This example demonstrates how to integrate with the [Pangea AI Guard](https://pa
 To test this configuration you can use the CLI Chat by running the following command from the `examples/configs/pangea_v2` directory:
 
 ```bash
-uv run --locked nemoguardrails chat --config=.
+uv run nemoguardrails chat --config=.
 ```
 
 Documentation:

@@ -211,7 +211,7 @@ For notebook documentation, place the notebook in its own folder and generate a
 matching `README.md` with:
 
 ```bash
-uv run --locked python build_notebook_docs.py PATH/TO/SUBFOLDER
+uv run python build_notebook_docs.py PATH/TO/SUBFOLDER
 ```
 
 Important: `build_notebook_docs.py` currently runs broad git staging and

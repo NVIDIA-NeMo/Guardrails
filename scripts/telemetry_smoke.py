@@ -44,7 +44,7 @@ Pre-flight (do this once, by hand, before driving the script):
 
     unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
     NEMO_GUARDRAILS_USAGE_STATS_SERVER=<staging-events-url>/v1.1/events/json \\
-    uv run --locked python - <<'PY'
+    uv run python - <<'PY'
     import json
     import time
     from nemoguardrails import LLMRails, RailsConfig, telemetry
@@ -72,7 +72,7 @@ registered.
 Driver invocation:
 
     unset CI GITHUB_ACTIONS PYTEST_CURRENT_TEST
-    uv run --locked python scripts/telemetry_smoke.py \\
+    uv run python scripts/telemetry_smoke.py \\
         --staging-url "$NEMO_GUARDRAILS_SMOKE_STAGING_URL"
 """
 
@@ -1367,7 +1367,7 @@ def main() -> int:
     print(f"manifest: {manifest_path}")
     print(f"kibana filter: {kibana_filter}")
     print(
-        f"offline verify: uv run --locked python scripts/kibana_verify_export.py "
+        f"offline verify: uv run python scripts/kibana_verify_export.py "
         f"--manifest {shlex.quote(str(manifest_path))} --export kibana.json"
     )
 

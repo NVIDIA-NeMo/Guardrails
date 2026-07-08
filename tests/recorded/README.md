@@ -61,14 +61,14 @@ silently. Name negative tests `test_<surface>_<failure>_<behavior>` with the suf
 ## Replay
 
 ```bash
-uv run --locked pytest tests/recorded --block-network -v --durations=10
+uv run pytest tests/recorded --block-network -v --durations=10
 ```
 
 Focused rails replay:
 
 ```bash
-uv run --locked pytest tests/recorded/rails/public_api --block-network -v
-uv run --locked pytest tests/recorded/rails/library --block-network -v
+uv run pytest tests/recorded/rails/public_api --block-network -v
+uv run pytest tests/recorded/rails/library --block-network -v
 ```
 
 Replay mode installs dummy API keys from `tests/recorded/utils.py`. A cassette miss with `--block-network` is a test failure.
@@ -148,7 +148,7 @@ Cassettes preserve scrubbed JSON text without smart-character normalization so p
 Inspect a cassette:
 
 ```bash
-uv run --locked python -m tests.recorded.inspect_cassette tests/recorded/rails/public_api/cassettes/test_stream/test_openai_stream_async_public_contract.yaml
+uv run python -m tests.recorded.inspect_cassette tests/recorded/rails/public_api/cassettes/test_stream/test_openai_stream_async_public_contract.yaml
 ```
 
 ## Snapshots
@@ -156,14 +156,14 @@ uv run --locked python -m tests.recorded.inspect_cassette tests/recorded/rails/p
 Rails replay outputs are pinned with inline snapshots after normalization. Create or fix snapshots with:
 
 ```bash
-uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=create
-uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=fix
-uv run --locked pytest tests/recorded/rails --block-network --inline-snapshot=review
+uv run pytest tests/recorded/rails --block-network --inline-snapshot=create
+uv run pytest tests/recorded/rails --block-network --inline-snapshot=fix
+uv run pytest tests/recorded/rails --block-network --inline-snapshot=review
 ```
 
 Snapshot formatting uses `ruff format` through `[tool.inline-snapshot]` in `pyproject.toml`.
 Snapshot create/fix/review runs must be serial. Use `make record-cassettes` or a
-direct `uv run --locked pytest ... --inline-snapshot=<mode>` command; the default
+direct `uv run pytest ... --inline-snapshot=<mode>` command; the default
 `make test` path uses xdist, where inline-snapshot disables update and report
 modes.
 

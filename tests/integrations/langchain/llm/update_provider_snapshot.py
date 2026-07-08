@@ -19,7 +19,7 @@ Run after a langchain upgrade that the drift canary
 (`test_langchain_provider_drift`) has flagged, once the new provider set has
 been reviewed and accepted:
 
-    uv run --locked python tests/integrations/langchain/llm/update_provider_snapshot.py
+    uv run python tests/integrations/langchain/llm/update_provider_snapshot.py
 """
 
 import json

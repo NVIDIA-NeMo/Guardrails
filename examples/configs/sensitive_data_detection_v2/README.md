@@ -17,7 +17,7 @@ This example demonstrates how to detect and redact sensitive data using [Presidi
   You can download it with:
 
   ```bash
-  uv run --locked python -m spacy download en_core_web_lg
+  uv run python -m spacy download en_core_web_lg
   ```
 
 ## Running example
@@ -25,7 +25,7 @@ This example demonstrates how to detect and redact sensitive data using [Presidi
 To test this configuration, run the CLI chat from the `examples/configs/sensitive_data_detection_v2` directory:
 
 ```bash
-uv run --locked nemoguardrails chat --config=.
+uv run nemoguardrails chat --config=.
 ```
 
 ## Documentation

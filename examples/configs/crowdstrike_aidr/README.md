@@ -6,5 +6,5 @@ To test this configuration you can use the CLI Chat by running the following com
 `examples/configs/crowdstrike_aidr` directory:
 
 ```bash
-uv run --locked nemoguardrails chat --config=.
+uv run nemoguardrails chat --config=.
 ```
