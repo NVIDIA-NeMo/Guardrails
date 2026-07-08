@@ -23,10 +23,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install latest uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: ./.github/actions/setup-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          version: latest
           cache-suffix: latest
 
       - name: Check lock file
