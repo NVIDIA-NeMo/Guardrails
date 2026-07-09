@@ -1,0 +1,87 @@
+"""
+https://cloud.google.com/natural-language/docs/moderating-text
+
+Supported Violations:
+
+Safety Attribute	Description
+Toxic	            Content that is rude, disrespectful, or unreasonable.
+Derogatory	      Negative or harmful comments targeting identity and/or protected attributes.
+Violent	          Describes scenarios depicting violence against an individual or group, or general descriptions of gore.
+Sexual	          Contains references to sexual acts or other lewd content.
+Insult	          Insulting, inflammatory, or negative comment towards a person or a group of people.
+Profanity	        Obscene or vulgar language such as cursing.
+Death, Harm     	Human deaths, tragedies, accidents, disasters, and self-harm.
+& Tragedy
+Firearms        	Content that mentions knives, guns, personal weapons, and accessories such as ammunition, holsters, etc.
+& Weapons
+Public Safety	    Services and organizations that provide relief and ensure public safety.
+Health	          Human health, including: Health conditions, diseases, and disorders Medical therapies, medication, vaccination, medical practices, and resources for healing, including support groups.
+Religion  	      Belief systems that deal with the possibility of supernatural laws and beings; religion, faith, belief, spiritual practice, churches, and places of worship. Includes astrology and the occult.
+& Belief
+Illicit Drugs	    Recreational and illicit drugs; drug paraphernalia and cultivation, headshops, etc. Includes medicinal use of drugs typically used recreationally (e.g. marijuana).
+War & Conflict	  War, military conflicts, and major physical conflicts involving large numbers of people. Includes discussion of military services, even if not directly related to a war or conflict.
+Finance	          Consumer and business financial services, such as banking, loans, credit, investing, and insurance.
+Politics	        Political news and media; discussions of social, governmental, and public policy.
+Legal	            Law-related content, including law firms, legal information, primary legal materials, paralegal services, legal publications and technology, expert witnesses, litigation consultants, and other legal service providers.
+"""
+
+define subflow gcpnlp moderation
+  """Guardrail based on the maximum risk score."""
+  $result = execute call_gcpnlp_api(threshold_mode="simple")
+
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+
+define subflow gcpnlp moderation detailed
+  """Guardrail based on individual risk scores."""
+  $result = execute call_gcpnlp_api(threshold_mode="detailed")
+
+  if $result.is_blocked
+    $triggered_violation = $result.metadata.get("triggered_violation")
+
+    if $triggered_violation == "Toxic"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Insult"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Profanity"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Derogatory"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Violent"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Sexual"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Death, Harm & Tragedy"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Firearms & Weapons"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Illicit Drugs"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Public Safety"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Health"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Religion & Belief"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "War & Conflict"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Politics"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Finance"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Legal"
+      bot inform cannot engage with sensitive content
+    else
+      bot refuse to respond
+    stop
+
+
+define bot inform cannot engage in abusive or harmful behavior
+  "I will not engage in any abusive or harmful behavior."
+
+define bot inform cannot engage with inappropriate content
+  "I will not engage with inappropriate content."
+
+define bot inform cannot engage with sensitive content
+  "I will not engage with sensitive content."

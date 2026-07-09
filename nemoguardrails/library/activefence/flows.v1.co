@@ -24,7 +24,7 @@ define subflow activefence moderation on input
       bot refuse to respond
     stop
 
- define subflow activefence moderation on output
+define subflow activefence moderation on output
   """Guardrail based on the maximum risk score."""
   $result = execute call_activefence_api(text=$bot_message, threshold_mode="simple")
 
