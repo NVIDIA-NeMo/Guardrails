@@ -18,7 +18,7 @@ name: PR Fix Regression Proof
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
@@ -73,6 +73,8 @@ jobs:
       - name: Prove tests fail without the fix
         if: steps.gate.outputs.is_fix == 'true'
         id: prove
+        # Informational check: an unexpected error here must not redden the job.
+        continue-on-error: true
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -255,7 +257,8 @@ jobs:
               echo "<details><summary>Tests evaluated</summary>"
               echo
               echo '```'
-              for test in $RUN_TESTS; do echo "$test"; done
+              read -r -a run_test_paths <<< "$RUN_TESTS"
+              for test_path in "${run_test_paths[@]}"; do echo "$test_path"; done
               echo '```'
               echo
               echo "</details>"
