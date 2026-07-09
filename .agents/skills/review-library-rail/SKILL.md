@@ -1,0 +1,130 @@
+---
+name: "review-library-rail"
+description: "Review a pull request that adds or modifies a rail in nemoguardrails/library/ (built-in or vendor guardrail integration). Runs the mechanical gates first, then judgment dimensions tests cannot check (privacy honesty, retry semantics, fail-closed behavior, dialect coverage, docs accuracy), then a security pass. Use when reviewing rail-integration PRs, vendor integration contributions, or changes under nemoguardrails/library/. Trigger keywords - review rail PR, rail integration review, vendor integration PR, library rail review, guardrail contribution."
+license: "Apache-2.0"
+---
+
+# Reviewing a Library Rail Contribution
+
+This skill reviews PRs that add or change a rail under
+`nemoguardrails/library/`. The contract being reviewed against is defined by
+the `add-library-rail` skill; do not restate it, read it. Follow the
+repository Review Mode rules (compare against the merge base with `develop`,
+inspect tests as well as implementation, treat every finding as advisory
+until verified against the real code path).
+
+The guiding fact, learned from evaluation: contributors and reviewers both
+comply with what is named and miss what is omitted. Work through every
+numbered check; do not stop at the first few findings.
+
+## Step 0: Scope and duplicates
+
+- Confirm the PR is a rail contribution: files under
+  `nemoguardrails/library/<name>/`, usually with tests and a docs page.
+- Check for duplicate or in-flight integrations for the same vendor:
+  `gh pr list --state open --search "<vendor>"` and the same for issues. If
+  another PR covers the vendor, surface that before reviewing further.
+- Is this vendor integration plausibly wanted? If there is no linked triaged
+  issue or maintainer signal, flag for maintainer judgment; do not review it
+  into shape first.
+
+## Step 1: Run the mechanical gates (do not re-review what they check)
+
+```bash
+make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_library_flow_files.py"
+make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
+make test TEST=tests/http/test_library_boundary.py
+make test TEST=<the PR's test files>
+poetry run pytest tests/recorded/rails/library --block-network -q
+git diff <merge-base> -- pyproject.toml poetry.lock   # must be empty for a rail PR
+poetry run nemoguardrails rails validate --config examples/configs/<rail>
+```
+
+A red gate is a finding by itself; report it and keep going. A green gate
+means that dimension is DONE; spend review attention only on what follows.
+
+## Step 2: Judgment dimensions (what tests cannot check)
+
+Each item names the check, where to look, and what "wrong" looks like.
+
+1. **Privacy honesty.** Compare `RailPrivacy` in `rail.py` against what the
+   request layer actually transmits and what the vendor's own documentation
+   says about retention. `sends_user_text`/`sends_bot_text` must match the
+   surfaces' bindings; `remote_services` must be non-empty for any HTTP
+   rail; `data_retention` must be stated if the vendor states one. A
+   defaults-only `RailPrivacy()` on a vendor rail is almost always wrong.
+2. **Requirements honesty.** Every env var the code reads
+   (`os.environ`/`os.getenv`) appears in `RailRequirements.env_vars`; every
+   lazily imported package appears in `python_packages` with a real PEP 440
+   bound and is loaded via `require_python_package`; the docs `pip install`
+   line matches the declaration.
+3. **Retry semantics.** For HTTP rails: a rail-owned `RetryPolicy` constant;
+   POST retries only via explicit `retryable_methods={"POST"}` with an
+   argument for why the endpoint is safe to resend; no hand-rolled retry
+   loop around `http_call`. Then verify any retry/backoff claims in docs or
+   comments against `nemoguardrails/http/retry.py` (Retry-After IS honored,
+   backoff is jittered exponential); contributors document this from
+   guesswork.
+4. **Fail-closed behavior, tested not asserted.** Vendor errors, timeouts,
+   and malformed payloads must surface as typed errors or blocks, never a
+   silent allow. There must be a flow-level test of the action raising; a
+   summary or comment claiming fail-closed without a test is a finding.
+5. **Dialect coverage.** The flow-files gate checks structure; behavior
+   needs tests. Both dialects' block path must be exercised end to end
+   (`colang_version: "2.x"` variant present?), and every
+   `enable_rails_exceptions` branch must be either tested or absent. Check
+   `flows.co` and `flows.v1.co` do the same thing; divergent semantics
+   between dialects is a finding even when both parse.
+6. **Outcome discipline.** Actions return `RailOutcome` with neutral
+   evidence in metadata; refusal prose, exception types, or localization in
+   the outcome is a finding. Flows must only read metadata keys the action
+   actually sets (grep the action for each `metadata[` subscript used in a
+   flow).
+7. **Telemetry content-freeness.** No logging of checked text, request or
+   response bodies, URLs with query strings, API keys, or tokens; exception
+   messages must not embed payloads. Check `log.` calls and every f-string
+   in raised errors.
+8. **Test placement and hygiene.** Deterministic tests in `tests/` with
+   `RecordingHTTPClient` injected via `register_action_param`; recorded
+   suite entries follow the `recorded-tests` skill (vcr-structured, or
+   `pure_runtime(reason=...)` with a defensible reason; challenge every new
+   `pure_runtime`). Secrets via `monkeypatch`; any real-looking key in a
+   test or cassette is a blocking finding.
+9. **Docs accuracy.** Every statement in the catalog page must match the
+   code: config options, defaults, env vars, install line, limitations.
+   Verify each "known limitation" is real; a false limitation is as bad as
+   a missing one. `docs_url` in the manifest uses the `.md` extension and
+   points at the page the PR adds.
+
+## Step 3: Security pass
+
+- **Credential handling**: key read from env only, never from config values
+  that end up in logs or snapshots; JWT/signature construction does not log
+  the secret; no credentials committed in tests, cassettes, or examples.
+- **Outbound URL control**: if the config exposes `base_url` or an endpoint
+  override, note that guardrails configs are sometimes attacker-adjacent;
+  the URL must only ever be used for the vendor call (no template
+  injection into paths), and redirects stay disabled (transport default).
+- **Input handling**: user/bot text goes into the request body as data,
+  never interpolated into URLs, headers, or shell commands; response
+  parsing treats the payload as untrusted (no eval, no attribute access on
+  unvalidated structures without try/except).
+- **Deserialization**: only `response.json()`; anything like pickle or yaml
+  load on vendor bytes is blocking.
+
+## Step 4: Process conformance
+
+- DCO sign-off on every commit; conventional commit title; no changelog
+  edits; AI_POLICY disclosure if applicable.
+- Docs build if docs changed: `make docs-fern`.
+- Every reviewer finding verified against the actual code path before it is
+  reported (Review Mode rule); drop anything you cannot reproduce or point
+  to a line for.
+
+## Verdict format
+
+Report findings ranked by severity, each with file:line evidence and the
+dimension number it came from. State explicitly which gates ran and their
+results, and which dimensions came up clean; a review that only lists
+problems hides its own coverage. End with one of: approve, approve with
+nits, request changes (list the blocking subset).
