@@ -572,21 +572,21 @@ FIDDLER_USER_SAFETY = RailSpec(
     name="fiddler_user_safety",
     flow="fiddler user safety",
     direction="input",
-    action="call fiddler safety on user message",
+    action="call_fiddler_safety_user",
 )
 
 FIDDLER_BOT_SAFETY = RailSpec(
     name="fiddler_bot_safety",
     flow="fiddler bot safety",
     direction="output",
-    action="call fiddler safety on bot message",
+    action="call_fiddler_safety_bot",
 )
 
 FIDDLER_BOT_FAITHFULNESS = RailSpec(
     name="fiddler_bot_faithfulness",
     flow="fiddler bot faithfulness",
     direction="output",
-    action="call fiddler faithfulness",
+    action="call_fiddler_faithfulness",
 )
 
 F5_INPUT = RailSpec(
@@ -628,14 +628,14 @@ GCP_MODERATION_INPUT = RailSpec(
     name="gcp_moderation_input",
     flow="gcpnlp moderation",
     direction="input",
-    action="call gcpnlp api",
+    action="call_gcpnlp_api",
 )
 
 GCP_MODERATION_INPUT_DETAILED = RailSpec(
     name="gcp_moderation_input_detailed",
     flow="gcpnlp moderation detailed",
     direction="input",
-    action="call gcpnlp api",
+    action="call_gcpnlp_api",
 )
 
 GUARDRAILS_AI_INPUT = RailSpec(
@@ -694,7 +694,7 @@ CLEANLAB_OUTPUT = RailSpec(
     name="cleanlab_output",
     flow="cleanlab trustworthiness",
     direction="output",
-    action="call cleanlab api",
+    action="call_cleanlab_api",
 )
 
 AI_DEFENSE_INPUT = RailSpec(

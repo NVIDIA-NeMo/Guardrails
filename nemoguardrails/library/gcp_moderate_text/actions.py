@@ -78,7 +78,7 @@ def _gcp_text_moderation_outcome(
 
 
 @action(
-    name="call gcpnlp api",
+    name="call_gcpnlp_api",
     is_system_action=True,
 )
 async def call_gcp_text_moderation_api(

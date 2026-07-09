@@ -88,7 +88,7 @@ async def call_fiddler_guardrail(
         return False
 
 
-@action(name="call fiddler safety on user message", is_system_action=True)
+@action(name="call_fiddler_safety_user", is_system_action=True)
 async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
@@ -116,7 +116,7 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
     return _fiddler_outcome(blocked)
 
 
-@action(name="call fiddler safety on bot message", is_system_action=True)
+@action(name="call_fiddler_safety_bot", is_system_action=True)
 async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
@@ -144,7 +144,7 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
     return _fiddler_outcome(blocked)
 
 
-@action(name="call fiddler faithfulness", is_system_action=True)
+@action(name="call_fiddler_faithfulness", is_system_action=True)
 async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict] = None) -> RailOutcome:
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")

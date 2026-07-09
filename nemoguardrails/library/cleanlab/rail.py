@@ -29,7 +29,7 @@ from nemoguardrails.manifests import (
 )
 
 CALL_CLEANLAB_API = ActionRef(
-    name="call cleanlab api",
+    name="call_cleanlab_api",
     target="nemoguardrails.library.cleanlab.actions:call_cleanlab_api",
 )
 
