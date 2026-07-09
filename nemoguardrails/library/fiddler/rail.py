@@ -31,15 +31,15 @@ from nemoguardrails.manifests import (
 )
 
 FIDDLER_USER = ActionRef(
-    name="call fiddler safety on user message",
+    name="call_fiddler_safety_user",
     target="nemoguardrails.library.fiddler.actions:call_fiddler_safety_user",
 )
 FIDDLER_BOT = ActionRef(
-    name="call fiddler safety on bot message",
+    name="call_fiddler_safety_bot",
     target="nemoguardrails.library.fiddler.actions:call_fiddler_safety_bot",
 )
 FIDDLER_FAITHFULNESS = ActionRef(
-    name="call fiddler faithfulness",
+    name="call_fiddler_faithfulness",
     target="nemoguardrails.library.fiddler.actions:call_fiddler_faithfulness",
 )
 

@@ -31,7 +31,7 @@ def _cleanlab_outcome(trustworthiness_score: float) -> RailOutcome:
 
 
 @action(
-    name="call cleanlab api",
+    name="call_cleanlab_api",
     is_system_action=True,
 )
 async def call_cleanlab_api(
