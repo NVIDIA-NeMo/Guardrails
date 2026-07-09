@@ -30,7 +30,7 @@ from nemoguardrails.manifests import (
 )
 
 CALL_GCP_TEXT_MODERATION_API = ActionRef(
-    name="call gcpnlp api",
+    name="call_gcpnlp_api",
     target="nemoguardrails.library.gcp_moderate_text.actions:call_gcp_text_moderation_api",
 )
 

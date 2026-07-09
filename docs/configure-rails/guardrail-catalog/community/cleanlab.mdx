@@ -14,7 +14,7 @@ The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness sco
 ```text
 define subflow cleanlab trustworthiness
   """Guardrail based on trustworthiness score."""
-  $result = execute call cleanlab api
+  $result = execute call_cleanlab_api
 
   if $result.trustworthiness_score < 0.7
     bot response untrustworthy
