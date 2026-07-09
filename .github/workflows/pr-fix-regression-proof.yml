@@ -1,0 +1,267 @@
+name: PR Fix Regression Proof
+
+# Informational check for `fix(...)` PRs. A fix PR implicitly claims that its
+# tests fail without the fix and pass with it. This workflow proves that claim:
+# it runs the PR's changed tests at HEAD, then strips the non-test changes (the
+# fix) and reruns the same tests. Results go to the job summary only.
+#
+# Uses the `pull_request` trigger (read-only token, no secrets) because it
+# checks out and executes PR head code. Do not switch this to
+# `pull_request_target` or grant a write token: executing untrusted PR code with
+# a privileged token is the combination to avoid. Promoting the verdict to a PR
+# comment later should be done via a separate `workflow_run` companion, not by
+# adding permissions here.
+#
+# This check never fails the build (see "Report" step). To promote it to a
+# required gate once its false-positive rate is understood, make that step exit
+# non-zero on a WEAK verdict.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-fix-regression-proof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  regression-proof:
+    name: Fix Regression Proof
+    # Cheap pre-filter; the Gate step below applies the strict Conventional
+    # Commit pattern so we do not run on "fixup", "fixes #123", etc.
+    if: startsWith(github.event.pull_request.title, 'fix')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on fix(...) title
+        id: gate
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "$PR_TITLE" =~ ^fix(\([^\)]+\))?!?:\  ]]; then
+            echo "is_fix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_fix=false" >> "$GITHUB_OUTPUT"
+            echo "Title does not match the strict fix(...): pattern; skipping." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v7.0.0
+        if: steps.gate.outputs.is_fix == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        if: steps.gate.outputs.is_fix == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        if: steps.gate.outputs.is_fix == 'true'
+        uses: ./.github/actions/setup-uv
+        with:
+          cache-suffix: "3.11"
+
+      - name: Install dependencies
+        if: steps.gate.outputs.is_fix == 'true'
+        run: uv sync --locked --group dev
+
+      - name: Prove tests fail without the fix
+        if: steps.gate.outputs.is_fix == 'true'
+        id: prove
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          MERGE_BASE=$(git merge-base "$BASE_SHA" HEAD)
+          echo "Merge base: $MERGE_BASE"
+
+          # Split changed files into the tests to keep/run and the fix to strip.
+          # KEEP: anything under a tests directory (test modules, conftest,
+          #       fixtures). REVERT: everything else (the fix).
+          run_tests=()   # changed test modules to point pytest at (added/modified)
+          revert_A=()    # fix files added by the PR   -> remove
+          revert_MD=()   # fix files modified/deleted  -> restore base version
+          revert_R=()    # fix files renamed "old\tnew" -> restore old, remove new
+
+          is_testdir() { [[ "$1" == tests/* || "$1" == benchmark/tests/* ]]; }
+          is_testmod() {
+            local base; base=$(basename "$1")
+            [[ "$base" == test_*.py || "$base" == *_test.py ]]
+          }
+
+          while IFS=$'\t' read -r status path rest; do
+            [[ -z "$status" ]] && continue
+            case "$status" in
+              R*)
+                # rest holds the new path for renames
+                new="$rest"
+                if is_testdir "$new"; then
+                  is_testmod "$new" && run_tests+=("$new")
+                else
+                  revert_R+=("$path"$'\t'"$new")
+                fi
+                ;;
+              A)
+                if is_testdir "$path"; then
+                  is_testmod "$path" && run_tests+=("$path")
+                else
+                  revert_A+=("$path")
+                fi
+                ;;
+              M|D)
+                if is_testdir "$path"; then
+                  # modified test module still worth running (skip deleted)
+                  [[ "$status" == "M" ]] && is_testmod "$path" && run_tests+=("$path")
+                else
+                  revert_MD+=("$path")
+                fi
+                ;;
+            esac
+          done < <(git diff --name-status -M "$MERGE_BASE" HEAD)
+
+          have_fix=$(( ${#revert_A[@]} + ${#revert_MD[@]} + ${#revert_R[@]} ))
+
+          {
+            echo "run_tests=${run_tests[*]:-}"
+            echo "have_fix=$have_fix"
+          } >> "$GITHUB_OUTPUT"
+
+          # No regression test at all: report and stop.
+          if [[ ${#run_tests[@]} -eq 0 ]]; then
+            echo "verdict=NO_TESTS" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # No non-test change to strip: cannot demonstrate a fix.
+          if [[ $have_fix -eq 0 ]]; then
+            echo "verdict=NO_FIX" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Run pytest directly (no xdist) so the exit code is unambiguous:
+          # 1 = test failures, 2 = collection/usage error, 5 = nothing
+          # collected. `make test` routes through pytest-xdist, which can report
+          # a collection error as exit 1 and defeat the INCONCLUSIVE guard. The
+          # env -u list mirrors the Makefile UNIT_TEST_ENV as defensive insurance
+          # (this trigger already runs without provider secrets).
+          run_pytest() {
+            set +e
+            env -u OPENAI_API_KEY -u NVIDIA_API_KEY \
+              -u LIVE_TEST -u LIVE_TEST_MODE -u TEST_LIVE_MODE \
+              uv run pytest "${run_tests[@]}"
+            local code=$?
+            set -e
+            return $code
+          }
+
+          # 1) With the fix (HEAD).
+          head_code=0
+          run_pytest || head_code=$?
+          echo "head_code=$head_code" >> "$GITHUB_OUTPUT"
+
+          # 2) Strip the fix, keep the tests.
+          for file in "${revert_MD[@]:-}"; do
+            [[ -z "$file" ]] && continue
+            git checkout "$MERGE_BASE" -- "$file"
+          done
+          for file in "${revert_A[@]:-}"; do
+            [[ -z "$file" ]] && continue
+            git rm -f -- "$file" >/dev/null
+          done
+          for pair in "${revert_R[@]:-}"; do
+            [[ -z "$pair" ]] && continue
+            old="${pair%%$'\t'*}"; new="${pair##*$'\t'}"
+            git checkout "$MERGE_BASE" -- "$old"
+            git rm -f -- "$new" >/dev/null
+          done
+
+          reverted_code=0
+          run_pytest || reverted_code=$?
+          echo "reverted_code=$reverted_code" >> "$GITHUB_OUTPUT"
+
+          # pytest exit codes: 0 pass, 1 failures, 2 interrupted/error,
+          # 5 no tests collected.
+          if [[ $head_code -ne 0 ]]; then
+            verdict=HEAD_NOT_GREEN
+          elif [[ $reverted_code -eq 1 ]]; then
+            verdict=PROVEN
+          elif [[ $reverted_code -eq 0 ]]; then
+            verdict=WEAK
+          else
+            verdict=INCONCLUSIVE
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+
+      - name: Report
+        if: steps.gate.outputs.is_fix == 'true'
+        env:
+          VERDICT: ${{ steps.prove.outputs.verdict }}
+          RUN_TESTS: ${{ steps.prove.outputs.run_tests }}
+          HEAD_CODE: ${{ steps.prove.outputs.head_code }}
+          REVERTED_CODE: ${{ steps.prove.outputs.reverted_code }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Fix Regression Proof"
+            echo
+            case "$VERDICT" in
+              PROVEN)
+                echo "✅ **Proven.** The changed tests pass with the fix and fail without it."
+                echo
+                echo "These tests exercise the bug the fix addresses."
+                ;;
+              WEAK)
+                echo "⚠️ **Weak regression coverage.** The changed tests pass *with and without* the fix."
+                echo
+                echo "They still pass when the non-test changes are reverted, so they do"
+                echo "not capture the bug this fix addresses. Consider adding a test that"
+                echo "fails without the fix."
+                ;;
+              INCONCLUSIVE)
+                echo "ℹ️ **Inconclusive.** Without the fix, the tests errored during"
+                echo "collection (exit $REVERTED_CODE) rather than failing cleanly."
+                echo
+                echo "This usually means the test imports a symbol the fix introduced,"
+                echo "so the fails-without-fix claim could not be checked automatically."
+                ;;
+              HEAD_NOT_GREEN)
+                echo "❌ **Changed tests are not green at HEAD** (exit $HEAD_CODE)."
+                echo
+                echo "Could not evaluate the without-fix case. See the main PR test run."
+                ;;
+              NO_TESTS)
+                echo "⚠️ **No regression test found.** This \`fix(...)\` PR changes no test"
+                echo "modules (\`test_*.py\` / \`*_test.py\`) under \`tests/\` or"
+                echo "\`benchmark/tests/\`."
+                echo
+                echo "A fix should come with a test that fails before it."
+                ;;
+              NO_FIX)
+                echo "⚠️ **No non-test change to strip.** The PR changes only test files,"
+                echo "so a fix could not be demonstrated."
+                ;;
+              *)
+                echo "Could not determine a verdict."
+                ;;
+            esac
+            if [[ -n "${RUN_TESTS:-}" ]]; then
+              echo
+              echo "<details><summary>Tests evaluated</summary>"
+              echo
+              echo '```'
+              for test in $RUN_TESTS; do echo "$test"; done
+              echo '```'
+              echo
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Informational only: never fail the build. To make this a required
+          # gate, exit non-zero here on WEAK (and optionally NO_TESTS).
+          exit 0
