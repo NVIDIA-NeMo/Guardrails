@@ -35,7 +35,7 @@ from nemoguardrails.integrations.langchain.providers.providers import (
 SNAPSHOT_PATH = Path(__file__).parent / "langchain_provider_snapshot.json"
 
 
-def build_snapshot():
+def build_snapshot_entry():
     # partner_chat_providers is sourced from the `langchain` core package (not
     # langchain-community) and includes our own custom providers such as "nim".
     return {
@@ -48,5 +48,9 @@ def build_snapshot():
 
 
 if __name__ == "__main__":
-    SNAPSHOT_PATH.write_text(json.dumps(build_snapshot(), indent=2) + "\n")
-    print(f"wrote {SNAPSHOT_PATH}")
+    installed_community = version("langchain-community")
+    series = ".".join(installed_community.split(".")[:2])
+    snapshots = json.loads(SNAPSHOT_PATH.read_text()) if SNAPSHOT_PATH.exists() else {}
+    snapshots[series] = build_snapshot_entry()
+    SNAPSHOT_PATH.write_text(json.dumps(dict(sorted(snapshots.items())), indent=2) + "\n")
+    print(f"wrote {series} snapshot to {SNAPSHOT_PATH}")
