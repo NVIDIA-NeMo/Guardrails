@@ -2487,6 +2487,19 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
             ),
             REFUSAL,
         ),
+        (
+            "gcp_moderate_text",
+            "gcpnlp moderation detailed",
+            "call_gcpnlp_api",
+            _risk_outcome(
+                0.41,
+                blocked=True,
+                threshold_mode="detailed",
+                violations={"Derogatory": 0.41},
+                triggered_violation="Derogatory",
+            ),
+            "I will not engage in any abusive or harmful behavior.",
+        ),
     ],
 )
 def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, action_name, outcome, expected):
