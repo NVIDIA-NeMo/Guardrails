@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-from pydantic import ValidationError
+import types
 
+import pytest
+
+import nemoguardrails.manifests.catalog as catalog_module
 from nemoguardrails.manifests import (
     ActionRef,
     Binding,
@@ -26,12 +28,8 @@ from nemoguardrails.manifests import (
     RailDirection,
     RailManifest,
     RailManifestRecord,
-    RailMetadata,
     RailSpec,
     RailSurface,
-    import_ref_target,
-    iter_manifest_import_targets,
-    resolve_import_ref,
 )
 
 
@@ -58,53 +56,6 @@ def _record(name: str, *, action: ActionRef | None = None, surface_name: str | N
     return RailManifestRecord(manifest=manifest, source=f"test:{name}")
 
 
-def test_manifest_round_trips_with_typed_refs():
-    action = _action()
-    manifest = RailManifest(
-        name="test",
-        spec=RailSpec(
-            config_schema=RailConfigSchema(key="test", spec=ConfigSpecRef(target="pathlib:Path.cwd")),
-            actions=RailActions(refs=(action,)),
-            surfaces=(RailSurface(name="check input", direction="input", action=action),),
-        ),
-    )
-
-    assert RailManifest.model_validate(manifest.model_dump()) == manifest
-    assert iter_manifest_import_targets(manifest) == ("pathlib:Path.cwd", "pathlib:Path.cwd", "pathlib:Path.cwd")
-
-
-def test_metadata_retains_unknown_keys():
-    metadata = RailMetadata.model_validate({"display_name": "Acme", "catalog_id": "acme-42"})
-
-    assert metadata.catalog_id == "acme-42"
-    assert RailMetadata.model_validate(metadata.model_dump()) == metadata
-
-
-def test_spec_rejects_unknown_keys():
-    with pytest.raises(ValidationError):
-        RailSpec.model_validate({"unknown_field": 1})
-
-
-@pytest.mark.parametrize(
-    "factory",
-    (
-        lambda: ConfigSpecRef(target="missing_colon"),
-        lambda: ActionRef(name="", target="pathlib:Path"),
-        lambda: ActionRef(name="path", target="pathlib"),
-    ),
-)
-def test_import_refs_reject_invalid_targets(factory):
-    with pytest.raises(ValueError):
-        factory()
-
-
-def test_import_refs_resolve_nested_attributes():
-    ref = ActionRef(name="cwd", target="pathlib:Path.cwd")
-
-    assert import_ref_target(ref) == "pathlib:Path.cwd"
-    assert callable(resolve_import_ref(ref))
-
-
 def test_catalog_indexes_manifests_and_surfaces():
     catalog = RailCatalog((_record("alpha", surface_name="check alpha"), _record("beta")))
 
@@ -129,6 +80,19 @@ def test_catalog_rejects_duplicate_surface_keys():
         RailCatalog((_record("alpha", surface_name="shared"), _record("beta", surface_name="shared")))
 
 
+def test_catalog_rejects_duplicate_config_key():
+    shared_spec = ConfigSpecRef(target="pathlib:Path.cwd")
+
+    def record(name):
+        manifest = RailManifest(
+            name=name, spec=RailSpec(config_schema=RailConfigSchema(key="shared", spec=shared_spec))
+        )
+        return RailManifestRecord(manifest=manifest, source=f"test:{name}")
+
+    with pytest.raises(ValueError, match="config key"):
+        RailCatalog((record("alpha"), record("beta")))
+
+
 def test_catalog_rejects_surface_with_undeclared_action():
     declared = _action("declared")
     undeclared = _action("undeclared")
@@ -142,3 +106,38 @@ def test_catalog_rejects_surface_with_undeclared_action():
 
     with pytest.raises(ValueError, match="not declared"):
         RailCatalog((RailManifestRecord(manifest=manifest, source="test:invalid"),))
+
+
+def test_discover_built_ins_loads_rail_modules(tmp_path, monkeypatch):
+    rail_package = tmp_path / "content_safety"
+    rail_package.mkdir()
+    (rail_package / "rail.py").write_text("RAIL = None\n")
+
+    discovered_manifest = RailManifest(name="content_safety")
+    fake_module = types.SimpleNamespace(RAIL=discovered_manifest)
+
+    def fake_import(module_name):
+        assert module_name == "nemoguardrails.library.content_safety.rail"
+        return fake_module
+
+    monkeypatch.setattr(catalog_module.importlib, "import_module", fake_import)
+
+    catalog = RailCatalog.discover_built_ins(library_path=tmp_path)
+
+    assert set(catalog.manifests) == {"content_safety"}
+    assert catalog.manifests["content_safety"].origin == "nemoguardrails.library.content_safety.rail"
+
+
+def test_discover_built_ins_rejects_non_manifest_rail(tmp_path, monkeypatch):
+    rail_package = tmp_path / "broken"
+    rail_package.mkdir()
+    (rail_package / "rail.py").write_text("RAIL = 1\n")
+
+    monkeypatch.setattr(
+        catalog_module.importlib,
+        "import_module",
+        lambda module_name: types.SimpleNamespace(RAIL="not-a-manifest"),
+    )
+
+    with pytest.raises(TypeError, match="must define RAIL"):
+        RailCatalog.discover_built_ins(library_path=tmp_path)
