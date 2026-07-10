@@ -223,6 +223,11 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    dialect-single: do not duplicate them for Colang 2 (the wire traffic is
    identical; dialect behavior is unit-test territory). For what belongs in
    the recorded suite versus `tests/`, follow the `recorded-tests` skill.
+   Snapshot the NORMALIZED output and leave `snapshot()` empty for the
+   record workflow to fill: `--inline-snapshot=create`/`fix` rewrites your
+   test file in place (review that diff, do not revert it), and it only
+   works serially, never under xdist `make test`. See the README's
+   Snapshots section for the exact behavior.
 
 ## Step 7: Docs and examples
 
