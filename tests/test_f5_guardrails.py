@@ -157,6 +157,63 @@ async def test_f5_guardrails_timeout_fail_open(monkeypatch):
     assert result == {"result": {"outcome": "cleared"}}
 
 
+@pytest.fixture
+def config_v2():  # language=yaml
+    return RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.f5
+
+            flow input rails $input_text
+              f5 guardrails scan input $input_text
+
+            flow output rails $output_text
+              f5 guardrails scan output $output_text
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "Hello! How can I assist you today?"
+        """,
+    )
+
+
+def test_f5_guardrails_colang_2_input_blocked(config_v2, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(config_v2)
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "flagged"}},
+            repeat=True,
+        )
+
+        chat >> "bad message"
+        chat << "I'm sorry, I can't respond to that."
+
+
+def test_f5_guardrails_colang_2_input_cleared(config_v2, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(config_v2)
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+            repeat=True,
+        )
+
+        chat >> "Hello!"
+        chat << "Hello! How can I assist you today?"
+
+
 @pytest.mark.asyncio
 async def test_f5_guardrails_timeout_fail_closed(monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")

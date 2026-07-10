@@ -2,7 +2,7 @@ import guardrails
 import nemoguardrails.library.f5
 
 flow input rails $input_text
-    f5 guardrails scan input
+    f5 guardrails scan input $input_text
 
 flow output rails $output_text
-    f5 guardrails scan output
+    f5 guardrails scan output $output_text
