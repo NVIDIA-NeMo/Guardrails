@@ -41,7 +41,7 @@ flow autoalign groundedness output
 
 flow autoalign factcheck output
   $threshold = 0.5
-  $output_result = await autoalign_factcheck_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)
+  $output_result = await AutoalignFactcheckOutputApiAction(factcheck_threshold=$threshold, show_autoalign_message=True)
   if $output_result.is_blocked
     bot inform answer unknown
     abort
