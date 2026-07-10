@@ -123,6 +123,17 @@ Each item names the check, where to look, and what "wrong" looks like.
     pass must be distinguishable from a genuine vendor clear (never return
     a synthesized vendor payload as the result) and must be logged. A
     fail-open path also needs its own test alongside the fail-closed one.
+11. **Cassette provenance.** A cassette is a claim by its submitter, and an
+    agent or contributor without service access can fabricate one that
+    looks recorded. The sanitizer fixed-point gate
+    (`tests/recorded/test_cassette_provenance.py`) catches naive
+    fabrication (realistic ids, timestamps, cookies that the recorder
+    would have scrubbed), but a sentinel-perfect forgery passes it, so for
+    new cassettes from external contributors also ask HOW they were
+    recorded. If the answer is unverifiable and the org holds no key to
+    re-record, the honest options are maintainer re-recording before
+    merge or demoting the tests to the explicit `fake_cassette` regime;
+    do not merge unverifiable cassettes as recorded truth.
 
 ## Step 3: Security pass
 
