@@ -29,11 +29,6 @@ from tests.utils import TestChat
 def config():  # language=yaml
     return RailsConfig.from_content(
         yaml_content="""
-            models:
-              - type: main
-                engine: openai
-                model: gpt-5-nano
-
             rails:
               input:
                 flows:
@@ -49,11 +44,6 @@ def config():  # language=yaml
 def config_fail_open():  # language=yaml
     return RailsConfig.from_content(
         yaml_content="""
-            models:
-              - type: main
-                engine: openai
-                model: gpt-5-nano
-
             rails:
               config:
                 f5:
