@@ -545,6 +545,27 @@ class FiddlerGuardrails(BaseModel):
     )
 
 
+class F5GuardrailsRailConfig(BaseModel):
+    """Configuration for the F5 Guardrails integration.
+
+    Note: The API key is intentionally not part of this config. It is a secret
+    and must be provided via the F5_GUARDRAILS_API_KEY environment variable.
+    """
+
+    api_url: str = Field(
+        default="https://us1.calypsoai.app",
+        description="Base URL for the F5 Guardrails API.",
+    )
+    fail_open: bool = Field(
+        default=False,
+        description=(
+            "If True, allow content through when the F5 Guardrails API is "
+            "unreachable or returns an error. This changes the security posture "
+            "of the rail and should be reviewed as part of the guardrails config."
+        ),
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -1350,6 +1371,11 @@ class RailsConfigData(BaseModel):
     fiddler: Optional[FiddlerGuardrails] = Field(
         default_factory=FiddlerGuardrails,
         description="Configuration for Fiddler Guardrails.",
+    )
+
+    f5: Optional[F5GuardrailsRailConfig] = Field(
+        default_factory=F5GuardrailsRailConfig,
+        description="Configuration for F5 Guardrails (CalypsoAI).",
     )
 
     clavata: Optional[ClavataRailConfig] = Field(
