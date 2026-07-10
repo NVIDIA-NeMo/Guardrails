@@ -745,7 +745,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
         return GuardrailCheckResponse(
             status=_map_rail_status(result.status),
             content=result.content,
-            rail=result.rail,
+            rail=result.blocked_by,
         )
 
     except HTTPException:

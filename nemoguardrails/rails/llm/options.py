@@ -82,6 +82,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
+from nemoguardrails.actions.rail_outcome import RailDecision
 from nemoguardrails.logging.explain import LLMCallInfo
 
 
@@ -96,10 +97,73 @@ class RailStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class RailEvaluation(BaseModel):
+    """The public verdict of one rail that ran, recorded in execution order."""
+
+    name: str = Field(description="Name of the rail (the flow/action implementing it).")
+    type: str = Field(description="The rail type, e.g. input, output, retrieval.")
+    stop: bool = Field(default=False, description="Whether this rail halted further processing (blocked).")
+    decision: RailDecision = Field(description="The rail's allow, block, or transform decision.")
+    reason: Optional[str] = Field(default=None, description="The rail's human-readable reason, when provided.")
+
+
 class RailsResult(BaseModel):
-    status: RailStatus = Field(description="Status of the rails check: passed, modified, or blocked.")
+    status: RailStatus = Field(description="Aggregate status of the rails check: passed, modified, or blocked.")
     content: str = Field(description="The content after rails processing.")
-    rail: Optional[str] = Field(default=None, description="Name of the rail that blocked the content.")
+    rail: Optional[str] = Field(
+        default=None,
+        deprecated="Use `blocked_by` (or `blocking_rails` for all blockers). This field will be removed in a future version.",
+        description="DEPRECATED: use `blocked_by`. Name of the first rail that blocked the content.",
+    )
+    evaluations: List[RailEvaluation] = Field(
+        default_factory=list,
+        description="Every rail that ran, in execution order, with its public verdict.",
+    )
+
+    @property
+    def blocked(self) -> bool:
+        return self.status is RailStatus.BLOCKED
+
+    @property
+    def modified(self) -> bool:
+        return self.status is RailStatus.MODIFIED
+
+    @property
+    def passed(self) -> bool:
+        return self.status is RailStatus.PASSED
+
+    @property
+    def reason(self) -> Optional[str]:
+        """The reason from the first blocking rail, else the first transforming rail."""
+        for evaluation in self.evaluations:
+            if evaluation.stop:
+                return evaluation.reason
+        for evaluation in self.evaluations:
+            if evaluation.decision is RailDecision.TRANSFORM:
+                return evaluation.reason
+        return None
+
+    @property
+    def blocking_rails(self) -> List[str]:
+        """Names of every rail that halted processing, in execution order."""
+        return [evaluation.name for evaluation in self.evaluations if evaluation.stop]
+
+    @property
+    def blocked_by(self) -> Optional[str]:
+        """Name of the first rail that blocked, or None (the non-deprecated `rail`).
+
+        Falls back to the stored ``rail`` value (read without triggering its
+        deprecation) for results built without an evaluations ledger.
+        """
+        blocking = self.blocking_rails
+        if blocking:
+            return blocking[0]
+        return self.__dict__.get("rail")
+
+    @property
+    def modified_by(self) -> List[str]:
+        """Names of every rail that rewrote the content, in execution order."""
+        return [evaluation.name for evaluation in self.evaluations if evaluation.decision is RailDecision.TRANSFORM]
 
 
 class GenerationLogOptions(BaseModel):

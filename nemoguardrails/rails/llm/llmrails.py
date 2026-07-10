@@ -49,7 +49,7 @@ from nemoguardrails.actions.llm.utils import (
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
-from nemoguardrails.actions.rail_outcome import require_rail_outcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
@@ -93,9 +93,11 @@ from nemoguardrails.rails.llm.config import (
     RailsConfig,
 )
 from nemoguardrails.rails.llm.options import (
+    ActivatedRail,
     GenerationLog,
     GenerationOptions,
     GenerationResponse,
+    RailEvaluation,
     RailsResult,
     RailStatus,
     RailType,
@@ -1678,8 +1680,8 @@ class LLMRails(BaseGuardrails):
             Check user input (auto-detected)::
 
                 result = await rails.check_async([{"role": "user", "content": "Hello!"}])
-                if result.status == RailStatus.BLOCKED:
-                    print(f"Blocked by: {result.rail}")
+                if result.blocked:
+                    print(f"Blocked by: {result.blocked_by}")
 
             Check bot output with context (auto-detected)::
 
@@ -1715,15 +1717,7 @@ class LLMRails(BaseGuardrails):
         if not isinstance(response, GenerationResponse):
             raise RuntimeError(f"Expected GenerationResponse, got {type(response).__name__}")
 
-        blocking_rail = _get_blocking_rail(response)
-        result_content = _get_last_response_content(response)
-
-        if blocking_rail:
-            return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
-
-        if result_content != original_content:
-            return RailsResult(status=RailStatus.MODIFIED, content=result_content)
-        return RailsResult(status=RailStatus.PASSED, content=result_content)
+        return _build_rails_result(response, original_content)
 
     def check(
         self,
@@ -2127,6 +2121,55 @@ def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:
     if has_user:
         return {"rails": ["input"]}
     return {"rails": ["output"]}
+
+
+def _rail_outcome_for(rail: "ActivatedRail") -> RailOutcome:
+    """The rail's RailOutcome, or a synthesized one for rails that don't emit one.
+
+    Legacy rails that block via a Colang stop but return no RailOutcome are
+    recorded as a synthesized BLOCK; everything else as ALLOW. Their reason and
+    evidence stay empty until they adopt RailOutcome.
+    """
+    for action in reversed(rail.executed_actions):
+        if isinstance(action.return_value, RailOutcome):
+            return action.return_value
+    return RailOutcome.block() if rail.stop else RailOutcome.allow()
+
+
+def _build_rail_evaluations(response: "GenerationResponse") -> List[RailEvaluation]:
+    if not (response.log and response.log.activated_rails):
+        return []
+    evaluations = []
+    for rail in response.log.activated_rails:
+        outcome = _rail_outcome_for(rail)
+        evaluations.append(
+            RailEvaluation(
+                name=rail.name,
+                type=rail.type,
+                stop=rail.stop,
+                decision=outcome.decision,
+                reason=outcome.reason,
+            )
+        )
+    return evaluations
+
+
+def _build_rails_result(response: "GenerationResponse", original_content: str) -> RailsResult:
+    """Assemble the result. ``status``/``rail`` keep their existing derivation for
+    byte-identical behavior; ``evaluations`` is the additive per-rail rich layer.
+    """
+    evaluations = _build_rail_evaluations(response)
+    result_content = _get_last_response_content(response)
+
+    blocking_rail = _get_blocking_rail(response)
+    if blocking_rail:
+        status = RailStatus.BLOCKED
+    elif result_content != original_content:
+        status = RailStatus.MODIFIED
+    else:
+        status = RailStatus.PASSED
+
+    return RailsResult(status=status, content=result_content, rail=blocking_rail, evaluations=evaluations)
 
 
 def _normalize_messages_for_rails(
