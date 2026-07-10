@@ -16,6 +16,8 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Optional
 
 import aiohttp
@@ -57,6 +59,47 @@ def _fail_open_response() -> dict:
     return {"result": {"outcome": "cleared"}, "fail_open": True}
 
 
+def _parse_retry_after(raw: Optional[str]) -> Optional[float]:
+    """Parse a Retry-After header value.
+
+    Supports both delta-seconds (numeric) and HTTP-date forms per RFC 7231.
+    Returns ``None`` if the value is missing or unparseable.
+    """
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        pass
+    try:
+        parsed = parsedate_to_datetime(str(raw))
+    except (TypeError, ValueError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (parsed - datetime.now(tz=timezone.utc)).total_seconds()
+
+
+def _compute_retry_delay(
+    retry_after_raw: Optional[str],
+    attempt: int,
+    f5_config: F5GuardrailsRailConfig,
+) -> float:
+    """Compute the sleep duration before the next 429 retry."""
+    parsed = _parse_retry_after(retry_after_raw)
+    if parsed is None:
+        delay = f5_config.retry_backoff_seconds * (2**attempt)
+    else:
+        delay = parsed
+    if delay < 0:
+        delay = 0.0
+    if delay > f5_config.max_retry_after_seconds:
+        delay = f5_config.max_retry_after_seconds
+    return delay
+
+
 @action(
     name="f5_guardrails_scan",
     is_system_action=True,
@@ -83,6 +126,12 @@ async def f5_guardrails_scan(
         1. ``F5_GUARDRAILS_API_URL`` environment variable.
         2. ``rails.config.f5.api_url`` if set.
         3. The built-in default ``https://us1.calypsoai.app``.
+
+    On HTTP 429 responses the action honors the ``Retry-After`` header
+    (delta-seconds or HTTP-date) up to
+    ``rails.config.f5.max_retry_after_seconds`` and retries up to
+    ``rails.config.f5.max_retries`` additional times before applying the
+    configured fail_open / fail_closed behavior.
     """
     f5_config = _get_f5_config(config)
     api_url = os.getenv("F5_GUARDRAILS_API_URL") or f5_config.api_url
@@ -102,40 +151,62 @@ async def f5_guardrails_scan(
     }
 
     timeout = aiohttp.ClientTimeout(total=30)
+    max_attempts = f5_config.max_retries + 1
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        try:
-            async with session.post(endpoint, headers=headers, json=payload) as response:
-                if response.status != 200:
-                    content_type = response.headers.get("Content-Type", "unknown")
-                    body_length = response.content_length if response.content_length is not None else "unknown"
-                    log.error(
-                        "F5 Guardrails API call failed: status=%s content_type=%s body_length=%s",
-                        response.status,
-                        content_type,
-                        body_length,
-                    )
+        for attempt in range(max_attempts):
+            try:
+                async with session.post(endpoint, headers=headers, json=payload) as response:
+                    if response.status == 429 and attempt < max_attempts - 1:
+                        retry_after_raw = response.headers.get("Retry-After")
+                        delay = _compute_retry_delay(retry_after_raw, attempt, f5_config)
+                        log.warning(
+                            "F5 Guardrails API rate limited: status=429 attempt=%s/%s sleep_seconds=%.3f retry_after_present=%s",
+                            attempt + 1,
+                            max_attempts,
+                            delay,
+                            retry_after_raw is not None,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
 
-                    if fail_open:
-                        log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
-                        return _fail_open_response()
+                    if response.status != 200:
+                        content_type = response.headers.get("Content-Type", "unknown")
+                        body_length = response.content_length if response.content_length is not None else "unknown"
+                        log.error(
+                            "F5 Guardrails API call failed: status=%s content_type=%s body_length=%s",
+                            response.status,
+                            content_type,
+                            body_length,
+                        )
 
-                    raise RuntimeError(f"F5 Guardrails API error: {response.status}")
+                        if fail_open:
+                            log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
+                            return _fail_open_response()
 
-                result = await response.json()
-                return result
-        except asyncio.TimeoutError:
-            log.error("F5 Guardrails API call timed out after 30 seconds")
+                        if response.status == 429:
+                            raise RuntimeError("F5 Guardrails API rate limited (429) after exhausting retries")
+                        raise RuntimeError(f"F5 Guardrails API error: {response.status}")
 
-            if fail_open:
-                log.warning("F5 Guardrails API call timed out; fail_open is enabled, allowing content.")
-                return _fail_open_response()
+                    result = await response.json()
+                    return result
+            except asyncio.TimeoutError:
+                log.error("F5 Guardrails API call timed out after 30 seconds")
 
-            raise RuntimeError("F5 Guardrails API request timed out") from None
-        except aiohttp.ClientError as e:
-            log.error("Error connecting to F5 Guardrails API: %s", type(e).__name__)
+                if fail_open:
+                    log.warning("F5 Guardrails API call timed out; fail_open is enabled, allowing content.")
+                    return _fail_open_response()
 
-            if fail_open:
-                log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
-                return _fail_open_response()
+                raise RuntimeError("F5 Guardrails API request timed out") from None
+            except aiohttp.ClientError as e:
+                log.error("Error connecting to F5 Guardrails API: %s", type(e).__name__)
 
-            raise RuntimeError(f"Connection error to F5 Guardrails API: {type(e).__name__}") from e
+                if fail_open:
+                    log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
+                    return _fail_open_response()
+
+                raise RuntimeError(f"Connection error to F5 Guardrails API: {type(e).__name__}") from e
+
+    if fail_open:
+        log.warning("F5 Guardrails API rate limited after retries; fail_open is enabled, allowing content.")
+        return _fail_open_response()
+    raise RuntimeError("F5 Guardrails API rate limited (429) after exhausting retries")

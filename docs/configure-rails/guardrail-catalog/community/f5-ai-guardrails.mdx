@@ -83,6 +83,50 @@ rails:
 ```
 
 
+## Rate limiting (HTTP 429)
+
+The action respects the `429 Too Many Requests` responses from the F5 Guardrails API. After exhausting the configured retries, the
+request falls back to the fail-open / fail-closed behavior described above.
+
+```yaml
+# config.yml
+rails:
+  config:
+    f5:
+      # Additional attempts after a 429. Total attempts = max_retries + 1.
+      # Set to 0 to disable rate-limit retries.
+      max_retries: 2
+      # Upper bound (in seconds) on how long to wait before retrying.
+      max_retry_after_seconds: 30.0
+      # Base delay used with exponential backoff when Retry-After is absent
+      # or unparseable. Delay for attempt N is retry_backoff_seconds * 2**N.
+      retry_backoff_seconds: 1.0
+```
+
+
+## Rails exceptions
+
+Setting the top-level `enable_rails_exceptions: true` flag causes the F5 rails to emit an `F5GuardrailsRailException`
+event instead of triggering the default `bot refuse to respond`. This lets callers of `generate_async` distinguish
+policy blocks from normal bot responses.
+
+```yaml
+# config.yml
+enable_rails_exceptions: true
+
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  output:
+    flows:
+      - f5 guardrails scan output
+```
+
+When a scan is not `cleared`, the response has `role: "exception"` and `content.type: "F5GuardrailsRailException"`,
+with a `message` naming the flow that blocked the request.
+
+
 ## Customization
 
 To customize the behavior, you can overwrite the default flows in your configuration. For example, to provide a custom refusal message:

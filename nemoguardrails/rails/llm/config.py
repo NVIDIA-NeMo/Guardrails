@@ -564,6 +564,34 @@ class F5GuardrailsRailConfig(BaseModel):
             "of the rail and should be reviewed as part of the guardrails config."
         ),
     )
+    max_retries: int = Field(
+        default=2,
+        ge=0,
+        description=(
+            "Number of additional attempts after receiving HTTP 429 from the F5 "
+            "Guardrails API. Total attempts equal max_retries + 1. Set to 0 to "
+            "disable rate-limit retries."
+        ),
+    )
+    max_retry_after_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        description=(
+            "Upper bound (in seconds) on how long to honor a Retry-After header "
+            "returned by the F5 Guardrails API. Larger values are clamped to "
+            "this cap to prevent unbounded waits."
+        ),
+    )
+    retry_backoff_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        description=(
+            "Base delay (in seconds) used with exponential backoff when a 429 "
+            "response has no usable Retry-After header. The delay for attempt N "
+            "(zero-indexed) is retry_backoff_seconds * 2**N, still clamped to "
+            "max_retry_after_seconds."
+        ),
+    )
 
 
 class MessageTemplate(BaseModel):

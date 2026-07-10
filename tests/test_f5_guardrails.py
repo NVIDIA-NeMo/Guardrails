@@ -15,6 +15,7 @@
 
 import asyncio
 import logging
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from aioresponses import aioresponses
@@ -376,3 +377,272 @@ async def test_f5_guardrails_config_api_url_wins_over_env(monkeypatch):
         result = await f5_guardrails_scan(text="Hello!", config=custom_config)
 
     assert result == {"result": {"outcome": "cleared"}}
+
+
+@pytest.fixture
+def config_exceptions():  # language=yaml
+    return RailsConfig.from_content(
+        yaml_content="""
+            enable_rails_exceptions: true
+
+            rails:
+              input:
+                flows:
+                  - f5 guardrails scan input
+              output:
+                flows:
+                  - f5 guardrails scan output
+        """,
+    )
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_input_rails_exception(config_exceptions, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(
+        config_exceptions,
+        llm_completions=[
+            "  express greeting",
+        ],
+    )
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "flagged"}},
+            repeat=True,
+        )
+
+        messages = [{"role": "user", "content": "bad message"}]
+        result = await chat.app.generate_async(messages=messages)
+
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "F5GuardrailsRailException"
+    assert "f5 guardrails scan input" in result["content"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_output_rails_exception(config_exceptions, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(
+        config_exceptions,
+        llm_completions=[
+            "  express greeting",
+            "This is a response.",
+        ],
+    )
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "flagged"}},
+        )
+
+        messages = [{"role": "user", "content": "Hello"}]
+        result = await chat.app.generate_async(messages=messages)
+
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "F5GuardrailsRailException"
+    assert "f5 guardrails scan output" in result["content"]["message"]
+
+
+@pytest.fixture
+def config_no_backoff():  # language=yaml
+    """Config with fast retries so the tests do not sleep for real."""
+    return RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                f5:
+                  max_retries: 2
+                  max_retry_after_seconds: 5.0
+                  retry_backoff_seconds: 0.0
+        """,
+    )
+
+
+@pytest.fixture
+def config_no_backoff_fail_open():  # language=yaml
+    return RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                f5:
+                  fail_open: true
+                  max_retries: 2
+                  max_retry_after_seconds: 5.0
+                  retry_backoff_seconds: 0.0
+        """,
+    )
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_then_success(config_no_backoff, monkeypatch):
+    """A 429 with Retry-After: 0 is retried and the second call succeeds."""
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+            headers={"Retry-After": "0"},
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ) as sleep_mock:
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+
+    assert result == {"result": {"outcome": "cleared"}}
+    sleep_mock.assert_awaited_once()
+    assert sleep_mock.await_args.args[0] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_retry_after_http_date(config_no_backoff, monkeypatch):
+    """HTTP-date Retry-After values are parsed and honored."""
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+            headers={"Retry-After": "Wed, 01 Jan 2020 00:00:00 GMT"},
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ) as sleep_mock:
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+
+    assert result == {"result": {"outcome": "cleared"}}
+    sleep_mock.assert_awaited_once()
+    assert sleep_mock.await_args.args[0] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_retry_after_capped(config_no_backoff, monkeypatch):
+    """Retry-After values larger than max_retry_after_seconds are clamped."""
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+            headers={"Retry-After": "9999"},
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ) as sleep_mock:
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+
+    assert result == {"result": {"outcome": "cleared"}}
+    sleep_mock.assert_awaited_once()
+    assert sleep_mock.await_args.args[0] == 5.0  # max_retry_after_seconds
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_exhausted_fail_open(config_no_backoff_fail_open, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+            headers={"Retry-After": "0"},
+            repeat=True,
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ):
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff_fail_open)
+
+    assert result == {"result": {"outcome": "cleared"}, "fail_open": True}
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_exhausted_fail_closed(config_no_backoff, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+            headers={"Retry-After": "0"},
+            repeat=True,
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ):
+            with pytest.raises(RuntimeError, match="rate limited"):
+                await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_429_no_retry_after_uses_backoff(monkeypatch):
+    """When Retry-After is missing, retry_backoff_seconds * 2**attempt is used."""
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    cfg = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                f5:
+                  max_retries: 2
+                  max_retry_after_seconds: 60.0
+                  retry_backoff_seconds: 0.25
+        """,
+    )
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=429,
+        )
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+
+        with patch(
+            "nemoguardrails.library.f5.actions.asyncio.sleep",
+            new=AsyncMock(return_value=None),
+        ) as sleep_mock:
+            result = await f5_guardrails_scan(text="Hello!", config=cfg)
+
+    assert result == {"result": {"outcome": "cleared"}}
+    assert sleep_mock.await_count == 2
+    # Attempt 0 -> 0.25 * 2**0, attempt 1 -> 0.25 * 2**1
+    assert sleep_mock.await_args_list[0].args[0] == 0.25
+    assert sleep_mock.await_args_list[1].args[0] == 0.5
