@@ -43,6 +43,27 @@ poetry run nemoguardrails rails validate --config examples/configs/<rail>
 A red gate is a finding by itself; report it and keep going. A green gate
 means that dimension is DONE; spend review attention only on what follows.
 
+## Step 1b: New-rail completeness (presence, not quality)
+
+Gates verify what exists; they cannot flag what is absent. For a PR that
+adds a new rail, check each of these is PRESENT before judging quality:
+
+- `rail.py` with a `RAIL` manifest. A rail without one falls back to legacy
+  loading and silently bypasses every catalog-keyed gate, so its absence
+  makes all green gates above meaningless for this rail.
+- Both-dialect unit tests: block path under Colang 1 AND under
+  `colang_version: "2.x"`. A v2 flow file with no v2 test is unexecuted
+  code; inbound PRs have shipped v2 files that parse but cannot run.
+- A flow-level test of the action raising (vendor down, fail-closed).
+- The recorded outcome triad (allow, block, provider-error) under
+  `tests/recorded/rails/library/` with config dir and `configs.py`
+  constant; recorded coverage is mandatory per
+  `nemoguardrails/library/README.md`.
+- Docs page and example config.
+
+Each missing item is a finding; request it rather than inferring it is
+covered elsewhere.
+
 ## Step 2: Judgment dimensions (what tests cannot check)
 
 Each item names the check, where to look, and what "wrong" looks like.
