@@ -141,6 +141,21 @@ def test_f5_guardrails_fail_open(config, monkeypatch):
         chat << "Hello! How can I assist you today?"
 
 
+def test_f5_guardrails_fail_closed(config, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(config)
+
+    with aioresponses() as m:
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            status=500,
+            repeat=True,
+        )
+
+        chat >> "Hello!"
+        chat << "I'm sorry, an internal error has occurred."
+
+
 @pytest.mark.asyncio
 async def test_f5_guardrails_timeout_fail_open(monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
