@@ -138,6 +138,7 @@ dev = [
 
 [tool.uv]
 package = true
+exclude-newer = "7 days"
 
 # Flat layout: the importable package is ./nemoguardrails (not under ./src).
 # uv_build ships everything under the module dir (Python plus the .co/.lark/.yml

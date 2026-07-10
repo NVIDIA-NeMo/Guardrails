@@ -142,6 +142,10 @@ When updating the canonical uv version, update
 `.github/actions/setup-uv/action.yml`, `.gitlab-ci.yml`, and the uv image version
 and digest in `Dockerfile` together.
 
+Dependency resolution uses a seven-day cooldown, so newly uploaded distributions
+are eligible only after seven days. To make an emergency package update without
+waiting, use `uv lock --upgrade-package <package> --exclude-newer-package <package>=false`.
+
 Clone the repository and install development dependencies:
 
 ```bash
