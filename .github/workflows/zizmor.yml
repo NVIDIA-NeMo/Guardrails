@@ -21,6 +21,9 @@ on:
     - cron: "17 8 * * 1"
   workflow_dispatch:
 
+env:
+  ZIZMOR_VERSION: "1.26.1"
+
 permissions: {}
 
 jobs:
@@ -34,9 +37,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
-        with:
-          advanced-security: false
-          online-audits: true
-          token: ${{ github.token }}
-          version: "1.26.1"
+      - uses: ./.github/actions/setup-uv
+
+      - name: Run zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uvx "zizmor@${ZIZMOR_VERSION}" --format=github .
