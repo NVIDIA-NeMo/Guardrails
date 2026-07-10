@@ -77,7 +77,7 @@ jobs:
           # Enable the langchain-community provider drift canary only when
           # testing upgraded dependencies (the scheduled latest-deps job).
           LANGCHAIN_PROVIDER_DRIFT_CHECK: ${{ inputs.upgrade-deps && '1' || '' }}
-        run: make test-coverage
+        run: make test-coverage ARGS="--cov-fail-under=85 --cov-report=term"
 
       - name: Run pytest without coverage
         if: inputs.with-coverage == false
