@@ -26,11 +26,14 @@ from nemoguardrails.guardrails import configure_logging
 def _clean_logger():
     """Runs before and after each test to revert changes to logging"""
     logger = logging.getLogger("nemoguardrails.guardrails")
+    original_propagate = logger.propagate
     logger.handlers.clear()
     logger.propagate = True
-    yield
-    logger.handlers.clear()
-    logger.propagate = True
+    try:
+        yield
+    finally:
+        logger.handlers.clear()
+        logger.propagate = original_propagate
 
 
 class TestConfigureLogging:
