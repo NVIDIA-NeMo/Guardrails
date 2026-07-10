@@ -13,4 +13,3 @@ define subflow f5 guardrails scan output
   if $result.result.outcome != "cleared"
     bot refuse to respond
     stop
-
