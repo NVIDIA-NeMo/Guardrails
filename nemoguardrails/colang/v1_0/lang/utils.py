@@ -58,9 +58,7 @@ def split_args(args_str: str) -> List[str]:
             current.append(char)
         elif char in ")]}\"'":
             if not stack:
-                raise ValueError(
-                    f"Invalid syntax for string: {args_str}; unexpected closing '{char}'"
-                )
+                raise ValueError(f"Invalid syntax for string: {args_str}; unexpected closing '{char}'")
             if char != closing_char[stack[-1]]:
                 raise ValueError(
                     f"Invalid syntax for string: {args_str}; expecting {closing_char[stack[-1]]} and got {char}"
