@@ -18,44 +18,26 @@ from pydantic import ValidationError
 
 from nemoguardrails.manifests import (
     ActionRef,
-    Binding,
     ConfigSpecRef,
     RailActions,
-    RailCatalog,
     RailConfigSchema,
     RailDirection,
     RailManifest,
-    RailManifestRecord,
     RailMetadata,
     RailSpec,
     RailSurface,
     import_ref_target,
+    iter_manifest_import_refs,
     iter_manifest_import_targets,
+    normalize_configured_surface_name,
+    parse_configured_surface,
     resolve_import_ref,
 )
+from nemoguardrails.manifests.manifest import configured_rail_surfaces
 
 
 def _action(name: str = "check") -> ActionRef:
     return ActionRef(name=name, target="pathlib:Path.cwd")
-
-
-def _record(name: str, *, action: ActionRef | None = None, surface_name: str | None = None) -> RailManifestRecord:
-    action = action or _action(f"{name}_check")
-    surfaces = ()
-    if surface_name is not None:
-        surfaces = (
-            RailSurface(
-                name=surface_name,
-                direction=RailDirection.INPUT,
-                action=action,
-                bindings=(Binding.context("text", "user_message"),),
-            ),
-        )
-    manifest = RailManifest(
-        name=name,
-        spec=RailSpec(actions=RailActions(refs=(action,)), surfaces=surfaces),
-    )
-    return RailManifestRecord(manifest=manifest, source=f"test:{name}")
 
 
 def test_manifest_round_trips_with_typed_refs():
@@ -105,40 +87,68 @@ def test_import_refs_resolve_nested_attributes():
     assert callable(resolve_import_ref(ref))
 
 
-def test_catalog_indexes_manifests_and_surfaces():
-    catalog = RailCatalog((_record("alpha", surface_name="check alpha"), _record("beta")))
-
-    assert set(catalog.manifests) == {"alpha", "beta"}
-    assert set(catalog.surfaces()) == {(RailDirection.INPUT, "check alpha")}
+def test_import_ref_target_rejects_non_ref():
+    with pytest.raises(TypeError):
+        import_ref_target("pathlib:Path.cwd")
 
 
-def test_catalog_rejects_duplicate_manifest_names():
-    with pytest.raises(ValueError, match="already provided"):
-        RailCatalog((_record("duplicate"), _record("duplicate")))
-
-
-def test_catalog_rejects_duplicate_action_names():
-    action = _action("shared")
-
-    with pytest.raises(ValueError, match="already provided"):
-        RailCatalog((_record("alpha", action=action), _record("beta", action=action)))
-
-
-def test_catalog_rejects_duplicate_surface_keys():
-    with pytest.raises(ValueError, match="already provided"):
-        RailCatalog((_record("alpha", surface_name="shared"), _record("beta", surface_name="shared")))
-
-
-def test_catalog_rejects_surface_with_undeclared_action():
-    declared = _action("declared")
-    undeclared = _action("undeclared")
+def test_iter_manifest_import_refs_covers_config_actions_and_surfaces():
+    action = _action("cwd")
     manifest = RailManifest(
-        name="invalid",
+        name="sample",
         spec=RailSpec(
-            actions=RailActions(refs=(declared,)),
-            surfaces=(RailSurface(name="invalid", direction="input", action=undeclared),),
+            config_schema=RailConfigSchema(key="cfg", spec=ConfigSpecRef(target="pathlib:Path.cwd")),
+            actions=RailActions(refs=(action,)),
+            surfaces=(RailSurface(name="surface", direction=RailDirection.INPUT, action=action),),
         ),
     )
 
-    with pytest.raises(ValueError, match="not declared"):
-        RailCatalog((RailManifestRecord(manifest=manifest, source="test:invalid"),))
+    assert len(iter_manifest_import_refs(manifest)) == 3
+
+
+def test_parse_configured_surface_parenthesized_form():
+    name, parameters = parse_configured_surface("content safety check($model=abc, $threshold=0.5)")
+
+    assert name == "content safety check"
+    assert parameters == {"model": "abc", "threshold": "0.5"}
+
+
+def test_parse_configured_surface_dollar_form():
+    name, parameters = parse_configured_surface("self check input $model=gpt-4o")
+
+    assert name == "self check input"
+    assert parameters == {"model": "gpt-4o"}
+    assert normalize_configured_surface_name("self check input $model=gpt-4o") == "self check input"
+
+
+def test_parse_configured_surface_bare_name():
+    assert parse_configured_surface("plain flow") == ("plain flow", {})
+
+
+def test_configured_rail_surfaces_selects_declared_surfaces():
+    action = _action()
+    surface = RailSurface(name="check", direction=RailDirection.INPUT, action=action)
+    surfaces = {(RailDirection.INPUT, "check"): surface}
+
+    selected = configured_rail_surfaces(RailDirection.INPUT, ["check($model=abc)", "unknown"], surfaces)
+
+    assert selected == {"check": surface}
+
+
+def test_flat_manifest_is_normalized_into_spec():
+    flat_manifest = {
+        "name": "flat",
+        "actions": {"refs": [{"name": "act", "target": "pathlib:Path.cwd"}]},
+        "surfaces": [
+            {
+                "name": "surface",
+                "direction": "input",
+                "action": {"name": "act", "target": "pathlib:Path.cwd"},
+            }
+        ],
+    }
+
+    manifest = RailManifest.model_validate(flat_manifest)
+
+    assert manifest.actions.refs[0].name == "act"
+    assert manifest.surfaces[0].name == "surface"
