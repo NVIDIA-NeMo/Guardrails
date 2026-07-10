@@ -2,6 +2,11 @@
 
 Recorded tests replay provider traffic through pytest-recording cassettes and must run without live network access by default.
 
+A test belongs in this suite only if it sends at least one real provider
+request; deterministic tests (local actions, injected generators, input
+validation) go in `tests/`. See `.agents/skills/recorded-tests/SKILL.md` for
+the placement rules.
+
 ## Adding a test
 
 Markers are applied once per module via `pytestmark`; do not stack `@pytest.mark.recorded` / `vcr` / `asyncio` on each test. Use a module-level list, and fold in `vcr`/`asyncio` only when every test in the module needs them:
