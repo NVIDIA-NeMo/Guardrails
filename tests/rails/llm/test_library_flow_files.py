@@ -33,6 +33,7 @@ LIBRARY_ROOT = Path("nemoguardrails/library")
 
 V1_EXECUTE_RE = re.compile(r"execute\s+([A-Za-z_][\w ]*?)\s*(?:\(|$)", re.MULTILINE)
 V2_ACTION_RE = re.compile(r"(?:await|start)\s+([A-Z]\w*Action)\b")
+V2_LOWERCASE_CALL_RE = re.compile(r"(?:await|start)\s+([a-z][a-z0-9_]*)\s*\(")
 
 
 def _package_dir(manifest) -> Path:
@@ -92,6 +93,32 @@ def test_library_flow_files_parse_and_define_declared_flows():
                     f"{rail_name}: declared flow {base_name!r} is not defined in {manifest.spec.flows.v1_files} "
                     "and its Colang 2 definition is not parameterized"
                 )
+
+    assert not violations, "\n".join(violations)
+
+
+def test_library_flows_do_not_invoke_actions_as_flows():
+    """A lowercase name after await/start is a FLOW reference in Colang 2.
+
+    Awaiting an action by its snake_case registered name parses fine but
+    resolves to a nonexistent flow at runtime; the action must be invoked as
+    CamelCase plus the Action suffix.
+    """
+    dispatcher = ActionDispatcher()
+    violations = []
+
+    for rail_name, manifest in _manifests_with_flows():
+        package_dir = _package_dir(manifest)
+        for file_name in manifest.spec.flows.files:
+            path = package_dir / file_name
+            if not path.exists():
+                continue
+            for name in sorted(set(V2_LOWERCASE_CALL_RE.findall(path.read_text(encoding="utf-8")))):
+                if dispatcher.has_registered(name):
+                    violations.append(
+                        f"{rail_name}: {path} awaits registered action {name!r} as a flow; "
+                        "invoke it as CamelCase plus the Action suffix"
+                    )
 
     assert not violations, "\n".join(violations)
 
