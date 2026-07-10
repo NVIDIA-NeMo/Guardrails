@@ -178,6 +178,39 @@ wrong-but-valid rule. If the backend is unreachable for an entire document the r
 > replace them with the surface of the agent you are protecting — the LLM
 > extractor grounds findings against those tool descriptions and argument names.
 
+### The adoption loop: propose → review → apply
+
+The quickest path from a new advisory to an updated policy uses two convenience
+scripts that wrap the scan → synthesize → apply chain:
+
+```bash
+# Step 1 — scan docs and write an unapproved review queue (nothing applied)
+python3 propose_guardrails.py --docs advisories/
+
+# Step 2 — open review_queue.json and flip the candidates you trust to true
+#   "approved": false  →  "approved": true
+
+# Step 3 — apply only the approved candidates and see the before/after
+python3 apply_guardrails.py --queue review_queue.json
+```
+
+`propose_guardrails.py` combines `scanner/scan.py` and the synthesis step in a
+single call, writing `findings.json` and `review_queue.json` to the current
+directory. It defaults to the offline keyword extractor; pass `--extractor llm`
+to run the real LLM path (needs `openai` and a valid `NVIDIA_LITELLM_KEY`).
+`apply_guardrails.py` loads only the candidates a human flipped to `true` and
+prints representative before/after verdicts so the effect is visible.
+
+`synthesize.py` is the lower-level two-step version: `scanner/scan.py` writes
+`findings.json`, `synthesize.py findings.json --out review_queue.json` runs the
+synthesis, and `synthesize.py --apply review_queue.json` applies approved rules.
+Use it when you want to inspect or post-process the findings JSON between steps.
+
+The bundled `advisories/` directory contains three pre-placed sample advisories
+(path-traversal, confused-deputy push, and a novel context-exfiltration technique)
+that match the findings used in the walkthrough notebook. They let the full loop
+run against realistic documents without a live arXiv scrape.
+
 ### Acquire a corpus from real sources
 
 `scan.py` reads documents from a folder; `acquire.py` is how that folder gets
@@ -217,7 +250,7 @@ The offline pipeline (scanner, synthesis, acquisition) has a unit suite that nee
 no network, no LLM, and no Guardrails install:
 
 ```bash
-poetry run pytest examples/configs/tool_call_guardrail/tests/
+uv run pytest examples/configs/tool_call_guardrail/tests/
 ```
 
 ## Extending it
