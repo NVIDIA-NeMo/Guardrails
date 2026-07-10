@@ -27,8 +27,10 @@ def _clean_logger():
     """Runs before and after each test to revert changes to logging"""
     logger = logging.getLogger("nemoguardrails.guardrails")
     logger.handlers.clear()
+    logger.propagate = True
     yield
     logger.handlers.clear()
+    logger.propagate = True
 
 
 class TestConfigureLogging:
