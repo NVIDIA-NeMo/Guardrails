@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.rails.llm.config import Instruction
+from nemoguardrails.rails.llm.config import Instruction, _load_path
 
 
 def test_default_instructions():
@@ -56,3 +56,24 @@ def test_instructions_override():
             content="Below is a conversation between a helpful AI assistant and a user.\n",
         )
     ]
+
+
+def test_load_path_kb_prefixed_names_are_not_dropped(tmp_path):
+    # A file or folder whose name merely starts with "kb" (but is not inside the
+    # `kb/` knowledge-base folder) must be loaded normally, not silently dropped
+    # as an empty knowledge-base doc.
+    (tmp_path / "kbsettings.yml").write_text('sample_conversation: "hello world"\n')
+    (tmp_path / "kbase").mkdir()
+    (tmp_path / "kbase" / "greeting.co").write_text("define flow greeting\n  bot express greeting\n")
+    # A genuine kb/ document must still be collected as a doc (control).
+    (tmp_path / "kb").mkdir()
+    (tmp_path / "kb" / "doc.md").write_text("# real kb doc\n")
+
+    raw_config, colang_files = _load_path(str(tmp_path))
+
+    # kb-prefixed config file is parsed, not dropped.
+    assert raw_config.get("sample_conversation") == "hello world"
+    # kb-prefixed subfolder's colang file is registered.
+    assert any(name == "greeting.co" for name, _ in colang_files)
+    # a genuine kb/ document is still collected as a doc (control).
+    assert {"format": "md", "content": "# real kb doc\n"} in raw_config.get("docs", [])

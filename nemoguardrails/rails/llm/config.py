@@ -1566,8 +1566,11 @@ def _load_path(
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, config_path)
 
-                # If it's a file in the `kb` folder we need to append it to the docs
-                if rel_path.startswith("kb"):
+                # If it's a file in the `kb` folder we need to append it to the docs.
+                # Match the folder as a path component, not a name prefix, so that
+                # files/folders merely named `kb...` (e.g. `kbsettings.yml`) are not
+                # misclassified as knowledge-base docs and dropped.
+                if rel_path == "kb" or rel_path.startswith("kb" + os.sep):
                     _raw_config = {"docs": []}
                     if rel_path.endswith(".md"):
                         with open(full_path, encoding="utf-8") as f:
