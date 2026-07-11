@@ -50,13 +50,21 @@ def split_args(args_str: str) -> List[str]:
     closing_char = {"[": "]", "(": ")", "{": "}", "'": "'", '"': '"'}
 
     for char in args_str:
+        # While inside a string literal, only the matching closing quote is
+        # special; brackets, commas and the other quote type are literal text.
+        if stack and stack[-1] in "\"'":
+            if char == stack[-1]:
+                stack.pop()
+            current.append(char)
+            continue
+
         if char in "([{":
             stack.append(char)
             current.append(char)
-        elif char in "\"'" and (len(stack) == 0 or stack[-1] != char):
+        elif char in "\"'":
             stack.append(char)
             current.append(char)
-        elif char in ")]}\"'":
+        elif char in ")]}":
             if not stack:
                 raise ValueError(f"Invalid syntax for string: {args_str}; unexpected closing '{char}'")
             if char != closing_char[stack[-1]]:

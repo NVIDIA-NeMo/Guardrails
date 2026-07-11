@@ -55,3 +55,28 @@ def test_split_args_unbalanced_closing_bracket_raises_value_error(args_str):
     # the ValueError the function uses to report invalid syntax.
     with pytest.raises(ValueError):
         split_args(args_str)
+
+
+@pytest.mark.parametrize(
+    "args_str, expected",
+    [
+        # A closing bracket inside a quoted string is literal text, not structural.
+        ('x="]"', ['x="]"']),
+        ('x=")"', ['x=")"']),
+        ('x="}"', ['x="}"']),
+        # Real-world strings: an emoticon or a citation marker.
+        ('msg="Hello :)"', ['msg="Hello :)"']),
+        ('note="cite [1] and (2)"', ['note="cite [1] and (2)"']),
+        ('reason="closed ]"', ['reason="closed ]"']),
+        # A comma inside a string does not split the arguments.
+        ('x="a, b"', ['x="a, b"']),
+        # The other quote character inside a string is literal too.
+        ('x="it\'s ok)"', ['x="it\'s ok)"']),
+        # A bracket-in-string argument alongside a normal argument still splits.
+        ('n=1, x="]"', ["n=1", 'x="]"']),
+    ],
+)
+def test_split_args_bracket_inside_string(args_str, expected):
+    # Brackets, commas, and the other quote character inside a quoted string
+    # argument are literal text and must not be treated as structural syntax.
+    assert split_args(args_str) == expected
