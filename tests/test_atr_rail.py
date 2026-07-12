@@ -67,9 +67,7 @@ async def test_atr_input_rail_blocks_with_bot_message_by_default():
     ever skipped, the test would fail loudly on the leaked placeholder text
     instead of silently passing.
     """
-    config = RailsConfig.from_content(
-        yaml_content="models: []\nrails:\n  input:\n    flows:\n      - atr detection\n"
-    )
+    config = RailsConfig.from_content(yaml_content="models: []\nrails:\n  input:\n    flows:\n      - atr detection\n")
     chat = TestChat(config, llm_completions=["should never be reached"])
     rails = chat.app
     result = await rails.generate_async(messages=[{"role": "user", "content": MALICIOUS}])
@@ -84,12 +82,7 @@ async def test_atr_input_rail_raises_exception_when_enabled():
     AtrDetectionRailException and stop -- not fall through to the LLM."""
     config = RailsConfig.from_content(
         yaml_content=(
-            "models: []\n"
-            "enable_rails_exceptions: True\n"
-            "rails:\n"
-            "  input:\n"
-            "    flows:\n"
-            "      - atr detection\n"
+            "models: []\nenable_rails_exceptions: True\nrails:\n  input:\n    flows:\n      - atr detection\n"
         )
     )
     chat = TestChat(config, llm_completions=["should never be reached"])
@@ -99,6 +92,4 @@ async def test_atr_input_rail_raises_exception_when_enabled():
     assert result.get("role") == "exception", f"Expected role 'exception', got {result.get('role')}"
     content = result["content"]
     assert content.get("type") == "AtrDetectionRailException"
-    assert content.get("message") == (
-        "Input not allowed. The input was blocked by the 'atr detection' flow."
-    )
+    assert content.get("message") == ("Input not allowed. The input was blocked by the 'atr detection' flow.")
