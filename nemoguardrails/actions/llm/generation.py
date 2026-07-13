@@ -598,7 +598,9 @@ class LLMGenerationActions:
             else:
                 gen_options: Optional[GenerationOptions] = generation_options_var.get()
 
-                llm_params = (gen_options and gen_options.llm_params) or {}
+                llm_params = (
+                    gen_options.llm_params if gen_options is not None and gen_options.llm_params is not None else {}
+                )
 
                 text = await self._generate_general_response(
                     generation_llm=generation_llm,
@@ -624,7 +626,11 @@ class LLMGenerationActions:
             )
 
             generation_options: Optional[GenerationOptions] = generation_options_var.get()
-            llm_params = (generation_options and generation_options.llm_params) or {}
+            llm_params = (
+                generation_options.llm_params
+                if generation_options is not None and generation_options.llm_params is not None
+                else {}
+            )
 
             text = await self._generate_general_response(
                 generation_llm=generation_llm,
@@ -1025,7 +1031,9 @@ class LLMGenerationActions:
                         prompt = context.get("user_message")
 
                     gen_options: Optional[GenerationOptions] = generation_options_var.get()
-                    llm_params = (gen_options and gen_options.llm_params) or {}
+                    llm_params = (
+                        gen_options.llm_params if gen_options is not None and gen_options.llm_params is not None else {}
+                    )
 
                     if not prompt:
                         raise RuntimeError("No prompt found to generate bot message")
