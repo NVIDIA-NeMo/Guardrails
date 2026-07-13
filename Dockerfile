@@ -54,5 +54,8 @@ RUN python -c "from fastembed.embedding import FlagEmbedding; FlagEmbedding('sen
 
 RUN nemoguardrails --help
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/v1/health').status == 200 else 1)"
+
 ENTRYPOINT ["nemoguardrails"]
 CMD ["server", "--verbose", "--config=/config"]
