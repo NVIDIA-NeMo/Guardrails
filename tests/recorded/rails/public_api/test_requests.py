@@ -166,7 +166,7 @@ async def test_task_specific_models_generate_async(openai_api_key, record_mode, 
         options={"log": {"llm_calls": True}},
     )
 
-    assert_generation_response(result)
+    result = assert_generation_response(result)
     assert_llm_tasks(result, {"generate_user_intent"})
     if record_mode == "none":
         assert_request_payload(recorded_cassette_path, model=OPENAI_MODEL)
