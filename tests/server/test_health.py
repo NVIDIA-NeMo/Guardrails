@@ -34,7 +34,25 @@ def test_health_returns_200_pass_status():
 
 
 def test_health_uses_health_json_media_type():
-    """GET /v1/health responds with the application/health+json media type."""
+    """GET /v1/health responds with exactly the application/health+json media type."""
     response = client.get(ENDPOINT)
 
-    assert response.headers["content-type"].startswith("application/health+json")
+    assert response.headers["content-type"] == "application/health+json"
+
+
+def test_health_rejects_post_with_405():
+    """POST /v1/health returns HTTP 405 because the endpoint is GET-only."""
+    response = client.post(ENDPOINT)
+
+    assert response.status_code == 405
+
+
+def test_health_ok_without_config_or_cached_rails(monkeypatch):
+    """GET /v1/health returns 200 with no default config and no cached rails instances."""
+    monkeypatch.setattr(api.app, "default_config_id", None)
+    monkeypatch.setattr(api, "llm_rails_instances", {})
+
+    response = client.get(ENDPOINT)
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "pass"}
