@@ -37,6 +37,7 @@ from tests.recorded.sanitization import (
     VOLATILE_RESPONSE_METADATA_FIELDS,
 )
 from tests.recorded.utils import (
+    DUMMY_F5_GUARDRAILS_API_KEY,
     DUMMY_NVIDIA_API_KEY,
     DUMMY_OPENAI_API_KEY,
     set_api_key_for_record_mode,
@@ -411,6 +412,12 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
 @pytest.fixture
 def nvidia_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
     return set_api_key_for_record_mode(monkeypatch, "NVIDIA_API_KEY", DUMMY_NVIDIA_API_KEY, record_mode)
+
+
+@pytest.fixture
+def f5_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
+    monkeypatch.delenv("F5_GUARDRAILS_API_URL", raising=False)
+    return set_api_key_for_record_mode(monkeypatch, "F5_GUARDRAILS_API_KEY", DUMMY_F5_GUARDRAILS_API_KEY, record_mode)
 
 
 @pytest.fixture

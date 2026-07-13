@@ -1,0 +1,151 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "F5 Guardrails Integration"
+---
+NeMo Guardrails supports using [F5 AI Guardrails API](https://www.f5.com/products/ai-guardrails) as an input and output rail.
+
+```yaml
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  output:
+    flows:
+      - f5 guardrails scan output
+```
+
+The F5 Guardrails API scans the text for various violations and returns an outcome. If the outcome is not cleared, the rail will trigger and the bot will refuse to respond.
+
+
+## Data handling
+
+When these rails are active, the full user message (for the input rail) and the full bot response (for the output rail) are transmitted to the F5 AI Guardrails API for scanning. Review F5's [privacy notice](https://www.f5.com/company/policies/privacy-notice) and any applicable F5 AI Guardrails data retention terms before enabling this integration in production.
+
+
+## Configuration
+
+The following environment variables can be used to configure the integration:
+
+- `F5_GUARDRAILS_API_KEY`: The API key for the F5 Guardrails API.
+- `F5_GUARDRAILS_API_URL`: The base URL for the F5 Guardrails API (defaults to https://us1.calypsoai.app).
+
+
+## Setup
+
+Colang v1:
+
+```yaml
+# config.yml
+
+rails:
+  config:
+    f5:
+      fail_open: false
+
+  input:
+    flows:
+      - f5 guardrails scan input
+
+  output:
+    flows:
+      - f5 guardrails scan output
+```
+
+Colang v2:
+
+In Colang 2 the `rails.input.flows` / `rails.output.flows` lists are not used; the runtime
+runs the flows named `input rails` and `output rails` if they are defined. Import the F5
+library flows and wire them up in a Colang file:
+
+```yaml
+# config.yml
+
+colang_version: "2.x"
+rails:
+  config:
+    f5:
+      fail_open: false
+```
+
+```text
+# rails.co
+import guardrails
+import nemoguardrails.library.f5
+
+flow input rails $input_text
+    f5 guardrails scan input $input_text
+
+flow output rails $output_text
+    f5 guardrails scan output $output_text
+```
+
+See `examples/configs/f5_guardrails_v2/` for a complete configuration.
+
+You can enable fail-open behavior so content is allowed when the connection to the F5 API fails by setting the `fail_open` flag to `true`.
+
+```yaml
+# config.yml
+rails:
+  config:
+    f5:
+      fail_open: true
+```
+
+
+## Rate limiting (HTTP 429)
+
+The action respects the `429 Too Many Requests` responses from the F5 Guardrails API. After exhausting the configured retries, the
+request falls back to the fail-open / fail-closed behavior described above.
+
+```yaml
+# config.yml
+rails:
+  config:
+    f5:
+      # Additional attempts after a 429. Total attempts = max_retries + 1.
+      # Set to 0 to disable rate-limit retries.
+      max_retries: 2
+      # Upper bound (in seconds) on how long to wait before retrying.
+      max_retry_after_seconds: 30.0
+      # Base delay used with exponential backoff when Retry-After is absent
+      # or unparseable. Delay for attempt N is retry_backoff_seconds * 2**N.
+      retry_backoff_seconds: 1.0
+```
+
+
+## Rails exceptions
+
+Setting the top-level `enable_rails_exceptions: true` flag causes the F5 rails to emit an `F5GuardrailsRailException`
+event instead of triggering the default `bot refuse to respond`. This lets callers of `generate_async` distinguish
+policy blocks from normal bot responses.
+
+```yaml
+# config.yml
+enable_rails_exceptions: true
+
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  output:
+    flows:
+      - f5 guardrails scan output
+```
+
+When a scan is not `cleared`, the response has `role: "exception"` and `content.type: "F5GuardrailsRailException"`,
+with a `message` naming the flow that blocked the request.
+
+
+## Customization
+
+To customize the behavior, you can overwrite the default flows in your configuration. For example, to provide a custom refusal message:
+
+```text
+define subflow f5 guardrails scan input
+  $result = execute f5_guardrails_scan(text=$user_message)
+
+  if $result.result.outcome != "cleared"
+    bot say "I cannot process this request due to safety policies."
+    stop
+```

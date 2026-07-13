@@ -1,0 +1,21 @@
+define subflow f5 guardrails scan input
+  """Check the user input for any violations."""
+  $result = execute f5_guardrails_scan(text=$user_message)
+
+  if $result.result.outcome != "cleared"
+    if $config.enable_rails_exceptions
+      create event F5GuardrailsRailException(message="Prompt not allowed. The prompt was blocked by the 'f5 guardrails scan input' flow.")
+    else
+      bot refuse to respond
+    stop
+
+define subflow f5 guardrails scan output
+  """Check the bot output for any violations."""
+  $result = execute f5_guardrails_scan(text=$bot_message)
+
+  if $result.result.outcome != "cleared"
+    if $config.enable_rails_exceptions
+      create event F5GuardrailsRailException(message="Response not allowed. The response was blocked by the 'f5 guardrails scan output' flow.")
+    else
+      bot refuse to respond
+    stop

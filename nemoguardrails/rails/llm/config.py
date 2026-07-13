@@ -545,6 +545,55 @@ class FiddlerGuardrails(BaseModel):
     )
 
 
+class F5GuardrailsRailConfig(BaseModel):
+    """Configuration for the F5 Guardrails integration.
+
+    Note: The API key is intentionally not part of this config. It is a secret
+    and must be provided via the F5_GUARDRAILS_API_KEY environment variable.
+    """
+
+    api_url: str = Field(
+        default="https://us1.calypsoai.app",
+        description="Base URL for the F5 Guardrails API.",
+    )
+    fail_open: bool = Field(
+        default=False,
+        description=(
+            "If True, allow content through when the F5 Guardrails API is "
+            "unreachable or returns an error. This changes the security posture "
+            "of the rail and should be reviewed as part of the guardrails config."
+        ),
+    )
+    max_retries: int = Field(
+        default=2,
+        ge=0,
+        description=(
+            "Number of additional attempts after receiving HTTP 429 from the F5 "
+            "Guardrails API. Total attempts equal max_retries + 1. Set to 0 to "
+            "disable rate-limit retries."
+        ),
+    )
+    max_retry_after_seconds: float = Field(
+        default=30.0,
+        ge=0.0,
+        description=(
+            "Upper bound (in seconds) on how long to honor a Retry-After header "
+            "returned by the F5 Guardrails API. Larger values are clamped to "
+            "this cap to prevent unbounded waits."
+        ),
+    )
+    retry_backoff_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        description=(
+            "Base delay (in seconds) used with exponential backoff when a 429 "
+            "response has no usable Retry-After header. The delay for attempt N "
+            "(zero-indexed) is retry_backoff_seconds * 2**N, still clamped to "
+            "max_retry_after_seconds."
+        ),
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -1350,6 +1399,11 @@ class RailsConfigData(BaseModel):
     fiddler: Optional[FiddlerGuardrails] = Field(
         default_factory=FiddlerGuardrails,
         description="Configuration for Fiddler Guardrails.",
+    )
+
+    f5: Optional[F5GuardrailsRailConfig] = Field(
+        default_factory=F5GuardrailsRailConfig,
+        description="Configuration for F5 Guardrails (CalypsoAI).",
     )
 
     clavata: Optional[ClavataRailConfig] = Field(
