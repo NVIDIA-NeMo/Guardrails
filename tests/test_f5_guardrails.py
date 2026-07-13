@@ -295,6 +295,26 @@ def test_f5_guardrails_colang_2_input_cleared(config_v2, monkeypatch):
         chat << "Hello! How can I assist you today?"
 
 
+def test_f5_guardrails_colang_2_output_blocked(config_v2, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    chat = TestChat(config_v2)
+
+    with aioresponses() as m:
+        # Input scan cleared
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "cleared"}},
+        )
+        # Output scan blocked
+        m.post(
+            "https://us1.calypsoai.app/backend/v1/scans",
+            payload={"result": {"outcome": "flagged"}},
+        )
+
+        chat >> "Hello!"
+        chat << "I'm sorry, I can't respond to that."
+
+
 @pytest.mark.asyncio
 async def test_f5_guardrails_timeout_fail_closed(config, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
@@ -353,7 +373,7 @@ async def test_f5_guardrails_api_url_env_fallback(config, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_f5_guardrails_config_api_url_wins_over_env(monkeypatch):
+async def test_f5_guardrails_env_api_url_wins_over_config(monkeypatch):
     """F5_GUARDRAILS_API_URL overrides rails.config.f5.api_url."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     monkeypatch.setenv("F5_GUARDRAILS_API_URL", "https://beta.example.com")
