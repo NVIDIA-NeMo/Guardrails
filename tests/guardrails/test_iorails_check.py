@@ -21,13 +21,19 @@ is_output_safe to control verdicts.
 """
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import (
+    REFUSAL_MESSAGE,
+    IORails,
+    _determine_rails_from_messages,
+    _get_last_content_by_role,
+)
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -427,3 +433,41 @@ class TestCheckAsyncAutoStart:
         await iorails.check_async([{"role": "user", "content": "hi"}])
 
         iorails.engine_registry.start.assert_called_once()
+
+
+class TestCheckAsyncErrors:
+    """check_async surfaces rail/engine exceptions instead of swallowing them."""
+
+    @pytest.mark.asyncio
+    async def test_check_async_propagates_exception(self, iorails):
+        iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("rail boom"))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=SAFE)
+
+        with pytest.raises(RuntimeError, match="rail boom"):
+            await iorails.check_async([{"role": "user", "content": "hi"}])
+
+
+class TestCheckHelpers:
+    """Direct unit tests for the duplicated message helpers."""
+
+    def test_determine_rails_user_only(self):
+        assert _determine_rails_from_messages([{"role": "user", "content": "hi"}]) == {"rails": ["input"]}
+
+    def test_determine_rails_assistant_only(self):
+        assert _determine_rails_from_messages([{"role": "assistant", "content": "hi"}]) == {"rails": ["output"]}
+
+    def test_determine_rails_both(self):
+        msgs = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "yo"}]
+        assert _determine_rails_from_messages(msgs) == {"rails": ["input", "output"]}
+
+    def test_determine_rails_none_when_no_user_or_assistant(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.guardrails.iorails"):
+            assert _determine_rails_from_messages([{"role": "system", "content": "x"}]) is None
+        assert "no user or assistant messages" in caplog.text
+
+    def test_get_last_content_by_role_returns_last_match(self):
+        msgs = [{"role": "user", "content": "first"}, {"role": "user", "content": "second"}]
+        assert _get_last_content_by_role(msgs, "user") == "second"
+
+    def test_get_last_content_by_role_missing_returns_empty(self):
+        assert _get_last_content_by_role([{"role": "system", "content": "x"}], "user") == ""

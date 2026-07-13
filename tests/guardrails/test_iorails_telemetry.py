@@ -33,6 +33,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus
 from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import (
     GenAIAttributes,
@@ -1254,6 +1255,51 @@ class TestGenerateAsyncRequestMetrics:
         assert "guardrails.nonstream.rejections" not in points
 
 
+class TestCheckAsyncRequestMetrics:
+    """check_async shares the non-streaming request-metrics path: the blocked
+    counter fires on input/output block and a QueueFull bumps nonstream.rejections."""
+
+    @pytest.mark.asyncio
+    async def test_check_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe", triggered_rail="content safety check input")
+        )
+
+        result = await iorails_tracing.check_async([{"role": "user", "content": "bad"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check input"
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+
+    @pytest.mark.asyncio
+    async def test_check_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
+        iorails_tracing.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(
+                is_safe=False, reason="unsafe response", triggered_rail="content safety check output"
+            )
+        )
+
+        result = await iorails_tracing.check_async([{"role": "assistant", "content": "bad answer"}])
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail == "content safety check output"
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_check_nonstream_rejections_counter_on_queue_full(self, iorails_tracing, metric_reader):
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull, match="admission queue full"):
+            await iorails_tracing.check_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
+
+
 class TestStreamAsyncRequestMetrics:
     """Streaming path also emits request-level metrics via the shared
     ``traced_request`` helper — no separate plumbing."""
@@ -2007,6 +2053,20 @@ def _main_llm_span(spans):
     ]
     assert len(candidates) == 1
     return candidates[0]
+
+
+class TestCheckContentCapture:
+    """check_async records request input/output on the request span when capture is on."""
+
+    @pytest.mark.asyncio
+    async def test_check_captures_request_content(self, iorails_content_capture, exporter):
+        iorails_content_capture.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails_content_capture.check_async([{"role": "user", "content": "hello"}])
+
+        span = _request_span(exporter.get_finished_spans())
+        assert json.loads(span.attributes[GuardrailsAttributes.REQUEST_INPUT]) == [{"role": "user", "content": "hello"}]
+        assert span.attributes[GuardrailsAttributes.REQUEST_OUTPUT] == "hello"
 
 
 class TestContentCaptureDisabled:
