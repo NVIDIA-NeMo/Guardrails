@@ -33,7 +33,7 @@ decomposed refactor.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 
 import pytest
 
@@ -48,7 +48,7 @@ from tests.utils import FakeLLMModel
 pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]
 
 
-def _tracking_generator(values: list[str], teardown: dict) -> AsyncIterator[str]:
+def _tracking_generator(values: list[str], teardown: dict) -> AsyncGenerator[str, None]:
     """Yield ``values``, then block forever; record teardown via ``finally``.
 
     ``teardown["closed"]`` flips to True only when the generator is closed
@@ -56,7 +56,7 @@ def _tracking_generator(values: list[str], teardown: dict) -> AsyncIterator[str]
     observable proof that the consumer's abort propagated to the source.
     """
 
-    async def gen() -> AsyncIterator[str]:
+    async def gen() -> AsyncGenerator[str, None]:
         try:
             for value in values:
                 yield value

@@ -97,4 +97,5 @@ def test_chat_completion_invalid_config_id_returns_error(server_client):
 
     assert response.status_code == 200
     content = response.json()["choices"][0]["message"]["content"].lower()
-    assert "could not load" in content or "error" in content
+    assert "could not load" in content
+    assert "does_not_exist" in content
