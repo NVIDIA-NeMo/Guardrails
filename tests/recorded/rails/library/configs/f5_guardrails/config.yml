@@ -1,0 +1,9 @@
+models: []
+
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  output:
+    flows:
+      - f5 guardrails scan output
