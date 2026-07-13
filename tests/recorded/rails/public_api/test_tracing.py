@@ -54,6 +54,8 @@ async def test_tracing_output_neutral_with_fake_main():
     baseline = await baseline_rails.generate_async(messages=[{"role": "user", "content": "hello"}], options=_OPTIONS)
     traced = await traced_rails.generate_async(messages=[{"role": "user", "content": "hello"}], options=_OPTIONS)
 
+    assert isinstance(baseline, GenerationResponse)
+    assert isinstance(traced, GenerationResponse)
     baseline_norm = normalize_generation_response(baseline)
     traced_norm = normalize_generation_response(traced)
 

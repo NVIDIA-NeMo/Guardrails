@@ -26,7 +26,7 @@ from __future__ import annotations
 import pytest
 
 from nemoguardrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
+from nemoguardrails.rails.llm.options import GenerationLogOptions, GenerationOptions, GenerationResponse
 from tests.recorded.normalization import normalize_generation_response
 from tests.recorded.rails.public_api.configs import (
     INPUT_OUTPUT_RAILS_CONFIG,
@@ -177,7 +177,10 @@ async def test_generation_options_object_matches_dict_equivalent():
     message = [{"role": "user", "content": "hi"}]
     dict_result = await _generate(OUTPUT_RAILS_CONFIG, message, {"log": {"activated_rails": True}}, main_output="safe")
     obj_result = await _generate(
-        OUTPUT_RAILS_CONFIG, message, GenerationOptions(log={"activated_rails": True}), main_output="safe"
+        OUTPUT_RAILS_CONFIG,
+        message,
+        GenerationOptions(log=GenerationLogOptions(activated_rails=True)),
+        main_output="safe",
     )
 
     dict_norm = normalize_generation_response(dict_result)

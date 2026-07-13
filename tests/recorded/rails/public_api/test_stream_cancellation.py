@@ -33,7 +33,7 @@ decomposed refactor.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 
 import pytest
 
@@ -78,6 +78,7 @@ async def test_consumer_break_closes_external_generator():
         messages=[{"role": "user", "content": "hi"}],
         generator=_tracking_generator(["alpha", "beta", "gamma"], teardown),
     )
+    assert isinstance(stream, AsyncGenerator)
     received = []
     async for chunk in stream:
         received.append(chunk)
@@ -113,6 +114,7 @@ async def test_consumer_break_through_output_rail_does_not_close_source_generato
         messages=[{"role": "user", "content": "stream"}],
         generator=_tracking_generator(["safe ", "more ", "tail "], teardown),
     )
+    assert isinstance(stream, AsyncGenerator)
     received = []
     async for chunk in stream:
         received.append(chunk)

@@ -88,11 +88,14 @@ async def test_concurrent_generations_keep_per_request_llm_calls():
             messages=[{"role": "user", "content": "allowed input"}],
             options={"log": {"llm_calls": True}},
         )
+        assert isinstance(result, GenerationResponse)
         return i, out, result
 
     results = await asyncio.gather(*(run(i) for i in range(16)))
 
     for i, expected, result in results:
+        assert result.log is not None
         completions = [call.completion for call in (result.log.llm_calls or [])]
         assert completions == [expected], f"task {i} saw {completions!r}, expected [{expected!r}]"
+        assert isinstance(result.response, list)
         assert result.response[0]["content"] == expected
