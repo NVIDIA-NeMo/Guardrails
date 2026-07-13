@@ -56,3 +56,12 @@ def test_health_ok_without_config_or_cached_rails(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"status": "pass"}
+
+
+def test_healthz_alias_matches_health_contract():
+    """GET /healthz returns the same 200 application/health+json {"status": "pass"} response as /v1/health."""
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/health+json"
+    assert response.json() == {"status": "pass"}

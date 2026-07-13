@@ -257,6 +257,10 @@ async def get_rails_configs():
     "/v1/health",
     summary="Liveness health check.",
 )
+@app.get(
+    "/healthz",
+    summary="Liveness health check.",
+)
 async def health():
     """Return HTTP 200 while the server process is running and able to serve requests."""
     return JSONResponse(content={"status": "pass"}, media_type="application/health+json")
