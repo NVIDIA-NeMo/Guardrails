@@ -49,6 +49,7 @@ SECRET_PATTERNS = (
     (re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{12,}", re.IGNORECASE), "Bearer [REDACTED]"),
     (re.compile(r"\borg-[A-Za-z0-9_-]{6,}\b"), "[OPENAI_ORG]"),
     (re.compile(r"\bproj_[A-Za-z0-9_-]{6,}\b"), "[OPENAI_PROJECT]"),
+    (re.compile(r"auth0\|[A-Za-z0-9]{16,}"), "[AUTH0_USER_ID]"),
 )
 
 JSON_SECRET_KEYS = {

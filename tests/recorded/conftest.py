@@ -416,6 +416,7 @@ def nvidia_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
 
 @pytest.fixture
 def f5_api_key(monkeypatch: pytest.MonkeyPatch, record_mode: str) -> str:
+    monkeypatch.delenv("F5_GUARDRAILS_API_URL", raising=False)
     return set_api_key_for_record_mode(monkeypatch, "F5_GUARDRAILS_API_KEY", DUMMY_F5_GUARDRAILS_API_KEY, record_mode)
 
 

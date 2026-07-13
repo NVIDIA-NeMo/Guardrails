@@ -46,7 +46,9 @@ async def test_f5_guardrails_input_allows_benign_user_message(f5_api_key):
     )
 
     assert_rails_result(result, status=RailStatus.PASSED)
-    assert normalize_rails_result(result) == snapshot()
+    assert normalize_rails_result(result) == snapshot(
+        {"status": "passed", "rail": None, "content": "Can you explain your return policy?"}
+    )
 
 
 async def test_f5_guardrails_input_blocks_violating_user_message(f5_api_key):
@@ -57,7 +59,9 @@ async def test_f5_guardrails_input_blocks_violating_user_message(f5_api_key):
     )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="f5 guardrails scan input")
-    assert normalize_rails_result(result) == snapshot()
+    assert normalize_rails_result(result) == snapshot(
+        {"status": "blocked", "rail": "f5 guardrails scan input", "content": "I'm sorry, I can't respond to that."}
+    )
 
 
 async def test_f5_guardrails_output_blocks_violating_assistant_message(f5_api_key):
@@ -71,10 +75,12 @@ async def test_f5_guardrails_output_blocks_violating_assistant_message(f5_api_ke
     )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="f5 guardrails scan output")
-    assert normalize_rails_result(result) == snapshot()
+    assert normalize_rails_result(result) == snapshot(
+        {"status": "blocked", "rail": "f5 guardrails scan output", "content": "I'm sorry, I can't respond to that."}
+    )
 
 
-async def test_f5_guardrails_input_fails_closed_on_401(monkeypatch):
+async def test_f5_guardrails_input_fails_closed_on_401(f5_api_key, monkeypatch):
     """A 401 from the F5 API is swallowed by the action dispatcher as a non-LLM
     exception; the flow then hits ``outcome != "cleared"`` and refuses. This
     pins that fail-closed contract with a real recorded 401.
@@ -88,4 +94,10 @@ async def test_f5_guardrails_input_fails_closed_on_401(monkeypatch):
     )
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="f5 guardrails scan input")
-    assert normalize_rails_result(result) == snapshot()
+    assert normalize_rails_result(result) == snapshot(
+        {
+            "status": "blocked",
+            "rail": "f5 guardrails scan input",
+            "content": "I'm sorry, an internal error has occurred.",
+        }
+    )
