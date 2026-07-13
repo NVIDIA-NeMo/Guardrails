@@ -6,5 +6,5 @@ To test this configuration you can use the CLI Chat by running the following com
 `examples/configs/f5_guardrails_v2` directory:
 
 ```bash
-poetry run nemoguardrails chat --config=.
+uv run nemoguardrails chat --config=.
 ```
