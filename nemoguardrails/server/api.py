@@ -256,10 +256,12 @@ async def get_rails_configs():
 @app.get(
     "/v1/health",
     summary="Liveness health check.",
+    tags=["Health"],
 )
 @app.get(
     "/healthz",
     summary="Liveness health check.",
+    tags=["Health"],
 )
 async def health():
     """Return HTTP 200 while the server process is running and able to serve requests."""

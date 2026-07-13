@@ -111,6 +111,21 @@ docker run -it \
   nemoguardrails chat --config=/config --verbose
 ```
 
+## Container Health Check
+
+The image defines a Docker `HEALTHCHECK` that probes the server's liveness endpoint, so `docker ps` and orchestrators can report container health.
+By default it requests `http://localhost:8000/v1/health`, which matches the default `CMD` (the `server` command on port `8000` with no path prefix).
+
+If you run the container on a different port or behind a path prefix, override the probe URL with the `NEMO_GUARDRAILS_HEALTHCHECK_URL` environment variable so the healthcheck targets the address the server actually serves:
+
+```bash
+docker run \
+  -p 9000:9000 \
+  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  -e NEMO_GUARDRAILS_HEALTHCHECK_URL=http://localhost:9000/v1/health \
+  nemoguardrails server --config=/config --port 9000
+```
+
 ## AlignScore Fact-Checking
 
 If one of your configurations uses the AlignScore fact-checking model, run the AlignScore server in a separate container:
