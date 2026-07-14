@@ -628,6 +628,27 @@ class TestSingleCall:
         with pytest.raises(KeyError):
             _streaming_handoff.take(handler.uid)
 
+    @pytest.mark.asyncio
+    async def test_cache_returns_none_when_last_user_event_not_user_intent(self):
+        """The cache falls back when the last user-intent event is a ``UserMessage``
+        rather than a ``UserIntent`` (current silent fall-through)."""
+        config = RailsConfig.from_content(
+            'define user express greeting\n    "hello"\n',
+            yaml_content="rails:\n  dialog:\n    single_call:\n      enabled: True\n",
+        )
+        actions = LLMGenerationActions(
+            config=config,
+            llm=FakeLLMModel(responses=[]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+        result = await actions._bot_message_from_single_call_cache(
+            {"type": "UserMessage", "text": "hi"},
+            events=[new_event_dict("BotIntent", intent="respond")],
+            streaming_handler=None,
+        )
+        assert result is None
+
 
 class TestStreaming:
     """Streaming surfaces and the handoff registry."""
@@ -837,6 +858,25 @@ class TestGeneralAndPassthrough:
             "BotMessage:the answer",
         ]
         assert llm_tasks(response) == ["general"]
+
+    def test_dialog_with_passthrough_uses_bot_message_branch(self):
+        """user_messages + passthrough: generate_bot_message takes the passthrough
+        branch, which reports the ``generate_bot_message`` task but parses GENERAL."""
+        config = RailsConfig.from_content(
+            """
+            define user express greeting
+                "hello"
+            define flow
+                user express greeting
+                bot respond kindly
+            """,
+            yaml_content="passthrough: true\n",
+        )
+        response, llm = generate(config, ["  express greeting", "passthrough bot answer"], "hello")
+
+        assert response.response == "passthrough bot answer"
+        assert llm_tasks(response) == ["generate_user_intent", "generate_bot_message"]
+        assert event_sequence(response)[-1] == "BotMessage:passthrough bot answer"
 
 
 class TestGenerateValue:
