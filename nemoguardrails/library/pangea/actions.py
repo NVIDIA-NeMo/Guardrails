@@ -61,7 +61,7 @@ def get_pangea_config(config: RailsConfig) -> PangeaRailConfig:
     return cast(PangeaRailConfig, config.rails.config.pangea)
 
 
-def _pangea_outcome(result: TextGuardResult) -> RailOutcome:
+def _pangea_outcome(result: TextGuardResult, mode: Literal["input", "output"]) -> RailOutcome:
     metadata = {
         "blocked": bool(result.blocked),
         "transformed": bool(result.transformed),
@@ -72,11 +72,10 @@ def _pangea_outcome(result: TextGuardResult) -> RailOutcome:
     if result.blocked:
         return RailOutcome.block(metadata=metadata)
     if result.transformed:
+        target = TransformTarget.USER_MESSAGE if mode == "input" else TransformTarget.BOT_MESSAGE
+        text = result.user_message if mode == "input" else result.bot_message
         return RailOutcome.transform(
-            [
-                (TransformTarget.USER_MESSAGE, result.user_message or ""),
-                (TransformTarget.BOT_MESSAGE, result.bot_message or ""),
-            ],
+            [(target, text or "")],
             metadata=metadata,
         )
     return RailOutcome.allow(metadata=metadata)
@@ -145,7 +144,8 @@ async def pangea_ai_guard(
                     transformed=False,
                     bot_message=bot_message,
                     user_message=user_message,
-                )
+                ),
+                mode,
             )
 
         result = text_guard_response.result
@@ -154,4 +154,4 @@ async def pangea_ai_guard(
         result.bot_message = next((m.content for m in prompt_messages if m.role == "assistant"), bot_message)
         result.user_message = next((m.content for m in prompt_messages if m.role == "user"), user_message)
 
-        return _pangea_outcome(result)
+        return _pangea_outcome(result, mode)

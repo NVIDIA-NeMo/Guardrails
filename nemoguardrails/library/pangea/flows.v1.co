@@ -11,7 +11,6 @@ define subflow pangea ai guard input
     stop
 
   if $response.is_transform
-    $bot_message = $response.transform_text["bot_message"]
     $user_message = $response.transform_text["user_message"]
 
 # OUTPUT RAILS
@@ -28,4 +27,3 @@ define subflow pangea ai guard output
 
   if $response.is_transform
     $bot_message = $response.transform_text["bot_message"]
-    $user_message = $response.transform_text["user_message"]

@@ -45,7 +45,7 @@ output_rail_config = RailsConfig.from_content(
 def test_pangea_outcome_allows():
     result = TextGuardResult(blocked=False, transformed=False, user_message="Hi", bot_message="Hello")
 
-    assert _pangea_outcome(result) == RailOutcome.allow(
+    assert _pangea_outcome(result, "input") == RailOutcome.allow(
         metadata={
             "blocked": False,
             "transformed": False,
@@ -60,7 +60,7 @@ def test_pangea_outcome_allows():
 def test_pangea_outcome_blocks():
     result = TextGuardResult(blocked=True, transformed=False, user_message="Hi", bot_message="Hello")
 
-    assert _pangea_outcome(result) == RailOutcome.block(
+    assert _pangea_outcome(result, "input") == RailOutcome.block(
         metadata={
             "blocked": True,
             "transformed": False,
@@ -72,7 +72,14 @@ def test_pangea_outcome_blocks():
 
 
 @pytest.mark.unit
-def test_pangea_outcome_transforms_both_messages():
+@pytest.mark.parametrize(
+    ("mode", "target", "text"),
+    [
+        ("input", TransformTarget.USER_MESSAGE, "masked user"),
+        ("output", TransformTarget.BOT_MESSAGE, "masked bot"),
+    ],
+)
+def test_pangea_outcome_transforms_active_message(mode, target, text):
     result = TextGuardResult(
         blocked=False,
         transformed=True,
@@ -80,13 +87,10 @@ def test_pangea_outcome_transforms_both_messages():
         bot_message="masked bot",
     )
 
-    outcome = _pangea_outcome(result)
+    outcome = _pangea_outcome(result, mode)
 
     assert outcome == RailOutcome.transform(
-        [
-            (TransformTarget.USER_MESSAGE, "masked user"),
-            (TransformTarget.BOT_MESSAGE, "masked bot"),
-        ],
+        [(target, text)],
         metadata={
             "blocked": False,
             "transformed": True,
@@ -95,10 +99,7 @@ def test_pangea_outcome_transforms_both_messages():
             "bot_message": "masked bot",
         },
     )
-    assert outcome.transform_text == {
-        "user_message": "masked user",
-        "bot_message": "masked bot",
-    }
+    assert outcome.transform_text == {target.value: text}
 
 
 @pytest.mark.unit
@@ -110,7 +111,7 @@ def test_pangea_outcome_block_wins_over_transform():
         bot_message="masked bot",
     )
 
-    outcome = _pangea_outcome(result)
+    outcome = _pangea_outcome(result, "input")
 
     assert outcome == RailOutcome.block(
         metadata={

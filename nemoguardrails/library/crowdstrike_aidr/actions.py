@@ -65,7 +65,10 @@ def get_crowdstrike_aidr_config(config: RailsConfig) -> CrowdStrikeAIDRRailConfi
     return cast(CrowdStrikeAIDRRailConfig, config.rails.config.crowdstrike_aidr)
 
 
-def _crowdstrike_aidr_outcome(result: GuardChatCompletionsResult) -> RailOutcome:
+def _crowdstrike_aidr_outcome(
+    result: GuardChatCompletionsResult,
+    mode: Literal["input", "output"],
+) -> RailOutcome:
     metadata = {
         "blocked": bool(result.blocked),
         "transformed": bool(result.transformed),
@@ -76,11 +79,10 @@ def _crowdstrike_aidr_outcome(result: GuardChatCompletionsResult) -> RailOutcome
     if result.blocked:
         return RailOutcome.block(metadata=metadata)
     if result.transformed:
+        target = TransformTarget.USER_MESSAGE if mode == "input" else TransformTarget.BOT_MESSAGE
+        text = result.user_message if mode == "input" else result.bot_message
         return RailOutcome.transform(
-            [
-                (TransformTarget.USER_MESSAGE, result.user_message or ""),
-                (TransformTarget.BOT_MESSAGE, result.bot_message or ""),
-            ],
+            [(target, text or "")],
             metadata=metadata,
         )
     return RailOutcome.allow(metadata=metadata)
@@ -140,7 +142,8 @@ async def crowdstrike_aidr_guard(
                     transformed=False,
                     bot_message=bot_message,
                     user_message=user_message,
-                )
+                ),
+                mode,
             )
         except Exception as e:
             log.error("Error calling CrowdStrike AIDR API: %s", e)
@@ -151,7 +154,8 @@ async def crowdstrike_aidr_guard(
                     transformed=False,
                     bot_message=bot_message,
                     user_message=user_message,
-                )
+                ),
+                mode,
             )
 
         result = guard_response.result
@@ -160,4 +164,4 @@ async def crowdstrike_aidr_guard(
         result.bot_message = next((m.content for m in output_messages if m.role == "assistant"), bot_message)
         result.user_message = next((m.content for m in output_messages if m.role == "user"), user_message)
 
-        return _crowdstrike_aidr_outcome(result)
+        return _crowdstrike_aidr_outcome(result, mode)

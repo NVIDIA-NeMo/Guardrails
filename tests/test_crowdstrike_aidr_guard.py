@@ -46,9 +46,10 @@ output_rail_config = RailsConfig.from_content(
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    ("result", "expected"),
+    ("mode", "result", "expected"),
     [
         (
+            "input",
             GuardChatCompletionsResult(
                 blocked=False,
                 transformed=False,
@@ -67,6 +68,7 @@ output_rail_config = RailsConfig.from_content(
             ),
         ),
         (
+            "input",
             GuardChatCompletionsResult(
                 blocked=True,
                 transformed=False,
@@ -85,6 +87,7 @@ output_rail_config = RailsConfig.from_content(
             ),
         ),
         (
+            "input",
             GuardChatCompletionsResult(
                 blocked=False,
                 transformed=True,
@@ -93,10 +96,27 @@ output_rail_config = RailsConfig.from_content(
                 bot_message="masked bot",
             ),
             RailOutcome.transform(
-                [
-                    (TransformTarget.USER_MESSAGE, "masked user"),
-                    (TransformTarget.BOT_MESSAGE, "masked bot"),
-                ],
+                [(TransformTarget.USER_MESSAGE, "masked user")],
+                metadata={
+                    "blocked": False,
+                    "transformed": True,
+                    "guard_output": {"messages": []},
+                    "user_message": "masked user",
+                    "bot_message": "masked bot",
+                },
+            ),
+        ),
+        (
+            "output",
+            GuardChatCompletionsResult(
+                blocked=False,
+                transformed=True,
+                guard_output={"messages": []},
+                user_message="masked user",
+                bot_message="masked bot",
+            ),
+            RailOutcome.transform(
+                [(TransformTarget.BOT_MESSAGE, "masked bot")],
                 metadata={
                     "blocked": False,
                     "transformed": True,
@@ -108,8 +128,8 @@ output_rail_config = RailsConfig.from_content(
         ),
     ],
 )
-def test_crowdstrike_aidr_outcome(result, expected):
-    assert _crowdstrike_aidr_outcome(result) == expected
+def test_crowdstrike_aidr_outcome(mode, result, expected):
+    assert _crowdstrike_aidr_outcome(result, mode) == expected
 
 
 @pytest.mark.unit

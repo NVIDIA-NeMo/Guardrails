@@ -11,9 +11,7 @@ flow crowdstrike aidr guard input
     abort
 
   if $response.is_transform
-    global $bot_message
     global $user_message
-    $bot_message = $response.transform_text["bot_message"]
     $user_message = $response.transform_text["user_message"]
 
 # OUTPUT RAILS
@@ -30,6 +28,4 @@ flow crowdstrike aidr guard output
 
   if $response.is_transform
     global $bot_message
-    global $user_message
     $bot_message = $response.transform_text["bot_message"]
-    $user_message = $response.transform_text["user_message"]
