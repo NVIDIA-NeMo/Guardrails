@@ -25,6 +25,7 @@ loudly at load time.
 
 import importlib
 import re
+import shlex
 from enum import Enum
 from typing import Any, Dict, Iterable, Literal, Mapping, Optional, Tuple, Union
 
@@ -383,34 +384,73 @@ def iter_manifest_import_targets(manifest: RailManifest) -> Tuple[str, ...]:
 
 
 _PAREN_SURFACE = re.compile(r"^\s*([^($]+?)\s*\((.*)\)\s*$")
-_DOLLAR_PARAM = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^$]+?)(?=\s+\$|$)")
+_SURFACE_PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _parse_surface_parameter_items(items: Iterable[str]) -> Dict[str, str]:
+    parameters = {}
+    for item in items:
+        key, separator, value = item.partition("=")
+        if not separator:
+            raise ValueError(f"Invalid surface parameter {item!r}; expected name=value.")
+        key = key.strip().removeprefix("$")
+        value = value.strip()
+        if not _SURFACE_PARAM_NAME.fullmatch(key):
+            raise ValueError(f"Invalid surface parameter name {key!r}.")
+        if not value:
+            raise ValueError(f"Surface parameter {key!r} must have a value.")
+        if key in parameters:
+            raise ValueError(f"Duplicate surface parameter {key!r}.")
+        parameters[key] = value
+    return parameters
 
 
 def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
     flow_text = flow_text.strip()
+    if not flow_text:
+        raise ValueError("Configured surface must not be empty.")
     parenthesized = _PAREN_SURFACE.match(flow_text)
     if parenthesized is not None:
         name = parenthesized.group(1).strip()
-        parameters = {}
         arguments = parenthesized.group(2).strip()
-        if arguments:
-            for item in arguments.split(","):
-                key, separator, value = item.partition("=")
-                if not separator:
-                    continue
-                parameters[key.strip().lstrip("$")] = value.strip()
-        return name, parameters
-    name = flow_text.split("$", 1)[0].strip()
-    return name, {match.group(1): match.group(2).strip() for match in _DOLLAR_PARAM.finditer(flow_text)}
+        if not arguments:
+            return name, {}
+        lexer = shlex.shlex(arguments, posix=True)
+        lexer.whitespace += ","
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        return name, _parse_surface_parameter_items(lexer)
+    if "(" in flow_text or ")" in flow_text:
+        raise ValueError(f"Invalid parenthesized surface reference {flow_text!r}.")
+    name, separator, arguments = flow_text.partition("$")
+    name = name.strip()
+    if not name:
+        raise ValueError("Configured surface name must not be empty.")
+    if not separator:
+        return name, {}
+    try:
+        items = shlex.split(f"${arguments}")
+    except ValueError as error:
+        raise ValueError(f"Invalid surface parameters in {flow_text!r}: {error}") from error
+    return name, _parse_surface_parameter_items(items)
 
 
 def normalize_configured_surface_name(flow_text: str) -> str:
-    return parse_configured_surface(flow_text)[0]
+    flow_text = flow_text.strip()
+    parenthesized = _PAREN_SURFACE.match(flow_text)
+    if parenthesized is not None:
+        return parenthesized.group(1).strip()
+    return flow_text.split("$", 1)[0].strip()
 
 
 def configured_rail_surfaces(
     direction: RailDirection, flows: Iterable[str], surfaces: Mapping[Tuple[RailDirection, str], RailSurface]
 ) -> Dict[str, RailSurface]:
+    """Return unique declared surfaces enabled by the configured flows.
+
+    Parameters and repeated configured instances are intentionally collapsed;
+    iterate the flows with `parse_configured_surface` when instances are needed.
+    """
     selected = {}
     for flow in flows:
         name, _ = parse_configured_surface(flow)

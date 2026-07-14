@@ -125,12 +125,51 @@ def test_parse_configured_surface_bare_name():
     assert parse_configured_surface("plain flow") == ("plain flow", {})
 
 
-def test_configured_rail_surfaces_selects_declared_surfaces():
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    (
+        (
+            'content safety check input $model="content safety" $mode=strict',
+            ("content safety check input", {"model": "content safety", "mode": "strict"}),
+        ),
+        (
+            'content safety check input(model="content,safety", mode=strict)',
+            ("content safety check input", {"model": "content,safety", "mode": "strict"}),
+        ),
+    ),
+)
+def test_configured_surface_parser_supports_quoted_parameters(configured, expected):
+    assert parse_configured_surface(configured) == expected
+
+
+@pytest.mark.parametrize(
+    "configured",
+    (
+        "",
+        "content safety check input $model",
+        "content safety check input $model=",
+        "content safety check input $model=first $model=second",
+        "content safety check input(model)",
+        "content safety check input(model=first, model=second)",
+        'content safety check input $model="unterminated',
+        "content safety check input(model=value",
+    ),
+)
+def test_configured_surface_parser_rejects_malformed_parameters(configured):
+    with pytest.raises(ValueError):
+        parse_configured_surface(configured)
+
+
+def test_configured_rail_surfaces_selects_unique_declared_surfaces():
     action = _action()
     surface = RailSurface(name="check", direction=RailDirection.INPUT, action=action)
     surfaces = {(RailDirection.INPUT, "check"): surface}
 
-    selected = configured_rail_surfaces(RailDirection.INPUT, ["check($model=abc)", "unknown"], surfaces)
+    selected = configured_rail_surfaces(
+        RailDirection.INPUT,
+        ["check($model=gpt-4)", "check($model=claude)", "unknown"],
+        surfaces,
+    )
 
     assert selected == {"check": surface}
 
