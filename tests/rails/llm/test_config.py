@@ -110,6 +110,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "context_bloat_detection": ("ContextBloatDetectionConfig",),
         "crowdstrike_aidr": ("CrowdStrikeAIDRRailConfig",),
         "factchecking": ("FactCheckingRailConfig",),
+        "f5": ("F5GuardrailsRailConfig",),
         "fiddler": ("FiddlerGuardrails",),
         "gliner": ("GLiNERDetection", "GLiNERDetectionOptions"),
         "guardrails_ai": ("GuardrailsAIRailConfig", "GuardrailsAIValidatorConfig"),
@@ -158,6 +159,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "context_bloat_detection",
         "crowdstrike_aidr",
         "fact_checking",
+        "f5",
         "fiddler",
         "gliner",
         "guardrails_ai",
@@ -179,7 +181,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
 
     assert set(manifests) == expected_rail_names
     assert set(config_specs) == expected_config_keys
-    assert set(RailsConfigData.model_fields) == expected_config_keys | {"f5"}
+    assert set(RailsConfigData.model_fields) == expected_config_keys
     assert config_key_to_rail_name() == {
         "fact_checking": "factchecking",
         "patronus": "patronusai",
