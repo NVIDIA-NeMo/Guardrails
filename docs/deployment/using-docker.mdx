@@ -106,10 +106,16 @@ To use the Chat CLI interface, run the Docker container in interactive mode:
 
 ```bash
 docker run -it \
+  --no-healthcheck \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
   -v </path/to/local/config/>:/config \
   nemoguardrails chat --config=/config --verbose
 ```
+
+The image's built-in Docker `HEALTHCHECK` probes the server's liveness endpoint, so it is only meaningful when the container runs the default `server` command.
+Other commands such as `chat`, `actions-server`, `convert`, or `eval` do not serve a health endpoint.
+This means Docker would report the container as `unhealthy`.
+Add `--no-healthcheck` to `docker run` whenever the container does not run the server, as shown in the `chat` example above.
 
 ## Container Health Check
 
@@ -125,6 +131,9 @@ docker run \
   -e NEMO_GUARDRAILS_HEALTHCHECK_URL=http://localhost:9000/v1/health \
   nemoguardrails server --config=/config --port 9000
 ```
+
+The health check applies only to the `server` application.
+For other commands, disable it with `--no-healthcheck`.
 
 ## AlignScore Fact-Checking
 
