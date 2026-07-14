@@ -56,7 +56,7 @@ RUN nemoguardrails --help
 
 ENV NEMO_GUARDRAILS_HEALTHCHECK_URL=http://localhost:8000/v1/health
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import os, urllib.request, sys; sys.exit(0 if urllib.request.urlopen(os.environ['NEMO_GUARDRAILS_HEALTHCHECK_URL']).status == 200 else 1)"
+    CMD python -c "import os, urllib.request, sys; opener = urllib.request.build_opener(urllib.request.ProxyHandler({})); sys.exit(0 if opener.open(os.environ['NEMO_GUARDRAILS_HEALTHCHECK_URL']).status == 200 else 1)"
 
 ENTRYPOINT ["nemoguardrails"]
 CMD ["server", "--verbose", "--config=/config"]
