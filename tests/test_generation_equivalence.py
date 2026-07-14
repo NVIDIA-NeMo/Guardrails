@@ -181,6 +181,12 @@ class TestDialogMode:
             "generate_bot_message",
         ]
         assert llm.calls == [("generate", None), ("generate", None), ("generate", None)]
+        # Each rendered prompt carries the dynamic context (guards a dropped
+        # render-context key, which the prompt-independent fake would otherwise hide).
+        prompts = call_prompts(response)
+        assert 'user "I want to book a flight"' in prompts[0]
+        assert "user ask booking" in prompts[1]
+        assert "bot respond booking" in prompts[2]
 
     def test_predefined_bot_message(self):
         """A predefined bot message short-circuits the phase-3 LLM call."""
@@ -394,6 +400,7 @@ class TestSingleCall:
         # A single LLM call computes all three phases; 2 and 3 unpack the cache.
         assert llm_tasks(response) == ["generate_intent_steps_message"]
         assert llm.calls == [("generate", None)]
+        assert 'user "hello there!"' in call_prompts(response)[0]
 
     def test_multimodal_input(self):
         """Multimodal (list) user content is normalized before intent detection.
@@ -571,6 +578,53 @@ class TestSingleCall:
         await actions.generate_bot_message(events=events, context={})
 
         # The handoff was consumed on the cache-miss fall-through, not leaked.
+        with pytest.raises(KeyError):
+            _streaming_handoff.take(handler.uid)
+
+    @pytest.mark.asyncio
+    async def test_predefined_message_evicts_pending_handoff(self):
+        """A predefined-message bot turn still evicts a pending single-call handoff.
+
+        If phase 1 (streaming) registered a handoff but phase 3 resolves the bot
+        intent to a predefined ``define bot`` message, the handler must not leak.
+        """
+        from nemoguardrails.actions.llm.generation import _streaming_handoff
+        from nemoguardrails.streaming import StreamingHandler
+
+        config = RailsConfig.from_content(
+            """
+            define user express greeting
+                "hello"
+            define bot express greeting
+                "Hello!"
+            """,
+            yaml_content="rails:\n  dialog:\n    single_call:\n      enabled: True\n",
+        )
+        actions = LLMGenerationActions(
+            config=config,
+            llm=FakeLLMModel(responses=[]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+
+        handler = StreamingHandler()
+        marker = _streaming_handoff.register(handler)
+
+        events = [
+            new_event_dict(
+                "UserIntent",
+                intent="express greeting",
+                additional_info=build_single_call_payload(
+                    bot_intent_event=new_event_dict("BotIntent", intent="express greeting"),
+                    bot_message_event=new_event_dict("BotMessage", text=marker),
+                ),
+            ),
+            new_event_dict("BotIntent", intent="express greeting"),
+        ]
+
+        await actions.generate_bot_message(events=events, context={})
+
+        # The predefined-message branch bypassed the cache but still released the handoff.
         with pytest.raises(KeyError):
             _streaming_handoff.take(handler.uid)
 
@@ -845,3 +899,260 @@ class TestGenerateValue:
         ]
         value = await actions.generate_value(instructions="give a number", events=events, var_name="x")
         assert value == expected
+
+
+class TestStreamingPatternFor:
+    """Contract of ``_streaming_pattern_for(output_parser, *, include_bot_message_parser)``."""
+
+    def test_pattern_matrix(self):
+        from nemoguardrails.actions.llm.generation import _streaming_pattern_for
+
+        verbose = ('Bot message: "', '"')
+        plain = ('  "', '"')
+
+        # verbose_v1 is always verbose, regardless of the flag.
+        assert _streaming_pattern_for("verbose_v1", include_bot_message_parser=False) == verbose
+        assert _streaming_pattern_for("verbose_v1", include_bot_message_parser=True) == verbose
+        # bot_message is verbose only when the flag is set (the generate_bot_message site).
+        assert _streaming_pattern_for("bot_message", include_bot_message_parser=True) == verbose
+        assert _streaming_pattern_for("bot_message", include_bot_message_parser=False) == plain
+        # Anything else is the plain pattern.
+        assert _streaming_pattern_for("something_else", include_bot_message_parser=True) == plain
+        assert _streaming_pattern_for(None, include_bot_message_parser=False) == plain
+
+
+class TestBotTurnOutputEvents:
+    """Contract of the module-level ``_bot_turn_output_events`` helper."""
+
+    def test_reasoning_trace_prepends_bot_thinking_and_records_context(self):
+        from nemoguardrails.actions.llm.generation import _bot_turn_output_events
+        from nemoguardrails.context import reasoning_trace_var
+
+        final = new_event_dict("BotMessage", text="hi")
+        context_updates = {}
+        reasoning_trace_var.set("let me think")
+        try:
+            events = _bot_turn_output_events(final, context_updates)
+        finally:
+            reasoning_trace_var.set(None)
+
+        assert [event["type"] for event in events] == ["BotThinking", "BotMessage"]
+        assert events[0]["content"] == "let me think"
+        assert events[1] is final
+        assert context_updates["bot_thinking"] == "let me think"
+
+    def test_reasoning_trace_without_context_updates_does_not_record(self):
+        from nemoguardrails.actions.llm.generation import _bot_turn_output_events
+        from nemoguardrails.context import reasoning_trace_var
+
+        reasoning_trace_var.set("let me think")
+        try:
+            events = _bot_turn_output_events(new_event_dict("BotMessage", text="hi"))
+        finally:
+            reasoning_trace_var.set(None)
+
+        # BotThinking is still emitted; there is just no dict to record into.
+        assert [event["type"] for event in events] == ["BotThinking", "BotMessage"]
+
+    def test_no_reasoning_trace_returns_only_final(self):
+        from nemoguardrails.actions.llm.generation import _bot_turn_output_events
+        from nemoguardrails.context import reasoning_trace_var
+
+        reasoning_trace_var.set(None)
+        final = new_event_dict("BotMessage", text="hi")
+        events = _bot_turn_output_events(final, {})
+        assert events == [final]
+
+
+class TestBuildIntentStepsExamples:
+    """Contract of the single-call few-shot example builder (prompt-only, so the
+    equivalence scenarios cannot observe it end-to-end)."""
+
+    def _actions(self):
+        config = RailsConfig.from_content('define user express greeting\n    "hi"\n')
+        return LLMGenerationActions(
+            config=config,
+            llm=FakeLLMModel(responses=[]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+
+    @pytest.mark.asyncio
+    async def test_pairs_intent_with_flow_and_bot_message(self):
+        from types import SimpleNamespace
+
+        actions = self._actions()
+
+        async def user_search(text, max_results, threshold):
+            return [SimpleNamespace(text="hello", meta={"intent": "express greeting"})]
+
+        async def flows_search(text, max_results, threshold):
+            flow = "user express greeting\nbot express greeting"
+            return [SimpleNamespace(text=flow, meta={"flow": flow})]
+
+        async def bot_search(text, max_results, threshold):
+            return [SimpleNamespace(text="express greeting", meta={"text": "Hello!"})]
+
+        actions.user_message_index = MagicMock()
+        actions.user_message_index.search = user_search
+        actions.flows_index = MagicMock()
+        actions.flows_index.search = flows_search
+        actions.bot_message_index = MagicMock()
+        actions.bot_message_index.search = bot_search
+
+        examples, intents = await actions._build_intent_steps_examples("hi")
+
+        assert intents == ["express greeting"]
+        assert len(examples) == 1
+        assert 'user "hello"' in examples[0]
+        assert "  express greeting" in examples[0]
+        assert "bot express greeting" in examples[0]
+        assert '"Hello!"' in examples[0]
+
+    @pytest.mark.asyncio
+    async def test_intent_without_flow_is_skipped(self):
+        from types import SimpleNamespace
+
+        actions = self._actions()
+
+        async def user_search(text, max_results, threshold):
+            return [SimpleNamespace(text="hello", meta={"intent": "express greeting"})]
+
+        async def empty_flows_search(text, max_results, threshold):
+            return []
+
+        actions.user_message_index = MagicMock()
+        actions.user_message_index.search = user_search
+        actions.flows_index = MagicMock()
+        actions.flows_index.search = empty_flows_search
+        actions.bot_message_index = None
+
+        examples, intents = await actions._build_intent_steps_examples("hi")
+
+        # The intent is still a candidate, but with no flow it yields no example.
+        assert intents == ["express greeting"]
+        assert examples == []
+
+
+class TestNextStepsBranches:
+    """Single-step branches of ``generate_next_steps`` (non-multi-step)."""
+
+    def _actions(self, response):
+        config = RailsConfig.from_content('define user express greeting\n    "hi"\n')
+        return LLMGenerationActions(
+            config=config,
+            llm=FakeLLMModel(responses=[response]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+
+    @pytest.mark.asyncio
+    async def test_bot_intent_comma_cleanup(self):
+        actions = self._actions("bot respond politely, and more")
+        events = [new_event_dict("UserIntent", intent="express greeting")]
+        result = await actions.generate_next_steps(events=events)
+        assert result.events[0]["type"] == "BotIntent"
+        assert result.events[0]["intent"] == "respond politely"
+
+    @pytest.mark.asyncio
+    async def test_non_bot_line_yields_general_response(self):
+        actions = self._actions("this is not a bot line")
+        events = [new_event_dict("UserIntent", intent="express greeting")]
+        result = await actions.generate_next_steps(events=events)
+        assert result.events[0]["type"] == "BotIntent"
+        assert result.events[0]["intent"] == "general response"
+
+
+class TestPassthroughRawPromptList:
+    """The passthrough ``raw_llm_request`` is-a-list branch of ``_emit_general_bot_turn``."""
+
+    @pytest.mark.asyncio
+    async def test_last_user_content_replaced_in_prompt(self):
+        from nemoguardrails.context import raw_llm_request
+
+        captured = {}
+
+        class CapturingFake(FakeLLMModel):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
+                captured["prompt"] = prompt
+                return await super().generate_async(prompt, stop=stop, **kwargs)
+
+        config = RailsConfig.from_content(yaml_content="passthrough: true\n")
+        actions = LLMGenerationActions(
+            config=config,
+            llm=CapturingFake(responses=["passthrough answer"]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+
+        raw_list = [{"role": "user", "content": "original"}]
+        token = raw_llm_request.set(raw_list)
+        try:
+            events = [new_event_dict("UserMessage", text="altered by input rails")]
+            await actions.generate_user_intent(events=events, context={}, config=config)
+        finally:
+            raw_llm_request.reset(token)
+
+        # The prompt sent to the LLM reflects the input-rail-altered user content
+        # (the shallow copy shares the element dict, so the mutation is visible);
+        # the original content is gone.
+        assert isinstance(captured["prompt"], list)
+        prompt_text = str(captured["prompt"])
+        assert "altered by input rails" in prompt_text
+        assert "original" not in prompt_text
+
+
+class TestGenerateGeneralResponse:
+    """Contract of the shared ``_generate_general_response`` helper."""
+
+    @pytest.mark.asyncio
+    async def test_reports_llm_call_task_distinct_from_parse_task(self):
+        from nemoguardrails.context import llm_call_info_var
+        from nemoguardrails.llm.types import Task
+
+        config = RailsConfig.from_content(yaml_content="models: []\n")
+        actions = LLMGenerationActions(
+            config=config,
+            llm=FakeLLMModel(responses=["output"]),
+            llm_task_manager=LLMTaskManager(config),
+            get_embedding_search_provider_instance=MagicMock(return_value=None),
+        )
+
+        llm_call_info_var.set(None)
+        await actions._generate_general_response(
+            generation_llm=actions.llm,
+            prompt="hello",
+            stream_during_call=False,
+            llm_call_task=Task.GENERATE_BOT_MESSAGE,
+            parse_task=Task.GENERAL,
+        )
+
+        info = llm_call_info_var.get()
+        assert info is not None
+        # The call is reported under llm_call_task even though it parses as parse_task.
+        assert info.task == Task.GENERATE_BOT_MESSAGE.value
+
+
+class TestMultiCallMultimodal:
+    """Non-single-call multimodal normalization in ``generate_user_intent``."""
+
+    def test_non_text_parts_ignored(self):
+        config = RailsConfig.from_content('define user express greeting\n    "hello"\n')
+        llm = RecordingFakeLLM(responses=["  express greeting", "bot respond", '  "Hi there!"'])
+        chat = TestChat(config, llm=llm)
+        response = cast(
+            GenerationResponse,
+            chat.app.generate(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "hello there"},
+                            {"type": "image_url", "image_url": {"url": "https://example.com/a.png"}},
+                        ],
+                    }
+                ],
+                options=LOG_OPTS,
+            ),
+        )
+        assert "UserIntent:express greeting" in event_sequence(response)
