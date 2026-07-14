@@ -226,6 +226,23 @@ For production deployments, disable it using the `--disable-chat-ui` flag.
 
 </Info>
 
+## Health Check
+
+The server exposes a liveness endpoint at `GET /v1/health` (also available as `GET /healthz`) for orchestrators, load balancers, and container runtimes.
+It returns HTTP `200` with the `application/health+json` media type and a body of `{"status": "pass"}` whenever the server process is running and able to serve requests.
+
+```bash
+curl http://localhost:8000/v1/health
+```
+
+```json
+{"status": "pass"}
+```
+
+The check is intentionally shallow: it reflects only that the server process is up, and does not verify guardrails configurations, the model provider, or any datastore.
+Use this endpoint rather than `GET /` for health probes, because `GET /` redirects to the chat UI when the UI is enabled.
+When the server runs behind a path prefix (`--prefix`), the endpoints are served at `<prefix>/v1/health` and `<prefix>/healthz`.
+
 ## Related Topics
 
 - [Chat with a Guardrailed Model](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model)
