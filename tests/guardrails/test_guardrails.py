@@ -370,6 +370,18 @@ class TestIORailsUnsupportedReason:
         reason = IORails.unsupported_reason(config, llm=None)
         assert reason == "config has unsupported output flows: ['self check output']"
 
+    @pytest.mark.parametrize(
+        "flow",
+        ["activefence moderation on input detailed", "gcpnlp moderation detailed"],
+    )
+    def test_detailed_flow_without_iorails_adapter_reports_offender(self, flow):
+        """Detailed flows remain unsupported until IORails has an adapter for them."""
+        config = _make_iorails_config(rails={"input": {"flows": [flow]}})
+
+        reason = IORails.unsupported_reason(config, llm=None)
+
+        assert reason == f"config has unsupported input flows: ['{flow}']"
+
     def test_llm_takes_precedence_over_config_issues(self):
         """When both llm is provided and the config has unsupported flows, the llm
         reason is reported first so the user fixes one issue at a time."""

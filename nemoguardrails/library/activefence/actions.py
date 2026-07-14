@@ -35,16 +35,30 @@ ACTIVEFENCE_DETAILED_THRESHOLDS = {
     "adult_content.general": 0.3,
     "privacy_violation.pii": 0.8,
 }
+ACTIVEFENCE_DETAILED_REASONS = {
+    "abusive_or_harmful.harassment_or_bullying": "ActiveFence moderation triggered. The harassment or bullying risk score exceeded the threshold.",
+    "abusive_or_harmful.profanity": "ActiveFence moderation triggered. The profanity risk score exceeded the threshold.",
+    "abusive_or_harmful.hate_speech": "ActiveFence moderation triggered. The hate speech risk score exceeded the threshold.",
+    "abusive_or_harmful.child_grooming": "ActiveFence moderation triggered. The child grooming risk score exceeded the threshold.",
+    "abusive_or_harmful.general_violence": "ActiveFence moderation triggered. The general violence risk score exceeded the threshold.",
+    "self_harm.general": "ActiveFence moderation triggered. The self harm risk score exceeded the threshold.",
+    "adult_content.general": "ActiveFence moderation triggered. The adult content risk score exceeded the threshold.",
+    "privacy_violation.pii": "ActiveFence moderation triggered. The privacy violation risk score exceeded the threshold.",
+}
 
 
 def _activefence_simple_blocked(max_risk_score: float) -> bool:
     return max_risk_score > 0.7
 
 
-def _activefence_detailed_blocked(violations: dict[str, float]) -> bool:
-    return any(
-        violations.get(violation_type, 0) > threshold
-        for violation_type, threshold in ACTIVEFENCE_DETAILED_THRESHOLDS.items()
+def _activefence_triggered_violation(violations: dict[str, float]) -> Optional[str]:
+    return next(
+        (
+            violation_type
+            for violation_type, threshold in ACTIVEFENCE_DETAILED_THRESHOLDS.items()
+            if violations.get(violation_type, 0) > threshold
+        ),
+        None,
     )
 
 
@@ -53,19 +67,20 @@ def _activefence_outcome(
     violations: dict[str, float],
     threshold_mode: Literal["simple", "detailed"] = "simple",
 ) -> RailOutcome:
+    triggered_violation = _activefence_triggered_violation(violations) if threshold_mode == "detailed" else None
     metadata = {
         "max_risk_score": max_risk_score,
         "violations": violations,
         "threshold_mode": threshold_mode,
+        "triggered_violation": triggered_violation,
     }
-    blocked = (
-        _activefence_detailed_blocked(violations)
-        if threshold_mode == "detailed"
-        else _activefence_simple_blocked(max_risk_score)
-    )
-
-    if blocked:
-        return RailOutcome.block(metadata=metadata)
+    if triggered_violation is not None:
+        return RailOutcome.block(reason=ACTIVEFENCE_DETAILED_REASONS[triggered_violation], metadata=metadata)
+    if threshold_mode != "detailed" and _activefence_simple_blocked(max_risk_score):
+        return RailOutcome.block(
+            reason="ActiveFence moderation triggered. The maximum risk score exceeded the threshold.",
+            metadata=metadata,
+        )
     return RailOutcome.allow(metadata=metadata)
 
 

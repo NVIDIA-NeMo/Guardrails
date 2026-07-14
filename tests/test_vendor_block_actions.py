@@ -16,12 +16,15 @@
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.library.activefence.actions import _activefence_outcome
+from nemoguardrails.library.activefence.actions import ACTIVEFENCE_DETAILED_THRESHOLDS, _activefence_outcome
 from nemoguardrails.library.ai_defense.actions import _ai_defense_outcome
 from nemoguardrails.library.clavata.actions import _clavata_outcome
 from nemoguardrails.library.cleanlab.actions import _cleanlab_outcome
 from nemoguardrails.library.fiddler.actions import _fiddler_outcome
-from nemoguardrails.library.gcp_moderate_text.actions import _gcp_text_moderation_outcome
+from nemoguardrails.library.gcp_moderate_text.actions import (
+    GCP_TEXT_DETAILED_THRESHOLDS,
+    _gcp_text_moderation_outcome,
+)
 from nemoguardrails.library.trend_micro.actions import GuardResult, _trend_micro_outcome
 
 
@@ -109,6 +112,10 @@ def test_activefence_outcome_pins_simple_and_detailed_thresholds(
     assert outcome.metadata["max_risk_score"] == max_risk_score
     assert outcome.metadata["violations"] == violations
     assert outcome.metadata["threshold_mode"] == threshold_mode
+    assert outcome.metadata["triggered_violation"] == (
+        "adult_content.general" if threshold_mode == "detailed" and expected_blocked else None
+    )
+    assert bool(outcome.reason) is expected_blocked
 
 
 @pytest.mark.parametrize(
@@ -133,3 +140,62 @@ def test_gcp_text_moderation_outcome_pins_simple_and_detailed_thresholds(
     assert outcome.metadata["max_risk_score"] == max_risk_score
     assert outcome.metadata["violations"] == violations
     assert outcome.metadata["threshold_mode"] == threshold_mode
+    assert outcome.metadata["triggered_violation"] == (
+        "Derogatory" if threshold_mode == "detailed" and expected_blocked else None
+    )
+    assert bool(outcome.reason) is expected_blocked
+
+
+@pytest.mark.parametrize(("violation", "threshold"), ACTIVEFENCE_DETAILED_THRESHOLDS.items())
+def test_activefence_detailed_outcome_owns_each_threshold(violation, threshold):
+    at_threshold = _activefence_outcome(threshold, {violation: threshold}, "detailed")
+    above_threshold = _activefence_outcome(threshold + 0.01, {violation: threshold + 0.01}, "detailed")
+
+    assert at_threshold == RailOutcome.allow(
+        metadata={
+            "max_risk_score": threshold,
+            "violations": {violation: threshold},
+            "threshold_mode": "detailed",
+            "triggered_violation": None,
+        }
+    )
+    assert above_threshold.is_blocked
+    assert above_threshold.metadata["triggered_violation"] == violation
+    assert above_threshold.reason
+
+
+@pytest.mark.parametrize(("violation", "threshold"), GCP_TEXT_DETAILED_THRESHOLDS.items())
+def test_gcp_detailed_outcome_owns_each_threshold(violation, threshold):
+    at_threshold = _gcp_text_moderation_outcome(threshold, {violation: threshold}, "detailed")
+    above_threshold = _gcp_text_moderation_outcome(threshold + 0.01, {violation: threshold + 0.01}, "detailed")
+
+    assert at_threshold == RailOutcome.allow(
+        metadata={
+            "max_risk_score": threshold,
+            "violations": {violation: threshold},
+            "threshold_mode": "detailed",
+            "triggered_violation": None,
+        }
+    )
+    assert above_threshold.is_blocked
+    assert above_threshold.metadata["triggered_violation"] == violation
+    assert above_threshold.reason
+
+
+def test_detailed_outcomes_preserve_legacy_first_match_order():
+    activefence = _activefence_outcome(
+        0.91,
+        {
+            "adult_content.general": 0.91,
+            "abusive_or_harmful.harassment_or_bullying": 0.91,
+        },
+        "detailed",
+    )
+    gcp = _gcp_text_moderation_outcome(
+        0.91,
+        {"Derogatory": 0.91, "Toxic": 0.91},
+        "detailed",
+    )
+
+    assert activefence.metadata["triggered_violation"] == "abusive_or_harmful.harassment_or_bullying"
+    assert gcp.metadata["triggered_violation"] == "Toxic"

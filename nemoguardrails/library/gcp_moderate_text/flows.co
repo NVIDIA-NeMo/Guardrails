@@ -37,68 +37,43 @@ define subflow gcpnlp moderation detailed
   """Guardrail based on individual risk scores."""
   $result = execute call gcpnlp api(threshold_mode="detailed")
 
-  if $result.metadata["violations"].get("Toxic", 0) > 0.8
-    bot inform cannot engage in abusive or harmful behavior
-    stop
+  if $result.is_blocked
+    $triggered_violation = $result.metadata["triggered_violation"]
 
-  if $result.metadata["violations"].get("Insult", 0) > 0.7
-    bot inform cannot engage in abusive or harmful behavior
-    stop
-
-  if $result.metadata["violations"].get("Profanity", 0) > 0.6
-    bot inform cannot engage in abusive or harmful behavior
-    stop
-
-  if $result.metadata["violations"].get("Derogatory", 0) > 0.4
-    bot inform cannot engage in abusive or harmful behavior
-    stop
-
-  if $result.metadata["violations"].get("Violent", 0) > 0.8
-    bot inform cannot engage in abusive or harmful behavior
-    stop
-
-  if $result.metadata["violations"].get("Sexual", 0) > 0.7
-    bot inform cannot engage in inappropriate content
-    stop
-
-  if $result.metadata["violations"].get("Death, Harm & Tragedy", 0) > 0.8
-    bot inform cannot engage in inappropriate content
-    stop
-
-  if $result.metadata["violations"].get("Firearms & Weapons", 0) > 0.8
-    bot inform cannot engage in inappropriate content
-    stop
-
-  if $result.metadata["violations"].get("Illicit Drugs", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Public Safety", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Health", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Religion & Belief", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("War & Conflict", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Politics", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Finance", 0) > 0.8
-    bot inform cannot engage with sensitive content
-    stop
-
-  if $result.metadata["violations"].get("Legal", 0) > 0.8
-    bot inform cannot engage with sensitive content
+    if $triggered_violation == "Toxic"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Insult"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Profanity"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Derogatory"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Violent"
+      bot inform cannot engage in abusive or harmful behavior
+    else if $triggered_violation == "Sexual"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Death, Harm & Tragedy"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Firearms & Weapons"
+      bot inform cannot engage in inappropriate content
+    else if $triggered_violation == "Illicit Drugs"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Public Safety"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Health"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Religion & Belief"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "War & Conflict"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Politics"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Finance"
+      bot inform cannot engage with sensitive content
+    else if $triggered_violation == "Legal"
+      bot inform cannot engage with sensitive content
+    else
+      bot refuse to respond
     stop
 
 
