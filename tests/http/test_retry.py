@@ -96,6 +96,26 @@ async def test_retry_client_respects_retry_override():
 
 
 @pytest.mark.asyncio
+async def test_retry_client_can_disable_retry_override():
+    transport = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=200, headers={"X-Should-Retry": "true"}),
+            HTTPResponse(status_code=503),
+        ]
+    )
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(honor_retry_override_header=False),
+    )
+
+    response = await client.request("POST", "https://example.com")
+
+    assert response.status_code == 200
+    assert response.extensions["retry_count"] == 0
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_retry_client_raises_transport_error_after_max_attempts():
     transport = RecordingHTTPClient(
         [
@@ -117,6 +137,37 @@ async def test_retry_client_raises_transport_error_after_max_attempts():
     assert exc_info.value.retry_count == 2
     assert delays == [0.5, 1.0]
     assert len(transport.requests) == 3
+
+
+@pytest.mark.asyncio
+async def test_transport_error_is_not_retried_when_disabled():
+    transport = RecordingHTTPClient([HTTPConnectionError("offline")])
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(max_attempts=3, retry_transport_errors=False),
+    )
+
+    with pytest.raises(HTTPConnectionError) as exc_info:
+        await client.request("POST", "https://example.com/jobs")
+
+    assert exc_info.value.retry_count == 0
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_client_limits_retryable_methods():
+    transport = RecordingHTTPClient([HTTPResponse(status_code=503), HTTPResponse(status_code=200)])
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(retryable_methods=frozenset({"post"})),
+        sleep=lambda delay: _completed_sleep(delay),
+    )
+
+    response = await client.request("GET", "https://example.com")
+
+    assert response.status_code == 503
+    assert response.extensions["retry_count"] == 0
+    assert len(transport.requests) == 1
 
 
 @pytest.mark.asyncio
@@ -159,6 +210,23 @@ async def test_retry_client_closes_wrapped_managed_client_once():
 )
 def test_retry_policy_accepts_boundary_values(policy):
     assert isinstance(policy, RetryPolicy)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("-1", 0.0),
+        ("0", 0.0),
+        ("3", 3.0),
+        ("999", 5.0),
+        ("Wed, 01 Jan 2020 00:00:00 GMT", 0.0),
+    ],
+)
+def test_retry_policy_can_clamp_retry_after(value, expected):
+    policy = RetryPolicy(max_retry_after=5, clamp_retry_after=True)
+    response = HTTPResponse(status_code=429, headers={"Retry-After": value})
+
+    assert policy.retry_after(response, now=datetime(2026, 1, 1, tzinfo=timezone.utc)) == expected
 
 
 @pytest.mark.parametrize(
