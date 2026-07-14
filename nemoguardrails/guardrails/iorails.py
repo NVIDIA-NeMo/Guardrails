@@ -60,6 +60,7 @@ from nemoguardrails.guardrails.telemetry import (
     traced_request,
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, RailStatus, RailType
@@ -229,7 +230,7 @@ def _determine_rails_from_messages(messages: list[dict]) -> Optional[dict]:
     Returns ``{"rails": [...]}`` or ``None`` when there is no user/assistant
     message to check.
     """
-    roles = {msg.get("role") for msg in reversed(messages)}
+    roles = {msg.get("role") for msg in messages}
     has_user = "user" in roles
     has_assistant = "assistant" in roles
 
@@ -754,6 +755,11 @@ class IORails(BaseGuardrails):
         and metrics disabled and runs the check on it. For production use, prefer
         the asynchronous ``check_async``.
         """
+        if check_sync_call_from_async_loop():
+            raise RuntimeError(
+                "You are using the sync `check` inside async code. You should replace with `await check_async(...)`."
+            )
+
         sync_config = self.config.model_copy(deep=True)
         if sync_config.tracing is not None:
             sync_config.tracing.enabled = False
@@ -772,7 +778,8 @@ class IORails(BaseGuardrails):
 
         When ``rail_types`` is None the rails to run are auto-detected from the
         message roles (user-only -> input, assistant-only -> output, both ->
-        input and output). When provided, exactly the named rail types run.
+        input and output). When provided, exactly the named rail types run; an
+        empty list (``[]``) runs no rails and returns PASSED.
 
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and
@@ -797,13 +804,13 @@ class IORails(BaseGuardrails):
                 result = await self._do_check(messages, rail_types, req_id)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                log.error("[%s] check_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
+                log.error("[%s] check failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
             if self._content_capture_enabled:
                 set_request_content(request_span, messages, result.content)
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info(
-                "[%s] check_async completed time=%.1fms status=%s",
+                "[%s] check completed time=%.1fms status=%s",
                 req_id,
                 elapsed_ms,
                 result.status.value,
@@ -817,8 +824,8 @@ class IORails(BaseGuardrails):
         req_id: str,
     ) -> RailsResult:
         """Core check pipeline: run the requested input/output rails on messages."""
-        log.info("[%s] check_async called", req_id)
-        log.debug("[%s] check_async messages=%s", req_id, truncate(messages))
+        log.info("[%s] check called", req_id)
+        log.debug("[%s] check messages=%s", req_id, truncate(messages))
 
         if rail_types is not None:
             rails_to_run = [rail_type.value for rail_type in rail_types]
@@ -848,15 +855,21 @@ class IORails(BaseGuardrails):
 
         if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")
-            log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, bot_response)
-            if not output_result.is_safe:
-                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
-                if self._metrics_enabled:
-                    record_request_blocked(RailDirection.OUTPUT)
-                return RailsResult(
-                    status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=output_result.triggered_rail
-                )
+            # No assistant content to check (e.g. explicit rail_types=[OUTPUT] with no
+            # assistant message). Skip output rails rather than letting the content-safety
+            # action raise "bot_response is required" and surface a false BLOCK.
+            if bot_response:
+                log.info("[%s] Running output rails", req_id)
+                output_result = await self.rails_manager.is_output_safe(messages, bot_response)
+                if not output_result.is_safe:
+                    log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                    if self._metrics_enabled:
+                        record_request_blocked(RailDirection.OUTPUT)
+                    return RailsResult(
+                        status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=output_result.triggered_rail
+                    )
+            else:
+                log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
 

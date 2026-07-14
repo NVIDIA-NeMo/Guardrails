@@ -335,6 +335,29 @@ class TestCheckAsyncExplicitRailTypes:
         assert result.status == RailStatus.BLOCKED
         assert result.rail == "content safety check output"
 
+    @pytest.mark.asyncio
+    async def test_explicit_empty_rail_types_runs_nothing(self, iorails):
+        _mock_rails(iorails)
+        messages = [{"role": "user", "content": "hello"}]
+
+        result = await iorails.check_async(messages, rail_types=[])
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"
+        iorails.rails_manager.is_input_safe.assert_not_awaited()
+        iorails.rails_manager.is_output_safe.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_no_assistant_message_passes(self, iorails):
+        # rail_types=[OUTPUT] with no assistant content to check must PASS, not false-BLOCK.
+        _mock_rails(iorails)
+        messages = [{"role": "user", "content": "hello"}]
+
+        result = await iorails.check_async(messages, rail_types=[RailType.OUTPUT])
+
+        assert result.status == RailStatus.PASSED
+        iorails.rails_manager.is_output_safe.assert_not_awaited()
+
 
 class TestCheckAsyncBlockedResult:
     """Details of the BLOCKED RailsResult."""
@@ -401,12 +424,16 @@ class TestCheckSync:
 
         mock_iorails.assert_called_once()
         assert mock_iorails.call_args.kwargs == {"_report_usage": False}
+        # The ephemeral engine must be built with tracing and metrics disabled.
+        passed_config = mock_iorails.call_args.args[0]
+        assert passed_config.tracing is None or not passed_config.tracing.enabled
+        assert passed_config.metrics is None or not passed_config.metrics.enabled
 
     def test_check_raises_when_called_from_async_loop(self, iorails_sync):
         async def call_check():
             iorails_sync.check([{"role": "user", "content": "hi"}])
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="inside async code"):
             asyncio.run(call_check())
 
 

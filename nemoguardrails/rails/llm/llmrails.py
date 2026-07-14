@@ -2051,7 +2051,7 @@ class LLMRails(BaseGuardrails):
 
 
 def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:
-    roles = {msg.get("role") for msg in reversed(messages)}
+    roles = {msg.get("role") for msg in messages}
     has_user = "user" in roles
     has_assistant = "assistant" in roles
 
