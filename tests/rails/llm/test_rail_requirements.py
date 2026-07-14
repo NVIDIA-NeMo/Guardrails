@@ -181,6 +181,46 @@ rails:
     assert tuple(item.name for item in configured_rail_manifests(config, catalog)) == ("sensitive_data_detection",)
 
 
+def test_f5_validation_reports_environment_and_service_requirements(monkeypatch):
+    from nemoguardrails.manifests import default_rail_catalog
+
+    monkeypatch.delenv("F5_GUARDRAILS_API_KEY", raising=False)
+    monkeypatch.delenv("F5_GUARDRAILS_API_URL", raising=False)
+    catalog = default_rail_catalog()
+    config = RailsConfig.from_content(
+        yaml_content="""
+models: []
+rails:
+  input:
+    flows:
+      - f5 guardrails scan input
+  config:
+    f5:
+      fail_open: false
+"""
+    )
+
+    manifests = configured_rail_manifests(config, catalog)
+    report = validate_rail_requirements(manifests)
+
+    assert tuple(manifest.name for manifest in manifests) == ("f5",)
+    assert not report.valid
+    assert report.packages_to_install == ()
+    assert tuple(
+        (check.kind, check.name, check.status, check.required, check.message) for check in report.results[0].checks
+    ) == (
+        ("environment_variable", "F5_GUARDRAILS_API_KEY", RequirementStatus.ERROR, True, "not set"),
+        (
+            "environment_variable",
+            "F5_GUARDRAILS_API_URL",
+            RequirementStatus.INFO,
+            False,
+            "optional and not set",
+        ),
+        ("service", "F5 AI Guardrails API", RequirementStatus.INFO, True, "declared; not verified"),
+    )
+
+
 def test_built_in_runtime_package_declarations():
     from nemoguardrails.manifests import default_rail_catalog
 
