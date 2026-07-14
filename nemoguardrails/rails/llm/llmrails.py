@@ -2015,8 +2015,26 @@ class LLMRails(BaseGuardrails):
                         action_params=action_params,
                     )
 
-                    result = await self.runtime.action_dispatcher.execute_action(action_name, params)
+                    try:
+                        result, status = await self.runtime.action_dispatcher.execute_action(action_name, params)
+                    except Exception:
+                        log.exception("Action %s failed during sequential streaming", action_name)
+                        result, status = None, "failed"
                     self._explain_info = self._ensure_explain_info()
+
+                    if status != "success":
+                        error_message = f"Action {action_name} failed with status: {status}"
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
 
                     action_func = self.runtime.action_dispatcher.get_action(action_name)
 
