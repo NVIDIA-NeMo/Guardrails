@@ -16,7 +16,6 @@
 import os
 
 import pytest
-from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
@@ -69,19 +68,19 @@ async def test_fact_checking_correct(httpx_mock):
     )
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    with aioresponses() as m:
-        # Fact-checking using AlignScore
-        m.post(
-            "http://localhost:5000/alignscore_base",
-            payload={"alignscore": 0.82},
-        )
+    # Fact-checking using AlignScore
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:5000/alignscore_base",
+        json={"alignscore": 0.82},
+    )
 
-        # Succeeded, no more generations needed
-        chat >> "What is NeMo Guardrails?"
+    # Succeeded, no more generations needed
+    chat >> "What is NeMo Guardrails?"
 
-        await chat.bot_async(
-            "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
-        )
+    await chat.bot_async(
+        "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
+    )
 
 
 @pytest.mark.asyncio
@@ -97,16 +96,16 @@ async def test_fact_checking_wrong(httpx_mock):
     )
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    with aioresponses() as m:
-        # Fact-checking using AlignScore
-        m.post(
-            "http://localhost:5000/alignscore_base",
-            payload={"alignscore": 0.01},
-        )
+    # Fact-checking using AlignScore
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:5000/alignscore_base",
+        json={"alignscore": 0.01},
+    )
 
-        chat >> "What is NeMo Guardrails?"
+    chat >> "What is NeMo Guardrails?"
 
-        await chat.bot_async("I don't know the answer to that.")
+    await chat.bot_async("I don't know the answer to that.")
 
 
 @pytest.mark.asyncio
@@ -124,17 +123,17 @@ async def test_fact_checking_fallback_to_self_check_correct(httpx_mock):
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    with aioresponses() as m:
-        # Fact-checking using AlignScore
-        m.post(
-            "http://localhost:5000/alignscore_base",
-            payload="API error 404",
-        )
-        chat >> "What is NeMo Guardrails?"
+    # Fact-checking using AlignScore
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:5000/alignscore_base",
+        json="API error 404",
+    )
+    chat >> "What is NeMo Guardrails?"
 
-        await chat.bot_async(
-            "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
-        )
+    await chat.bot_async(
+        "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
+    )
 
 
 @pytest.mark.asyncio
@@ -152,12 +151,12 @@ async def test_fact_checking_fallback_self_check_wrong(httpx_mock):
     )
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    with aioresponses() as m:
-        # Fact-checking using AlignScore
-        m.post(
-            "http://localhost:5000/alignscore_base",
-            payload="API error 404",
-        )
+    # Fact-checking using AlignScore
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:5000/alignscore_base",
+        json="API error 404",
+    )
 
-        chat >> "What is NeMo Guardrails?"
-        await chat.bot_async("I don't know the answer to that.")
+    chat >> "What is NeMo Guardrails?"
+    await chat.bot_async("I don't know the answer to that.")
