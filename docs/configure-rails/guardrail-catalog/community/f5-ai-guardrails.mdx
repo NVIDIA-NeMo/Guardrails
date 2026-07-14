@@ -145,7 +145,7 @@ To customize the behavior, you can overwrite the default flows in your configura
 define subflow f5 guardrails scan input
   $result = execute f5_guardrails_scan(text=$user_message)
 
-  if $result.result.outcome != "cleared"
+  if $result.is_blocked
     bot say "I cannot process this request due to safety policies."
     stop
 ```

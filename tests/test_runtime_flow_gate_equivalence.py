@@ -611,6 +611,20 @@ FIDDLER_BOT_FAITHFULNESS = RailSpec(
     action="call fiddler faithfulness",
 )
 
+F5_INPUT = RailSpec(
+    name="f5_input",
+    flow="f5 guardrails scan input",
+    direction="input",
+    action="f5_guardrails_scan",
+)
+
+F5_OUTPUT = RailSpec(
+    name="f5_output",
+    flow="f5 guardrails scan output",
+    direction="output",
+    action="f5_guardrails_scan",
+)
+
 ACTIVEFENCE_INPUT = RailSpec(
     name="activefence_input",
     flow="activefence moderation on input",
@@ -2031,6 +2045,18 @@ FIXTURES = [
         FIDDLER_BOT_FAITHFULNESS,
         allow_return=RailOutcome.allow(blocked=False),
         block_return=RailOutcome.block(blocked=True),
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        F5_INPUT,
+        allow_return=RailOutcome.allow(result={"outcome": "cleared"}),
+        block_return=RailOutcome.block(result={"outcome": "flagged"}),
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        F5_OUTPUT,
+        allow_return=RailOutcome.allow(result={"outcome": "cleared"}),
+        block_return=RailOutcome.block(result={"outcome": "flagged"}),
         include_exception_case=True,
     ),
     _case(

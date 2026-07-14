@@ -81,10 +81,7 @@ async def test_f5_guardrails_output_blocks_violating_assistant_message(f5_api_ke
 
 
 async def test_f5_guardrails_input_fails_closed_on_401(f5_api_key, monkeypatch):
-    """A 401 from the F5 API is swallowed by the action dispatcher as a non-LLM
-    exception; the flow then hits ``outcome != "cleared"`` and refuses. This
-    pins that fail-closed contract with a real recorded 401.
-    """
+    """A recorded 401 fails the F5 input rail closed with an internal error."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "invalid-recorded-replay")
 
     result = await check_rails(

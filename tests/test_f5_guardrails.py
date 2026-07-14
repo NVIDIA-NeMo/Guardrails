@@ -21,6 +21,7 @@ import pytest
 from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.f5.actions import f5_guardrails_scan
 from tests.utils import TestChat
 
@@ -182,7 +183,7 @@ async def test_f5_guardrails_timeout_fail_open(config_fail_open, monkeypatch):
 
         result = await f5_guardrails_scan(text="Hello!", config=config_fail_open)
 
-    assert result == {"result": {"outcome": "cleared"}, "fail_open": True}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"}, fail_open=True)
 
 
 @pytest.mark.asyncio
@@ -198,7 +199,7 @@ async def test_f5_guardrails_fail_open_marker_on_http_error(config_fail_open, mo
 
         result = await f5_guardrails_scan(text="Hello!", config=config_fail_open)
 
-    assert result == {"result": {"outcome": "cleared"}, "fail_open": True}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"}, fail_open=True)
 
 
 @pytest.mark.asyncio
@@ -342,7 +343,7 @@ async def test_f5_guardrails_custom_api_url(monkeypatch):
 
         result = await f5_guardrails_scan(text="Hello!", config=custom_config)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
 
 
 @pytest.mark.asyncio
@@ -359,7 +360,7 @@ async def test_f5_guardrails_api_url_env_fallback(config, monkeypatch):
 
         result = await f5_guardrails_scan(text="Hello!", config=config)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
 
 
 @pytest.mark.asyncio
@@ -386,7 +387,7 @@ async def test_f5_guardrails_env_api_url_wins_over_config(monkeypatch):
 
         result = await f5_guardrails_scan(text="Hello!", config=custom_config)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
 
 
 @pytest.fixture
@@ -514,7 +515,7 @@ async def test_f5_guardrails_429_then_success(config_no_backoff, monkeypatch):
         ) as sleep_mock:
             result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
     sleep_mock.assert_awaited_once()
     assert sleep_mock.await_args.args[0] == 0.0
 
@@ -541,7 +542,7 @@ async def test_f5_guardrails_429_retry_after_http_date(config_no_backoff, monkey
         ) as sleep_mock:
             result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
     sleep_mock.assert_awaited_once()
     assert sleep_mock.await_args.args[0] == 0.0
 
@@ -568,7 +569,7 @@ async def test_f5_guardrails_429_retry_after_capped(config_no_backoff, monkeypat
         ) as sleep_mock:
             result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
     sleep_mock.assert_awaited_once()
     assert sleep_mock.await_args.args[0] == 5.0  # max_retry_after_seconds
 
@@ -591,7 +592,7 @@ async def test_f5_guardrails_429_exhausted_fail_open(config_no_backoff_fail_open
         ):
             result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff_fail_open)
 
-    assert result == {"result": {"outcome": "cleared"}, "fail_open": True}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"}, fail_open=True)
 
 
 @pytest.mark.asyncio
@@ -651,7 +652,7 @@ async def test_f5_guardrails_429_no_retry_after_uses_backoff(monkeypatch):
         ) as sleep_mock:
             result = await f5_guardrails_scan(text="Hello!", config=cfg)
 
-    assert result == {"result": {"outcome": "cleared"}}
+    assert result == RailOutcome.allow(result={"outcome": "cleared"})
     assert sleep_mock.await_count == 2
     # Attempt 0 -> 0.25 * 2**0, attempt 1 -> 0.25 * 2**1
     assert sleep_mock.await_args_list[0].args[0] == 0.25
