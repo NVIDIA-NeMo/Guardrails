@@ -940,6 +940,25 @@ class LLMGenerationActions:
 
         return ActionResult(events=_bot_turn_output_events(bot_message_event))
 
+    def _discard_single_call_handoff(self, events: List[dict]) -> None:
+        """Evict a pending single-call streaming handoff for a bypassed bot message.
+
+        When ``generate_bot_message`` short-circuits to a predefined message or a
+        ``$context_var`` it never consumes the single-call cache, so a handoff
+        registered while streaming the (now unused) cached bot message would leak.
+        This releases it. Safe to call when there is no pending handoff.
+        """
+        user_intent_event = get_last_user_intent_event(events)
+        if not user_intent_event or user_intent_event.get("type") != "UserIntent":
+            return
+        additional_info = user_intent_event.get("additional_info") or {}
+        bot_message_event = additional_info.get("bot_message_event")
+        if not bot_message_event:
+            return
+        streaming_handler_uid = _streaming_handoff.parse_marker(bot_message_event.get("text", ""))
+        if streaming_handler_uid is not None:
+            _streaming_handoff.take(streaming_handler_uid)
+
     @action(is_system_action=True)
     async def generate_bot_message(self, events: List[dict], context: dict, llm: Optional[LLMModel] = None):
         """Generate a bot message based on the desired bot intent."""
@@ -983,9 +1002,15 @@ class LLMGenerationActions:
             # We skip output rails for predefined messages.
             context_updates["skip_output_rails"] = True
 
+            if self.config.rails.dialog.single_call.enabled:
+                self._discard_single_call_handoff(events)
+
         # Check if the output is supposed to be the content of a context variable
         elif bot_intent and bot_intent[0] == "$" and bot_intent[1:] in context:
             bot_utterance = context[bot_intent[1:]]
+
+            if self.config.rails.dialog.single_call.enabled:
+                self._discard_single_call_handoff(events)
 
         else:
             # Generate the bot message using an LLM call
