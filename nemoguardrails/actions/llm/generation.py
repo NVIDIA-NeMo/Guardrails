@@ -93,7 +93,7 @@ class _StreamingHandoffRegistry:
 
     def parse_marker(self, text: str) -> Optional[str]:
         """Return the handler uid encoded in ``text``, or None if not a marker."""
-        if text.startswith(self._MARKER_PREFIX):
+        if text.startswith(self._MARKER_PREFIX) and text.endswith(self._MARKER_SUFFIX):
             return text[len(self._MARKER_PREFIX) : -len(self._MARKER_SUFFIX)]
         return None
 
@@ -907,6 +907,11 @@ class LLMGenerationActions:
         if not last_bot_intent:
             raise RuntimeError("No last bot intent found to generate bot message")
         if last_bot_intent["intent"] != payload.bot_intent_event["intent"]:
+            # If the cached message embedded a streaming handoff, evict it so the
+            # registered handler does not leak when we fall back to regeneration.
+            streaming_handler_uid = _streaming_handoff.parse_marker(bot_message_event["text"])
+            if streaming_handler_uid is not None:
+                _streaming_handoff.take(streaming_handler_uid)
             return None
 
         text = bot_message_event["text"]
@@ -987,13 +992,12 @@ class LLMGenerationActions:
 
             # If using a single LLM call, use the results computed in the first call.
             if self.config.rails.dialog.single_call.enabled:
-                # NOTE: this rebinds `event` from the bot-intent event to the last
-                # user-intent event; the non-passthrough branch below still reads
-                # `event["intent"]` on the cache-miss fall-through.
-                event = get_last_user_intent_event(events)
-                if not event:
+                user_intent_event = get_last_user_intent_event(events)
+                if not user_intent_event:
                     raise RuntimeError("No last user intent found to generate bot message")
-                cached_result = await self._bot_message_from_single_call_cache(event, events, streaming_handler)
+                cached_result = await self._bot_message_from_single_call_cache(
+                    user_intent_event, events, streaming_handler
+                )
                 if cached_result is not None:
                     return cached_result
 
