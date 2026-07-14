@@ -687,8 +687,10 @@ async def test_regex_action_accepts_extra_kwargs():
 def test_regex_output_verdict_blocks_on_match():
     from nemoguardrails.actions.rail_outcome import RailOutcome
 
-    matched = RailOutcome.block(is_match=True, text="fight club", detections=["\\bfight\\s+club\\b"])
-    no_match = RailOutcome.allow(is_match=False, text="hello", detections=[])
+    matched = RailOutcome.block(
+        metadata={"is_match": True, "text": "fight club", "detections": ["\\bfight\\s+club\\b"]}
+    )
+    no_match = RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": []})
 
     assert matched.is_blocked is True
     assert no_match.is_blocked is False

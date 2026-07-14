@@ -126,8 +126,8 @@ def validate_guardrails_ai_input(
 
     metadata = {**result, "valid": valid}
     if valid:
-        return RailOutcome.allow(**metadata)
-    return RailOutcome.block(**metadata)
+        return RailOutcome.allow(metadata=metadata)
+    return RailOutcome.block(metadata=metadata)
 
 
 @action(
@@ -179,8 +179,8 @@ def validate_guardrails_ai_output(
 
     metadata = {**result, "valid": valid}
     if valid:
-        return RailOutcome.allow(**metadata)
-    return RailOutcome.block(**metadata)
+        return RailOutcome.allow(metadata=metadata)
+    return RailOutcome.block(metadata=metadata)
 
 
 def validate_guardrails_ai(validator_name: str, text: str, **kwargs) -> Dict[str, Any]:

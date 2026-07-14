@@ -88,8 +88,8 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
 def _trend_micro_outcome(result: GuardResult) -> RailOutcome:
     metadata = {"action": result.action}
     if result.blocked:
-        return RailOutcome.block(reason=result.reason, **metadata)
-    return RailOutcome.allow(reason=result.reason, **metadata)
+        return RailOutcome.block(reason=result.reason, metadata=metadata)
+    return RailOutcome.allow(reason=result.reason, metadata=metadata)
 
 
 @action(is_system_action=True)

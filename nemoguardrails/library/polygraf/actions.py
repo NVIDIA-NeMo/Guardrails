@@ -35,8 +35,8 @@ FAILSAFE_MASK_PLACEHOLDER = "<REDACTED>"
 
 def _detection_outcome(has_pii: bool) -> RailOutcome:
     if has_pii:
-        return RailOutcome.block(has_pii=True)
-    return RailOutcome.allow(has_pii=False)
+        return RailOutcome.block(metadata={"has_pii": True})
+    return RailOutcome.allow(metadata={"has_pii": False})
 
 
 def _mask_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
@@ -47,8 +47,8 @@ def _mask_outcome(source: str, original_text: str, masked_text: str) -> RailOutc
     }
     metadata = {"source": source, "text": original_text, "masked_text": masked_text}
     if masked_text != original_text:
-        return RailOutcome.transform([(targets[source], masked_text)], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(targets[source], masked_text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _get_polygraf_api_key() -> Optional[str]:

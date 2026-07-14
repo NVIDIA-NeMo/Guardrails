@@ -33,8 +33,8 @@ FACT_CHECK_THRESHOLD = 0.5
 
 def _fact_check_outcome(accuracy: float) -> RailOutcome:
     if accuracy < FACT_CHECK_THRESHOLD:
-        return RailOutcome.block(accuracy=accuracy)
-    return RailOutcome.allow(accuracy=accuracy)
+        return RailOutcome.block(metadata={"accuracy": accuracy})
+    return RailOutcome.allow(metadata={"accuracy": accuracy})
 
 
 @action()

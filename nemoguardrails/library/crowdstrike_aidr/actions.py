@@ -74,16 +74,16 @@ def _crowdstrike_aidr_outcome(result: GuardChatCompletionsResult) -> RailOutcome
         "bot_message": result.bot_message,
     }
     if result.blocked:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if result.transformed:
         return RailOutcome.transform(
             [
                 (TransformTarget.USER_MESSAGE, result.user_message or ""),
                 (TransformTarget.BOT_MESSAGE, result.bot_message or ""),
             ],
-            **metadata,
+            metadata=metadata,
         )
-    return RailOutcome.allow(**metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(is_system_action=True)

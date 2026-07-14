@@ -30,8 +30,8 @@ log = logging.getLogger(__name__)
 
 def _llama_guard_outcome(allowed: bool, policy_violations: Optional[List[str]]) -> RailOutcome:
     if allowed:
-        return RailOutcome.allow(policy_violations=policy_violations)
-    return RailOutcome.block(policy_violations=policy_violations)
+        return RailOutcome.allow(metadata={"policy_violations": policy_violations})
+    return RailOutcome.block(metadata={"policy_violations": policy_violations})
 
 
 def parse_llama_guard_response(response: str) -> Tuple[bool, Optional[List[str]]]:

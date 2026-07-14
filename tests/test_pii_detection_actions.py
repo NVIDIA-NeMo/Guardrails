@@ -75,8 +75,8 @@ def _sensitive_data_config() -> RailsConfig:
 @pytest.mark.parametrize(
     ("response", "expected"),
     [
-        ([{"entities_present": False}], RailOutcome.allow(has_pii=False)),
-        ([{"entities_present": True}], RailOutcome.block(has_pii=True)),
+        ([{"entities_present": False}], RailOutcome.allow(metadata={"has_pii": False})),
+        ([{"entities_present": True}], RailOutcome.block(metadata={"has_pii": True})),
     ],
 )
 async def test_privateai_detect_pii_returns_rail_outcome(monkeypatch, response, expected):
@@ -94,8 +94,8 @@ async def test_privateai_detect_pii_returns_rail_outcome(monkeypatch, response, 
 @pytest.mark.parametrize(
     ("total_entities", "expected"),
     [
-        (0, RailOutcome.allow(has_pii=False)),
-        (1, RailOutcome.block(has_pii=True)),
+        (0, RailOutcome.allow(metadata={"has_pii": False})),
+        (1, RailOutcome.block(metadata={"has_pii": True})),
     ],
 )
 async def test_gliner_detect_pii_returns_rail_outcome(monkeypatch, total_entities, expected):
@@ -114,8 +114,8 @@ async def test_gliner_detect_pii_returns_rail_outcome(monkeypatch, total_entitie
 @pytest.mark.parametrize(
     ("analyzer_results", "expected"),
     [
-        ([], RailOutcome.allow(has_sensitive_data=False)),
-        (["PERSON"], RailOutcome.block(has_sensitive_data=True)),
+        ([], RailOutcome.allow(metadata={"has_sensitive_data": False})),
+        (["PERSON"], RailOutcome.block(metadata={"has_sensitive_data": True})),
     ],
 )
 async def test_sensitive_data_detect_returns_rail_outcome(monkeypatch, analyzer_results, expected):
@@ -142,14 +142,12 @@ async def test_sensitive_data_detect_returns_rail_outcome(monkeypatch, analyzer_
 @pytest.mark.parametrize(
     ("masked_text", "expected"),
     [
-        ("hello", RailOutcome.allow(source="input", text="hello", masked_text="hello")),
+        ("hello", RailOutcome.allow(metadata={"source": "input", "text": "hello", "masked_text": "hello"})),
         (
             "masked",
             RailOutcome.transform(
                 [(TransformTarget.USER_MESSAGE, "masked")],
-                source="input",
-                text="hello",
-                masked_text="masked",
+                metadata={"source": "input", "text": "hello", "masked_text": "masked"},
             ),
         ),
     ],

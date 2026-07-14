@@ -192,8 +192,8 @@ def is_label_match(
 
 def _clavata_outcome(policy_matched: bool) -> RailOutcome:
     if policy_matched:
-        return RailOutcome.block(policy_matched=policy_matched)
-    return RailOutcome.allow(policy_matched=policy_matched)
+        return RailOutcome.block(metadata={"policy_matched": policy_matched})
+    return RailOutcome.allow(metadata={"policy_matched": policy_matched})
 
 
 def get_server_endpoint(config: ClavataRailConfig) -> str:

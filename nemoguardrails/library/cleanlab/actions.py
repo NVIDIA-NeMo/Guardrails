@@ -26,8 +26,8 @@ CLEANLAB_TRUSTWORTHINESS_THRESHOLD = 0.6
 
 def _cleanlab_outcome(trustworthiness_score: float) -> RailOutcome:
     if trustworthiness_score < CLEANLAB_TRUSTWORTHINESS_THRESHOLD:
-        return RailOutcome.block(trustworthiness_score=trustworthiness_score)
-    return RailOutcome.allow(trustworthiness_score=trustworthiness_score)
+        return RailOutcome.block(metadata={"trustworthiness_score": trustworthiness_score})
+    return RailOutcome.allow(metadata={"trustworthiness_score": trustworthiness_score})
 
 
 @action(

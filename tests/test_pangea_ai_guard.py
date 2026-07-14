@@ -46,11 +46,13 @@ def test_pangea_outcome_allows():
     result = TextGuardResult(blocked=False, transformed=False, user_message="Hi", bot_message="Hello")
 
     assert _pangea_outcome(result) == RailOutcome.allow(
-        blocked=False,
-        transformed=False,
-        prompt_messages=None,
-        user_message="Hi",
-        bot_message="Hello",
+        metadata={
+            "blocked": False,
+            "transformed": False,
+            "prompt_messages": None,
+            "user_message": "Hi",
+            "bot_message": "Hello",
+        }
     )
 
 
@@ -59,11 +61,13 @@ def test_pangea_outcome_blocks():
     result = TextGuardResult(blocked=True, transformed=False, user_message="Hi", bot_message="Hello")
 
     assert _pangea_outcome(result) == RailOutcome.block(
-        blocked=True,
-        transformed=False,
-        prompt_messages=None,
-        user_message="Hi",
-        bot_message="Hello",
+        metadata={
+            "blocked": True,
+            "transformed": False,
+            "prompt_messages": None,
+            "user_message": "Hi",
+            "bot_message": "Hello",
+        }
     )
 
 
@@ -83,11 +87,13 @@ def test_pangea_outcome_transforms_both_messages():
             (TransformTarget.USER_MESSAGE, "masked user"),
             (TransformTarget.BOT_MESSAGE, "masked bot"),
         ],
-        blocked=False,
-        transformed=True,
-        prompt_messages=None,
-        user_message="masked user",
-        bot_message="masked bot",
+        metadata={
+            "blocked": False,
+            "transformed": True,
+            "prompt_messages": None,
+            "user_message": "masked user",
+            "bot_message": "masked bot",
+        },
     )
     assert outcome.transform_text == {
         "user_message": "masked user",
@@ -107,11 +113,13 @@ def test_pangea_outcome_block_wins_over_transform():
     outcome = _pangea_outcome(result)
 
     assert outcome == RailOutcome.block(
-        blocked=True,
-        transformed=True,
-        prompt_messages=None,
-        user_message="masked user",
-        bot_message="masked bot",
+        metadata={
+            "blocked": True,
+            "transformed": True,
+            "prompt_messages": None,
+            "user_message": "masked user",
+            "bot_message": "masked bot",
+        }
     )
 
 

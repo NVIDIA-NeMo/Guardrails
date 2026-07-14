@@ -29,8 +29,8 @@ log = logging.getLogger(__name__)
 
 def _fiddler_outcome(blocked: bool) -> RailOutcome:
     if blocked:
-        return RailOutcome.block(blocked=blocked)
-    return RailOutcome.allow(blocked=blocked)
+        return RailOutcome.block(metadata={"blocked": blocked})
+    return RailOutcome.allow(metadata={"blocked": blocked})
 
 
 async def call_fiddler_guardrail(
@@ -96,12 +96,12 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
 
     if base_url is None:
         log.error("Fiddler endpoint not set in config")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     user_message = context.get("user_message", "")
     if not user_message:
         log.error("Fiddler Jailbreak Guardrails could not be run. User message must be provided.")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": user_message}
     blocked = await call_fiddler_guardrail(
@@ -124,12 +124,12 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
 
     if base_url is None:
         log.error("Fiddler endpoint not set in config")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     bot_message = context.get("bot_message", "")
     if not bot_message:
         log.error("Fiddler Safety Guardrails could not be run. Bot message must be provided.")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": bot_message}
     blocked = await call_fiddler_guardrail(
@@ -152,13 +152,13 @@ async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict]
 
     if base_url is None:
         log.error("Fiddler endpoint not set in config")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     bot_message = context.get("bot_message", "")
     knowledge = context.get("relevant_chunks", "")
     if not bot_message:
         log.error("Fiddler Faithfulness Guardrails could not be run. Chatbot message must be provided.")
-        return RailOutcome.allow(blocked=False)
+        return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"context": knowledge, "response": bot_message}
     blocked = await call_fiddler_guardrail(

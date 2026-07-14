@@ -110,9 +110,9 @@ async def content_safety_check_input(
     is_safe, *violated_policies = result
 
     final_result = (
-        RailOutcome.allow(policy_violations=violated_policies)
+        RailOutcome.allow(metadata={"policy_violations": violated_policies})
         if is_safe
-        else RailOutcome.block(policy_violations=violated_policies)
+        else RailOutcome.block(metadata={"policy_violations": violated_policies})
     )
 
     if cache:
@@ -202,9 +202,9 @@ async def content_safety_check_output(
     is_safe, *violated_policies = result
 
     final_result = (
-        RailOutcome.allow(policy_violations=violated_policies)
+        RailOutcome.allow(metadata={"policy_violations": violated_policies})
         if is_safe
-        else RailOutcome.block(policy_violations=violated_policies)
+        else RailOutcome.block(metadata={"policy_violations": violated_policies})
     )
 
     if cache:

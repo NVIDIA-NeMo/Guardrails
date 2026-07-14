@@ -27,10 +27,10 @@ def mock_protect_text(return_value):
             return return_value
         target = TransformTarget.BOT_MESSAGE if kwargs.get("bot_response") else TransformTarget.USER_MESSAGE
         if return_value.get("is_blocked"):
-            return RailOutcome.block(**return_value)
+            return RailOutcome.block(metadata=return_value)
         if return_value.get("is_modified"):
-            return RailOutcome.transform([(target, return_value.get("modified_text") or "")], **return_value)
-        return RailOutcome.allow(**return_value)
+            return RailOutcome.transform([(target, return_value.get("modified_text") or "")], metadata=return_value)
+        return RailOutcome.allow(metadata=return_value)
 
     return mock_request
 
@@ -69,19 +69,17 @@ def test_prompt_security_protection_disabled():
     [
         (
             {"is_blocked": False, "is_modified": False, "modified_text": None},
-            RailOutcome.allow(is_blocked=False, is_modified=False, modified_text=None),
+            RailOutcome.allow(metadata={"is_blocked": False, "is_modified": False, "modified_text": None}),
         ),
         (
             {"is_blocked": True, "is_modified": False, "modified_text": None},
-            RailOutcome.block(is_blocked=True, is_modified=False, modified_text=None),
+            RailOutcome.block(metadata={"is_blocked": True, "is_modified": False, "modified_text": None}),
         ),
         (
             {"is_blocked": False, "is_modified": True, "modified_text": "masked"},
             RailOutcome.transform(
                 [(TransformTarget.USER_MESSAGE, "masked")],
-                is_blocked=False,
-                is_modified=True,
-                modified_text="masked",
+                metadata={"is_blocked": False, "is_modified": True, "modified_text": "masked"},
             ),
         ),
     ],

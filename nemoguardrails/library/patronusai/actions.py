@@ -63,8 +63,8 @@ def parse_patronus_lynx_response(
 def _patronus_lynx_outcome(hallucination: bool, reasoning: Union[List[str], None]) -> RailOutcome:
     metadata = {"hallucination": hallucination, "reasoning": reasoning}
     if hallucination:
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action()
@@ -233,5 +233,5 @@ async def patronus_api_check_output(
     passed = check_guardrail_pass(response=response, success_strategy=success_strategy)
     metadata = {"pass": passed}
     if passed:
-        return RailOutcome.allow(**metadata)
-    return RailOutcome.block(**metadata)
+        return RailOutcome.allow(metadata=metadata)
+    return RailOutcome.block(metadata=metadata)

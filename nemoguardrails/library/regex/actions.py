@@ -33,10 +33,10 @@ def _regex_outcome(source: str, result: RegexDetectionResult) -> RailOutcome:
     metadata = dict(result)
     metadata["source"] = source
     if result["is_match"] and source == "retrieval":
-        return RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")], **metadata)
+        return RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")], metadata=metadata)
     if result["is_match"]:
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(is_system_action=True)

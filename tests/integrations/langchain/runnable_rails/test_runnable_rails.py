@@ -559,7 +559,7 @@ def test_mocked_rag_with_fact_checking():
         assert "The price is $50" in evidence
         assert "The price is $45" in response
 
-        return RailOutcome.block(accuracy=0.0)
+        return RailOutcome.block(metadata={"accuracy": 0.0})
 
     guardrails.rails.register_action(self_check_facts)
 

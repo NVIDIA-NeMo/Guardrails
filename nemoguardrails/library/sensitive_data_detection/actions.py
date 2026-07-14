@@ -96,8 +96,8 @@ def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
 
 def _sensitive_data_detection_outcome(has_sensitive_data: bool) -> RailOutcome:
     if has_sensitive_data:
-        return RailOutcome.block(has_sensitive_data=has_sensitive_data)
-    return RailOutcome.allow(has_sensitive_data=has_sensitive_data)
+        return RailOutcome.block(metadata={"has_sensitive_data": has_sensitive_data})
+    return RailOutcome.allow(metadata={"has_sensitive_data": has_sensitive_data})
 
 
 def _mask_sensitive_data_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
@@ -112,8 +112,8 @@ def _mask_sensitive_data_outcome(source: str, original_text: str, masked_text: s
         "masked_text": masked_text,
     }
     if masked_text != original_text:
-        return RailOutcome.transform([(target_by_source[source], masked_text)], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target_by_source[source], masked_text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(is_system_action=True)

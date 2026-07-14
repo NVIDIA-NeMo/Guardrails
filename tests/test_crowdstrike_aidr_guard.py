@@ -57,11 +57,13 @@ output_rail_config = RailsConfig.from_content(
                 bot_message="normal",
             ),
             RailOutcome.allow(
-                blocked=False,
-                transformed=False,
-                guard_output={"messages": []},
-                user_message="hello",
-                bot_message="normal",
+                metadata={
+                    "blocked": False,
+                    "transformed": False,
+                    "guard_output": {"messages": []},
+                    "user_message": "hello",
+                    "bot_message": "normal",
+                }
             ),
         ),
         (
@@ -73,11 +75,13 @@ output_rail_config = RailsConfig.from_content(
                 bot_message="normal",
             ),
             RailOutcome.block(
-                blocked=True,
-                transformed=False,
-                guard_output={"messages": []},
-                user_message="hello",
-                bot_message="normal",
+                metadata={
+                    "blocked": True,
+                    "transformed": False,
+                    "guard_output": {"messages": []},
+                    "user_message": "hello",
+                    "bot_message": "normal",
+                }
             ),
         ),
         (
@@ -93,11 +97,13 @@ output_rail_config = RailsConfig.from_content(
                     (TransformTarget.USER_MESSAGE, "masked user"),
                     (TransformTarget.BOT_MESSAGE, "masked bot"),
                 ],
-                blocked=False,
-                transformed=True,
-                guard_output={"messages": []},
-                user_message="masked user",
-                bot_message="masked bot",
+                metadata={
+                    "blocked": False,
+                    "transformed": True,
+                    "guard_output": {"messages": []},
+                    "user_message": "masked user",
+                    "bot_message": "masked bot",
+                },
             ),
         ),
     ],

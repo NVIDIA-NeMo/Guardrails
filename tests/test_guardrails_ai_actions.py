@@ -81,7 +81,7 @@ class TestGuardrailsAIIntegration:
             text="Hello, this is safe",
         )
 
-        assert result == RailOutcome.allow(validation_result=mock_validation_result, valid=True)
+        assert result == RailOutcome.allow(metadata={"validation_result": mock_validation_result, "valid": True})
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
     def test_validate_guardrails_ai_output_returns_block_outcome(self, mock_get_guard):
@@ -103,7 +103,7 @@ class TestGuardrailsAIIntegration:
             text="Blocked content",
         )
 
-        assert result == RailOutcome.block(validation_result=mock_validation_result, valid=False)
+        assert result == RailOutcome.block(metadata={"validation_result": mock_validation_result, "valid": False})
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
     def test_validate_guardrails_ai_success(self, mock_get_guard):

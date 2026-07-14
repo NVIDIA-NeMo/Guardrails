@@ -91,10 +91,10 @@ async def ps_protect_api_async(
 def _protect_text_outcome(result: dict, target: TransformTarget) -> RailOutcome:
     metadata = dict(result)
     if result.get("is_blocked", True):
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if result.get("is_modified", False):
-        return RailOutcome.transform([(target, result.get("modified_text") or "")], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target, result.get("modified_text") or "")], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(is_system_action=True)

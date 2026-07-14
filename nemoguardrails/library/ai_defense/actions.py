@@ -33,8 +33,8 @@ DEFAULT_TIMEOUT = 30.0
 
 def _ai_defense_outcome(is_blocked: bool) -> RailOutcome:
     if is_blocked:
-        return RailOutcome.block(is_blocked=is_blocked)
-    return RailOutcome.allow(is_blocked=is_blocked)
+        return RailOutcome.block(metadata={"is_blocked": is_blocked})
+    return RailOutcome.allow(metadata={"is_blocked": is_blocked})
 
 
 @action(is_system_action=True)

@@ -98,9 +98,9 @@ async def test_self_check_input_block_preserves_mask_event():
 @pytest.mark.parametrize(
     ("accuracy", "expected"),
     [
-        (0.49, RailOutcome.block(accuracy=0.49)),
-        (0.5, RailOutcome.allow(accuracy=0.5)),
-        (0.51, RailOutcome.allow(accuracy=0.51)),
+        (0.49, RailOutcome.block(metadata={"accuracy": 0.49})),
+        (0.5, RailOutcome.allow(metadata={"accuracy": 0.5})),
+        (0.51, RailOutcome.allow(metadata={"accuracy": 0.51})),
     ],
 )
 def test_fact_check_outcome_pins_threshold(accuracy, expected):
@@ -118,15 +118,15 @@ async def test_self_check_facts_without_evidence_allows():
         config=_config(),
     )
 
-    assert outcome == RailOutcome.allow(accuracy=1.0)
+    assert outcome == RailOutcome.allow(metadata={"accuracy": 1.0})
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("score", "expected"),
     [
-        (0.49, RailOutcome.block(accuracy=0.49)),
-        (0.5, RailOutcome.allow(accuracy=0.5)),
+        (0.49, RailOutcome.block(metadata={"accuracy": 0.49})),
+        (0.5, RailOutcome.allow(metadata={"accuracy": 0.5})),
     ],
 )
 async def test_alignscore_check_facts_returns_rail_outcome(monkeypatch, score, expected):

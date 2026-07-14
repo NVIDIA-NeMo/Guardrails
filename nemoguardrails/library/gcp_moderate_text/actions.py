@@ -65,8 +65,8 @@ def _gcp_text_moderation_outcome(
         else _gcp_text_simple_blocked(max_risk_score)
     )
     if blocked:
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(

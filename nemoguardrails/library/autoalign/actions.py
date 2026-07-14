@@ -130,18 +130,18 @@ def process_autoalign_output(responses: List[Any], show_toxic_phrases: bool = Fa
 def _autoalign_outcome(result: dict, target: TransformTarget) -> RailOutcome:
     metadata = dict(result)
     if result.get("guardrails_triggered", False):
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     pii = result.get("pii") or {}
     if pii.get("guarded", False):
-        return RailOutcome.transform([(target, pii.get("response") or "")], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target, pii.get("response") or "")], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _autoalign_score_outcome(score: float, threshold: float) -> RailOutcome:
     metadata = {"score": score, "threshold": threshold}
     if score < threshold:
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 async def autoalign_infer(

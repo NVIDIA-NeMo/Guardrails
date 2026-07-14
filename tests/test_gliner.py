@@ -129,8 +129,8 @@ def create_mock_gliner_detect_pii(entities_to_detect: Optional[List[str]] = None
     async def mock_gliner_detect_pii(source: str, text: str, config, **kwargs):
         response = create_gliner_mock_response(text, entities_to_detect)
         if response.get("total_entities", 0) > 0:
-            return RailOutcome.block(has_pii=True)
-        return RailOutcome.allow(has_pii=False)
+            return RailOutcome.block(metadata={"has_pii": True})
+        return RailOutcome.allow(metadata={"has_pii": False})
 
     return mock_gliner_detect_pii
 

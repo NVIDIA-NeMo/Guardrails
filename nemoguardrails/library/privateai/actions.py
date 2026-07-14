@@ -30,8 +30,8 @@ log = logging.getLogger(__name__)
 
 def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
     if has_pii:
-        return RailOutcome.block(has_pii=has_pii)
-    return RailOutcome.allow(has_pii=has_pii)
+        return RailOutcome.block(metadata={"has_pii": has_pii})
+    return RailOutcome.allow(metadata={"has_pii": has_pii})
 
 
 def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
@@ -46,8 +46,8 @@ def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> Rail
         "masked_text": masked_text,
     }
     if masked_text != original_text:
-        return RailOutcome.transform([(target_by_source[source], masked_text)], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target_by_source[source], masked_text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(is_system_action=False)

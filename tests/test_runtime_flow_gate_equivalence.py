@@ -867,7 +867,7 @@ def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
         _case(
             f"{spec.name}_allows_unchanged_output",
             spec,
-            RailOutcome.allow(text=NORMAL_OUTPUT, masked_text=NORMAL_OUTPUT),
+            RailOutcome.allow(metadata={"text": NORMAL_OUTPUT, "masked_text": NORMAL_OUTPUT}),
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
             expected_content=NORMAL_OUTPUT,
@@ -877,8 +877,7 @@ def _output_transform_cases(spec: RailSpec) -> list[FlowEquivalenceCase]:
             spec,
             RailOutcome.transform(
                 [(TransformTarget.BOT_MESSAGE, transformed_output)],
-                text=NORMAL_OUTPUT,
-                masked_text=transformed_output,
+                metadata={"text": NORMAL_OUTPUT, "masked_text": transformed_output},
             ),
             ObservableOutcome.TRANSFORM,
             FlowDecision.TRANSFORM,
@@ -905,7 +904,7 @@ def _output_var_transform_cases(
         _case(
             f"{spec.name}_allows_unchanged_{output_var}",
             spec,
-            RailOutcome.allow(text=original_value, masked_text=original_value),
+            RailOutcome.allow(metadata={"text": original_value, "masked_text": original_value}),
             ObservableOutcome.ALLOW,
             FlowDecision.ALLOW,
             context=context,
@@ -917,9 +916,7 @@ def _output_var_transform_cases(
             f"{spec.name}_transforms_changed_{output_var}",
             spec,
             RailOutcome.transform(
-                [(target, transformed_value)],
-                text=original_value,
-                masked_text=transformed_value,
+                [(target, transformed_value)], metadata={"text": original_value, "masked_text": transformed_value}
             ),
             ObservableOutcome.TRANSFORM,
             FlowDecision.TRANSFORM,
@@ -1006,16 +1003,16 @@ def _pangea_outcome(*, blocked: bool, transformed: bool, user_message: str, bot_
         "bot_message": bot_message,
     }
     if blocked:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if transformed:
         return RailOutcome.transform(
             [
                 (TransformTarget.USER_MESSAGE, user_message),
                 (TransformTarget.BOT_MESSAGE, bot_message),
             ],
-            **metadata,
+            metadata=metadata,
         )
-    return RailOutcome.allow(**metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _crowdstrike_outcome(
@@ -1033,16 +1030,16 @@ def _crowdstrike_outcome(
         "bot_message": bot_message,
     }
     if blocked:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if transformed:
         return RailOutcome.transform(
             [
                 (TransformTarget.USER_MESSAGE, user_message),
                 (TransformTarget.BOT_MESSAGE, bot_message),
             ],
-            **metadata,
+            metadata=metadata,
         )
-    return RailOutcome.allow(**metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _prompt_security_outcome(
@@ -1058,10 +1055,10 @@ def _prompt_security_outcome(
         "modified_text": text,
     }
     if blocked:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if modified:
-        return RailOutcome.transform([(target, text or "")], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target, text or "")], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _autoalign_outcome(
@@ -1077,10 +1074,10 @@ def _autoalign_outcome(
         "pii": {"guarded": pii_guarded, "response": pii_response},
     }
     if guardrails_triggered:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if pii_guarded:
-        return RailOutcome.transform([(target, pii_response)], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(target, pii_response)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _injection_detection_outcome(
@@ -1097,16 +1094,16 @@ def _injection_detection_outcome(
         "action": action,
     }
     if action == "reject" and is_injection:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if text != NORMAL_OUTPUT:
-        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _fact_check_outcome(accuracy: float) -> RailOutcome:
     if accuracy < 0.5:
-        return RailOutcome.block(accuracy=accuracy)
-    return RailOutcome.allow(accuracy=accuracy)
+        return RailOutcome.block(metadata={"accuracy": accuracy})
+    return RailOutcome.allow(metadata={"accuracy": accuracy})
 
 
 def _risk_result(max_risk_score: float, violations: dict[str, float] | None = None) -> dict[str, Any]:
@@ -1126,8 +1123,16 @@ def _risk_outcome(
         "threshold_mode": threshold_mode,
     }
     if blocked:
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
+
+
+def _policyai_outcome(metadata: dict[str, Any]) -> RailOutcome:
+    metadata = dict(metadata)
+    reason = metadata.pop("reason", None)
+    if metadata["assessment"] == "UNSAFE":
+        return RailOutcome.block(reason=reason, metadata=metadata)
+    return RailOutcome.allow(reason=reason, metadata=metadata)
 
 
 FIXTURES = [
@@ -1260,21 +1265,21 @@ FIXTURES = [
     _case(
         "llama_guard_input_allows_outcome_allow",
         LLAMA_GUARD_INPUT,
-        RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS),
+        RailOutcome.allow(metadata={"policy_violations": LLAMA_GUARD_SAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "llama_guard_input_blocks_outcome_block",
         LLAMA_GUARD_INPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "llama_guard_input_blocks_outcome_block_exception",
         LLAMA_GUARD_INPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1282,28 +1287,28 @@ FIXTURES = [
     _case(
         "llama_guard_input_blocks_unparseable_outcome_block",
         LLAMA_GUARD_INPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "llama_guard_output_allows_outcome_allow",
         LLAMA_GUARD_OUTPUT,
-        RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS),
+        RailOutcome.allow(metadata={"policy_violations": LLAMA_GUARD_SAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "llama_guard_output_blocks_outcome_block",
         LLAMA_GUARD_OUTPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "llama_guard_output_blocks_outcome_block_exception",
         LLAMA_GUARD_OUTPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1311,28 +1316,28 @@ FIXTURES = [
     _case(
         "llama_guard_output_blocks_unparseable_outcome_block",
         LLAMA_GUARD_OUTPUT,
-        RailOutcome.block(policy_violations=LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS),
+        RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "policyai_input_allows_outcome_allow",
         POLICYAI_INPUT,
-        RailOutcome.allow(**POLICYAI_SAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_SAFE_OUTCOME_KWARGS),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "policyai_input_blocks_outcome_block",
         POLICYAI_INPUT,
-        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "policyai_input_blocks_outcome_block_exception",
         POLICYAI_INPUT,
-        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1340,21 +1345,21 @@ FIXTURES = [
     _case(
         "policyai_output_allows_outcome_allow",
         POLICYAI_OUTPUT,
-        RailOutcome.allow(**POLICYAI_SAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_SAFE_OUTCOME_KWARGS),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "policyai_output_blocks_outcome_block",
         POLICYAI_OUTPUT,
-        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "policyai_output_blocks_outcome_block_exception",
         POLICYAI_OUTPUT,
-        RailOutcome.block(**POLICYAI_UNSAFE_OUTCOME_KWARGS),
+        _policyai_outcome(POLICYAI_UNSAFE_OUTCOME_KWARGS),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1362,35 +1367,37 @@ FIXTURES = [
     _case(
         "regex_input_allows_no_match",
         REGEX_INPUT,
-        RailOutcome.allow(is_match=False, text="hello", detections=[], source="input"),
+        RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": [], "source": "input"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "regex_input_blocks_match",
         REGEX_INPUT,
-        RailOutcome.block(is_match=True, text="secret", detections=["secret"], source="input"),
+        RailOutcome.block(metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "input"}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "regex_output_allows_no_match",
         REGEX_OUTPUT,
-        RailOutcome.allow(is_match=False, text="hello", detections=[], source="output"),
+        RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": [], "source": "output"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "regex_output_blocks_match",
         REGEX_OUTPUT,
-        RailOutcome.block(is_match=True, text="secret", detections=["secret"], source="output"),
+        RailOutcome.block(metadata={"is_match": True, "text": "secret", "detections": ["secret"], "source": "output"}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "regex_retrieval_allows_no_match",
         REGEX_RETRIEVAL,
-        RailOutcome.allow(is_match=False, text=RELEVANT_CHUNKS, detections=[], source="retrieval"),
+        RailOutcome.allow(
+            metadata={"is_match": False, "text": RELEVANT_CHUNKS, "detections": [], "source": "retrieval"}
+        ),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"relevant_chunks": RELEVANT_CHUNKS},
@@ -1403,10 +1410,7 @@ FIXTURES = [
         REGEX_RETRIEVAL,
         RailOutcome.transform(
             [(TransformTarget.RELEVANT_CHUNKS, "")],
-            is_match=True,
-            text=RELEVANT_CHUNKS,
-            detections=["secret"],
-            source="retrieval",
+            metadata={"is_match": True, "text": RELEVANT_CHUNKS, "detections": ["secret"], "source": "retrieval"},
         ),
         ObservableOutcome.TRANSFORM,
         FlowDecision.TRANSFORM,
@@ -1778,7 +1782,7 @@ FIXTURES = [
     _case(
         "autoalign_groundedness_output_allows_at_threshold",
         AUTOALIGN_GROUNDEDNESS_OUTPUT,
-        RailOutcome.allow(score=0.5, threshold=0.5),
+        RailOutcome.allow(metadata={"score": 0.5, "threshold": 0.5}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_facts": True},
@@ -1787,7 +1791,7 @@ FIXTURES = [
     _case(
         "autoalign_groundedness_output_blocks_below_threshold",
         AUTOALIGN_GROUNDEDNESS_OUTPUT,
-        RailOutcome.block(score=0.49, threshold=0.5),
+        RailOutcome.block(metadata={"score": 0.49, "threshold": 0.5}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
         context={"check_facts": True},
@@ -1795,7 +1799,7 @@ FIXTURES = [
     _case(
         "autoalign_factcheck_output_allows_at_threshold",
         AUTOALIGN_FACTCHECK_OUTPUT,
-        RailOutcome.allow(score=0.5, threshold=0.5),
+        RailOutcome.allow(metadata={"score": 0.5, "threshold": 0.5}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         expected_content=NORMAL_OUTPUT,
@@ -1803,7 +1807,7 @@ FIXTURES = [
     _case(
         "autoalign_factcheck_output_blocks_below_threshold",
         AUTOALIGN_FACTCHECK_OUTPUT,
-        RailOutcome.block(score=0.49, threshold=0.5),
+        RailOutcome.block(metadata={"score": 0.49, "threshold": 0.5}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
     ),
@@ -1902,21 +1906,21 @@ FIXTURES = [
     _case(
         "trend_micro_input_allows_allow_action",
         TREND_MICRO_INPUT,
-        RailOutcome.allow(reason="Allow reason", action="Allow"),
+        RailOutcome.allow(reason="Allow reason", metadata={"action": "Allow"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "trend_micro_input_blocks_block_action",
         TREND_MICRO_INPUT,
-        RailOutcome.block(reason="Block reason", action="Block"),
+        RailOutcome.block(reason="Block reason", metadata={"action": "Block"}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "trend_micro_input_blocks_block_action_exception",
         TREND_MICRO_INPUT,
-        RailOutcome.block(reason="Block reason", action="Block"),
+        RailOutcome.block(reason="Block reason", metadata={"action": "Block"}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1924,21 +1928,21 @@ FIXTURES = [
     _case(
         "trend_micro_output_allows_allow_action",
         TREND_MICRO_OUTPUT,
-        RailOutcome.allow(reason="Allow reason", action="Allow"),
+        RailOutcome.allow(reason="Allow reason", metadata={"action": "Allow"}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "trend_micro_output_blocks_block_action",
         TREND_MICRO_OUTPUT,
-        RailOutcome.block(reason="Block reason", action="Block"),
+        RailOutcome.block(reason="Block reason", metadata={"action": "Block"}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "trend_micro_output_blocks_block_action_exception",
         TREND_MICRO_OUTPUT,
-        RailOutcome.block(reason="Block reason", action="Block"),
+        RailOutcome.block(reason="Block reason", metadata={"action": "Block"}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1946,7 +1950,7 @@ FIXTURES = [
     _case(
         "cleanlab_output_blocks_below_threshold",
         CLEANLAB_OUTPUT,
-        RailOutcome.block(trustworthiness_score=0.59),
+        RailOutcome.block(metadata={"trustworthiness_score": 0.59}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content=f"{NORMAL_OUTPUT} {CLEANLAB_WARNING_SUFFIX}",
@@ -1954,21 +1958,21 @@ FIXTURES = [
     _case(
         "cleanlab_output_allows_at_threshold",
         CLEANLAB_OUTPUT,
-        RailOutcome.allow(trustworthiness_score=0.6),
+        RailOutcome.allow(metadata={"trustworthiness_score": 0.6}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "cleanlab_output_allows_above_threshold",
         CLEANLAB_OUTPUT,
-        RailOutcome.allow(trustworthiness_score=0.61),
+        RailOutcome.allow(metadata={"trustworthiness_score": 0.61}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "cleanlab_output_blocks_below_threshold_exception",
         CLEANLAB_OUTPUT,
-        RailOutcome.block(trustworthiness_score=0.59),
+        RailOutcome.block(metadata={"trustworthiness_score": 0.59}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -1976,35 +1980,35 @@ FIXTURES = [
     _case(
         "ai_defense_input_allows_false",
         AI_DEFENSE_INPUT,
-        RailOutcome.allow(is_blocked=False),
+        RailOutcome.allow(metadata={"is_blocked": False}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "ai_defense_input_blocks_true",
         AI_DEFENSE_INPUT,
-        RailOutcome.block(is_blocked=True),
+        RailOutcome.block(metadata={"is_blocked": True}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "ai_defense_output_allows_false",
         AI_DEFENSE_OUTPUT,
-        RailOutcome.allow(is_blocked=False),
+        RailOutcome.allow(metadata={"is_blocked": False}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "ai_defense_output_blocks_true",
         AI_DEFENSE_OUTPUT,
-        RailOutcome.block(is_blocked=True),
+        RailOutcome.block(metadata={"is_blocked": True}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "ai_defense_input_blocks_true_exception",
         AI_DEFENSE_INPUT,
-        RailOutcome.block(is_blocked=True),
+        RailOutcome.block(metadata={"is_blocked": True}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2012,51 +2016,51 @@ FIXTURES = [
     _case(
         "ai_defense_output_blocks_true_exception",
         AI_DEFENSE_OUTPUT,
-        RailOutcome.block(is_blocked=True),
+        RailOutcome.block(metadata={"is_blocked": True}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
     *_rail_outcome_cases(
         CLAVATA_INPUT,
-        allow_return=RailOutcome.allow(policy_matched=False),
-        block_return=RailOutcome.block(policy_matched=True),
+        allow_return=RailOutcome.allow(metadata={"policy_matched": False}),
+        block_return=RailOutcome.block(metadata={"policy_matched": True}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         CLAVATA_OUTPUT,
-        allow_return=RailOutcome.allow(policy_matched=False),
-        block_return=RailOutcome.block(policy_matched=True),
+        allow_return=RailOutcome.allow(metadata={"policy_matched": False}),
+        block_return=RailOutcome.block(metadata={"policy_matched": True}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         FIDDLER_USER_SAFETY,
-        allow_return=RailOutcome.allow(blocked=False),
-        block_return=RailOutcome.block(blocked=True),
+        allow_return=RailOutcome.allow(metadata={"blocked": False}),
+        block_return=RailOutcome.block(metadata={"blocked": True}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         FIDDLER_BOT_SAFETY,
-        allow_return=RailOutcome.allow(blocked=False),
-        block_return=RailOutcome.block(blocked=True),
+        allow_return=RailOutcome.allow(metadata={"blocked": False}),
+        block_return=RailOutcome.block(metadata={"blocked": True}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         FIDDLER_BOT_FAITHFULNESS,
-        allow_return=RailOutcome.allow(blocked=False),
-        block_return=RailOutcome.block(blocked=True),
+        allow_return=RailOutcome.allow(metadata={"blocked": False}),
+        block_return=RailOutcome.block(metadata={"blocked": True}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         F5_INPUT,
-        allow_return=RailOutcome.allow(result={"outcome": "cleared"}),
-        block_return=RailOutcome.block(result={"outcome": "flagged"}),
+        allow_return=RailOutcome.allow(metadata={"result": {"outcome": "cleared"}}),
+        block_return=RailOutcome.block(metadata={"result": {"outcome": "flagged"}}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         F5_OUTPUT,
-        allow_return=RailOutcome.allow(result={"outcome": "cleared"}),
-        block_return=RailOutcome.block(result={"outcome": "flagged"}),
+        allow_return=RailOutcome.allow(metadata={"result": {"outcome": "cleared"}}),
+        block_return=RailOutcome.block(metadata={"result": {"outcome": "flagged"}}),
         include_exception_case=True,
     ),
     _case(
@@ -2173,21 +2177,21 @@ FIXTURES = [
     _case(
         "guardrails_ai_input_allows_valid",
         GUARDRAILS_AI_INPUT,
-        RailOutcome.allow(valid=True, validation_result={"validation_passed": True}),
+        RailOutcome.allow(metadata={"valid": True, "validation_result": {"validation_passed": True}}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "guardrails_ai_input_blocks_invalid",
         GUARDRAILS_AI_INPUT,
-        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
+        RailOutcome.block(metadata={"valid": False, "validation_result": {"validation_passed": False}}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "guardrails_ai_input_blocks_invalid_exception",
         GUARDRAILS_AI_INPUT,
-        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
+        RailOutcome.block(metadata={"valid": False, "validation_result": {"validation_passed": False}}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2195,21 +2199,21 @@ FIXTURES = [
     _case(
         "guardrails_ai_output_allows_valid",
         GUARDRAILS_AI_OUTPUT,
-        RailOutcome.allow(valid=True, validation_result={"validation_passed": True}),
+        RailOutcome.allow(metadata={"valid": True, "validation_result": {"validation_passed": True}}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "guardrails_ai_output_blocks_invalid",
         GUARDRAILS_AI_OUTPUT,
-        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
+        RailOutcome.block(metadata={"valid": False, "validation_result": {"validation_passed": False}}),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
         "guardrails_ai_output_blocks_invalid_exception",
         GUARDRAILS_AI_OUTPUT,
-        RailOutcome.block(valid=False, validation_result={"validation_passed": False}),
+        RailOutcome.block(metadata={"valid": False, "validation_result": {"validation_passed": False}}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2217,21 +2221,21 @@ FIXTURES = [
     _case(
         "patronus_lynx_output_allows_no_hallucination",
         PATRONUS_LYNX_OUTPUT,
-        RailOutcome.allow(hallucination=False, reasoning=["grounded"]),
+        RailOutcome.allow(metadata={"hallucination": False, "reasoning": ["grounded"]}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "patronus_lynx_output_blocks_hallucination",
         PATRONUS_LYNX_OUTPUT,
-        RailOutcome.block(hallucination=True, reasoning=["unsupported"]),
+        RailOutcome.block(metadata={"hallucination": True, "reasoning": ["unsupported"]}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
     ),
     _case(
         "patronus_lynx_output_blocks_hallucination_exception",
         PATRONUS_LYNX_OUTPUT,
-        RailOutcome.block(hallucination=True, reasoning=["unsupported"]),
+        RailOutcome.block(metadata={"hallucination": True, "reasoning": ["unsupported"]}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2239,21 +2243,21 @@ FIXTURES = [
     _case(
         "patronus_api_output_allows_passed",
         PATRONUS_API_OUTPUT,
-        RailOutcome.allow(**{"pass": True}),
+        RailOutcome.allow(metadata={"pass": True}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
         "patronus_api_output_blocks_failed",
         PATRONUS_API_OUTPUT,
-        RailOutcome.block(**{"pass": False}),
+        RailOutcome.block(metadata={"pass": False}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
     ),
     _case(
         "self_check_hallucination_allows_false",
         SELF_CHECK_HALLUCINATION,
-        RailOutcome.allow(is_hallucination=False),
+        RailOutcome.allow(metadata={"is_hallucination": False}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
         context={"check_hallucination": True},
@@ -2261,7 +2265,7 @@ FIXTURES = [
     _case(
         "self_check_hallucination_blocks_true",
         SELF_CHECK_HALLUCINATION,
-        RailOutcome.block(is_hallucination=True),
+        RailOutcome.block(metadata={"is_hallucination": True}),
         ObservableOutcome.ANSWER_UNKNOWN,
         FlowDecision.BLOCK,
         context={"check_hallucination": True},
@@ -2269,7 +2273,7 @@ FIXTURES = [
     _case(
         "self_check_hallucination_blocks_true_exception",
         SELF_CHECK_HALLUCINATION,
-        RailOutcome.block(is_hallucination=True),
+        RailOutcome.block(metadata={"is_hallucination": True}),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
@@ -2277,14 +2281,14 @@ FIXTURES = [
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_INPUT,
-        allow_return=RailOutcome.allow(policy_violations=[]),
-        block_return=RailOutcome.block(policy_violations=["violence"]),
+        allow_return=RailOutcome.allow(metadata={"policy_violations": []}),
+        block_return=RailOutcome.block(metadata={"policy_violations": ["violence"]}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(
         CONTENT_SAFETY_OUTPUT,
-        allow_return=RailOutcome.allow(policy_violations=[]),
-        block_return=RailOutcome.block(policy_violations=["violence"]),
+        allow_return=RailOutcome.allow(metadata={"policy_violations": []}),
+        block_return=RailOutcome.block(metadata={"policy_violations": ["violence"]}),
         include_exception_case=True,
     ),
     *_rail_outcome_cases(

@@ -30,11 +30,11 @@ from nemoguardrails.library.trend_micro.actions import GuardResult, _trend_micro
     [
         (
             GuardResult(action="Allow", reason="No threats detected"),
-            RailOutcome.allow(reason="No threats detected", action="Allow"),
+            RailOutcome.allow(reason="No threats detected", metadata={"action": "Allow"}),
         ),
         (
             GuardResult(action="Block", reason="Prompt Attack Detected"),
-            RailOutcome.block(reason="Prompt Attack Detected", action="Block"),
+            RailOutcome.block(reason="Prompt Attack Detected", metadata={"action": "Block"}),
         ),
     ],
 )
@@ -45,9 +45,9 @@ def test_trend_micro_outcome_preserves_action_and_reason(guard_result, expected)
 @pytest.mark.parametrize(
     ("score", "expected"),
     [
-        (0.59, RailOutcome.block(trustworthiness_score=0.59)),
-        (0.6, RailOutcome.allow(trustworthiness_score=0.6)),
-        (0.61, RailOutcome.allow(trustworthiness_score=0.61)),
+        (0.59, RailOutcome.block(metadata={"trustworthiness_score": 0.59})),
+        (0.6, RailOutcome.allow(metadata={"trustworthiness_score": 0.6})),
+        (0.61, RailOutcome.allow(metadata={"trustworthiness_score": 0.61})),
     ],
 )
 def test_cleanlab_outcome_pins_threshold(score, expected):
@@ -57,8 +57,8 @@ def test_cleanlab_outcome_pins_threshold(score, expected):
 @pytest.mark.parametrize(
     ("is_blocked", "expected"),
     [
-        (False, RailOutcome.allow(is_blocked=False)),
-        (True, RailOutcome.block(is_blocked=True)),
+        (False, RailOutcome.allow(metadata={"is_blocked": False})),
+        (True, RailOutcome.block(metadata={"is_blocked": True})),
     ],
 )
 def test_ai_defense_outcome_preserves_fail_open_closed_decision(is_blocked, expected):
@@ -68,8 +68,8 @@ def test_ai_defense_outcome_preserves_fail_open_closed_decision(is_blocked, expe
 @pytest.mark.parametrize(
     ("policy_matched", "expected"),
     [
-        (False, RailOutcome.allow(policy_matched=False)),
-        (True, RailOutcome.block(policy_matched=True)),
+        (False, RailOutcome.allow(metadata={"policy_matched": False})),
+        (True, RailOutcome.block(metadata={"policy_matched": True})),
     ],
 )
 def test_clavata_outcome_preserves_policy_match_decision(policy_matched, expected):
@@ -79,8 +79,8 @@ def test_clavata_outcome_preserves_policy_match_decision(policy_matched, expecte
 @pytest.mark.parametrize(
     ("blocked", "expected"),
     [
-        (False, RailOutcome.allow(blocked=False)),
-        (True, RailOutcome.block(blocked=True)),
+        (False, RailOutcome.allow(metadata={"blocked": False})),
+        (True, RailOutcome.block(metadata={"blocked": True})),
     ],
 )
 def test_fiddler_outcome_preserves_detector_decision(blocked, expected):

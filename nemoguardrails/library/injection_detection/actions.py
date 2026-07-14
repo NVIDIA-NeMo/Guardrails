@@ -62,10 +62,10 @@ def _injection_detection_outcome(
     metadata = dict(result)
     metadata["action"] = action_option
     if action_option == "reject" and result["is_injection"]:
-        return RailOutcome.block(**metadata)
+        return RailOutcome.block(metadata=metadata)
     if result["text"] != original_text:
-        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], **metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _check_yara_available():

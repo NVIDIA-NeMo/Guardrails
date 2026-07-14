@@ -78,9 +78,9 @@ class _LlamaGuardTaskManager:
 @pytest.mark.parametrize(
     ("llm_response", "expected"),
     [
-        ("safe", RailOutcome.allow(policy_violations=LLAMA_GUARD_SAFE_POLICY_VIOLATIONS)),
-        ("unsafe s1", RailOutcome.block(policy_violations=LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS)),
-        ("error", RailOutcome.block(policy_violations=LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS)),
+        ("safe", RailOutcome.allow(metadata={"policy_violations": LLAMA_GUARD_SAFE_POLICY_VIOLATIONS})),
+        ("unsafe s1", RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS})),
+        ("error", RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS})),
     ],
 )
 async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):

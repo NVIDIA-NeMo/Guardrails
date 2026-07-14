@@ -38,8 +38,8 @@ HALLUCINATION_NUM_EXTRA_RESPONSES = 2
 
 def _hallucination_outcome(is_hallucination: bool) -> RailOutcome:
     if is_hallucination:
-        return RailOutcome.block(is_hallucination=True)
-    return RailOutcome.allow(is_hallucination=False)
+        return RailOutcome.block(metadata={"is_hallucination": True})
+    return RailOutcome.allow(metadata={"is_hallucination": False})
 
 
 @action()

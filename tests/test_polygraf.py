@@ -71,8 +71,8 @@ def create_mock_polygraf_detect_pii(entities_to_detect: Optional[List[str]] = No
     async def mock_polygraf_detect_pii(source: str, text: str, config, **kwargs):
         entities = create_polygraf_mock_response(text, entities_to_detect)
         if entities:
-            return RailOutcome.block(has_pii=True)
-        return RailOutcome.allow(has_pii=False)
+            return RailOutcome.block(metadata={"has_pii": True})
+        return RailOutcome.allow(metadata={"has_pii": False})
 
     return mock_polygraf_detect_pii
 
@@ -83,7 +83,7 @@ def create_mock_polygraf_mask_pii(entities_to_detect: Optional[List[str]] = None
     async def mock_polygraf_mask_pii(source: str, text: str, config, **kwargs):
         entities = create_polygraf_mock_response(text, entities_to_detect)
         if not entities:
-            return RailOutcome.allow(source=source, text=text, masked_text=text)
+            return RailOutcome.allow(metadata={"source": source, "text": text, "masked_text": text})
 
         masked_text = text
         for entity in sorted(entities, key=lambda x: x["start"], reverse=True):
@@ -98,10 +98,7 @@ def create_mock_polygraf_mask_pii(entities_to_detect: Optional[List[str]] = None
             "retrieval": TransformTarget.RELEVANT_CHUNKS,
         }
         return RailOutcome.transform(
-            [(targets[source], masked_text)],
-            source=source,
-            text=text,
-            masked_text=masked_text,
+            [(targets[source], masked_text)], metadata={"source": source, "text": text, "masked_text": masked_text}
         )
 
     return mock_polygraf_mask_pii

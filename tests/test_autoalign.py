@@ -42,26 +42,32 @@ def wrap_autoalign_action(action_func, target: TransformTarget):
         (
             {"guardrails_triggered": False, "combined_response": "", "pii": {"guarded": False, "response": "hello"}},
             RailOutcome.allow(
-                guardrails_triggered=False,
-                combined_response="",
-                pii={"guarded": False, "response": "hello"},
+                metadata={
+                    "guardrails_triggered": False,
+                    "combined_response": "",
+                    "pii": {"guarded": False, "response": "hello"},
+                }
             ),
         ),
         (
             {"guardrails_triggered": True, "combined_response": "blocked", "pii": {"guarded": False, "response": ""}},
             RailOutcome.block(
-                guardrails_triggered=True,
-                combined_response="blocked",
-                pii={"guarded": False, "response": ""},
+                metadata={
+                    "guardrails_triggered": True,
+                    "combined_response": "blocked",
+                    "pii": {"guarded": False, "response": ""},
+                }
             ),
         ),
         (
             {"guardrails_triggered": False, "combined_response": "", "pii": {"guarded": True, "response": "masked"}},
             RailOutcome.transform(
                 [(TransformTarget.USER_MESSAGE, "masked")],
-                guardrails_triggered=False,
-                combined_response="",
-                pii={"guarded": True, "response": "masked"},
+                metadata={
+                    "guardrails_triggered": False,
+                    "combined_response": "",
+                    "pii": {"guarded": True, "response": "masked"},
+                },
             ),
         ),
         (
@@ -71,9 +77,11 @@ def wrap_autoalign_action(action_func, target: TransformTarget):
                 "pii": {"guarded": True, "response": "masked"},
             },
             RailOutcome.block(
-                guardrails_triggered=True,
-                combined_response="blocked",
-                pii={"guarded": True, "response": "masked"},
+                metadata={
+                    "guardrails_triggered": True,
+                    "combined_response": "blocked",
+                    "pii": {"guarded": True, "response": "masked"},
+                }
             ),
         ),
     ],
@@ -85,9 +93,9 @@ def test_autoalign_outcome(result, expected):
 @pytest.mark.parametrize(
     ("score", "threshold", "expected"),
     [
-        (0.49, 0.5, RailOutcome.block(score=0.49, threshold=0.5)),
-        (0.5, 0.5, RailOutcome.allow(score=0.5, threshold=0.5)),
-        (0.51, 0.5, RailOutcome.allow(score=0.51, threshold=0.5)),
+        (0.49, 0.5, RailOutcome.block(metadata={"score": 0.49, "threshold": 0.5})),
+        (0.5, 0.5, RailOutcome.allow(metadata={"score": 0.5, "threshold": 0.5})),
+        (0.51, 0.5, RailOutcome.allow(metadata={"score": 0.51, "threshold": 0.5})),
     ],
 )
 def test_autoalign_score_outcome(score, threshold, expected):

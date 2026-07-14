@@ -32,8 +32,8 @@ log = logging.getLogger(__name__)
 
 def _scan_outcome(result: dict) -> RailOutcome:
     if result.get("result", {}).get("outcome") != "cleared":
-        return RailOutcome.block(**result)
-    return RailOutcome.allow(**result)
+        return RailOutcome.block(metadata=result)
+    return RailOutcome.allow(metadata=result)
 
 
 def _get_f5_config(config: Optional[RailsConfig]) -> F5GuardrailsRailConfig:
@@ -52,7 +52,7 @@ def _fail_open_outcome() -> RailOutcome:
     The ``fail_open`` marker makes this distinguishable from a real cleared
     scan in logs and traces.
     """
-    return RailOutcome.allow(result={"outcome": "cleared"}, fail_open=True)
+    return RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
 
 
 def _parse_retry_after(raw: Optional[str]) -> Optional[float]:

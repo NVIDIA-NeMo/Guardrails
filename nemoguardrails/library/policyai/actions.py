@@ -36,9 +36,11 @@ log = logging.getLogger(__name__)
 
 
 def _policyai_outcome(metadata: dict) -> RailOutcome:
+    metadata = dict(metadata)
+    reason = metadata.pop("reason", None)
     if metadata["assessment"] == "UNSAFE":
-        return RailOutcome.block(**metadata)
-    return RailOutcome.allow(**metadata)
+        return RailOutcome.block(reason=reason, metadata=metadata)
+    return RailOutcome.allow(reason=reason, metadata=metadata)
 
 
 @action(is_system_action=True)
