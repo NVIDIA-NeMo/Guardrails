@@ -250,10 +250,15 @@ def _determine_rails_from_messages(messages: list[dict]) -> Optional[dict]:
 
 
 def _get_last_content_by_role(messages: list[dict], role: str) -> str:
-    """Return the content of the last message with the given role, or ""."""
+    """Return the content of the last message with the given role, or "".
+
+    Non-string content (e.g. ``None`` on an assistant tool-call message) is
+    normalized to "" so it can flow into the ``str``-typed ``RailsResult.content``.
+    """
     for msg in reversed(messages):
         if msg.get("role") == role:
-            return msg.get("content", "")
+            content = msg.get("content")
+            return content if isinstance(content, str) else ""
     return ""
 
 
@@ -832,13 +837,10 @@ class IORails(BaseGuardrails):
         else:
             determined = _determine_rails_from_messages(messages)
             if determined is None:
-                last_content = messages[-1].get("content", "") if messages else ""
-                return RailsResult(status=RailStatus.PASSED, content=last_content)
+                last = messages[-1].get("content") if messages else ""
+                return RailsResult(status=RailStatus.PASSED, content=last if isinstance(last, str) else "")
             rails_to_run = determined["rails"]
 
-        # Content reported on a pass. IORails rails only block or pass; they never
-        # rewrite content, so a passing check returns the checked content unchanged
-        # (RailStatus.MODIFIED never occurs for IORails).
         if "output" in rails_to_run:
             pass_content = _get_last_content_by_role(messages, "assistant")
         else:
@@ -855,9 +857,8 @@ class IORails(BaseGuardrails):
 
         if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")
-            # No assistant content to check (e.g. explicit rail_types=[OUTPUT] with no
-            # assistant message). Skip output rails rather than letting the content-safety
-            # action raise "bot_response is required" and surface a false BLOCK.
+            # Skip when there is no assistant content: the content-safety action requires
+            # bot_response and would otherwise raise, surfacing a false BLOCK.
             if bot_response:
                 log.info("[%s] Running output rails", req_id)
                 output_result = await self.rails_manager.is_output_safe(messages, bot_response)

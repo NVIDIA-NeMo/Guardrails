@@ -1261,6 +1261,7 @@ class TestCheckAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_check_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
+        """An input-rail block during check_async emits the blocked counter with rail.type=Input."""
         iorails_tracing.rails_manager.is_input_safe = AsyncMock(
             return_value=RailResult(is_safe=False, reason="unsafe", triggered_rail="content safety check input")
         )
@@ -1275,6 +1276,7 @@ class TestCheckAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_check_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
+        """An output-rail block during check_async emits the blocked counter with rail.type=Output."""
         iorails_tracing.rails_manager.is_output_safe = AsyncMock(
             return_value=RailResult(
                 is_safe=False, reason="unsafe response", triggered_rail="content safety check output"
@@ -1291,6 +1293,7 @@ class TestCheckAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_check_nonstream_rejections_counter_on_queue_full(self, iorails_tracing, metric_reader):
+        """A QueueFull during check_async increments the nonstream.rejections counter."""
         iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
 
         with pytest.raises(asyncio.QueueFull, match="admission queue full"):
@@ -2060,6 +2063,7 @@ class TestCheckContentCapture:
 
     @pytest.mark.asyncio
     async def test_check_captures_request_content(self, iorails_content_capture, exporter):
+        """check_async records the request input/output on the request span when content capture is on."""
         iorails_content_capture.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         await iorails_content_capture.check_async([{"role": "user", "content": "hello"}])

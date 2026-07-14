@@ -944,6 +944,7 @@ class TestTriggeredRail:
 
     @pytest.mark.asyncio
     async def test_input_block_sets_triggered_rail(self, content_safety_rails_manager):
+        """An input-rail block records the flow's base name in triggered_rail."""
         content_safety_rails_manager.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
         )
@@ -953,6 +954,7 @@ class TestTriggeredRail:
 
     @pytest.mark.asyncio
     async def test_output_block_sets_triggered_rail(self, content_safety_rails_manager):
+        """An output-rail block records the flow's base name in triggered_rail."""
         content_safety_rails_manager.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
         )
@@ -962,6 +964,7 @@ class TestTriggeredRail:
 
     @pytest.mark.asyncio
     async def test_safe_result_has_no_triggered_rail(self, content_safety_rails_manager):
+        """A safe result leaves triggered_rail unset (None)."""
         content_safety_rails_manager.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content=SAFE_INPUT_JSON)
         )

@@ -1859,10 +1859,12 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.fixture(autouse=True)
     def _set_api_key(self, monkeypatch):
+        """Set a dummy NVIDIA_API_KEY so the real engines start offline."""
         monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
 
     @pytest.mark.asyncio
     async def test_input_check_passed(self, _content_safety_rails_config):
+        """End-to-end: a safe user message passes the content-safety input check."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1879,6 +1881,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_input_check_blocked(self, _content_safety_rails_config):
+        """End-to-end: an unsafe input model verdict returns BLOCKED with the input rail name."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1893,6 +1896,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_output_check_passed(self, _content_safety_rails_config):
+        """End-to-end: a safe assistant message passes the content-safety output check."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1909,6 +1913,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_output_check_blocked(self, _content_safety_rails_config):
+        """End-to-end: an unsafe output model verdict returns BLOCKED with the output rail name."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1923,6 +1928,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_input_and_output_check_passed(self, _content_safety_rails_config):
+        """End-to-end: user+assistant messages pass both content-safety checks."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1949,6 +1955,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_input_and_output_check_input_blocked_skips_output(self, _content_safety_rails_config):
+        """End-to-end: an input block returns BLOCKED and the output model is never called."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1969,6 +1976,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_input_and_output_check_output_blocked(self, _content_safety_rails_config):
+        """End-to-end: input passes and the output check blocks."""
         async with Guardrails(
             config=_content_safety_rails_config, use_iorails=True, require_iorails=True
         ) as guardrails:
@@ -1993,6 +2001,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_topic_safety_input_check_passed(self):
+        """End-to-end: an on-topic user message passes the topic-safety input check."""
         config = RailsConfig.from_content(config=TOPIC_SAFETY_CONFIG)
         async with Guardrails(config=config, use_iorails=True, require_iorails=True) as guardrails:
             engine = _iorails_engine(guardrails)
@@ -2008,6 +2017,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_topic_safety_input_check_blocked(self):
+        """End-to-end: an off-topic user message is BLOCKED by the topic-safety input rail."""
         config = RailsConfig.from_content(config=TOPIC_SAFETY_CONFIG)
         async with Guardrails(config=config, use_iorails=True, require_iorails=True) as guardrails:
             engine = _iorails_engine(guardrails)
@@ -2021,6 +2031,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_jailbreak_input_check_passed(self):
+        """End-to-end: a benign message passes the jailbreak-detection input check (API mocked)."""
         config = RailsConfig.from_content(config=JAILBREAK_CONFIG)
         async with Guardrails(config=config, use_iorails=True, require_iorails=True) as guardrails:
             engine = _iorails_engine(guardrails)
@@ -2036,6 +2047,7 @@ class TestGuardrailsCheckEndToEnd:
 
     @pytest.mark.asyncio
     async def test_jailbreak_input_check_blocked(self):
+        """End-to-end: a jailbreak attempt is BLOCKED by the jailbreak-detection input rail (API mocked)."""
         config = RailsConfig.from_content(config=JAILBREAK_CONFIG)
         async with Guardrails(config=config, use_iorails=True, require_iorails=True) as guardrails:
             engine = _iorails_engine(guardrails)
