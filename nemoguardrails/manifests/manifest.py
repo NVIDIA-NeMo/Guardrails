@@ -385,6 +385,8 @@ def iter_manifest_import_targets(manifest: RailManifest) -> Tuple[str, ...]:
 
 _PAREN_SURFACE = re.compile(r"^\s*([^($]+?)\s*\((.*)\)\s*$")
 _SURFACE_PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_DOLLAR_SURFACE_SEPARATOR = re.compile(r"\s+\$")
+_PAREN_SURFACE_SEPARATOR = re.compile(r"\s*,\s*\$?")
 
 
 def _parse_surface_parameter_items(items: Iterable[str]) -> Dict[str, str]:
@@ -405,30 +407,31 @@ def _parse_surface_parameter_items(items: Iterable[str]) -> Dict[str, str]:
     return parameters
 
 
-def _validate_dollar_parameter_boundaries(arguments: str, *, separators: str = "") -> None:
-    quote: str | None = None
-    escaped = False
-    separated = False
-    for index, character in enumerate(arguments):
-        if escaped:
-            escaped = False
-            separated = False
-        elif character == "\\" and quote != "'":
-            escaped = True
-            separated = False
-        elif quote is not None:
-            if quote == character:
-                quote = None
-            separated = False
-        elif character in {"'", '"'}:
-            quote = character
-            separated = False
-        elif character == "$":
-            if index > 0 and not separated:
-                raise ValueError("Surface parameters must be separated before '$'.")
-            separated = False
-        else:
-            separated = character.isspace() or character in separators
+def _tokenize_surface_parameter_items(
+    arguments: str,
+    *,
+    punctuation_chars: str,
+    separator: re.Pattern[str],
+    require_leading_dollar: bool,
+) -> Tuple[str, ...]:
+    lexer = shlex.shlex(arguments, posix=True, punctuation_chars=punctuation_chars)
+    lexer.whitespace = ""
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    tokens = tuple(lexer)
+
+    if require_leading_dollar:
+        if not tokens or tokens[0] != "$":
+            raise ValueError("Dollar-form surface parameters must start with '$'.")
+        tokens = tokens[1:]
+    elif tokens and tokens[0] == "$":
+        tokens = tokens[1:]
+
+    if not tokens or len(tokens) % 2 == 0:
+        raise ValueError("Invalid surface parameter layout.")
+    if any(separator.fullmatch(token) is None for token in tokens[1::2]):
+        raise ValueError("Invalid surface parameter separator.")
+    return tokens[::2]
 
 
 def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
@@ -441,12 +444,13 @@ def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
         arguments = parenthesized.group(2).strip()
         if not arguments:
             return name, {}
-        _validate_dollar_parameter_boundaries(arguments, separators=",")
-        lexer = shlex.shlex(arguments, posix=True)
-        lexer.whitespace += ","
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        return name, _parse_surface_parameter_items(lexer)
+        items = _tokenize_surface_parameter_items(
+            arguments,
+            punctuation_chars=",$ \t\r\n",
+            separator=_PAREN_SURFACE_SEPARATOR,
+            require_leading_dollar=False,
+        )
+        return name, _parse_surface_parameter_items(items)
     if "(" in flow_text or ")" in flow_text:
         raise ValueError(f"Invalid parenthesized surface reference {flow_text!r}.")
     name, separator, arguments = flow_text.partition("$")
@@ -455,11 +459,12 @@ def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
         raise ValueError("Configured surface name must not be empty.")
     if not separator:
         return name, {}
-    _validate_dollar_parameter_boundaries(arguments)
-    try:
-        items = shlex.split(f"${arguments}")
-    except ValueError as error:
-        raise ValueError(f"Invalid surface parameters in {flow_text!r}: {error}") from error
+    items = _tokenize_surface_parameter_items(
+        f"${arguments}",
+        punctuation_chars="$ \t\r\n",
+        separator=_DOLLAR_SURFACE_SEPARATOR,
+        require_leading_dollar=True,
+    )
     return name, _parse_surface_parameter_items(items)
 
 
