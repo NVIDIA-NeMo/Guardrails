@@ -136,6 +136,10 @@ def test_parse_configured_surface_bare_name():
             'content safety check input(model="content,safety", mode=strict)',
             ("content safety check input", {"model": "content,safety", "mode": "strict"}),
         ),
+        (
+            'check $pattern="foo$bar" $mode=strict',
+            ("check", {"pattern": "foo$bar", "mode": "strict"}),
+        ),
     ),
 )
 def test_configured_surface_parser_supports_quoted_parameters(configured, expected):
@@ -149,6 +153,7 @@ def test_configured_surface_parser_supports_quoted_parameters(configured, expect
         "content safety check input $model",
         "content safety check input $model=",
         "content safety check input $model=first $model=second",
+        "content safety check input $model=first$mode=strict",
         "content safety check input(model)",
         "content safety check input(model=first, model=second)",
         'content safety check input $model="unterminated',
