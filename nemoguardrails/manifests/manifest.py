@@ -405,11 +405,11 @@ def _parse_surface_parameter_items(items: Iterable[str]) -> Dict[str, str]:
     return parameters
 
 
-def _validate_dollar_parameter_boundaries(arguments: str) -> None:
+def _validate_dollar_parameter_boundaries(arguments: str, *, separators: str = "") -> None:
     quote: str | None = None
     escaped = False
     separated = False
-    for character in arguments:
+    for index, character in enumerate(arguments):
         if escaped:
             escaped = False
             separated = False
@@ -424,11 +424,11 @@ def _validate_dollar_parameter_boundaries(arguments: str) -> None:
             quote = character
             separated = False
         elif character == "$":
-            if not separated:
-                raise ValueError("Dollar-form surface parameters must be separated by whitespace.")
+            if index > 0 and not separated:
+                raise ValueError("Surface parameters must be separated before '$'.")
             separated = False
         else:
-            separated = character.isspace()
+            separated = character.isspace() or character in separators
 
 
 def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
@@ -441,6 +441,7 @@ def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
         arguments = parenthesized.group(2).strip()
         if not arguments:
             return name, {}
+        _validate_dollar_parameter_boundaries(arguments, separators=",")
         lexer = shlex.shlex(arguments, posix=True)
         lexer.whitespace += ","
         lexer.whitespace_split = True
