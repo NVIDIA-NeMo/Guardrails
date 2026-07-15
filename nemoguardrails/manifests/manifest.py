@@ -24,10 +24,8 @@ loudly at load time.
 """
 
 import importlib
-import re
-import shlex
 from enum import Enum
-from typing import Any, Dict, Iterable, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Literal, Mapping, NoReturn, Optional, Tuple, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -383,96 +381,91 @@ def iter_manifest_import_targets(manifest: RailManifest) -> Tuple[str, ...]:
     return tuple(import_ref_target(ref) for ref in iter_manifest_import_refs(manifest))
 
 
-_PAREN_SURFACE = re.compile(r"^\s*([^($]+?)\s*\((.*)\)\s*$")
-_SURFACE_PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_DOLLAR_SURFACE_SEPARATOR = re.compile(r"\s+\$")
-_PAREN_SURFACE_SEPARATOR = re.compile(r"\s*,\s*\$?")
+_HORIZONTAL_WHITESPACE = " \t"
+_QUOTES = "\"'"
 
 
-def _parse_surface_parameter_items(items: Iterable[str]) -> Dict[str, str]:
-    parameters = {}
-    for item in items:
-        key, separator, value = item.partition("=")
-        if not separator:
-            raise ValueError(f"Invalid surface parameter {item!r}; expected name=value.")
-        key = key.strip().removeprefix("$")
-        value = value.strip()
-        if not _SURFACE_PARAM_NAME.fullmatch(key):
-            raise ValueError(f"Invalid surface parameter name {key!r}.")
-        if not value:
-            raise ValueError(f"Surface parameter {key!r} must have a value.")
-        if key in parameters:
-            raise ValueError(f"Duplicate surface parameter {key!r}.")
-        parameters[key] = value
-    return parameters
+def _is_surface_parameter_name_start(character: str) -> bool:
+    return character == "_" or "A" <= character <= "Z" or "a" <= character <= "z"
 
 
-def _tokenize_surface_parameter_items(
-    arguments: str,
-    *,
-    punctuation_chars: str,
-    separator: re.Pattern[str],
-    require_leading_dollar: bool,
-) -> Tuple[str, ...]:
-    lexer = shlex.shlex(arguments, posix=True, punctuation_chars=punctuation_chars)
-    lexer.whitespace = ""
-    lexer.whitespace_split = True
-    lexer.commenters = ""
-    tokens = tuple(lexer)
+def _is_surface_parameter_name_character(character: str) -> bool:
+    return _is_surface_parameter_name_start(character) or "0" <= character <= "9"
 
-    if require_leading_dollar:
-        if not tokens or tokens[0] != "$":
-            raise ValueError("Dollar-form surface parameters must start with '$'.")
-        tokens = tokens[1:]
-    elif tokens and tokens[0] == "$":
-        tokens = tokens[1:]
 
-    if not tokens or len(tokens) % 2 == 0:
-        raise ValueError("Invalid surface parameter layout.")
-    if any(separator.fullmatch(token) is None for token in tokens[1::2]):
-        raise ValueError("Invalid surface parameter separator.")
-    return tokens[::2]
+def _surface_parse_error(message: str, position: int) -> NoReturn:
+    raise ValueError(f"{message} at character {position}.")
 
 
 def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
-    flow_text = flow_text.strip()
+    """Parse one complete configured surface reference.
+
+    Supports a bare name followed by whitespace-separated `$name=value`
+    parameters. Values remain strings and may be bare tokens or quoted text.
+    """
+    if any(not character.isprintable() and character not in _HORIZONTAL_WHITESPACE for character in flow_text):
+        raise ValueError("Configured surface references must not contain control characters.")
+    flow_text = flow_text.strip(_HORIZONTAL_WHITESPACE)
     if not flow_text:
         raise ValueError("Configured surface must not be empty.")
-    parenthesized = _PAREN_SURFACE.match(flow_text)
-    if parenthesized is not None:
-        name = parenthesized.group(1).strip()
-        arguments = parenthesized.group(2).strip()
-        if not arguments:
-            return name, {}
-        items = _tokenize_surface_parameter_items(
-            arguments,
-            punctuation_chars=",$ \t\r\n",
-            separator=_PAREN_SURFACE_SEPARATOR,
-            require_leading_dollar=False,
-        )
-        return name, _parse_surface_parameter_items(items)
-    if "(" in flow_text or ")" in flow_text:
-        raise ValueError(f"Invalid parenthesized surface reference {flow_text!r}.")
-    name, separator, arguments = flow_text.partition("$")
-    name = name.strip()
-    if not name:
-        raise ValueError("Configured surface name must not be empty.")
-    if not separator:
-        return name, {}
-    items = _tokenize_surface_parameter_items(
-        f"${arguments}",
-        punctuation_chars="$ \t\r\n",
-        separator=_DOLLAR_SURFACE_SEPARATOR,
-        require_leading_dollar=True,
-    )
-    return name, _parse_surface_parameter_items(items)
+
+    parameter_start = flow_text.find("$")
+    if parameter_start < 0:
+        return flow_text, {}
+    if parameter_start == 0 or flow_text[parameter_start - 1] not in _HORIZONTAL_WHITESPACE:
+        _surface_parse_error("Parameters must be separated from the surface name", parameter_start)
+
+    name = flow_text[:parameter_start].rstrip(_HORIZONTAL_WHITESPACE)
+    parameters: Dict[str, str] = {}
+    position = parameter_start
+    while True:
+        position += 1
+        key_start = position
+        if position == len(flow_text) or not _is_surface_parameter_name_start(flow_text[position]):
+            _surface_parse_error("Invalid surface parameter name", position)
+        position += 1
+        while position < len(flow_text) and _is_surface_parameter_name_character(flow_text[position]):
+            position += 1
+        if position == len(flow_text) or flow_text[position] != "=":
+            _surface_parse_error("Parameters must use exact $name=value syntax", position)
+        key = flow_text[key_start:position]
+        position += 1
+
+        if position < len(flow_text) and flow_text[position] in _QUOTES:
+            quote = flow_text[position]
+            value_start = position + 1
+            position = flow_text.find(quote, value_start)
+            if position < 0:
+                _surface_parse_error("Unterminated quoted parameter value", len(flow_text))
+            value = flow_text[value_start:position]
+            position += 1
+        else:
+            value_start = position
+            while position < len(flow_text) and flow_text[position] not in _HORIZONTAL_WHITESPACE:
+                if flow_text[position] == "$":
+                    _surface_parse_error("Adjacent parameters must be separated by whitespace", position)
+                if flow_text[position] in _QUOTES:
+                    _surface_parse_error("Quoted and bare parameter values cannot be concatenated", position)
+                position += 1
+            value = flow_text[value_start:position]
+
+        if not value.strip():
+            _surface_parse_error("Parameters must have a non-blank value", position)
+        if key in parameters:
+            _surface_parse_error(f"Duplicate surface parameter {key!r}", key_start)
+        parameters[key] = value
+
+        separator_start = position
+        while position < len(flow_text) and flow_text[position] in _HORIZONTAL_WHITESPACE:
+            position += 1
+        if position == len(flow_text):
+            return name, parameters
+        if position == separator_start or flow_text[position] != "$":
+            _surface_parse_error("Parameters must be separated by whitespace", position)
 
 
 def normalize_configured_surface_name(flow_text: str) -> str:
     flow_text = flow_text.strip()
-    parenthesized = _PAREN_SURFACE.match(flow_text)
-    if parenthesized is not None:
-        return parenthesized.group(1).strip()
     return flow_text.split("$", 1)[0].strip()
 
 
@@ -486,8 +479,9 @@ def configured_rail_surfaces(
     """
     selected = {}
     for flow in flows:
-        name, _ = parse_configured_surface(flow)
+        name = normalize_configured_surface_name(flow)
         surface = surfaces.get((direction, name))
         if surface is not None:
+            parse_configured_surface(flow)
             selected[name] = surface
     return selected
