@@ -887,6 +887,69 @@ def test_polygraf_pii_detection_retrieval_with_no_pii():
 
 
 @pytest.mark.unit
+def test_polygraf_pii_detection_retrieval_with_pii():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                polygraf:
+                  server_endpoint: http://localhost:8000/v1/pii/text-detect
+                  retrieval:
+                    entities:
+                      - Email
+                      - Person
+              retrieval:
+                flows:
+                  - polygraf detect pii on retrieval
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define bot inform answer unknown
+              "I can't answer that."
+        """,
+    )
+
+    chat = TestChat(config, llm_completions=["  express greeting"])
+    retrieved_chunks = iter(
+        [
+            "John's Email: test@gmail.com",
+            "Mock retrieved context.",
+        ]
+    )
+
+    @action()
+    def retrieve_relevant_chunks_with_pii():
+        context_updates = {"relevant_chunks": next(retrieved_chunks)}
+        return ActionResult(
+            return_value=context_updates["relevant_chunks"],
+            context_updates=context_updates,
+        )
+
+    chat.app.register_action(
+        retrieve_relevant_chunks_with_pii,
+        "retrieve_relevant_chunks",
+    )
+    chat.app.register_action(
+        create_mock_polygraf_detect_pii(["Email", "Person"]),
+        "polygraf_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_polygraf_mask_pii(["Email", "Person"]),
+        "polygraf_mask_pii",
+    )
+
+    chat >> "Hi!"
+    chat << "I can't answer that."
+
+
+@pytest.mark.unit
 def test_polygraf_pii_masking_on_output():
     config = RailsConfig.from_content(
         yaml_content="""
