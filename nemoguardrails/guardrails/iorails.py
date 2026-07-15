@@ -847,13 +847,21 @@ class IORails(BaseGuardrails):
             pass_content = _get_last_content_by_role(messages, "user")
 
         if "input" in rails_to_run:
-            log.info("[%s] Running input rails", req_id)
-            input_result = await self.rails_manager.is_input_safe(messages)
-            if not input_result.is_safe:
-                log.info("[%s] Input blocked: %s", req_id, input_result.reason)
-                if self._metrics_enabled:
-                    record_request_blocked(RailDirection.INPUT)
-                return RailsResult(status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=input_result.triggered_rail)
+            user_content = _get_last_content_by_role(messages, "user")
+            # Skip when there is no user content: the content-safety action requires
+            # user_input and would otherwise raise, surfacing a false BLOCK.
+            if user_content:
+                log.info("[%s] Running input rails", req_id)
+                input_result = await self.rails_manager.is_input_safe(messages)
+                if not input_result.is_safe:
+                    log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                    if self._metrics_enabled:
+                        record_request_blocked(RailDirection.INPUT)
+                    return RailsResult(
+                        status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=input_result.triggered_rail
+                    )
+            else:
+                log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
         if "output" in rails_to_run:
             bot_response = _get_last_content_by_role(messages, "assistant")

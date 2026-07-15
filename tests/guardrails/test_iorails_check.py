@@ -223,6 +223,30 @@ class TestCheckAsyncAutoDetect:
         assert result.content == ""
 
     @pytest.mark.asyncio
+    async def test_user_empty_content_passes(self, iorails):
+        """A user message with empty content returns PASSED without running input rails, instead of raising."""
+        _mock_rails(iorails)
+        messages = [{"role": "user", "content": ""}]
+
+        result = await iorails.check_async(messages)
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == ""
+        iorails.rails_manager.is_input_safe.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_user_none_content_passes(self, iorails):
+        """A user message with content=None returns PASSED without running input rails, instead of raising."""
+        _mock_rails(iorails)
+        messages = [{"role": "user", "content": None}]
+
+        result = await iorails.check_async(messages)
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == ""
+        iorails.rails_manager.is_input_safe.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_system_and_user_runs_input(self, iorails):
         """A system+user conversation runs only input rails."""
         _mock_rails(iorails)
@@ -405,6 +429,17 @@ class TestCheckAsyncExplicitRailTypes:
 
         assert result.status == RailStatus.PASSED
         iorails.rails_manager.is_output_safe.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_explicit_input_no_user_message_passes(self, iorails):
+        """rail_types=[INPUT] with no user content to check returns PASSED, not a false BLOCK."""
+        _mock_rails(iorails)
+        messages = [{"role": "assistant", "content": "earlier reply"}]
+
+        result = await iorails.check_async(messages, rail_types=[RailType.INPUT])
+
+        assert result.status == RailStatus.PASSED
+        iorails.rails_manager.is_input_safe.assert_not_awaited()
 
 
 class TestCheckAsyncBlockedResult:
