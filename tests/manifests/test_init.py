@@ -28,9 +28,5 @@ def test_package_accessors_with_no_built_in_rails():
         assert manifests_pkg.all_rail_manifests() == {}
         # no enabled plugins short-circuits back to the default catalog
         assert manifests_pkg.rail_catalog() is catalog
-        assert manifests_pkg.rail_surfaces("input") == {}
-        assert manifests_pkg.rail_surfaces() == {}
-        assert manifests_pkg.surface_names("input") == ()
-        assert manifests_pkg.configured_rail_surfaces("input", []) == {}
     finally:
         manifests_pkg._reset_rail_manifest_cache()

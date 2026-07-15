@@ -28,12 +28,10 @@ from nemoguardrails.manifests import (
     RailSurface,
     import_ref_target,
     iter_manifest_import_refs,
-    iter_manifest_import_targets,
     normalize_configured_surface_name,
     parse_configured_surface,
     resolve_import_ref,
 )
-from nemoguardrails.manifests.manifest import configured_rail_surfaces
 
 
 def _action(name: str = "check") -> ActionRef:
@@ -52,7 +50,11 @@ def test_manifest_round_trips_with_typed_refs():
     )
 
     assert RailManifest.model_validate(manifest.model_dump()) == manifest
-    assert iter_manifest_import_targets(manifest) == ("pathlib:Path.cwd", "pathlib:Path.cwd", "pathlib:Path.cwd")
+    assert tuple(import_ref_target(ref) for ref in iter_manifest_import_refs(manifest)) == (
+        "pathlib:Path.cwd",
+        "pathlib:Path.cwd",
+        "pathlib:Path.cwd",
+    )
 
 
 def test_metadata_retains_unknown_keys():
@@ -251,35 +253,7 @@ def test_normalize_configured_surface_name_handles_large_inputs():
     assert normalize_configured_surface_name("check" + " " * 100_000 + "$model=value") == "check"
 
 
-def test_configured_rail_surfaces_selects_unique_declared_surfaces():
-    action = _action()
-    surface = RailSurface(name="check", direction=RailDirection.INPUT, action=action)
-    surfaces = {(RailDirection.INPUT, "check"): surface}
-
-    selected = configured_rail_surfaces(
-        RailDirection.INPUT,
-        ["check $model=gpt-4", "check $model=claude", "unknown"],
-        surfaces,
-    )
-
-    assert selected == {"check": surface}
-
-
-def test_configured_rail_surfaces_ignores_unknown_custom_flow_syntax():
-    action = _action()
-    surface = RailSurface(name="check", direction=RailDirection.INPUT, action=action)
-    surfaces = {(RailDirection.INPUT, "check"): surface}
-
-    selected = configured_rail_surfaces(
-        RailDirection.INPUT,
-        ["check(model=gpt-4)", "custom $=malformed"],
-        surfaces,
-    )
-
-    assert selected == {}
-
-
-def test_flat_manifest_is_normalized_into_spec():
+def test_flat_manifest_is_rejected():
     flat_manifest = {
         "name": "flat",
         "actions": {"refs": [{"name": "act", "target": "pathlib:Path.cwd"}]},
@@ -292,7 +266,5 @@ def test_flat_manifest_is_normalized_into_spec():
         ],
     }
 
-    manifest = RailManifest.model_validate(flat_manifest)
-
-    assert manifest.actions.refs[0].name == "act"
-    assert manifest.surfaces[0].name == "surface"
+    with pytest.raises(ValidationError):
+        RailManifest.model_validate(flat_manifest)
