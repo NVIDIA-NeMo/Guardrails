@@ -14,11 +14,11 @@
 # limitations under the License.
 
 import nemoguardrails.manifests as manifests_pkg
-from nemoguardrails.manifests import RailCatalog
+from nemoguardrails.manifests import RailCatalog, registry
 
 
 def test_package_accessors_with_no_built_in_rails():
-    manifests_pkg._reset_rail_manifest_cache()
+    registry._reset_rail_manifest_cache()
     try:
         catalog = manifests_pkg.default_rail_catalog()
         assert isinstance(catalog, RailCatalog)
@@ -27,4 +27,4 @@ def test_package_accessors_with_no_built_in_rails():
 
         assert manifests_pkg.all_rail_manifests() == {}
     finally:
-        manifests_pkg._reset_rail_manifest_cache()
+        registry._reset_rail_manifest_cache()
