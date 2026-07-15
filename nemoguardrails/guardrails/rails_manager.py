@@ -24,6 +24,7 @@ unsafe result cancels remaining rails immediately.
 import asyncio
 import logging
 from collections.abc import Coroutine, Mapping
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
 from nemoguardrails.guardrails.actions.content_safety_action import (
@@ -303,6 +304,8 @@ class RailsManager:
         with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
+            if not result.is_safe and result.triggered_rail is None:
+                result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
             mark_rail_stop(span, result.is_safe)
             # Capture rail input + block reason after the action runs.
             # RailAction.run() catches its own exceptions and returns

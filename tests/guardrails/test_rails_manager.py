@@ -937,3 +937,37 @@ class TestRunRailsParallel:
             await mgr._run_rails_parallel(rails, RailDirection.INPUT)
 
         assert cancelled.is_set(), "remaining rails should be cancelled on a rail error"
+
+
+class TestTriggeredRail:
+    """A blocking rail records its base flow name in RailResult.triggered_rail."""
+
+    @pytest.mark.asyncio
+    async def test_input_block_sets_triggered_rail(self, content_safety_rails_manager):
+        """An input-rail block records the flow's base name in triggered_rail."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+        assert not result.is_safe
+        assert result.triggered_rail == "content safety check input"
+
+    @pytest.mark.asyncio
+    async def test_output_block_sets_triggered_rail(self, content_safety_rails_manager):
+        """An output-rail block records the flow's base name in triggered_rail."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
+        assert not result.is_safe
+        assert result.triggered_rail == "content safety check output"
+
+    @pytest.mark.asyncio
+    async def test_safe_result_has_no_triggered_rail(self, content_safety_rails_manager):
+        """A safe result leaves triggered_rail unset (None)."""
+        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+        )
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+        assert result.is_safe
+        assert result.triggered_rail is None

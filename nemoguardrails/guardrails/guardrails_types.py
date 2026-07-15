@@ -38,6 +38,7 @@ class RailResult:
 
     is_safe: bool
     reason: str | None = None
+    triggered_rail: str | None = None
 
 
 # Default max character length for truncate(). Used to keep DEBUG log lines short.

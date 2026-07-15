@@ -155,6 +155,23 @@ class TestStaticHelpers:
         with pytest.raises(RuntimeError, match="No user message"):
             RailAction._last_user_content([])
 
+    def test_last_user_content_or_empty(self):
+        """Returns the content of the last user message."""
+        messages = [
+            {"role": "user", "content": "first"},
+            {"role": "assistant", "content": "reply"},
+            {"role": "user", "content": "second"},
+        ]
+        assert RailAction._last_user_content_or_empty(messages) == "second"
+
+    def test_last_user_content_or_empty_no_user_returns_empty(self):
+        """Returns '' when there is no user message, instead of raising."""
+        assert RailAction._last_user_content_or_empty([{"role": "assistant", "content": "hi"}]) == ""
+
+    def test_last_user_content_or_empty_empty_list_returns_empty(self):
+        """Returns '' for an empty message list."""
+        assert RailAction._last_user_content_or_empty([]) == ""
+
     def test_get_model_type_extracts_model(self, dummy_action):
         assert dummy_action._get_model_type("some flow $model=content_safety") == "content_safety"
 

@@ -188,6 +188,19 @@ class RailAction(ABC):
         raise RuntimeError(f"No user message found in: {messages}")
 
     @staticmethod
+    def _last_user_content_or_empty(messages: LLMMessages) -> str:
+        """Return the content of the last user message, or "" when there is none.
+
+        Output checks evaluate the bot response; the user prompt only adds context
+        and may legitimately be absent (for example an output-only ``check`` on an
+        assistant message). Unlike :meth:`_last_user_content`, this does not raise.
+        """
+        for msg in reversed(messages):
+            if msg.get("role") == "user" and msg.get("content"):
+                return msg["content"]
+        return ""
+
+    @staticmethod
     def _prompt_to_messages(prompt: Union[str, list[dict]]) -> list[dict]:
         """Convert LLMTaskManager render output to role/content message format."""
         if isinstance(prompt, str):

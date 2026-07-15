@@ -374,13 +374,10 @@ class Guardrails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check_async()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return await llmrails.check_async(messages, rail_types=rail_types)
+        await self._ensure_started()
+        return await self.rails_engine.check_async(messages, rail_types=rail_types)
 
     def check(
         self,
@@ -388,13 +385,9 @@ class Guardrails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

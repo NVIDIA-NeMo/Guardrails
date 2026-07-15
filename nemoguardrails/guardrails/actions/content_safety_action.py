@@ -75,7 +75,7 @@ class ContentSafetyOutputAction(RailAction):
         if not bot_response:
             raise RuntimeError("bot_response is required for content safety output check")
         return {
-            "user_input": self._last_user_content(messages),
+            "user_input": self._last_user_content_or_empty(messages),
             "bot_response": bot_response,
         }
 
