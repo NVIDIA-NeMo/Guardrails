@@ -30,6 +30,8 @@ from nemoguardrails.manifests.manifest import ActionRef, RailDirection, RailMani
 
 @dataclass(frozen=True, slots=True)
 class RailManifestRecord:
+    """Manifest plus provenance recorded in a rail catalog."""
+
     manifest: RailManifest
     source: str
 
@@ -98,6 +100,7 @@ class RailCatalog:
 
     @classmethod
     def discover_built_ins(cls, library_path: Optional[Path] = None) -> "RailCatalog":
+        """Discover built-in manifests from `rail.py` modules under the library."""
         if library_path is None:
             library_path = Path(__file__).resolve().parents[1] / "library"
         records = []
@@ -114,11 +117,14 @@ class RailCatalog:
 
     @property
     def records(self) -> Mapping[str, RailManifestRecord]:
+        """Return catalog records keyed by manifest name."""
         return dict(self._records)
 
     @property
     def manifests(self) -> Mapping[str, RailManifest]:
+        """Return rail manifests keyed by manifest name."""
         return {name: record.manifest for name, record in self._records.items()}
 
-    def surfaces(self, direction: Optional[RailDirection] = None) -> Dict:
+    def surfaces(self, direction: Optional[RailDirection] = None) -> Dict[Tuple[RailDirection, str], RailSurface]:
+        """Return declared surfaces, optionally filtered by direction."""
         return {key: surface for key, surface in self._surfaces.items() if direction is None or key[0] == direction}

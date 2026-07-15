@@ -25,9 +25,9 @@ loudly at load time.
 
 import importlib
 from enum import Enum
-from typing import Any, Dict, Iterable, Literal, Mapping, NoReturn, Optional, Tuple, Union
+from typing import Any, Dict, Literal, NoReturn, Optional, Tuple, Union
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 
@@ -55,11 +55,12 @@ RailCapability = Literal[
     "transform",
 ]
 RailLifecycle = Literal["stable", "experimental", "deprecated"]
-RailStatus = RailLifecycle
 BindingKind = Literal["surface_param", "context", "literal"]
 
 
 class RailDirection(str, Enum):
+    """Pipeline direction in which a rail surface runs."""
+
     INPUT = "input"
     OUTPUT = "output"
     RETRIEVAL = "retrieval"
@@ -85,15 +86,11 @@ class RailMetadata(BaseModel):
     capabilities: Tuple[RailCapability, ...] = ()
     tags: Tuple[str, ...] = ()
     docs_url: Optional[str] = None
-    lifecycle: RailLifecycle = Field(default="stable", validation_alias=AliasChoices("lifecycle", "status"))
+    lifecycle: RailLifecycle = "stable"
     owner: Optional[str] = None
     version: Optional[str] = None
 
     model_config = ConfigDict(extra="allow", frozen=True)
-
-    @property
-    def status(self) -> RailLifecycle:
-        return self.lifecycle
 
 
 def _validate_import_target(target: str) -> str:
@@ -115,10 +112,12 @@ class ImportTargetRef(BaseModel):
 
 
 class ConfigSpecRef(ImportTargetRef):
-    pass
+    """Import reference to a rail configuration specification."""
 
 
 class ActionRef(ImportTargetRef):
+    """Named import reference to a rail action."""
+
     name: str
 
     @field_validator("name")
@@ -133,6 +132,8 @@ ImportRef = Union[ConfigSpecRef, ActionRef]
 
 
 class RailConfigSchema(BaseModel):
+    """Manifest reference to a rail's typed configuration schema."""
+
     key: str
     spec: ConfigSpecRef
     export_names: Tuple[str, ...] = Field(default=(), exclude=True)
@@ -141,6 +142,8 @@ class RailConfigSchema(BaseModel):
 
 
 class RailFlows(BaseModel):
+    """Colang flow files and flow names declared by a rail."""
+
     files: Tuple[str, ...] = ("flows.co",)
     v1_files: Tuple[str, ...] = ("flows.v1.co",)
     flow_names: Tuple[str, ...] = ()
@@ -149,6 +152,8 @@ class RailFlows(BaseModel):
 
 
 class RailActions(BaseModel):
+    """Import references for the actions declared by a rail."""
+
     refs: Tuple[ActionRef, ...] = ()
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -213,6 +218,8 @@ class Binding(BaseModel):
 
 
 class RailSurface(BaseModel):
+    """Configured flow surface mapped to a declared rail action."""
+
     name: str
     direction: RailDirection
     action: ActionRef
@@ -223,6 +230,8 @@ class RailSurface(BaseModel):
 
 
 class EnvVar(BaseModel):
+    """Environment variable declared by a rail requirement."""
+
     name: str
     required: bool = False
     description: Optional[str] = None
@@ -231,6 +240,8 @@ class EnvVar(BaseModel):
 
 
 class ServiceRequirement(BaseModel):
+    """External service declared by a rail requirement."""
+
     name: str
     required: bool = False
     description: Optional[str] = None
@@ -239,6 +250,8 @@ class ServiceRequirement(BaseModel):
 
 
 class ModelRequirement(BaseModel):
+    """Model resource declared by a rail requirement."""
+
     type: str
     required: bool = False
     description: Optional[str] = None
@@ -247,6 +260,8 @@ class ModelRequirement(BaseModel):
 
 
 class RailRequirements(BaseModel):
+    """Installation and runtime resources declared by a rail."""
+
     extras: Tuple[str, ...] = ()
     env_vars: Tuple[EnvVar, ...] = ()
     services: Tuple[ServiceRequirement, ...] = ()
@@ -257,6 +272,8 @@ class RailRequirements(BaseModel):
 
 
 class RailPrivacy(BaseModel):
+    """Data handling and remote-service behavior declared by a rail."""
+
     sends_user_text: bool = False
     sends_bot_text: bool = False
     sends_retrieved_chunks: bool = False
@@ -266,34 +283,24 @@ class RailPrivacy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class ExampleRef(BaseModel):
-    title: str
-    path: str
-    description: Optional[str] = None
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
 class RailSpec(BaseModel):
+    """Executable configuration, flows, actions, and requirements for a rail."""
+
     config_schema: Optional[RailConfigSchema] = None
     flows: Optional[RailFlows] = None
     actions: Optional[RailActions] = None
     surfaces: Tuple[RailSurface, ...] = ()
     requirements: RailRequirements = Field(default_factory=RailRequirements)
     privacy: RailPrivacy = Field(default_factory=RailPrivacy)
-    examples: Tuple[ExampleRef, ...] = ()
-
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class RailManifest(BaseModel):
     """Top-level, versioned manifest for a single rail.
 
-    Accepts either the nested shape, where `spec` holds the config schema, flows,
-    actions, and surfaces, or a flat mapping where those spec fields sit at the top
-    level; the flat form is folded into `spec` during validation. The spec fields
-    are also exposed as read-only properties (`manifest.surfaces`,
-    `manifest.actions`, and so on) for convenient access.
+    The nested `spec` holds executable declarations such as the config schema,
+    flows, actions, surfaces, requirements, and privacy metadata. Those fields
+    are also exposed as read-only properties for convenient access.
     """
 
     manifest_version: Literal[1] = 1
@@ -303,25 +310,6 @@ class RailManifest(BaseModel):
     origin: str = Field(default="", exclude=True)
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_flat_manifest(cls, value: Any) -> Any:
-        if not isinstance(value, Mapping) or "spec" in value:
-            return value
-        data = dict(value)
-        spec_fields = {
-            "config_schema",
-            "flows",
-            "actions",
-            "surfaces",
-            "requirements",
-            "privacy",
-            "examples",
-        }
-        spec = {name: data.pop(name) for name in spec_fields if name in data}
-        data["spec"] = spec
-        return data
 
     @property
     def config_schema(self) -> Optional[RailConfigSchema]:
@@ -347,18 +335,16 @@ class RailManifest(BaseModel):
     def privacy(self) -> RailPrivacy:
         return self.spec.privacy
 
-    @property
-    def examples(self) -> Tuple[ExampleRef, ...]:
-        return self.spec.examples
-
 
 def import_ref_target(ref: ImportRef) -> str:
+    """Return the import target encoded by a supported manifest reference."""
     if isinstance(ref, (ActionRef, ConfigSpecRef)):
         return ref.target
     raise TypeError("Import reference must be an ActionRef or ConfigSpecRef.")
 
 
 def resolve_import_ref(ref: ImportRef) -> Any:
+    """Import and return the Python object referenced by a manifest entry."""
     target = import_ref_target(ref)
     module_name, _, attribute_path = target.partition(":")
     obj = importlib.import_module(module_name)
@@ -368,6 +354,7 @@ def resolve_import_ref(ref: ImportRef) -> Any:
 
 
 def iter_manifest_import_refs(manifest: RailManifest) -> Tuple[ImportRef, ...]:
+    """Return every configuration and action import reference in a manifest."""
     refs = []
     if manifest.config_schema is not None:
         refs.append(manifest.config_schema.spec)
@@ -375,10 +362,6 @@ def iter_manifest_import_refs(manifest: RailManifest) -> Tuple[ImportRef, ...]:
         refs.extend(manifest.actions.refs)
     refs.extend(surface.action for surface in manifest.surfaces)
     return tuple(refs)
-
-
-def iter_manifest_import_targets(manifest: RailManifest) -> Tuple[str, ...]:
-    return tuple(import_ref_target(ref) for ref in iter_manifest_import_refs(manifest))
 
 
 _HORIZONTAL_WHITESPACE = " \t"
@@ -400,8 +383,15 @@ def _surface_parse_error(message: str, position: int) -> NoReturn:
 def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
     """Parse one complete configured surface reference.
 
-    Supports a bare name followed by whitespace-separated `$name=value`
-    parameters. Values remain strings and may be bare tokens or quoted text.
+    The accepted syntax is a bare surface name followed by zero or more
+    whitespace-separated `$name=value` parameters. Spaces around `=` and
+    parenthesized parameters are not supported. Values remain strings; bare
+    values end at whitespace, while single- or double-quoted values may contain
+    whitespace and punctuation.
+
+    Raises:
+        ValueError: If the reference is empty, contains controls, or has malformed,
+            blank, adjacent, or duplicate parameters.
     """
     if any(not character.isprintable() and character not in _HORIZONTAL_WHITESPACE for character in flow_text):
         raise ValueError("Configured surface references must not contain control characters.")
@@ -465,23 +455,6 @@ def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
 
 
 def normalize_configured_surface_name(flow_text: str) -> str:
+    """Return the surface name prefix without validating its parameters."""
     flow_text = flow_text.strip()
     return flow_text.split("$", 1)[0].strip()
-
-
-def configured_rail_surfaces(
-    direction: RailDirection, flows: Iterable[str], surfaces: Mapping[Tuple[RailDirection, str], RailSurface]
-) -> Dict[str, RailSurface]:
-    """Return unique declared surfaces enabled by the configured flows.
-
-    Parameters and repeated configured instances are intentionally collapsed;
-    iterate the flows with `parse_configured_surface` when instances are needed.
-    """
-    selected = {}
-    for flow in flows:
-        name = normalize_configured_surface_name(flow)
-        surface = surfaces.get((direction, name))
-        if surface is not None:
-            parse_configured_surface(flow)
-            selected[name] = surface
-    return selected

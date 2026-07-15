@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public API for the rail manifest contract, catalog, and config schema.
+"""Public API for the rail manifest contract and catalog.
 
 Re-exports the manifest types (`RailManifest`, `RailMetadata`,
 `RailSpec`, and friends) and the `RailCatalog`, and provides
@@ -26,7 +26,6 @@ from nemoguardrails.manifests.manifest import (
     Binding,
     ConfigSpecRef,
     EnvVar,
-    ExampleRef,
     ImportRef,
     ModelRequirement,
     RailActions,
@@ -41,19 +40,14 @@ from nemoguardrails.manifests.manifest import (
     RailPrivacy,
     RailRequirements,
     RailSpec,
-    RailStatus,
     RailSurface,
     ServiceRequirement,
     TransformTarget,
     import_ref_target,
     iter_manifest_import_refs,
-    iter_manifest_import_targets,
     normalize_configured_surface_name,
     parse_configured_surface,
     resolve_import_ref,
-)
-from nemoguardrails.manifests.manifest import (
-    configured_rail_surfaces as _configured_rail_surfaces,
 )
 
 _catalog: RailCatalog | None = None
@@ -61,6 +55,7 @@ _discovering = False
 
 
 def default_rail_catalog() -> RailCatalog:
+    """Return the cached catalog of built-in rail manifests."""
     global _catalog, _discovering
     if _catalog is not None:
         return _catalog
@@ -76,25 +71,8 @@ def default_rail_catalog() -> RailCatalog:
 
 
 def all_rail_manifests():
+    """Return built-in rail manifests keyed by manifest name."""
     return dict(default_rail_catalog().manifests)
-
-
-def rail_surfaces(direction: RailDirection | str | None = None):
-    parsed_direction = RailDirection(direction) if direction is not None else None
-    return default_rail_catalog().surfaces(parsed_direction)
-
-
-def surface_names(direction: RailDirection | str):
-    parsed_direction = RailDirection(direction)
-    return tuple(sorted(name for _direction, name in rail_surfaces(parsed_direction)))
-
-
-def configured_rail_surfaces(direction: RailDirection | str, flows):
-    parsed_direction = RailDirection(direction)
-    return _configured_rail_surfaces(parsed_direction, flows, rail_surfaces(parsed_direction))
-
-
-selected_rail_surfaces = configured_rail_surfaces
 
 
 def _reset_rail_manifest_cache() -> None:
@@ -108,7 +86,6 @@ __all__ = [
     "Binding",
     "ConfigSpecRef",
     "EnvVar",
-    "ExampleRef",
     "ImportRef",
     "ModelRequirement",
     "RailActions",
@@ -125,20 +102,14 @@ __all__ = [
     "RailPrivacy",
     "RailRequirements",
     "RailSpec",
-    "RailStatus",
     "RailSurface",
     "ServiceRequirement",
     "TransformTarget",
     "all_rail_manifests",
-    "configured_rail_surfaces",
     "default_rail_catalog",
     "import_ref_target",
     "iter_manifest_import_refs",
-    "iter_manifest_import_targets",
     "normalize_configured_surface_name",
     "parse_configured_surface",
-    "rail_surfaces",
     "resolve_import_ref",
-    "selected_rail_surfaces",
-    "surface_names",
 ]

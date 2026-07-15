@@ -32,6 +32,8 @@ from pydantic.fields import FieldInfo
 
 @dataclass(frozen=True)
 class RailConfigSpec:
+    """Typed field definition and exported values for a rail configuration."""
+
     annotation: Any
     field_info: FieldInfo
     exports: Dict[str, Any] = field(default_factory=dict)
@@ -42,10 +44,13 @@ setattr(RailConfigSpec, "__hash__", None)
 
 
 def rail_field(*args: Any, **kwargs: Any) -> FieldInfo:
+    """Create Pydantic field metadata for a rail configuration field."""
     return cast(FieldInfo, Field(*args, **kwargs))
 
 
 class RailConfigBaseModel(_PydanticBaseModel):
+    """Base model for typed per-rail configuration sections."""
+
     model_config = _ConfigDict(extra="ignore")
 
 
