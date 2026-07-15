@@ -144,6 +144,19 @@ def test_parse_configured_surface_bare_name():
             'check($pattern="foo$bar",$mode=strict)',
             ("check", {"pattern": "foo$bar", "mode": "strict"}),
         ),
+        (
+            "check(model=gpt-4o,$mode=strict)",
+            ("check", {"model": "gpt-4o", "mode": "strict"}),
+        ),
+        (
+            "check $pattern=foo\\$bar $mode=strict",
+            ("check", {"pattern": "foo$bar", "mode": "strict"}),
+        ),
+        (
+            'check($url="https://example.com?a=b,c=d",$mode=strict)',
+            ("check", {"url": "https://example.com?a=b,c=d", "mode": "strict"}),
+        ),
+        ("check()", ("check", {})),
     ),
 )
 def test_configured_surface_parser_supports_quoted_parameters(configured, expected):
@@ -156,13 +169,22 @@ def test_configured_surface_parser_supports_quoted_parameters(configured, expect
         "",
         "content safety check input $model",
         "content safety check input $model=",
+        "content safety check input $",
+        "content safety check input $ model=first",
         "content safety check input $model=first $model=second",
         "content safety check input $model=first$mode=strict",
         "content safety check input(model)",
+        "content safety check input($ model=first)",
         "content safety check input(model=first, model=second)",
+        "content safety check input(model=first mode=strict)",
+        "content safety check input($model=first $mode=strict)",
         "content safety check input($model=first$mode=strict)",
+        "content safety check input(,model=first)",
+        "content safety check input(model=first,)",
+        "content safety check input(model=first,,mode=strict)",
         'content safety check input $model="unterminated',
         "content safety check input(model=value",
+        "content safety check input model=value)",
     ),
 )
 def test_configured_surface_parser_rejects_malformed_parameters(configured):
