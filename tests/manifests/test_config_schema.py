@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.manifests import schema as manifest_schema
+from nemoguardrails.manifests import config_schema
 
 
 def test_rail_config_spec_carries_annotation_field_and_key():
-    field_info = manifest_schema.rail_field(default="threshold", description="score cutoff")
-    spec = manifest_schema.RailConfigSpec(annotation=float, field_info=field_info, key="threshold")
+    field_info = config_schema.rail_field(default="threshold", description="score cutoff")
+    spec = config_schema.RailConfigSpec(annotation=float, field_info=field_info, key="threshold")
 
     assert spec.annotation is float
     assert spec.key == "threshold"
@@ -27,7 +27,7 @@ def test_rail_config_spec_carries_annotation_field_and_key():
 
 
 def test_rail_config_base_model_ignores_unknown_keys():
-    class SampleConfig(manifest_schema.RailConfigBaseModel):
+    class SampleConfig(config_schema.RailConfigBaseModel):
         threshold: int = 1
 
     config = SampleConfig.model_validate({"threshold": 2, "unknown": 9})

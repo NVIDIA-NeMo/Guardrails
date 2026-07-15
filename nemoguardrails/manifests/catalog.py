@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""In-memory registry of rail manifests and the surfaces they expose.
+"""Catalog construction and discovery for rail manifests and their surfaces.
 
 Collects `RailManifestRecord` entries (built-in rails discovered under
 `nemoguardrails/library` plus enabled plugin entry points) into an immutable

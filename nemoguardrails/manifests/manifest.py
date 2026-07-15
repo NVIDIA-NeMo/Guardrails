@@ -13,19 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Versioned, declarative contract describing a rail and how to run it.
+"""Versioned, declarative contract describing a rail and how it runs.
 
-A `RailManifest` records everything the runtime and catalog need to know
-about a rail without importing its implementation: descriptive
-`RailMetadata` plus an executable `RailSpec` of config schema, flows,
-actions, and surfaces. Descriptive fields are lenient so manifests stay
-forward-compatible, while the executable spec is strict so misconfiguration fails
-loudly at load time.
+A `RailManifest` combines descriptive `RailMetadata` with an executable
+`RailSpec` of configuration, flows, actions, and surfaces. Import references
+remain declarative until `resolve_import_ref` explicitly imports their targets.
+Descriptive fields are lenient so manifests stay forward-compatible, while the
+executable spec is strict so misconfiguration fails loudly at load time.
 """
 
 import importlib
 from enum import Enum
-from typing import Any, Dict, Literal, NoReturn, Optional, Tuple, Union
+from typing import Any, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -362,99 +361,3 @@ def iter_manifest_import_refs(manifest: RailManifest) -> Tuple[ImportRef, ...]:
         refs.extend(manifest.actions.refs)
     refs.extend(surface.action for surface in manifest.surfaces)
     return tuple(refs)
-
-
-_HORIZONTAL_WHITESPACE = " \t"
-_QUOTES = "\"'"
-
-
-def _is_surface_parameter_name_start(character: str) -> bool:
-    return character == "_" or "A" <= character <= "Z" or "a" <= character <= "z"
-
-
-def _is_surface_parameter_name_character(character: str) -> bool:
-    return _is_surface_parameter_name_start(character) or "0" <= character <= "9"
-
-
-def _surface_parse_error(message: str, position: int) -> NoReturn:
-    raise ValueError(f"{message} at character {position}.")
-
-
-def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
-    """Parse one complete configured surface reference.
-
-    The accepted syntax is a bare surface name followed by zero or more
-    whitespace-separated `$name=value` parameters. Spaces around `=` and
-    parenthesized parameters are not supported. Values remain strings; bare
-    values end at whitespace, while single- or double-quoted values may contain
-    whitespace and punctuation.
-
-    Raises:
-        ValueError: If the reference is empty, contains controls, or has malformed,
-            blank, adjacent, or duplicate parameters.
-    """
-    if any(not character.isprintable() and character not in _HORIZONTAL_WHITESPACE for character in flow_text):
-        raise ValueError("Configured surface references must not contain control characters.")
-    flow_text = flow_text.strip(_HORIZONTAL_WHITESPACE)
-    if not flow_text:
-        raise ValueError("Configured surface must not be empty.")
-
-    parameter_start = flow_text.find("$")
-    if parameter_start < 0:
-        return flow_text, {}
-    if parameter_start == 0 or flow_text[parameter_start - 1] not in _HORIZONTAL_WHITESPACE:
-        _surface_parse_error("Parameters must be separated from the surface name", parameter_start)
-
-    name = flow_text[:parameter_start].rstrip(_HORIZONTAL_WHITESPACE)
-    parameters: Dict[str, str] = {}
-    position = parameter_start
-    while True:
-        position += 1
-        key_start = position
-        if position == len(flow_text) or not _is_surface_parameter_name_start(flow_text[position]):
-            _surface_parse_error("Invalid surface parameter name", position)
-        position += 1
-        while position < len(flow_text) and _is_surface_parameter_name_character(flow_text[position]):
-            position += 1
-        if position == len(flow_text) or flow_text[position] != "=":
-            _surface_parse_error("Parameters must use exact $name=value syntax", position)
-        key = flow_text[key_start:position]
-        position += 1
-
-        if position < len(flow_text) and flow_text[position] in _QUOTES:
-            quote = flow_text[position]
-            value_start = position + 1
-            position = flow_text.find(quote, value_start)
-            if position < 0:
-                _surface_parse_error("Unterminated quoted parameter value", len(flow_text))
-            value = flow_text[value_start:position]
-            position += 1
-        else:
-            value_start = position
-            while position < len(flow_text) and flow_text[position] not in _HORIZONTAL_WHITESPACE:
-                if flow_text[position] == "$":
-                    _surface_parse_error("Adjacent parameters must be separated by whitespace", position)
-                if flow_text[position] in _QUOTES:
-                    _surface_parse_error("Quoted and bare parameter values cannot be concatenated", position)
-                position += 1
-            value = flow_text[value_start:position]
-
-        if not value.strip():
-            _surface_parse_error("Parameters must have a non-blank value", position)
-        if key in parameters:
-            _surface_parse_error(f"Duplicate surface parameter {key!r}", key_start)
-        parameters[key] = value
-
-        separator_start = position
-        while position < len(flow_text) and flow_text[position] in _HORIZONTAL_WHITESPACE:
-            position += 1
-        if position == len(flow_text):
-            return name, parameters
-        if position == separator_start or flow_text[position] != "$":
-            _surface_parse_error("Parameters must be separated by whitespace", position)
-
-
-def normalize_configured_surface_name(flow_text: str) -> str:
-    """Return the surface name prefix without validating its parameters."""
-    flow_text = flow_text.strip()
-    return flow_text.split("$", 1)[0].strip()
