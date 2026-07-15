@@ -31,9 +31,11 @@ from tests.utils import FakeLLMModel
 
 
 class _SelfCheckTaskManager:
-    def __init__(self, parsed: list[bool] | None = None):
+    def __init__(self, parsed: list[bool] | None = None, has_output_parser: bool = True):
         self.parsed = parsed or [True]
         self.config = SimpleNamespace(prompts=[])
+        self.has_parser = has_output_parser
+        self.forced_output_parser = None
 
     def render_task_prompt(self, task: Any, context: dict[str, Any]) -> str:
         return "prompt"
@@ -45,9 +47,10 @@ class _SelfCheckTaskManager:
         return None
 
     def has_output_parser(self, task: Any) -> bool:
-        return True
+        return self.has_parser
 
     def parse_task_output(self, task: Any, output: str, forced_output_parser: str | None = None) -> list[bool]:
+        self.forced_output_parser = forced_output_parser
         return self.parsed
 
 
@@ -75,6 +78,45 @@ async def test_self_check_output_returns_rail_outcome(parsed, expected):
     )
 
     assert outcome == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", [self_check_input, self_check_output])
+async def test_self_check_without_message_blocks(action):
+    task_manager = cast(LLMTaskManager, _SelfCheckTaskManager())
+
+    outcome = await action(
+        llms={},
+        llm_task_manager=task_manager,
+        context={},
+        llm=FakeLLMModel(responses=[]),
+        config=_config(),
+    )
+
+    assert outcome == RailOutcome.block()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "context"),
+    [
+        (self_check_input, {"user_message": "hello"}),
+        (self_check_output, {"user_message": "hello", "bot_message": "answer"}),
+    ],
+)
+async def test_self_check_uses_fallback_output_parser(action, context):
+    task_manager = _SelfCheckTaskManager(has_output_parser=False)
+
+    outcome = await action(
+        llms={},
+        llm_task_manager=cast(LLMTaskManager, task_manager),
+        context=context,
+        llm=FakeLLMModel(responses=["parsed by test manager"]),
+        config=_config(),
+    )
+
+    assert outcome == RailOutcome.allow()
+    assert task_manager.forced_output_parser == "is_content_safe"
 
 
 @pytest.mark.asyncio
