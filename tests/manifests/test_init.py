@@ -19,16 +19,16 @@ from nemoguardrails.manifests import RailCatalog
 
 def test_package_accessors_with_no_built_in_rails():
     manifests_pkg._reset_rail_manifest_cache()
+    try:
+        catalog = manifests_pkg.default_rail_catalog()
+        assert isinstance(catalog, RailCatalog)
+        # a second call returns the cached instance rather than rediscovering
+        assert manifests_pkg.default_rail_catalog() is catalog
 
-    catalog = manifests_pkg.default_rail_catalog()
-    assert isinstance(catalog, RailCatalog)
-    # a second call returns the cached instance rather than rediscovering
-    assert manifests_pkg.default_rail_catalog() is catalog
-
-    assert manifests_pkg.all_rail_manifests() == {}
-    assert manifests_pkg.rail_surfaces("input") == {}
-    assert manifests_pkg.rail_surfaces() == {}
-    assert manifests_pkg.surface_names("input") == ()
-    assert manifests_pkg.configured_rail_surfaces("input", []) == {}
-
-    manifests_pkg._reset_rail_manifest_cache()
+        assert manifests_pkg.all_rail_manifests() == {}
+        assert manifests_pkg.rail_surfaces("input") == {}
+        assert manifests_pkg.rail_surfaces() == {}
+        assert manifests_pkg.surface_names("input") == ()
+        assert manifests_pkg.configured_rail_surfaces("input", []) == {}
+    finally:
+        manifests_pkg._reset_rail_manifest_cache()
