@@ -65,6 +65,7 @@ async def test_groundness_correct(httpx_mock):
     )
 
     async def mock_autoalign_groundedness_output_api(context: Optional[dict] = None, **kwargs):
+        assert context["bot_message"] == "bot provide pluto answer"
         return _autoalign_score_outcome(0.52, kwargs["factcheck_threshold"])
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
@@ -104,6 +105,7 @@ async def test_groundness_check_wrong(httpx_mock):
     )
 
     async def mock_autoalign_groundedness_output_api(context: Optional[dict] = None, **kwargs):
+        assert context["bot_message"] == "bot provide pluto answer"
         return _autoalign_score_outcome(0.0, kwargs["factcheck_threshold"])
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")

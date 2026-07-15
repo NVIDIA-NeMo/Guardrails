@@ -58,7 +58,8 @@ async def call_policyai_api(
                   If not provided, uses POLICYAI_TAG_NAME env var or "prod".
 
     Returns:
-        RailOutcome with assessment, category, severity, reason, and exception_message metadata.
+        RailOutcome indicating whether the content is blocked. Assessment, category,
+        severity, and exception_message are metadata; reason is stored on RailOutcome.reason.
     """
     api_key = os.environ.get("POLICYAI_API_KEY")
 

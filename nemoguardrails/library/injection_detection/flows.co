@@ -12,9 +12,10 @@ flow injection detection
       send InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
     else if injection_detection_action == "reject"
       bot "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {{ response.metadata.detections | join(join_separator) }}."
-      abort
+    abort
   else if response.is_transform
     if $config.enable_rails_exceptions and response.metadata["is_injection"]
       send InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
+      abort
     else
       $bot_message = response.transform_text["bot_message"]

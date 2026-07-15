@@ -53,7 +53,7 @@ async def self_check_hallucination(
 ):
     """Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
 
-    :return: True if hallucination is detected, False otherwise.
+    :return: A blocking outcome if hallucination is detected, otherwise an allowing outcome.
     """
     bot_response = context.get("bot_message")
     last_bot_prompt_string = context.get("_last_bot_prompt")

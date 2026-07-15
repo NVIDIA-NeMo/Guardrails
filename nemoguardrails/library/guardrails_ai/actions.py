@@ -91,7 +91,7 @@ def validate_guardrails_ai_input(
     context: Optional[dict] = None,
     text: Optional[str] = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> RailOutcome:
     """Unified action for all Guardrails AI validators.
 
     Args:
@@ -140,7 +140,7 @@ def validate_guardrails_ai_output(
     text: Optional[str] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> RailOutcome:
     """Unified action for all Guardrails AI validators.
 
     Args:
