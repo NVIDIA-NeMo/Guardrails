@@ -36,7 +36,7 @@ from pydantic import (
 
 from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
+from nemoguardrails.colang.v1_0.runtime.flows import _get_flow_params, _normalize_flow_id
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 from nemoguardrails.exceptions import (
@@ -1906,10 +1906,9 @@ class RailsConfig(BaseModel):
         provided_task_prompts = [prompt.task if hasattr(prompt, "task") else prompt.get("task") for prompt in prompts]
 
         # Input moderation prompt verification
-        if "self check input" in enabled_input_rails and "self_check_input" not in provided_task_prompts:
-            raise InvalidRailsConfigurationError(
-                "Missing a `self_check_input` prompt template, which is required for the `self check input` rail."
-            )
+        _validate_self_check_prompts(
+            enabled_input_rails, provided_task_prompts, "self check input", "self_check_input", "task"
+        )
         if "llama guard check input" in enabled_input_rails and "llama_guard_check_input" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
                 "Missing a `llama_guard_check_input` prompt template, which is required for the `llama guard check input` rail."
@@ -1922,10 +1921,9 @@ class RailsConfig(BaseModel):
         _validate_rail_prompts(enabled_input_rails, provided_task_prompts, "topic safety check input")
 
         # Output moderation prompt verification
-        if "self check output" in enabled_output_rails and "self_check_output" not in provided_task_prompts:
-            raise InvalidRailsConfigurationError(
-                "Missing a `self_check_output` prompt template, which is required for the `self check output` rail."
-            )
+        _validate_self_check_prompts(
+            enabled_output_rails, provided_task_prompts, "self check output", "self_check_output", "task"
+        )
         if (
             "llama guard check output" in enabled_output_rails
             and "llama_guard_check_output" not in provided_task_prompts
@@ -2309,6 +2307,25 @@ def _get_flow_model(flow_text) -> Optional[str]:
     if MODEL_PREFIX not in flow_text:
         return None
     return flow_text.split(MODEL_PREFIX)[-1].strip()
+
+
+def _validate_self_check_prompts(
+    rails: list[str],
+    prompts: list[Any],
+    flow_name: str,
+    default_task: str,
+    task_param: str,
+) -> None:
+    for rail in rails:
+        normalized = _normalize_flow_id(rail)
+        if normalized != flow_name:
+            continue
+        custom_task = _get_flow_params(rail).get(task_param)
+        expected = custom_task if custom_task else default_task
+        if expected not in prompts:
+            raise InvalidRailsConfigurationError(
+                f"Missing a `{expected}` prompt template, which is required for the `{rail}` rail."
+            )
 
 
 def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail: str) -> None:

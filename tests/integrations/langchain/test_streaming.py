@@ -448,8 +448,6 @@ async def test_streaming_output_rails_preserve_custom_task():
     assert custom_llm.inference_count > 0
     assert default_llm.inference_count == 0
 
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
-
 
 @pytest.mark.asyncio
 async def test_streaming_output_rails_blocked(output_rails_streaming_config):
