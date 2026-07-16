@@ -123,8 +123,8 @@ class TestGuardrailsRouting:
             guardrails.update_llm(mock_new_llm)
 
             # Verify all calls went to LLMRails
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
             guardrails.rails_engine.explain.assert_called_once()
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
@@ -178,8 +178,8 @@ class TestGuardrailsRouting:
             with pytest.raises(NotImplementedError, match="IORails doesn't support update_llm()"):
                 guardrails.update_llm(mock_new_llm)
 
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(
                 messages=messages,
                 options=None,
@@ -257,8 +257,8 @@ class TestGuardrailsRouting:
             guardrails.update_llm(mock_new_llm)
 
             # Verify all calls went to LLMRails
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
             guardrails.rails_engine.explain.assert_called_once()
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
@@ -649,7 +649,7 @@ class TestGenerateAsync:
 
             # Verify generate_async was called with correct messages
             expected_messages = [{"role": "user", "content": "Hello async!"}]
-            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=expected_messages)
+            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=expected_messages, options=None)
             assert result == "Async response"
 
     @pytest.mark.asyncio
@@ -668,7 +668,7 @@ class TestGenerateAsync:
             ]
             result = await guardrails.generate_async(messages=messages)
 
-            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=messages)
+            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=messages, options=None)
             assert result == "Async conversation response"
 
     @pytest.mark.asyncio
@@ -685,7 +685,7 @@ class TestGenerateAsync:
             # Verify kwargs were passed through
             expected_messages = [{"role": "user", "content": "Test"}]
             mock_llmrails_instance.generate_async.assert_awaited_once_with(
-                messages=expected_messages, temperature=0.5, top_p=0.9
+                messages=expected_messages, options=None, temperature=0.5, top_p=0.9
             )
             assert result == "Response"
 
@@ -901,6 +901,7 @@ class TestIntegration:
         expected_messages = [{"role": "user", "content": "Test"}]
         mock_llmrails_instance.generate.assert_called_once_with(
             messages=expected_messages,
+            options=None,
             temperature=0.7,
             max_tokens=100,
             top_p=0.9,

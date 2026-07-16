@@ -569,7 +569,12 @@ class IORails(BaseGuardrails):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.stop()
 
-    def generate(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
+    def generate(
+        self,
+        messages: LLMMessages,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
+    ) -> Union[LLMMessage, GenerationResponse]:
         """Synchronous version of generate_async.
 
         Telemetry is disabled for the ephemeral IORails object used for
@@ -589,11 +594,16 @@ class IORails(BaseGuardrails):
             """Spin up a short-lived IORails engine for one synchronous generate call."""
             # Avoid counting this sync-API bridge as a separate user-created IORails instance.
             async with IORails(sync_config, _report_usage=False) as iorails_engine:
-                return await iorails_engine.generate_async(messages, **kwargs)
+                return await iorails_engine.generate_async(messages, options=options, **kwargs)
 
         return asyncio.run(_run_sync_iorails())
 
-    async def generate_async(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
+    async def generate_async(
+        self,
+        messages: LLMMessages,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
+    ) -> Union[LLMMessage, GenerationResponse]:
         """Public entry: submit the request to the internal work queue.
 
         The queue enforces non-streaming concurrency limits
@@ -613,13 +623,18 @@ class IORails(BaseGuardrails):
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
             try:
-                return await self._generate_async_queue.submit(self._run_generate, messages, **kwargs)
+                return await self._generate_async_queue.submit(self._run_generate, messages, options=options, **kwargs)
             except asyncio.QueueFull:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
                 raise
 
-    async def _run_generate(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
+    async def _run_generate(
+        self,
+        messages: LLMMessages,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
+    ) -> Union[LLMMessage, GenerationResponse]:
         """Runs inside a queue worker task.  Wraps the pipeline in
         ``traced_request`` so each request gets its own span + request ID,
         then delegates to ``_do_generate`` for the actual input rails →
@@ -630,7 +645,7 @@ class IORails(BaseGuardrails):
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_generate(messages, req_id, request_span, **kwargs)
+                result = await self._do_generate(messages, req_id, request_span, options=options, **kwargs)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
@@ -664,17 +679,23 @@ class IORails(BaseGuardrails):
         )
 
     async def _do_generate(
-        self, messages: LLMMessages, req_id: str, request_span: Optional["Span"] = None, **kwargs
+        self,
+        messages: LLMMessages,
+        req_id: str,
+        request_span: Optional["Span"] = None,
+        *,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
         """Core pipeline: tool-result rails -> input rails -> LLM call -> tool-call + output rails."""
         log.info("[%s] generate_async called", req_id)
         log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
 
-        options = _coerce_generation_options(kwargs.get("options"))
+        options = _coerce_generation_options(options)
         _raise_on_unsupported_options(options, kwargs.get("state"))
         # When options are supplied we return a structured GenerationResponse
         # (mirroring LLMRails' `if gen_options:` branch); otherwise a bare LLMMessage.
-        has_generation_response = options is not None
+        has_generation_options = options is not None
         # Pass llm_params (including tool definitions) unchanged to the LLM call.
         llm_kwargs = options.llm_params if (options and options.llm_params) else {}
         input_enabled = options.rails.input if options else True
@@ -690,7 +711,7 @@ class IORails(BaseGuardrails):
             log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return _finalize_refusal(has_generation_response)
+            return _finalize_refusal(has_generation_options)
 
         if self._speculative_generation:
             response = await self._do_generate_speculative(
@@ -700,7 +721,7 @@ class IORails(BaseGuardrails):
             response = await self._do_generate_sequential(messages, req_id, llm_kwargs, input_enabled=input_enabled)
 
         if response is None:
-            return _finalize_refusal(has_generation_response)
+            return _finalize_refusal(has_generation_options)
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -721,7 +742,7 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Tool call blocked: %s", req_id, tool_call.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                return _finalize_refusal(has_generation_response)
+                return _finalize_refusal(has_generation_options)
 
         # Output rails check the final answer, not reasoning traces.
         # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
@@ -736,9 +757,9 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                return _finalize_refusal(has_generation_response)
+                return _finalize_refusal(has_generation_options)
 
-        if has_generation_response:
+        if has_generation_options:
             return _build_generation_response(response_text, reasoning_content, response)
 
         # Bare return path: reasoning is delivered inline as a <think> prefix

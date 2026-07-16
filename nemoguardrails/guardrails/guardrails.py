@@ -38,7 +38,7 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
@@ -205,35 +205,61 @@ class Guardrails(BaseGuardrails):
             await self.startup()
 
     def generate(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
 
         generate_messages = self._convert_to_messages(prompt, messages)
-        return self.rails_engine.generate(messages=generate_messages, **kwargs)
-
-    @overload
-    async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
+        return self.rails_engine.generate(messages=generate_messages, options=options, **kwargs)
 
     @overload
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
+    ) -> str: ...
+
+    @overload
+    async def generate_async(
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> dict: ...
 
     @overload
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> GenerationResponse: ...
 
     @overload
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> tuple[dict, dict]: ...
 
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> str | dict | GenerationResponse | tuple[dict, dict]:
         """Generate an LLM response asynchronously with guardrails applied.
         Supported by both LLMRails and IORails
@@ -241,7 +267,7 @@ class Guardrails(BaseGuardrails):
         await self._ensure_started()
 
         generate_messages = self._convert_to_messages(prompt, messages)
-        return await self.rails_engine.generate_async(messages=generate_messages, **kwargs)
+        return await self.rails_engine.generate_async(messages=generate_messages, options=options, **kwargs)
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
