@@ -23,11 +23,16 @@ from tests.recorded.assertions import (
     assert_rails_result,
 )
 from tests.recorded.normalization import normalize_rails_result, normalize_stream_chunks
-from tests.recorded.rails.library.configs import OPENAI_SELF_CHECK_CONFIG
+from tests.recorded.rails.helpers import build_rails
+from tests.recorded.rails.library.configs import OPENAI_MULTI_SELF_CHECK_CONFIG, OPENAI_SELF_CHECK_CONFIG
 from tests.recorded.rails.library.helpers import check_rails, stream_with_fake_main
 from tests.recorded.snapshots import snapshot
 
 pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
+
+
+def _llm_routes(rails, start):
+    return [(call.task, call.llm_provider_name, call.llm_model_name) for call in rails.explain().llm_calls[start:]]
 
 
 async def test_self_check_input_blocks_user_message(openai_api_key):
@@ -53,6 +58,55 @@ async def test_self_check_output_blocks_assistant_message(openai_api_key):
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check output")
     assert normalize_rails_result(result) == snapshot(
         {"status": "blocked", "rail": "self check output", "content": "I'm sorry, I can't respond to that."}
+    )
+
+
+async def test_multiple_self_check_input_second_task_blocks(openai_api_key):
+    rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG)
+    start = len(rails.explain().llm_calls)
+
+    result = await rails.check_async(
+        [{"role": "user", "content": "blocked_off_topic"}],
+        rail_types=[RailType.INPUT],
+    )
+
+    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check input $task=check_off_topic")
+    assert _llm_routes(rails, start) == [
+        ("check_harmful", "openai", "gpt-4.1-mini"),
+        ("check_off_topic", "openai", "gpt-5.4-nano"),
+    ]
+    assert normalize_rails_result(result) == snapshot(
+        {
+            "status": "blocked",
+            "rail": "self check input $task=check_off_topic",
+            "content": "I'm sorry, I can't respond to that.",
+        }
+    )
+
+
+async def test_multiple_self_check_output_second_task_blocks(openai_api_key):
+    rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG)
+    start = len(rails.explain().llm_calls)
+
+    result = await rails.check_async(
+        [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "blocked_data_leakage"},
+        ],
+        rail_types=[RailType.OUTPUT],
+    )
+
+    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check output $task=check_data_leakage")
+    assert _llm_routes(rails, start) == [
+        ("check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("check_data_leakage", "openai", "gpt-4.1-mini"),
+    ]
+    assert normalize_rails_result(result) == snapshot(
+        {
+            "status": "blocked",
+            "rail": "self check output $task=check_data_leakage",
+            "content": "I'm sorry, I can't respond to that.",
+        }
     )
 
 
