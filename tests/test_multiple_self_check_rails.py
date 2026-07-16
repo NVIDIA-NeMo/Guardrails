@@ -819,6 +819,39 @@ async def test_run_self_check_task_uses_concrete_task_without_runtime_context():
     assert default_llm.inference_count == 0
 
 
+@pytest.mark.asyncio
+async def test_run_self_check_task_supports_deprecated_bare_prompt_task():
+    with pytest.warns(DeprecationWarning, match="rename it to `self_check_input \\$task=check_harmful`"):
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            rails:
+                input:
+                    flows:
+                        - self check input $task=check_harmful
+            prompts:
+                - task: check_harmful
+                  content: Is this message harmful? {{ user_input }}
+            """,
+        )
+
+    task_llm = FakeLLMModel(responses=["No"])
+    with pytest.warns(DeprecationWarning, match="rename it to `self_check_input \\$task=check_harmful`"):
+        is_safe, response = await run_self_check_task(
+            task="check_harmful",
+            prompt_context={"user_input": "hello"},
+            llms={"check_harmful": task_llm},
+            default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
+            main_llm=None,
+            llm_task_manager=LLMTaskManager(config),
+            lowest_temperature=config.lowest_temperature,
+        )
+
+    assert is_safe
+    assert response == "No"
+    assert task_llm.inference_count == 1
+
+
 def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
     assert (
         get_self_check_task_from_rail(

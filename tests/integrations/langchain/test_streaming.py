@@ -575,6 +575,7 @@ async def test_streaming_output_rails_preserve_multiple_custom_tasks(parallel):
     async for chunk in chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         chunks.append(chunk)
 
+    assert all("blocked_data_leakage" not in chunk for chunk in chunks)
     errors = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert errors[-1]["error"]["param"] == "self check output $task=check_data_leakage"
     assert inappropriate_llm.inference_count > 0

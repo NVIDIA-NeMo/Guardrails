@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import logging
+import warnings
+from collections.abc import Collection
 from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
@@ -40,11 +42,26 @@ def get_self_check_task_from_rail(flow: Any, flow_id: str, task_param: str, defa
     return _get_flow_params(flow).get(task_param) or default_task
 
 
-def get_self_check_prompt_task(task: str, default_task: str) -> str:
+def get_self_check_prompt_task(
+    task: str, default_task: str, available_prompt_tasks: Optional[Collection[str]] = None
+) -> str:
     if task == default_task:
         return task
 
-    return f"{default_task} ${SELF_CHECK_TASK_PARAM}={task}"
+    prompt_task = f"{default_task} ${SELF_CHECK_TASK_PARAM}={task}"
+    if (
+        available_prompt_tasks is not None
+        and prompt_task not in available_prompt_tasks
+        and task in available_prompt_tasks
+    ):
+        warnings.warn(
+            f"The `{task}` self-check prompt task is deprecated; rename it to `{prompt_task}`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return task
+
+    return prompt_task
 
 
 def resolve_self_check_task(
@@ -129,7 +146,8 @@ async def run_self_check_task(
     max_tokens: int = 1024,
 ) -> tuple[bool, str]:
     llm = get_self_check_llm(llms, task, default_task=default_task, main_llm=main_llm)
-    prompt_task = get_self_check_prompt_task(task, default_task)
+    available_prompt_tasks = {prompt.task for prompt in llm_task_manager.config.prompts or []}
+    prompt_task = get_self_check_prompt_task(task, default_task, available_prompt_tasks)
 
     prompt = llm_task_manager.render_task_prompt(
         task=prompt_task,

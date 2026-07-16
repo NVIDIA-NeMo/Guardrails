@@ -43,6 +43,7 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
 )
+from nemoguardrails.library.self_check.utils import get_self_check_prompt_task
 
 log = logging.getLogger(__name__)
 
@@ -2376,7 +2377,7 @@ def _validate_self_check_rail_prompts(
         if _normalize_flow_id(rail) != validation_rail:
             continue
         task = _get_flow_params(rail).get("task") or default_task
-        prompt_task = task if task == default_task else f"{default_task} $task={task}"
+        prompt_task = get_self_check_prompt_task(task, default_task, prompts)
         if prompt_task not in prompts:
             raise InvalidRailsConfigurationError(
                 f"Missing a `{prompt_task}` prompt template, which is required for the `{rail}` rail."
