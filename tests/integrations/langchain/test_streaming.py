@@ -384,24 +384,25 @@ async def test_sequential_streaming_output_rails_allowed(
 
 @pytest.mark.asyncio
 async def test_streaming_input_rails_preserve_multiple_custom_tasks():
+    """Verify streaming runs each configured custom input self-check task."""
     config = RailsConfig.from_content(
         config={
             "models": [],
             "rails": {
                 "input": {
                     "flows": [
-                        "self check input $task=check_harmful",
-                        "self check input $task=check_off_topic",
+                        "self check input $variant=check_harmful",
+                        "self check input $variant=check_off_topic",
                     ],
                 }
             },
             "prompts": [
                 {
-                    "task": "self_check_input $task=check_harmful",
+                    "task": "self_check_input $variant=check_harmful",
                     "content": "User input: {{ user_input }}\nAnswer No.",
                 },
                 {
-                    "task": "self_check_input $task=check_off_topic",
+                    "task": "self_check_input $variant=check_off_topic",
                     "content": "User input: {{ user_input }}\nAnswer No.",
                 },
                 {
@@ -451,7 +452,7 @@ async def test_streaming_output_rails_preserve_custom_task():
             "models": [],
             "rails": {
                 "output": {
-                    "flows": ["self check output $task=check_data_leakage"],
+                    "flows": ["self check output $variant=check_data_leakage"],
                     "streaming": {
                         "enabled": True,
                         "chunk_size": 4,
@@ -462,7 +463,7 @@ async def test_streaming_output_rails_preserve_custom_task():
             },
             "prompts": [
                 {
-                    "task": "self_check_output $task=check_data_leakage",
+                    "task": "self_check_output $variant=check_data_leakage",
                     "content": """
                     Bot response: {{ bot_response }}
                     Answer No.
@@ -514,6 +515,7 @@ async def test_streaming_output_rails_preserve_custom_task():
 @pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
 @pytest.mark.asyncio
 async def test_streaming_output_rails_preserve_multiple_custom_tasks(parallel):
+    """Verify streaming blocks without emitting content rejected by a custom task."""
     config = RailsConfig.from_content(
         config={
             "models": [],
@@ -521,8 +523,8 @@ async def test_streaming_output_rails_preserve_multiple_custom_tasks(parallel):
                 "output": {
                     "parallel": parallel,
                     "flows": [
-                        "self check output $task=check_inappropriate",
-                        "self check output $task=check_data_leakage",
+                        "self check output $variant=check_inappropriate",
+                        "self check output $variant=check_data_leakage",
                     ],
                     "streaming": {
                         "enabled": True,
@@ -534,11 +536,11 @@ async def test_streaming_output_rails_preserve_multiple_custom_tasks(parallel):
             },
             "prompts": [
                 {
-                    "task": "self_check_output $task=check_inappropriate",
+                    "task": "self_check_output $variant=check_inappropriate",
                     "content": "Bot response: {{ bot_response }}\nAnswer No.",
                 },
                 {
-                    "task": "self_check_output $task=check_data_leakage",
+                    "task": "self_check_output $variant=check_data_leakage",
                     "content": "Bot response: {{ bot_response }}\nAnswer Yes.",
                 },
                 {
@@ -577,7 +579,7 @@ async def test_streaming_output_rails_preserve_multiple_custom_tasks(parallel):
 
     assert all("blocked_data_leakage" not in chunk for chunk in chunks)
     errors = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
-    assert errors[-1]["error"]["param"] == "self check output $task=check_data_leakage"
+    assert errors[-1]["error"]["param"] == "self check output $variant=check_data_leakage"
     assert inappropriate_llm.inference_count > 0
     assert data_leakage_llm.inference_count > 0
     assert default_llm.inference_count == 0

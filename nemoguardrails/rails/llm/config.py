@@ -2369,14 +2369,14 @@ def _validate_self_check_rail_prompts(
 ) -> None:
     """Ensure every enabled self-check rail has a prompt for its resolved task.
 
-    A self-check rail may select a custom task via `$task=...`; the task falls
+    A self-check rail may select a custom task via `$variant=...`; the task falls
     back to `default_task` when omitted. Custom prompts are scoped under the
     default task name.
     """
     for rail in rails:
         if _normalize_flow_id(rail) != validation_rail:
             continue
-        task = _get_flow_params(rail).get("task") or default_task
+        task = _get_flow_params(rail).get("variant") or default_task
         prompt_task = get_self_check_prompt_task(task, default_task, prompts)
         if prompt_task not in prompts:
             raise InvalidRailsConfigurationError(

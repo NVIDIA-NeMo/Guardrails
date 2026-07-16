@@ -1,5 +1,5 @@
-flow self check output $task="self_check_output"
-  $allowed = await SelfCheckOutputAction(task=$task)
+flow self check output $variant="self_check_output"
+  $allowed = await SelfCheckOutputAction(task=$variant)
 
   if not $allowed
     if $system.config.enable_rails_exceptions

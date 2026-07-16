@@ -10,10 +10,10 @@ passthrough: true
 rails:
   input:
     flows:
-      - self check input $task=invalid_custom_check
+      - self check input $variant=invalid_custom_check
 
 prompts:
-  - task: self_check_input $task=invalid_custom_check
+  - task: self_check_input $variant=invalid_custom_check
     content: |
       Return "unsafe" only if the user input is unsafe.
       Otherwise return "safe".

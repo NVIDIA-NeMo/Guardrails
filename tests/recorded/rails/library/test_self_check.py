@@ -40,10 +40,12 @@ pytestmark = [pytest.mark.recorded, pytest.mark.vcr, pytest.mark.asyncio]
 
 
 def _llm_routes(rails, start):
+    """Return recorded task, provider, and model routes from the given call index."""
     return [(call.task, call.llm_provider_name, call.llm_model_name) for call in rails.explain().llm_calls[start:]]
 
 
 def _self_check_routes(rails, start):
+    """Return self-check routes from the given call index."""
     return [route for route in _llm_routes(rails, start) if route[0] and route[0].startswith("self_check_")]
 
 
@@ -74,6 +76,7 @@ async def test_self_check_output_blocks_assistant_message(openai_api_key):
 
 
 async def test_multiple_self_check_input_second_task_blocks(openai_api_key):
+    """Verify the second sequential input task blocks and records its route."""
     rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG)
     start = len(rails.explain().llm_calls)
 
@@ -82,21 +85,22 @@ async def test_multiple_self_check_input_second_task_blocks(openai_api_key):
         rail_types=[RailType.INPUT],
     )
 
-    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check input $task=check_off_topic")
+    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check input $variant=check_off_topic")
     assert _llm_routes(rails, start) == [
-        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
-        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_input $variant=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_off_topic", "openai", "gpt-5.4-nano"),
     ]
     assert normalize_rails_result(result) == snapshot(
         {
             "status": "blocked",
-            "rail": "self check input $task=check_off_topic",
+            "rail": "self check input $variant=check_off_topic",
             "content": "I'm sorry, I can't respond to that.",
         }
     )
 
 
 async def test_multiple_self_check_input_tasks_allow(openai_api_key):
+    """Verify all sequential input tasks run when they allow the message."""
     rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG)
     start = len(rails.explain().llm_calls)
 
@@ -107,8 +111,8 @@ async def test_multiple_self_check_input_tasks_allow(openai_api_key):
 
     assert_rails_result(result, status=RailStatus.PASSED)
     assert _llm_routes(rails, start) == [
-        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
-        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_input $variant=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_off_topic", "openai", "gpt-5.4-nano"),
     ]
     assert normalize_rails_result(result) == snapshot(
         {"status": "passed", "rail": None, "content": "allowed_multi_self_check_input"}
@@ -116,6 +120,7 @@ async def test_multiple_self_check_input_tasks_allow(openai_api_key):
 
 
 async def test_multiple_self_check_output_second_task_blocks(openai_api_key):
+    """Verify the second sequential output task blocks and records its route."""
     rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG)
     start = len(rails.explain().llm_calls)
 
@@ -127,21 +132,22 @@ async def test_multiple_self_check_output_second_task_blocks(openai_api_key):
         rail_types=[RailType.OUTPUT],
     )
 
-    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check output $task=check_data_leakage")
+    assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check output $variant=check_data_leakage")
     assert _llm_routes(rails, start) == [
-        ("self_check_output $task=check_inappropriate", "openai", "gpt-5.4-nano"),
-        ("self_check_output $task=check_data_leakage", "openai", "gpt-4.1-mini"),
+        ("self_check_output $variant=check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("self_check_output $variant=check_data_leakage", "openai", "gpt-4.1-mini"),
     ]
     assert normalize_rails_result(result) == snapshot(
         {
             "status": "blocked",
-            "rail": "self check output $task=check_data_leakage",
+            "rail": "self check output $variant=check_data_leakage",
             "content": "I'm sorry, I can't respond to that.",
         }
     )
 
 
 async def test_multiple_self_check_generate_async_sequential_blocks_output(openai_api_key):
+    """Verify sequential self-check tasks block generated output."""
     rails = build_rails(
         OPENAI_MULTI_SELF_CHECK_CONFIG,
         llm=FakeLLMModel(responses=["blocked_data_leakage"]),
@@ -156,14 +162,15 @@ async def test_multiple_self_check_generate_async_sequential_blocks_output(opena
     assert isinstance(result, GenerationResponse)
     assert result.response == snapshot([{"role": "assistant", "content": "I'm sorry, I can't respond to that."}])
     assert _self_check_routes(rails, start) == [
-        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
-        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
-        ("self_check_output $task=check_inappropriate", "openai", "gpt-5.4-nano"),
-        ("self_check_output $task=check_data_leakage", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_output $variant=check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("self_check_output $variant=check_data_leakage", "openai", "gpt-4.1-mini"),
     ]
 
 
 async def test_multiple_self_check_generate_async_parallel_runs_all_tasks(openai_api_key):
+    """Verify parallel generation runs every configured self-check task."""
     config = load_config(OPENAI_MULTI_SELF_CHECK_CONFIG)
     config.rails.input.parallel = True
     config.rails.output.parallel = True
@@ -178,14 +185,15 @@ async def test_multiple_self_check_generate_async_parallel_runs_all_tasks(openai
     assert isinstance(result, GenerationResponse)
     assert result.response == snapshot([{"role": "assistant", "content": "allowed_parallel_response"}])
     assert sorted(_self_check_routes(rails, start)) == [
-        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
-        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
-        ("self_check_output $task=check_data_leakage", "openai", "gpt-4.1-mini"),
-        ("self_check_output $task=check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("self_check_input $variant=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_output $variant=check_data_leakage", "openai", "gpt-4.1-mini"),
+        ("self_check_output $variant=check_inappropriate", "openai", "gpt-5.4-nano"),
     ]
 
 
 async def test_multiple_self_check_stream_async_runs_input_tasks(openai_api_key):
+    """Verify streaming generation runs every configured input self-check task."""
     config = enable_streaming(load_config(OPENAI_MULTI_SELF_CHECK_CONFIG))
     config.rails.output.flows = []
     rails = LLMRails(config, llm=FakeLLMModel(responses=["allowed_streaming_response"]), verbose=False)
@@ -198,8 +206,8 @@ async def test_multiple_self_check_stream_async_runs_input_tasks(openai_api_key)
         chunks.append(chunk)
 
     assert _self_check_routes(rails, start) == [
-        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
-        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_input $variant=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $variant=check_off_topic", "openai", "gpt-5.4-nano"),
     ]
     assert normalize_stream_chunks(chunks) == snapshot(
         {"content": "allowed_streaming_response", "chunks": ["allowed_streaming_response"], "errors": []}
@@ -207,6 +215,7 @@ async def test_multiple_self_check_stream_async_runs_input_tasks(openai_api_key)
 
 
 async def test_multiple_self_check_output_second_task_blocks_fake_main_stream(openai_api_key):
+    """Verify the second output task blocks content from a supplied stream."""
     rails = build_rails(OPENAI_MULTI_SELF_CHECK_CONFIG, streaming=True)
     chunks = []
     async for chunk in rails.stream_async(
@@ -222,14 +231,14 @@ async def test_multiple_self_check_output_second_task_blocks_fake_main_stream(op
             "content": "blocked_data_leakage",
             "chunks": [
                 "blocked_data_leakage",
-                '{"error": {"message": "Blocked by self check output $task=check_data_leakage rails.", "type": "guardrails_violation", "param": "self check output $task=check_data_leakage", "code": "content_blocked"}}',
+                '{"error": {"message": "Blocked by self check output $variant=check_data_leakage rails.", "type": "guardrails_violation", "param": "self check output $variant=check_data_leakage", "code": "content_blocked"}}',
             ],
             "errors": [
                 {
                     "error": {
-                        "message": "Blocked by self check output $task=check_data_leakage rails.",
+                        "message": "Blocked by self check output $variant=check_data_leakage rails.",
                         "type": "guardrails_violation",
-                        "param": "self check output $task=check_data_leakage",
+                        "param": "self check output $variant=check_data_leakage",
                         "code": "content_blocked",
                     }
                 }
@@ -240,6 +249,7 @@ async def test_multiple_self_check_output_second_task_blocks_fake_main_stream(op
 
 @pytest.mark.parametrize("parallel", [False, True], ids=["sequential-blocks", "parallel-allows"])
 async def test_multiple_self_check_output_rails_streaming(openai_api_key, parallel):
+    """Verify sequential and parallel output tasks use their configured routes."""
     config = enable_streaming(load_config(OPENAI_MULTI_SELF_CHECK_CONFIG))
     config.rails.input.flows = []
     config.rails.output.parallel = parallel
@@ -262,8 +272,8 @@ async def test_multiple_self_check_output_rails_streaming(openai_api_key, parall
     if not parallel:
         assert_blocked_stream_error(chunks)
     expected_routes = [
-        ("self_check_output $task=check_inappropriate", "openai", "gpt-5.4-nano"),
-        ("self_check_output $task=check_data_leakage", "openai", "gpt-4.1-mini"),
+        ("self_check_output $variant=check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("self_check_output $variant=check_data_leakage", "openai", "gpt-4.1-mini"),
     ]
     routes = _self_check_routes(rails, start)
     if parallel:
@@ -281,14 +291,14 @@ async def test_multiple_self_check_output_rails_streaming(openai_api_key, parall
             {
                 "content": "",
                 "chunks": [
-                    '{"error": {"message": "Blocked by self check output $task=check_data_leakage rails.", "type": "guardrails_violation", "param": "self check output $task=check_data_leakage", "code": "content_blocked"}}'
+                    '{"error": {"message": "Blocked by self check output $variant=check_data_leakage rails.", "type": "guardrails_violation", "param": "self check output $variant=check_data_leakage", "code": "content_blocked"}}'
                 ],
                 "errors": [
                     {
                         "error": {
-                            "message": "Blocked by self check output $task=check_data_leakage rails.",
+                            "message": "Blocked by self check output $variant=check_data_leakage rails.",
                             "type": "guardrails_violation",
-                            "param": "self check output $task=check_data_leakage",
+                            "param": "self check output $variant=check_data_leakage",
                             "code": "content_blocked",
                         }
                     }
@@ -298,6 +308,7 @@ async def test_multiple_self_check_output_rails_streaming(openai_api_key, parall
 
 
 async def test_multiple_self_check_input_provider_error_raises(openai_api_key):
+    """Verify provider errors from a custom input task are propagated."""
     with pytest.raises(LLMCallException) as exc_info:
         await check_rails(
             OPENAI_MULTI_SELF_CHECK_INVALID_MODEL_CONFIG,

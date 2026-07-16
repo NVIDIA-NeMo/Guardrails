@@ -21,6 +21,7 @@ from nemoguardrails.testing.fake_model import FakeLLMModel
 
 @pytest.mark.asyncio
 async def test_multiple_self_check_input_tasks():
+    """Verify Colang 2 runs multiple custom input self-check tasks."""
     config = RailsConfig.from_content(
         colang_content="""
         import core
@@ -28,8 +29,8 @@ async def test_multiple_self_check_input_tasks():
         import nemoguardrails.library.self_check.input_check
 
         flow input rails $input_text
-            self check input $task="check_harmful"
-            self check input $task="check_off_topic"
+            self check input $variant="check_harmful"
+            self check input $variant="check_off_topic"
 
         flow main
             await user said $text
@@ -40,10 +41,10 @@ async def test_multiple_self_check_input_tasks():
         models: []
         enable_rails_exceptions: true
         prompts:
-          - task: self_check_input $task=check_harmful
+          - task: self_check_input $variant=check_harmful
             content: User input {{ user_input }}
             output_parser: is_content_safe
-          - task: self_check_input $task=check_off_topic
+          - task: self_check_input $variant=check_off_topic
             content: User input {{ user_input }}
             output_parser: is_content_safe
         """,
@@ -54,8 +55,8 @@ async def test_multiple_self_check_input_tasks():
     result = await rails.generate_async(messages=[{"role": "user", "content": "blocked_off_topic"}])
 
     assert [call.task for call in rails.explain().llm_calls] == [
-        "self_check_input $task=check_harmful",
-        "self_check_input $task=check_off_topic",
+        "self_check_input $variant=check_harmful",
+        "self_check_input $variant=check_off_topic",
     ]
     assert [event["type"] for event in result["events"]] == ["InputRailException"]
     assert llm.inference_count == 2
@@ -63,6 +64,7 @@ async def test_multiple_self_check_input_tasks():
 
 @pytest.mark.asyncio
 async def test_multiple_self_check_output_tasks():
+    """Verify Colang 2 runs multiple custom output self-check tasks."""
     config = RailsConfig.from_content(
         colang_content="""
         import core
@@ -70,8 +72,8 @@ async def test_multiple_self_check_output_tasks():
         import nemoguardrails.library.self_check.output_check
 
         flow output rails $output_text
-            self check output $task="check_inappropriate"
-            self check output $task="check_data_leakage"
+            self check output $variant="check_inappropriate"
+            self check output $variant="check_data_leakage"
 
         flow main
             await user said $text
@@ -82,10 +84,10 @@ async def test_multiple_self_check_output_tasks():
         models: []
         enable_rails_exceptions: true
         prompts:
-          - task: self_check_output $task=check_inappropriate
+          - task: self_check_output $variant=check_inappropriate
             content: Bot response {{ bot_response }}
             output_parser: is_content_safe
-          - task: self_check_output $task=check_data_leakage
+          - task: self_check_output $variant=check_data_leakage
             content: Bot response {{ bot_response }}
             output_parser: is_content_safe
         """,
@@ -96,8 +98,8 @@ async def test_multiple_self_check_output_tasks():
     result = await rails.generate_async(messages=[{"role": "user", "content": "hello"}])
 
     assert [call.task for call in rails.explain().llm_calls] == [
-        "self_check_output $task=check_inappropriate",
-        "self_check_output $task=check_data_leakage",
+        "self_check_output $variant=check_inappropriate",
+        "self_check_output $variant=check_data_leakage",
     ]
     assert [event["type"] for event in result["events"]] == ["OutputRailException"]
     assert llm.inference_count == 2

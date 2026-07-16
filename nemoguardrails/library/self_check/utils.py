@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 SELF_CHECK_INPUT_FLOW = "self check input"
 SELF_CHECK_OUTPUT_FLOW = "self check output"
-SELF_CHECK_TASK_PARAM = "task"
+SELF_CHECK_TASK_PARAM = "variant"
 SELF_CHECK_INPUT_TASK_PARAM = SELF_CHECK_TASK_PARAM
 SELF_CHECK_OUTPUT_TASK_PARAM = SELF_CHECK_TASK_PARAM
 SELF_CHECK_INPUT_DEFAULT_TASK = "self_check_input"
@@ -45,6 +45,7 @@ def get_self_check_task_from_rail(flow: Any, flow_id: str, task_param: str, defa
 def get_self_check_prompt_task(
     task: str, default_task: str, available_prompt_tasks: Optional[Collection[str]] = None
 ) -> str:
+    """Resolve the prompt task name while supporting deprecated bare custom tasks."""
     if task == default_task:
         return task
 
