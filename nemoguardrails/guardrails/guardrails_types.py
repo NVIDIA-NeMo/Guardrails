@@ -16,9 +16,11 @@
 
 import secrets
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TypeAlias
+from typing import Any, Optional, TypeAlias
+
+from nemoguardrails.types import UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
 LLMMessage: TypeAlias = dict[str, Any]
@@ -33,12 +35,51 @@ class RailDirection(Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class RailCallRecord:
+    """One rail's execution record, carried on RailResult for GenerationLog synthesis.
+
+    Captures what a single rail did — its verdict and the (at most one) model call it
+    made — as engine-neutral data. IORails maps a ``RailCallRecord`` to an
+    ``ActivatedRail`` (with a single synthetic ``ExecutedAction`` and ``LLMCallInfo``);
+    the raw ``usage``/timing is kept here so this module stays free of the pydantic
+    ``GenerationLog`` types. Tool rails that make no model call leave ``usage`` None.
+    """
+
+    flow: str
+    rail_type: str
+    is_safe: bool
+    action_name: Optional[str] = None
+    return_value: Any = None
+    task: Optional[str] = None
+    usage: Optional[UsageInfo] = None
+    llm_model_name: Optional[str] = None
+    llm_provider_name: Optional[str] = None
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+    duration: Optional[float] = None
+
+
+@dataclass(frozen=True, slots=True)
 class RailResult:
-    """Result of a rail safety check."""
+    """Result of a rail safety check.
+
+    ``records`` carries the per-rail execution records for every rail that ran in this
+    check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
+    It is empty unless log collection is active. ``return_value`` is the rail's
+    structured verdict (e.g. ``{"allowed": ..., "policy_violations": [...]}``) when the
+    action supplies one, used as the log's ``ExecutedAction.return_value``.
+
+    ``records`` and ``return_value`` are log-capture metadata, not part of the safety
+    verdict, so they are excluded from equality and hashing (``compare=False``) — two
+    results with the same ``is_safe``/``reason``/``triggered_rail`` compare equal
+    regardless of captured log data.
+    """
 
     is_safe: bool
     reason: str | None = None
     triggered_rail: str | None = None
+    records: tuple[RailCallRecord, ...] = field(default=(), compare=False)
+    return_value: Any = field(default=None, compare=False)
 
 
 # Default max character length for truncate(). Used to keep DEBUG log lines short.

@@ -23,7 +23,10 @@ helpers for the common call patterns (LLM, API, local).
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -36,12 +39,39 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RailLLMCall:
+    """Usage/model/timing captured for the LLM call a rail made, for GenerationLog.
+
+    Set by :meth:`RailAction._get_llm_response` and read by RailsManager right after the
+    rail runs (same async task), so the caller can build the per-rail ``RailCallRecord``.
+    """
+
+    usage: Optional[UsageInfo]
+    llm_model_name: Optional[str]
+    started_at: float
+    finished_at: float
+    duration: float
+
+
+# Request-scoped: the last LLM call a rail made. ``RailAction.run`` clears it at the
+# start of each rail so a rail that makes no model call leaves it None.
+_rail_llm_call_var: ContextVar[Optional[RailLLMCall]] = ContextVar("rail_llm_call", default=None)
+
+
+def take_rail_llm_call() -> Optional[RailLLMCall]:
+    """Return and clear the LLM call captured for the rail that just ran."""
+    call = _rail_llm_call_var.get()
+    _rail_llm_call_var.set(None)
+    return call
 
 
 class RailAction(ABC):
@@ -81,6 +111,9 @@ class RailAction(ABC):
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Execute the full rail pipeline and return a safety result."""
+        # Clear any capture from a prior rail on this task; a rail that makes no model
+        # call then leaves it None and produces a record with no LLM call.
+        _rail_llm_call_var.set(None)
         with action_span(self._tracer, self.action_name) as span:
             req_id = get_request_id()
             base_flow = _get_flow_name(flow)
@@ -153,10 +186,26 @@ class RailAction(ABC):
         messages: list[dict],
         **kwargs: Any,
     ) -> LLMResponse:
-        """Call an LLM via EngineRegistry and return the structured response."""
+        """Call an LLM via EngineRegistry and return the structured response.
+
+        Captures usage/model/timing into a request-scoped contextvar so RailsManager can
+        record this call in the GenerationLog after the rail runs.
+        """
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
-        return await self.engine_registry.model_call(model_type, messages, **kwargs)
+        started_at = time.monotonic()
+        response = await self.engine_registry.model_call(model_type, messages, **kwargs)
+        finished_at = time.monotonic()
+        _rail_llm_call_var.set(
+            RailLLMCall(
+                usage=response.usage,
+                llm_model_name=response.model,
+                started_at=started_at,
+                finished_at=finished_at,
+                duration=finished_at - started_at,
+            )
+        )
+        return response
 
     async def _get_api_response(
         self,

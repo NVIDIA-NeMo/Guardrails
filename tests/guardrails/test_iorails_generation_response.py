@@ -213,11 +213,11 @@ class TestToolCalls:
 
 
 class TestLLMMetadata:
-    """``llm_metadata`` carries main-call ``provider_metadata`` plus a ``usage`` sub-key."""
+    """``llm_metadata`` is the main-call ``provider_metadata`` verbatim; usage lives in ``log``."""
 
     @pytest.mark.asyncio
-    async def test_provider_metadata_and_usage_merged(self, iorails):
-        """provider_metadata is surfaced and structured usage is added under ``usage``."""
+    async def test_provider_metadata_passthrough(self, iorails):
+        """provider_metadata is surfaced verbatim; token usage is NOT added under ``usage``."""
         _stub_safe_rails(iorails)
         _stub_model(
             iorails,
@@ -231,14 +231,11 @@ class TestLLMMetadata:
         result = await iorails.generate_async(_USER, options={})
 
         assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata == {
-            "response_headers": {"nvcf-status": "fulfilled"},
-            "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        }
+        assert result.llm_metadata == {"response_headers": {"nvcf-status": "fulfilled"}}
 
     @pytest.mark.asyncio
-    async def test_usage_only_when_no_provider_metadata(self, iorails):
-        """With usage but no provider_metadata, ``llm_metadata`` holds just the ``usage`` sub-key."""
+    async def test_usage_alone_does_not_populate_metadata(self, iorails):
+        """With usage but no provider_metadata, ``llm_metadata`` is None — usage moved to log."""
         _stub_safe_rails(iorails)
         _stub_model(
             iorails,
@@ -248,32 +245,7 @@ class TestLLMMetadata:
         result = await iorails.generate_async(_USER, options={})
 
         assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata == {"usage": {"input_tokens": 3, "output_tokens": 4, "total_tokens": 7}}
-
-    @pytest.mark.asyncio
-    async def test_usage_includes_reasoning_and_cached_tokens_when_present(self, iorails):
-        """Non-None ``reasoning_tokens``/``cached_tokens`` appear in the ``usage`` sub-key."""
-        _stub_safe_rails(iorails)
-        _stub_model(
-            iorails,
-            LLMResponse(
-                content="Hello",
-                usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15, reasoning_tokens=3, cached_tokens=2),
-            ),
-        )
-
-        result = await iorails.generate_async(_USER, options={})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata == {
-            "usage": {
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
-                "reasoning_tokens": 3,
-                "cached_tokens": 2,
-            }
-        }
+        assert result.llm_metadata is None
 
     @pytest.mark.asyncio
     async def test_no_metadata_or_usage_is_none(self, iorails):
