@@ -63,10 +63,16 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
-from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, RailStatus, RailType
+from nemoguardrails.rails.llm.options import (
+    GenerationOptions,
+    GenerationResponse,
+    RailsResult,
+    RailStatus,
+    RailType,
+)
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse, ToolCall
+from nemoguardrails.types import LLMModel, LLMResponse, ToolCall, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -168,6 +174,105 @@ def _build_assistant_message(content: str, tool_calls: Optional[list[ToolCall]])
         "content": content or None,
         "tool_calls": _serialize_tool_calls(tool_calls),
     }
+
+
+def _usage_to_dict(usage: UsageInfo) -> dict:
+    """Serialize ``UsageInfo`` token counts to a dict, dropping ``None`` values.
+
+    ``input_tokens``/``output_tokens``/``total_tokens`` default to 0 and are always
+    kept; ``reasoning_tokens``/``cached_tokens`` default to ``None`` and are omitted
+    unless the provider reported them.
+    """
+    fields = {
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "total_tokens": usage.total_tokens,
+        "reasoning_tokens": usage.reasoning_tokens,
+        "cached_tokens": usage.cached_tokens,
+    }
+    return {key: value for key, value in fields.items() if value is not None}
+
+
+def _build_llm_metadata(response: LLMResponse) -> Optional[dict]:
+    """Assemble ``llm_metadata`` from the main call's ``provider_metadata`` plus usage.
+
+    Mirrors LLMRails' ``llm_metadata`` (the provider metadata blob) and adds a
+    structured ``usage`` sub-key with token counts that LLMRails does not expose
+    outside its ``log``. Returns ``None`` when neither is present.
+    """
+    metadata = dict(response.provider_metadata or {})
+    if response.usage:
+        usage = _usage_to_dict(response.usage)
+        if usage:
+            metadata["usage"] = usage
+    return metadata or None
+
+
+def _build_generation_response(
+    response_text: str, reasoning_content: Optional[str], response: LLMResponse
+) -> GenerationResponse:
+    """Build the structured ``GenerationResponse`` returned when ``options`` are supplied.
+
+    Reasoning goes to the ``reasoning_content`` field with clean message content (no
+    inline ``<think>`` prefix — that is the bare-return shape). Tool calls use the
+    canonical ``ToolCall.to_dict()`` shape (dict arguments), matching LLMRails'
+    ``GenerationResponse.tool_calls`` rather than the OpenAI-wire JSON-string shape
+    used for the bare message. ``llm_output`` stays ``None`` to match LLMRails, whose
+    ``raw_response`` source is never populated.
+    """
+    result = GenerationResponse(response=[{"role": "assistant", "content": response_text}])
+    if reasoning_content:
+        result.reasoning_content = reasoning_content
+    if response.tool_calls:
+        result.tool_calls = [tool_call.to_dict() for tool_call in response.tool_calls]
+    llm_metadata = _build_llm_metadata(response)
+    if llm_metadata:
+        result.llm_metadata = llm_metadata
+    return result
+
+
+def _finalize_refusal(structured: bool) -> Union[LLMMessage, GenerationResponse]:
+    """Shape the refusal message for the active return contract (structured vs bare)."""
+    message: LLMMessage = {"role": "assistant", "content": REFUSAL_MESSAGE}
+    if structured:
+        return GenerationResponse(response=[message])
+    return message
+
+
+def _response_content_for_capture(result: Union[LLMMessage, GenerationResponse]) -> Optional[str]:
+    """Extract the assistant content for content capture from either return shape."""
+    if isinstance(result, GenerationResponse):
+        response = result.response
+        if isinstance(response, list) and response:
+            last = response[-1]
+            content = last.get("content") if isinstance(last, dict) else None
+            return content if isinstance(content, str) else None
+        return response if isinstance(response, str) else None
+    return result.get("content")
+
+
+def _raise_on_unsupported_options(options: Optional[GenerationOptions], state: object) -> None:
+    """Raise for ``GenerationOptions``/``state`` features IORails cannot honor.
+
+    ``state`` and ``output_vars``/``output_data`` require Colang runtime state that
+    IORails does not have and raise ``ValueError``; ``log`` is deferred to a follow-up
+    PR and raises ``NotImplementedError``. These raise rather than silently returning
+    empty data, mirroring how LLMRails rejects options it cannot fulfill.
+    """
+    if state is not None:
+        raise ValueError("state is not supported by IORails; it is a stateless input/output rails engine")
+    if options is None:
+        return
+    if options.output_vars:
+        raise ValueError("output_vars/output_data is not supported by IORails; it has no Colang context to return")
+    log_options = options.log
+    if log_options and (
+        log_options.activated_rails
+        or log_options.llm_calls
+        or log_options.internal_events
+        or log_options.colang_history
+    ):
+        raise NotImplementedError("GenerationResponse `log` is not supported by IORails")
 
 
 def _coerce_generation_options(options: Optional[Union[dict, GenerationOptions]]) -> Optional[GenerationOptions]:
@@ -464,7 +569,7 @@ class IORails(BaseGuardrails):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.stop()
 
-    def generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
+    def generate(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
         """Synchronous version of generate_async.
 
         Telemetry is disabled for the ephemeral IORails object used for
@@ -488,7 +593,7 @@ class IORails(BaseGuardrails):
 
         return asyncio.run(_run_sync_iorails())
 
-    async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
+    async def generate_async(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
         """Public entry: submit the request to the internal work queue.
 
         The queue enforces non-streaming concurrency limits
@@ -514,7 +619,7 @@ class IORails(BaseGuardrails):
                     record_nonstream_rejected()
                 raise
 
-    async def _run_generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
+    async def _run_generate(self, messages: LLMMessages, **kwargs) -> Union[LLMMessage, GenerationResponse]:
         """Runs inside a queue worker task.  Wraps the pipeline in
         ``traced_request`` so each request gets its own span + request ID,
         then delegates to ``_do_generate`` for the actual input rails →
@@ -533,7 +638,7 @@ class IORails(BaseGuardrails):
             # Capture content once here at the traced_request boundary so any
             # future early-return added to _do_generate is covered automatically.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, result.get("content"))
+                set_request_content(request_span, messages, _response_content_for_capture(result))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -560,12 +665,16 @@ class IORails(BaseGuardrails):
 
     async def _do_generate(
         self, messages: LLMMessages, req_id: str, request_span: Optional["Span"] = None, **kwargs
-    ) -> LLMMessage:
+    ) -> Union[LLMMessage, GenerationResponse]:
         """Core pipeline: tool-result rails -> input rails -> LLM call -> tool-call + output rails."""
         log.info("[%s] generate_async called", req_id)
         log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
 
         options = _coerce_generation_options(kwargs.get("options"))
+        _raise_on_unsupported_options(options, kwargs.get("state"))
+        # When options are supplied we return a structured GenerationResponse
+        # (mirroring LLMRails' `if gen_options:` branch); otherwise a bare LLMMessage.
+        has_generation_response = options is not None
         # Pass llm_params (including tool definitions) unchanged to the LLM call.
         llm_kwargs = options.llm_params if (options and options.llm_params) else {}
         input_enabled = options.rails.input if options else True
@@ -581,7 +690,7 @@ class IORails(BaseGuardrails):
             log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+            return _finalize_refusal(has_generation_response)
 
         if self._speculative_generation:
             response = await self._do_generate_speculative(
@@ -591,7 +700,7 @@ class IORails(BaseGuardrails):
             response = await self._do_generate_sequential(messages, req_id, llm_kwargs, input_enabled=input_enabled)
 
         if response is None:
-            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+            return _finalize_refusal(has_generation_response)
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -612,7 +721,7 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Tool call blocked: %s", req_id, tool_call.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                return {"role": "assistant", "content": REFUSAL_MESSAGE}
+                return _finalize_refusal(has_generation_response)
 
         # Output rails check the final answer, not reasoning traces.
         # Reasoning is re-attached as <think> tags only below so reasoning intentionally bypasses output
@@ -627,10 +736,14 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
-                return {"role": "assistant", "content": REFUSAL_MESSAGE}
+                return _finalize_refusal(has_generation_response)
 
-        # TODO: Support returning GenerationResponse `reasoning_content` to match LLMRails
-        # For now, embed the reasoning on the content with think-tags
+        if has_generation_response:
+            return _build_generation_response(response_text, reasoning_content, response)
+
+        # Bare return path: reasoning is delivered inline as a <think> prefix
+        # (LLMRails legacy shape). The structured path above instead puts it in the
+        # reasoning_content field and keeps the message content clean.
         if reasoning_content:
             response_text = f"<think>{reasoning_content}</think>\n" + response_text
 

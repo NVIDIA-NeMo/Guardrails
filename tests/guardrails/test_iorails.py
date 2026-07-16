@@ -26,7 +26,7 @@ from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
@@ -90,7 +90,7 @@ class TestGenerateAsync:
 
     @pytest.mark.asyncio
     async def test_safe_input_and_output_with_generation_options(self, iorails):
-        """Returns LLM response when both input and output rails pass."""
+        """Passing options returns a GenerationResponse wrapping the LLM response."""
         messages = [{"role": "user", "content": "hi"}]
         llm_response = "Hello from LLM"
 
@@ -103,7 +103,8 @@ class TestGenerateAsync:
 
         result = await iorails.generate_async(messages, options=options)
 
-        assert result == {"role": "assistant", "content": llm_response}
+        assert isinstance(result, GenerationResponse)
+        assert result.response == [{"role": "assistant", "content": llm_response}]
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages, enabled=True)
         iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response, enabled=True)
