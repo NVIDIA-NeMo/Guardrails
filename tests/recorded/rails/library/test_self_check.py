@@ -72,8 +72,8 @@ async def test_multiple_self_check_input_second_task_blocks(openai_api_key):
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check input $task=check_off_topic")
     assert _llm_routes(rails, start) == [
-        ("check_harmful", "openai", "gpt-4.1-mini"),
-        ("check_off_topic", "openai", "gpt-5.4-nano"),
+        ("self_check_input $task=check_harmful", "openai", "gpt-4.1-mini"),
+        ("self_check_input $task=check_off_topic", "openai", "gpt-5.4-nano"),
     ]
     assert normalize_rails_result(result) == snapshot(
         {
@@ -98,8 +98,8 @@ async def test_multiple_self_check_output_second_task_blocks(openai_api_key):
 
     assert_rails_result(result, status=RailStatus.BLOCKED, rail="self check output $task=check_data_leakage")
     assert _llm_routes(rails, start) == [
-        ("check_inappropriate", "openai", "gpt-5.4-nano"),
-        ("check_data_leakage", "openai", "gpt-4.1-mini"),
+        ("self_check_output $task=check_inappropriate", "openai", "gpt-5.4-nano"),
+        ("self_check_output $task=check_data_leakage", "openai", "gpt-4.1-mini"),
     ]
     assert normalize_rails_result(result) == snapshot(
         {

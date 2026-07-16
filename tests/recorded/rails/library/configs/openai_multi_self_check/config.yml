@@ -33,7 +33,7 @@ rails:
       - self check output $task=check_data_leakage
 
 prompts:
-  - task: check_harmful
+  - task: self_check_input $task=check_harmful
     content: |
       Return "unsafe" only if the user input contains blocked_harmful.
       Otherwise return "safe".
@@ -41,7 +41,7 @@ prompts:
     output_parser: is_content_safe
     max_tokens: 32
 
-  - task: check_off_topic
+  - task: self_check_input $task=check_off_topic
     content: |
       Return "unsafe" only if the user input contains blocked_off_topic.
       Otherwise return "safe".
@@ -49,7 +49,7 @@ prompts:
     output_parser: is_content_safe
     max_tokens: 32
 
-  - task: check_inappropriate
+  - task: self_check_output $task=check_inappropriate
     content: |
       Return "unsafe" only if the bot response contains blocked_inappropriate.
       Otherwise return "safe".
@@ -57,7 +57,7 @@ prompts:
     output_parser: is_content_safe
     max_tokens: 32
 
-  - task: check_data_leakage
+  - task: self_check_output $task=check_data_leakage
     content: |
       Return "unsafe" only if the bot response contains blocked_data_leakage.
       Otherwise return "safe".

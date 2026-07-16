@@ -107,7 +107,7 @@ def test_check_prompt_exist_for_custom_self_check_task():
             "input": {"flows": ["self check input $task=check_harmful"]},
             "output": {"flows": []},
         },
-        "prompts": [{"task": "check_harmful", "content": "..."}],
+        "prompts": [{"task": "self_check_input $task=check_harmful", "content": "..."}],
     }
     result = RailsConfig.check_prompt_exist_for_self_check_rails(values)
     assert result == values
@@ -120,7 +120,7 @@ def test_check_prompt_exist_for_custom_self_check_task():
         },
         "prompts": [],
     }
-    with pytest.raises(ValueError, match="Missing a `check_harmful` prompt template"):
+    with pytest.raises(ValueError, match=r"Missing a `self_check_input \$task=check_harmful` prompt template"):
         RailsConfig.check_prompt_exist_for_self_check_rails(values)
 
     # Multiple custom tasks, one missing, fails
@@ -134,9 +134,9 @@ def test_check_prompt_exist_for_custom_self_check_task():
             },
             "output": {"flows": []},
         },
-        "prompts": [{"task": "check_harmful", "content": "..."}],
+        "prompts": [{"task": "self_check_input $task=check_harmful", "content": "..."}],
     }
-    with pytest.raises(ValueError, match="Missing a `check_off_topic` prompt template"):
+    with pytest.raises(ValueError, match=r"Missing a `self_check_input \$task=check_off_topic` prompt template"):
         RailsConfig.check_prompt_exist_for_self_check_rails(values)
 
     # Custom output task without matching prompt fails
@@ -147,7 +147,7 @@ def test_check_prompt_exist_for_custom_self_check_task():
         },
         "prompts": [],
     }
-    with pytest.raises(ValueError, match="Missing a `check_inappropriate` prompt template"):
+    with pytest.raises(ValueError, match=r"Missing a `self_check_output \$task=check_inappropriate` prompt template"):
         RailsConfig.check_prompt_exist_for_self_check_rails(values)
 
     # Custom output task with matching prompt passes
@@ -156,7 +156,7 @@ def test_check_prompt_exist_for_custom_self_check_task():
             "input": {"flows": []},
             "output": {"flows": ["self check output $task=check_inappropriate"]},
         },
-        "prompts": [{"task": "check_inappropriate", "content": "..."}],
+        "prompts": [{"task": "self_check_output $task=check_inappropriate", "content": "..."}],
     }
     result = RailsConfig.check_prompt_exist_for_self_check_rails(values)
     assert result == values

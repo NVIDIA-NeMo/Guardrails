@@ -26,8 +26,9 @@ log = logging.getLogger(__name__)
 
 SELF_CHECK_INPUT_FLOW = "self check input"
 SELF_CHECK_OUTPUT_FLOW = "self check output"
-SELF_CHECK_INPUT_TASK_PARAM = "task"
-SELF_CHECK_OUTPUT_TASK_PARAM = "task"
+SELF_CHECK_TASK_PARAM = "task"
+SELF_CHECK_INPUT_TASK_PARAM = SELF_CHECK_TASK_PARAM
+SELF_CHECK_OUTPUT_TASK_PARAM = SELF_CHECK_TASK_PARAM
 SELF_CHECK_INPUT_DEFAULT_TASK = "self_check_input"
 SELF_CHECK_OUTPUT_DEFAULT_TASK = "self_check_output"
 
@@ -37,6 +38,13 @@ def get_self_check_task_from_rail(flow: Any, flow_id: str, task_param: str, defa
         return None
 
     return _get_flow_params(flow).get(task_param) or default_task
+
+
+def get_self_check_prompt_task(task: str, default_task: str) -> str:
+    if task == default_task:
+        return task
+
+    return f"{default_task} ${SELF_CHECK_TASK_PARAM}={task}"
 
 
 def resolve_self_check_task(
@@ -121,15 +129,16 @@ async def run_self_check_task(
     max_tokens: int = 1024,
 ) -> tuple[bool, str]:
     llm = get_self_check_llm(llms, task, default_task=default_task, main_llm=main_llm)
+    prompt_task = get_self_check_prompt_task(task, default_task)
 
     prompt = llm_task_manager.render_task_prompt(
-        task=task,
+        task=prompt_task,
         context=prompt_context,
     )
-    stop = llm_task_manager.get_stop_tokens(task=task)
-    task_max_tokens = llm_task_manager.get_max_tokens(task=task) or max_tokens
+    stop = llm_task_manager.get_stop_tokens(task=prompt_task)
+    task_max_tokens = llm_task_manager.get_max_tokens(task=prompt_task) or max_tokens
 
-    llm_call_info_var.set(LLMCallInfo(task=task))
+    llm_call_info_var.set(LLMCallInfo(task=prompt_task))
 
     llm_response = await llm_call(
         llm,
@@ -140,8 +149,8 @@ async def run_self_check_task(
             "max_tokens": task_max_tokens,
         },
     )
-    warn_if_truncated(llm_response, task)
+    warn_if_truncated(llm_response, prompt_task)
     response = llm_response.content
 
-    result = parse_self_check_output(llm_task_manager, task, response)
+    result = parse_self_check_output(llm_task_manager, prompt_task, response)
     return bool(result[0]), response
