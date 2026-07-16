@@ -259,8 +259,6 @@ prompts:
 
 By default, `self check input` and `self check output` each run a single check with a single prompt. You can run several self-check rails of the same kind, each with its own prompt and, optionally, its own model. Add a `$variant=<name>` parameter to the flow name to select a named variant. Use this to separate concerns, for example one output check for inappropriate content and another for data leakage.
 
-### Usage
-
 1. Add one flow per variant to the rails section, each with a distinct `$variant=<name>`:
 
     ```yaml
