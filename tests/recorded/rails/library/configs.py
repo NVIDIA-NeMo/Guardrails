@@ -30,6 +30,9 @@ NIM_TOPIC_CONTROL_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_topic_c
 NIM_JAILBREAK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "nim_jailbreak")
 OPENAI_SELF_CHECK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_self_check")
 OPENAI_MULTI_SELF_CHECK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_multi_self_check")
+OPENAI_MULTI_SELF_CHECK_INVALID_MODEL_CONFIG = RailsConfigSource.from_path(
+    CONFIGS_DIR, "openai_multi_self_check_invalid_model"
+)
 OPENAI_INPUT_STACK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_input_stack")
 OPENAI_OUTPUT_STACK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "openai_output_stack")
 FULL_STACK_CONFIG = RailsConfigSource.from_path(CONFIGS_DIR, "full_stack")
