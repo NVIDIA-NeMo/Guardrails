@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import logging
+import warnings
+from collections.abc import Collection
 from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
@@ -26,17 +28,41 @@ log = logging.getLogger(__name__)
 
 SELF_CHECK_INPUT_FLOW = "self check input"
 SELF_CHECK_OUTPUT_FLOW = "self check output"
-SELF_CHECK_INPUT_TASK_PARAM = "task"
-SELF_CHECK_OUTPUT_TASK_PARAM = "task"
+SELF_CHECK_VARIANT_PARAM = "variant"
+SELF_CHECK_INPUT_VARIANT_PARAM = SELF_CHECK_VARIANT_PARAM
+SELF_CHECK_OUTPUT_VARIANT_PARAM = SELF_CHECK_VARIANT_PARAM
 SELF_CHECK_INPUT_DEFAULT_TASK = "self_check_input"
 SELF_CHECK_OUTPUT_DEFAULT_TASK = "self_check_output"
 
 
-def get_self_check_task_from_rail(flow: Any, flow_id: str, task_param: str, default_task: str) -> Optional[str]:
+def get_self_check_task_from_rail(flow: Any, flow_id: str, variant_param: str, default_task: str) -> Optional[str]:
     if not isinstance(flow, str) or _normalize_flow_id(flow) != flow_id:
         return None
 
-    return _get_flow_params(flow).get(task_param) or default_task
+    return _get_flow_params(flow).get(variant_param) or default_task
+
+
+def get_self_check_prompt_task(
+    task: str, default_task: str, available_prompt_tasks: Optional[Collection[str]] = None
+) -> str:
+    """Resolve the prompt task name while supporting deprecated bare custom tasks."""
+    if task == default_task:
+        return task
+
+    prompt_task = f"{default_task} ${SELF_CHECK_VARIANT_PARAM}={task}"
+    if (
+        available_prompt_tasks is not None
+        and prompt_task not in available_prompt_tasks
+        and task in available_prompt_tasks
+    ):
+        warnings.warn(
+            f"The `{task}` self-check prompt task is deprecated; rename it to `{prompt_task}`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return task
+
+    return prompt_task
 
 
 def resolve_self_check_task(
@@ -46,7 +72,7 @@ def resolve_self_check_task(
     triggered_rail_key: str,
     start_rail_event_type: str,
     flow_id: str,
-    task_param: str,
+    variant_param: str,
     default_task: str,
 ) -> str:
     if task and not task.startswith("$"):
@@ -56,7 +82,7 @@ def resolve_self_check_task(
     context_task = get_self_check_task_from_rail(
         context.get(triggered_rail_key),
         flow_id=flow_id,
-        task_param=task_param,
+        variant_param=variant_param,
         default_task=default_task,
     )
     if context_task:
@@ -65,13 +91,13 @@ def resolve_self_check_task(
     for event in reversed(events or []):
         if event.get("type") == "start_flow" and event.get("flow_id") == flow_id:
             event_params = event.get("params") or {}
-            return event_params.get(task_param) or default_task
+            return event_params.get(variant_param) or default_task
 
         if event.get("type") == start_rail_event_type:
             event_task = get_self_check_task_from_rail(
                 event.get("flow_id"),
                 flow_id=flow_id,
-                task_param=task_param,
+                variant_param=variant_param,
                 default_task=default_task,
             )
             if event_task:
@@ -121,15 +147,17 @@ async def run_self_check_task(
     max_tokens: int = 1024,
 ) -> tuple[bool, str]:
     llm = get_self_check_llm(llms, task, default_task=default_task, main_llm=main_llm)
+    available_prompt_tasks = {prompt.task for prompt in llm_task_manager.config.prompts or []}
+    prompt_task = get_self_check_prompt_task(task, default_task, available_prompt_tasks)
 
     prompt = llm_task_manager.render_task_prompt(
-        task=task,
+        task=prompt_task,
         context=prompt_context,
     )
-    stop = llm_task_manager.get_stop_tokens(task=task)
-    task_max_tokens = llm_task_manager.get_max_tokens(task=task) or max_tokens
+    stop = llm_task_manager.get_stop_tokens(task=prompt_task)
+    task_max_tokens = llm_task_manager.get_max_tokens(task=prompt_task) or max_tokens
 
-    llm_call_info_var.set(LLMCallInfo(task=task))
+    llm_call_info_var.set(LLMCallInfo(task=prompt_task))
 
     llm_response = await llm_call(
         llm,
@@ -140,8 +168,8 @@ async def run_self_check_task(
             "max_tokens": task_max_tokens,
         },
     )
-    warn_if_truncated(llm_response, task)
+    warn_if_truncated(llm_response, prompt_task)
     response = llm_response.content
 
-    result = parse_self_check_output(llm_task_manager, task, response)
+    result = parse_self_check_output(llm_task_manager, prompt_task, response)
     return bool(result[0]), response

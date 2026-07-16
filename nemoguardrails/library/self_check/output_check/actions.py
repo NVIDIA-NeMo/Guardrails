@@ -21,7 +21,7 @@ from nemoguardrails.actions import action
 from nemoguardrails.library.self_check.utils import (
     SELF_CHECK_OUTPUT_DEFAULT_TASK,
     SELF_CHECK_OUTPUT_FLOW,
-    SELF_CHECK_OUTPUT_TASK_PARAM,
+    SELF_CHECK_OUTPUT_VARIANT_PARAM,
     resolve_self_check_task,
     run_self_check_task,
 )
@@ -68,7 +68,7 @@ async def self_check_output(
         triggered_rail_key="triggered_output_rail",
         start_rail_event_type="StartOutputRail",
         flow_id=SELF_CHECK_OUTPUT_FLOW,
-        task_param=SELF_CHECK_OUTPUT_TASK_PARAM,
+        variant_param=SELF_CHECK_OUTPUT_VARIANT_PARAM,
         default_task=DEFAULT_TASK,
     )
 

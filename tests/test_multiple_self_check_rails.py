@@ -21,8 +21,9 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.library.self_check.utils import (
     SELF_CHECK_INPUT_DEFAULT_TASK,
     SELF_CHECK_INPUT_FLOW,
-    SELF_CHECK_INPUT_TASK_PARAM,
+    SELF_CHECK_INPUT_VARIANT_PARAM,
     get_self_check_llm,
+    get_self_check_prompt_task,
     get_self_check_task_from_rail,
     resolve_self_check_task,
     run_self_check_task,
@@ -49,15 +50,15 @@ multi_input_config = RailsConfig.from_content(
     rails:
         input:
             flows:
-                - self check input $task=check_harmful
-                - self check input $task=check_off_topic
+                - self check input $variant=check_harmful
+                - self check input $variant=check_off_topic
     prompts:
-        - task: check_harmful
+        - task: self_check_input $variant=check_harmful
           content: |
             Is this message harmful?
             User message: "{{ user_input }}"
             Answer (Yes or No):
-        - task: check_off_topic
+        - task: self_check_input $variant=check_off_topic
           content: |
             Is this message off-topic?
             User message: "{{ user_input }}"
@@ -133,15 +134,15 @@ multi_output_config = RailsConfig.from_content(
     rails:
         output:
             flows:
-                - self check output $task=check_inappropriate
-                - self check output $task=check_data_leakage
+                - self check output $variant=check_inappropriate
+                - self check output $variant=check_data_leakage
     prompts:
-        - task: check_inappropriate
+        - task: self_check_output $variant=check_inappropriate
           content: |
             Is this response inappropriate?
             Bot response: "{{ bot_response }}"
             Answer (Yes or No):
-        - task: check_data_leakage
+        - task: self_check_output $variant=check_data_leakage
           content: |
             Does this response leak sensitive data?
             Bot response: "{{ bot_response }}"
@@ -238,7 +239,7 @@ default_task_config = RailsConfig.from_content(
 
 
 def test_default_task_input_still_works():
-    """Self check input without $task should use default self_check_input task."""
+    """Self check input without $variant should use default self_check_input task."""
     chat = TestChat(
         default_task_config,
         llm_completions=[
@@ -272,10 +273,10 @@ def test_mixed_input_rails_run_custom_and_default_tasks():
         rails:
             input:
                 flows:
-                    - self check input $task=check_harmful
+                    - self check input $variant=check_harmful
                     - self check input
         prompts:
-            - task: check_harmful
+            - task: self_check_input $variant=check_harmful
               content: |
                 Is this message harmful?
                 User message: "{{ user_input }}"
@@ -312,7 +313,7 @@ def test_mixed_input_rails_run_custom_and_default_tasks():
 
 
 def test_default_task_output_still_works():
-    """Self check output without $task should use default self_check_output task."""
+    """Self check output without $variant should use default self_check_output task."""
     chat = TestChat(
         default_task_config,
         llm_completions=[
@@ -345,10 +346,10 @@ def test_mixed_output_rails_run_custom_and_default_tasks():
         rails:
             output:
                 flows:
-                    - self check output $task=check_inappropriate
+                    - self check output $variant=check_inappropriate
                     - self check output
         prompts:
-            - task: check_inappropriate
+            - task: self_check_output $variant=check_inappropriate
               content: |
                 Is this response inappropriate?
                 Bot response: "{{ bot_response }}"
@@ -402,15 +403,15 @@ per_task_input_config = RailsConfig.from_content(
     rails:
         input:
             flows:
-                - self check input $task=check_harmful
-                - self check input $task=check_off_topic
+                - self check input $variant=check_harmful
+                - self check input $variant=check_off_topic
     prompts:
-        - task: check_harmful
+        - task: self_check_input $variant=check_harmful
           content: |
             Is this message harmful?
             User message: "{{ user_input }}"
             Answer (Yes or No):
-        - task: check_off_topic
+        - task: self_check_input $variant=check_off_topic
           content: |
             Is this message off-topic?
             User message: "{{ user_input }}"
@@ -481,15 +482,15 @@ per_task_output_config = RailsConfig.from_content(
     rails:
         output:
             flows:
-                - self check output $task=check_inappropriate
-                - self check output $task=check_data_leakage
+                - self check output $variant=check_inappropriate
+                - self check output $variant=check_data_leakage
     prompts:
-        - task: check_inappropriate
+        - task: self_check_output $variant=check_inappropriate
           content: |
             Is this response inappropriate?
             Bot response: "{{ bot_response }}"
             Answer (Yes or No):
-        - task: check_data_leakage
+        - task: self_check_output $variant=check_data_leakage
           content: |
             Does this response leak sensitive data?
             Bot response: "{{ bot_response }}"
@@ -550,7 +551,8 @@ def test_per_task_llm_output_first_blocks_skips_second():
     assert data_leakage_llm.inference_count == 0
 
 
-def test_parallel_input_rail_uses_custom_task():
+def test_parallel_input_rails_use_custom_tasks():
+    """Verify parallel input rails route each custom task to its own model."""
     config = RailsConfig.from_content(
         """
         define user express greeting
@@ -570,23 +572,25 @@ def test_parallel_input_rail_uses_custom_task():
             input:
                 parallel: true
                 flows:
-                    - self check input $task=check_harmful
+                    - self check input $variant=check_harmful
+                    - self check input $variant=check_off_topic
         prompts:
-            - task: check_harmful
+            - task: self_check_input $variant=check_harmful
               content: |
                 Is this message harmful?
                 User message: "{{ user_input }}"
                 Answer (Yes or No):
-            - task: self_check_input
+            - task: self_check_input $variant=check_off_topic
               content: |
-                Is this message safe?
+                Is this message off-topic?
                 User message: "{{ user_input }}"
                 Answer (Yes or No):
 
         enable_rails_exceptions: True
         """,
     )
-    custom_llm = FakeLLMModel(responses=["No"])
+    harmful_llm = FakeLLMModel(responses=["No"])
+    off_topic_llm = FakeLLMModel(responses=["Yes"])
     default_llm = FakeLLMModel(responses=["Yes"])
 
     chat = TestChat(
@@ -597,17 +601,21 @@ def test_parallel_input_rail_uses_custom_task():
         ],
     )
     rails = chat.app
-    rails.runtime.registered_action_params["llms"]["check_harmful"] = custom_llm
+    rails.runtime.registered_action_params["llms"]["check_harmful"] = harmful_llm
+    rails.runtime.registered_action_params["llms"]["check_off_topic"] = off_topic_llm
     rails.runtime.registered_action_params["llms"]["self_check_input"] = default_llm
 
     new_message = rails.generate(messages=[{"role": "user", "content": "hello"}])
 
-    assert new_message["role"] == "assistant"
-    assert custom_llm.inference_count == 1
+    assert new_message["role"] == "exception"
+    assert new_message["content"]["type"] == "InputRailException"
+    assert harmful_llm.inference_count == 1
+    assert off_topic_llm.inference_count == 1
     assert default_llm.inference_count == 0
 
 
-def test_parallel_output_rail_uses_custom_task():
+def test_parallel_output_rails_use_custom_tasks():
+    """Verify parallel output rails route each custom task to its own model."""
     config = RailsConfig.from_content(
         """
         define user ask question
@@ -623,23 +631,25 @@ def test_parallel_output_rail_uses_custom_task():
             output:
                 parallel: true
                 flows:
-                    - self check output $task=check_inappropriate
+                    - self check output $variant=check_inappropriate
+                    - self check output $variant=check_data_leakage
         prompts:
-            - task: check_inappropriate
+            - task: self_check_output $variant=check_inappropriate
               content: |
                 Is this response inappropriate?
                 Bot response: "{{ bot_response }}"
                 Answer (Yes or No):
-            - task: self_check_output
+            - task: self_check_output $variant=check_data_leakage
               content: |
-                Is this response safe?
+                Does this response leak data?
                 Bot response: "{{ bot_response }}"
                 Answer (Yes or No):
 
         enable_rails_exceptions: True
         """,
     )
-    custom_llm = FakeLLMModel(responses=["No"])
+    inappropriate_llm = FakeLLMModel(responses=["No"])
+    data_leakage_llm = FakeLLMModel(responses=["Yes"])
     default_llm = FakeLLMModel(responses=["Yes"])
 
     chat = TestChat(
@@ -650,14 +660,16 @@ def test_parallel_output_rail_uses_custom_task():
         ],
     )
     rails = chat.app
-    rails.runtime.registered_action_params["llms"]["check_inappropriate"] = custom_llm
+    rails.runtime.registered_action_params["llms"]["check_inappropriate"] = inappropriate_llm
+    rails.runtime.registered_action_params["llms"]["check_data_leakage"] = data_leakage_llm
     rails.runtime.registered_action_params["llms"]["self_check_output"] = default_llm
 
     new_message = rails.generate(messages=[{"role": "user", "content": "tell me something"}])
 
-    assert new_message["role"] == "assistant"
-    assert new_message["content"] == "Here is the answer."
-    assert custom_llm.inference_count == 1
+    assert new_message["role"] == "exception"
+    assert new_message["content"]["type"] == "OutputRailException"
+    assert inappropriate_llm.inference_count == 1
+    assert data_leakage_llm.inference_count == 1
     assert default_llm.inference_count == 0
 
 
@@ -780,7 +792,7 @@ def _resolve_input_task(task=None, context=None, events=None):
         triggered_rail_key="triggered_input_rail",
         start_rail_event_type="StartInputRail",
         flow_id=SELF_CHECK_INPUT_FLOW,
-        task_param=SELF_CHECK_INPUT_TASK_PARAM,
+        variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
         default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
     )
 
@@ -809,12 +821,46 @@ async def test_run_self_check_task_uses_concrete_task_without_runtime_context():
     assert default_llm.inference_count == 0
 
 
+@pytest.mark.asyncio
+async def test_run_self_check_task_supports_deprecated_bare_prompt_task():
+    """Verify bare custom prompt tasks remain supported with a warning."""
+    with pytest.warns(DeprecationWarning, match="rename it to `self_check_input \\$variant=check_harmful`"):
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            rails:
+                input:
+                    flows:
+                        - self check input $variant=check_harmful
+            prompts:
+                - task: check_harmful
+                  content: Is this message harmful? {{ user_input }}
+            """,
+        )
+
+    task_llm = FakeLLMModel(responses=["No"])
+    with pytest.warns(DeprecationWarning, match="rename it to `self_check_input \\$variant=check_harmful`"):
+        is_safe, response = await run_self_check_task(
+            task="check_harmful",
+            prompt_context={"user_input": "hello"},
+            llms={"check_harmful": task_llm},
+            default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
+            main_llm=None,
+            llm_task_manager=LLMTaskManager(config),
+            lowest_temperature=config.lowest_temperature,
+        )
+
+    assert is_safe
+    assert response == "No"
+    assert task_llm.inference_count == 1
+
+
 def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
     assert (
         get_self_check_task_from_rail(
-            "self check input $task=check_harmful",
+            "self check input $variant=check_harmful",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         == "check_harmful"
@@ -824,7 +870,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
         get_self_check_task_from_rail(
             "self check input",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         == SELF_CHECK_INPUT_DEFAULT_TASK
@@ -832,9 +878,9 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
 
     assert (
         get_self_check_task_from_rail(
-            "self check output $task=check_inappropriate",
+            "self check output $variant=check_inappropriate",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         is None
@@ -844,7 +890,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
 def test_resolve_self_check_task_prefers_explicit_task():
     task = _resolve_input_task(
         task="check_harmful",
-        context={"triggered_input_rail": "self check input $task=check_off_topic"},
+        context={"triggered_input_rail": "self check input $variant=check_off_topic"},
     )
 
     assert task == "check_harmful"
@@ -852,8 +898,8 @@ def test_resolve_self_check_task_prefers_explicit_task():
 
 def test_resolve_self_check_task_uses_triggered_rail_context():
     task = _resolve_input_task(
-        task="$task",
-        context={"triggered_input_rail": "self check input $task=check_harmful"},
+        task="$variant",
+        context={"triggered_input_rail": "self check input $variant=check_harmful"},
     )
 
     assert task == "check_harmful"
@@ -861,11 +907,11 @@ def test_resolve_self_check_task_uses_triggered_rail_context():
 
 def test_resolve_self_check_task_uses_latest_start_rail_event():
     task = _resolve_input_task(
-        task="$task",
+        task="$variant",
         events=[
-            {"type": "StartInputRail", "flow_id": "self check input $task=check_off_topic"},
-            {"type": "SomeOtherEvent", "flow_id": "self check input $task=ignored"},
-            {"type": "StartInputRail", "flow_id": "self check input $task=check_harmful"},
+            {"type": "StartInputRail", "flow_id": "self check input $variant=check_off_topic"},
+            {"type": "SomeOtherEvent", "flow_id": "self check input $variant=ignored"},
+            {"type": "StartInputRail", "flow_id": "self check input $variant=check_harmful"},
         ],
     )
 
@@ -875,7 +921,7 @@ def test_resolve_self_check_task_uses_latest_start_rail_event():
 def test_resolve_self_check_task_uses_start_flow_params():
     task = _resolve_input_task(
         events=[
-            {"type": "start_flow", "flow_id": SELF_CHECK_INPUT_FLOW, "params": {"task": "check_harmful"}},
+            {"type": "start_flow", "flow_id": SELF_CHECK_INPUT_FLOW, "params": {"variant": "check_harmful"}},
         ],
     )
 
@@ -884,8 +930,45 @@ def test_resolve_self_check_task_uses_start_flow_params():
 
 def test_resolve_self_check_task_defaults_unresolved_placeholders():
     assert _resolve_input_task(context={"triggered_input_rail": "self check input"}) == SELF_CHECK_INPUT_DEFAULT_TASK
-    assert _resolve_input_task(task="$task") == SELF_CHECK_INPUT_DEFAULT_TASK
+    assert _resolve_input_task(task="$variant") == SELF_CHECK_INPUT_DEFAULT_TASK
     assert _resolve_input_task() == SELF_CHECK_INPUT_DEFAULT_TASK
+
+
+def test_bare_triggered_rail_uses_default_over_event_history():
+    """Verify a bare triggered rail selects the default task."""
+    task = _resolve_input_task(
+        task="$variant",
+        context={"triggered_input_rail": "self check input"},
+        events=[
+            {
+                "type": "start_flow",
+                "flow_id": SELF_CHECK_INPUT_FLOW,
+                "params": {"variant": "check_harmful"},
+            }
+        ],
+    )
+
+    assert task == SELF_CHECK_INPUT_DEFAULT_TASK
+
+
+def test_custom_task_rail_without_prompt_fails_at_config_load():
+    """Verify a custom self-check rail requires a corresponding prompt."""
+    with pytest.raises(ValueError, match=r"Missing a `self_check_input \$variant=check_harmful` prompt template"):
+        RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            rails:
+                input:
+                    flows:
+                        - self check input $variant=check_harmful
+            """,
+        )
+
+
+def test_get_self_check_prompt_task_namespaces_custom_tasks():
+    """Verify custom prompt tasks are namespaced under their default task."""
+    assert get_self_check_prompt_task("self_check_input", "self_check_input") == "self_check_input"
+    assert get_self_check_prompt_task("check_harmful", "self_check_input") == "self_check_input $variant=check_harmful"
 
 
 def test_input_no_model_raises_error():
