@@ -21,7 +21,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.library.self_check.utils import (
     SELF_CHECK_INPUT_DEFAULT_TASK,
     SELF_CHECK_INPUT_FLOW,
-    SELF_CHECK_INPUT_TASK_PARAM,
+    SELF_CHECK_INPUT_VARIANT_PARAM,
     get_self_check_llm,
     get_self_check_prompt_task,
     get_self_check_task_from_rail,
@@ -792,7 +792,7 @@ def _resolve_input_task(task=None, context=None, events=None):
         triggered_rail_key="triggered_input_rail",
         start_rail_event_type="StartInputRail",
         flow_id=SELF_CHECK_INPUT_FLOW,
-        task_param=SELF_CHECK_INPUT_TASK_PARAM,
+        variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
         default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
     )
 
@@ -860,7 +860,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
         get_self_check_task_from_rail(
             "self check input $variant=check_harmful",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         == "check_harmful"
@@ -870,7 +870,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
         get_self_check_task_from_rail(
             "self check input",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         == SELF_CHECK_INPUT_DEFAULT_TASK
@@ -880,7 +880,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
         get_self_check_task_from_rail(
             "self check output $variant=check_inappropriate",
             flow_id=SELF_CHECK_INPUT_FLOW,
-            task_param=SELF_CHECK_INPUT_TASK_PARAM,
+            variant_param=SELF_CHECK_INPUT_VARIANT_PARAM,
             default_task=SELF_CHECK_INPUT_DEFAULT_TASK,
         )
         is None
