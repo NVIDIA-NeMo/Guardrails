@@ -23,6 +23,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.streaming import StreamingHandler
+from nemoguardrails.testing.fake_model import FakeLLMModel
 from tests.utils import TestChat
 
 
@@ -379,6 +380,73 @@ async def test_sequential_streaming_output_rails_allowed(
     assert len(error_chunks) == 0
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+async def test_streaming_output_rails_preserve_custom_task():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output $task=check_data_leakage"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "prompts": [
+                {
+                    "task": "check_data_leakage",
+                    "content": """
+                    Bot response: {{ bot_response }}
+                    Answer No.
+                    """,
+                },
+                {
+                    "task": "self_check_output",
+                    "content": """
+                    Bot response: {{ bot_response }}
+                    Answer Yes.
+                    """,
+                },
+            ],
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+
+        define flow
+          user express greeting
+          bot tell joke
+        """,
+    )
+    custom_llm = FakeLLMModel(responses=["No", "No"])
+    default_llm = FakeLLMModel(responses=["Yes"])
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
+            '  "This response should stream safely."',
+        ],
+        streaming=True,
+    )
+    chat.app.runtime.registered_action_params["llms"]["check_data_leakage"] = custom_llm
+    chat.app.runtime.registered_action_params["llms"]["self_check_output"] = default_llm
+
+    chunks = []
+    async for chunk in chat.app.stream_async(
+        messages=[{"role": "user", "content": "Hi!"}],
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunks) == "This response should stream safely."
+    assert custom_llm.inference_count > 0
+    assert default_llm.inference_count == 0
 
 
 @pytest.mark.asyncio
