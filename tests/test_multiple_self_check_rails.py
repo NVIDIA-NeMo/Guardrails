@@ -898,6 +898,22 @@ def test_resolve_self_check_task_defaults_unresolved_placeholders():
     assert _resolve_input_task() == SELF_CHECK_INPUT_DEFAULT_TASK
 
 
+def test_bare_triggered_rail_uses_default_over_event_history():
+    task = _resolve_input_task(
+        task="$task",
+        context={"triggered_input_rail": "self check input"},
+        events=[
+            {
+                "type": "start_flow",
+                "flow_id": SELF_CHECK_INPUT_FLOW,
+                "params": {"task": "check_harmful"},
+            }
+        ],
+    )
+
+    assert task == SELF_CHECK_INPUT_DEFAULT_TASK
+
+
 def test_custom_task_rail_without_prompt_fails_at_config_load():
     with pytest.raises(ValueError, match=r"Missing a `self_check_input \$task=check_harmful` prompt template"):
         RailsConfig.from_content(
