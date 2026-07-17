@@ -16,7 +16,7 @@
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.library.activefence.actions import ACTIVEFENCE_DETAILED_THRESHOLDS, _activefence_outcome
+from nemoguardrails.library.activefence.actions import ACTIVEFENCE_DETAILED_RULES, _activefence_outcome
 from nemoguardrails.library.ai_defense.actions import _ai_defense_outcome
 from nemoguardrails.library.clavata.actions import _clavata_outcome
 from nemoguardrails.library.cleanlab.actions import _cleanlab_outcome
@@ -146,8 +146,11 @@ def test_gcp_text_moderation_outcome_pins_simple_and_detailed_thresholds(
     assert bool(outcome.reason) is expected_blocked
 
 
-@pytest.mark.parametrize(("violation", "threshold"), ACTIVEFENCE_DETAILED_THRESHOLDS.items())
-def test_activefence_detailed_outcome_owns_each_threshold(violation, threshold):
+@pytest.mark.parametrize(
+    ("violation", "threshold", "reason"),
+    [(violation, threshold, reason) for violation, (threshold, reason) in ACTIVEFENCE_DETAILED_RULES.items()],
+)
+def test_activefence_detailed_outcome_owns_each_rule(violation, threshold, reason):
     at_threshold = _activefence_outcome(threshold, {violation: threshold}, "detailed")
     above_threshold = _activefence_outcome(threshold + 0.01, {violation: threshold + 0.01}, "detailed")
 
@@ -161,7 +164,7 @@ def test_activefence_detailed_outcome_owns_each_threshold(violation, threshold):
     )
     assert above_threshold.is_blocked
     assert above_threshold.metadata["triggered_violation"] == violation
-    assert above_threshold.reason
+    assert above_threshold.reason == reason
 
 
 @pytest.mark.parametrize(("violation", "threshold"), GCP_TEXT_DETAILED_THRESHOLDS.items())
