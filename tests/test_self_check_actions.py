@@ -217,3 +217,40 @@ async def test_alignscore_check_facts_returns_rail_outcome(monkeypatch, score, e
     )
 
     assert outcome == expected
+
+
+@pytest.mark.asyncio
+async def test_alignscore_check_facts_preserves_missing_endpoint(monkeypatch):
+    observed_url = None
+
+    async def fake_alignscore_request(url, evidence, response):
+        nonlocal observed_url
+        observed_url = url
+        return 1.0
+
+    task_manager = cast(
+        LLMTaskManager,
+        SimpleNamespace(
+            config=SimpleNamespace(
+                rails=SimpleNamespace(
+                    config=SimpleNamespace(
+                        fact_checking=SimpleNamespace(
+                            fallback_to_self_check=False,
+                            parameters={},
+                        )
+                    )
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(alignscore_actions, "alignscore_request", fake_alignscore_request)
+
+    outcome = await alignscore_check_facts(
+        llm_task_manager=task_manager,
+        context={"relevant_chunks": ["evidence"], "bot_message": "answer"},
+        llm=FakeLLMModel(responses=[]),
+        config=_config(),
+    )
+
+    assert observed_url is None
+    assert outcome == RailOutcome.allow(metadata={"accuracy": 1.0})

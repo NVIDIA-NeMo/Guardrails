@@ -39,8 +39,7 @@ async def alignscore_check_facts(
     fact_checking_config = llm_task_manager.config.rails.config.fact_checking
     fallback_to_self_check = fact_checking_config.fallback_to_self_check
 
-    parameters = fact_checking_config.parameters or {}
-    alignscore_api_url = parameters.get("endpoint") or "http://localhost:5000/alignscore_large"
+    alignscore_api_url = fact_checking_config.parameters.get("endpoint")
 
     context = context or {}
     evidence = context.get("relevant_chunks", [])
