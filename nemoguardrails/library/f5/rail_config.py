@@ -26,7 +26,8 @@ from nemoguardrails.manifests.config_schema import (
 class F5GuardrailsRailConfig(RailConfigBaseModel):
     """Configuration for the F5 Guardrails integration.
 
-    The API key must be provided through the F5_GUARDRAILS_API_KEY environment variable.
+    Note: The API key is intentionally not part of this config. It is a secret
+    and must be provided via the F5_GUARDRAILS_API_KEY environment variable.
     """
 
     api_url: str = Field(
@@ -65,7 +66,8 @@ class F5GuardrailsRailConfig(RailConfigBaseModel):
         description=(
             "Base delay (in seconds) used with exponential backoff when a 429 "
             "response has no usable Retry-After header. The delay for attempt N "
-            "is retry_backoff_seconds * 2**N, clamped to max_retry_after_seconds."
+            "(zero-indexed) is retry_backoff_seconds * 2**N, still clamped to "
+            "max_retry_after_seconds."
         ),
     )
 
