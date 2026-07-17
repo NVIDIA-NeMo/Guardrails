@@ -41,6 +41,7 @@ class JailbreakDetectionAction(RailAction):
             raise RuntimeError(f"Jailbreak response missing 'jailbreak' field: {response}")
 
         score = response.get("score", "unknown")
-        if response["jailbreak"]:
-            return RailResult(is_safe=False, reason=f"Score: {score}")
-        return RailResult(is_safe=True, reason=f"Score: {score}")
+        is_jailbreak = response["jailbreak"]
+        if is_jailbreak:
+            return RailResult(is_safe=False, reason=f"Score: {score}", return_value=is_jailbreak)
+        return RailResult(is_safe=True, reason=f"Score: {score}", return_value=is_jailbreak)

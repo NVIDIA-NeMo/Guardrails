@@ -48,9 +48,11 @@ class RailCallRecord:
     flow: str
     rail_type: str
     is_safe: bool
+    made_call: bool = False
     action_name: Optional[str] = None
     return_value: Any = None
     task: Optional[str] = None
+    request_id: Optional[str] = None
     usage: Optional[UsageInfo] = None
     llm_model_name: Optional[str] = None
     llm_provider_name: Optional[str] = None

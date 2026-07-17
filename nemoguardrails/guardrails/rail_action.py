@@ -49,14 +49,19 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RailLLMCall:
-    """Usage/model/timing captured for the LLM call a rail made, for GenerationLog.
+    """Usage/model/timing captured for the call a rail made, for GenerationLog.
 
-    Set by :meth:`RailAction._get_llm_response` and read by RailsManager right after the
-    rail runs (same async task), so the caller can build the per-rail ``RailCallRecord``.
+    Set by :meth:`RailAction._get_llm_response` (LLM rails) or
+    :meth:`RailAction._get_api_response` (API rails, e.g. jailbreak — usage/model None),
+    and read by RailsManager right after the rail runs (same async task), so the caller
+    can build the per-rail ``RailCallRecord``. ``started_at``/``finished_at`` are
+    wall-clock (``time.time()``) timestamps; ``duration`` is a monotonic delta.
     """
 
     usage: Optional[UsageInfo]
     llm_model_name: Optional[str]
+    request_id: Optional[str]
+    provider_name: Optional[str]
     started_at: float
     finished_at: float
     duration: float
@@ -67,7 +72,7 @@ class RailLLMCall:
 _rail_llm_call_var: ContextVar[Optional[RailLLMCall]] = ContextVar("rail_llm_call", default=None)
 
 
-def take_rail_llm_call() -> Optional[RailLLMCall]:
+def get_and_clear_rail_llm_call_contextvar() -> Optional[RailLLMCall]:
     """Return and clear the LLM call captured for the rail that just ran."""
     call = _rail_llm_call_var.get()
     _rail_llm_call_var.set(None)
@@ -193,16 +198,20 @@ class RailAction(ABC):
         """
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
-        started_at = time.monotonic()
+        started_at = time.time()
+        t0 = time.monotonic()
         response = await self.engine_registry.model_call(model_type, messages, **kwargs)
-        finished_at = time.monotonic()
+        duration = time.monotonic() - t0
+        finished_at = time.time()
         _rail_llm_call_var.set(
             RailLLMCall(
                 usage=response.usage,
                 llm_model_name=response.model,
+                request_id=response.request_id,
+                provider_name=self.engine_registry.provider_name(model_type),
                 started_at=started_at,
                 finished_at=finished_at,
-                duration=finished_at - started_at,
+                duration=duration,
             )
         )
         return response
@@ -213,8 +222,29 @@ class RailAction(ABC):
         body: dict[str, Any],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Call an API endpoint via EngineRegistry and return the response dict."""
-        return await self.engine_registry.api_call(api_name, body, **kwargs)
+        """Call an API endpoint via EngineRegistry and return the response dict.
+
+        Records the call (with no token usage or model name) so API-backed rails such as
+        jailbreak detection still appear in the GenerationLog's ``llm_calls`` and counts,
+        matching LLMRails.
+        """
+        started_at = time.time()
+        t0 = time.monotonic()
+        response = await self.engine_registry.api_call(api_name, body, **kwargs)
+        duration = time.monotonic() - t0
+        finished_at = time.time()
+        _rail_llm_call_var.set(
+            RailLLMCall(
+                usage=None,
+                llm_model_name=None,
+                request_id=None,
+                provider_name=None,
+                started_at=started_at,
+                finished_at=finished_at,
+                duration=duration,
+            )
+        )
+        return response
 
     async def _get_local_response(self, **kwargs: Any) -> Any:
         """Run a local/in-process check. Override in subclasses that need it."""

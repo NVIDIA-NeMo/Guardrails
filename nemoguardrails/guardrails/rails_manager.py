@@ -42,7 +42,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailResult,
     get_request_id,
 )
-from nemoguardrails.guardrails.rail_action import RailAction, RailLLMCall, take_rail_llm_call
+from nemoguardrails.guardrails.rail_action import RailAction, RailLLMCall, get_and_clear_rail_llm_call_contextvar
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
@@ -91,11 +91,14 @@ def _rail_call_record(flow: str, rail_type: str, result: RailResult, call: Optio
         flow=flow,
         rail_type=rail_type,
         is_safe=result.is_safe,
+        made_call=call is not None,
         action_name=_get_flow_name(flow),
         return_value=verdict,
         task=flow,
+        request_id=call.request_id if call else None,
         usage=call.usage if call else None,
         llm_model_name=call.llm_model_name if call else None,
+        llm_provider_name=call.provider_name if call else None,
         started_at=call.started_at if call else None,
         finished_at=call.finished_at if call else None,
         duration=call.duration if call else None,
@@ -327,7 +330,7 @@ class RailsManager:
         with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
-            call = take_rail_llm_call()
+            call = get_and_clear_rail_llm_call_contextvar()
             if not result.is_safe and result.triggered_rail is None:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
             result = replace(result, records=(_rail_call_record(flow, direction.value.lower(), result, call),))
@@ -350,7 +353,8 @@ class RailsManager:
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = await self._tool_call_actions[flow].run(toolset, tool_calls)
             # Tool rails are model-free, so no LLM call is captured (usage stays None).
-            result = replace(result, records=(_rail_call_record(flow, "tool_output", result, take_rail_llm_call()),))
+            call = get_and_clear_rail_llm_call_contextvar()
+            result = replace(result, records=(_rail_call_record(flow, "tool_output", result, call),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 set_rail_content(
@@ -374,7 +378,8 @@ class RailsManager:
                 if not result.is_safe:
                     break
             # Tool rails are model-free, so no LLM call is captured (usage stays None).
-            result = replace(result, records=(_rail_call_record(flow, "tool_input", result, take_rail_llm_call()),))
+            call = get_and_clear_rail_llm_call_contextvar()
+            result = replace(result, records=(_rail_call_record(flow, "tool_input", result, call),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 all_results = [r for exchange in exchanges for r in exchange.results]

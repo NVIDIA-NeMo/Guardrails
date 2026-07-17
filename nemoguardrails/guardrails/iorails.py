@@ -192,22 +192,29 @@ def _build_llm_metadata(response: LLMResponse) -> Optional[dict]:
 
 
 def _make_generation_record(
-    response: LLMResponse, started_at: Optional[float], finished_at: Optional[float]
+    response: LLMResponse,
+    started_at: Optional[float],
+    finished_at: Optional[float],
+    duration: Optional[float],
+    provider_name: Optional[str],
 ) -> RailCallRecord:
     """Represent the main generation call as a ``RailCallRecord`` (rail_type "generation").
 
     Unifies the main call with the rail calls so the log builder can treat every LLM call
-    the same way.
+    the same way. ``started_at``/``finished_at`` are wall-clock timestamps; ``duration``
+    is a monotonic delta.
     """
-    duration = (finished_at - started_at) if (started_at is not None and finished_at is not None) else None
     return RailCallRecord(
         flow="generation",
         rail_type="generation",
         is_safe=True,
+        made_call=True,
         action_name="generate_bot_message",
         task="general",
+        request_id=response.request_id,
         usage=response.usage,
         llm_model_name=response.model,
+        llm_provider_name=provider_name,
         started_at=started_at,
         finished_at=finished_at,
         duration=duration,
@@ -215,8 +222,8 @@ def _make_generation_record(
 
 
 def _record_has_llm_call(record: RailCallRecord) -> bool:
-    """True when a record reflects a model call (has usage or a model name)."""
-    return record.usage is not None or record.llm_model_name is not None
+    """True when a record reflects a model/API call (made a call, or carries usage/model)."""
+    return record.made_call or record.usage is not None or record.llm_model_name is not None
 
 
 def _call_info(record: RailCallRecord) -> LLMCallInfo:
@@ -230,6 +237,7 @@ def _call_info(record: RailCallRecord) -> LLMCallInfo:
         completion_tokens=usage.output_tokens if usage else None,
         started_at=record.started_at,
         finished_at=record.finished_at,
+        id=record.request_id,
         llm_model_name=record.llm_model_name or "unknown",
         llm_provider_name=record.llm_provider_name or "unknown",
     )
@@ -921,11 +929,14 @@ class IORails(BaseGuardrails):
             return None
 
         log.info("[%s] Calling main LLM", req_id)
-        started_at = time.monotonic()
+        started_at = time.time()
+        t0 = time.monotonic()
         response = await self.engine_registry.model_call("main", messages, **llm_kwargs)
-        finished_at = time.monotonic()
+        duration = time.monotonic() - t0
+        finished_at = time.time()
         if records_out is not None:
-            records_out.append(_make_generation_record(response, started_at, finished_at))
+            provider = self.engine_registry.provider_name("main")
+            records_out.append(_make_generation_record(response, started_at, finished_at, duration, provider))
         return response
 
     async def _do_generate_speculative(
@@ -1036,9 +1047,10 @@ class IORails(BaseGuardrails):
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response.content))
         # Speculative races the main call, so per-call timing isn't tracked here; the
-        # generation record carries usage/model without a duration.
+        # generation record carries usage/model without timestamps or a duration.
         if records_out is not None:
-            records_out.append(_make_generation_record(response, None, None))
+            provider = self.engine_registry.provider_name("main")
+            records_out.append(_make_generation_record(response, None, None, None, provider))
         return response
 
     def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:

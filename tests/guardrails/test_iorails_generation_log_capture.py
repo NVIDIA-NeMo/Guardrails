@@ -63,6 +63,7 @@ class TestRailRecordCapture:
                 content=_SAFE_BOTH,
                 usage=UsageInfo(input_tokens=762, output_tokens=8, total_tokens=770),
                 model=_CS_MODEL,
+                request_id="req-cs-input",
             )
         )
 
@@ -73,8 +74,11 @@ class TestRailRecordCapture:
         record = result.records[0]
         assert record.flow == _CS_INPUT
         assert record.rail_type == "input"
+        assert record.made_call is True
         assert record.usage.total_tokens == 770
         assert record.llm_model_name == _CS_MODEL
+        assert record.llm_provider_name == "nim"
+        assert record.request_id == "req-cs-input"
         assert record.return_value == {"allowed": True, "policy_violations": []}
 
 
@@ -91,11 +95,13 @@ class TestGenerationLogEndToEnd:
                     content=_SAFE_BOTH,
                     usage=UsageInfo(input_tokens=100, output_tokens=10, total_tokens=110),
                     model=_CS_MODEL,
+                    request_id="req-cs",
                 )
             return LLMResponse(
                 content="Hi",
                 usage=UsageInfo(input_tokens=20, output_tokens=5, total_tokens=25),
                 model=_MAIN_MODEL,
+                request_id="req-main",
             )
 
         iorails.engine_registry.model_call = AsyncMock(side_effect=_model_call)
@@ -113,6 +119,10 @@ class TestGenerationLogEndToEnd:
         cs_rail = next(rail for rail in result.log.activated_rails if rail.name == _CS_INPUT)
         assert cs_rail.type == "input"
         assert cs_rail.executed_actions[0].return_value == {"allowed": True, "policy_violations": []}
+        # id + provider are threaded through the capture (parity fixes).
+        cs_call = cs_rail.executed_actions[0].llm_calls[0]
+        assert cs_call.id == "req-cs"
+        assert cs_call.llm_provider_name == "nim"
         assert any(rail.type == "generation" for rail in result.log.activated_rails)
 
     @pytest.mark.asyncio

@@ -273,3 +273,21 @@ class TestActivatedRailHelper:
         assert action.action_name == "tool call validation"
         assert action.llm_calls == []
         assert action.return_value == {"allowed": True}
+
+    def test_api_rail_made_call_without_usage_counts(self):
+        """An API rail (made_call=True, usage=None, e.g. jailbreak) still yields one llm_call."""
+        record = RailCallRecord(
+            flow="jailbreak detection model",
+            rail_type="input",
+            is_safe=True,
+            made_call=True,
+            action_name="jailbreak detection model",
+            return_value=False,
+            task="jailbreak detection model",
+        )
+
+        rail = _activated_rail(record)
+
+        assert len(rail.executed_actions[0].llm_calls) == 1
+        assert rail.executed_actions[0].llm_calls[0].total_tokens is None
+        assert rail.executed_actions[0].return_value is False
