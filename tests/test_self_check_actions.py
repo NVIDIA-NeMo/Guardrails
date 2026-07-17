@@ -19,7 +19,6 @@ from typing import Any, cast
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.factchecking.align_score import actions as alignscore_actions
 from nemoguardrails.library.factchecking.align_score.actions import alignscore_check_facts
@@ -27,7 +26,7 @@ from nemoguardrails.library.self_check.facts.actions import _fact_check_outcome,
 from nemoguardrails.library.self_check.input_check.actions import self_check_input
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from tests.utils import FakeLLMModel
+from tests.utils import FakeLLMModel, TestChat
 
 
 class _SelfCheckTaskManager:
@@ -120,10 +119,10 @@ async def test_self_check_uses_fallback_output_parser(action, context):
 
 
 @pytest.mark.asyncio
-async def test_self_check_input_block_preserves_mask_event():
+async def test_self_check_input_block_returns_rail_outcome():
     task_manager = cast(LLMTaskManager, _SelfCheckTaskManager([False]))
 
-    result = await self_check_input(
+    outcome = await self_check_input(
         llms={},
         llm_task_manager=task_manager,
         context={"user_message": "blocked"},
@@ -131,10 +130,28 @@ async def test_self_check_input_block_preserves_mask_event():
         config=_config(),
     )
 
-    assert isinstance(result, ActionResult)
-    assert result.return_value == RailOutcome.block()
-    assert result.events is not None
-    assert result.events[0]["type"] == "mask_prev_user_message"
+    assert outcome == RailOutcome.block()
+
+
+def test_self_check_input_flow_preserves_mask_event():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {"input": {"flows": ["self check input"]}},
+            "prompts": [{"task": "self_check_input", "content": "..."}],
+        }
+    )
+    chat = TestChat(config, llm_completions=["Yes"])
+
+    events = chat.app.generate_events(events=[{"type": "UtteranceUserActionFinished", "final_transcript": "blocked"}])
+    mask_events = [event for event in events if event["type"] == "mask_prev_user_message"]
+
+    assert len(mask_events) == 1
+    assert mask_events[0]["intent"] == "unanswerable message"
+    assert any(
+        event["type"] == "StartUtteranceBotAction" and event["script"] == "I'm sorry, I can't respond to that."
+        for event in events
+    )
 
 
 @pytest.mark.parametrize(

@@ -17,7 +17,7 @@ import logging
 from typing import Dict, List, Optional
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.self_check.utils import (
     SELF_CHECK_INPUT_DEFAULT_TASK,
@@ -28,7 +28,6 @@ from nemoguardrails.library.self_check.utils import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.types import LLMModel
-from nemoguardrails.utils import new_event_dict
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ async def self_check_input(
     config: Optional[RailsConfig] = None,
     task: Optional[str] = None,
     **kwargs,
-) -> ActionResult | RailOutcome:
+) -> RailOutcome:
     """Checks the input from the user.
 
     Prompt the LLM, using the `check_input` task prompt, to determine if the input
@@ -92,11 +91,5 @@ async def self_check_input(
         log.info(f"Input self-checking result is: `{response}`.")
     else:
         log.info(f"Input self-checking result for task={task} is: `{response}`.")
-
-    if not is_safe:
-        return ActionResult(
-            return_value=_self_check_outcome(False),
-            events=[new_event_dict("mask_prev_user_message", intent="unanswerable message")],
-        )
 
     return _self_check_outcome(is_safe)
