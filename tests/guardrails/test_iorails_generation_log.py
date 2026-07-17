@@ -30,7 +30,7 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailResult
-from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.iorails import IORails, _activated_rail
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
@@ -220,3 +220,56 @@ class TestUsageRemovedFromLlmMetadata:
         result = await iorails.generate_async(_USER, options={})
 
         assert result.llm_metadata is None
+
+
+class TestActivatedRailHelper:
+    """`_activated_rail` maps a RailCallRecord to an ActivatedRail + synthetic ExecutedAction."""
+
+    def test_record_with_llm_call(self):
+        """A model-backed rail yields one ExecutedAction with its verdict and a single LLMCallInfo."""
+        record = RailCallRecord(
+            flow=_CS_INPUT_FLOW,
+            rail_type="input",
+            is_safe=False,
+            action_name="content_safety_check_input",
+            return_value={"allowed": False, "policy_violations": ["Violence"]},
+            task="content_safety_check_input $model=content_safety",
+            usage=UsageInfo(input_tokens=762, output_tokens=22, total_tokens=784),
+            llm_model_name="nvidia/llama-3.1-nemoguard-8b-content-safety",
+            llm_provider_name="nim",
+            started_at=1.0,
+            finished_at=1.5,
+            duration=0.5,
+        )
+
+        rail = _activated_rail(record)
+
+        assert rail.type == "input"
+        assert rail.name == _CS_INPUT_FLOW
+        assert rail.stop is True
+        assert rail.duration == 0.5
+        action = rail.executed_actions[0]
+        assert action.action_name == "content_safety_check_input"
+        assert action.return_value == {"allowed": False, "policy_violations": ["Violence"]}
+        assert len(action.llm_calls) == 1
+        assert action.llm_calls[0].total_tokens == 784
+        assert action.llm_calls[0].llm_model_name == "nvidia/llama-3.1-nemoguard-8b-content-safety"
+
+    def test_record_without_llm_call(self):
+        """A model-free rail (usage=None) yields an empty llm_calls list; action_name falls back to flow."""
+        record = RailCallRecord(
+            flow="tool call validation",
+            rail_type="tool_output",
+            is_safe=True,
+            action_name=None,
+            return_value={"allowed": True},
+        )
+
+        rail = _activated_rail(record)
+
+        assert rail.type == "tool_output"
+        assert rail.stop is False
+        action = rail.executed_actions[0]
+        assert action.action_name == "tool call validation"
+        assert action.llm_calls == []
+        assert action.return_value == {"allowed": True}
