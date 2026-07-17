@@ -18,7 +18,7 @@
 Collects `RailManifestRecord` entries (built-in rails discovered under
 `nemoguardrails/library` plus enabled plugin entry points) into an immutable
 `RailCatalog` that enforces global uniqueness of rail names, config keys,
-action names, and surface keys.
+flow names, action names, and surface keys.
 """
 
 import importlib
@@ -45,9 +45,9 @@ class RailCatalog:
 
     Constructing a catalog validates the combined set of records and raises
     `ValueError` on any collision: duplicate manifest names, duplicate config
-    keys, duplicate action names, or two rails claiming the same
-    `(direction, surface name)`. It also rejects a surface whose action is not
-    declared in that surface's own manifest.
+    keys, flow names, action names, or two rails claiming the same `(direction,
+    surface name)`. It also rejects a surface whose action is not declared in
+    that surface's own manifest.
     """
 
     def __init__(self, records: Iterable[RailManifestRecord] = ()) -> None:
@@ -55,6 +55,7 @@ class RailCatalog:
         surfaces: Dict[Tuple[RailDirection, str], RailSurface] = {}
         surface_owners: Dict[Tuple[RailDirection, str], str] = {}
         config_owners: Dict[str, str] = {}
+        flow_owners: Dict[str, str] = {}
         action_owners: Dict[str, Tuple[str, ActionRef]] = {}
         for record in records:
             manifest = record.manifest
@@ -74,6 +75,15 @@ class RailCatalog:
                         f"cannot also provide it from {manifest.name!r}."
                     )
                 config_owners[key] = manifest.name
+            if manifest.flows is not None:
+                for flow_name in manifest.flows.flow_names:
+                    owner = flow_owners.get(flow_name)
+                    if owner is not None:
+                        raise ValueError(
+                            f"Rail flow {flow_name!r} is already provided by {owner!r}; "
+                            f"cannot also provide it from {manifest.name!r}."
+                        )
+                    flow_owners[flow_name] = manifest.name
             if manifest.actions is not None:
                 for action_ref in manifest.actions.refs:
                     existing_action = action_owners.get(action_ref.name)
@@ -101,6 +111,7 @@ class RailCatalog:
             records_by_name[manifest.name] = record
         self._records = records_by_name
         self._surfaces = surfaces
+        self._flow_owners = flow_owners
 
     @classmethod
     def discover_built_ins(cls, library_path: Optional[Path] = None) -> "RailCatalog":
@@ -171,3 +182,7 @@ class RailCatalog:
     def surfaces(self, direction: Optional[RailDirection] = None) -> Dict[Tuple[RailDirection, str], RailSurface]:
         """Return declared surfaces, optionally filtered by direction."""
         return {key: surface for key, surface in self._surfaces.items() if direction is None or key[0] == direction}
+
+    def owner_for_flow(self, flow_name: str) -> Optional[str]:
+        """Return the manifest that owns a declared public flow name."""
+        return self._flow_owners.get(flow_name)
