@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Tools Integration with the NeMo Guardrails Library"
 sidebar-title: "Tools Integration"
-description: "Integrate LangChain tools with guardrails using passthrough mode and output rail validation."
+description: "Integrate LangChain tools with guardrails and output rail validation."
 content:
   type: "how_to"
 ---
@@ -84,9 +84,11 @@ Apart from parsing a JSON `arguments` string into a dictionary, the library pass
 
 ## Configuration Settings
 
-### Passthrough Mode
+### Passthrough Mode and Dialog Flows
 
-When using tools with the NeMo Guardrails library, it's recommended to use **passthrough mode**. This mode is essential because:
+Tool calls are supported with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text. Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
+
+If your configuration does not use dialog flows, using **passthrough mode** is still recommended because:
 
 - Internal NeMo Guardrails library tasks do not require tool use and might provide erroneous results if tools are enabled
 - It ensures that the LLM can properly handle tool calls and responses

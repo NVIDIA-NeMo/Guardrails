@@ -817,7 +817,10 @@ def test_chat_completion_accepts_stop_parameter(stop):
 
 def test_chat_completion_accepts_tools_for_non_passthrough_config():
     """Tools are allowed for a non-passthrough config without no dialog flows."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
     mock_rails = AsyncMock()
+    mock_rails.generate_async.return_value = GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
     mock_rails.config.colang_version = "1.0"
     mock_rails.config.passthrough = False
     mock_rails.config.user_messages = {}
@@ -841,7 +844,10 @@ def test_chat_completion_accepts_tools_for_non_passthrough_config():
 
 def test_chat_completion_accepts_tool_choice_non_passthrough():
     """Test that``tool_choice`` alone is allowed for a non-passthrough, no-dialog-flow config."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
     mock_rails = AsyncMock()
+    mock_rails.generate_async.return_value = GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
     mock_rails.config.colang_version = "1.0"
     mock_rails.config.passthrough = None
     mock_rails.config.user_messages = {}
@@ -886,12 +892,41 @@ def test_chat_completion_rejects_tools_for_dialog_flow_config():
     assert "dialog flows" in response.json()["error"]["message"].lower()
 
 
-def test_chat_completion_rejects_tool_choice_for_single_call_config():
-    """Test that ``tool_choice`` alone is rejected when ``single_call`` dialog rails are enabled."""
+def test_chat_completion_accepts_tool_choice_for_single_call_without_user_messages():
+    """``single_call`` enabled with no ``user_messages`` still surfaces tool calls normally."""
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
     mock_rails = AsyncMock()
+    mock_rails.generate_async.return_value = GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
     mock_rails.config.colang_version = "1.0"
     mock_rails.config.passthrough = None
     mock_rails.config.user_messages = {}
+    mock_rails.config.rails.dialog.single_call.enabled = True
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Weather?"}],
+                "tool_choice": "auto",
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+
+
+def test_chat_completion_rejects_tool_choice_for_single_call_with_user_messages():
+    """``single_call`` with non-empty ``user_messages`` still rejects tool calls.
+
+    The canonical-form branch of ``generate_intent_steps_message`` never surfaces
+    tool calls, so the dialog-flow rejection must still apply here.
+    """
+    mock_rails = AsyncMock()
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = None
+    mock_rails.config.user_messages = {"express greeting": ["hello"]}
     mock_rails.config.rails.dialog.single_call.enabled = True
 
     with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):

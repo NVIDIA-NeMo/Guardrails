@@ -228,14 +228,14 @@ The `passthrough` parameter controls this behavior.
 - **`passthrough=False`**: Allows guardrails to modify prompts for enhanced protection.
 
 ```python
-# Minimal intervention (required for tool calling)
+# Minimal intervention
 guardrails = RunnableRails(config, passthrough=True)
 
 # Enhanced guardrails (modifies prompts as needed)
 guardrails = RunnableRails(config, passthrough=False)
 ```
 
-**Tool Calling Requirement**: Set `passthrough=True` for proper tool call handling.
+**Tool Calling**: Tool calls work with either `passthrough` setting when the guardrails configuration has no user-intent definitions (`user_messages`). Enabling `rails.dialog.single_call.enabled` alone does not block tool calls.
 
 **What `passthrough=False` changes about the prompt**: instead of sending your original messages to the LLM, the library renders its own prompt from the `general` task template, which prepends general instructions and reformats the conversation as a completion-style transcript. For example, a `ChatPromptValue` built from `HumanMessage(content="Hello!")` is not sent to the LLM as-is. The library instead sends a prompt similar to the following:
 
@@ -335,15 +335,15 @@ When a guardrail is triggered and predefined messages must be returned instead o
 
 ## Tool Calling
 
-`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` to work properly.
+`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling works with or without `passthrough` when the guardrails configuration has no user-intent definitions (`user_messages`). Configurations with user-intent definitions drop tool calls and return only the generated text.
 
 `bind_tools()` is a LangChain method that attaches tool/function definitions to a chat model so the model can request tool calls in its response instead of only returning text. `ToolMessage` is LangChain's message type for returning a tool's result back to the model, keyed to the originating call through `tool_call_id`. See the [LangChain tool calling documentation](https://python.langchain.com/docs/concepts/tool_calling/) for the full concept. The NVIDIA NeMo Guardrails library does not change either of these; `RunnableRails` only adds safety checks around the model calls that use them.
 
-The following steps are required to use tool calling with `RunnableRails`:
+To use tool calling with `RunnableRails`:
 
-- Set `passthrough=True` when creating `RunnableRails` instance.
 - Use `bind_tools()` to attach tools to your model.
 - Handle tool execution in your application logic.
+- Avoid guardrail configurations that define dialog flows if you need tool calls to surface in the response.
 
 ### Basic Tool Setup
 

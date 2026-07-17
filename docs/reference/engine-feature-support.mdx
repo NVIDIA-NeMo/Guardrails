@@ -161,6 +161,8 @@ With `require_iorails=True`, `Guardrails` raises `ValueError` instead of falling
 Both engines support passing model tool calls through to the caller.
 `LLMRails` runs the Colang flows you configure under `rails.tool_call` and `rails.tool_result` through the Colang runtime.
 The built-in `tool call validation` and `tool result validation` validators run on `IORails` only.
+`LLMRails` surfaces tool calls regardless of the `passthrough` setting when the configuration has no user-intent definitions (`user_messages`).
+Configurations with user-intent definitions drop tool calls and return only the generated text.
 
 `IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-call rail and `tool result validation` on the tool-result rail.
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.

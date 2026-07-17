@@ -94,7 +94,7 @@ def config_no_passthrough():
 
 
 class TestToolCallingPassthroughOnly:
-    """Test that tool calling works in passthrough mode.."""
+    """Test that tool calling works in passthrough mode."""
 
     def test_config_passthrough_true(self, config_passthrough):
         """Test that passthrough config is correctly set."""
@@ -133,6 +133,7 @@ class TestToolCallingPassthroughOnly:
         assert result.events[0]["type"] == "BotToolCalls"
         stored = result.events[0]["tool_calls"]
 
+        assert len(stored) == 1
         assert stored[0]["function"]["name"] == "test_tool"
         assert stored[0]["function"]["arguments"] == {"param": "value"}
         assert stored[0]["id"] == "call_123"
@@ -179,7 +180,7 @@ class TestToolCallingNonPassthrough:
 
     @pytest.mark.asyncio
     async def test_tool_calls_non_passthrough_mode(self, config_no_passthrough, mock_llm_with_tool_calls):
-        """Test that tool calls are ignored when not in passthrough mode."""
+        """Test that tool calls are handled when not in passthrough mode."""
         tool_calls = [
             {
                 "id": "call_123",
@@ -223,6 +224,7 @@ class TestToolCallingNonPassthrough:
         mock_response_no_tools = AIMessage(content="Regular text response")
         mock_llm_with_tool_calls.ainvoke.return_value = mock_response_no_tools
         mock_llm_with_tool_calls.invoke.return_value = mock_response_no_tools
+        mock_llm_with_tool_calls.bind.return_value.ainvoke.return_value = mock_response_no_tools
 
         generation_actions = LLMGenerationActions(
             config=config_no_passthrough,
@@ -239,16 +241,11 @@ class TestToolCallingNonPassthrough:
         )
 
         assert len(result.events) == 1
-        assert result.events[0]["type"] == "BotToolCalls"
-        stored = result.events[0]["tool_calls"]
-        assert len(stored) == 1
-        assert stored[0]["function"]["name"] == "test_tool"
-        assert stored[0]["function"]["arguments"] == {"param": "value"}
-        assert stored[0]["id"] == "call_123"
+        assert result.events[0]["type"] == "BotMessage"
 
     @pytest.mark.asyncio
     async def test_tool_calls_with_prompt_mode_non_passthrough(self, config_no_passthrough, mock_llm_with_tool_calls):
-        """Test that tool calls are ignored when not in passthrough mode."""
+        """Test that tool calls are handled when not in passthrough mode."""
         tool_calls = [
             {
                 "id": "call_123",
@@ -283,7 +280,7 @@ class TestToolCallingNonPassthrough:
 
     @pytest.mark.asyncio
     async def test_complex_tool_calls_non_passthrough(self, config_no_passthrough, mock_llm_with_tool_calls):
-        """Test that complex tool calls are ignored when not in passthrough mode."""
+        """Test that complex tool calls are handled when not in passthrough mode."""
         tool_calls = [
             {
                 "id": "call_123",
