@@ -36,6 +36,7 @@ REFUSAL = "I'm sorry, I can't respond to that."
 ANSWER_UNKNOWN = "I don't know the answer to that."
 CLEANLAB_WARNING_SUFFIX = "\nCAUTION: THIS ANSWER HAS BEEN FLAGGED AS POTENTIALLY UNTRUSTWORTHY"
 RENDERED_BLOCK_MESSAGES = {
+    "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation.",
     "I will not engage in any abusive_or_harmful behavior.",
     "I will not engage in any abusive or harmful behavior.",
     "I will not engage in any self harm behavior.",
@@ -135,6 +136,10 @@ def _transform_if_false(raw_return: Any) -> FlowDecision:
 
 def _blocked_if_is_blocked(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_blocked"] else FlowDecision.ALLOW
+
+
+def _context_bloat_decision(raw_return: Any) -> FlowDecision:
+    return FlowDecision.BLOCK if raw_return["is_bloat"] and raw_return["action"] == "reject" else FlowDecision.ALLOW
 
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
@@ -311,6 +316,14 @@ PRIVATEAI_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+PRIVATEAI_DETECT_RETRIEVAL = RailSpec(
+    name="privateai_detect_retrieval",
+    flow="detect pii on retrieval",
+    direction="retrieval",
+    action="detect_pii",
+    interpret=_blocked_if_true,
+)
+
 PRIVATEAI_MASK_INPUT = RailSpec(
     name="privateai_mask_input",
     flow="mask pii on input",
@@ -347,6 +360,14 @@ GLINER_DETECT_OUTPUT = RailSpec(
     name="gliner_detect_output",
     flow="gliner detect pii on output",
     direction="output",
+    action="gliner_detect_pii",
+    interpret=_blocked_if_true,
+)
+
+GLINER_DETECT_RETRIEVAL = RailSpec(
+    name="gliner_detect_retrieval",
+    flow="gliner detect pii on retrieval",
+    direction="retrieval",
     action="gliner_detect_pii",
     interpret=_blocked_if_true,
 )
@@ -391,6 +412,14 @@ SENSITIVE_DATA_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+SENSITIVE_DATA_DETECT_RETRIEVAL = RailSpec(
+    name="sensitive_data_detect_retrieval",
+    flow="detect sensitive data on retrieval",
+    direction="retrieval",
+    action="detect_sensitive_data",
+    interpret=_blocked_if_true,
+)
+
 SENSITIVE_DATA_MASK_INPUT = RailSpec(
     name="sensitive_data_mask_input",
     flow="mask sensitive data on input",
@@ -413,6 +442,22 @@ SENSITIVE_DATA_MASK_RETRIEVAL = RailSpec(
     direction="retrieval",
     action="mask_sensitive_data",
     interpret=_transform_if_changed_from_relevant_chunks,
+)
+
+CONTEXT_BLOAT_RETRIEVAL = RailSpec(
+    name="context_bloat_retrieval",
+    flow="context bloat detection on retrieval",
+    direction="retrieval",
+    action="context_bloat_detection",
+    interpret=_context_bloat_decision,
+)
+
+POLYGRAF_DETECT_RETRIEVAL = RailSpec(
+    name="polygraf_detect_retrieval",
+    flow="polygraf detect pii on retrieval",
+    direction="retrieval",
+    action="polygraf_detect_pii",
+    interpret=_blocked_if_true,
 )
 
 CONTENT_SAFETY_INPUT = RailSpec(
@@ -1409,6 +1454,10 @@ FIXTURES = [
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_rail_outcome_cases(
+        PRIVATEAI_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
         GLINER_DETECT_INPUT,
         block_observable=ObservableOutcome.REFUSAL,
     ),
@@ -1417,11 +1466,37 @@ FIXTURES = [
         block_observable=ObservableOutcome.REFUSAL,
     ),
     *_rail_outcome_cases(
+        GLINER_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_INPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
+        SENSITIVE_DATA_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    _case(
+        "context_bloat_retrieval_allows_clean_chunks",
+        CONTEXT_BLOAT_RETRIEVAL,
+        {"is_bloat": False, "action": "reject", "text": RELEVANT_CHUNKS},
+        ObservableOutcome.ALLOW,
+        FlowDecision.ALLOW,
+    ),
+    _case(
+        "context_bloat_retrieval_blocks_rejected_chunks",
+        CONTEXT_BLOAT_RETRIEVAL,
+        {"is_bloat": True, "action": "reject", "text": RELEVANT_CHUNKS},
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    *_rail_outcome_cases(
+        POLYGRAF_DETECT_RETRIEVAL,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_output_transform_cases(PRIVATEAI_MASK_OUTPUT),
