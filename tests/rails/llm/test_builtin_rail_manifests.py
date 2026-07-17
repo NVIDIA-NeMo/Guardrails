@@ -134,6 +134,22 @@ def test_self_check_surfaces_bind_optional_variant():
         assert surface.bindings == (Binding.surface_param(action_param="variant", name="variant", required=False),)
 
 
+def test_configurable_api_key_requirements_document_shipped_names():
+    manifests = all_rail_manifests()
+
+    expected = {
+        "gliner": "NVIDIA_API_KEY",
+        "jailbreak_detection": "NVIDIA_API_KEY",
+        "trend_micro": "V1_API_KEY",
+    }
+    for rail_name, env_var_name in expected.items():
+        env_vars = manifests[rail_name].requirements.env_vars
+        assert len(env_vars) == 1
+        assert env_vars[0].name == env_var_name
+        assert env_vars[0].required is False
+        assert env_vars[0].description
+
+
 def test_builtin_surfaces_preserve_flow_contracts():
     surfaces = default_rail_catalog().surfaces()
 
