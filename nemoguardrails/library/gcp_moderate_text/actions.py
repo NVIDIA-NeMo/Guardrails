@@ -45,8 +45,11 @@ def _gcp_text_simple_blocked(max_risk_score: float) -> bool:
     return max_risk_score > 0.8
 
 
-def _gcp_text_detailed_blocked(violations: dict[str, float]) -> bool:
-    return any(violations.get(name, 0) > threshold for name, threshold in GCP_TEXT_DETAILED_THRESHOLDS.items())
+def _gcp_text_triggered_violation(violations: dict[str, float]) -> Optional[str]:
+    return next(
+        (name for name, threshold in GCP_TEXT_DETAILED_THRESHOLDS.items() if violations.get(name, 0) > threshold),
+        None,
+    )
 
 
 def _gcp_text_moderation_outcome(
@@ -54,18 +57,23 @@ def _gcp_text_moderation_outcome(
     violations: dict[str, float],
     threshold_mode: Literal["simple", "detailed"] = "simple",
 ) -> RailOutcome:
+    triggered_violation = _gcp_text_triggered_violation(violations) if threshold_mode == "detailed" else None
     metadata = {
         "max_risk_score": max_risk_score,
         "violations": violations,
         "threshold_mode": threshold_mode,
+        "triggered_violation": triggered_violation,
     }
-    blocked = (
-        _gcp_text_detailed_blocked(violations)
-        if threshold_mode == "detailed"
-        else _gcp_text_simple_blocked(max_risk_score)
-    )
-    if blocked:
-        return RailOutcome.block(metadata=metadata)
+    if triggered_violation is not None:
+        return RailOutcome.block(
+            reason=f"GCP text moderation triggered. {triggered_violation} exceeded the threshold.",
+            metadata=metadata,
+        )
+    if threshold_mode != "detailed" and _gcp_text_simple_blocked(max_risk_score):
+        return RailOutcome.block(
+            reason="GCP text moderation triggered. The maximum risk score exceeded the threshold.",
+            metadata=metadata,
+        )
     return RailOutcome.allow(metadata=metadata)
 
 

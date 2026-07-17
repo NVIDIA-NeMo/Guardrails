@@ -115,8 +115,6 @@ HF_CLASSIFIER_RAILS_CONFIG = {
 INJECTION_DETECTION_REJECT_RAILS_CONFIG = {"injection_detection": {"action": "reject"}}
 INJECTION_DETECTION_OMIT_RAILS_CONFIG = {"injection_detection": {"action": "omit"}}
 GUARDRAILS_AI_RAILS_CONFIG = {"guardrails_ai": {"validators": [{"name": "regex_match"}]}}
-ACTIVEFENCE_DETAILED_THRESHOLDS = {"adult_content.general": 0.3}
-GCP_DETAILED_THRESHOLDS = {"Derogatory": 0.4}
 
 
 def _blocked_if_regex_match(raw_return: Any) -> FlowDecision:
@@ -137,26 +135,6 @@ def _transform_if_false(raw_return: Any) -> FlowDecision:
 
 def _blocked_if_is_blocked(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_blocked"] else FlowDecision.ALLOW
-
-
-def _blocked_if_activefence_simple(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return["max_risk_score"] > 0.7 else FlowDecision.ALLOW
-
-
-def _blocked_if_activefence_detailed(raw_return: Any) -> FlowDecision:
-    violations = raw_return.get("violations", {})
-    blocked = any(violations.get(name, 0) > threshold for name, threshold in ACTIVEFENCE_DETAILED_THRESHOLDS.items())
-    return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
-
-
-def _blocked_if_gcp_simple(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return["max_risk_score"] > 0.8 else FlowDecision.ALLOW
-
-
-def _blocked_if_gcp_detailed(raw_return: Any) -> FlowDecision:
-    violations = raw_return.get("violations", {})
-    blocked = any(violations.get(name, 0) > threshold for name, threshold in GCP_DETAILED_THRESHOLDS.items())
-    return FlowDecision.BLOCK if blocked else FlowDecision.ALLOW
 
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
@@ -646,17 +624,17 @@ ACTIVEFENCE_INPUT_DETAILED = RailSpec(
     action="call_activefence_api",
 )
 
-GCP_MODERATION_OUTPUT = RailSpec(
-    name="gcp_moderation_output",
+GCP_MODERATION_INPUT = RailSpec(
+    name="gcp_moderation_input",
     flow="gcpnlp moderation",
-    direction="output",
+    direction="input",
     action="call gcpnlp api",
 )
 
-GCP_MODERATION_OUTPUT_DETAILED = RailSpec(
-    name="gcp_moderation_output_detailed",
+GCP_MODERATION_INPUT_DETAILED = RailSpec(
+    name="gcp_moderation_input_detailed",
     flow="gcpnlp moderation detailed",
-    direction="output",
+    direction="input",
     action="call gcpnlp api",
 )
 
@@ -1116,14 +1094,17 @@ def _risk_outcome(
     blocked: bool,
     threshold_mode: str,
     violations: dict[str, float] | None = None,
+    triggered_violation: str | None = None,
+    reason: str | None = None,
 ) -> RailOutcome:
     metadata = {
         "max_risk_score": max_risk_score,
         "violations": violations or {},
         "threshold_mode": threshold_mode,
+        "triggered_violation": triggered_violation,
     }
     if blocked:
-        return RailOutcome.block(metadata=metadata)
+        return RailOutcome.block(reason=reason or "Moderation threshold exceeded.", metadata=metadata)
     return RailOutcome.allow(metadata=metadata)
 
 
@@ -2127,6 +2108,7 @@ FIXTURES = [
             blocked=True,
             threshold_mode="detailed",
             violations={"adult_content.general": 0.31},
+            triggered_violation="adult_content.general",
         ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
@@ -2140,39 +2122,66 @@ FIXTURES = [
             blocked=True,
             threshold_mode="detailed",
             violations={"adult_content.general": 0.31},
+            triggered_violation="adult_content.general",
         ),
         ObservableOutcome.EXCEPTION,
         FlowDecision.BLOCK,
         enable_rails_exceptions=True,
     ),
     _case(
-        "gcp_moderation_output_allows_at_simple_threshold",
-        GCP_MODERATION_OUTPUT,
+        "activefence_input_detailed_fails_closed_without_trigger_metadata",
+        ACTIVEFENCE_INPUT_DETAILED,
+        RailOutcome.block(
+            reason="Moderation threshold exceeded.",
+            metadata={"max_risk_score": 0.31, "violations": {}, "threshold_mode": "detailed"},
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+    ),
+    _case(
+        "gcp_moderation_input_allows_at_simple_threshold",
+        GCP_MODERATION_INPUT,
         _risk_outcome(0.8, blocked=False, threshold_mode="simple"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "gcp_moderation_output_blocks_above_simple_threshold",
-        GCP_MODERATION_OUTPUT,
+        "gcp_moderation_input_blocks_above_simple_threshold",
+        GCP_MODERATION_INPUT,
         _risk_outcome(0.81, blocked=True, threshold_mode="simple"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "gcp_moderation_output_detailed_allows_at_derogatory_threshold",
-        GCP_MODERATION_OUTPUT_DETAILED,
+        "gcp_moderation_input_detailed_allows_at_derogatory_threshold",
+        GCP_MODERATION_INPUT_DETAILED,
         _risk_outcome(0.4, blocked=False, threshold_mode="detailed", violations={"Derogatory": 0.4}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "gcp_moderation_output_detailed_blocks_above_derogatory_threshold",
-        GCP_MODERATION_OUTPUT_DETAILED,
-        _risk_outcome(0.41, blocked=True, threshold_mode="detailed", violations={"Derogatory": 0.41}),
+        "gcp_moderation_input_detailed_blocks_above_derogatory_threshold",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Derogatory": 0.41},
+            triggered_violation="Derogatory",
+        ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
         expected_content="I will not engage in any abusive or harmful behavior.",
+    ),
+    _case(
+        "gcp_moderation_input_detailed_fails_closed_without_trigger_metadata",
+        GCP_MODERATION_INPUT_DETAILED,
+        RailOutcome.block(
+            reason="Moderation threshold exceeded.",
+            metadata={"max_risk_score": 0.41, "violations": {}, "threshold_mode": "detailed"},
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
     ),
     _case(
         "guardrails_ai_input_allows_valid",
@@ -2450,3 +2459,64 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
         assert response == {"role": "assistant", "content": case.expected_content}
     if case.expected_output_data is not None:
         assert output_data == case.expected_output_data
+
+
+@pytest.mark.parametrize(
+    ("module", "flow", "action_name", "outcome", "expected"),
+    [
+        (
+            "activefence",
+            "activefence moderation on input detailed",
+            "call_activefence_api",
+            _risk_outcome(
+                0.31,
+                blocked=True,
+                threshold_mode="detailed",
+                violations={"adult_content.general": 0.31},
+                triggered_violation="adult_content.general",
+            ),
+            "I will not engage with inappropriate content.",
+        ),
+        (
+            "activefence",
+            "activefence moderation on input detailed",
+            "call_activefence_api",
+            RailOutcome.block(
+                reason="Moderation threshold exceeded.",
+                metadata={"max_risk_score": 0.31, "violations": {}, "threshold_mode": "detailed"},
+            ),
+            REFUSAL,
+        ),
+    ],
+)
+def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, action_name, outcome, expected):
+    """Colang 2 uses the action verdict while preserving its legacy response."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content=f"""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.{module}
+
+            flow input rails $input_text
+              {flow}
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "{NORMAL_OUTPUT}"
+        """,
+    )
+    chat = TestChat(config)
+
+    async def stub_action(**kwargs):
+        return outcome
+
+    chat.app.register_action(stub_action, action_name)
+
+    chat >> USER_INPUT
+    chat << expected
