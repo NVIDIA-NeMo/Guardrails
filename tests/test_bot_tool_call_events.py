@@ -36,7 +36,7 @@ async def test_bot_tool_call_event_creation():
         }
     ]
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -55,7 +55,7 @@ async def test_bot_message_vs_bot_tool_call_event():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat_text = TestChat(config, llm_completions=["Regular text response"])
@@ -73,7 +73,7 @@ async def test_bot_message_vs_bot_tool_call_event():
         }
     ]
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat_tools = TestChat(config, llm_completions=[""])
@@ -113,7 +113,7 @@ async def test_tool_calls_bypass_output_rails():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
@@ -138,7 +138,7 @@ async def test_mixed_content_and_tool_calls():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(
@@ -172,7 +172,7 @@ async def test_multiple_tool_calls():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
@@ -201,7 +201,7 @@ async def test_regular_text_still_goes_through_output_rails():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat = TestChat(config, llm_completions=["This is a regular response"])
@@ -230,7 +230,7 @@ async def test_empty_text_without_tool_calls_still_blocked():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat = TestChat(config, llm_completions=[""])

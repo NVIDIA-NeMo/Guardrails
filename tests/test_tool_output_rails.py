@@ -92,7 +92,7 @@ async def test_tool_output_rails_basic():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
@@ -191,7 +191,7 @@ async def test_multiple_tool_output_rails():
         """,
     )
 
-    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
