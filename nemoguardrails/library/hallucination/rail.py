@@ -46,7 +46,6 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("hallucination warning", "self check hallucination")),
         actions=RailActions(refs=(SELF_CHECK_HALLUCINATION,)),
         surfaces=(
-            RailSurface(name="hallucination warning", direction=RailDirection.OUTPUT, action=SELF_CHECK_HALLUCINATION),
             RailSurface(
                 name="self check hallucination", direction=RailDirection.OUTPUT, action=SELF_CHECK_HALLUCINATION
             ),

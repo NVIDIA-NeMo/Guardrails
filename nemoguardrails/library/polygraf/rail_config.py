@@ -21,6 +21,8 @@ from nemoguardrails.manifests.config_schema import Field, RailConfigBaseModel, R
 
 
 class PolygrafDetectionOptions(RailConfigBaseModel):
+    """Configuration options for Polygraf."""
+
     model_config = ConfigDict(extra="forbid")
 
     entities: List[str] = Field(
@@ -30,6 +32,8 @@ class PolygrafDetectionOptions(RailConfigBaseModel):
 
 
 class PolygrafDetection(RailConfigBaseModel):
+    """Configuration for Polygraf PII detection."""
+
     model_config = ConfigDict(extra="forbid")
 
     server_endpoint: str = Field(
