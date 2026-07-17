@@ -74,6 +74,18 @@ def test_builtin_manifests_are_discovered_from_rail_modules():
         assert manifest.metadata.description
 
 
+def test_builtin_manifest_docs_urls_resolve():
+    manifests = all_rail_manifests()
+
+    for manifest in manifests.values():
+        docs_url = manifest.metadata.docs_url
+        if docs_url is None or docs_url.startswith(("http://", "https://")):
+            continue
+        assert Path(docs_url).is_file(), f"{manifest.name}: {docs_url}"
+
+    assert manifests["clavata"].metadata.docs_url == ("docs/configure-rails/guardrail-catalog/community/clavata.mdx")
+
+
 def test_builtin_rail_modules_only_import_manifest_types():
     allowed_imports = {"nemoguardrails.manifests"}
     disallowed_imports = []
@@ -110,9 +122,8 @@ def test_builtin_action_refs_match_decorated_names_and_bindings():
         for surface in manifest.surfaces:
             action = resolve_import_ref(surface.action)
             parameters = inspect.signature(action).parameters
-            accepts_kwargs = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
             for binding in surface.bindings:
-                assert accepts_kwargs or binding.action_param in parameters
+                assert binding.action_param in parameters
 
 
 def test_self_check_surfaces_bind_optional_variant():

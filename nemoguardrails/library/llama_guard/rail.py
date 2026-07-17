@@ -44,7 +44,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "content_safety", "moderate"),
         tags=("llama-guard", "moderation", "safety"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/llama-guard.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/llama-guard.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("llama guard check input", "llama guard check output")),

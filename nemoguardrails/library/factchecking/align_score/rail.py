@@ -44,7 +44,7 @@ RAIL = RailManifest(
         categories=("output",),
         capabilities=("allow", "block", "fact_check"),
         tags=("alignscore", "fact-checking", "rag", "grounding"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/alignscore.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/alignscore.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("alignscore check facts",)),

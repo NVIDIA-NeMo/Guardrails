@@ -49,7 +49,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("block", "classify", "detect_pii", "mask", "transform"),
         tags=("pii", "ner", "nim", "gliner"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/gliner.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/gliner.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

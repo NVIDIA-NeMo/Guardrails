@@ -67,7 +67,7 @@ RAIL = RailManifest(
             "transform",
         ),
         tags=("third-party", "api", "moderation", "pii", "fact-checking"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/auto-align.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/auto-align.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

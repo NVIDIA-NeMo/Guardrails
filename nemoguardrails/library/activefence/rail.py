@@ -42,7 +42,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "content_safety", "detect_pii", "moderate"),
         tags=("third-party", "api", "moderation"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/active-fence.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/active-fence.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(

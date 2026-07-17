@@ -48,7 +48,7 @@ RAIL = RailManifest(
         categories=("output",),
         capabilities=("allow", "block", "classify", "fact_check", "moderate"),
         tags=("patronus", "hallucination", "rag", "api"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/patronus-evaluate-api.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/patronus-evaluate-api.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

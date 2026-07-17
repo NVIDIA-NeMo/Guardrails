@@ -42,7 +42,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "content_safety", "moderate"),
         tags=("third-party", "api", "policy"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/policyai.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/policyai.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("policyai moderation on input", "policyai moderation on output")),

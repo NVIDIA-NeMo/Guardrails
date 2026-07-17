@@ -44,7 +44,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "content_safety", "moderate"),
         tags=("third-party", "api", "safety"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/f5-ai-guardrails.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/f5-ai-guardrails.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

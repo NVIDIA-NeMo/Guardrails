@@ -41,7 +41,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "moderate"),
         tags=("third-party", "api", "policy"),
-        docs_url="docs/configure-rails/guardrail-catalog/third-party.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/clavata.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

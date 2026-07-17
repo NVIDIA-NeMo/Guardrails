@@ -54,7 +54,7 @@ RAIL = RailManifest(
             "transform",
         ),
         tags=("third-party", "api", "security"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/pangea.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/pangea.mdx",
         lifecycle="deprecated",
     ),
     spec=RailSpec(

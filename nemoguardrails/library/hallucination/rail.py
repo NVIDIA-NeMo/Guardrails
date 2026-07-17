@@ -40,7 +40,7 @@ RAIL = RailManifest(
         categories=("output",),
         capabilities=("allow", "block", "fact_check"),
         tags=("self-check", "hallucination", "llm-prompt"),
-        docs_url="docs/configure-rails/guardrail-catalog/fact-checking.md",
+        docs_url="docs/configure-rails/guardrail-catalog/fact-checking.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("hallucination warning", "self check hallucination")),

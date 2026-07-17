@@ -42,7 +42,7 @@ RAIL = RailManifest(
         categories=("input",),
         capabilities=("allow", "block", "classify", "content_safety", "moderate"),
         tags=("third-party", "gcp", "moderation"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/gcp-text-moderations.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/gcp-text-moderations.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("gcpnlp moderation", "gcpnlp moderation detailed")),

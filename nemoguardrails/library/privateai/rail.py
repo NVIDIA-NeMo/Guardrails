@@ -49,7 +49,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("block", "classify", "detect_pii", "mask", "transform"),
         tags=("third-party", "api", "pii"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/privateai.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/privateai.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(
