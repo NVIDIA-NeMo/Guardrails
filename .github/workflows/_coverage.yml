@@ -1,0 +1,21 @@
+name: Reusable Coverage
+
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    uses: ./.github/workflows/_test.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    with:
+      os: Ubuntu
+      image: ubuntu-latest
+      python-version: "3.11"
+      with-coverage: true

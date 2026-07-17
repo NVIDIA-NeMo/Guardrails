@@ -12,11 +12,6 @@ permissions:
 
 jobs:
   develop-coverage:
-    uses: ./.github/workflows/_test.yml
+    uses: ./.github/workflows/_coverage.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-    with:
-      os: Ubuntu
-      image: ubuntu-latest
-      python-version: "3.11"
-      with-coverage: true

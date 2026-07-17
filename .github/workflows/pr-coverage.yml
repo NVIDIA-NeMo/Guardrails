@@ -1,0 +1,27 @@
+name: PR Coverage
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - ".github/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-coverage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-coverage:
+    uses: ./.github/workflows/_coverage.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  pr-coverage-summary:
+    name: PR Coverage Summary
+    needs: pr-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm PR coverage passed
+        run: echo "PR coverage completed successfully"
