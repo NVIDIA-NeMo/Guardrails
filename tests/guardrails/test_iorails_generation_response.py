@@ -299,13 +299,18 @@ class TestUnsupportedOptionGuards:
             await iorails.generate_async(_USER, options={"output_vars": ["relevant_chunks"]})
 
     @pytest.mark.asyncio
-    async def test_log_request_flag_raises(self, iorails):
-        """Requesting any ``log`` detail raises NotImplementedError while ``log`` is deferred."""
+    async def test_colang_only_log_flag_raises(self, iorails):
+        """Colang-runtime-only log details raise NotImplementedError.
+
+        ``activated_rails``/``llm_calls`` are supported and produce a GenerationLog;
+        only ``internal_events`` and ``colang_history`` (which need the Colang runtime)
+        are rejected.
+        """
         _stub_safe_rails(iorails)
         _stub_model(iorails, LLMResponse(content="Hello"))
 
         with pytest.raises(NotImplementedError):
-            await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+            await iorails.generate_async(_USER, options={"log": {"internal_events": True}})
 
     @pytest.mark.asyncio
     async def test_state_argument_raises(self, iorails):
