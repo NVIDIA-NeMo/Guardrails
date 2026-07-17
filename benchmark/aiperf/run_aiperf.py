@@ -145,7 +145,10 @@ class AIPerfRunner:
         """Create a list of strings with the aiperf command and arguments to execute"""
 
         # Run aiperf in profile mode: `aiperf profile`
-        cmd = ["aiperf", "profile"]
+        # Prefer the aiperf binary co-located with the running Python interpreter so
+        # that callers don't need to manipulate PATH when using a specific venv.
+        _aiperf_bin = Path(sys.executable).parent / "aiperf"
+        cmd = [str(_aiperf_bin) if _aiperf_bin.exists() else "aiperf", "profile"]
 
         # Get base config as dictionary
         base_params = self.config.base_config.model_dump()
