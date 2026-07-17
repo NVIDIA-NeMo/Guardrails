@@ -46,7 +46,7 @@ async def self_check_output(
     events: Optional[List[dict]] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
-    task: Optional[str] = None,
+    variant: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks if the output from the bot.
@@ -67,7 +67,7 @@ async def self_check_output(
     bot_thinking = context.get("bot_thinking")
 
     task = resolve_self_check_task(
-        task,
+        variant,
         context,
         events,
         triggered_rail_key="triggered_output_rail",

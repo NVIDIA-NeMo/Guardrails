@@ -46,7 +46,7 @@ async def self_check_input(
     events: Optional[List[dict]] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
-    task: Optional[str] = None,
+    variant: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks the input from the user.
@@ -62,7 +62,7 @@ async def self_check_input(
     user_input = context.get("user_message")
 
     task = resolve_self_check_task(
-        task,
+        variant,
         context,
         events,
         triggered_rail_key="triggered_input_rail",

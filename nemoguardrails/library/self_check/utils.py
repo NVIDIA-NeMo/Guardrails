@@ -66,7 +66,7 @@ def get_self_check_prompt_task(
 
 
 def resolve_self_check_task(
-    task: Optional[str],
+    variant: Optional[str],
     context: Optional[dict],
     events: Optional[List[dict]],
     triggered_rail_key: str,
@@ -75,8 +75,8 @@ def resolve_self_check_task(
     variant_param: str,
     default_task: str,
 ) -> str:
-    if task and not task.startswith("$"):
-        return task
+    if variant and not variant.startswith("$"):
+        return variant
 
     context = context or {}
     context_task = get_self_check_task_from_rail(
