@@ -26,7 +26,7 @@ import importlib
 from enum import Enum
 from typing import Any, Literal, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 
@@ -174,6 +174,14 @@ class Binding(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    @model_validator(mode="after")
+    def _source_must_match_kind(self) -> "Binding":
+        if self.kind == "literal" and self.key is not None:
+            raise ValueError("Literal bindings cannot declare a source key.")
+        if self.kind != "literal" and self.key is None:
+            raise ValueError(f"{self.kind} bindings must declare a source key.")
+        return self
+
     @classmethod
     def surface_param(cls, action_param: str, name: str, *, required: bool = True) -> "Binding":
         """Bind `action_param` to a caller-supplied surface parameter.
@@ -226,6 +234,18 @@ class RailSurface(BaseModel):
     transform_target: Optional[TransformTarget] = None
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @model_validator(mode="after")
+    def _validate_execution_contract(self) -> "RailSurface":
+        seen = set()
+        duplicates = set()
+        for binding in self.bindings:
+            if binding.action_param in seen:
+                duplicates.add(binding.action_param)
+            seen.add(binding.action_param)
+        if duplicates:
+            raise ValueError(f"Rail surfaces cannot bind action parameters more than once: {sorted(duplicates)}.")
+        return self
 
 
 class EnvVar(BaseModel):

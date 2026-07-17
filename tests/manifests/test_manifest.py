@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ConfigSpecRef,
     RailActions,
     RailConfigSchema,
@@ -121,3 +122,26 @@ def test_flat_manifest_is_rejected():
 
     with pytest.raises(ValidationError):
         RailManifest.model_validate(flat_manifest)
+
+
+@pytest.mark.parametrize(
+    "factory",
+    (
+        lambda: Binding(kind="context", action_param="text"),
+        lambda: Binding(kind="surface_param", action_param="model"),
+        lambda: Binding(kind="literal", action_param="mode", key="source", value="strict"),
+    ),
+)
+def test_binding_source_matches_binding_kind(factory):
+    with pytest.raises(ValidationError, match="source key"):
+        factory()
+
+
+def test_surface_rejects_duplicate_action_parameter_bindings():
+    with pytest.raises(ValidationError, match="more than once"):
+        RailSurface(
+            name="duplicate bindings",
+            direction="input",
+            action=_action(),
+            bindings=(Binding.context("text", "user_message"), Binding.literal("text", "value")),
+        )
