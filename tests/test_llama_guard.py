@@ -13,8 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, cast
+
+import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.llama_guard.actions import (
+    llama_guard_check_input,
+    llama_guard_check_output,
+)
+from nemoguardrails.llm.taskmanager import LLMTaskManager
+from tests.llama_guard_fixtures import (
+    LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
+    LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS,
+    LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS,
+)
 from tests.utils import FakeLLMModel, TestChat
 
 COLANG_CONFIG = """
@@ -52,6 +66,45 @@ prompts:
 """
 
 
+class _LlamaGuardTaskManager:
+    def render_task_prompt(self, task: Any, context: dict[str, Any]) -> str:
+        return "prompt"
+
+    def get_stop_tokens(self, task: Any) -> list[str]:
+        return []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("llm_response", "expected"),
+    [
+        ("safe", RailOutcome.allow(metadata={"policy_violations": LLAMA_GUARD_SAFE_POLICY_VIOLATIONS})),
+        ("unsafe s1", RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNSAFE_POLICY_VIOLATIONS})),
+        ("error", RailOutcome.block(metadata={"policy_violations": LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS})),
+    ],
+)
+async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):
+    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
+    context = {"user_message": "hello", "bot_message": "hello"}
+
+    for action_func in (llama_guard_check_input, llama_guard_check_output):
+        outcome = await action_func(
+            llm_task_manager=task_manager,
+            context=context,
+            llama_guard_llm=FakeLLMModel(responses=[llm_response]),
+        )
+
+        assert outcome == expected
+
+
+def test_llama_guard_output_action_metadata_is_registration_only():
+    assert set(getattr(llama_guard_check_output, "action_meta")) == {
+        "name",
+        "is_system_action",
+        "execute_async",
+    }
+
+
 def test_llama_guard_check_all_safe():
     """
     Test the chat flow when both llama_guard_check_input and llama_guard_check_output actions return "safe"
@@ -74,8 +127,8 @@ def test_llama_guard_check_all_safe():
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
-    chat >> "Hi"
-    chat << "Hi there! How are you doing?"
+    _ = chat >> "Hi"
+    _ = chat << "Hi there! How are you doing?"
 
 
 def test_llama_guard_check_input_unsafe():
@@ -99,13 +152,13 @@ def test_llama_guard_check_input_unsafe():
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
-    chat >> "Unsafe input"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Unsafe input"
+    _ = chat << "I'm sorry, I can't respond to that."
 
 
-def test_llama_guard_check_input_error():
+def test_llama_guard_check_input_unparseable_fail_closed():
     """
-    Test the chat flow when the llama_guard_check_input action raises an error
+    Test the chat flow when llama_guard_check_input returns an unparseable response
     """
     config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
@@ -119,13 +172,13 @@ def test_llama_guard_check_input_error():
 
     llama_guard_llm = FakeLLMModel(
         responses=[
-            "error",  # llama_guard_check_input
+            "error",  # unparseable llama_guard_check_input response
         ]
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
-    chat >> "Unsafe input"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Unsafe input"
+    _ = chat << "I'm sorry, I can't respond to that."
 
 
 def test_llama_guard_check_output_unsafe():
@@ -150,13 +203,13 @@ def test_llama_guard_check_output_unsafe():
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
-    chat >> "Unsafe input"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Unsafe input"
+    _ = chat << "I'm sorry, I can't respond to that."
 
 
-def test_llama_guard_check_output_error():
+def test_llama_guard_check_output_unparseable_fail_closed():
     """
-    Test the chat flow when the llama_guard_check_input action raises an error
+    Test the chat flow when llama_guard_check_output returns an unparseable response
     """
     config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
@@ -171,10 +224,10 @@ def test_llama_guard_check_output_error():
     llama_guard_llm = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
-            "error",  # llama_guard_check_output
+            "error",  # unparseable llama_guard_check_output response
         ]
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
-    chat >> "Unsafe input"
-    chat << "I'm sorry, I can't respond to that."
+    _ = chat >> "Unsafe input"
+    _ = chat << "I'm sorry, I can't respond to that."

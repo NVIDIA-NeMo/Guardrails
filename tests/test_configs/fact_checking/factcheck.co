@@ -19,7 +19,8 @@ define subflow check facts
   if $check_facts == True
     $check_facts = False
 
-    $accuracy = execute alignscore_check_facts
+    $response = execute alignscore_check_facts
+    $accuracy = $response.metadata["accuracy"]
     if $accuracy < 0.4
       bot inform answer unknown
       stop

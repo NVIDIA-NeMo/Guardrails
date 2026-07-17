@@ -18,6 +18,7 @@ from typing import List, TypedDict
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 
 log = logging.getLogger(__name__)
 
@@ -28,18 +29,23 @@ class RegexDetectionResult(TypedDict):
     detections: List[str]
 
 
-def _regex_blocked_mapping(result: RegexDetectionResult) -> bool:
-    """Return True (blocked) when a regex match was found."""
-    return result.get("is_match", False)
+def _regex_outcome(source: str, result: RegexDetectionResult) -> RailOutcome:
+    metadata = dict(result)
+    metadata["source"] = source
+    if result["is_match"] and source == "retrieval":
+        return RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")], metadata=metadata)
+    if result["is_match"]:
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=_regex_blocked_mapping)
+@action(is_system_action=True)
 async def detect_regex_pattern(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-) -> RegexDetectionResult:
+) -> RailOutcome:
     """Checks whether the provided text matches any forbidden regex pattern.
 
     Args:
@@ -48,7 +54,7 @@ async def detect_regex_pattern(
         config: The rails configuration object.
 
     Returns:
-        RegexDetectionResult: A TypedDict containing:
+        RailOutcome with RegexDetectionResult fields in metadata:
             - is_match (bool): Whether any pattern matched.
             - text (str): The original text that was checked.
             - detections (List[str]): List of pattern strings that matched.
@@ -59,22 +65,22 @@ async def detect_regex_pattern(
     regex_config = config.rails.config.regex_detection
     if regex_config is None:
         log.warning("No regex_detection configuration found.")
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
 
     options = getattr(regex_config, source, None)
 
     if options is None:
         log.warning("No regex rails configuration found for source: %s", source)
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
 
     compiled_patterns = options.compiled_patterns
     if not compiled_patterns:
         log.debug("No regex patterns specified for source: %s", source)
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
 
     if not text:
         log.debug("Empty text provided, skipping regex check.")
-        return RegexDetectionResult(is_match=False, text=text, detections=[])
+        return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))
 
     # Match against pre-compiled patterns and collect all matches.
     matched: List[str] = []
@@ -84,6 +90,6 @@ async def detect_regex_pattern(
             matched.append(raw_pattern)
 
     if matched:
-        return RegexDetectionResult(is_match=True, text=text, detections=matched)
+        return _regex_outcome(source, RegexDetectionResult(is_match=True, text=text, detections=matched))
 
-    return RegexDetectionResult(is_match=False, text=text, detections=[])
+    return _regex_outcome(source, RegexDetectionResult(is_match=False, text=text, detections=[]))

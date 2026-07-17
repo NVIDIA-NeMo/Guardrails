@@ -4,9 +4,9 @@
 
 define subflow detect pii on input
   """Check if the user input has PII."""
-  $has_pii = execute detect_pii(source="input", text=$user_message)
+  $response = execute detect_pii(source="input", text=$user_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
@@ -15,9 +15,9 @@ define subflow detect pii on input
 
 define subflow detect pii on output
   """Check if the bot output has PII."""
-  $has_pii = execute detect_pii(source="output", text=$bot_message)
+  $response = execute detect_pii(source="output", text=$bot_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
@@ -26,9 +26,9 @@ define subflow detect pii on output
 
 define subflow detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII."""
-  $has_pii = execute detect_pii(source="retrieval", text=$relevant_chunks)
+  $response = execute detect_pii(source="retrieval", text=$relevant_chunks)
 
-  if $has_pii
+  if $response.is_blocked
     bot inform answer unknown
     stop
 
@@ -42,20 +42,27 @@ define subflow detect pii on retrieval
 
 define subflow mask pii on input
   """Mask any detected PII in the user input."""
-  $masked_input = execute mask_pii(source="input", text=$user_message)
+  $response = execute mask_pii(source="input", text=$user_message)
 
-  $user_message = $masked_input
+  if $response.is_transform
+    $user_message = $response.transform_text["user_message"]
 
 
 # OUTPUT RAILS
 
 define subflow mask pii on output
   """Mask any detected PII in the bot output."""
-  $bot_message = execute mask_pii(source="output", text=$bot_message)
+  $response = execute mask_pii(source="output", text=$bot_message)
+
+  if $response.is_transform
+    $bot_message = $response.transform_text["bot_message"]
 
 
 # RETRIVAL RAILS
 
 define subflow mask pii on retrieval
   """Mask any detected PII in the relevant chunks from the knowledge base."""
-  $relevant_chunks = execute mask_pii(source="retrieval", text=$relevant_chunks)
+  $response = execute mask_pii(source="retrieval", text=$relevant_chunks)
+
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

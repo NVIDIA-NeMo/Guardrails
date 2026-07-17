@@ -14,9 +14,9 @@ define subflow policyai moderation on input
   """Guardrail based on PolicyAI assessment."""
   $result = execute call_policyai_api(text=$user_message)
 
-  if $result.assessment == "UNSAFE"
+  if $result.is_blocked
     if $config.enable_rails_exceptions
-      create event PolicyAIModerationRailException(message=$result.exception_message)
+      create event PolicyAIModerationRailException(message=$result.metadata["exception_message"])
     else
       bot refuse to respond
     stop
@@ -25,9 +25,9 @@ define subflow policyai moderation on output
   """Guardrail based on PolicyAI assessment."""
   $result = execute call_policyai_api(text=$bot_message)
 
-  if $result.assessment == "UNSAFE"
+  if $result.is_blocked
     if $config.enable_rails_exceptions
-      create event PolicyAIModerationRailException(message=$result.exception_message)
+      create event PolicyAIModerationRailException(message=$result.metadata["exception_message"])
     else
       bot refuse to respond
     stop

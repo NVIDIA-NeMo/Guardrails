@@ -172,6 +172,60 @@ async def test_sequential_streaming_action_execution_failure(action_error: Excep
 
 
 @pytest.mark.asyncio
+async def test_sequential_streaming_invalid_rail_outcome():
+    """Test fail-closed behavior when a sequential streaming rail returns an invalid result."""
+
+    @action(is_system_action=True)
+    def invalid_rail_action(**params):
+        return False
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}],
+            "rails": {
+                "output": {
+                    "parallel": False,
+                    "flows": ["invalid safety check"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                    },
+                }
+            },
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+        define flow
+          user express greeting
+          bot express greeting
+
+        define subflow invalid safety check
+          execute invalid_rail_action
+        """,
+    )
+
+    llm_completions = [
+        'bot express greeting\n  "Hello there! How can I help you?"',
+    ]
+
+    chat = TestChat(config, llm_completions=llm_completions, streaming=True)
+    chat.app.register_action(invalid_rail_action)
+
+    chunks = await collect_streaming_chunks(chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]))
+
+    internal_error_chunks = find_internal_error_chunks(chunks)
+    assert len(internal_error_chunks) == 1
+    error = internal_error_chunks[0]["error"]
+    assert error == {
+        "message": "Internal error in invalid safety check rail: Rail action must return RailOutcome, got bool",
+        "type": "internal_error",
+        "param": "invalid safety check",
+        "code": "rail_execution_failure",
+    }
+
+
+@pytest.mark.asyncio
 async def test_streaming_internal_error_format():
     """Test that streaming internal errors have the correct format."""
 

@@ -40,6 +40,7 @@ except ImportError:
 
 from nemoguardrails import RailsConfig  # noqa: E402
 from nemoguardrails.actions import action  # noqa: E402
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget  # noqa: E402
 from nemoguardrails.library.injection_detection.yara_config import ActionOptions, Rules  # noqa: E402
 
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
@@ -51,6 +52,20 @@ class InjectionDetectionResult(TypedDict):
     is_injection: bool
     text: str
     detections: List[str]
+
+
+def _injection_detection_outcome(
+    result: InjectionDetectionResult,
+    action_option: str,
+    original_text: str,
+) -> RailOutcome:
+    metadata = dict(result)
+    metadata["action"] = action_option
+    if action_option == "reject" and result["is_injection"]:
+        return RailOutcome.block(metadata=metadata)
+    if result["text"] != original_text:
+        return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, result["text"])], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _check_yara_available():
@@ -296,7 +311,7 @@ def _reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, List[str]]:
 
 
 @action()
-async def injection_detection(text: str, config: RailsConfig) -> InjectionDetectionResult:
+async def injection_detection(text: str, config: RailsConfig) -> RailOutcome:
     """
     Detects and mitigates potential injection attempts in the provided text.
 
@@ -310,7 +325,7 @@ async def injection_detection(text: str, config: RailsConfig) -> InjectionDetect
         config (RailsConfig): The Rails configuration object containing injection detection settings.
 
     Returns:
-        InjectionDetectionResult: A TypedDict containing:
+        RailOutcome with InjectionDetectionResult fields in metadata:
             - is_injection (bool): Whether an injection was detected. True if any injection is detected,
                             False if no injection is detected.
             - text (str): The sanitized or original text
@@ -333,11 +348,19 @@ async def injection_detection(text: str, config: RailsConfig) -> InjectionDetect
         log.warning(
             "injection detection guardrail was invoked but no rules were specified in the InjectionDetection config."
         )
-        return InjectionDetectionResult(is_injection=False, text=text, detections=[])
+        return _injection_detection_outcome(
+            InjectionDetectionResult(is_injection=False, text=text, detections=[]),
+            action_option,
+            text,
+        )
 
     if action_option == "reject":
         is_injection, detected_rules = _reject_injection(text, rules)
-        return InjectionDetectionResult(is_injection=is_injection, text=text, detections=detected_rules)
+        return _injection_detection_outcome(
+            InjectionDetectionResult(is_injection=is_injection, text=text, detections=detected_rules),
+            action_option,
+            text,
+        )
     else:
         matches = rules.match(data=text)
         if matches:
@@ -346,19 +369,27 @@ async def injection_detection(text: str, config: RailsConfig) -> InjectionDetect
 
             if action_option == "omit":
                 is_injection, result_text = _omit_injection(text, matches)
-                return InjectionDetectionResult(
-                    is_injection=is_injection,
-                    text=result_text,
-                    detections=detected_rules_list,
+                return _injection_detection_outcome(
+                    InjectionDetectionResult(
+                        is_injection=is_injection,
+                        text=result_text,
+                        detections=detected_rules_list,
+                    ),
+                    action_option,
+                    text,
                 )
             elif action_option == "sanitize":
                 # _sanitize_injection will raise NotImplementedError before returning a tuple.
                 # the assignment below is for structural consistency if it were implemented.
                 is_injection, result_text = _sanitize_injection(text, matches)
-                return InjectionDetectionResult(
-                    is_injection=is_injection,
-                    text=result_text,
-                    detections=detected_rules_list,
+                return _injection_detection_outcome(
+                    InjectionDetectionResult(
+                        is_injection=is_injection,
+                        text=result_text,
+                        detections=detected_rules_list,
+                    ),
+                    action_option,
+                    text,
                 )
             else:
                 raise NotImplementedError(
@@ -366,4 +397,8 @@ async def injection_detection(text: str, config: RailsConfig) -> InjectionDetect
                 )
         # no matches found
         else:
-            return InjectionDetectionResult(is_injection=False, text=text, detections=[])
+            return _injection_detection_outcome(
+                InjectionDetectionResult(is_injection=False, text=text, detections=[]),
+                action_option,
+                text,
+            )

@@ -17,7 +17,8 @@ import logging
 from typing import Dict, List, Optional
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.actions.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.self_check.utils import (
     SELF_CHECK_INPUT_DEFAULT_TASK,
     SELF_CHECK_INPUT_FLOW,
@@ -27,11 +28,14 @@ from nemoguardrails.library.self_check.utils import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.types import LLMModel
-from nemoguardrails.utils import new_event_dict
 
 log = logging.getLogger(__name__)
 
 DEFAULT_TASK = SELF_CHECK_INPUT_DEFAULT_TASK
+
+
+def _self_check_outcome(allowed: bool) -> RailOutcome:
+    return RailOutcome.allow() if allowed else RailOutcome.block()
 
 
 @action(is_system_action=True)
@@ -44,14 +48,14 @@ async def self_check_input(
     config: Optional[RailsConfig] = None,
     task: Optional[str] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks the input from the user.
 
     Prompt the LLM, using the `check_input` task prompt, to determine if the input
     from the user should be allowed or not.
 
     Returns:
-        True if the input should be allowed, False otherwise.
+        RailOutcome.allow() if the input should be allowed, RailOutcome.block() otherwise.
     """
 
     context = context or {}
@@ -68,28 +72,24 @@ async def self_check_input(
         default_task=DEFAULT_TASK,
     )
 
-    if user_input:
-        is_safe, response = await run_self_check_task(
-            task=task,
-            prompt_context={
-                "user_input": user_input,
-            },
-            llms=llms,
-            default_task=DEFAULT_TASK,
-            main_llm=llm,
-            llm_task_manager=llm_task_manager,
-            lowest_temperature=config.lowest_temperature,
-        )
+    if not user_input:
+        return _self_check_outcome(False)
 
-        if task == DEFAULT_TASK:
-            log.info(f"Input self-checking result is: `{response}`.")
-        else:
-            log.info(f"Input self-checking result for task={task} is: `{response}`.")
+    is_safe, response = await run_self_check_task(
+        task=task,
+        prompt_context={
+            "user_input": user_input,
+        },
+        llms=llms,
+        default_task=DEFAULT_TASK,
+        main_llm=llm,
+        llm_task_manager=llm_task_manager,
+        lowest_temperature=config.lowest_temperature if config is not None else 0.0,
+    )
 
-        if not is_safe:
-            return ActionResult(
-                return_value=False,
-                events=[new_event_dict("mask_prev_user_message", intent="unanswerable message")],
-            )
+    if task == DEFAULT_TASK:
+        log.info(f"Input self-checking result is: `{response}`.")
+    else:
+        log.info(f"Input self-checking result for task={task} is: `{response}`.")
 
-        return is_safe
+    return _self_check_outcome(is_safe)

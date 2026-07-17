@@ -18,6 +18,7 @@ from aioresponses import aioresponses
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.library.policyai.actions import call_policyai_api
+from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 from tests.utils import TestChat
 
 
@@ -74,8 +75,8 @@ def test_input_safe(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I assist you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I assist you today?"
 
 
 def test_input_unsafe(monkeypatch):
@@ -131,8 +132,8 @@ def test_input_unsafe(monkeypatch):
             },
         )
 
-        chat >> "some harmful content"
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat >> "some harmful content"
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 def test_output_safe(monkeypatch):
@@ -177,8 +178,8 @@ def test_output_safe(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I help you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I help you today?"
 
 
 def test_output_unsafe(monkeypatch):
@@ -223,8 +224,8 @@ def test_output_unsafe(monkeypatch):
             },
         )
 
-        chat >> "Can I get a refund?"
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat >> "Can I get a refund?"
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 def test_custom_tag_via_env(monkeypatch):
@@ -280,8 +281,8 @@ def test_custom_tag_via_env(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
-        chat << "Hello! How can I assist you today?"
+        _ = chat >> "Hello!"
+        _ = chat << "Hello! How can I assist you today?"
 
 
 def test_multiple_policies(monkeypatch):
@@ -333,9 +334,9 @@ def test_multiple_policies(monkeypatch):
             },
         )
 
-        chat >> "Hello!"
+        _ = chat >> "Hello!"
         # Should be blocked because one policy returned UNSAFE
-        chat << "I'm sorry, I can't respond to that."
+        _ = chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.asyncio
@@ -446,7 +447,8 @@ async def test_empty_text_parameter(monkeypatch):
 
         # Test with empty string
         result = await call_policyai_api(text="")
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -474,7 +476,8 @@ async def test_none_text_parameter(monkeypatch):
 
         # Test with None
         result = await call_policyai_api(text=None)
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -505,7 +508,10 @@ async def test_partial_policy_failures(monkeypatch):
         )
 
         result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
+        assert result.reason == POLICYAI_SAFE_OUTCOME_KWARGS["reason"]
+        assert result.metadata == {key: value for key, value in POLICYAI_SAFE_OUTCOME_KWARGS.items() if key != "reason"}
 
 
 @pytest.mark.asyncio
@@ -533,7 +539,8 @@ async def test_custom_base_url_with_trailing_slash(monkeypatch):
         )
 
         result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -560,7 +567,8 @@ async def test_tag_name_parameter_overrides_env(monkeypatch):
         )
 
         result = await call_policyai_api(text="Hello!", tag_name="param-tag")
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"
 
 
 @pytest.mark.asyncio
@@ -584,34 +592,24 @@ async def test_unsafe_with_missing_fields(monkeypatch):
         )
 
         result = await call_policyai_api(text="Bad content")
-        assert result["assessment"] == "UNSAFE"
-        assert result["category"] == "Unknown"
-        assert result["severity"] == 0
-        assert result["reason"] == "Policy violation detected"
+        assert result.is_blocked is True
+        assert result.metadata["assessment"] == "UNSAFE"
+        assert result.metadata["category"] == "Unknown"
+        assert result.metadata["severity"] == 0
+        assert result.reason == "Policy violation detected"
 
 
-def test_mapping_function_safe():
-    """Test the output mapping function returns False for SAFE."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({"assessment": "SAFE"})
-    assert result is False
-
-
-def test_mapping_function_unsafe():
-    """Test the output mapping function returns True for UNSAFE."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({"assessment": "UNSAFE"})
-    assert result is True
+def test_policyai_action_metadata_is_registration_only():
+    assert set(getattr(call_policyai_api, "action_meta")) == {
+        "name",
+        "is_system_action",
+        "execute_async",
+    }
 
 
-def test_mapping_function_missing_assessment():
-    """Test the output mapping function defaults to SAFE when assessment is missing."""
-    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
-
-    result = call_policyai_api_mapping({})
-    assert result is False
+def test_policyai_fixture_metadata_matches_action_shape():
+    assert POLICYAI_SAFE_OUTCOME_KWARGS["assessment"] == "SAFE"
+    assert POLICYAI_UNSAFE_OUTCOME_KWARGS["assessment"] == "UNSAFE"
 
 
 @pytest.mark.asyncio
@@ -638,4 +636,5 @@ async def test_default_tag_name_prod(monkeypatch):
         )
 
         result = await call_policyai_api(text="Hello!")
-        assert result["assessment"] == "SAFE"
+        assert result.is_blocked is False
+        assert result.metadata["assessment"] == "SAFE"

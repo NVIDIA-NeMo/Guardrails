@@ -2,7 +2,7 @@ flow f5 guardrails scan input $input_text
   """Check the user input for any violations."""
   $result = await F5GuardrailsScanAction(text=$input_text)
 
-  if $result.result.outcome != "cleared"
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send F5GuardrailsRailException(message="Prompt not allowed. The prompt was blocked by the 'f5 guardrails scan input' flow.")
     else
@@ -13,7 +13,7 @@ flow f5 guardrails scan output $output_text
   """Check the bot output for any violations."""
   $result = await F5GuardrailsScanAction(text=$output_text)
 
-  if $result.result.outcome != "cleared"
+  if $result.is_blocked
     if $system.config.enable_rails_exceptions
       send F5GuardrailsRailException(message="Response not allowed. The response was blocked by the 'f5 guardrails scan output' flow.")
     else

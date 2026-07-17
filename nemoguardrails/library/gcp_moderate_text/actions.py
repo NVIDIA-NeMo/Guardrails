@@ -14,89 +14,70 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 log = logging.getLogger(__name__)
 
+GCP_TEXT_DETAILED_THRESHOLDS = {
+    "Toxic": 0.8,
+    "Insult": 0.7,
+    "Profanity": 0.6,
+    "Derogatory": 0.4,
+    "Violent": 0.8,
+    "Sexual": 0.7,
+    "Death, Harm & Tragedy": 0.8,
+    "Firearms & Weapons": 0.8,
+    "Illicit Drugs": 0.8,
+    "Public Safety": 0.8,
+    "Health": 0.8,
+    "Religion & Belief": 0.8,
+    "War & Conflict": 0.8,
+    "Politics": 0.8,
+    "Finance": 0.8,
+    "Legal": 0.8,
+}
 
-def gcp_text_moderation_mapping(result: dict) -> bool:
-    """Determines whether the output from the GCP text moderation API should be blocked.
 
-    The mapping checks two things:
-      1. If the overall 'max_risk_score' exceeds 0.8.
-      2. If any individual violation score (from the 'violations' dictionary) exceeds its defined threshold.
-         - Toxic: > 0.8
-         - Insult: > 0.7
-         - Profanity: > 0.6
-         - Derogatory: > 0.4
-         - Violent: > 0.8
-         - Sexual: > 0.7
-         - Death, Harm & Tragedy: > 0.8
-         - Firearms & Weapons: > 0.8
-         - Illicit Drugs: > 0.8
-         - Public Safety: > 0.8
-         - Health: > 0.8
-         - Religion & Belief: > 0.8
-         - War & Conflict: > 0.8
-         - Politics: > 0.8
-         - Finance: > 0.8
-         - Legal: > 0.8
+def _gcp_text_simple_blocked(max_risk_score: float) -> bool:
+    return max_risk_score > 0.8
 
-    Returns True (i.e. block the output) if any of the conditions are met.
-    """
-    # Check overall risk score if available.
-    max_risk_score = result.get("max_risk_score", 0)
-    if max_risk_score > 0.8:
-        return True
 
-    # Check detailed violations, if provided.
-    violations = result.get("violations", {})
+def _gcp_text_detailed_blocked(violations: dict[str, float]) -> bool:
+    return any(violations.get(name, 0) > threshold for name, threshold in GCP_TEXT_DETAILED_THRESHOLDS.items())
 
-    if violations.get("Toxic", 0) > 0.8:
-        return True
-    if violations.get("Insult", 0) > 0.7:
-        return True
-    if violations.get("Profanity", 0) > 0.6:
-        return True
-    if violations.get("Derogatory", 0) > 0.4:
-        return True
-    if violations.get("Violent", 0) > 0.8:
-        return True
-    if violations.get("Sexual", 0) > 0.7:
-        return True
-    if violations.get("Death, Harm & Tragedy", 0) > 0.8:
-        return True
-    if violations.get("Firearms & Weapons", 0) > 0.8:
-        return True
-    if violations.get("Illicit Drugs", 0) > 0.8:
-        return True
-    if violations.get("Public Safety", 0) > 0.8:
-        return True
-    if violations.get("Health", 0) > 0.8:
-        return True
-    if violations.get("Religion & Belief", 0) > 0.8:
-        return True
-    if violations.get("War & Conflict", 0) > 0.8:
-        return True
-    if violations.get("Politics", 0) > 0.8:
-        return True
-    if violations.get("Finance", 0) > 0.8:
-        return True
-    if violations.get("Legal", 0) > 0.8:
-        return True
 
-    # If none of the thresholds are exceeded, allow the output.
-    return False
+def _gcp_text_moderation_outcome(
+    max_risk_score: float,
+    violations: dict[str, float],
+    threshold_mode: Literal["simple", "detailed"] = "simple",
+) -> RailOutcome:
+    metadata = {
+        "max_risk_score": max_risk_score,
+        "violations": violations,
+        "threshold_mode": threshold_mode,
+    }
+    blocked = (
+        _gcp_text_detailed_blocked(violations)
+        if threshold_mode == "detailed"
+        else _gcp_text_simple_blocked(max_risk_score)
+    )
+    if blocked:
+        return RailOutcome.block(metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 @action(
     name="call gcpnlp api",
     is_system_action=True,
-    output_mapping=gcp_text_moderation_mapping,
 )
-async def call_gcp_text_moderation_api(context: Optional[dict] = None, **kwargs) -> dict:
+async def call_gcp_text_moderation_api(
+    context: Optional[dict] = None,
+    threshold_mode: Literal["simple", "detailed"] = "simple",
+    **kwargs,
+) -> RailOutcome:
     """
     Application Default Credentials (ADC) is a strategy used by the GCP authentication libraries to automatically
     find credentials based on the application environment. ADC searches for credentials in the following locations (Search order):
@@ -107,13 +88,14 @@ async def call_gcp_text_moderation_api(context: Optional[dict] = None, **kwargs)
     For more information check https://cloud.google.com/docs/authentication/application-default-credentials
     """
     try:
-        from google.cloud import language_v2
+        from google.cloud import language_v2  # type: ignore[reportAttributeAccessIssue]
 
     except ImportError:
         raise ImportError(
             "Could not import google.cloud.language_v2, please install it with `pip install google-cloud-language`."
         )
 
+    context = context or {}
     user_message = context.get("user_message")
     client = language_v2.LanguageServiceAsyncClient()
 
@@ -131,4 +113,4 @@ async def call_gcp_text_moderation_api(context: Optional[dict] = None, **kwargs)
             max_risk_score = violation.confidence
         violations_dict[violation.name] = violation.confidence
 
-    return {"max_risk_score": max_risk_score, "violations": violations_dict}
+    return _gcp_text_moderation_outcome(max_risk_score, violations_dict, threshold_mode)

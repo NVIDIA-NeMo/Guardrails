@@ -30,7 +30,6 @@ class ActionMeta(TypedDict):
     name: str
     is_system_action: bool
     execute_async: bool
-    output_mapping: Optional[Callable[[Any], bool]]
 
 
 # Create a TypeVar to represent the decorated function or class
@@ -41,7 +40,6 @@ def action(
     is_system_action: bool = False,
     name: Optional[str] = None,
     execute_async: bool = False,
-    output_mapping: Optional[Callable[[Any], bool]] = None,
 ) -> Callable[[T], T]:
     """Decorator to mark a function or class as an action.
 
@@ -49,9 +47,6 @@ def action(
         is_system_action (bool): Flag indicating if the action is a system action.
         name (str): The name to associate with the action.
         execute_async: Whether the function should be executed in async mode.
-        output_mapping (Optional[Callable[[Any], bool]]): A function to interpret the action's result.
-            It accepts the return value (e.g. the first element of a tuple) and return True if the output
-            is not safe.
 
     Returns:
         callable: The decorated function or class.
@@ -74,7 +69,6 @@ def action(
             "name": action_name,
             "is_system_action": is_system_action,
             "execute_async": execute_async,
-            "output_mapping": output_mapping,
         }
 
         setattr(fn_or_cls_target, "action_meta", action_meta)

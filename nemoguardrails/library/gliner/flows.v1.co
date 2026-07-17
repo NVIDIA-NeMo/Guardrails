@@ -4,9 +4,9 @@
 
 define subflow gliner detect pii on input
   """Check if the user input has PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="input", text=$user_message)
+  $response = execute gliner_detect_pii(source="input", text=$user_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -15,9 +15,9 @@ define subflow gliner detect pii on input
 
 define subflow gliner detect pii on output
   """Check if the bot output has PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="output", text=$bot_message)
+  $response = execute gliner_detect_pii(source="output", text=$bot_message)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -26,9 +26,9 @@ define subflow gliner detect pii on output
 
 define subflow gliner detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII using GLiNER."""
-  $has_pii = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
+  $response = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
 
-  if $has_pii
+  if $response.is_blocked
     bot refuse to respond
     stop
 
@@ -42,20 +42,27 @@ define subflow gliner detect pii on retrieval
 
 define subflow gliner mask pii on input
   """Mask any detected PII in the user input using GLiNER."""
-  $masked_input = execute gliner_mask_pii(source="input", text=$user_message)
+  $response = execute gliner_mask_pii(source="input", text=$user_message)
 
-  $user_message = $masked_input
+  if $response.is_transform
+    $user_message = $response.transform_text["user_message"]
 
 
 # OUTPUT RAILS
 
 define subflow gliner mask pii on output
   """Mask any detected PII in the bot output using GLiNER."""
-  $bot_message = execute gliner_mask_pii(source="output", text=$bot_message)
+  $response = execute gliner_mask_pii(source="output", text=$bot_message)
+
+  if $response.is_transform
+    $bot_message = $response.transform_text["bot_message"]
 
 
 # RETRIEVAL RAILS
 
 define subflow gliner mask pii on retrieval
   """Mask any detected PII in the relevant chunks from the knowledge base using GLiNER."""
-  $relevant_chunks = execute gliner_mask_pii(source="retrieval", text=$relevant_chunks)
+  $response = execute gliner_mask_pii(source="retrieval", text=$relevant_chunks)
+
+  if $response.is_transform
+    $relevant_chunks = $response.transform_text["relevant_chunks"]

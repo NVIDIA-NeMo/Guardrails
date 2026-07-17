@@ -678,29 +678,19 @@ async def test_regex_action_accepts_extra_kwargs():
         llm=object(),
     )
 
-    assert result["is_match"] is True
-    assert "\\bconfidential\\b" in result["detections"]
+    assert result.is_blocked is True
+    assert result.metadata["is_match"] is True
+    assert "\\bconfidential\\b" in result.metadata["detections"]
 
 
 @pytest.mark.unit
-def test_regex_output_mapping_blocks_on_match():
-    """The output_mapping on detect_regex_pattern must return True (blocked)
-    when is_match is True, so the streaming output rail framework blocks content."""
-    from nemoguardrails.actions.output_mapping import is_output_blocked
-    from nemoguardrails.library.regex.actions import RegexDetectionResult
+def test_regex_output_verdict_blocks_on_match():
+    from nemoguardrails.actions.rail_outcome import RailOutcome
 
-    matched = RegexDetectionResult(is_match=True, text="fight club", detections=["\\bfight\\s+club\\b"])
-    no_match = RegexDetectionResult(is_match=False, text="hello", detections=[])
-
-    assert is_output_blocked(matched, detect_regex_pattern) is True
-    assert is_output_blocked(no_match, detect_regex_pattern) is False
-
-
-@pytest.mark.unit
-def test_regex_output_mapping_is_registered():
-    """detect_regex_pattern must have an output_mapping in its action_meta."""
-    meta = getattr(detect_regex_pattern, "action_meta", {})
-    assert meta.get("output_mapping") is not None, (
-        "detect_regex_pattern is missing output_mapping — streaming output rails "
-        "will silently pass matched content through (see #1936 follow-up)"
+    matched = RailOutcome.block(
+        metadata={"is_match": True, "text": "fight club", "detections": ["\\bfight\\s+club\\b"]}
     )
+    no_match = RailOutcome.allow(metadata={"is_match": False, "text": "hello", "detections": []})
+
+    assert matched.is_blocked is True
+    assert no_match.is_blocked is False

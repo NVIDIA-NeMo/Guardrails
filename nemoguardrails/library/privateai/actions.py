@@ -21,29 +21,42 @@ from urllib.parse import urlparse
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
 log = logging.getLogger(__name__)
 
 
-def detect_pii_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_pii.
-
-    Since the function returns True when PII is detected,
-    we block if result is True.
-    """
-    return result
+def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
+    if has_pii:
+        return RailOutcome.block(metadata={"has_pii": has_pii})
+    return RailOutcome.allow(metadata={"has_pii": has_pii})
 
 
-@action(is_system_action=False, output_mapping=detect_pii_mapping)
+def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
+    target_by_source = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+    metadata = {
+        "source": source,
+        "text": original_text,
+        "masked_text": masked_text,
+    }
+    if masked_text != original_text:
+        return RailOutcome.transform([(target_by_source[source], masked_text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
+
+
+@action(is_system_action=False)
 async def detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks whether the provided text contains any PII.
 
     Args
@@ -52,7 +65,7 @@ async def detect_pii(
         config: The rails configuration object.
 
     Returns
-        True if PII is detected, False otherwise.
+        RailOutcome.block() if PII is detected, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
@@ -84,11 +97,11 @@ async def detect_pii(
         entity_detected = any(res["entities_present"] for res in private_ai_response)
     except (KeyError, TypeError) as e:
         raise ValueError(f"Invalid response from Private AI service: {str(e)}")
-    return entity_detected
+    return _pii_detection_outcome(entity_detected)
 
 
 @action(is_system_action=False)
-async def mask_pii(source: str, text: str, config: RailsConfig):
+async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
     """Masks any detected PII in the provided text.
 
     Args:
@@ -97,7 +110,7 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
         config (RailsConfig): The rails configuration object.
 
     Returns:
-        str: The altered text with PII masked.
+        RailOutcome.transform() with the altered text if it changed, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
@@ -129,6 +142,6 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
         raise ValueError("Invalid response received from Private AI service. The response is not a list.")
 
     try:
-        return private_ai_response[0]["processed_text"]
+        return _mask_pii_outcome(source, text, private_ai_response[0]["processed_text"])
     except (IndexError, KeyError) as e:
         raise ValueError(f"Invalid response from Private AI service: {str(e)}")

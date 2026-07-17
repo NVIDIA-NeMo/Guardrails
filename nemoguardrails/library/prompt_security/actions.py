@@ -22,6 +22,7 @@ from typing import Optional
 import httpx
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 
 log = logging.getLogger(__name__)
 
@@ -87,32 +88,27 @@ async def ps_protect_api_async(
         }
 
 
-def protect_text_mapping(result: dict) -> bool:
-    """
-    Mapping for protect_text action.
-
-    Expects result to be a dict with:
-      - "is_blocked": a boolean indicating if the response passed to prompt security should be blocked.
-
-    Returns:
-        True if the response should be blocked (i.e. if "is_blocked" is True),
-        False otherwise.
-    """
-    blocked = result.get("is_blocked", True)
-    return blocked
+def _protect_text_outcome(result: dict, target: TransformTarget) -> RailOutcome:
+    metadata = dict(result)
+    if result.get("is_blocked", True):
+        return RailOutcome.block(metadata=metadata)
+    if result.get("is_modified", False):
+        return RailOutcome.transform([(target, result.get("modified_text") or "")], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=protect_text_mapping)
-async def protect_text(user_prompt: Optional[str] = None, bot_response: Optional[str] = None, **kwargs):
+@action(is_system_action=True)
+async def protect_text(
+    user_prompt: Optional[str] = None,
+    bot_response: Optional[str] = None,
+    **kwargs,
+) -> RailOutcome:
     """Protects the given user_prompt or bot_response.
     Args:
         user_prompt: The user message to protect.
         bot_response: The bot message to protect.
     Returns:
-        A dictionary with the following items:
-        - is_blocked: True if the text should be blocked, False otherwise.
-        - is_modified: True if the text should be modified, False otherwise.
-        - modified_text: The modified text if is_modified is True, None otherwise.
+        RailOutcome.block(), RailOutcome.transform(), or RailOutcome.allow().
     Raises:
         ValueError is returned in one of the following cases:
         1. If PS_PROTECT_URL env variable is not set.
@@ -129,9 +125,15 @@ async def protect_text(user_prompt: Optional[str] = None, bot_response: Optional
         raise ValueError("PS_APP_ID env variable is required for Prompt Security.")
 
     if bot_response:
-        return await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response)
+        return _protect_text_outcome(
+            await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response),
+            TransformTarget.BOT_MESSAGE,
+        )
 
     if user_prompt:
-        return await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt)
+        return _protect_text_outcome(
+            await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt),
+            TransformTarget.USER_MESSAGE,
+        )
 
     raise ValueError("Neither user_message nor bot_message was provided")

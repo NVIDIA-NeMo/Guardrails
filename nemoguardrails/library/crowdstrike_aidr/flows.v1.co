@@ -1,31 +1,29 @@
 # INPUT RAILS
 
 define subflow crowdstrike aidr guard input
-  $result = execute crowdstrike_aidr_guard(mode="input")
+  $response = execute crowdstrike_aidr_guard(mode="input")
 
-  if $result.blocked
+  if $response.is_blocked
     if $config.enable_rails_exceptions
       create event CrowdStrikeAidrGuardRailException(message="Response not allowed. The response was blocked by the 'crowdstrike aidr guard input' flow.")
     else
       bot inform answer unknown
     stop
 
-  if $result.transformed
-    $bot_message = $result.bot_message
-    $user_message = $result.user_message
+  if $response.is_transform
+    $user_message = $response.transform_text["user_message"]
 
 # OUTPUT RAILS
 
 define subflow crowdstrike aidr guard output
-  $result = execute crowdstrike_aidr_guard(mode="output")
+  $response = execute crowdstrike_aidr_guard(mode="output")
 
-  if $result.blocked
+  if $response.is_blocked
     if $config.enable_rails_exceptions
       create event CrowdStrikeAidrGuardRailException(message="Response not allowed. The response was blocked by the 'crowdstrike aidr guard output' flow.")
     else
       bot inform answer unknown
     stop
 
-  if $result.transformed
-    $bot_message = $result.bot_message
-    $user_message = $result.user_message
+  if $response.is_transform
+    $bot_message = $response.transform_text["bot_message"]

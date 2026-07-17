@@ -24,19 +24,16 @@ import aiohttp
 from typing_extensions import cast
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.config import F5GuardrailsRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
 
 
-def f5_guardrails_scan_mapping(result: dict) -> bool:
-    """
-    Mapping for f5_guardrails_scan.
-    Returns True (blocked) if the outcome is not 'cleared'.
-    """
-    # The result is the dictionary returned by the action
-    outcome = result.get("result", {}).get("outcome")
-    return outcome != "cleared"
+def _scan_outcome(result: dict) -> RailOutcome:
+    if result.get("result", {}).get("outcome") != "cleared":
+        return RailOutcome.block(metadata=result)
+    return RailOutcome.allow(metadata=result)
 
 
 def _get_f5_config(config: Optional[RailsConfig]) -> F5GuardrailsRailConfig:
@@ -49,14 +46,13 @@ def _get_f5_config(config: Optional[RailsConfig]) -> F5GuardrailsRailConfig:
     return cast(F5GuardrailsRailConfig, f5_config)
 
 
-def _fail_open_response() -> dict:
-    """Response returned when the API is unreachable and fail_open is enabled.
+def _fail_open_outcome() -> RailOutcome:
+    """Outcome returned when the API is unreachable and fail_open is enabled.
 
     The ``fail_open`` marker makes this distinguishable from a real cleared
-    scan in logs and traces, while ``result.outcome`` remains ``cleared`` so
-    the mapping function does not block the request.
+    scan in logs and traces.
     """
-    return {"result": {"outcome": "cleared"}, "fail_open": True}
+    return RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
 
 
 def _parse_retry_after(raw: Optional[str]) -> Optional[float]:
@@ -100,16 +96,12 @@ def _compute_retry_delay(
     return delay
 
 
-@action(
-    name="f5_guardrails_scan",
-    is_system_action=True,
-    output_mapping=f5_guardrails_scan_mapping,
-)
+@action(name="f5_guardrails_scan", is_system_action=True)
 async def f5_guardrails_scan(
     text: str,
     config: Optional[RailsConfig] = None,
     **kwargs: Any,
-) -> dict:
+) -> RailOutcome:
     """
     Scans the provided text using the F5 Guardrails API.
 
@@ -118,9 +110,8 @@ async def f5_guardrails_scan(
         config: The active RailsConfig; used to resolve ``rails.config.f5``.
 
     Returns:
-        The response from the F5 Guardrails API. When the API call fails and
-        ``rails.config.f5.fail_open`` is enabled, returns a response of
-        ``{"result": {"outcome": "cleared"}, "fail_open": True}``.
+        The rail decision with the F5 Guardrails API response as metadata.
+        Fail-open outcomes include ``fail_open=True`` in their metadata.
 
     Resolution order for the API base URL:
         1. ``F5_GUARDRAILS_API_URL`` environment variable.
@@ -181,20 +172,20 @@ async def f5_guardrails_scan(
 
                         if fail_open:
                             log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
-                            return _fail_open_response()
+                            return _fail_open_outcome()
 
                         if response.status == 429:
                             raise RuntimeError("F5 Guardrails API rate limited (429) after exhausting retries")
                         raise RuntimeError(f"F5 Guardrails API error: {response.status}")
 
                     result = await response.json()
-                    return result
+                    return _scan_outcome(result)
             except asyncio.TimeoutError:
                 log.error("F5 Guardrails API call timed out after 30 seconds")
 
                 if fail_open:
                     log.warning("F5 Guardrails API call timed out; fail_open is enabled, allowing content.")
-                    return _fail_open_response()
+                    return _fail_open_outcome()
 
                 raise RuntimeError("F5 Guardrails API request timed out") from None
             except aiohttp.ClientError as e:
@@ -202,11 +193,11 @@ async def f5_guardrails_scan(
 
                 if fail_open:
                     log.warning("F5 Guardrails API call failed; fail_open is enabled, allowing content.")
-                    return _fail_open_response()
+                    return _fail_open_outcome()
 
                 raise RuntimeError(f"Connection error to F5 Guardrails API: {type(e).__name__}") from e
 
     if fail_open:
         log.warning("F5 Guardrails API rate limited after retries; fail_open is enabled, allowing content.")
-        return _fail_open_response()
+        return _fail_open_outcome()
     raise RuntimeError("F5 Guardrails API rate limited (429) after exhausting retries")

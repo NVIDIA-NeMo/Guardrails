@@ -4,8 +4,8 @@ define bot refuse to respond
 define flow content safety check input
   $response = execute content_safety_check_input
 
-  $allowed = $response["allowed"]
-  $policy_violations = $response["policy_violations"]
+  $allowed = not $response.is_blocked
+  $policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $config.enable_rails_exceptions
@@ -21,8 +21,8 @@ define flow content safety check input
 
 define flow content safety check output
   $response = execute content_safety_check_output
-  $allowed = $response["allowed"]
-  $policy_violations = $response["policy_violations"]
+  $allowed = not $response.is_blocked
+  $policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $config.enable_rails_exceptions
