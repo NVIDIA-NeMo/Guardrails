@@ -332,6 +332,29 @@ async def test_llm_call_kwargs_flow_through_to_generate():
     mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
 
 
+@pytest.mark.asyncio
+async def test_llm_call_none_client_attribute_error_adds_init_hint():
+    """Regression for #1338.
+
+    When the underlying SDK client is None (because the wrapper was constructed with a
+    missing credential), the AttributeError surfaces from inside ainvoke. The LLMCallException
+    should mention that the client is None and point at the likely configuration cause.
+    """
+    mock_llm = MockOpenAILLM()
+    mock_llm.model_name = "gpt-4.1-nano"
+    mock_llm.ainvoke = AsyncMock(side_effect=AttributeError("'NoneType' object has no attribute 'create'"))
+
+    wrapped = LangChainLLMAdapter(mock_llm)
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(wrapped, "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "Underlying SDK client is None" in exc_str
+    assert "api_key" in exc_str
+    assert "azure_endpoint" in exc_str
+    assert isinstance(exc_info.value.inner_exception, AttributeError)
+
+
 class TestLogCompletion:
     def test_logs_completion_to_llm_call_info(self):
         llm_call_info = LLMCallInfo()

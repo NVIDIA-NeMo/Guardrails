@@ -65,9 +65,12 @@ async def content_safety_check_input(
     llm = llms.get(model_name, None)
 
     if llm is None:
+        available = sorted(llms.keys()) if llms else []
         error_msg = (
-            f"Model {model_name} not found in the list of available models for content safety check. "
-            "Please provide a valid model name."
+            f"Model {model_name!r} is not available for the content safety check. "
+            f"Available models: {available}. "
+            "Confirm a `content_safety` model entry exists in your config and that it initialized successfully "
+            "(missing credentials such as api_key, azure_endpoint, or azure_deployment are common causes)."
         )
         raise ValueError(error_msg)
 
@@ -168,9 +171,12 @@ async def content_safety_check_output(
     llm = llms.get(model_name, None)
 
     if llm is None:
+        available = sorted(llms.keys()) if llms else []
         error_msg = (
-            f"Model {model_name} not found in the list of available models for content safety check. "
-            "Please provide a valid model name."
+            f"Model {model_name!r} is not available for the content safety check. "
+            f"Available models: {available}. "
+            "Confirm a `content_safety` model entry exists in your config and that it initialized successfully "
+            "(missing credentials such as api_key, azure_endpoint, or azure_deployment are common causes)."
         )
         raise ValueError(error_msg)
 
