@@ -32,7 +32,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
-from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
@@ -971,3 +971,38 @@ class TestTriggeredRail:
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
         assert result.triggered_rail is None
+
+
+class TestRailCallRecordNaming:
+    """`_rail_call_record` names task/action_name in LLMRails' underscore form.
+
+    The GenerationLog's ``executed_actions[].action_name`` and ``llm_calls[].task``
+    must match LLMRails, which uses the prompt-template key (underscores) rather than
+    the space-separated Colang flow name. ``flow`` itself keeps the space form.
+    """
+
+    def test_modelled_rail_uses_underscore_task_and_action_name(self):
+        """A ``$model=`` flow yields an underscore action_name plus an underscore ``$model`` task."""
+        record = _rail_call_record(
+            flow="content safety check input $model=content_safety",
+            rail_type="input",
+            result=RailResult(is_safe=True),
+            call=None,
+        )
+
+        assert record.flow == "content safety check input $model=content_safety"
+        assert record.action_name == "content_safety_check_input"
+        assert record.task == "content_safety_check_input $model=content_safety"
+
+    def test_modelless_rail_uses_underscore_action_name_and_task(self):
+        """A model-free flow (jailbreak) yields an underscore task with no ``$model`` suffix."""
+        record = _rail_call_record(
+            flow="jailbreak detection model",
+            rail_type="input",
+            result=RailResult(is_safe=True),
+            call=None,
+        )
+
+        assert record.flow == "jailbreak detection model"
+        assert record.action_name == "jailbreak_detection_model"
+        assert record.task == "jailbreak_detection_model"

@@ -47,7 +47,7 @@ from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_r
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.rails.llm.config import _get_flow_name
+from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import ToolCall
 
 if TYPE_CHECKING:
@@ -87,14 +87,20 @@ def _rail_call_record(flow: str, rail_type: str, result: RailResult, call: Optio
     action's structured verdict when present, else a minimal ``{"allowed": is_safe}``.
     """
     verdict = result.return_value if result.return_value is not None else {"allowed": result.is_safe}
+    # GenerationLog parity with LLMRails: action_name/task use the prompt-template key
+    # (underscores) rather than the space-separated Colang flow name; ``flow`` keeps spaces.
+    base_name = _get_flow_name(flow) or flow
+    model = _get_flow_model(flow)
+    action_name = base_name.replace(" ", "_")
+    task = f"{action_name} $model={model}" if model else action_name
     return RailCallRecord(
         flow=flow,
         rail_type=rail_type,
         is_safe=result.is_safe,
         made_call=call is not None,
-        action_name=_get_flow_name(flow),
+        action_name=action_name,
         return_value=verdict,
-        task=flow,
+        task=task,
         request_id=call.request_id if call else None,
         usage=call.usage if call else None,
         llm_model_name=call.llm_model_name if call else None,
