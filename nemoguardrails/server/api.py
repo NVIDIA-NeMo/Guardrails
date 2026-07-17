@@ -553,16 +553,16 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 ),
             )
 
-        # Dialog-flow configs (canonical-form user_messages or single_call dialog
-        # rails) never surface tool calls to the request, so reject explicitly
-        has_dialog_flows = bool(llm_rails.config.user_messages) or llm_rails.config.rails.dialog.single_call.enabled
+        # Dialog-flow configs (canonical-form user_messages) never surface tool
+        # calls to the request, so reject explicitly.
+        has_dialog_flows = bool(llm_rails.config.user_messages)
         if has_dialog_flows:
             raise HTTPException(
                 status_code=422,
                 detail=(
                     "The 'tools', 'tool_choice', and 'parallel_tool_calls' parameters are not "
                     "supported when the guardrails configuration defines dialog flows "
-                    "(user_messages or single_call dialog rails)."
+                    "(user_messages)."
                 ),
             )
     try:

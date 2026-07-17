@@ -401,7 +401,7 @@ result = graph.invoke({
 
 ### 1. Passthrough Mode Configuration
 
-For tool calling and complex flows, use `passthrough=True` to maintain the original prompt structure:
+Use `passthrough=True` to maintain the original prompt structure for complex flows.
 
 ```python
 guardrails = RunnableRails(config=config, passthrough=True)
@@ -427,7 +427,7 @@ guardrails = RunnableRails(config=config, passthrough=True, verbose=True)
 
 ### Common Issues
 
-1. **Empty Content with Tool Calls**: When using tools, ensure `passthrough=True` is set.
+1. **Empty Content with Tool Calls**: Check that the guardrails configuration does not define dialog flows.
 2. **Authorization Errors**: Verify API keys for both main model and safety models.
 3. **Configuration Not Found**: Ensure guardrail config paths are correct.
 

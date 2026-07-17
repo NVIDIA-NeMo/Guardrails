@@ -135,7 +135,7 @@ A topic-control or jailbreak flow on the output rail is a fallback condition.
 | Tool-result validation rail | ✓ | ✓ | IORails flow: `tool result validation` |
 
 Both engines support passing model tool calls through to the caller and validating tool calls and tool results.
-`LLMRails` handles these through the Colang runtime and tool rails.
+`LLMRails` handles these through the Colang runtime and tool rails, and surfaces tool calls regardless of the `passthrough` setting, as long as the configuration does not define dialog flows (`user_messages` or `rails.dialog.single_call.enabled`); those flows drop tool calls and return only the generated text.
 
 `IORails` validates tool calls and tool results through directional flows: `tool call validation` on the tool-output rail and `tool result validation` on the tool-input rail.
 Tool calls are returned in the OpenAI-style `tool_calls` field of the response message.
