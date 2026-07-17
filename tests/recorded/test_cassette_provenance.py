@@ -33,13 +33,13 @@ from types import SimpleNamespace
 
 import yaml
 
-from tests.recorded.cassette import cassette_with_rehydrated_bodies
+from tests.recorded.cassette import _is_sse_response, cassette_with_rehydrated_bodies
 from tests.recorded.conftest import before_record_request, before_record_response
 
 RECORDED_ROOT = Path(__file__).parent
 
 
-def _canonical_body(value):
+def _canonical_body(value, *, is_sse=False):
     if isinstance(value, bytes):
         try:
             value = value.decode("utf-8")
@@ -47,11 +47,7 @@ def _canonical_body(value):
             return value
     if not isinstance(value, str):
         return value
-    try:
-        return json.loads(value)
-    except (json.JSONDecodeError, ValueError):
-        pass
-    if "data:" in value:
+    if is_sse:
         events = []
         for line in value.splitlines():
             line = line.strip()
@@ -63,6 +59,11 @@ def _canonical_body(value):
                     events.append(payload)
         if events:
             return events
+        return value
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, ValueError):
+        pass
     return value
 
 
@@ -72,7 +73,7 @@ def _idempotence_violations(cassette: dict, label: str) -> list:
     for index, interaction in enumerate(wire.get("interactions") or []):
         request = interaction.get("request", {})
         sanitized_request = SimpleNamespace(headers=deepcopy(request.get("headers", {})), body=request.get("body"))
-        before_record_request(sanitized_request)
+        sanitized_request = before_record_request(sanitized_request)
         if sanitized_request.headers != request.get("headers", {}):
             violations.append(f"{label} interaction {index}: request headers change under re-sanitization")
         if _canonical_body(sanitized_request.body) != _canonical_body(request.get("body")):
@@ -88,9 +89,19 @@ def _idempotence_violations(cassette: dict, label: str) -> list:
             if isinstance(sanitized_response.get("body"), dict)
             else None
         )
-        if _canonical_body(sanitized_body) != _canonical_body(original_body):
+        if _canonical_body(sanitized_body, is_sse=_is_sse_response(sanitized_response)) != _canonical_body(
+            original_body, is_sse=_is_sse_response(response)
+        ):
             violations.append(f"{label} interaction {index}: response body changes under re-sanitization")
     return violations
+
+
+def test_canonical_body_uses_explicit_sse_detection():
+    body = 'data: {"message":"hello"}\n\n'
+
+    assert _canonical_body(body) == body
+    assert _canonical_body(body, is_sse=True) == [{"message": "hello"}]
+    assert _canonical_body('{"message":"hello"}', is_sse=True) == '{"message":"hello"}'
 
 
 def test_committed_cassettes_are_sanitizer_fixed_points():
