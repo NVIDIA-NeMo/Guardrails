@@ -16,8 +16,8 @@
 """Gate: library rail flow files stay valid and consistent in both Colang dialects.
 
 Every manifest-declared rail must ship flow files that parse, define the flow
-names the manifest declares, and invoke only actions that the dispatcher can
-resolve. Parameterized flows are a Colang 2 feature, so a declared flow whose
+names the manifest declares, and invoke only actions declared by the same
+manifest. Parameterized flows are a Colang 2 feature, so a declared flow whose
 Colang 2 definition takes parameters is exempt from the Colang 1 presence
 requirement.
 """
@@ -27,7 +27,7 @@ from pathlib import Path
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.manifests import all_rail_manifests
+from nemoguardrails.manifests import all_rail_manifests, resolve_import_ref
 
 LIBRARY_ROOT = Path("nemoguardrails/library")
 
@@ -123,11 +123,13 @@ def test_library_flows_do_not_invoke_actions_as_flows():
     assert not violations, "\n".join(violations)
 
 
-def test_library_flow_actions_resolve():
-    dispatcher = ActionDispatcher()
+def test_library_flow_actions_are_declared_by_owning_manifest():
     violations = []
 
     for rail_name, manifest in _manifests_with_flows():
+        dispatcher = ActionDispatcher(load_all_actions=False)
+        for action_ref in manifest.actions.refs if manifest.actions is not None else ():
+            dispatcher.register_action(resolve_import_ref(action_ref))
         package_dir = _package_dir(manifest)
         for file_name in manifest.spec.flows.v1_files + manifest.spec.flows.files:
             path = package_dir / file_name
@@ -138,6 +140,8 @@ def test_library_flow_actions_resolve():
             invoked |= set(V2_ACTION_RE.findall(content))
             for action_name in sorted(invoked):
                 if not dispatcher.has_registered(action_name):
-                    violations.append(f"{rail_name}: {path} invokes unresolvable action {action_name!r}")
+                    violations.append(
+                        f"{rail_name}: {path} invokes action {action_name!r}, which its manifest does not declare"
+                    )
 
     assert not violations, "\n".join(violations)
