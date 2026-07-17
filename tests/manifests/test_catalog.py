@@ -26,6 +26,7 @@ from nemoguardrails.manifests import (
     RailCatalog,
     RailConfigSchema,
     RailDirection,
+    RailFlows,
     RailManifest,
     RailManifestRecord,
     RailSpec,
@@ -37,7 +38,13 @@ def _action(name: str = "check") -> ActionRef:
     return ActionRef(name=name, target="pathlib:Path.cwd")
 
 
-def _record(name: str, *, action: ActionRef | None = None, surface_name: str | None = None) -> RailManifestRecord:
+def _record(
+    name: str,
+    *,
+    action: ActionRef | None = None,
+    surface_name: str | None = None,
+    flow_names: tuple[str, ...] = (),
+) -> RailManifestRecord:
     action = action or _action(f"{name}_check")
     surfaces = ()
     if surface_name is not None:
@@ -51,16 +58,22 @@ def _record(name: str, *, action: ActionRef | None = None, surface_name: str | N
         )
     manifest = RailManifest(
         name=name,
-        spec=RailSpec(actions=RailActions(refs=(action,)), surfaces=surfaces),
+        spec=RailSpec(
+            flows=RailFlows(flow_names=flow_names) if flow_names else None,
+            actions=RailActions(refs=(action,)),
+            surfaces=surfaces,
+        ),
     )
     return RailManifestRecord(manifest=manifest, source=f"test:{name}")
 
 
 def test_catalog_indexes_manifests_and_surfaces():
-    catalog = RailCatalog((_record("alpha", surface_name="check alpha"), _record("beta")))
+    catalog = RailCatalog((_record("alpha", surface_name="check alpha", flow_names=("check alpha",)), _record("beta")))
 
     assert set(catalog.manifests) == {"alpha", "beta"}
     assert set(catalog.surfaces()) == {(RailDirection.INPUT, "check alpha")}
+    assert catalog.owner_for_flow("check alpha") == "alpha"
+    assert catalog.owner_for_flow("custom flow") is None
 
 
 def test_catalog_rejects_duplicate_manifest_names():
@@ -91,6 +104,11 @@ def test_catalog_rejects_duplicate_config_key():
 
     with pytest.raises(ValueError, match="config key"):
         RailCatalog((record("alpha"), record("beta")))
+
+
+def test_catalog_rejects_duplicate_flow_name():
+    with pytest.raises(ValueError, match="flow.*already provided"):
+        RailCatalog((_record("alpha", flow_names=("shared",)), _record("beta", flow_names=("shared",))))
 
 
 def test_catalog_rejects_surface_with_undeclared_action():
