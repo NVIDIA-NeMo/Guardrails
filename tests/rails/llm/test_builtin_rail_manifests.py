@@ -21,10 +21,46 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    RailDirection,
+    TransformTarget,
     all_rail_manifests,
+    default_rail_catalog,
     iter_manifest_import_refs,
     resolve_import_ref,
 )
+
+LEGACY_UNMANIFESTED_PACKAGES = frozenset({"attention", "utils"})
+
+
+def test_library_action_packages_declare_manifests():
+    """Every library package with actions must declare a rail.py manifest.
+
+    Unmanifested rails fall back to legacy loading and bypass every
+    catalog-keyed gate (manifest completeness, flow files, requirements).
+    LEGACY_UNMANIFESTED_PACKAGES is the frozen set of pre-manifest packages;
+    do not extend it for new rails.
+    """
+    library_root = Path("nemoguardrails/library")
+    violations = []
+
+    for path in sorted(library_root.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        if "@action(" not in path.read_text(encoding="utf-8"):
+            continue
+        if path.relative_to(library_root).parts[0] in LEGACY_UNMANIFESTED_PACKAGES:
+            continue
+        package_dir = path.parent
+        covered = False
+        while package_dir != library_root:
+            if (package_dir / "rail.py").exists():
+                covered = True
+                break
+            package_dir = package_dir.parent
+        if not covered:
+            violations.append(str(path))
+
+    assert not violations, "Library action packages without a rail.py manifest:\n" + "\n".join(violations)
 
 
 def test_builtin_manifests_are_discovered_from_rail_modules():
@@ -85,3 +121,29 @@ def test_self_check_surfaces_bind_optional_variant():
     for rail_name in ("self_check.input_check", "self_check.output_check"):
         surface = manifests[rail_name].surfaces[0]
         assert surface.bindings == (Binding.surface_param(action_param="variant", name="variant", required=False),)
+
+
+def test_builtin_surfaces_preserve_flow_contracts():
+    surfaces = default_rail_catalog().surfaces()
+
+    assert surfaces[(RailDirection.OUTPUT, "autoalign groundedness output")].action.name == (
+        "autoalign_groundedness_output_api"
+    )
+    assert surfaces[(RailDirection.INPUT, "activefence moderation on input")].bindings[-1] == Binding.literal(
+        "threshold_mode", "simple"
+    )
+    assert surfaces[(RailDirection.INPUT, "activefence moderation on input detailed")].bindings[-1] == (
+        Binding.literal("threshold_mode", "detailed")
+    )
+    assert surfaces[(RailDirection.INPUT, "gcpnlp moderation")].bindings == (
+        Binding.literal("threshold_mode", "simple"),
+    )
+    assert surfaces[(RailDirection.INPUT, "gcpnlp moderation detailed")].bindings == (
+        Binding.literal("threshold_mode", "detailed"),
+    )
+    assert surfaces[(RailDirection.RETRIEVAL, "hf classifier check retrieval")].transform_target == (
+        TransformTarget.RELEVANT_CHUNKS
+    )
+    assert surfaces[(RailDirection.RETRIEVAL, "regex check retrieval")].transform_target == (
+        TransformTarget.RELEVANT_CHUNKS
+    )

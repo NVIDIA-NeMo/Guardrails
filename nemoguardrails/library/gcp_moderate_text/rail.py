@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     EnvVar,
     RailActions,
     RailDirection,
@@ -47,9 +48,17 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("gcpnlp moderation", "gcpnlp moderation detailed")),
         actions=RailActions(refs=(CALL_GCP_TEXT_MODERATION_API,)),
         surfaces=(
-            RailSurface(name="gcpnlp moderation", direction=RailDirection.INPUT, action=CALL_GCP_TEXT_MODERATION_API),
             RailSurface(
-                name="gcpnlp moderation detailed", direction=RailDirection.INPUT, action=CALL_GCP_TEXT_MODERATION_API
+                name="gcpnlp moderation",
+                direction=RailDirection.INPUT,
+                action=CALL_GCP_TEXT_MODERATION_API,
+                bindings=(Binding.literal("threshold_mode", "simple"),),
+            ),
+            RailSurface(
+                name="gcpnlp moderation detailed",
+                direction=RailDirection.INPUT,
+                action=CALL_GCP_TEXT_MODERATION_API,
+                bindings=(Binding.literal("threshold_mode", "detailed"),),
             ),
         ),
         requirements=RailRequirements(
