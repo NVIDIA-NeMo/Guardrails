@@ -7,7 +7,7 @@ batch_name: nemotron_llmrails
 output_base_dir: aiperf_results
 
 base_config:
-  model: nvidia/nemotron-3-nano-30b-a3b
+  model: nvidia/nemotron-3-nano
   tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
   url: "http://localhost:9000"
   endpoint: "/v1/chat/completions"
