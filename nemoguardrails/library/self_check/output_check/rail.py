@@ -41,7 +41,7 @@ RAIL = RailManifest(
         categories=("output",),
         capabilities=("allow", "block", "moderate"),
         tags=("self-check", "output", "llm-prompt"),
-        docs_url="docs/configure-rails/guardrail-catalog/self-check.md",
+        docs_url="docs/configure-rails/guardrail-catalog/self-check.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("self check output",)),

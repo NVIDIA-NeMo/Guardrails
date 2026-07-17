@@ -55,7 +55,7 @@ RAIL = RailManifest(
             "topic_control",
         ),
         tags=("third-party", "validators"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/guardrails-ai.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/guardrails-ai.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

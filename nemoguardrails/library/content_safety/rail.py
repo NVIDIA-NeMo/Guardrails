@@ -48,7 +48,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "content_safety", "moderate"),
         tags=("nemoguard", "moderation", "safety"),
-        docs_url="docs/configure-rails/guardrail-catalog/content-safety.md",
+        docs_url="docs/configure-rails/guardrail-catalog/content-safety.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

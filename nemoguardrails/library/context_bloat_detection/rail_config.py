@@ -19,6 +19,8 @@ from nemoguardrails.manifests.config_schema import Field, RailConfigBaseModel, R
 
 
 class ContextBloatDetectionConfig(RailConfigBaseModel):
+    """Configuration for context bloat / context manipulation detection."""
+
     max_chars: int = Field(
         default=5000,
         gt=0,
@@ -27,19 +29,19 @@ class ContextBloatDetectionConfig(RailConfigBaseModel):
     min_chars: int = Field(
         default=50,
         ge=0,
-        description="Minimum characters before entropy, run, and repetition checks apply.",
+        description="Minimum characters before entropy/run/repetition checks apply. Shorter texts are only checked against size cap.",
     )
     min_entropy: float = Field(
         default=3.5,
         ge=0.0,
         le=8.0,
-        description="Shannon entropy floor in bits per character.",
+        description="Shannon entropy floor (bits/char). English prose is ~4.0-4.5.",
     )
     max_repetition_ratio: float = Field(
         default=0.4,
         ge=0.0,
         le=1.0,
-        description="Maximum fraction of repeated n-grams.",
+        description="Max fraction of repeated n-grams (0.0-1.0).",
     )
     ngram_size: int = Field(
         default=3,
@@ -50,11 +52,11 @@ class ContextBloatDetectionConfig(RailConfigBaseModel):
         default=0.1,
         ge=0.0,
         le=1.0,
-        description="Maximum fraction of text occupied by a single-character run.",
+        description="Max fraction of text that is the longest single-char run.",
     )
     action: Literal["reject", "truncate", "warn"] = Field(
         default="reject",
-        description="Action on detection: reject, truncate, or warn.",
+        description="Action on detection: 'reject', 'truncate', or 'warn'.",
     )
 
 
@@ -63,7 +65,7 @@ def build_config_spec() -> RailConfigSpec:
         annotation=Optional[ContextBloatDetectionConfig],
         field_info=rail_field(
             default_factory=ContextBloatDetectionConfig,
-            description="Configuration for context bloat detection.",
+            description="Configuration for context bloat / context manipulation detection.",
         ),
         exports={"ContextBloatDetectionConfig": ContextBloatDetectionConfig},
     )

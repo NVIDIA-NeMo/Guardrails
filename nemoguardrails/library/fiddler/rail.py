@@ -51,7 +51,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("allow", "block", "classify", "content_safety", "detect_jailbreak", "fact_check"),
         tags=("third-party", "api", "safety", "faithfulness"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/fiddler.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/fiddler.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

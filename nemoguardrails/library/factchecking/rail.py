@@ -29,7 +29,7 @@ RAIL = RailManifest(
         categories=("config", "output"),
         capabilities=("fact_check",),
         tags=("fact-checking", "rag", "grounding"),
-        docs_url="docs/configure-rails/guardrail-catalog/fact-checking.md",
+        docs_url="docs/configure-rails/guardrail-catalog/fact-checking.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

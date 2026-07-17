@@ -46,7 +46,7 @@ RAIL = RailManifest(
         categories=("input",),
         capabilities=("allow", "block", "classify", "detect_jailbreak"),
         tags=("nemoguard", "security", "jailbreak"),
-        docs_url="docs/configure-rails/guardrail-catalog/jailbreak-protection.md",
+        docs_url="docs/configure-rails/guardrail-catalog/jailbreak-protection.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(
