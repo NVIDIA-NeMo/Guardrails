@@ -255,6 +255,71 @@ prompts:
       Answer [Yes/No]:
 ```
 
+## Running Multiple Self-Check Rails
+
+By default, `self check input` and `self check output` each run a single check with a single prompt. You can run several self-check rails of the same kind, each with its own prompt and, optionally, its own model. Add a `$variant=<name>` parameter to the flow name to select a named variant. Use this to separate concerns, for example one output check for inappropriate content and another for data leakage.
+
+1. Add one flow per variant to the rails section, each with a distinct `$variant=<name>`:
+
+    ```yaml
+    rails:
+      output:
+        flows:
+          - self check output $variant=check_inappropriate
+          - self check output $variant=check_data_leakage
+    ```
+
+2. Define a prompt for each variant. The prompt `task` is the base task name followed by the same `$variant=<name>`:
+
+    ```yaml
+    prompts:
+      - task: self_check_output $variant=check_inappropriate
+        content: |-
+          Model_output: {{ bot_response }}
+
+          Does this output contain inappropriate content?
+
+          Answer [Yes/No]:
+      - task: self_check_output $variant=check_data_leakage
+        content: |-
+          Model_output: {{ bot_response }}
+
+          Does this output leak sensitive or internal data?
+
+          Answer [Yes/No]:
+    ```
+
+    <Note>
+
+    Each enabled variant requires a matching prompt. If a prompt is missing, an exception is raised when the configuration is loaded.
+
+    </Note>
+
+3. To route a variant to its own model, define a model whose `type` matches the variant name:
+
+    ```yaml
+    models:
+      - type: main
+        engine: openai
+        model: gpt-5.5
+      - type: check_inappropriate
+        engine: openai
+        model: gpt-4.1-mini
+      - type: check_data_leakage
+        engine: openai
+        model: gpt-4.1-mini
+    ```
+
+    If a variant has no matching model `type`, the rail uses the base self-check model type (`self_check_output`) when it is defined, and otherwise the `main` model.
+
+The rails run in the order they are listed. As with a single self-check rail, the first variant that blocks stops further processing. Input variants work the same way with `self check input` and the `self_check_input` prompt task.
+
+<Tip>
+
+A self-check rail without a `$variant=` parameter uses the default `self_check_input` or `self_check_output` prompt. You can combine a default rail and one or more variant rails in the same configuration.
+
+</Tip>
+
 ## The Dialog Rails Flow
 
 The diagram below depicts the dialog rails flow in detail:
