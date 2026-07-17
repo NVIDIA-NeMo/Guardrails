@@ -40,6 +40,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
     get_request_id,
+    serialize_prompt,
     truncate,
 )
 from nemoguardrails.guardrails.rails_manager import RailsManager
@@ -197,12 +198,14 @@ def _make_generation_record(
     finished_at: Optional[float],
     duration: Optional[float],
     provider_name: Optional[str],
+    prompt: Optional[str],
 ) -> RailCallRecord:
     """Represent the main generation call as a ``RailCallRecord`` (rail_type "generation").
 
     Unifies the main call with the rail calls so the log builder can treat every LLM call
-    the same way. ``started_at``/``finished_at`` are wall-clock timestamps; ``duration``
-    is a monotonic delta.
+    the same way. ``prompt`` is the serialized main-model messages; ``completion`` is the
+    response content. ``started_at``/``finished_at`` are wall-clock timestamps;
+    ``duration`` is a monotonic delta.
     """
     return RailCallRecord(
         flow="generation",
@@ -215,6 +218,8 @@ def _make_generation_record(
         usage=response.usage,
         llm_model_name=response.model,
         llm_provider_name=provider_name,
+        prompt=prompt,
+        completion=response.content,
         started_at=started_at,
         finished_at=finished_at,
         duration=duration,
@@ -238,6 +243,8 @@ def _call_info(record: RailCallRecord) -> LLMCallInfo:
         started_at=record.started_at,
         finished_at=record.finished_at,
         id=record.request_id,
+        prompt=record.prompt,
+        completion=record.completion,
         llm_model_name=record.llm_model_name or "unknown",
         llm_provider_name=record.llm_provider_name or "unknown",
     )
@@ -936,7 +943,8 @@ class IORails(BaseGuardrails):
         finished_at = time.time()
         if records_out is not None:
             provider = self.engine_registry.provider_name("main")
-            records_out.append(_make_generation_record(response, started_at, finished_at, duration, provider))
+            prompt = serialize_prompt(messages)
+            records_out.append(_make_generation_record(response, started_at, finished_at, duration, provider, prompt))
         return response
 
     async def _do_generate_speculative(
@@ -957,7 +965,12 @@ class IORails(BaseGuardrails):
 
         try:
             response = await self._parallel_input_rail_and_response_generation(
-                rails_task, gen_task, req_id, request_span, records_out=records_out
+                rails_task,
+                gen_task,
+                req_id,
+                request_span,
+                records_out=records_out,
+                main_prompt=serialize_prompt(messages),
             )
         except BaseException as outer_exc:
             for t in (rails_task, gen_task):
@@ -992,6 +1005,7 @@ class IORails(BaseGuardrails):
         request_span: Optional["Span"] = None,
         *,
         records_out: Optional[list[RailCallRecord]] = None,
+        main_prompt: str = "",
     ) -> Optional[LLMResponse]:
         """Race input rails against LLM generation, return LLMResponse or None (rejected)."""
         done, _ = await asyncio.wait({rails_task, gen_task}, return_when=asyncio.FIRST_COMPLETED)
@@ -1050,7 +1064,7 @@ class IORails(BaseGuardrails):
         # generation record carries usage/model without timestamps or a duration.
         if records_out is not None:
             provider = self.engine_registry.provider_name("main")
-            records_out.append(_make_generation_record(response, None, None, None, provider))
+            records_out.append(_make_generation_record(response, None, None, None, provider, main_prompt))
         return response
 
     def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:

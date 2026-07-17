@@ -291,3 +291,40 @@ class TestActivatedRailHelper:
         assert len(rail.executed_actions[0].llm_calls) == 1
         assert rail.executed_actions[0].llm_calls[0].total_tokens is None
         assert rail.executed_actions[0].return_value is False
+
+    def test_record_maps_prompt_and_completion(self):
+        """A record's captured prompt/completion surface on the mapped LLMCallInfo."""
+        record = RailCallRecord(
+            flow=_CS_INPUT_FLOW,
+            rail_type="input",
+            is_safe=True,
+            made_call=True,
+            action_name="content_safety_check_input",
+            return_value={"allowed": True},
+            task="content_safety_check_input $model=content_safety",
+            usage=UsageInfo(input_tokens=10, output_tokens=2, total_tokens=12),
+            prompt="user: hi",
+            completion='{"User Safety": "safe"}',
+        )
+
+        call = _activated_rail(record).executed_actions[0].llm_calls[0]
+
+        assert call.prompt == "user: hi"
+        assert call.completion == '{"User Safety": "safe"}'
+
+    def test_api_rail_record_has_no_prompt_or_completion(self):
+        """An API rail (jailbreak) captures no content, so prompt/completion map to None."""
+        record = RailCallRecord(
+            flow="jailbreak detection model",
+            rail_type="input",
+            is_safe=True,
+            made_call=True,
+            action_name="jailbreak_detection_model",
+            return_value=False,
+            task="jailbreak_detection_model",
+        )
+
+        call = _activated_rail(record).executed_actions[0].llm_calls[0]
+
+        assert call.prompt is None
+        assert call.completion is None

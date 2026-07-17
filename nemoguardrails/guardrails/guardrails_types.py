@@ -56,6 +56,8 @@ class RailCallRecord:
     usage: Optional[UsageInfo] = None
     llm_model_name: Optional[str] = None
     llm_provider_name: Optional[str] = None
+    prompt: Optional[str] = None
+    completion: Optional[str] = None
     started_at: Optional[float] = None
     finished_at: Optional[float] = None
     duration: Optional[float] = None
@@ -127,3 +129,13 @@ def truncate(text: object, max_len: int | None = None) -> str:
     if len(s) <= limit:
         return s
     return s[:limit] + "..."
+
+
+def serialize_prompt(messages: list[dict]) -> str:
+    """Render a chat message list to a role-labeled string for GenerationLog's ``prompt``.
+
+    Content parity with LLMRails' logged prompt, not byte-for-byte format parity: each
+    message becomes ``"<role>: <content>"`` and messages are blank-line separated. A
+    message with no content (e.g. a reasoning-only or tool-call turn) renders as empty.
+    """
+    return "\n\n".join(f"{m.get('role', '')}: {m.get('content') or ''}" for m in messages)

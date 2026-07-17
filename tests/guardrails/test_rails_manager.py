@@ -31,7 +31,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
-from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -1006,3 +1006,22 @@ class TestRailCallRecordNaming:
         assert record.flow == "jailbreak detection model"
         assert record.action_name == "jailbreak_detection_model"
         assert record.task == "jailbreak_detection_model"
+
+
+class TestSerializePrompt:
+    """`serialize_prompt` renders a message list to a role-labeled string for the log."""
+
+    def test_role_labeled_join(self):
+        """Each message renders as '<role>: <content>', blank-line separated."""
+        out = serialize_prompt(
+            [
+                {"role": "system", "content": "be nice"},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        assert out == "system: be nice\n\nuser: hi"
+
+    def test_missing_content_renders_empty(self):
+        """A message with no content (reasoning/tool turn) renders as empty, not an error."""
+        out = serialize_prompt([{"role": "assistant", "content": None}])
+        assert out == "assistant: "

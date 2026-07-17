@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailResult,
     get_request_id,
+    serialize_prompt,
     truncate,
 )
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
@@ -62,6 +63,8 @@ class RailLLMCall:
     llm_model_name: Optional[str]
     request_id: Optional[str]
     provider_name: Optional[str]
+    prompt: Optional[str]
+    completion: Optional[str]
     started_at: float
     finished_at: float
     duration: float
@@ -209,6 +212,8 @@ class RailAction(ABC):
                 llm_model_name=response.model,
                 request_id=response.request_id,
                 provider_name=self.engine_registry.provider_name(model_type),
+                prompt=serialize_prompt(messages),
+                completion=response.content,
                 started_at=started_at,
                 finished_at=finished_at,
                 duration=duration,
@@ -239,6 +244,8 @@ class RailAction(ABC):
                 llm_model_name=None,
                 request_id=None,
                 provider_name=None,
+                prompt=None,
+                completion=None,
                 started_at=started_at,
                 finished_at=finished_at,
                 duration=duration,

@@ -105,6 +105,8 @@ def _rail_call_record(flow: str, rail_type: str, result: RailResult, call: Optio
         usage=call.usage if call else None,
         llm_model_name=call.llm_model_name if call else None,
         llm_provider_name=call.provider_name if call else None,
+        prompt=call.prompt if call else None,
+        completion=call.completion if call else None,
         started_at=call.started_at if call else None,
         finished_at=call.finished_at if call else None,
         duration=call.duration if call else None,

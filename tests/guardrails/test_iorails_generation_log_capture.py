@@ -126,6 +126,59 @@ class TestGenerationLogEndToEnd:
         assert any(rail.type == "generation" for rail in result.log.activated_rails)
 
     @pytest.mark.asyncio
+    async def test_llm_calls_capture_prompt_and_completion(self, iorails):
+        """Each LLM-backed call in the log carries its serialized prompt and raw completion."""
+
+        async def _model_call(model_type, messages, **kwargs):
+            if model_type == "content_safety":
+                return LLMResponse(
+                    content=_SAFE_BOTH,
+                    usage=UsageInfo(input_tokens=100, output_tokens=10, total_tokens=110),
+                    model=_CS_MODEL,
+                )
+            return LLMResponse(
+                content="Hi",
+                usage=UsageInfo(input_tokens=20, output_tokens=5, total_tokens=25),
+                model=_MAIN_MODEL,
+            )
+
+        iorails.engine_registry.model_call = AsyncMock(side_effect=_model_call)
+
+        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.log is not None
+        llm_calls = result.log.llm_calls or []
+        cs_call = next(c for c in llm_calls if c.task and "content_safety_check_input" in c.task)
+        main_call = next(c for c in llm_calls if c.task == "general")
+
+        assert cs_call.completion == _SAFE_BOTH
+        assert cs_call.prompt is not None
+        assert "hi" in cs_call.prompt
+        assert main_call.completion == "Hi"
+        assert main_call.prompt is not None
+        assert "hi" in main_call.prompt
+
+    @pytest.mark.asyncio
+    async def test_prompt_serializes_role_and_content(self, iorails):
+        """The serialized prompt is role-labeled so a reader can tell system from user turns."""
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(
+                content=_SAFE_BOTH,
+                usage=UsageInfo(input_tokens=100, output_tokens=10, total_tokens=110),
+                model=_CS_MODEL,
+            )
+        )
+
+        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+
+        assert result.log is not None
+        llm_calls = result.log.llm_calls or []
+        cs_call = next(c for c in llm_calls if c.task and "content_safety_check_input" in c.task)
+        assert cs_call.prompt is not None
+        assert "user:" in cs_call.prompt or "system:" in cs_call.prompt
+
+    @pytest.mark.asyncio
     async def test_blocked_input_logs_verdict_and_stop(self, iorails):
         """A blocked input rail logs its unsafe verdict + stop, and the request refuses."""
         iorails.engine_registry.model_call = AsyncMock(
