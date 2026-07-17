@@ -68,7 +68,13 @@ RAIL = RailManifest(
             ),
         ),
         requirements=RailRequirements(
-            env_vars=(EnvVar(name="V1_API_KEY", required=False),),
+            env_vars=(
+                EnvVar(
+                    name="V1_API_KEY",
+                    required=False,
+                    description="API key used when the shipped Trend Micro configuration selects this variable.",
+                ),
+            ),
             services=(ServiceRequirement(name="Trend Micro Vision One AI Guard", required=True),),
         ),
         privacy=RailPrivacy(
