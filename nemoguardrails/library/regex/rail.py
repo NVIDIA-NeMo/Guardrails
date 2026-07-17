@@ -26,6 +26,7 @@ from nemoguardrails.manifests import (
     RailPrivacy,
     RailSpec,
     RailSurface,
+    TransformTarget,
 )
 
 DETECT_REGEX_PATTERN = ActionRef(
@@ -38,7 +39,7 @@ RAIL = RailManifest(
         display_name="Regex Detection",
         description="Detects and blocks text matching configured regular expression patterns.",
         categories=("input", "output", "retrieval"),
-        capabilities=("block", "classify", "moderate"),
+        capabilities=("block", "classify", "moderate", "transform"),
         tags=("built-in", "regex", "pattern-matching"),
         docs_url="docs/configure-rails/guardrail-catalog/community/regex.md",
     ),
@@ -67,6 +68,7 @@ RAIL = RailManifest(
                 direction=RailDirection.RETRIEVAL,
                 action=DETECT_REGEX_PATTERN,
                 bindings=(Binding.literal("source", "retrieval"), Binding.context("text", "relevant_chunks")),
+                transform_target=TransformTarget.RELEVANT_CHUNKS,
             ),
         ),
         privacy=RailPrivacy(),

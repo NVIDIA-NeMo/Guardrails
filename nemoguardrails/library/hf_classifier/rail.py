@@ -28,6 +28,7 @@ from nemoguardrails.manifests import (
     RailSpec,
     RailSurface,
     ServiceRequirement,
+    TransformTarget,
 )
 
 HF_CLASSIFIER_CHECK_INPUT = ActionRef(
@@ -49,7 +50,7 @@ RAIL = RailManifest(
         display_name="Hugging Face Classifier",
         description="Checks input, output, or retrieved chunks with named Hugging Face classifier configurations.",
         categories=("input", "output", "retrieval"),
-        capabilities=("allow", "block", "classify"),
+        capabilities=("allow", "block", "classify", "transform"),
         tags=("huggingface", "classifier", "local", "remote"),
     ),
     spec=RailSpec(
@@ -89,6 +90,7 @@ RAIL = RailManifest(
                 direction=RailDirection.RETRIEVAL,
                 action=HF_CLASSIFIER_CHECK_RETRIEVAL,
                 bindings=(Binding.surface_param("classifier", "classifier"),),
+                transform_target=TransformTarget.RELEVANT_CHUNKS,
             ),
         ),
         requirements=RailRequirements(
