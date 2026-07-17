@@ -686,7 +686,7 @@ class TestBotToolCallsEventChanges:
             }
         ]
 
-        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -716,7 +716,7 @@ class TestBotToolCallsEventChanges:
             },
         ]
 
-        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             config = RailsConfig.from_content(config={"models": [], "passthrough": True})

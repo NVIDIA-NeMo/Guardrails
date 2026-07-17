@@ -13,6 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test tool-calling behavior across passthrough and non-dialog-flow general modes.
+
+Tool calls surface as ``BotToolCalls`` in any config that reaches
+``_emit_general_bot_turn`` -- i.e. any config with no dialog flows (no
+``user_messages`` and no ``single_call`` dialog rails) -- whether or not
+``passthrough`` is set. Only dialog-flow configs (covered separately in
+``tests/test_generation_equivalence.py``) drop tool calls.
+"""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -92,6 +101,8 @@ def config_no_passthrough():
 
 
 class TestToolCallingPassthroughOnly:
+    """Tool calls surface in any config without dialog flows, passthrough or not."""
+
     def test_config_passthrough_true(self, config_passthrough):
         assert config_passthrough.passthrough is True
 
@@ -135,13 +146,24 @@ class TestToolCallingPassthroughOnly:
         assert stored[0]["id"] == "call_123"
 
     @pytest.mark.asyncio
-    async def test_tool_calls_ignored_in_non_passthrough_mode(self, config_no_passthrough, mock_llm_with_tool_calls):
+    async def test_tool_calls_work_in_non_passthrough_mode_without_dialog_flows(
+        self, config_no_passthrough, mock_llm_with_tool_calls
+    ):
+        """Tool calls still surface as ``BotToolCalls`` without passthrough.
+
+        ``config_no_passthrough`` has no dialog flows either (no
+        ``user_messages``, ``single_call`` disabled), so ``generate_user_intent``
+        still reaches ``_emit_general_bot_turn``, which reads ``tool_calls_var``
+        regardless of ``passthrough``.
+        """
         tool_calls = [
             {
                 "id": "call_123",
-                "type": "tool_call",
-                "name": "test_tool",
-                "args": {"param": "value"},
+                "type": "function",
+                "function": {
+                    "name": "test_tool",
+                    "arguments": {"param": "value"},
+                },
             }
         ]
         tool_calls_var.set(tool_calls)
@@ -161,8 +183,12 @@ class TestToolCallingPassthroughOnly:
         )
 
         assert len(result.events) == 1
-        assert result.events[0]["type"] == "BotMessage"
-        assert "tool_calls" not in result.events[0]
+        assert result.events[0]["type"] == "BotToolCalls"
+        stored = result.events[0]["tool_calls"]
+        assert len(stored) == 1
+        assert stored[0]["function"]["name"] == "test_tool"
+        assert stored[0]["function"]["arguments"] == {"param": "value"}
+        assert stored[0]["id"] == "call_123"
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_creates_bot_message_in_passthrough(self, config_passthrough):

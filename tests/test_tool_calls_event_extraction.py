@@ -114,7 +114,7 @@ async def test_generation_action_pops_tool_calls_once():
         return None
 
     with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar",
+        "nemoguardrails.actions.llm.generation.get_and_clear_tool_calls_contextvar",
         side_effect=mock_get_and_clear,
     ):
         chat = TestChat(config, llm_completions=[""])
