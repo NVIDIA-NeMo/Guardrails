@@ -53,6 +53,10 @@ RAIL = RailManifest(
             RailSurface(name="alignscore check facts", direction=RailDirection.OUTPUT, action=ALIGNSCORE_CHECK_FACTS),
         ),
         requirements=RailRequirements(services=(ServiceRequirement(name="AlignScore HTTP service", required=True),)),
-        privacy=RailPrivacy(sends_bot_text=True, sends_retrieved_chunks=True, remote_services=("AlignScore endpoint",)),
+        privacy=RailPrivacy(
+            sends_bot_text=True,
+            sends_retrieved_chunks=True,
+            remote_services=("AlignScore HTTP service",),
+        ),
     ),
 )
