@@ -108,7 +108,7 @@ RAIL = RailManifest(
             RailSurface(
                 name="autoalign groundedness output",
                 direction=RailDirection.OUTPUT,
-                action=AUTOALIGN_FACTCHECK_OUTPUT_API,
+                action=AUTOALIGN_GROUNDEDNESS_OUTPUT_API,
                 bindings=(
                     Binding.literal("factcheck_threshold", 0.5),
                     Binding.literal("show_autoalign_message", True),

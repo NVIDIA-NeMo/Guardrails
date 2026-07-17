@@ -58,19 +58,28 @@ RAIL = RailManifest(
                 name="activefence moderation on input",
                 direction=RailDirection.INPUT,
                 action=CALL_ACTIVEFENCE_API,
-                bindings=(Binding.context("text", "user_message"),),
+                bindings=(
+                    Binding.context("text", "user_message"),
+                    Binding.literal("threshold_mode", "simple"),
+                ),
             ),
             RailSurface(
                 name="activefence moderation on output",
                 direction=RailDirection.OUTPUT,
                 action=CALL_ACTIVEFENCE_API,
-                bindings=(Binding.context("text", "bot_message"),),
+                bindings=(
+                    Binding.context("text", "bot_message"),
+                    Binding.literal("threshold_mode", "simple"),
+                ),
             ),
             RailSurface(
                 name="activefence moderation on input detailed",
                 direction=RailDirection.INPUT,
                 action=CALL_ACTIVEFENCE_API,
-                bindings=(Binding.context("text", "user_message"),),
+                bindings=(
+                    Binding.context("text", "user_message"),
+                    Binding.literal("threshold_mode", "detailed"),
+                ),
             ),
         ),
         requirements=RailRequirements(
