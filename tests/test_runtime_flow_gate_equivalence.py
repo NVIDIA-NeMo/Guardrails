@@ -2131,7 +2131,10 @@ FIXTURES = [
     _case(
         "activefence_input_detailed_fails_closed_without_trigger_metadata",
         ACTIVEFENCE_INPUT_DETAILED,
-        _risk_outcome(0.31, blocked=True, threshold_mode="detailed"),
+        RailOutcome.block(
+            reason="Moderation threshold exceeded.",
+            metadata={"max_risk_score": 0.31, "violations": {}, "threshold_mode": "detailed"},
+        ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
@@ -2173,7 +2176,10 @@ FIXTURES = [
     _case(
         "gcp_moderation_output_detailed_fails_closed_without_trigger_metadata",
         GCP_MODERATION_OUTPUT_DETAILED,
-        _risk_outcome(0.41, blocked=True, threshold_mode="detailed"),
+        RailOutcome.block(
+            reason="Moderation threshold exceeded.",
+            metadata={"max_risk_score": 0.41, "violations": {}, "threshold_mode": "detailed"},
+        ),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
@@ -2470,6 +2476,16 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
                 triggered_violation="adult_content.general",
             ),
             "I will not engage with inappropriate content.",
+        ),
+        (
+            "activefence",
+            "activefence moderation on input detailed",
+            "call_activefence_api",
+            RailOutcome.block(
+                reason="Moderation threshold exceeded.",
+                metadata={"max_risk_score": 0.31, "violations": {}, "threshold_mode": "detailed"},
+            ),
+            REFUSAL,
         ),
     ],
 )

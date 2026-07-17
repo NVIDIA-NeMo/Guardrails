@@ -38,7 +38,7 @@ define subflow gcpnlp moderation detailed
   $result = execute call gcpnlp api(threshold_mode="detailed")
 
   if $result.is_blocked
-    $triggered_violation = $result.metadata["triggered_violation"]
+    $triggered_violation = $result.metadata.get("triggered_violation")
 
     if $triggered_violation == "Toxic"
       bot inform cannot engage in abusive or harmful behavior

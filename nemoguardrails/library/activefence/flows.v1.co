@@ -41,7 +41,7 @@ define subflow activefence moderation on input detailed
   $result = execute call_activefence_api(text=$user_message, threshold_mode="detailed")
 
   if $result.is_blocked
-    $triggered_violation = $result.metadata["triggered_violation"]
+    $triggered_violation = $result.metadata.get("triggered_violation")
 
     if $triggered_violation == "abusive_or_harmful.harassment_or_bullying"
       if $config.enable_rails_exceptions
