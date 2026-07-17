@@ -19,10 +19,11 @@ When ``options`` is supplied, ``generate_async``/``generate`` return a
 ``GenerationResponse`` instead of a bare ``LLMMessage`` dict, mirroring LLMRails'
 ``if gen_options:`` branch. When ``options`` is absent the bare dict is returned
 unchanged. The structured path populates ``response``, ``reasoning_content``,
-``tool_calls`` (as ``ToolCall.to_dict()`` with dict arguments), and
-``llm_metadata`` (main-call ``provider_metadata`` plus a ``usage`` sub-key);
-``llm_output`` is always ``None`` (parity with LLMRails' unwired ``raw_response``);
-``log`` is deferred; and ``output_vars``/``state``/``log`` request options raise.
+``tool_calls`` (as ``ToolCall.to_dict()`` with dict arguments), ``log`` (from
+per-rail records), and ``llm_metadata`` (main-call ``provider_metadata`` only —
+token usage lives in ``log``); ``llm_output`` is always ``None`` (parity with
+LLMRails' unwired ``raw_response``). ``output_vars``/``state`` raise ``ValueError``
+and ``log.internal_events``/``log.colang_history`` raise ``NotImplementedError``.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -66,27 +67,32 @@ def _stub_model(iorails: IORails, response: LLMResponse) -> None:
 
 _USER = [{"role": "user", "content": "hi"}]
 
+_WEATHER_TOOL_CALL = ToolCall(
+    id="call_1",
+    type="function",
+    function=ToolCallFunction(name="get_weather", arguments={"city": "SF"}),
+)
+
+
+async def _generate_structured(iorails: IORails, response: LLMResponse, *, options=None, **kwargs):
+    """Stub safe rails + a fixed model response, then run the structured (``options``) path."""
+    _stub_safe_rails(iorails)
+    _stub_model(iorails, response)
+    return await iorails.generate_async(_USER, options={} if options is None else options, **kwargs)
+
 
 class TestStructuredResponseTrigger:
     """``options`` presence decides GenerationResponse vs. bare dict."""
 
     @pytest.mark.asyncio
-    async def test_options_dict_returns_generation_response(self, iorails):
-        """A dict ``options`` argument switches the return type to GenerationResponse."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        result = await iorails.generate_async(_USER, options={"llm_params": {"temperature": 0.5}})
-
-        assert isinstance(result, GenerationResponse)
-
-    @pytest.mark.asyncio
-    async def test_generation_options_returns_generation_response(self, iorails):
-        """A GenerationOptions instance also switches the return type."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        result = await iorails.generate_async(_USER, options=GenerationOptions())
+    @pytest.mark.parametrize(
+        "options",
+        [{"llm_params": {"temperature": 0.5}}, GenerationOptions()],
+        ids=["dict", "GenerationOptions"],
+    )
+    async def test_options_returns_generation_response(self, iorails, options):
+        """Any ``options`` value (dict or GenerationOptions) switches the return type to GenerationResponse."""
+        result = await _generate_structured(iorails, LLMResponse(content="Hello"), options=options)
 
         assert isinstance(result, GenerationResponse)
 
@@ -108,11 +114,9 @@ class TestResponseField:
     @pytest.mark.asyncio
     async def test_plain_content_wrapped_in_list(self, iorails):
         """``response`` is ``[{"role":"assistant","content": text}]``."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello there"))
+        result = await _generate_structured(iorails, LLMResponse(content="Hello there"))
 
-        result = await iorails.generate_async(_USER, options={})
-
+        assert isinstance(result, GenerationResponse)
         assert result.response == [{"role": "assistant", "content": "Hello there"}]
 
 
@@ -120,25 +124,17 @@ class TestReasoningContent:
     """Reasoning goes to ``reasoning_content`` with clean content (no inline <think>)."""
 
     @pytest.mark.asyncio
-    async def test_native_reasoning_in_field_content_clean(self, iorails):
-        """Provider ``reasoning`` populates ``reasoning_content``; ``response`` content has no <think> prefix."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello", reasoning="thinking step"))
-
-        result = await iorails.generate_async(_USER, options={})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.reasoning_content == "thinking step"
-        assert result.response == [{"role": "assistant", "content": "Hello"}]
-        iorails.rails_manager.is_output_safe.assert_called_once_with(_USER, "Hello", enabled=True)
-
-    @pytest.mark.asyncio
-    async def test_inline_think_tags_extracted_to_field(self, iorails):
-        """Inline <think> tags are stripped into ``reasoning_content`` and never reach output rails."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="<think>thinking step</think>Hello"))
-
-        result = await iorails.generate_async(_USER, options={})
+    @pytest.mark.parametrize(
+        "response",
+        [
+            LLMResponse(content="Hello", reasoning="thinking step"),
+            LLMResponse(content="<think>thinking step</think>Hello"),
+        ],
+        ids=["native-reasoning-field", "inline-think-tags"],
+    )
+    async def test_reasoning_extracted_content_clean(self, iorails, response):
+        """Reasoning (native field or inline <think>) goes to ``reasoning_content``; response content stays clean and output rails see only the clean text."""
+        result = await _generate_structured(iorails, response)
 
         assert isinstance(result, GenerationResponse)
         assert result.reasoning_content == "thinking step"
@@ -148,10 +144,7 @@ class TestReasoningContent:
     @pytest.mark.asyncio
     async def test_no_reasoning_field_is_none(self, iorails):
         """Absent reasoning leaves ``reasoning_content`` as None."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="plain answer"))
-
-        result = await iorails.generate_async(_USER, options={})
+        result = await _generate_structured(iorails, LLMResponse(content="plain answer"))
 
         assert isinstance(result, GenerationResponse)
         assert result.reasoning_content is None
@@ -164,15 +157,7 @@ class TestToolCalls:
     @pytest.mark.asyncio
     async def test_tool_calls_serialized_with_dict_arguments(self, iorails):
         """``tool_calls`` is a list of ``to_dict()`` entries whose ``arguments`` stay a dict, not a JSON string."""
-        _stub_safe_rails(iorails)
-        tool_call = ToolCall(
-            id="call_1",
-            type="function",
-            function=ToolCallFunction(name="get_weather", arguments={"city": "SF"}),
-        )
-        _stub_model(iorails, LLMResponse(content="", tool_calls=[tool_call]))
-
-        result = await iorails.generate_async(_USER, options={})
+        result = await _generate_structured(iorails, LLMResponse(content="", tool_calls=[_WEATHER_TOOL_CALL]))
 
         assert isinstance(result, GenerationResponse)
         assert result.tool_calls == [
@@ -186,15 +171,7 @@ class TestToolCalls:
     @pytest.mark.asyncio
     async def test_response_message_has_no_tool_calls_key(self, iorails):
         """In the structured path tool calls live only in the top-level field, not on the message."""
-        _stub_safe_rails(iorails)
-        tool_call = ToolCall(
-            id="call_1",
-            type="function",
-            function=ToolCallFunction(name="get_weather", arguments={"city": "SF"}),
-        )
-        _stub_model(iorails, LLMResponse(content="", tool_calls=[tool_call]))
-
-        result = await iorails.generate_async(_USER, options={})
+        result = await _generate_structured(iorails, LLMResponse(content="", tool_calls=[_WEATHER_TOOL_CALL]))
 
         assert isinstance(result, GenerationResponse)
         assert result.response == [{"role": "assistant", "content": ""}]
@@ -203,10 +180,7 @@ class TestToolCalls:
     @pytest.mark.asyncio
     async def test_no_tool_calls_field_is_none(self, iorails):
         """A text-only response leaves ``tool_calls`` as None."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        result = await iorails.generate_async(_USER, options={})
+        result = await _generate_structured(iorails, LLMResponse(content="Hello"))
 
         assert isinstance(result, GenerationResponse)
         assert result.tool_calls is None
@@ -216,47 +190,28 @@ class TestLLMMetadata:
     """``llm_metadata`` is the main-call ``provider_metadata`` verbatim; usage lives in ``log``."""
 
     @pytest.mark.asyncio
-    async def test_provider_metadata_passthrough(self, iorails):
-        """provider_metadata is surfaced verbatim; token usage is NOT added under ``usage``."""
-        _stub_safe_rails(iorails)
-        _stub_model(
-            iorails,
-            LLMResponse(
-                content="Hello",
-                provider_metadata={"response_headers": {"nvcf-status": "fulfilled"}},
-                usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15),
+    @pytest.mark.parametrize(
+        "response, expected",
+        [
+            (
+                LLMResponse(
+                    content="Hello",
+                    provider_metadata={"response_headers": {"nvcf-status": "fulfilled"}},
+                    usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15),
+                ),
+                {"response_headers": {"nvcf-status": "fulfilled"}},
             ),
-        )
-
-        result = await iorails.generate_async(_USER, options={})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata == {"response_headers": {"nvcf-status": "fulfilled"}}
-
-    @pytest.mark.asyncio
-    async def test_usage_alone_does_not_populate_metadata(self, iorails):
-        """With usage but no provider_metadata, ``llm_metadata`` is None — usage moved to log."""
-        _stub_safe_rails(iorails)
-        _stub_model(
-            iorails,
-            LLMResponse(content="Hello", usage=UsageInfo(input_tokens=3, output_tokens=4, total_tokens=7)),
-        )
-
-        result = await iorails.generate_async(_USER, options={})
+            (LLMResponse(content="Hello", usage=UsageInfo(input_tokens=3, output_tokens=4, total_tokens=7)), None),
+            (LLMResponse(content="Hello"), None),
+        ],
+        ids=["provider-metadata-passthrough", "usage-only-none", "nothing-none"],
+    )
+    async def test_llm_metadata_is_provider_metadata_only(self, iorails, response, expected):
+        """llm_metadata is the main-call provider_metadata verbatim (else None); token usage is never grafted under ``usage``."""
+        result = await _generate_structured(iorails, response)
 
         assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata is None
-
-    @pytest.mark.asyncio
-    async def test_no_metadata_or_usage_is_none(self, iorails):
-        """No provider_metadata and no usage leaves ``llm_metadata`` as None."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        result = await iorails.generate_async(_USER, options={})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.llm_metadata is None
+        assert result.llm_metadata == expected
 
 
 class TestLLMOutput:
@@ -265,38 +220,33 @@ class TestLLMOutput:
     @pytest.mark.asyncio
     async def test_llm_output_none_even_when_requested(self, iorails):
         """``options={"llm_output": True}`` is accepted but the field stays None."""
-        _stub_safe_rails(iorails)
-        _stub_model(
-            iorails,
-            LLMResponse(content="Hello", provider_metadata={"response_headers": {"nvcf-status": "fulfilled"}}),
-        )
-
-        result = await iorails.generate_async(_USER, options={"llm_output": True})
+        response = LLMResponse(content="Hello", provider_metadata={"response_headers": {"nvcf-status": "fulfilled"}})
+        result = await _generate_structured(iorails, response, options={"llm_output": True})
 
         assert isinstance(result, GenerationResponse)
         assert result.llm_output is None
 
 
 class TestUnsupportedOptionGuards:
-    """Colang-coupled options IORails cannot honor raise ValueError."""
+    """Colang-coupled options IORails cannot honor raise."""
 
     @pytest.mark.asyncio
-    async def test_output_vars_true_raises(self, iorails):
-        """``output_vars=True`` requests Colang context IORails has no access to."""
+    @pytest.mark.parametrize(
+        "gen_kwargs",
+        [
+            {"options": {"output_vars": True}},
+            {"options": {"output_vars": ["relevant_chunks"]}},
+            {"options": {}, "state": {"conversation": []}},
+        ],
+        ids=["output_vars-true", "output_vars-list", "state-arg"],
+    )
+    async def test_colang_state_option_raises_value_error(self, iorails, gen_kwargs):
+        """``output_vars`` (any form) and ``state`` need Colang runtime context IORails lacks — ValueError."""
         _stub_safe_rails(iorails)
         _stub_model(iorails, LLMResponse(content="Hello"))
 
         with pytest.raises(ValueError):
-            await iorails.generate_async(_USER, options={"output_vars": True})
-
-    @pytest.mark.asyncio
-    async def test_output_vars_list_raises(self, iorails):
-        """A list of ``output_vars`` also raises."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        with pytest.raises(ValueError):
-            await iorails.generate_async(_USER, options={"output_vars": ["relevant_chunks"]})
+            await iorails.generate_async(_USER, **gen_kwargs)
 
     @pytest.mark.asyncio
     async def test_colang_only_log_flag_raises(self, iorails):
@@ -312,25 +262,23 @@ class TestUnsupportedOptionGuards:
         with pytest.raises(NotImplementedError):
             await iorails.generate_async(_USER, options={"log": {"internal_events": True}})
 
-    @pytest.mark.asyncio
-    async def test_state_argument_raises(self, iorails):
-        """A ``state`` argument is unsupported for the stateless IORails engine."""
-        _stub_safe_rails(iorails)
-        _stub_model(iorails, LLMResponse(content="Hello"))
-
-        with pytest.raises(ValueError):
-            await iorails.generate_async(_USER, options={}, state={"conversation": []})
-
 
 class TestBlockedStructuredResponse:
     """A blocked request returns the refusal in ``response`` with the other fields empty."""
 
     @pytest.mark.asyncio
-    async def test_input_block_returns_refusal_response(self, iorails):
-        """Input-rail block yields a GenerationResponse whose response is the refusal message."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        _stub_model(iorails, LLMResponse(content="unused"))
+    @pytest.mark.parametrize(
+        "input_safe, output_safe", [(False, True), (True, False)], ids=["input-block", "output-block"]
+    )
+    async def test_block_returns_refusal_response(self, iorails, input_safe, output_safe):
+        """A block at either the input or output rail yields a GenerationResponse whose response is the refusal and whose other fields are empty."""
+        iorails.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(is_safe=input_safe, reason=None if input_safe else "unsafe")
+        )
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=output_safe, reason=None if output_safe else "unsafe")
+        )
+        _stub_model(iorails, LLMResponse(content="bad answer"))
 
         result = await iorails.generate_async(_USER, options={})
 
@@ -339,18 +287,6 @@ class TestBlockedStructuredResponse:
         assert result.tool_calls is None
         assert result.reasoning_content is None
         assert result.llm_metadata is None
-
-    @pytest.mark.asyncio
-    async def test_output_block_returns_refusal_response(self, iorails):
-        """Output-rail block yields a GenerationResponse whose response is the refusal message."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
-        _stub_model(iorails, LLMResponse(content="bad answer"))
-
-        result = await iorails.generate_async(_USER, options={})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
 
 
 class TestBarePathUnchanged:
@@ -385,25 +321,17 @@ class TestSyncGenerateStructured:
 class TestResponseContentForCapture:
     """`_response_content_for_capture` extracts assistant text from either return shape."""
 
-    def test_generation_response_list(self):
-        """A structured (list) response yields the last assistant message's content."""
-        result = GenerationResponse(response=[{"role": "assistant", "content": "hi there"}])
-        assert _response_content_for_capture(result) == "hi there"
-
-    def test_generation_response_str(self):
-        """A structured (str) response is returned as-is."""
-        result = GenerationResponse(response="hi there")
-        assert _response_content_for_capture(result) == "hi there"
-
-    def test_generation_response_empty_list(self):
-        """An empty response list has no content to capture."""
-        assert _response_content_for_capture(GenerationResponse(response=[])) is None
-
-    def test_generation_response_non_str_content(self):
-        """A non-string message content is not captured."""
-        result = GenerationResponse(response=[{"role": "assistant", "content": None}])
-        assert _response_content_for_capture(result) is None
-
-    def test_bare_message_dict(self):
-        """The bare-dict return path reads content off the message directly."""
-        assert _response_content_for_capture({"role": "assistant", "content": "hi there"}) == "hi there"
+    @pytest.mark.parametrize(
+        "result, expected",
+        [
+            (GenerationResponse(response=[{"role": "assistant", "content": "hi there"}]), "hi there"),
+            (GenerationResponse(response="hi there"), "hi there"),
+            (GenerationResponse(response=[]), None),
+            (GenerationResponse(response=[{"role": "assistant", "content": None}]), None),
+            ({"role": "assistant", "content": "hi there"}, "hi there"),
+        ],
+        ids=["structured-list", "structured-str", "empty-list", "non-str-content", "bare-dict"],
+    )
+    def test_capture_content(self, result, expected):
+        """Assistant content is pulled from structured list/str responses and from the bare-dict path; non-str/absent content yields None."""
+        assert _response_content_for_capture(result) == expected
