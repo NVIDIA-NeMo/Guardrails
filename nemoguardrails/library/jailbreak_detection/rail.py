@@ -70,7 +70,13 @@ RAIL = RailManifest(
             ),
         ),
         requirements=RailRequirements(
-            env_vars=(EnvVar(name="NVIDIA_API_KEY", required=False),),
+            env_vars=(
+                EnvVar(
+                    name="NVIDIA_API_KEY",
+                    required=False,
+                    description="API key used when the shipped hosted NVIDIA NIM configuration selects this variable.",
+                ),
+            ),
             services=(ServiceRequirement(name="NVIDIA NIM", required=False),),
             optional_dependencies=("scikit-learn", "torch"),
         ),
