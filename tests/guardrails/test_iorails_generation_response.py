@@ -31,7 +31,7 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails, _response_content_for_capture
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction, UsageInfo
@@ -380,3 +380,30 @@ class TestSyncGenerateStructured:
             result = iorails_sync.generate(_USER, options={})
 
         assert isinstance(result, GenerationResponse)
+
+
+class TestResponseContentForCapture:
+    """`_response_content_for_capture` extracts assistant text from either return shape."""
+
+    def test_generation_response_list(self):
+        """A structured (list) response yields the last assistant message's content."""
+        result = GenerationResponse(response=[{"role": "assistant", "content": "hi there"}])
+        assert _response_content_for_capture(result) == "hi there"
+
+    def test_generation_response_str(self):
+        """A structured (str) response is returned as-is."""
+        result = GenerationResponse(response="hi there")
+        assert _response_content_for_capture(result) == "hi there"
+
+    def test_generation_response_empty_list(self):
+        """An empty response list has no content to capture."""
+        assert _response_content_for_capture(GenerationResponse(response=[])) is None
+
+    def test_generation_response_non_str_content(self):
+        """A non-string message content is not captured."""
+        result = GenerationResponse(response=[{"role": "assistant", "content": None}])
+        assert _response_content_for_capture(result) is None
+
+    def test_bare_message_dict(self):
+        """The bare-dict return path reads content off the message directly."""
+        assert _response_content_for_capture({"role": "assistant", "content": "hi there"}) == "hi there"
