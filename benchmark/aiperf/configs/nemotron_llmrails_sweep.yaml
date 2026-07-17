@@ -1,0 +1,28 @@
+# AIPerf sweep config for LLMRails engine — IORails vs LLMRails benchmark
+# Models: nvidia/nemotron-3-nano-30b-a3b (main) + nvidia/nemotron-3.5-content-safety (CS)
+# Run with: python -m benchmark.aiperf --config-file benchmark/aiperf/configs/nemotron_llmrails_sweep.yaml
+
+batch_name: nemotron_llmrails
+
+output_base_dir: aiperf_results
+
+base_config:
+  model: nvidia/nemotron-3-nano-30b-a3b
+  tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+  url: "http://localhost:9000"
+  endpoint: "/v1/chat/completions"
+  endpoint_type: chat
+
+  warmup_request_count: 10
+  benchmark_duration: 60
+  concurrency: 0  # Overridden by sweep below
+  request_rate_mode: "constant"
+
+  random_seed: 12345
+  prompt_input_tokens_mean: 100
+  prompt_input_tokens_stddev: 10
+  prompt_output_tokens_mean: 50
+  prompt_output_tokens_stddev: 5
+
+sweeps:
+  concurrency: [1, 2, 4, 8, 16, 32, 64, 128, 256]

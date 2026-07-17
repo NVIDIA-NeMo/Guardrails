@@ -1,0 +1,9 @@
+# Procfile for LLMRails engine — IORails vs LLMRails benchmark
+# Run with: uv run honcho start -f Procfile.llmrails
+
+# NeMo Guardrails server (LLMRails engine)
+gr: MAIN_MODEL_ENGINE=nim MAIN_MODEL_BASE_URL=http://localhost:8000/v1 uv run nemoguardrails server --config ../examples/configs/iorails_vs_llmrails_benchmark --default-config-id iorails_vs_llmrails_benchmark --port 9000
+
+# Mock NIMs for inference. PYTHONPATH is set to the project root so absolute imports work
+app_llm: PYTHONPATH=.. python mock_llm_server/run_server.py --workers 4 --port 8000 --config-file mock_llm_server/configs/nvidia-nemotron-3-nano-30b-a3b.env
+cs_llm: PYTHONPATH=.. python mock_llm_server/run_server.py --workers 4 --port 8001 --config-file mock_llm_server/configs/nvidia-nemotron-3.5-content-safety.env
