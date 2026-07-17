@@ -5,7 +5,9 @@ define subflow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
   $bloat_result = execute context_bloat_detection(source="retrieval", text=$relevant_chunks)
   if $bloat_result.is_blocked
-    bot inform retrieval bloated
+    $block_message = $config.bot_messages["inform retrieval bloated"][0]
+    $skip_output_rails = True
+    create event BotMessage(text=$block_message)
     stop
   if $bloat_result.is_transform
     $relevant_chunks = $bloat_result.transform_text["relevant_chunks"]
