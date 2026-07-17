@@ -54,7 +54,7 @@ RAIL = RailManifest(
             "transform",
         ),
         tags=("third-party", "api", "security"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/crowdstrike-aidr.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/crowdstrike-aidr.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

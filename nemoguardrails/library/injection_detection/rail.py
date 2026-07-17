@@ -43,7 +43,7 @@ RAIL = RailManifest(
         categories=("output", "tool_output"),
         capabilities=("allow", "block", "classify", "transform"),
         tags=("security", "agentic", "yara"),
-        docs_url="docs/configure-rails/guardrail-catalog/agentic-security.md",
+        docs_url="docs/configure-rails/guardrail-catalog/agentic-security.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

@@ -44,7 +44,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "content_safety", "detect_jailbreak", "detect_pii", "moderate"),
         tags=("third-party", "api", "security"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/ai-defense.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/ai-defense.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

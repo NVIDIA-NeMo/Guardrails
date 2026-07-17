@@ -48,7 +48,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("block", "classify", "detect_pii", "mask", "transform"),
         tags=("built-in", "pii", "presidio", "sensitive-data"),
-        docs_url="docs/configure-rails/guardrail-catalog/pii-detection.md",
+        docs_url="docs/configure-rails/guardrail-catalog/pii-detection.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

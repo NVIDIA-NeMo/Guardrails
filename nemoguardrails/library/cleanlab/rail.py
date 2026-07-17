@@ -41,7 +41,7 @@ RAIL = RailManifest(
         categories=("output",),
         capabilities=("allow", "block", "classify", "fact_check"),
         tags=("third-party", "api", "hallucination", "trustworthiness"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/cleanlab.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/cleanlab.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("cleanlab trustworthiness",)),

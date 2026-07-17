@@ -40,7 +40,7 @@ RAIL = RailManifest(
         categories=("input",),
         capabilities=("allow", "block", "classify", "topic_control"),
         tags=("nemoguard", "topic-control"),
-        docs_url="docs/configure-rails/guardrail-catalog/topic-control.md",
+        docs_url="docs/configure-rails/guardrail-catalog/topic-control.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("topic safety check input",)),

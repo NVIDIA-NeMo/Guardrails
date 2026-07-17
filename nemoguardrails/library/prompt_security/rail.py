@@ -43,7 +43,7 @@ RAIL = RailManifest(
         categories=("input", "output"),
         capabilities=("allow", "block", "classify", "detect_jailbreak", "transform"),
         tags=("third-party", "api", "security"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/prompt-security.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/prompt-security.mdx",
     ),
     spec=RailSpec(
         flows=RailFlows(flow_names=("protect prompt", "protect response")),

@@ -41,7 +41,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("block", "classify", "moderate", "transform"),
         tags=("built-in", "regex", "pattern-matching"),
-        docs_url="docs/configure-rails/guardrail-catalog/community/regex.md",
+        docs_url="docs/configure-rails/guardrail-catalog/community/regex.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

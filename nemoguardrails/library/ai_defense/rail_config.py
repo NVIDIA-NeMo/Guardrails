@@ -33,7 +33,7 @@ class AIDefenseRailConfig(RailConfigBaseModel):
 
     fail_open: bool = Field(
         default=False,
-        description="If True, allow content when AI Defense API call fails (fail open). If False, block content when AI Defense API call fails (fail closed). Does not affect missing configuration validation.",
+        description="If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
     )
 
 
