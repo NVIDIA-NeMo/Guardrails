@@ -624,17 +624,17 @@ ACTIVEFENCE_INPUT_DETAILED = RailSpec(
     action="call_activefence_api",
 )
 
-GCP_MODERATION_OUTPUT = RailSpec(
-    name="gcp_moderation_output",
+GCP_MODERATION_INPUT = RailSpec(
+    name="gcp_moderation_input",
     flow="gcpnlp moderation",
-    direction="output",
+    direction="input",
     action="call gcpnlp api",
 )
 
-GCP_MODERATION_OUTPUT_DETAILED = RailSpec(
-    name="gcp_moderation_output_detailed",
+GCP_MODERATION_INPUT_DETAILED = RailSpec(
+    name="gcp_moderation_input_detailed",
     flow="gcpnlp moderation detailed",
-    direction="output",
+    direction="input",
     action="call gcpnlp api",
 )
 
@@ -2139,29 +2139,29 @@ FIXTURES = [
         FlowDecision.BLOCK,
     ),
     _case(
-        "gcp_moderation_output_allows_at_simple_threshold",
-        GCP_MODERATION_OUTPUT,
+        "gcp_moderation_input_allows_at_simple_threshold",
+        GCP_MODERATION_INPUT,
         _risk_outcome(0.8, blocked=False, threshold_mode="simple"),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "gcp_moderation_output_blocks_above_simple_threshold",
-        GCP_MODERATION_OUTPUT,
+        "gcp_moderation_input_blocks_above_simple_threshold",
+        GCP_MODERATION_INPUT,
         _risk_outcome(0.81, blocked=True, threshold_mode="simple"),
         ObservableOutcome.REFUSAL,
         FlowDecision.BLOCK,
     ),
     _case(
-        "gcp_moderation_output_detailed_allows_at_derogatory_threshold",
-        GCP_MODERATION_OUTPUT_DETAILED,
+        "gcp_moderation_input_detailed_allows_at_derogatory_threshold",
+        GCP_MODERATION_INPUT_DETAILED,
         _risk_outcome(0.4, blocked=False, threshold_mode="detailed", violations={"Derogatory": 0.4}),
         ObservableOutcome.ALLOW,
         FlowDecision.ALLOW,
     ),
     _case(
-        "gcp_moderation_output_detailed_blocks_above_derogatory_threshold",
-        GCP_MODERATION_OUTPUT_DETAILED,
+        "gcp_moderation_input_detailed_blocks_above_derogatory_threshold",
+        GCP_MODERATION_INPUT_DETAILED,
         _risk_outcome(
             0.41,
             blocked=True,
@@ -2174,8 +2174,8 @@ FIXTURES = [
         expected_content="I will not engage in any abusive or harmful behavior.",
     ),
     _case(
-        "gcp_moderation_output_detailed_fails_closed_without_trigger_metadata",
-        GCP_MODERATION_OUTPUT_DETAILED,
+        "gcp_moderation_input_detailed_fails_closed_without_trigger_metadata",
+        GCP_MODERATION_INPUT_DETAILED,
         RailOutcome.block(
             reason="Moderation threshold exceeded.",
             metadata={"max_risk_score": 0.41, "violations": {}, "threshold_mode": "detailed"},
