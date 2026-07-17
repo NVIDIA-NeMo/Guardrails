@@ -20,7 +20,7 @@ import os
 import warnings
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
@@ -1210,7 +1210,7 @@ class RailsConfig(BaseModel):
     )
 
     @classmethod
-    def for_plugins(cls, enabled) -> type["RailsConfig"]:
+    def for_plugins(cls, enabled: Iterable[str]) -> type["RailsConfig"]:
         names = tuple(sorted(set(enabled)))
         return _rails_config_model_for_plugins(names)
 
@@ -1353,6 +1353,10 @@ def _rails_config_model_for_plugins(enabled: Tuple[str, ...]) -> type[RailsConfi
         __module__=__name__,
         rails=(rails_model, Field(default_factory=rails_model)),
     )
+
+
+def _reset_rails_config_model_cache() -> None:
+    _rails_config_model_for_plugins.cache_clear()
 
 
 def _join_dict(dict1, dict2):

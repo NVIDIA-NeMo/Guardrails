@@ -30,8 +30,8 @@ class RailsConfigField:
     config: RailConfigSpec
     origin: str = ""
 
+    __hash__ = None  # type: ignore[assignment]
 
-setattr(RailsConfigField, "__hash__", None)
 
 _FIELDS: Dict[str, RailsConfigField] = {}
 _EXPORTS: Dict[str, Tuple[str, Any]] = {}
