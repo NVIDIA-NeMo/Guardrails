@@ -1,0 +1,28 @@
+name: PR Coverage
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - ".github/**"
+
+permissions:
+  contents: read
+
+jobs:
+  pr-coverage:
+    uses: ./.github/workflows/_test.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    with:
+      os: Ubuntu
+      image: ubuntu-latest
+      python-version: "3.11"
+      with-coverage: true
+  pr-coverage-summary:
+    name: PR Coverage Summary
+    needs: pr-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm PR coverage passed
+        run: echo "PR coverage completed successfully"
