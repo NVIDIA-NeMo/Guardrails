@@ -38,6 +38,8 @@ def setup_module(module):
     if not SDD_SETUP_PRESENT:
         pytest.skip("Required dependencies not found")
 
+    import spacy
+
     try:
         # check if the model is already downloaded
         if not spacy.util.is_package("en_core_web_lg"):
@@ -420,3 +422,39 @@ def test_high_score_threshold_disables_rails():
     # This will trigger the input rail
     chat >> "Hi! I am Mr. John!"
     chat << "Hi! My name is John as well."
+
+
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
+@pytest.mark.unit
+def test_mask_sensitive_data_honors_configured_score_threshold():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                sensitive_data_detection:
+                  input:
+                    score_threshold: 1.0
+                    entities:
+                      - PERSON
+              input:
+                flows:
+                  - mask sensitive data on input
+                  - check user message
+        """,
+        colang_content="""
+            define flow check user message
+              execute check_user_message(user_message=$user_message)
+        """,
+    )
+
+    chat = TestChat(config, llm_completions=["Hello there! My name is Michael!"])
+
+    @action()
+    def check_user_message(user_message):
+        assert user_message == "Hi! I am Mr. John!"
+
+    chat.app.register_action(check_user_message)
+
+    chat >> "Hi! I am Mr. John!"
+    chat << "Hello there! My name is Michael!"
