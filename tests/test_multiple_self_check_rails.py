@@ -784,9 +784,9 @@ def test_output_fallback_chain_prefers_task_over_default():
     assert chat.llm.inference_count == 2
 
 
-def _resolve_input_task(task=None, context=None, events=None):
+def _resolve_input_task(variant=None, context=None, events=None):
     return resolve_self_check_task(
-        task,
+        variant,
         context,
         events,
         triggered_rail_key="triggered_input_rail",
@@ -889,7 +889,7 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
 
 def test_resolve_self_check_task_prefers_explicit_task():
     task = _resolve_input_task(
-        task="check_harmful",
+        variant="check_harmful",
         context={"triggered_input_rail": "self check input $variant=check_off_topic"},
     )
 
@@ -898,7 +898,7 @@ def test_resolve_self_check_task_prefers_explicit_task():
 
 def test_resolve_self_check_task_uses_triggered_rail_context():
     task = _resolve_input_task(
-        task="$variant",
+        variant="$variant",
         context={"triggered_input_rail": "self check input $variant=check_harmful"},
     )
 
@@ -907,7 +907,7 @@ def test_resolve_self_check_task_uses_triggered_rail_context():
 
 def test_resolve_self_check_task_uses_latest_start_rail_event():
     task = _resolve_input_task(
-        task="$variant",
+        variant="$variant",
         events=[
             {"type": "StartInputRail", "flow_id": "self check input $variant=check_off_topic"},
             {"type": "SomeOtherEvent", "flow_id": "self check input $variant=ignored"},
@@ -930,14 +930,14 @@ def test_resolve_self_check_task_uses_start_flow_params():
 
 def test_resolve_self_check_task_defaults_unresolved_placeholders():
     assert _resolve_input_task(context={"triggered_input_rail": "self check input"}) == SELF_CHECK_INPUT_DEFAULT_TASK
-    assert _resolve_input_task(task="$variant") == SELF_CHECK_INPUT_DEFAULT_TASK
+    assert _resolve_input_task(variant="$variant") == SELF_CHECK_INPUT_DEFAULT_TASK
     assert _resolve_input_task() == SELF_CHECK_INPUT_DEFAULT_TASK
 
 
 def test_bare_triggered_rail_uses_default_over_event_history():
     """Verify a bare triggered rail selects the default task."""
     task = _resolve_input_task(
-        task="$variant",
+        variant="$variant",
         context={"triggered_input_rail": "self check input"},
         events=[
             {

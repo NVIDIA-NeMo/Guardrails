@@ -1,5 +1,5 @@
 flow self check input $variant="self_check_input"
-  $response = await SelfCheckInputAction(task=$variant)
+  $response = await SelfCheckInputAction(variant=$variant)
 
   if $response.is_blocked
     if $system.config.enable_rails_exceptions
