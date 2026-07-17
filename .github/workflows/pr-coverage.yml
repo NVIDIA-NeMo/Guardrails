@@ -9,16 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-coverage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   pr-coverage:
-    uses: ./.github/workflows/_test.yml
+    uses: ./.github/workflows/_coverage.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-    with:
-      os: Ubuntu
-      image: ubuntu-latest
-      python-version: "3.11"
-      with-coverage: true
   pr-coverage-summary:
     name: PR Coverage Summary
     needs: pr-coverage
