@@ -2039,7 +2039,23 @@ class LLMRails(BaseGuardrails):
                         yield json.dumps(error_data)
                         return
 
-                    if require_rail_outcome(result).is_blocked:
+                    try:
+                        outcome = require_rail_outcome(result)
+                    except TypeError as e:
+                        error_message = str(e)
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
+
+                    if outcome.is_blocked:
                         reason = f"Blocked by {flow_id} rails."
 
                         # return the error as a plain JSON string (not in SSE format)
