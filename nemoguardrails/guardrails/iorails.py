@@ -1084,8 +1084,16 @@ class IORails(BaseGuardrails):
                                     if input_task is not None:
                                         if not input_task.done():
                                             input_task.cancel()
-                                        with suppress(asyncio.CancelledError, Exception):
+                                        try:
                                             await input_task
+                                        except asyncio.CancelledError:
+                                            pass
+                                        except Exception:
+                                            log.warning(
+                                                "[%s] Speculative input-safety task raised during defensive cleanup",
+                                                req_id,
+                                                exc_info=True,
+                                            )
                             except Exception:
                                 elapsed_ms = (time.monotonic() - t0) * 1000
                                 log.error("[%s] stream_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
@@ -1344,8 +1352,16 @@ class IORails(BaseGuardrails):
             spec_stats["output_rails_speculation_chunks"] = spec_chunks
             if not input_task.done():
                 input_task.cancel()
-            with suppress(asyncio.CancelledError, Exception):
+            try:
                 await input_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                log.warning(
+                    "[%s] Speculative input-safety task raised during cleanup",
+                    req_id,
+                    exc_info=True,
+                )
 
     async def _run_output_rails_in_streaming(
         self,
