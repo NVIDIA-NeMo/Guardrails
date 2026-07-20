@@ -1447,7 +1447,10 @@ def _get_flow_model(flow_text) -> Optional[str]:
     """Helper to return a model name from a flow definition"""
     if MODEL_PREFIX not in flow_text:
         return None
-    return flow_text.split(MODEL_PREFIX)[-1].strip()
+    from nemoguardrails.manifests import parse_configured_surface
+
+    _, parameters = parse_configured_surface(flow_text)
+    return parameters.get("model")
 
 
 def _validate_self_check_rail_prompts(

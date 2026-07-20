@@ -408,6 +408,9 @@ class TestConfigHelpers:
         """Check we return None if the flow doesn't have a model definition"""
         assert _get_flow_model("content safety check input $model=content_safety") == "content_safety"
 
+    def test_get_flow_model_with_additional_parameters(self):
+        assert _get_flow_model("content safety check input $model=content_safety $mode=strict") == "content_safety"
+
     def test_validate_rail_prompts(self):
         """Check we don't raise ValueError if there's a matching prompt for a rail"""
 
