@@ -64,6 +64,11 @@ RAIL = RailManifest(
         ),
         surfaces=(
             RailSurface(
+                name="jailbreak detection heuristics",
+                direction=RailDirection.INPUT,
+                action=JAILBREAK_DETECTION_HEURISTICS,
+            ),
+            RailSurface(
                 name="jailbreak detection model",
                 direction=RailDirection.INPUT,
                 action=JAILBREAK_DETECTION_MODEL,
