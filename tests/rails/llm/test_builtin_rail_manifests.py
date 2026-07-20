@@ -153,6 +153,32 @@ def test_configurable_api_key_requirements_document_shipped_names():
 def test_builtin_surfaces_preserve_flow_contracts():
     surfaces = default_rail_catalog().surfaces()
 
+    assert surfaces[(RailDirection.INPUT, "clavata check input")].bindings == (
+        Binding.context("text", "user_message"),
+        Binding.literal("rail", "input"),
+    )
+    assert surfaces[(RailDirection.OUTPUT, "clavata check output")].bindings == (
+        Binding.context("text", "bot_message"),
+        Binding.literal("rail", "output"),
+    )
+    assert surfaces[(RailDirection.INPUT, "context bloat detection on input")].bindings == (
+        Binding.literal("source", "input"),
+        Binding.context("text", "user_message"),
+    )
+    assert surfaces[(RailDirection.INPUT, "context bloat detection on input")].transform_target == (
+        TransformTarget.USER_MESSAGE
+    )
+    assert surfaces[(RailDirection.RETRIEVAL, "context bloat detection on retrieval")].bindings == (
+        Binding.literal("source", "retrieval"),
+        Binding.context("text", "relevant_chunks"),
+    )
+    assert surfaces[(RailDirection.RETRIEVAL, "context bloat detection on retrieval")].transform_target == (
+        TransformTarget.RELEVANT_CHUNKS
+    )
+    assert (
+        surfaces[(RailDirection.INPUT, "jailbreak detection heuristics")].action.name
+        == "jailbreak_detection_heuristics"
+    )
     assert surfaces[(RailDirection.OUTPUT, "autoalign groundedness output")].action.name == (
         "autoalign_groundedness_output_api"
     )
