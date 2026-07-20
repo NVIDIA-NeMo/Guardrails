@@ -30,7 +30,8 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
@@ -471,3 +472,25 @@ class TestSpeculativeGenerationTelemetry:
         assert "speculative_generation.mode_active" not in attrs
         assert "speculative_generation.first_completed" not in attrs
         assert "speculative_generation.first_rejector" not in attrs
+
+
+class TestSpeculativeGenerationTiming:
+    """The speculative path times the main call so its record and stats aren't left empty."""
+
+    @pytest.mark.asyncio
+    async def test_main_call_record_carries_timing(self, iorails):
+        """On the speculative path, the generation call in the log has real timestamps and a duration."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
+        )
+
+        result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.log is not None
+        gen_call = next(c for c in (result.log.llm_calls or []) if c.task == "general")
+        assert gen_call.started_at is not None
+        assert gen_call.finished_at is not None
+        assert gen_call.duration is not None

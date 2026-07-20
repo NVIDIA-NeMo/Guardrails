@@ -39,6 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailCallRecord,
     RailDirection,
+    TimedLLMResponse,
     get_request_id,
     serialize_prompt,
     truncate,
@@ -193,10 +194,7 @@ def _build_llm_metadata(response: LLMResponse) -> Optional[dict]:
 
 
 def _make_generation_record(
-    response: LLMResponse,
-    started_at: Optional[float],
-    finished_at: Optional[float],
-    duration: Optional[float],
+    timed: TimedLLMResponse,
     provider_name: Optional[str],
     prompt: Optional[str],
 ) -> RailCallRecord:
@@ -204,9 +202,10 @@ def _make_generation_record(
 
     Unifies the main call with the rail calls so the log builder can treat every LLM call
     the same way. ``prompt`` is the serialized main-model messages; ``completion`` is the
-    response content. ``started_at``/``finished_at`` are wall-clock timestamps;
-    ``duration`` is a monotonic delta.
+    response content. Timing comes from ``timed``: ``started_at``/``finished_at`` are
+    wall-clock timestamps and ``duration`` is a monotonic delta.
     """
+    response = timed.response
     return RailCallRecord(
         flow="generation",
         rail_type="generation",
@@ -220,9 +219,9 @@ def _make_generation_record(
         llm_provider_name=provider_name,
         prompt=prompt,
         completion=response.content,
-        started_at=started_at,
-        finished_at=finished_at,
-        duration=duration,
+        started_at=timed.started_at,
+        finished_at=timed.finished_at,
+        duration=timed.duration,
     )
 
 
@@ -942,6 +941,22 @@ class IORails(BaseGuardrails):
 
         return _build_assistant_message(response_text, response.tool_calls)
 
+    async def _timed_main_call(self, messages: LLMMessages, llm_kwargs: dict) -> TimedLLMResponse:
+        """Call the main model, returning the response with wall-clock start/finish and a monotonic duration.
+
+        Shared by the sequential and speculative paths so the main call's ``RailCallRecord``
+        always carries real timing (the speculative path previously left it None).
+        """
+        started_at = time.time()
+        t0 = time.monotonic()
+        response = await self.engine_registry.model_call("main", messages, **llm_kwargs)
+        return TimedLLMResponse(
+            response=response,
+            started_at=started_at,
+            finished_at=time.time(),
+            duration=time.monotonic() - t0,
+        )
+
     async def _do_generate_sequential(
         self,
         messages: LLMMessages,
@@ -963,16 +978,12 @@ class IORails(BaseGuardrails):
             return None
 
         log.info("[%s] Calling main LLM", req_id)
-        started_at = time.time()
-        t0 = time.monotonic()
-        response = await self.engine_registry.model_call("main", messages, **llm_kwargs)
-        duration = time.monotonic() - t0
-        finished_at = time.time()
+        timed_llm_response = await self._timed_main_call(messages, llm_kwargs)
         if records_out is not None:
             provider = self.engine_registry.provider_name("main")
             prompt = serialize_prompt(messages)
-            records_out.append(_make_generation_record(response, started_at, finished_at, duration, provider, prompt))
-        return response
+            records_out.append(_make_generation_record(timed_llm_response, provider, prompt))
+        return timed_llm_response.response
 
     async def _do_generate_speculative(
         self,
@@ -988,7 +999,7 @@ class IORails(BaseGuardrails):
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
 
         rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages, enabled=input_enabled))
-        gen_task = asyncio.create_task(self.engine_registry.model_call("main", messages, **llm_kwargs))
+        gen_task = asyncio.create_task(self._timed_main_call(messages, llm_kwargs))
 
         try:
             response = await self._parallel_input_rail_and_response_generation(
@@ -1065,11 +1076,11 @@ class IORails(BaseGuardrails):
                 return None
 
             # Rails passed — wait for generation to finish
-            response = await gen_task
+            timed = await gen_task
             set_speculative_span_attrs(request_span, first_completed, "none")
         else:
             # Generation finished first — wait for rails verdict
-            response = gen_task.result()
+            timed = gen_task.result()
 
             input_result = await rails_task
             if records_out is not None:
@@ -1086,13 +1097,11 @@ class IORails(BaseGuardrails):
 
             set_speculative_span_attrs(request_span, first_completed, "none")
 
-        log.debug("[%s] Main LLM response: %s", req_id, truncate(response.content))
-        # Speculative races the main call, so per-call timing isn't tracked here; the
-        # generation record carries usage/model without timestamps or a duration.
+        log.debug("[%s] Main LLM response: %s", req_id, truncate(timed.response.content))
         if records_out is not None:
             provider = self.engine_registry.provider_name("main")
-            records_out.append(_make_generation_record(response, None, None, None, provider, main_prompt))
-        return response
+            records_out.append(_make_generation_record(timed, provider, main_prompt))
+        return timed.response
 
     def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:
         """Synchronous version of ``check_async``.

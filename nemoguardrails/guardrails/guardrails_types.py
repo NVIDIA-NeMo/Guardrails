@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional, TypeAlias
 
-from nemoguardrails.types import UsageInfo
+from nemoguardrails.types import LLMResponse, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
 LLMMessage: TypeAlias = dict[str, Any]
@@ -84,6 +84,20 @@ class RailResult:
     triggered_rail: str | None = None
     records: tuple[RailCallRecord, ...] = field(default=(), compare=False)
     return_value: Any = field(default=None, compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class TimedLLMResponse:
+    """An LLM response paired with wall-clock start/finish timestamps and a monotonic duration.
+
+    Returned by IORails' main-model call helper so the sequential and speculative paths both
+    carry real timing into the generation ``RailCallRecord``.
+    """
+
+    response: LLMResponse
+    started_at: float
+    finished_at: float
+    duration: float
 
 
 # Default max character length for truncate(). Used to keep DEBUG log lines short.
