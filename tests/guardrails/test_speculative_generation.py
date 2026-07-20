@@ -646,6 +646,36 @@ class TestSpeculativeStreaming:
         errs = _error_chunks(chunks)
         assert errs and json.loads(errs[0])["error"]["param"] == "tool_input_rails"
 
+    @pytest.mark.asyncio
+    async def test_streaming_input_rails_exception_fails_closed(self, iorails_spec_stream_input_only):
+        """An unexpected exception in input rails fails closed as a structured refusal, not a crash."""
+        io = iorails_spec_stream_input_only
+        io.rails_manager.are_tool_results_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("boom"))
+        io.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.engine_registry.stream_model_call = _token_stream(delay=0.01)
+
+        chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""  # nothing leaks on failure
+        errs = _error_chunks(chunks)
+        assert errs and json.loads(errs[0])["error"]["param"] == "input_rails"
+
+    @pytest.mark.asyncio
+    async def test_streaming_tool_rails_exception_fails_closed(self, iorails_spec_stream_input_only):
+        """An unexpected exception in tool-result rails fails closed with param=tool_input_rails."""
+        io = iorails_spec_stream_input_only
+        io.rails_manager.are_tool_results_safe = AsyncMock(side_effect=RuntimeError("boom"))
+        io.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.engine_registry.stream_model_call = _token_stream(delay=0.01)
+
+        chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""
+        errs = _error_chunks(chunks)
+        assert errs and json.loads(errs[0])["error"]["param"] == "tool_input_rails"
+
 
 def _make_speculative_streaming_tracing_config():
     cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_STREAMING_CONFIG)

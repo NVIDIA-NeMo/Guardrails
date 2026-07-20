@@ -38,6 +38,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
     RailDirection,
+    RailResult,
     get_request_id,
     truncate,
 )
@@ -1167,13 +1168,28 @@ class IORails(BaseGuardrails):
         path.  Runs as its own task so LLM generation can stream concurrently
         during the speculation window.  Records its wall-clock duration into
         ``spec_stats['rails_duration_ms']`` for telemetry.
+
+        Unexpected exceptions from either safety check fail closed: they are
+        converted into an unsafe ``RailResult`` so ``_gate_on_input`` surfaces a
+        structured violation payload instead of crashing the stream, mirroring
+        the non-speculative ``_generation_task`` error contract.  ``CancelledError``
+        is not caught, so the gate can still cancel this task on short-circuit.
         """
+        req_id = get_request_id()
         t0 = time.monotonic()
         try:
-            tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+            try:
+                tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+            except Exception as e:
+                log.error("[%s] Speculative tool-result rails failed: %s", req_id, e, exc_info=True)
+                return RailResult(is_safe=False, reason=f"tool input rails error: {e}"), "tool_input_rails"
             if not tool_result.is_safe:
                 return tool_result, "tool_input_rails"
-            input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
+            try:
+                input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
+            except Exception as e:
+                log.error("[%s] Speculative input rails failed: %s", req_id, e, exc_info=True)
+                return RailResult(is_safe=False, reason=f"input rails error: {e}"), "input_rails"
             return input_result, "input_rails"
         finally:
             if spec_stats is not None:
