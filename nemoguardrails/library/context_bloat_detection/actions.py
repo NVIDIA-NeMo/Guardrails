@@ -33,10 +33,11 @@ Wire as retrieval rail (RAG chunks) or input rail.
 import logging
 import math
 from collections import Counter
-from typing import List, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,9 @@ class ContextBloatResult(TypedDict):
     reason: Optional[str]
     detections: List[str]
     metrics: dict
+
+
+ContextBloatSource = Literal["input", "retrieval"]
 
 
 def _stratified_sample(text: str, sample_chars: int) -> str:
@@ -162,21 +166,48 @@ def _check_repetition(text: str, cfg, detections: List[str], metrics: dict) -> O
     return None
 
 
+def _context_bloat_outcome(source: ContextBloatSource, original_text: str, result: ContextBloatResult) -> RailOutcome:
+    targets = {
+        "input": TransformTarget.USER_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+
+    metadata = {
+        "is_bloat": result["is_bloat"],
+        "action": result["action"],
+        "detections": result["detections"],
+        "metrics": result["metrics"],
+    }
+    if result["is_bloat"] and result["action"] == "reject":
+        return RailOutcome.block(reason=result["reason"], metadata=metadata)
+    if result["is_bloat"] and result["action"] == "truncate" and result["text"] != original_text:
+        return RailOutcome.transform(
+            [(targets[source], result["text"])],
+            reason=result["reason"],
+            metadata=metadata,
+        )
+    return RailOutcome.allow(reason=result["reason"], metadata=metadata)
+
+
 @action()
-async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloatResult:
+async def context_bloat_detection(source: ContextBloatSource, text: str, config: RailsConfig) -> RailOutcome:
     """Detect context-bloat / context-manipulation attacks.
     Check order is cheapest first to enable early-exit.
 
     Args:
+        source: Whether the text came from input or retrieved chunks.
         text: The text to inspect (joined chunks or user message).
         config: RailsConfig with rails.config.context_bloat_detection settings.
 
     Returns:
-        ContextBloatResult with is_bloat flag, processed text, reason, metrics.
+        The allow, block, or transform verdict with detection evidence.
     """
+    if source not in ("input", "retrieval"):
+        raise ValueError("source must be either 'input' or 'retrieval'")
     _validate_config(config)
     cfg = config.rails.config.context_bloat_detection
 
+    original_text = text
     char_count = len(text) if text else 0
     detections: List[str] = []
     metrics: dict = {"chars": char_count}
@@ -185,13 +216,17 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
         detections.append("size_cap_exceeded")
         log.info(f"context bloat detected: size_cap_exceeded | chars={char_count}")
         if cfg.action == "reject":
-            return ContextBloatResult(
-                is_bloat=True,
-                action=cfg.action,
-                text=text,
-                reason="size_cap_exceeded",
-                detections=detections,
-                metrics=metrics,
+            return _context_bloat_outcome(
+                source,
+                original_text,
+                ContextBloatResult(
+                    is_bloat=True,
+                    action=cfg.action,
+                    text=text,
+                    reason="size_cap_exceeded",
+                    detections=detections,
+                    metrics=metrics,
+                ),
             )
         if cfg.action == "truncate":
             text = text[: cfg.max_chars]
@@ -200,17 +235,21 @@ async def context_bloat_detection(text: str, config: RailsConfig) -> ContextBloa
         for check in (_check_entropy, _check_longest_run, _check_repetition):
             result = check(text, cfg, detections, metrics)
             if result is not None:
-                return result
+                return _context_bloat_outcome(source, original_text, result)
 
     is_bloat = bool(detections)
     reason = ", ".join(detections) if detections else None
     if is_bloat:
         log.info(f"context bloat detected: {reason} | metrics={metrics}")
-    return ContextBloatResult(
-        is_bloat=is_bloat,
-        action=cfg.action,
-        text=text,
-        reason=reason,
-        detections=detections,
-        metrics=metrics,
+    return _context_bloat_outcome(
+        source,
+        original_text=original_text,
+        result=ContextBloatResult(
+            is_bloat=is_bloat,
+            action=cfg.action,
+            text=text,
+            reason=reason,
+            detections=detections,
+            metrics=metrics,
+        ),
     )

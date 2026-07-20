@@ -18,6 +18,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.library.context_bloat_detection.actions import (
     _longest_run_ratio,
     _repetition_ratio,
@@ -29,6 +31,7 @@ from nemoguardrails.rails.llm.config import (
     ContextBloatDetectionConfig,
     RailsConfigData,
 )
+from tests.utils import TestChat
 
 
 def _make_config(**overrides):
@@ -162,31 +165,34 @@ class TestDetectSizeCap:
     @pytest.mark.asyncio
     async def test_reject_oversized(self):
         config = _make_config(max_chars=100, action="reject")
-        result = await context_bloat_detection("x" * 200, config)
-        assert result["is_bloat"] is True
-        assert "size_cap_exceeded" in result["detections"]
+        result = await context_bloat_detection("input", "x" * 200, config)
+        assert result.is_blocked
+        assert result.metadata["is_bloat"] is True
+        assert "size_cap_exceeded" in result.metadata["detections"]
 
     @pytest.mark.asyncio
     async def test_under_size_passes(self):
         config = _make_config(max_chars=1000, action="reject")
-        result = await context_bloat_detection("short text", config)
-        assert "size_cap_exceeded" not in result["detections"]
+        result = await context_bloat_detection("input", "short text", config)
+        assert not result.is_blocked
+        assert "size_cap_exceeded" not in result.metadata["detections"]
 
 
 class TestDetectEntropy:
     @pytest.mark.asyncio
     async def test_low_entropy_detected(self):
         config = _make_config(max_chars=50000, min_entropy=3.5, action="reject")
-        result = await context_bloat_detection("ab" * 500, config)
-        assert result["is_bloat"] is True
-        assert "low_entropy" in result["detections"]
+        result = await context_bloat_detection("input", "ab" * 500, config)
+        assert result.is_blocked
+        assert result.metadata["is_bloat"] is True
+        assert "low_entropy" in result.metadata["detections"]
 
     @pytest.mark.asyncio
     async def test_normal_entropy_passes(self):
         config = _make_config(max_chars=50000, min_entropy=3.5, action="reject")
         text = "The quick brown fox jumps over the lazy dog. " * 10
-        result = await context_bloat_detection(text, config)
-        assert "low_entropy" not in result["detections"]
+        result = await context_bloat_detection("input", text, config)
+        assert "low_entropy" not in result.metadata["detections"]
 
 
 class TestDetectLongRun:
@@ -194,15 +200,16 @@ class TestDetectLongRun:
     async def test_long_run_detected(self):
         config = _make_config(max_chars=50000, min_entropy=0.1, max_run_ratio=0.1, action="reject")
         padded = "a" * 90 + "hello world"
-        result = await context_bloat_detection(padded, config)
-        assert result["is_bloat"] is True
-        assert "long_run" in result["detections"]
+        result = await context_bloat_detection("input", padded, config)
+        assert result.is_blocked
+        assert result.metadata["is_bloat"] is True
+        assert "long_run" in result.metadata["detections"]
 
     @pytest.mark.asyncio
     async def test_short_run_passes(self):
         config = _make_config(max_chars=50000, min_entropy=0.1, max_run_ratio=0.5, action="reject")
-        result = await context_bloat_detection("hello world", config)
-        assert "long_run" not in result["detections"]
+        result = await context_bloat_detection("input", "hello world", config)
+        assert "long_run" not in result.metadata["detections"]
 
 
 class TestDetectRepetition:
@@ -216,9 +223,10 @@ class TestDetectRepetition:
             action="warn",
         )
         repeated = " ".join(["foo bar baz"] * 50)
-        result = await context_bloat_detection(repeated, config)
-        assert result["is_bloat"] is True
-        assert "high_repetition" in result["detections"]
+        result = await context_bloat_detection("input", repeated, config)
+        assert not result.is_blocked
+        assert result.metadata["is_bloat"] is True
+        assert "high_repetition" in result.metadata["detections"]
 
     @pytest.mark.asyncio
     async def test_unique_text_passes(self):
@@ -230,9 +238,9 @@ class TestDetectRepetition:
             action="reject",
         )
         result = await context_bloat_detection(
-            "every single word here is different and unique in this sentence", config
+            "input", "every single word here is different and unique in this sentence", config
         )
-        assert "high_repetition" not in result["detections"]
+        assert "high_repetition" not in result.metadata["detections"]
 
 
 # ---------------------------------------------------------------------------
@@ -245,19 +253,29 @@ class TestTruncateMode:
     async def test_truncates_to_max_chars(self):
         text = ("The quick brown fox jumps over the lazy dog. " * 10)[:200]
         config = _make_config(max_chars=50, action="truncate")
-        result = await context_bloat_detection(text, config)
-        assert result["is_bloat"] is True
-        assert result["action"] == "truncate"
-        assert len(result["text"]) == 50
+        result = await context_bloat_detection("input", text, config)
+        assert result.is_transform
+        assert result.metadata["is_bloat"] is True
+        assert result.metadata["action"] == "truncate"
+        assert result.transform_text == {TransformTarget.USER_MESSAGE.value: text[:50]}
 
     @pytest.mark.asyncio
     async def test_truncate_early_returns_on_entropy(self):
         config = _make_config(max_chars=50000, min_entropy=5.0, action="truncate")
-        result = await context_bloat_detection("ab" * 500, config)
-        assert result["is_bloat"] is True
-        assert result["action"] == "reject"
-        assert "low_entropy" in result["detections"]
-        assert "longest_run_ratio" not in result["metrics"]
+        result = await context_bloat_detection("input", "ab" * 500, config)
+        assert result.is_blocked
+        assert result.metadata["is_bloat"] is True
+        assert result.metadata["action"] == "reject"
+        assert "low_entropy" in result.metadata["detections"]
+        assert "longest_run_ratio" not in result.metadata["metrics"]
+
+    @pytest.mark.asyncio
+    async def test_retrieval_transform_targets_relevant_chunks(self):
+        text = ("The quick brown fox jumps over the lazy dog. " * 10)[:200]
+        config = _make_config(max_chars=50, action="truncate")
+        result = await context_bloat_detection("retrieval", text, config)
+        assert result.is_transform
+        assert result.transform_text == {TransformTarget.RELEVANT_CHUNKS.value: text[:50]}
 
 
 class TestWarnMode:
@@ -265,10 +283,11 @@ class TestWarnMode:
     async def test_warn_does_not_block(self, caplog):
         config = _make_config(max_chars=10, action="warn")
         with caplog.at_level(logging.INFO):
-            result = await context_bloat_detection("x" * 200, config)
-        assert result["is_bloat"] is True
-        assert result["action"] == "warn"
-        assert result["text"] == "x" * 200
+            result = await context_bloat_detection("input", "x" * 200, config)
+        assert not result.is_blocked
+        assert not result.is_transform
+        assert result.metadata["is_bloat"] is True
+        assert result.metadata["action"] == "warn"
         assert any("context bloat detected" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
@@ -281,10 +300,10 @@ class TestWarnMode:
             action="warn",
         )
         repeated = " ".join(["foo bar baz"] * 50)
-        result = await context_bloat_detection(repeated, config)
-        assert result["is_bloat"] is True
-        assert result["action"] == "warn"
-        assert len(result["detections"]) > 1
+        result = await context_bloat_detection("input", repeated, config)
+        assert result.metadata["is_bloat"] is True
+        assert result.metadata["action"] == "warn"
+        assert len(result.metadata["detections"]) > 1
 
 
 # ---------------------------------------------------------------------------
@@ -296,17 +315,18 @@ class TestNormalTextPasses:
     @pytest.mark.asyncio
     async def test_normal_text_not_flagged(self):
         config = _make_config()
-        result = await context_bloat_detection("Hello, how can I help you today?", config)
-        assert result["is_bloat"] is False
-        assert result["reason"] is None
-        assert result["detections"] == []
+        result = await context_bloat_detection("input", "Hello, how can I help you today?", config)
+        assert not result.is_blocked
+        assert result.metadata["is_bloat"] is False
+        assert result.reason is None
+        assert result.metadata["detections"] == []
 
     @pytest.mark.asyncio
     async def test_short_messages_not_flagged(self):
         config = _make_config()
         for msg in ["Hi", "Hello", "Yes", "Yes please", "No thanks"]:
-            result = await context_bloat_detection(msg, config)
-            assert result["is_bloat"] is False, f"'{msg}' should not be flagged"
+            result = await context_bloat_detection("input", msg, config)
+            assert result.metadata["is_bloat"] is False, f"'{msg}' should not be flagged"
 
     @pytest.mark.asyncio
     async def test_moderate_text_not_flagged(self):
@@ -317,5 +337,112 @@ class TestNormalTextPasses:
             "The stock market closed higher on strong earnings reports from tech companies. "
             "A new study suggests that regular exercise can improve cognitive function. "
         )
-        result = await context_bloat_detection(text, config)
-        assert result["is_bloat"] is False
+        result = await context_bloat_detection("input", text, config)
+        assert result.metadata["is_bloat"] is False
+
+
+class TestFlowContract:
+    def test_colang_1_input_flow_blocks_from_action_verdict(self):
+        config = RailsConfig.from_content(
+            config={
+                "models": [],
+                "rails": {
+                    "input": {"flows": ["context bloat detection on input"]},
+                    "config": {"context_bloat_detection": {"max_chars": 10, "action": "reject"}},
+                },
+            }
+        )
+        chat = TestChat(config)
+
+        chat >> "x" * 20
+        (
+            chat
+            << "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
+        )
+
+    def test_colang_1_input_flow_transforms_from_action_verdict(self):
+        text = "x" * 20
+        config = RailsConfig.from_content(
+            config={
+                "models": [],
+                "rails": {
+                    "input": {"flows": ["context bloat detection on input"]},
+                    "config": {"context_bloat_detection": {"max_chars": 10, "action": "truncate"}},
+                },
+            }
+        )
+        chat = TestChat(config, llm_completions=["normal"])
+
+        response = chat.app.generate(
+            messages=[{"role": "user", "content": text}],
+            options={"output_vars": ["user_message"]},
+        )
+
+        assert response.output_data == {"user_message": text[:10]}
+
+    def test_colang_2_input_flow_blocks_from_action_verdict(self):
+        config = RailsConfig.from_content(
+            yaml_content="""
+                colang_version: 2.x
+                models: []
+                rails:
+                  config:
+                    context_bloat_detection:
+                      max_chars: 10
+                      action: reject
+            """,
+            colang_content="""
+                import core
+                import llm
+                import guardrails
+                import nemoguardrails.library.context_bloat_detection
+
+                flow input rails $input_text
+                  context bloat detection on input
+
+                flow main
+                  activate llm continuation
+                  user said something
+                  bot say "normal"
+            """,
+        )
+        chat = TestChat(config)
+
+        chat >> "x" * 20
+        (
+            chat
+            << "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
+        )
+
+    def test_colang_2_input_flow_transforms_from_action_verdict(self):
+        text = "x" * 20
+        config = RailsConfig.from_content(
+            yaml_content="""
+                colang_version: 2.x
+                models: []
+                rails:
+                  config:
+                    context_bloat_detection:
+                      max_chars: 10
+                      action: truncate
+            """,
+            colang_content="""
+                import core
+                import llm
+                import guardrails
+                import nemoguardrails.library.context_bloat_detection
+
+                flow input rails $input_text
+                  context bloat detection on input
+
+                flow main
+                  global $user_message
+                  activate llm continuation
+                  user said something
+                  bot say "{$user_message}"
+            """,
+        )
+        chat = TestChat(config, llm_completions=[])
+
+        chat >> text
+        chat << text[:10]

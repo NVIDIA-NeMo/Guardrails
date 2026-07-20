@@ -4,12 +4,12 @@
 flow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
   global $relevant_chunks
-  $bloat_result = await ContextBloatDetectionAction(text=$relevant_chunks)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
+  $bloat_result = await ContextBloatDetectionAction(source="retrieval", text=$relevant_chunks)
+  if $bloat_result.is_blocked
     bot inform retrieval bloated
     abort
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $relevant_chunks = $bloat_result.text
+  if $bloat_result.is_transform
+    $relevant_chunks = $bloat_result.transform_text["relevant_chunks"]
 
 flow bot inform retrieval bloated
   bot say "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation."
@@ -19,12 +19,12 @@ flow bot inform retrieval bloated
 flow context bloat detection on input
   """Detect bloated or padded user-supplied content."""
   global $user_message
-  $bloat_result = await ContextBloatDetectionAction(text=$user_message)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
+  $bloat_result = await ContextBloatDetectionAction(source="input", text=$user_message)
+  if $bloat_result.is_blocked
     bot refuse bloated input
     abort
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $user_message = $bloat_result.text
+  if $bloat_result.is_transform
+    $user_message = $bloat_result.transform_text["user_message"]
 
 flow bot refuse bloated input
   bot say "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
