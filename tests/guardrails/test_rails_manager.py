@@ -1022,9 +1022,35 @@ class TestSerializePrompt:
         assert out == "system: be nice\n\nuser: hi"
 
     def test_missing_content_renders_empty(self):
-        """A message with no content (reasoning/tool turn) renders as empty, not an error."""
+        """A message with no content and no other fields renders as just the role label."""
         out = serialize_prompt([{"role": "assistant", "content": None}])
         assert out == "assistant: "
+
+    def test_tool_calls_preserved(self):
+        """An assistant tool-call turn keeps its tool_calls rather than rendering blank."""
+        out = serialize_prompt(
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id": "call_1", "function": {"name": "get_weather"}}],
+                }
+            ]
+        )
+        assert "call_1" in out
+        assert "get_weather" in out
+
+    def test_tool_result_fields_preserved(self):
+        """A tool-result turn keeps its tool_call_id and name alongside the content."""
+        out = serialize_prompt([{"role": "tool", "content": "sunny", "tool_call_id": "call_1", "name": "get_weather"}])
+        assert "sunny" in out
+        assert "call_1" in out
+        assert "get_weather" in out
+
+    def test_reasoning_preserved(self):
+        """A reasoning-only turn keeps its reasoning text instead of dropping it."""
+        out = serialize_prompt([{"role": "assistant", "content": None, "reasoning": "thinking hard"}])
+        assert "thinking hard" in out
 
 
 class TestParallelBatchDrainsRecords:

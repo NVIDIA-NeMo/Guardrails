@@ -135,7 +135,16 @@ def serialize_prompt(messages: list[dict]) -> str:
     """Render a chat message list to a role-labeled string for GenerationLog's ``prompt``.
 
     Content parity with LLMRails' logged prompt, not byte-for-byte format parity: each
-    message becomes ``"<role>: <content>"`` and messages are blank-line separated. A
-    message with no content (e.g. a reasoning-only or tool-call turn) renders as empty.
+    message becomes ``"<role>: <content>"``. Non-content fields present on the message
+    (``name``, ``tool_call_id``, ``tool_calls``, ``reasoning``) are appended as a compact
+    ``[key=value, ...]`` suffix so tool-call and reasoning-only turns are preserved rather
+    than dropped. Messages are blank-line separated.
     """
-    return "\n\n".join(f"{m.get('role', '')}: {m.get('content') or ''}" for m in messages)
+    lines = []
+    for m in messages:
+        line = f"{m.get('role', '')}: {m.get('content') or ''}"
+        extras = [f"{key}={m[key]}" for key in ("name", "tool_call_id", "tool_calls", "reasoning") if m.get(key)]
+        if extras:
+            line += f" [{', '.join(extras)}]"
+        lines.append(line)
+    return "\n\n".join(lines)
