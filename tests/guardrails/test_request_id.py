@@ -123,7 +123,7 @@ class TestSingleRequest:
         iorails.engine_registry.model_call = _make_capturing_mock(captured_ids, "llm", LLMResponse(content="Hello"))
         iorails.rails_manager.is_output_safe = _make_capturing_mock(captured_ids, "output", RailResult(is_safe=True))
 
-        await iorails.generate_async([{"role": "user", "content": "hi"}])
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert len(captured_ids) == 3
         for _, rid in captured_ids:
@@ -138,7 +138,7 @@ class TestSingleRequest:
         iorails.engine_registry.model_call = _make_capturing_mock(captured_ids, "llm", LLMResponse(content="Hello"))
         iorails.rails_manager.is_output_safe = _make_capturing_mock(captured_ids, "output", RailResult(is_safe=True))
 
-        await iorails.generate_async([{"role": "user", "content": "hi"}])
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         ids = [rid for _, rid in captured_ids]
         assert ids[0] == ids[1] == ids[2]
@@ -150,7 +150,7 @@ class TestSingleRequest:
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="Hello"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
-        await iorails.generate_async([{"role": "user", "content": "hi"}])
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert get_request_id() == "no-req-id"
 
@@ -159,7 +159,7 @@ class TestSingleRequest:
         """ContextVar is reset even when the request is blocked at input."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
-        await iorails.generate_async([{"role": "user", "content": "bad"}])
+        await iorails.generate_async(messages=[{"role": "user", "content": "bad"}])
 
         assert get_request_id() == "no-req-id"
 
@@ -170,7 +170,7 @@ class TestSingleRequest:
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="bad response"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
-        await iorails.generate_async([{"role": "user", "content": "hi"}])
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert get_request_id() == "no-req-id"
 
@@ -180,7 +180,7 @@ class TestSingleRequest:
         iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("boom"))
 
         with pytest.raises(RuntimeError, match="boom"):
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert get_request_id() == "no-req-id"
 
@@ -202,7 +202,7 @@ class TestMultipleSequentialRequests:
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         for _ in range(5):
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         assert len(ids_per_request) == 5
         assert len(set(ids_per_request)) == 5, f"Expected 5 unique IDs, got: {ids_per_request}"
@@ -229,7 +229,7 @@ class TestMultipleSequentialRequests:
         iorails.rails_manager.is_output_safe = capture_output
 
         for _ in range(3):
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
 
         # 3 calls per request × 3 requests = 9 captures
         assert len(request_snapshots) == 9
@@ -277,9 +277,9 @@ class TestMultipleConcurrentRequests:
 
         messages = [{"role": "user", "content": "hi"}]
         results = await asyncio.gather(
-            iorails.generate_async(messages),
-            iorails.generate_async(messages),
-            iorails.generate_async(messages),
+            iorails.generate_async(messages=messages),
+            iorails.generate_async(messages=messages),
+            iorails.generate_async(messages=messages),
         )
 
         # All 3 requests completed successfully
@@ -324,7 +324,7 @@ class TestMultipleConcurrentRequests:
                 engine.engine_registry.model_call = capture_llm
                 engine.rails_manager.is_output_safe = capture_output
 
-                await engine.generate_async([{"role": "user", "content": "hi"}])
+                await engine.generate_async(messages=[{"role": "user", "content": "hi"}])
                 task_ids[task_num] = captured
 
         await asyncio.gather(
@@ -351,8 +351,8 @@ class TestMultipleConcurrentRequests:
 
         messages = [{"role": "user", "content": "hi"}]
         await asyncio.gather(
-            iorails.generate_async(messages),
-            iorails.generate_async(messages),
+            iorails.generate_async(messages=messages),
+            iorails.generate_async(messages=messages),
         )
 
         assert get_request_id() == "no-req-id"
@@ -402,7 +402,7 @@ class TestEndToEndPropagation:
             for model_engine in engine.engine_registry._engines.values():
                 model_engine._running = True
 
-            await engine.generate_async([{"role": "user", "content": "hello"}])
+            await engine.generate_async(messages=[{"role": "user", "content": "hello"}])
 
         # We expect 5 captures:
         #   1. rails_manager_input

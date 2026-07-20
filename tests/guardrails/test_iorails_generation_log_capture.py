@@ -113,7 +113,9 @@ class TestGenerationLogEndToEnd:
             side_effect=_cs_and_main_model_call(cs_request_id="req-cs", main_request_id="req-main")
         )
 
-        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True, "activated_rails": True}})
+        result = await iorails.generate_async(
+            messages=_USER, options={"log": {"llm_calls": True, "activated_rails": True}}
+        )
 
         assert isinstance(result, GenerationResponse)
         assert result.log is not None
@@ -137,7 +139,7 @@ class TestGenerationLogEndToEnd:
         """Each LLM-backed call in the log carries its serialized prompt and raw completion."""
         iorails.engine_registry.model_call = AsyncMock(side_effect=_cs_and_main_model_call())
 
-        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"llm_calls": True}})
 
         assert isinstance(result, GenerationResponse)
         assert result.log is not None
@@ -163,7 +165,7 @@ class TestGenerationLogEndToEnd:
             )
         )
 
-        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"llm_calls": True}})
 
         assert result.log is not None
         llm_calls = result.log.llm_calls or []
@@ -182,7 +184,7 @@ class TestGenerationLogEndToEnd:
             )
         )
 
-        result = await iorails.generate_async(_USER, options={"log": {"activated_rails": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})
 
         assert isinstance(result, GenerationResponse)
         assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]

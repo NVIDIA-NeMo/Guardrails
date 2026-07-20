@@ -23,7 +23,7 @@ LLM responses with programmable guardrails.
 
 import logging
 import warnings
-from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
+from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast
 
 from typing_extensions import Self
 
@@ -181,24 +181,6 @@ class Guardrails(BaseGuardrails):
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.passthrough_fn = fn
 
-    @staticmethod
-    def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
-        """Return messages in standard format, converting a prompt string if needed.
-
-        If messages is provided, returns it as-is.
-        If prompt is provided, wraps it as [{"role": "user", "content": prompt}].
-        """
-
-        # Priority: messages first, then prompt
-        if messages:
-            return messages
-
-        if prompt:
-            # Convert string prompt to standard format
-            return [{"role": "user", "content": prompt}]
-
-        raise ValueError("Neither prompt nor messages provided for generation")
-
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
         if not self._started:
@@ -214,45 +196,7 @@ class Guardrails(BaseGuardrails):
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
-
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return self.rails_engine.generate(messages=generate_messages, options=options, **kwargs)
-
-    @overload
-    async def generate_async(
-        self,
-        prompt: str | None = None,
-        messages: LLMMessages | None = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        **kwargs,
-    ) -> str: ...
-
-    @overload
-    async def generate_async(
-        self,
-        prompt: str | None = None,
-        messages: LLMMessages | None = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        **kwargs,
-    ) -> dict: ...
-
-    @overload
-    async def generate_async(
-        self,
-        prompt: str | None = None,
-        messages: LLMMessages | None = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        **kwargs,
-    ) -> GenerationResponse: ...
-
-    @overload
-    async def generate_async(
-        self,
-        prompt: str | None = None,
-        messages: LLMMessages | None = None,
-        options: Optional[Union[dict, GenerationOptions]] = None,
-        **kwargs,
-    ) -> tuple[dict, dict]: ...
+        return self.rails_engine.generate(prompt=prompt, messages=messages, options=options, **kwargs)
 
     async def generate_async(
         self,
@@ -266,15 +210,15 @@ class Guardrails(BaseGuardrails):
         """
         await self._ensure_started()
 
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return await self.rails_engine.generate_async(messages=generate_messages, options=options, **kwargs)
+        return await self.rails_engine.generate_async(prompt=prompt, messages=messages, options=options, **kwargs)
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
         """Generate an LLM response asynchronously with streaming support."""
 
-        stream_messages = self._convert_to_messages(prompt, messages)
+        # TODO: Move prompt/message normalization into IORails when streaming GenerationOptions added
+        stream_messages = IORails._convert_to_messages(prompt, messages)
 
         async def _with_startup(iterator: AsyncIterator[str | dict]) -> AsyncIterator[str | dict]:
             await self._ensure_started()

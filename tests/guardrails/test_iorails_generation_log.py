@@ -111,7 +111,7 @@ class TestLogGating:
         """With options but no log flags, `res.log` stays None."""
         _stub_pipeline(iorails, input_records=[_input_record()])
 
-        result = await iorails.generate_async(_USER, options={})
+        result = await iorails.generate_async(messages=_USER, options={})
 
         assert isinstance(result, GenerationResponse)
         assert result.log is None
@@ -125,7 +125,7 @@ class TestLlmCallsAndStats:
         """`log.llm_calls` lists main + each rail call; `log.stats` sums their tokens."""
         _stub_pipeline(iorails, input_records=[_input_record()], output_records=[_output_record()])
 
-        result = await iorails.generate_async(_USER, options={"log": {"llm_calls": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"llm_calls": True}})
 
         assert result.log is not None
         stats = result.log.stats
@@ -147,7 +147,7 @@ class TestActivatedRails:
         verdict = {"allowed": False, "policy_violations": ["Violence", "Criminal Planning/Confessions"]}
         _stub_pipeline(iorails, input_records=[_input_record(is_safe=False, return_value=verdict)], input_safe=False)
 
-        result = await iorails.generate_async(_USER, options={"log": {"activated_rails": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})
 
         assert result.log is not None
         rail = next(r for r in result.log.activated_rails if r.name == _CS_INPUT_FLOW)
@@ -160,7 +160,7 @@ class TestActivatedRails:
         """A blocking input rail is marked stop=True, and the blocked request still logs it."""
         _stub_pipeline(iorails, input_records=[_input_record(is_safe=False)], input_safe=False)
 
-        result = await iorails.generate_async(_USER, options={"log": {"activated_rails": True}})
+        result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})
 
         assert isinstance(result, GenerationResponse)
         assert result.log is not None
@@ -177,7 +177,7 @@ class TestUnsupportedLogOptions:
         _stub_pipeline(iorails, input_records=[_input_record()])
 
         with pytest.raises(NotImplementedError):
-            await iorails.generate_async(_USER, options={"log": {"internal_events": True}})
+            await iorails.generate_async(messages=_USER, options={"log": {"internal_events": True}})
 
     @pytest.mark.asyncio
     async def test_colang_history_raises(self, iorails):
@@ -185,7 +185,7 @@ class TestUnsupportedLogOptions:
         _stub_pipeline(iorails, input_records=[_input_record()])
 
         with pytest.raises(NotImplementedError):
-            await iorails.generate_async(_USER, options={"log": {"colang_history": True}})
+            await iorails.generate_async(messages=_USER, options={"log": {"colang_history": True}})
 
 
 class TestUsageRemovedFromLlmMetadata:
@@ -204,7 +204,7 @@ class TestUsageRemovedFromLlmMetadata:
             )
         )
 
-        result = await iorails.generate_async(_USER, options={})
+        result = await iorails.generate_async(messages=_USER, options={})
 
         assert result.llm_metadata == {"response_headers": {"nvcf-status": "fulfilled"}}
 
@@ -217,7 +217,7 @@ class TestUsageRemovedFromLlmMetadata:
             return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15))
         )
 
-        result = await iorails.generate_async(_USER, options={})
+        result = await iorails.generate_async(messages=_USER, options={})
 
         assert result.llm_metadata is None
 

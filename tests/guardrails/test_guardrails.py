@@ -123,8 +123,8 @@ class TestGuardrailsRouting:
             guardrails.update_llm(mock_new_llm)
 
             # Verify all calls went to LLMRails
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate.assert_called_once_with(prompt=None, messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(prompt=None, messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
             guardrails.rails_engine.explain.assert_called_once()
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
@@ -178,8 +178,8 @@ class TestGuardrailsRouting:
             with pytest.raises(NotImplementedError, match="IORails doesn't support update_llm()"):
                 guardrails.update_llm(mock_new_llm)
 
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate.assert_called_once_with(prompt=None, messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(prompt=None, messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(
                 messages=messages,
                 options=None,
@@ -257,8 +257,8 @@ class TestGuardrailsRouting:
             guardrails.update_llm(mock_new_llm)
 
             # Verify all calls went to LLMRails
-            guardrails.rails_engine.generate.assert_called_once_with(messages=messages, options=None)
-            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages, options=None)
+            guardrails.rails_engine.generate.assert_called_once_with(prompt=None, messages=messages, options=None)
+            guardrails.rails_engine.generate_async.assert_called_once_with(prompt=None, messages=messages, options=None)
             guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
             guardrails.rails_engine.explain.assert_called_once()
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
@@ -553,93 +553,13 @@ class TestRequireIORails:
         mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, None, False)
 
 
-class TestConvertToMessages:
-    """Tests for the _convert_to_messages static method."""
-
-    def test_prompt_string(self):
-        """Test conversion of string prompt to LLMMessages."""
-        result = Guardrails._convert_to_messages(prompt="Hello, how are you?")
-
-        expected = [{"role": "user", "content": "Hello, how are you?"}]
-        assert result == expected
-
-    def test_empty_string_prompt(self):
-        """Test conversion of empty string prompt raises ValueError."""
-        # Empty string is falsy, so it should raise an error
-        with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
-            Guardrails._convert_to_messages(prompt="")
-
-    def test_messages_single_message(self):
-        """Test conversion with single message."""
-        messages = [{"role": "user", "content": "What is the weather?"}]
-        result = Guardrails._convert_to_messages(messages=messages)
-        assert result == messages
-
-    def test_messages_multiple_messages(self):
-        """Test conversion with multiple messages."""
-        messages = [
-            {"role": "user", "content": "What is AI?"},
-            {"role": "assistant", "content": "AI is artificial intelligence."},
-            {"role": "user", "content": "Tell me more."},
-        ]
-        result = Guardrails._convert_to_messages(messages=messages)
-
-        assert result == messages
-
-    def test_messages_with_system_message(self):
-        """Test conversion with system message."""
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello!"},
-        ]
-        result = Guardrails._convert_to_messages(messages=messages)
-
-        assert result == messages
-
-    def test_empty_messages_list(self):
-        """Test conversion with empty messages list raises ValueError."""
-        # Empty list is falsy, so it should raise an error
-        messages = []
-        with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
-            Guardrails._convert_to_messages(messages=messages)
-
-    def test_messages_take_priority_over_prompt(self):
-        """Test that messages parameter takes priority when both are provided."""
-        messages = [{"role": "user", "content": "From messages"}]
-        result = Guardrails._convert_to_messages(prompt="From prompt", messages=messages)
-        assert result == messages
-
-    def test_neither_prompt_nor_messages_raises_error(self):
-        """Test that providing neither prompt nor messages raises ValueError."""
-        with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
-            Guardrails._convert_to_messages()
-
-    def test_multiline_string_prompt(self):
-        """Test conversion of multiline string prompt."""
-        multiline_prompt = """Line 1
-Line 2
-Line 3"""
-        result = Guardrails._convert_to_messages(prompt=multiline_prompt)
-
-        expected = [{"role": "user", "content": multiline_prompt}]
-        assert result == expected
-
-    def test_string_prompt_with_special_characters(self):
-        """Test conversion of string prompt with special characters."""
-        special_prompt = "Hello! @#$%^&*() How's the weather? \"quoted\" 'text'"
-        result = Guardrails._convert_to_messages(prompt=special_prompt)
-
-        expected = [{"role": "user", "content": special_prompt}]
-        assert result == expected
-
-
 class TestGenerateAsync:
     """Tests for the asynchronous generate_async method."""
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     async def test_generate_async_with_string_prompt(self, mock_llmrails_class, _nemoguards_rails_config):
-        """Test generate_async method with a string prompt using context manager."""
+        """generate_async passes a string prompt through to the engine unchanged (facade is a passthrough)."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate_async = AsyncMock(return_value="Async response")
@@ -647,9 +567,9 @@ class TestGenerateAsync:
         async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             result = await guardrails.generate_async(prompt="Hello async!")
 
-            # Verify generate_async was called with correct messages
-            expected_messages = [{"role": "user", "content": "Hello async!"}]
-            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=expected_messages, options=None)
+            mock_llmrails_instance.generate_async.assert_awaited_once_with(
+                prompt="Hello async!", messages=None, options=None
+            )
             assert result == "Async response"
 
     @pytest.mark.asyncio
@@ -668,7 +588,7 @@ class TestGenerateAsync:
             ]
             result = await guardrails.generate_async(messages=messages)
 
-            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=messages, options=None)
+            mock_llmrails_instance.generate_async.assert_awaited_once_with(prompt=None, messages=messages, options=None)
             assert result == "Async conversation response"
 
     @pytest.mark.asyncio
@@ -682,10 +602,8 @@ class TestGenerateAsync:
         async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             result = await guardrails.generate_async(prompt="Test", temperature=0.5, top_p=0.9)
 
-            # Verify kwargs were passed through
-            expected_messages = [{"role": "user", "content": "Test"}]
             mock_llmrails_instance.generate_async.assert_awaited_once_with(
-                messages=expected_messages, options=None, temperature=0.5, top_p=0.9
+                prompt="Test", messages=None, options=None, temperature=0.5, top_p=0.9
             )
             assert result == "Response"
 
@@ -897,10 +815,10 @@ class TestIntegration:
             top_p=0.9,
         )
 
-        # Verify all kwargs were passed through
-        expected_messages = [{"role": "user", "content": "Test"}]
+        # The facade is a passthrough; prompt/messages are forwarded to the engine verbatim.
         mock_llmrails_instance.generate.assert_called_once_with(
-            messages=expected_messages,
+            prompt="Test",
+            messages=None,
             options=None,
             temperature=0.7,
             max_tokens=100,

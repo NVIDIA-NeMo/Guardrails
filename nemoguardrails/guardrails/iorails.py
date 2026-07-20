@@ -696,9 +696,33 @@ class IORails(BaseGuardrails):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.stop()
 
+    @staticmethod
+    def _convert_to_messages(
+        prompt: Optional[Union[str, LLMMessages]] = None,
+        messages: Optional[Union[LLMMessages, str]] = None,
+    ) -> LLMMessages:
+        """Normalize a prompt string or a message list into the standard messages format.
+
+        Argument order mirrors the ``Guardrails`` facade and LLMRails (prompt first).
+        ``messages`` takes priority when both are supplied; a prompt string becomes a
+        single user turn. A wrong-typed value — a list passed as ``prompt`` or a string
+        passed as ``messages`` (the common positional mix-ups) — raises ``TypeError``;
+        neither provided raises ``ValueError``.
+        """
+        if messages is not None and not isinstance(messages, list):
+            raise TypeError("messages must be a list of {'role', 'content'} dicts; pass a string via prompt=")
+        if prompt is not None and not isinstance(prompt, str):
+            raise TypeError("prompt must be a string; pass a message list via messages=")
+        if messages:
+            return messages
+        if prompt:
+            return [{"role": "user", "content": prompt}]
+        raise ValueError("Neither prompt nor messages provided for generation")
+
     def generate(
         self,
-        messages: LLMMessages,
+        prompt: Optional[str] = None,
+        messages: Optional[LLMMessages] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
@@ -709,6 +733,7 @@ class IORails(BaseGuardrails):
         `generate_async()` and `stream_async()` methods for non-streaming
         and streaming requests respectively.
         """
+        messages = self._convert_to_messages(prompt, messages)
 
         # Disable tracing and metrics for synchronous generation calls
         sync_config = self.config.model_copy(deep=True)
@@ -721,13 +746,14 @@ class IORails(BaseGuardrails):
             """Spin up a short-lived IORails engine for one synchronous generate call."""
             # Avoid counting this sync-API bridge as a separate user-created IORails instance.
             async with IORails(sync_config, _report_usage=False) as iorails_engine:
-                return await iorails_engine.generate_async(messages, options=options, **kwargs)
+                return await iorails_engine.generate_async(messages=messages, options=options, **kwargs)
 
         return asyncio.run(_run_sync_iorails())
 
     async def generate_async(
         self,
-        messages: LLMMessages,
+        prompt: Optional[str] = None,
+        messages: Optional[LLMMessages] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
@@ -746,6 +772,7 @@ class IORails(BaseGuardrails):
         ``requests.errors{error.type=QueueFull}`` and
         ``nonstream.rejections`` — honest dual-signal reporting.
         """
+        messages = self._convert_to_messages(prompt, messages)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:

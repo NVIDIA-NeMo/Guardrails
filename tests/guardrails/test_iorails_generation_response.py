@@ -78,7 +78,7 @@ async def _generate_structured(iorails: IORails, response: LLMResponse, *, optio
     """Stub safe rails + a fixed model response, then run the structured (``options``) path."""
     _stub_safe_rails(iorails)
     _stub_model(iorails, response)
-    return await iorails.generate_async(_USER, options={} if options is None else options, **kwargs)
+    return await iorails.generate_async(messages=_USER, options={} if options is None else options, **kwargs)
 
 
 class TestStructuredResponseTrigger:
@@ -102,7 +102,7 @@ class TestStructuredResponseTrigger:
         _stub_safe_rails(iorails)
         _stub_model(iorails, LLMResponse(content="Hello"))
 
-        result = await iorails.generate_async(_USER)
+        result = await iorails.generate_async(messages=_USER)
 
         assert not isinstance(result, GenerationResponse)
         assert result == {"role": "assistant", "content": "Hello"}
@@ -246,7 +246,7 @@ class TestUnsupportedOptionGuards:
         _stub_model(iorails, LLMResponse(content="Hello"))
 
         with pytest.raises(ValueError):
-            await iorails.generate_async(_USER, **gen_kwargs)
+            await iorails.generate_async(messages=_USER, **gen_kwargs)
 
     @pytest.mark.asyncio
     async def test_colang_only_log_flag_raises(self, iorails):
@@ -260,7 +260,7 @@ class TestUnsupportedOptionGuards:
         _stub_model(iorails, LLMResponse(content="Hello"))
 
         with pytest.raises(NotImplementedError):
-            await iorails.generate_async(_USER, options={"log": {"internal_events": True}})
+            await iorails.generate_async(messages=_USER, options={"log": {"internal_events": True}})
 
 
 class TestBlockedStructuredResponse:
@@ -280,7 +280,7 @@ class TestBlockedStructuredResponse:
         )
         _stub_model(iorails, LLMResponse(content="bad answer"))
 
-        result = await iorails.generate_async(_USER, options={})
+        result = await iorails.generate_async(messages=_USER, options={})
 
         assert isinstance(result, GenerationResponse)
         assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
@@ -298,7 +298,7 @@ class TestBarePathUnchanged:
         _stub_safe_rails(iorails)
         _stub_model(iorails, LLMResponse(content="Hello", reasoning="thinking step"))
 
-        result = await iorails.generate_async(_USER)
+        result = await iorails.generate_async(messages=_USER)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
 
@@ -313,9 +313,89 @@ class TestSyncGenerateStructured:
         iorails_sync.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="Hello"))
 
         with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):
-            result = iorails_sync.generate(_USER, options={})
+            result = iorails_sync.generate(messages=_USER, options={})
 
         assert isinstance(result, GenerationResponse)
+
+
+class TestPromptAndMessages:
+    """IORails accepts a keyword-only ``prompt`` (converted to messages) or a ``messages`` list."""
+
+    @pytest.mark.asyncio
+    async def test_prompt_string_generates(self, iorails):
+        """A keyword prompt string is converted to a user message and generates normally."""
+        _stub_safe_rails(iorails)
+        _stub_model(iorails, LLMResponse(content="Hi"))
+
+        result = await iorails.generate_async(prompt="Hello", options={})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.response == [{"role": "assistant", "content": "Hi"}]
+
+    @pytest.mark.asyncio
+    async def test_neither_prompt_nor_messages_raises(self, iorails):
+        """generate_async with neither prompt nor messages raises ValueError."""
+        with pytest.raises(ValueError):
+            await iorails.generate_async()
+
+    def test_sync_generate_neither_raises(self, iorails_sync):
+        """The sync generate with neither prompt nor messages raises ValueError."""
+        with pytest.raises(ValueError):
+            iorails_sync.generate()
+
+    @pytest.mark.asyncio
+    async def test_list_passed_positionally_as_prompt_raises_typeerror(self, iorails):
+        """A message list in the positional prompt slot raises TypeError, not a silent misparse."""
+        with pytest.raises(TypeError):
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+
+class TestConvertToMessages:
+    """``IORails._convert_to_messages`` normalizes prompt/messages (moved from the facade)."""
+
+    def test_messages_passthrough(self):
+        """A multi-turn message list (system + user + assistant) is returned unchanged."""
+        msgs = [
+            {"role": "system", "content": "be nice"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
+        assert IORails._convert_to_messages(messages=msgs) is msgs
+
+    def test_prompt_wrapped_as_user_turn(self):
+        """A prompt string (content preserved verbatim) becomes a single user message."""
+        prompt = 'Line 1\nLine 2 with "quotes" & symbols'
+        assert IORails._convert_to_messages(prompt=prompt) == [{"role": "user", "content": prompt}]
+
+    def test_messages_win_when_both_supplied(self):
+        """When both are given, messages takes priority and prompt is ignored."""
+        msgs = [{"role": "user", "content": "hi"}]
+        assert IORails._convert_to_messages(prompt="ignored", messages=msgs) is msgs
+
+    def test_string_messages_raises_typeerror(self):
+        """A string in the messages slot raises TypeError pointing at prompt=."""
+        with pytest.raises(TypeError):
+            IORails._convert_to_messages(messages="hi")
+
+    def test_list_prompt_raises_typeerror(self):
+        """A message list in the prompt slot raises TypeError pointing at messages=."""
+        with pytest.raises(TypeError):
+            IORails._convert_to_messages(prompt=[{"role": "user", "content": "hi"}])
+
+    def test_empty_string_prompt_raises_valueerror(self):
+        """An empty prompt string is falsy, so it counts as 'neither provided'."""
+        with pytest.raises(ValueError):
+            IORails._convert_to_messages(prompt="")
+
+    def test_empty_messages_list_raises_valueerror(self):
+        """An empty messages list is falsy, so it counts as 'neither provided'."""
+        with pytest.raises(ValueError):
+            IORails._convert_to_messages(messages=[])
+
+    def test_neither_raises_valueerror(self):
+        """Neither prompt nor messages raises ValueError."""
+        with pytest.raises(ValueError):
+            IORails._convert_to_messages()
 
 
 class TestResponseContentForCapture:
