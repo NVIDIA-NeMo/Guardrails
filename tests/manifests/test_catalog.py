@@ -159,3 +159,72 @@ def test_discover_built_ins_rejects_non_manifest_rail(tmp_path, monkeypatch):
 
     with pytest.raises(TypeError, match="must define RAIL"):
         RailCatalog.discover_built_ins(library_path=tmp_path)
+
+
+class _FakeDistribution:
+    def __init__(self, name):
+        self.name = name
+
+
+class _FakeEntryPoint:
+    def __init__(self, name, value, manifest, distribution="plugin-dist"):
+        self.name = name
+        self.value = value
+        self.dist = _FakeDistribution(distribution)
+        self._manifest = manifest
+
+    def load(self):
+        return self._manifest
+
+
+def _patch_entry_points(monkeypatch, entry_points):
+    class _FakeEntryPoints:
+        def select(self, group):
+            assert group == "nemoguardrails.rails"
+            return list(entry_points)
+
+    monkeypatch.setattr(catalog_module.importlib.metadata, "entry_points", lambda: _FakeEntryPoints())
+
+
+def test_with_plugins_empty_returns_same_catalog():
+    catalog = RailCatalog()
+    assert catalog.with_plugins([]) is catalog
+
+
+def test_with_plugins_loads_entry_point(monkeypatch):
+    plugin_manifest = RailManifest(name="my_plugin")
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("my_plugin", "my_pkg:RAIL", plugin_manifest)])
+
+    extended = RailCatalog().with_plugins(["my_plugin"])
+
+    assert "my_plugin" in extended.manifests
+    assert extended.records["my_plugin"].distribution == "plugin-dist"
+    assert extended.records["my_plugin"].built_in is False
+
+
+def test_with_plugins_rejects_missing_plugin(monkeypatch):
+    _patch_entry_points(monkeypatch, [])
+
+    with pytest.raises(ValueError, match="not installed"):
+        RailCatalog().with_plugins(["absent"])
+
+
+def test_with_plugins_rejects_ambiguous_distribution(monkeypatch):
+    manifest = RailManifest(name="dup")
+    _patch_entry_points(
+        monkeypatch,
+        [
+            _FakeEntryPoint("dup", "one:RAIL", manifest, distribution="pkg-one"),
+            _FakeEntryPoint("dup", "two:RAIL", manifest, distribution="pkg-two"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="multiple distributions"):
+        RailCatalog().with_plugins(["dup"])
+
+
+def test_with_plugins_rejects_name_mismatch(monkeypatch):
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("declared", "pkg:RAIL", RailManifest(name="actual"))])
+
+    with pytest.raises(ValueError, match="returned manifest"):
+        RailCatalog().with_plugins(["declared"])

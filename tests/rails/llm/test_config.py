@@ -228,6 +228,51 @@ def test_discover_rails_config_fields_fails_on_reentrant_discovery():
         rails_config_fields._reset_rails_config_fields_cache()
 
 
+def test_reset_rails_config_model_cache_rebuilds_plugin_model(monkeypatch):
+    from types import SimpleNamespace
+
+    import nemoguardrails.manifests as manifests
+    import nemoguardrails.rails.llm.config as config_module
+    from nemoguardrails.manifests import ConfigSpecRef, RailConfigSchema, RailManifest, RailSpec
+
+    def plugin_manifest(config_key):
+        return RailManifest(
+            name="example_plugin",
+            spec=RailSpec(
+                config_schema=RailConfigSchema(
+                    key=config_key,
+                    spec=ConfigSpecRef(target="nemoguardrails.library.clavata.rail_config:build_config_spec"),
+                )
+            ),
+        )
+
+    current_manifest = plugin_manifest("first")
+    monkeypatch.setattr(
+        manifests,
+        "rail_catalog",
+        lambda enabled: SimpleNamespace(manifests={"example_plugin": current_manifest}),
+    )
+    config_module._reset_rails_config_model_cache()
+
+    try:
+        first_model = RailsConfig.for_plugins(["example_plugin"])
+        first_rails_model = first_model.model_fields["rails"].annotation
+        first_config_model = first_rails_model.model_fields["config"].annotation
+        assert "first" in first_config_model.model_fields
+
+        current_manifest = plugin_manifest("second")
+        config_module._reset_rails_config_model_cache()
+
+        second_model = RailsConfig.for_plugins(["example_plugin"])
+        second_rails_model = second_model.model_fields["rails"].annotation
+        second_config_model = second_rails_model.model_fields["config"].annotation
+        assert second_model is not first_model
+        assert "second" in second_config_model.model_fields
+        assert "first" not in second_config_model.model_fields
+    finally:
+        config_module._reset_rails_config_model_cache()
+
+
 def test_builtin_rail_config_modules_use_supported_imports():
     import ast
     from pathlib import Path

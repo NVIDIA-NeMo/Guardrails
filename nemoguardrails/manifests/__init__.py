@@ -15,7 +15,7 @@
 
 """Public API for rail manifests, catalog access, and configured surface references."""
 
-from nemoguardrails.manifests.catalog import RailCatalog, RailManifestRecord
+from nemoguardrails.manifests.catalog import RailCatalog, RailFlowSource, RailManifestRecord
 from nemoguardrails.manifests.manifest import (
     ActionRef,
     Binding,
@@ -45,6 +45,7 @@ from nemoguardrails.manifests.manifest import (
 from nemoguardrails.manifests.registry import (
     all_rail_manifests,
     default_rail_catalog,
+    rail_catalog,
 )
 from nemoguardrails.manifests.surface_reference import (
     normalize_configured_surface_name,
@@ -65,6 +66,7 @@ __all__ = [
     "RailConfigSchema",
     "RailDirection",
     "RailFlows",
+    "RailFlowSource",
     "RailLifecycle",
     "RailManifest",
     "RailManifestRecord",
@@ -81,5 +83,6 @@ __all__ = [
     "iter_manifest_import_refs",
     "normalize_configured_surface_name",
     "parse_configured_surface",
+    "rail_catalog",
     "resolve_import_ref",
 ]

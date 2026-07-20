@@ -222,7 +222,7 @@ class ActionDispatcher:
                 continue
             for action_ref in manifest.actions.refs:
                 self._register_action_ref(action_ref)
-            if manifest.origin:
+            if record.built_in and manifest.origin:
                 module = __import__(manifest.origin, fromlist=["__file__"])
                 module_file = getattr(module, "__file__", None)
                 if module_file:

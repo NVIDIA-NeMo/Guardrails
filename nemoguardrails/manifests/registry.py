@@ -19,6 +19,7 @@ from nemoguardrails.manifests.catalog import RailCatalog
 
 _catalog: RailCatalog | None = None
 _discovering = False
+_plugin_catalogs = {}
 
 
 def default_rail_catalog() -> RailCatalog:
@@ -42,7 +43,20 @@ def all_rail_manifests():
     return dict(default_rail_catalog().manifests)
 
 
+def rail_catalog(enabled_plugins=()):
+    """Return the built-in catalog extended with the named rail plugins."""
+    names = tuple(sorted(set(enabled_plugins)))
+    if not names:
+        return default_rail_catalog()
+    catalog = _plugin_catalogs.get(names)
+    if catalog is None:
+        catalog = default_rail_catalog().with_plugins(names)
+        _plugin_catalogs[names] = catalog
+    return catalog
+
+
 def _reset_rail_manifest_cache() -> None:
     global _catalog, _discovering
     _catalog = None
     _discovering = False
+    _plugin_catalogs.clear()

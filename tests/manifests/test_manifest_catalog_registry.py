@@ -27,5 +27,7 @@ def test_package_accessors_with_built_in_rails():
 
         assert manifests_pkg.all_rail_manifests() == dict(catalog.manifests)
         assert manifests_pkg.all_rail_manifests()
+        # no enabled plugins short-circuits back to the default catalog
+        assert manifests_pkg.rail_catalog() is catalog
     finally:
         registry._reset_rail_manifest_cache()

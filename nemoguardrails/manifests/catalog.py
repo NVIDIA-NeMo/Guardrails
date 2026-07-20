@@ -15,13 +15,15 @@
 
 """Catalog construction and discovery for rail manifests and their surfaces.
 
-Collects `RailManifestRecord` entries for built-in rails discovered under
-`nemoguardrails/library` into an immutable `RailCatalog` that enforces global
-uniqueness of rail names, config keys, flow names, action names, and surface
-keys.
+Collects `RailManifestRecord` entries (built-in rails discovered under
+`nemoguardrails/library` plus enabled plugin entry points) into an immutable
+`RailCatalog` that enforces global uniqueness of rail names, config keys,
+flow names, action names, and surface keys.
 """
 
 import importlib
+import importlib.metadata
+import importlib.resources
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Tuple
@@ -35,6 +37,15 @@ class RailManifestRecord:
 
     manifest: RailManifest
     source: str
+    distribution: Optional[str] = None
+    built_in: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class RailFlowSource:
+    rail_name: str
+    filename: str
+    content: str
 
 
 class RailCatalog:
@@ -127,6 +138,45 @@ class RailCatalog:
             records.append(RailManifestRecord(manifest=manifest, source=module_name))
         return cls(records)
 
+    def with_plugins(self, enabled: Iterable[str]) -> "RailCatalog":
+        """Return a catalog extended with the enabled plugin entry points."""
+        enabled_names = tuple(dict.fromkeys(enabled))
+        if not enabled_names:
+            return self
+        discovered = importlib.metadata.entry_points()
+        candidates = list(discovered.select(group="nemoguardrails.rails"))
+        by_name: Dict[str, list] = {}
+        for candidate in candidates:
+            by_name.setdefault(candidate.name, []).append(candidate)
+        records = list(self._records.values())
+        for name in enabled_names:
+            matches = by_name.get(name, [])
+            if not matches:
+                raise ValueError(f"Enabled rail plugin {name!r} is not installed.")
+            if len(matches) != 1:
+                distributions = sorted(
+                    (candidate.dist.name if candidate.dist is not None else "unknown") for candidate in matches
+                )
+                raise ValueError(f"Rail plugin {name!r} is provided by multiple distributions: {distributions}.")
+            candidate = matches[0]
+            manifest = candidate.load()
+            if callable(manifest) and not isinstance(manifest, RailManifest):
+                manifest = manifest()
+            if not isinstance(manifest, RailManifest):
+                raise TypeError(f"Rail plugin entry point {name!r} must resolve to a RailManifest.")
+            if manifest.name != name:
+                raise ValueError(f"Rail plugin entry point {name!r} returned manifest {manifest.name!r}.")
+            distribution = candidate.dist.name if candidate.dist is not None else None
+            records.append(
+                RailManifestRecord(
+                    manifest=manifest.model_copy(update={"origin": candidate.value}),
+                    source=candidate.value,
+                    distribution=distribution,
+                    built_in=False,
+                )
+            )
+        return type(self)(records)
+
     @property
     def records(self) -> Mapping[str, RailManifestRecord]:
         """Return catalog records keyed by manifest name."""
@@ -144,3 +194,33 @@ class RailCatalog:
     def owner_for_flow(self, flow_name: str) -> Optional[str]:
         """Return the manifest that owns a declared public flow name."""
         return self._flow_owners.get(flow_name)
+
+    def flow_sources(self, colang_version: str, *, built_in: Optional[bool] = None) -> Tuple[RailFlowSource, ...]:
+        sources = []
+        for record in self._records.values():
+            if built_in is not None and record.built_in != built_in:
+                continue
+            manifest = record.manifest
+            if manifest.flows is None:
+                continue
+            filenames = manifest.flows.v1_files if colang_version == "1.0" else manifest.flows.files
+            module_name = manifest.origin.partition(":")[0]
+            module = importlib.import_module(module_name)
+            package = module.__package__
+            if not package:
+                raise ValueError(f"Rail manifest {manifest.name!r} has no package for flow resources.")
+            root = importlib.resources.files(package)
+            for filename in filenames:
+                resource = root.joinpath(filename)
+                if not resource.is_file():
+                    raise FileNotFoundError(
+                        f"Rail manifest {manifest.name!r} flow resource {filename!r} does not exist in {package!r}."
+                    )
+                sources.append(
+                    RailFlowSource(
+                        rail_name=manifest.name,
+                        filename=filename,
+                        content=resource.read_text(encoding="utf-8"),
+                    )
+                )
+        return tuple(sources)

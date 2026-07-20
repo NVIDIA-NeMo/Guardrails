@@ -19,6 +19,7 @@ from typing import Any, Callable, List, Mapping, Optional, Tuple
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.manifests import rail_catalog
 from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class Runtime:
         self.action_dispatcher = ActionDispatcher(
             config_path=config.config_path,
             import_paths=list((config.imported_paths or {}).values()),
+            rail_catalog=rail_catalog(config.rails.plugins.enabled),
         )
 
         for action_name in (
