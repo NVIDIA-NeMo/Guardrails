@@ -360,6 +360,26 @@ class TestFlowContract:
             << "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
         )
 
+    def test_colang_1_input_flow_transforms_from_action_verdict(self):
+        text = "x" * 20
+        config = RailsConfig.from_content(
+            config={
+                "models": [],
+                "rails": {
+                    "input": {"flows": ["context bloat detection on input"]},
+                    "config": {"context_bloat_detection": {"max_chars": 10, "action": "truncate"}},
+                },
+            }
+        )
+        chat = TestChat(config, llm_completions=["normal"])
+
+        response = chat.app.generate(
+            messages=[{"role": "user", "content": text}],
+            options={"output_vars": ["user_message"]},
+        )
+
+        assert response.output_data == {"user_message": text[:10]}
+
     def test_colang_2_input_flow_blocks_from_action_verdict(self):
         config = RailsConfig.from_content(
             yaml_content="""
@@ -393,3 +413,36 @@ class TestFlowContract:
             chat
             << "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."
         )
+
+    def test_colang_2_input_flow_transforms_from_action_verdict(self):
+        text = "x" * 20
+        config = RailsConfig.from_content(
+            yaml_content="""
+                colang_version: 2.x
+                models: []
+                rails:
+                  config:
+                    context_bloat_detection:
+                      max_chars: 10
+                      action: truncate
+            """,
+            colang_content="""
+                import core
+                import llm
+                import guardrails
+                import nemoguardrails.library.context_bloat_detection
+
+                flow input rails $input_text
+                  context bloat detection on input
+
+                flow main
+                  global $user_message
+                  activate llm continuation
+                  user said something
+                  bot say "{$user_message}"
+            """,
+        )
+        chat = TestChat(config, llm_completions=[])
+
+        chat >> text
+        chat << text[:10]

@@ -171,8 +171,6 @@ def _context_bloat_outcome(source: ContextBloatSource, original_text: str, resul
         "input": TransformTarget.USER_MESSAGE,
         "retrieval": TransformTarget.RELEVANT_CHUNKS,
     }
-    if source not in targets:
-        raise ValueError("source must be either 'input' or 'retrieval'")
 
     metadata = {
         "is_bloat": result["is_bloat"],
