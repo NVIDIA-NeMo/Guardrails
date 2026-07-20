@@ -197,29 +197,39 @@ class RailAction(ABC):
         """Call an LLM via EngineRegistry and return the structured response.
 
         Captures usage/model/timing into a request-scoped contextvar so RailsManager can
-        record this call in the GenerationLog after the rail runs.
+        record this call in the GenerationLog after the rail runs. The capture happens in a
+        ``finally`` so a call that raises is still recorded as an attempt (usage/model/
+        completion left None), matching LLMRails counting a failed call.
         """
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
         started_at = time.time()
         t0 = time.monotonic()
-        response = await self.engine_registry.model_call(model_type, messages, **kwargs)
-        duration = time.monotonic() - t0
-        finished_at = time.time()
-        _rail_llm_call_var.set(
-            RailLLMCall(
-                usage=response.usage,
-                llm_model_name=response.model,
-                request_id=response.request_id,
-                provider_name=self.engine_registry.provider_name(model_type),
-                prompt=serialize_prompt(messages),
-                completion=response.content,
-                started_at=started_at,
-                finished_at=finished_at,
-                duration=duration,
+        usage: Optional[UsageInfo] = None
+        model_name: Optional[str] = None
+        request_id: Optional[str] = None
+        completion: Optional[str] = None
+        try:
+            response = await self.engine_registry.model_call(model_type, messages, **kwargs)
+            usage = response.usage
+            model_name = response.model
+            request_id = response.request_id
+            completion = response.content
+            return response
+        finally:
+            _rail_llm_call_var.set(
+                RailLLMCall(
+                    usage=usage,
+                    llm_model_name=model_name,
+                    request_id=request_id,
+                    provider_name=self.engine_registry.provider_name(model_type),
+                    prompt=serialize_prompt(messages),
+                    completion=completion,
+                    started_at=started_at,
+                    finished_at=time.time(),
+                    duration=time.monotonic() - t0,
+                )
             )
-        )
-        return response
 
     async def _get_api_response(
         self,
@@ -231,27 +241,27 @@ class RailAction(ABC):
 
         Records the call (with no token usage or model name) so API-backed rails such as
         jailbreak detection still appear in the GenerationLog's ``llm_calls`` and counts,
-        matching LLMRails.
+        matching LLMRails. Recorded in a ``finally`` so a call that raises is still counted
+        as an attempt.
         """
         started_at = time.time()
         t0 = time.monotonic()
-        response = await self.engine_registry.api_call(api_name, body, **kwargs)
-        duration = time.monotonic() - t0
-        finished_at = time.time()
-        _rail_llm_call_var.set(
-            RailLLMCall(
-                usage=None,
-                llm_model_name=None,
-                request_id=None,
-                provider_name=None,
-                prompt=None,
-                completion=None,
-                started_at=started_at,
-                finished_at=finished_at,
-                duration=duration,
+        try:
+            return await self.engine_registry.api_call(api_name, body, **kwargs)
+        finally:
+            _rail_llm_call_var.set(
+                RailLLMCall(
+                    usage=None,
+                    llm_model_name=None,
+                    request_id=None,
+                    provider_name=None,
+                    prompt=None,
+                    completion=None,
+                    started_at=started_at,
+                    finished_at=time.time(),
+                    duration=time.monotonic() - t0,
+                )
             )
-        )
-        return response
 
     async def _get_local_response(self, **kwargs: Any) -> Any:
         """Run a local/in-process check. Override in subclasses that need it."""

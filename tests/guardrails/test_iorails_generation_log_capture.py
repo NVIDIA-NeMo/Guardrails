@@ -102,6 +102,22 @@ class TestRailRecordCapture:
         assert record.request_id == "req-cs-input"
         assert record.return_value == {"allowed": True, "policy_violations": []}
 
+    @pytest.mark.asyncio
+    async def test_failed_model_call_still_records_the_attempt(self, iorails):
+        """A rail whose model call raises still yields a record marked made_call=True (usage/model None)."""
+        iorails.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        result = await iorails.rails_manager.is_input_safe(_USER)
+
+        assert result.is_safe is False
+        assert len(result.records) == 1
+        record = result.records[0]
+        assert record.made_call is True
+        assert record.usage is None
+        assert record.llm_model_name is None
+        assert record.llm_provider_name == "nim"
+        assert record.duration is not None
+
 
 class TestGenerationLogEndToEnd:
     """Full generate_async path builds a GenerationLog from real rail + main-call records."""
