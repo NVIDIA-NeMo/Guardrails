@@ -37,6 +37,7 @@ ANSWER_UNKNOWN = "I don't know the answer to that."
 CLEANLAB_WARNING_SUFFIX = "\nCAUTION: THIS ANSWER HAS BEEN FLAGGED AS POTENTIALLY UNTRUSTWORTHY"
 RENDERED_BLOCK_MESSAGES = {
     "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation.",
+    "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question.",
     "I will not engage in any abusive_or_harmful behavior.",
     "I will not engage in any abusive or harmful behavior.",
     "I will not engage in any self harm behavior.",
@@ -136,10 +137,6 @@ def _transform_if_false(raw_return: Any) -> FlowDecision:
 
 def _blocked_if_is_blocked(raw_return: Any) -> FlowDecision:
     return FlowDecision.BLOCK if raw_return["is_blocked"] else FlowDecision.ALLOW
-
-
-def _context_bloat_decision(raw_return: Any) -> FlowDecision:
-    return FlowDecision.BLOCK if raw_return["is_bloat"] and raw_return["action"] == "reject" else FlowDecision.ALLOW
 
 
 def _transform_if_changed_from_normal_output(raw_return: Any) -> FlowDecision:
@@ -444,12 +441,18 @@ SENSITIVE_DATA_MASK_RETRIEVAL = RailSpec(
     interpret=_transform_if_changed_from_relevant_chunks,
 )
 
+CONTEXT_BLOAT_INPUT = RailSpec(
+    name="context_bloat_input",
+    flow="context bloat detection on input",
+    direction="input",
+    action="context_bloat_detection",
+)
+
 CONTEXT_BLOAT_RETRIEVAL = RailSpec(
     name="context_bloat_retrieval",
     flow="context bloat detection on retrieval",
     direction="retrieval",
     action="context_bloat_detection",
-    interpret=_context_bloat_decision,
 )
 
 POLYGRAF_DETECT_RETRIEVAL = RailSpec(
@@ -1481,19 +1484,20 @@ FIXTURES = [
         SENSITIVE_DATA_DETECT_RETRIEVAL,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
-    _case(
-        "context_bloat_retrieval_allows_clean_chunks",
-        CONTEXT_BLOAT_RETRIEVAL,
-        {"is_bloat": False, "action": "reject", "text": RELEVANT_CHUNKS},
-        ObservableOutcome.ALLOW,
-        FlowDecision.ALLOW,
+    *_rail_outcome_cases(CONTEXT_BLOAT_INPUT),
+    *_rail_outcome_cases(CONTEXT_BLOAT_RETRIEVAL),
+    *_output_var_transform_cases(
+        CONTEXT_BLOAT_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="truncated input",
     ),
-    _case(
-        "context_bloat_retrieval_blocks_rejected_chunks",
+    *_output_var_transform_cases(
         CONTEXT_BLOAT_RETRIEVAL,
-        {"is_bloat": True, "action": "reject", "text": RELEVANT_CHUNKS},
-        ObservableOutcome.REFUSAL,
-        FlowDecision.BLOCK,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="truncated chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
     ),
     *_rail_outcome_cases(
         POLYGRAF_DETECT_RETRIEVAL,
