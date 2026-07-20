@@ -15,13 +15,17 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ConfigSpecRef,
     RailActions,
     RailConfigSchema,
+    RailDirection,
     RailFlows,
     RailManifest,
     RailMetadata,
     RailSpec,
+    RailSurface,
+    TransformTarget,
 )
 
 CONTEXT_BLOAT_DETECTION = ActionRef(
@@ -47,5 +51,27 @@ RAIL = RailManifest(
             flow_names=("context bloat detection on input", "context bloat detection on retrieval"),
         ),
         actions=RailActions(refs=(CONTEXT_BLOAT_DETECTION,)),
+        surfaces=(
+            RailSurface(
+                name="context bloat detection on input",
+                direction=RailDirection.INPUT,
+                action=CONTEXT_BLOAT_DETECTION,
+                bindings=(
+                    Binding.literal("source", "input"),
+                    Binding.context("text", "user_message"),
+                ),
+                transform_target=TransformTarget.USER_MESSAGE,
+            ),
+            RailSurface(
+                name="context bloat detection on retrieval",
+                direction=RailDirection.RETRIEVAL,
+                action=CONTEXT_BLOAT_DETECTION,
+                bindings=(
+                    Binding.literal("source", "retrieval"),
+                    Binding.context("text", "relevant_chunks"),
+                ),
+                transform_target=TransformTarget.RELEVANT_CHUNKS,
+            ),
+        ),
     ),
 )

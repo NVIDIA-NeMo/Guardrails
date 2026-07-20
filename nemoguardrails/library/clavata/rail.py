@@ -15,16 +15,19 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ConfigSpecRef,
     EnvVar,
     RailActions,
     RailConfigSchema,
+    RailDirection,
     RailFlows,
     RailManifest,
     RailMetadata,
     RailPrivacy,
     RailRequirements,
     RailSpec,
+    RailSurface,
     ServiceRequirement,
 )
 
@@ -48,8 +51,22 @@ RAIL = RailManifest(
             key="clavata",
             spec=ConfigSpecRef(target="nemoguardrails.library.clavata.rail_config:build_config_spec"),
         ),
-        flows=RailFlows(flow_names=("clavata check for",)),
+        flows=RailFlows(flow_names=("clavata check for", "clavata check input", "clavata check output")),
         actions=RailActions(refs=(CLAVATA_CHECK,)),
+        surfaces=(
+            RailSurface(
+                name="clavata check input",
+                direction=RailDirection.INPUT,
+                action=CLAVATA_CHECK,
+                bindings=(Binding.context("text", "user_message"), Binding.literal("rail", "input")),
+            ),
+            RailSurface(
+                name="clavata check output",
+                direction=RailDirection.OUTPUT,
+                action=CLAVATA_CHECK,
+                bindings=(Binding.context("text", "bot_message"), Binding.literal("rail", "output")),
+            ),
+        ),
         requirements=RailRequirements(
             env_vars=(EnvVar(name="CLAVATA_API_KEY", required=True),),
             services=(ServiceRequirement(name="Clavata API", required=True),),
