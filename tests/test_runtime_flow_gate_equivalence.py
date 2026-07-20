@@ -2590,7 +2590,7 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
 
 
 def test_manifest_surfaces_have_flow_gate_equivalence_coverage():
-    """Every built-in execution surface has portable verdict coverage."""
+    """Built-in execution surfaces and portable verdict coverage match exactly."""
     declared = {
         (surface.direction.value, surface.name)
         for manifest in all_rail_manifests().values()
@@ -2598,7 +2598,10 @@ def test_manifest_surfaces_have_flow_gate_equivalence_coverage():
     }
     covered = {(case.spec.direction, normalize_configured_surface_name(case.spec.flow)) for case in FIXTURES}
 
-    assert declared <= covered, f"Manifest surfaces without equivalence cases: {sorted(declared - covered)}"
+    assert declared == covered, (
+        f"Manifest surfaces without equivalence cases: {sorted(declared - covered)}; "
+        f"equivalence cases without manifest surfaces: {sorted(covered - declared)}"
+    )
 
 
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
