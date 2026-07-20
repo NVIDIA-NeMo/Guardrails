@@ -429,7 +429,9 @@ class RailsManager:
         rails: Mapping[str, Coroutine[Any, Any, RailResult]],
         direction: RailDirection,
     ) -> RailResult:
-        """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
+        """Run rail coroutines concurrently; on the first unsafe result, finish draining its
+        completion batch (so rails that finished alongside it still contribute their records)
+        before cancelling the rest."""
         req_id = get_request_id()
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
@@ -440,24 +442,22 @@ class RailsManager:
         try:
             while pending_tasks:
                 done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+                first_unsafe: Optional[RailResult] = None
                 for task in sorted(done, key=lambda t: task_order[t]):
                     result = task.result()
                     collected.extend(result.records)
                     flow = task_to_flow[task]
                     log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
-                    if not result.is_safe:
-                        log.info(
-                            "[%s] %s flow %s blocked (cancelling %d remaining)",
-                            req_id,
-                            direction.value,
-                            flow,
-                            len(pending_tasks),
-                        )
+                    if not result.is_safe and first_unsafe is None:
+                        first_unsafe = result
+                        log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
+                if first_unsafe is not None:
+                    if pending_tasks:
+                        log.info("[%s] %s cancelling %d remaining", req_id, direction.value, len(pending_tasks))
                         for t in pending_tasks:
                             t.cancel()
-                        if pending_tasks:
-                            await asyncio.wait(pending_tasks)
-                        return replace(result, records=tuple(collected))
+                        await asyncio.wait(pending_tasks)
+                    return replace(first_unsafe, records=tuple(collected))
             return RailResult(is_safe=True, records=tuple(collected))
         except BaseException:
             for t in tasks:

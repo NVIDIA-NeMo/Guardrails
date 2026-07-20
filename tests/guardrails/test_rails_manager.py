@@ -31,7 +31,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
-from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult, serialize_prompt
+from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -1025,3 +1025,28 @@ class TestSerializePrompt:
         """A message with no content (reasoning/tool turn) renders as empty, not an error."""
         out = serialize_prompt([{"role": "assistant", "content": None}])
         assert out == "assistant: "
+
+
+class TestParallelBatchDrainsRecords:
+    """`_run_rails_parallel` keeps records from every task that completed in a batch."""
+
+    @pytest.mark.asyncio
+    async def test_unsafe_first_does_not_drop_later_safe_records(self):
+        """When an unsafe rail sorts before a safe one that finished in the same wait batch, the safe rail's records survive."""
+        manager = _make_rails_manager(RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG))
+
+        unsafe_record = RailCallRecord(flow="jailbreak detection model", rail_type="input", is_safe=False)
+        safe_record = RailCallRecord(flow="content safety check input", rail_type="input", is_safe=True)
+
+        async def _unsafe():
+            return RailResult(is_safe=False, reason="blocked", records=(unsafe_record,))
+
+        async def _safe():
+            return RailResult(is_safe=True, records=(safe_record,))
+
+        # Insertion order sets task_order, so the unsafe rail sorts first in the done batch.
+        rails = {"unsafe": _unsafe(), "safe": _safe()}
+        result = await manager._run_rails_parallel(rails, RailDirection.INPUT)
+
+        assert result.is_safe is False
+        assert {r.flow for r in result.records} == {"jailbreak detection model", "content safety check input"}
