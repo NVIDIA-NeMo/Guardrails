@@ -734,6 +734,7 @@ class InputRails(BaseModel):
 
     speculative_max_buffered_tokens: int = Field(
         default=4096,
+        gt=0,
         description=(
             "Upper bound on the number of chunks held in the speculative awaiting-release buffer "
             "during streaming speculation (chunks approximate tokens). When the bound is reached, "

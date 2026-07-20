@@ -109,6 +109,33 @@ def test_passthrough_and_single_call_incompatibility():
     assert "The passthrough mode and the single call dialog" in str(exc_info.value)
 
 
+def test_speculative_max_buffered_tokens_must_be_positive():
+    with pytest.raises(ValueError) as exc_info:
+        RailsConfig.from_content(
+            yaml_content="""
+            rails:
+                input:
+                    speculative_generation: True
+                    speculative_max_buffered_tokens: 0
+            """,
+        )
+
+    assert "speculative_max_buffered_tokens" in str(exc_info.value)
+
+
+def test_speculative_max_buffered_tokens_accepts_positive():
+    config = RailsConfig.from_content(
+        yaml_content="""
+        rails:
+            input:
+                speculative_generation: True
+                speculative_max_buffered_tokens: 8
+        """,
+    )
+
+    assert config.rails.input.speculative_max_buffered_tokens == 8
+
+
 # def test_self_check_facts_prompt_exception():
 #     with pytest.raises(ValueError) as exc_info:
 #         config = RailsConfig.from_content(
