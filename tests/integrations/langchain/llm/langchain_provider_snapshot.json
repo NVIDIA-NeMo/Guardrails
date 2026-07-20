@@ -1,6 +1,6 @@
 {
   "0.3": {
-    "langchain_version": "1.3.11",
+    "langchain_version": "1.3.13",
     "langchain_community_version": "0.3.31",
     "community_llm_providers": [
       "SparkLLM",
@@ -178,6 +178,7 @@
       "huggingface",
       "ibm",
       "litellm",
+      "meta",
       "mistralai",
       "nim",
       "nvidia",
@@ -191,7 +192,7 @@
     ]
   },
   "0.4": {
-    "langchain_version": "1.3.11",
+    "langchain_version": "1.3.13",
     "langchain_community_version": "0.4.2",
     "community_llm_providers": [
       "SparkLLM",
@@ -352,6 +353,7 @@
       "huggingface",
       "ibm",
       "litellm",
+      "meta",
       "mistralai",
       "nim",
       "nvidia",
