@@ -1046,6 +1046,12 @@ class IORails(BaseGuardrails):
         main_prompt: str = "",
     ) -> Optional[LLMResponse]:
         """Race input rails against LLM generation, return LLMResponse or None (rejected)."""
+
+        def _record_generation(timed: TimedLLMResponse) -> None:
+            if records_out is not None:
+                provider = self.engine_registry.provider_name("main")
+                records_out.append(_make_generation_record(timed, provider, main_prompt))
+
         done, _ = await asyncio.wait({rails_task, gen_task}, return_when=asyncio.FIRST_COMPLETED)
 
         first_completed = (
@@ -1066,7 +1072,10 @@ class IORails(BaseGuardrails):
                 # tasks finish simultaneously, gen_task may hold a stored exception that
                 # would leak through suppress(CancelledError). gather drains it safely.
                 gen_result = (await asyncio.gather(gen_task, return_exceptions=True))[0]
-                if isinstance(gen_result, BaseException) and not isinstance(gen_result, asyncio.CancelledError):
+                if isinstance(gen_result, TimedLLMResponse):
+                    # Generation completed before cancellation took effect — record the call that was made.
+                    _record_generation(gen_result)
+                elif isinstance(gen_result, BaseException) and not isinstance(gen_result, asyncio.CancelledError):
                     log.warning("[%s] LLM generation error suppressed: %s", req_id, gen_result)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
@@ -1088,6 +1097,7 @@ class IORails(BaseGuardrails):
 
             if not input_result.is_safe:
                 log.info("[%s] Input blocked (speculative, gen-first): %s", req_id, input_result.reason)
+                _record_generation(timed)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
                 set_speculative_span_attrs(
@@ -1098,9 +1108,7 @@ class IORails(BaseGuardrails):
             set_speculative_span_attrs(request_span, first_completed, "none")
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(timed.response.content))
-        if records_out is not None:
-            provider = self.engine_registry.provider_name("main")
-            records_out.append(_make_generation_record(timed, provider, main_prompt))
+        _record_generation(timed)
         return timed.response
 
     def check(self, messages: LLMMessages, rail_types: Optional[list[RailType]] = None) -> RailsResult:

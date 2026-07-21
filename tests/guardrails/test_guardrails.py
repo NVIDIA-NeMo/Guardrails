@@ -1977,3 +1977,24 @@ class TestGuardrailsCheckEndToEnd:
             assert result.status == RailStatus.BLOCKED
             assert result.rail == "jailbreak detection model"
             assert result.content == REFUSAL_MESSAGE
+
+
+class TestOptionsForwarding:
+    """The facade forwards a caller-supplied ``options`` object to the engine verbatim."""
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_options_forwarded_unchanged(self, _mock_init, _content_safety_rails_config):
+        """A non-None options object reaches both generate and generate_async as the same instance."""
+        options = GenerationOptions()
+        messages = [{"role": "user", "content": "hi"}]
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=False) as guardrails:
+            guardrails.rails_engine.generate = MagicMock(return_value="sync")
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="async")
+
+            guardrails.generate(messages=messages, options=options)
+            await guardrails.generate_async(messages=messages, options=options)
+
+            assert guardrails.rails_engine.generate.call_args.kwargs["options"] is options
+            assert guardrails.rails_engine.generate_async.call_args.kwargs["options"] is options

@@ -494,3 +494,24 @@ class TestSpeculativeGenerationTiming:
         assert gen_call.started_at is not None
         assert gen_call.finished_at is not None
         assert gen_call.duration is not None
+
+    @pytest.mark.asyncio
+    async def test_blocked_after_generation_records_the_completed_call(self, iorails):
+        """When generation completes before the input rails block it, the completed main call is still logged."""
+
+        async def slow_reject(messages, *, enabled=True):
+            await asyncio.sleep(0.05)
+            return RailResult(is_safe=False, reason="unsafe")
+
+        iorails.rails_manager.is_input_safe = slow_reject
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
+        )
+
+        result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.log is not None
+        gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
+        assert len(gen_calls) == 1
+        assert gen_calls[0].duration is not None
