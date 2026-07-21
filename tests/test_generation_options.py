@@ -91,6 +91,16 @@ def _expected_serialized_outcome(outcome):
     }
 
 
+def _get_outcome_action_event(events):
+    action_events = [
+        event
+        for event in events
+        if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
+    ]
+    assert len(action_events) == 1, f"Expected one outcome_action completion event, found {len(action_events)}"
+    return action_events[0]
+
+
 def test_output_vars_1():
     config = RailsConfig.from_content(
         colang_content="""
@@ -258,11 +268,7 @@ def test_generation_log_with_rail_outcome_is_json_serializable(outcome, log_fiel
     if log_field == "activated_rails":
         serialized_outcome = data["activated_rails"][0]["executed_actions"][0]["return_value"]
     else:
-        action_event = next(
-            event
-            for event in data["internal_events"]
-            if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
-        )
+        action_event = _get_outcome_action_event(data["internal_events"])
         serialized_outcome = action_event["return_value"]
 
     assert serialized_outcome == _expected_serialized_outcome(outcome)
@@ -291,11 +297,7 @@ def test_generation_response_with_rail_outcome_is_json_serializable(outcome, sur
     if surface == "activated_rails":
         serialized_outcome = data["log"]["activated_rails"][0]["executed_actions"][0]["return_value"]
     elif surface == "internal_events":
-        action_event = next(
-            event
-            for event in data["log"]["internal_events"]
-            if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
-        )
+        action_event = _get_outcome_action_event(data["log"]["internal_events"])
         serialized_outcome = action_event["return_value"]
     else:
         serialized_outcome = data["output_data"]["response"]
