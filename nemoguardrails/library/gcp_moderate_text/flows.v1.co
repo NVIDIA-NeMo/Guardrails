@@ -51,11 +51,11 @@ define subflow gcpnlp moderation detailed
     else if $triggered_violation == "Violent"
       bot inform cannot engage in abusive or harmful behavior
     else if $triggered_violation == "Sexual"
-      bot inform cannot engage in inappropriate content
+      bot inform cannot engage with inappropriate content
     else if $triggered_violation == "Death, Harm & Tragedy"
-      bot inform cannot engage in inappropriate content
+      bot inform cannot engage with inappropriate content
     else if $triggered_violation == "Firearms & Weapons"
-      bot inform cannot engage in inappropriate content
+      bot inform cannot engage with inappropriate content
     else if $triggered_violation == "Illicit Drugs"
       bot inform cannot engage with sensitive content
     else if $triggered_violation == "Public Safety"

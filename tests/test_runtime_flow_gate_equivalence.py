@@ -2253,6 +2253,48 @@ FIXTURES = [
         expected_content="I will not engage in any abusive or harmful behavior.",
     ),
     _case(
+        "gcp_moderation_input_detailed_blocks_sexual_content",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Sexual": 0.41},
+            triggered_violation="Sexual",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
+        "gcp_moderation_input_detailed_blocks_death_harm_and_tragedy",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Death, Harm & Tragedy": 0.41},
+            triggered_violation="Death, Harm & Tragedy",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
+        "gcp_moderation_input_detailed_blocks_firearms_and_weapons",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Firearms & Weapons": 0.41},
+            triggered_violation="Firearms & Weapons",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
         "gcp_moderation_input_detailed_fails_closed_without_trigger_metadata",
         GCP_MODERATION_INPUT_DETAILED,
         RailOutcome.block(
@@ -2609,6 +2651,59 @@ def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, actio
         return outcome
 
     chat.app.register_action(stub_action, action_name)
+
+    chat >> USER_INPUT
+    chat << expected
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        (
+            "reject",
+            f"{INJECTION_DETECTION_REFUSAL_PREFIX}SQL injection, XSS.",
+        ),
+        ("omit", ""),
+    ],
+)
+def test_colang_2_injection_detection_preserves_blocked_verdict(action, expected):
+    """Colang 2 preserves blocked injection verdicts and readable detections."""
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+            colang_version: 2.x
+            models: []
+            enable_rails_exceptions: false
+            rails:
+              config:
+                injection_detection:
+                  action: {action}
+        """,
+        colang_content=f"""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.injection_detection
+
+            flow output rails $output_text
+              injection detection
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "{NORMAL_OUTPUT}"
+        """,
+    )
+    chat = TestChat(config)
+
+    async def stub_action(**kwargs):
+        return RailOutcome.block(
+            metadata={
+                "is_injection": True,
+                "detections": ["SQL injection", "XSS"],
+            }
+        )
+
+    chat.app.register_action(stub_action, "injection_detection")
 
     chat >> USER_INPUT
     chat << expected
