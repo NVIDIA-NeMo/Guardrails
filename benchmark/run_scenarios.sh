@@ -20,14 +20,21 @@ set -euo pipefail
 
 ENGINE=${1:-llmrails}
 if [[ "$ENGINE" != "llmrails" && "$ENGINE" != "iorails" ]]; then
-    echo "Usage: $0 [llmrails|iorails]" >&2
+    echo "Usage: $0 [llmrails|iorails] [scenario ...]" >&2
+    echo "  scenarios: dialog rag code_gen agent (default: all four)" >&2
     exit 1
 fi
+shift
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/benchmark/aiperf/configs"
 
-SCENARIOS=(dialog rag code_gen agent)
+ALL_SCENARIOS=(dialog rag code_gen agent)
+if [[ $# -gt 0 ]]; then
+    SCENARIOS=("$@")
+else
+    SCENARIOS=("${ALL_SCENARIOS[@]}")
+fi
 PYTHON=${AIPERF_PYTHON:-/ephemeral/venv-aiperf/bin/python}
 
 echo "=== IORails Tech Blog Benchmark Suite ==="
