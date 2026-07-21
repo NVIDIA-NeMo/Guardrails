@@ -37,7 +37,7 @@ export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 1. Install the following packages to test the jailbreak detection heuristics locally:
 
 ```bash
-pip install transformers torch
+pip install "transformers>=4.35" "torch>=2" huggingface-hub
 ```
 
 1. If you're running this inside a notebook, patch the `AsyncIO` loop.

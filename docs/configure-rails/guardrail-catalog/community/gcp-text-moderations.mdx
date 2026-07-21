@@ -3,7 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "GCP Text Moderation Integration"
 ---
-NeMo Guardrails supports using the [GCP Text Moderation API](https://cloud.google.com/natural-language/docs/moderating-text) as an input rail out-of-the-box. There are many ways you can authentication on GCP, refer to this [link](https://cloud.google.com/docs/authentication/application-default-credentials) for more details .
+NeMo Guardrails supports using the [GCP Text Moderation API](https://cloud.google.com/natural-language/docs/moderating-text) as an input rail out-of-the-box.
+
+## Setup
+
+Install the Google Cloud Natural Language client:
+
+```bash
+pip install "google-cloud-language>=2.14"
+```
+
+Configure [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) for the environment that runs the rail.
+
+## Usage
 
 ```yaml
 rails:

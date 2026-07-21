@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "NeMo Guardrails Library CLI Reference"
 sidebar-title: "CLI"
-description: "Use the nemoguardrails command-line interface to chat, serve, evaluate, and convert configurations."
+description: "Use the nemoguardrails command-line interface to chat, serve, validate, evaluate, and convert configurations."
 content:
   type: "reference"
 ---
@@ -32,6 +32,7 @@ Commands:
                    the latest.
   actions-server   Start a NeMo Guardrails actions server.
   find-providers   List and select LLM providers interactively.
+  rails            Inspect and validate catalog rails.
   eval             Evaluation a guardrail configuration.
 ```
 
@@ -57,6 +58,38 @@ nemoguardrails chat --config examples/configs/content_safety [--verbose] [--stre
 | `--streaming` | Enable streaming mode if the configuration supports it. |
 | `--server-url` | Connect to a server instead of loading config locally. Requires `--config-id`. |
 | `--config-id` | The config ID to use when connecting to a server. |
+
+---
+
+<a id="rails-validate"></a>
+## `rails validate`
+
+Validate the dependencies declared by the catalog rails referenced in a guardrails configuration:
+
+```bash
+nemoguardrails rails validate --config ./config
+```
+
+If you omit `--config`, the command loads the configuration from `./config`.
+
+By default, validation uses installed distribution metadata to check Python package versions. It also checks whether required environment-variable names are present and reports declared services and models as unverified. Static validation does not import optional packages, read or display environment-variable values, initialize or download models, or contact services.
+
+Use runtime validation to additionally import each declared Python package:
+
+```bash
+nemoguardrails rails validate --config ./config --runtime
+```
+
+Runtime validation does not initialize or download models or contact services.
+
+The command exits with status `1` when a required package is missing, incompatible, or unsupported in the active environment; when a required environment variable is missing; or when a required runtime import fails. Optional requirements produce warnings and do not cause a nonzero exit status. When possible, the output includes separate `pip install` commands for required and optional packages. The command never installs packages.
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--config` | Path to a guardrails configuration file or directory. Default: `config`. |
+| `--runtime` | Import declared Python packages after static validation. |
 
 ## `actions-server`
 

@@ -109,10 +109,10 @@ There is currently one available model-based detection, using a random forest-ba
 
 The recommended way to use the jailbreak detection heuristics in production is to [deploy the jailbreak detection heuristics server](/more-deployment-options/using-docker#jailbreak-detection-heuristics) separately. For a hands-on configuration walkthrough, see [Use Jailbreak Detection Heuristics](/get-started/tutorials/jailbreak-detection-heuristics).
 
-For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `torch`.
+For quick testing, you can use the jailbreak detection heuristics rail locally by installing its optional local dependencies.
 
 ```bash
-pip install transformers torch
+pip install "transformers>=4.35" "torch>=2" huggingface-hub
 ```
 
 ### Latency
