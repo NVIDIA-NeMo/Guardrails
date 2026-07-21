@@ -5,7 +5,7 @@ title: "Cleanlab Integration"
 ---
 Cleanlab's state-of-the-art [LLM uncertainty estimator](https://cleanlab.ai/blog/trustworthy-language-model/) scores the _trustworthiness_ of any LLM response, to detect incorrect outputs and hallucinations in real-time.
 
-<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
 
 ## Installation requirements
 
@@ -33,7 +33,7 @@ Print the requirements from your installed version:
 nemoguardrails rails requirements --rail cleanlab
 ```
 
-<!-- END GENERATED RAIL REQUIREMENTS -->
+{/* END GENERATED RAIL REQUIREMENTS */}
 
 In question-answering or RAG applications: high trustworthiness is indicative of a correct response. In open-ended chat applications, a high score corresponds to the response being helpful and informative. Low trustworthiness scores indicate outputs that are likely bad or incorrect, or complex prompts where the LLM might have output the right response this time but might output the wrong response when run on the same prompt again (so it cannot be trusted).
 
