@@ -44,6 +44,7 @@ prompts:
 
     output_parser: nemotron_reasoning_parse_prompt_safety
     max_tokens: 400
+    max_length: 256000
 
   - task: content_safety_check_output $model=content_safety_reasoning
     content: |
@@ -90,3 +91,4 @@ prompts:
 
     output_parser: nemotron_reasoning_parse_response_safety
     max_tokens: 400
+    max_length: 256000
