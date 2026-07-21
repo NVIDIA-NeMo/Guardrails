@@ -106,6 +106,9 @@ navigation:
         path: configure-rails/guardrail-catalog/index.mdx
         slug: guardrail-catalog
         contents:
+          - page: Installation Requirements
+            path: configure-rails/guardrail-catalog/rail-installation-requirements.mdx
+            slug: rail-installation-requirements
           - page: Content Safety
             path: configure-rails/guardrail-catalog/content-safety.mdx
             slug: content-safety

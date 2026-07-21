@@ -1,6 +1,6 @@
 .PHONY: help install
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
-.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
+.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public generate-rail-requirements check-rail-requirements
 .PHONY: pre-commit pre-commit-install
 
 .DEFAULT_GOAL := help
@@ -100,12 +100,18 @@ docs-fern-publish-public: docs-fern-generate-sdk
 docs-fern-preview-watch: docs-fern-generate-sdk
 	node scripts/watch-fern-preview.mjs
 
-docs-fern-generate-sdk:
+docs-fern-generate-sdk: check-rail-requirements
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk
 	node scripts/normalize-fern-sdk-reference.mjs
 
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
+
+generate-rail-requirements:
+	uv run --locked python scripts/generate_rail_requirements_docs.py
+
+check-rail-requirements:
+	uv run --locked python scripts/generate_rail_requirements_docs.py --check
 
 pre-commit:
 	uv run pre-commit run --all-files
@@ -154,6 +160,8 @@ help:
 		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
 		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
+		'  generate-rail-requirements Regenerate manifest-backed rail installation requirements' \
+		'  check-rail-requirements Verify manifest-backed rail installation requirements are current' \
 		'' \
 		'Maintenance:' \
 		'  pre-commit            Run pre-commit hooks against all files' \

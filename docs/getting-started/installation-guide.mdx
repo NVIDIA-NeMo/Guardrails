@@ -114,7 +114,19 @@ Install an optional extra when you need platform or development functionality th
 
 ### Rail Dependencies
 
-Catalog rails declare their own Python package, model, service, and environment-variable requirements. Rail-specific Python packages are not included in the NeMo Guardrails extras. Install them directly by following the setup instructions in the [Guardrail Catalog](/configure-guardrails/guardrail-catalog).
+Catalog rails declare their own Python package, model, service, and environment-variable requirements. Rail-specific Python packages are not included in the NeMo Guardrails extras. Review the generated [rail installation requirements](/configure-guardrails/guardrail-catalog/rail-installation-requirements) or print the requirements for the rails in your configuration:
+
+```bash
+nemoguardrails rails requirements --config ./config
+```
+
+To inspect a rail before configuring it, select it by manifest name:
+
+```bash
+nemoguardrails rails requirements --rail sensitive_data_detection
+```
+
+The command separates required and optional Python packages and lists declared environment variables, services, and models. It prints installation guidance but never installs packages or reads environment-variable values.
 
 After you configure your rails, validate their requirements:
 
@@ -122,7 +134,7 @@ After you configure your rails, validate their requirements:
 nemoguardrails rails validate --config ./config
 ```
 
-The command reports missing or incompatible packages and missing environment variables. It does not install packages. For the command options and validation behavior, refer to the [`rails validate` CLI reference](/reference/cli#rails-validate).
+The command reports missing or incompatible packages and missing environment variables. It does not install packages. For command options and output formats, refer to the [`rails requirements`](/reference/cli#rails-requirements) and [`rails validate`](/reference/cli#rails-validate) CLI references.
 
 Some rails, such as [AlignScore](/configure-guardrails/guardrail-catalog/third-party/alignscore), require additional setup. See each rail's catalog page for package, model, credential, and service requirements.
 

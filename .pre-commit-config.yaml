@@ -32,6 +32,12 @@ repos:
 
   - repo: local
     hooks:
+      - id: rail-requirements-docs
+        name: rail requirements docs
+        entry: uv run --locked python scripts/generate_rail_requirements_docs.py --check
+        language: system
+        pass_filenames: false
+        files: ^(nemoguardrails/library/.*/rail\.py|nemoguardrails/manifests/(installation|manifest)\.py|scripts/generate_rail_requirements_docs\.py|docs/configure-rails/guardrail-catalog/rail-installation-requirements\.mdx)$
       - id: ty
         name: ty
         entry: uv run --locked ty check
