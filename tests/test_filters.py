@@ -16,11 +16,27 @@
 import textwrap
 
 from nemoguardrails.llm.filters import (
+    co_v2,
     first_turns,
     last_turns,
     to_chat_messages,
     user_assistant_sequence,
 )
+
+
+def test_co_v2_hides_vendor_system_actions():
+    """Colang 2 history excludes internal vendor action results."""
+    for action_name in ("CallActivefenceApiAction", "CallGcpnlpApiAction"):
+        events = [
+            {
+                "type": f"{action_name}Finished",
+                "uid": action_name,
+                "action_name": action_name,
+                "return_value": "internal result",
+            }
+        ]
+
+        assert co_v2(events) == ""
 
 
 def test_first_turns():
