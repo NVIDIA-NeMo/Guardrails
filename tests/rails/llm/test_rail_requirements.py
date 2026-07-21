@@ -77,6 +77,9 @@ def test_missing_required_and_optional_packages(monkeypatch):
     assert not report.valid
     assert report.results[0].checks[0].status == RequirementStatus.WARNING
     assert report.results[1].checks[0].status == RequirementStatus.ERROR
+    assert report.required_packages_to_install == ("required",)
+    assert report.optional_packages_to_install == ("optional",)
+    assert report.packages_to_install == report.required_packages_to_install
 
 
 def test_required_unsupported_environment_is_an_error():
@@ -90,6 +93,40 @@ def test_required_unsupported_environment_is_an_error():
 
     assert not report.valid
     assert report.results[0].checks[0].message == "required package does not support this environment"
+    assert report.required_packages_to_install == ()
+
+
+def test_optional_unsupported_environment_is_informational():
+    package = PythonPackage(
+        distribution="example",
+        import_name="example",
+        required=False,
+        marker="python_version < '1'",
+    )
+
+    report = validate_rail_requirements([_manifest(package=package)])
+
+    assert report.valid
+    assert report.results[0].checks[0].status == RequirementStatus.INFO
+    assert report.optional_packages_to_install == ()
+
+
+def test_install_guidance_preserves_version_and_marker(monkeypatch):
+    package = PythonPackage(
+        distribution="example",
+        import_name="example",
+        version=">=2,<3",
+        marker="python_version >= '3.10'",
+    )
+
+    def missing(name):
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", missing)
+
+    report = validate_rail_requirements([_manifest(package=package)])
+
+    assert report.required_packages_to_install == ('example>=2,<3; python_version >= "3.10"',)
 
 
 def test_runtime_validation_reports_transitive_import_failure(monkeypatch):

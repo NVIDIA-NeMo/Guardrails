@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from pathlib import Path
 
 import typer
@@ -52,8 +53,11 @@ def validate_rails(
                 RequirementStatus.INFO: "INFO",
             }[check.status]
             typer.echo(f"  [{label}] {check.kind}: {check.name} ({check.message})")
-    if report.packages_to_install:
-        packages = " ".join(f"'{package}'" for package in report.packages_to_install)
-        typer.echo(f"Install missing or incompatible packages with: pip install {packages}")
+    if report.required_packages_to_install:
+        packages = " ".join(shlex.quote(package) for package in report.required_packages_to_install)
+        typer.echo(f"Install required packages with: pip install {packages}")
+    if report.optional_packages_to_install:
+        packages = " ".join(shlex.quote(package) for package in report.optional_packages_to_install)
+        typer.echo(f"Install optional packages to enable additional functionality with: pip install {packages}")
     if not report.valid:
         raise typer.Exit(1)

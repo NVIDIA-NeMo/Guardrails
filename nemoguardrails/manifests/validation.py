@@ -18,7 +18,7 @@ import importlib.metadata
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 from packaging.markers import Marker
 from packaging.specifiers import SpecifierSet
@@ -42,6 +42,7 @@ class RequirementCheck:
     status: RequirementStatus
     required: bool
     message: str
+    install_requirement: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,16 +64,26 @@ class RailValidationReport:
         return all(result.valid for result in self.results)
 
     @property
-    def packages_to_install(self) -> Tuple[str, ...]:
+    def required_packages_to_install(self) -> Tuple[str, ...]:
         packages = []
         for result in self.results:
             for check in result.checks:
-                if check.kind == "python_package" and check.status in {
-                    RequirementStatus.ERROR,
-                    RequirementStatus.WARNING,
-                }:
-                    packages.append(check.name)
+                if check.required and check.install_requirement is not None:
+                    packages.append(check.install_requirement)
         return tuple(sorted(set(packages), key=str.lower))
+
+    @property
+    def optional_packages_to_install(self) -> Tuple[str, ...]:
+        packages = []
+        for result in self.results:
+            for check in result.checks:
+                if not check.required and check.install_requirement is not None:
+                    packages.append(check.install_requirement)
+        return tuple(sorted(set(packages), key=str.lower))
+
+    @property
+    def packages_to_install(self) -> Tuple[str, ...]:
+        return self.required_packages_to_install
 
 
 class RailDependencyError(ImportError):
@@ -85,12 +96,15 @@ class RailDependencyError(ImportError):
         )
 
 
-def _package_name(requirement: PythonPackage) -> str:
-    return requirement.distribution + (requirement.version or "")
+def _package_requirement(requirement: PythonPackage) -> str:
+    package = requirement.distribution + (requirement.version or "")
+    if requirement.marker is not None:
+        package = f"{package}; {Marker(requirement.marker)}"
+    return package
 
 
 def _package_check(requirement: PythonPackage, runtime: bool) -> RequirementCheck:
-    package_name = _package_name(requirement)
+    package_name = _package_requirement(requirement)
     marker_matches = requirement.marker is None or Marker(requirement.marker).evaluate()
     if not marker_matches:
         status = RequirementStatus.ERROR if requirement.required else RequirementStatus.INFO
@@ -104,7 +118,9 @@ def _package_check(requirement: PythonPackage, runtime: bool) -> RequirementChec
         installed = importlib.metadata.version(requirement.distribution)
     except importlib.metadata.PackageNotFoundError:
         status = RequirementStatus.ERROR if requirement.required else RequirementStatus.WARNING
-        return RequirementCheck("python_package", package_name, status, requirement.required, "not installed")
+        return RequirementCheck(
+            "python_package", package_name, status, requirement.required, "not installed", package_name
+        )
     if requirement.version and installed not in SpecifierSet(requirement.version):
         status = RequirementStatus.ERROR if requirement.required else RequirementStatus.WARNING
         return RequirementCheck(
@@ -113,6 +129,7 @@ def _package_check(requirement: PythonPackage, runtime: bool) -> RequirementChec
             status,
             requirement.required,
             f"installed version {installed} is incompatible",
+            package_name,
         )
     if runtime:
         try:
@@ -120,7 +137,12 @@ def _package_check(requirement: PythonPackage, runtime: bool) -> RequirementChec
         except ImportError:
             status = RequirementStatus.ERROR if requirement.required else RequirementStatus.WARNING
             return RequirementCheck(
-                "python_package", package_name, status, requirement.required, "runtime import failed"
+                "python_package",
+                package_name,
+                status,
+                requirement.required,
+                "runtime import failed",
+                package_name,
             )
     return RequirementCheck(
         "python_package", package_name, RequirementStatus.OK, requirement.required, f"installed ({installed})"

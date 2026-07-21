@@ -406,7 +406,35 @@ class TestRailsValidateCommand:
 
         assert result.exit_code == 1
         assert "cleanlab:" in result.stdout
-        assert "pip install 'cleanlab-studio'" in result.stdout
+        assert "Install required packages with: pip install cleanlab-studio" in result.stdout
+
+    @patch("nemoguardrails.manifests.validation.importlib.metadata.version")
+    def test_optional_packages_are_reported_separately(self, mock_version, tmp_path):
+        from importlib.metadata import PackageNotFoundError
+
+        mock_version.side_effect = PackageNotFoundError("fast-langdetect")
+        config = tmp_path / "guardrails"
+        config.mkdir()
+        config.joinpath("config.yml").write_text(
+            "models: []\n"
+            "rails:\n"
+            "  input:\n"
+            "    flows:\n"
+            "      - jailbreak detection heuristics\n"
+            "  config:\n"
+            "    jailbreak_detection:\n"
+            "      server_endpoint: http://localhost:1337/heuristics\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["rails", "validate", "--config", str(config)])
+
+        assert result.exit_code == 0
+        assert "Install optional packages to enable additional functionality with: pip install" in result.stdout
+        assert "huggingface-hub" in result.stdout
+        assert "torch>=2" in result.stdout
+        assert "transformers>=4.35" in result.stdout
+        assert "Install required packages" not in result.stdout
 
     @patch("nemoguardrails.manifests.validation.importlib.metadata.version")
     def test_default_config_path(self, mock_version, monkeypatch, tmp_path):
