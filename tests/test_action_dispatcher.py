@@ -32,6 +32,13 @@ def _lazy_test_action(value: str = "ok") -> str:
 setattr(_lazy_test_action, "action_meta", {"name": "lazy_test_action"})
 
 
+def _mismatched_lazy_test_action() -> None:
+    return None
+
+
+setattr(_mismatched_lazy_test_action, "action_meta", {"name": "different_lazy_action"})
+
+
 @pytest.fixture
 def temp_module():
     """Temporary module with actions for testing"""
@@ -142,6 +149,36 @@ async def test_lazy_action_ref_resolves_and_caches():
     assert result == ("done", "success")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action_ref",
+    [
+        ActionRef(
+            name="missing_module_action",
+            target="tests.missing_lazy_action_module:action",
+        ),
+        ActionRef(
+            name="missing_attribute_action",
+            target="tests.test_action_dispatcher:missing_lazy_action",
+        ),
+        ActionRef(
+            name="mismatched_lazy_action",
+            target="tests.test_action_dispatcher:_mismatched_lazy_test_action",
+        ),
+    ],
+    ids=("missing-module", "missing-attribute", "name-mismatch"),
+)
+async def test_lazy_action_resolution_failures_follow_dispatcher_contract(action_ref):
+    """Lazy resolution failures remain contained by dispatcher APIs."""
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(action_ref)
+
+    assert dispatcher.get_action(action_ref.name) is None
+    with pytest.raises(KeyError, match=action_ref.name):
+        dispatcher.registered_actions[action_ref.name]
+    assert await dispatcher.execute_action(action_ref.name, params={}) == (None, "failed")
+
+
 def test_load_actions_from_nonexistent_module():
     """Test loading actions from a non-existent module"""
 
@@ -169,8 +206,8 @@ def test_load_actions_from_invalid_module():
         assert actions == {}
 
 
-def test_load_actions_from_module_relative_path_exception(monkeypatch):
-    """Test loading actions from a module with invalid code"""
+def test_load_actions_from_module_logs_invalid_syntax(monkeypatch):
+    """Test that invalid action module syntax is logged."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = "invalid_actions.py"
@@ -180,21 +217,10 @@ def test_load_actions_from_module_relative_path_exception(monkeypatch):
 
         dispatcher = ActionDispatcher(load_all_actions=False)
 
-        # Mock the logger to capture the log messages
         mock_logger = MagicMock()
         monkeypatch.setattr("nemoguardrails.actions.action_dispatcher.log", mock_logger)
 
-        # Mock Path.cwd() to raise ValueError when calling relative_to
-        original_cwd = Path.cwd
-        monkeypatch.setattr(
-            "nemoguardrails.actions.action_dispatcher.Path.cwd",
-            lambda: (_ for _ in ()).throw(ValueError),
-        )
-
-        try:
-            actions = dispatcher._load_actions_from_module(str(module_path))
-        finally:
-            monkeypatch.setattr("nemoguardrails.actions.action_dispatcher.Path.cwd", original_cwd)
+        actions = dispatcher._load_actions_from_module(str(module_path))
 
         assert actions == {}
         mock_logger.error.assert_called()

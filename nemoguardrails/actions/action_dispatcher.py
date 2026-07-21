@@ -277,7 +277,11 @@ class ActionDispatcher:
             callable: The registered action.
         """
         name = self._normalize_action_name(name)
-        return self._resolve_registered_action(name)
+        try:
+            return self._resolve_registered_action(name)
+        except Exception:
+            log.exception("Failed to resolve action '%s'.", name)
+            return None
 
     async def execute_action(
         self, action_name: str, params: Dict[str, Any]
@@ -296,7 +300,11 @@ class ActionDispatcher:
 
         if self._has_action_name(action_name):
             log.info("Executing registered action: %s", action_name)
-            maybe_fn = self._resolve_registered_action(action_name)
+            try:
+                maybe_fn = self._resolve_registered_action(action_name)
+            except Exception:
+                log.exception("Failed to resolve action '%s'.", action_name)
+                return None, "failed"
             if not maybe_fn:
                 raise Exception(f"Action '{action_name}' is not registered.")
 
