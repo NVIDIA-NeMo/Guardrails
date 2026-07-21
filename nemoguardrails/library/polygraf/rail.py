@@ -53,6 +53,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("allow", "block", "detect_pii", "mask", "transform"),
         tags=("pii", "polygraf", "privacy"),
+        docs_url="docs/configure-rails/guardrail-catalog/community/polygraf.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

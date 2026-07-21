@@ -46,9 +46,19 @@ HF_CLASSIFIER_CHECK_RETRIEVAL = ActionRef(
     target="nemoguardrails.library.hf_classifier.actions:hf_classifier_check_retrieval",
 )
 TRANSFORMERS_PACKAGE = PythonPackage(
-    distribution="transformers", import_name="transformers", version=">=4.35", required=False
+    distribution="transformers",
+    import_name="transformers",
+    version=">=4.35",
+    required=False,
+    description="Used for local execution; remote execution does not require it.",
 )
-TORCH_PACKAGE = PythonPackage(distribution="torch", import_name="torch", version=">=2", required=False)
+TORCH_PACKAGE = PythonPackage(
+    distribution="torch",
+    import_name="torch",
+    version=">=2",
+    required=False,
+    description="Used for local execution; remote execution does not require it.",
+)
 
 RAIL = RailManifest(
     name="hf_classifier",
@@ -58,6 +68,7 @@ RAIL = RailManifest(
         categories=("input", "output", "retrieval"),
         capabilities=("allow", "block", "classify", "transform"),
         tags=("huggingface", "classifier", "local", "remote"),
+        docs_url="docs/configure-rails/guardrail-catalog/hf-classifier.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

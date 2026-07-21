@@ -79,11 +79,14 @@ def test_builtin_manifest_docs_urls_resolve():
 
     for manifest in manifests.values():
         docs_url = manifest.metadata.docs_url
-        if docs_url is None or docs_url.startswith(("http://", "https://")):
-            continue
+        assert docs_url is not None, manifest.name
+        assert not docs_url.startswith(("http://", "https://")), manifest.name
         assert Path(docs_url).is_file(), f"{manifest.name}: {docs_url}"
 
     assert manifests["clavata"].metadata.docs_url == ("docs/configure-rails/guardrail-catalog/community/clavata.mdx")
+    assert manifests["sensitive_data_detection"].metadata.docs_url == (
+        "docs/configure-rails/guardrail-catalog/community/presidio.mdx"
+    )
 
 
 def test_builtin_rail_modules_only_import_manifest_types():

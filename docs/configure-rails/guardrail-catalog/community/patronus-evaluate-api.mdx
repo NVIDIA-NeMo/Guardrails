@@ -6,6 +6,32 @@ title: "Patronus Evaluate API Integration"
 NeMo Guardrails supports using [Patronus AI](https://www.patronus.ai)'s Evaluate API as an output rail. The Evaluate API gives you access to Patronus' powerful suite of fully-managed in-house evaluation models, including [Lynx](/configure-guardrails/guardrail-catalog/third-party/patronus-lynx), Judge (a hosted LLM-as-a-Judge model), Toxicity, PII, and PHI models, and a suite of specialized RAG evaluators with
 industry-leading performance on metrics like Answer Relevance, Context Relevance, Context Sufficiency, and Hallucination.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `patronusai` rail declares the following installation resources.
+
+**Environment variables**
+
+- `PATRONUS_API_KEY` (optional)
+
+**Services**
+
+- `Patronus Evaluate API` (optional)
+
+**Models**
+
+- `patronus_lynx` (optional)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail patronusai
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 Patronus also has Managed configurations of the Judge evaluator, which you can use to detect AI failures like prompt injection and brand misalignment in order to prevent problematic bot responses from being returned to users.
 
 ## Setup

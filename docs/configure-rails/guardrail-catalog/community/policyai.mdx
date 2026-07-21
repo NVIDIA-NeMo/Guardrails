@@ -5,6 +5,30 @@ title: "PolicyAI Integration"
 ---
 NeMo Guardrails supports using the [PolicyAI](https://musubilabs.ai) content moderation API as an input and output rail out-of-the-box (you need to have the `POLICYAI_API_KEY` environment variable set).
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `policyai` rail declares the following installation resources.
+
+**Environment variables**
+
+- `POLICYAI_API_KEY` (required)
+- `POLICYAI_BASE_URL` (optional)
+- `POLICYAI_TAG_NAME` (optional)
+
+**Services**
+
+- `PolicyAI API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail policyai
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 PolicyAI provides flexible policy-based content moderation, allowing you to define custom policies for your specific use cases and manage them through tags.
 
 ## Setup

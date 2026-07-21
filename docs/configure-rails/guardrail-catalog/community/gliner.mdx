@@ -5,6 +5,28 @@ title: "GLiNER Integration"
 ---
 [GLiNER](https://github.com/urchade/GLiNER) is a generalist and lightweight model for named entity recognition. [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) is an adaptation that detects a wide range of PII categories. This integration enables NeMo Guardrails to use GLiNER-PII for PII detection and masking in input, output, and retrieval flows.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `gliner` rail declares the following installation resources.
+
+**Environment variables**
+
+- `NVIDIA_API_KEY` (optional): API key used when the shipped hosted GLiNER configuration selects this variable.
+
+**Services**
+
+- `GLiNER endpoint` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail gliner
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 ## Prerequisites
 
 To use the NVIDIA-hosted NIMs, set your NVIDIA API key:

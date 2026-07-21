@@ -10,6 +10,43 @@ content:
 
 Jailbreak protection helps prevent adversarial attempts from bypassing safety measures and manipulating the LLM into generating harmful or unwanted content.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `jailbreak_detection` rail declares the following installation resources.
+
+**Optional Python packages**
+
+- `huggingface-hub`: Downloads model artifacts for local jailbreak detection; remote execution does not require it.
+- `torch>=2`: Used for local execution; remote execution does not require it.
+- `transformers>=4.35`: Used for local execution; remote execution does not require it.
+
+```bash
+pip install huggingface-hub 'torch>=2' 'transformers>=4.35'
+```
+
+**Environment variables**
+
+- `EMBEDDING_CLASSIFIER_PATH` (optional): Directory containing or receiving the local jailbreak classifier model.
+- `HF_HOME` (optional): Optional Hugging Face cache directory used by local jailbreak model downloads.
+- `HF_HUB_OFFLINE` (optional): Optional Hugging Face Hub offline-mode setting used when loading local jailbreak models.
+- `HF_TOKEN` (optional): Optional Hugging Face Hub token used when downloading local jailbreak models.
+- `JAILBREAK_CHECK_DEVICE` (optional): Optional device override for local jailbreak detection models, such as cpu or cuda.
+- `NVIDIA_API_KEY` (optional): API key used when the shipped hosted NVIDIA NIM configuration selects this variable.
+
+**Services**
+
+- `NVIDIA NIM` (optional)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail jailbreak_detection
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 ## Jailbreak Detection
 
 The NeMo Guardrails library supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
@@ -109,11 +146,7 @@ There is currently one available model-based detection, using a random forest-ba
 
 The recommended way to use the jailbreak detection heuristics in production is to [deploy the jailbreak detection heuristics server](/more-deployment-options/using-docker#jailbreak-detection-heuristics) separately. For a hands-on configuration walkthrough, see [Use Jailbreak Detection Heuristics](/get-started/tutorials/jailbreak-detection-heuristics).
 
-For quick testing, you can use the jailbreak detection heuristics rail locally by installing its optional local dependencies.
-
-```bash
-pip install "transformers>=4.35" "torch>=2" huggingface-hub
-```
+For quick testing, you can use the jailbreak detection heuristics rail locally with the optional Python packages listed in the installation requirements on this page.
 
 ### Latency
 

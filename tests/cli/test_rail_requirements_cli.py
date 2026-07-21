@@ -45,6 +45,18 @@ def test_requirements_human_output_separates_required_and_optional_packages():
     assert "Optional install command: pip install 'fast-langdetect>=1'" in result.stdout
 
 
+def test_requirements_human_output_aggregates_shared_optional_packages():
+    result = runner.invoke(
+        app,
+        ["rails", "requirements", "--rail", "hf_classifier", "--rail", "jailbreak_detection"],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.count("  - transformers>=4.35 ") == 1
+    assert "rails: hf_classifier, jailbreak_detection" in result.stdout
+    assert "Used for local execution; remote execution does not require it." in result.stdout
+
+
 def test_requirements_selects_rails_from_config(tmp_path):
     config = tmp_path / "guardrails"
     _write_cleanlab_config(config)

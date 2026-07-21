@@ -5,6 +5,28 @@ title: "Fiddler Guardrails Integration"
 ---
 Fiddler Guardrails utilizes [Fiddler Trust Models](https://docs.fiddler.ai/reference/glossary/centor-models) in a specialized low-latency, high-throughput configuration. Guardrails can be used to guard Large Language Model (LLM) applications against user threats, such as prompt injection or harmful and inappropriate content, and LLM hallucinations.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `fiddler` rail declares the following installation resources.
+
+**Environment variables**
+
+- `FIDDLER_API_KEY` (required)
+
+**Services**
+
+- `Fiddler Guardrails API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail fiddler
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 Currently, only Fiddler Trust Models ([Faithfulness](https://docs.fiddler.ai/protection/guardrails) and [Safety](https://docs.fiddler.ai/protection/guardrails)) - Fiddler's in-house, purpose-built SLMs - are available for guardrail use. Future model releases and model updates/improvements will also be available for guardrail use.
 
 ## Setup

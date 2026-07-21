@@ -10,6 +10,28 @@ content:
 
 The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [Nemotron Content Safety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://github.com/meta-llama/PurpleLlama/blob/main/Llama-Guard3/8B/MODEL_CARD.md), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `content_safety` rail declares the following installation resources.
+
+**Optional Python packages**
+
+- `fast-langdetect>=1`: Enables multilingual refusal messages; English fallback remains available without it.
+
+```bash
+pip install 'fast-langdetect>=1'
+```
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail content_safety
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 To use the content safety check, you should:
 
 1. Include the desired content safety models in the models section of the `config.yml` file:
@@ -156,14 +178,6 @@ The multilingual feature supports 9 languages:
 | Thai | `th` | ขออภัย ฉันไม่สามารถตอบได้ |
 
 If the detected language is not in this list, English is used as the fallback.
-
-### Installation
-
-To use multilingual refusal messages, install `fast-langdetect`:
-
-```bash
-pip install "fast-langdetect>=1"
-```
 
 ### Usage
 

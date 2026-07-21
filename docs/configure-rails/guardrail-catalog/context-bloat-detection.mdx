@@ -1,0 +1,64 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Context Bloat Detection"
+sidebar-title: "Context Bloat Detection"
+description: "Detect oversized, repetitive, or low-entropy input and retrieved context without calling a model or external service."
+content:
+  type: "Reference"
+---
+
+Context bloat detection checks user input and retrieved context for oversized, repetitive, or low-entropy text. It runs locally without calling a model or external service.
+
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `context_bloat_detection` rail does not declare additional installation resources.
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
+## Configuration
+
+Configure the detection thresholds and the action to take when the rail detects context bloat:
+
+```yaml
+rails:
+  config:
+    context_bloat_detection:
+      max_chars: 5000
+      min_chars: 50
+      min_entropy: 3.5
+      max_repetition_ratio: 0.4
+      ngram_size: 3
+      max_run_ratio: 0.1
+      action: reject
+
+  input:
+    flows:
+      - context bloat detection on input
+
+  retrieval:
+    flows:
+      - context bloat detection on retrieval
+```
+
+The `action` field accepts `reject`, `truncate`, or `warn`:
+
+- `reject` blocks detected input or retrieved context.
+- `truncate` limits text that exceeds `max_chars` and rejects other detected bloat patterns.
+- `warn` records the detection evidence and allows the text to continue.
+
+## Configuration options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `max_chars` | `5000` | Maximum number of characters before the size check triggers. |
+| `min_chars` | `50` | Minimum number of characters before entropy, run, and repetition checks apply. |
+| `min_entropy` | `3.5` | Minimum Shannon entropy in bits per character. |
+| `max_repetition_ratio` | `0.4` | Maximum fraction of repeated n-grams. |
+| `ngram_size` | `3` | Number of tokens in each n-gram used for repetition detection. |
+| `max_run_ratio` | `0.1` | Maximum fraction of text occupied by the longest repeated-character run. |
+| `action` | `reject` | Behavior when the rail detects context bloat. |
+
+The input flow evaluates the user message. The retrieval flow evaluates the relevant chunks before the NVIDIA NeMo Guardrails library sends them to the main model.

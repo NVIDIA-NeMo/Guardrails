@@ -5,13 +5,37 @@ title: "GCP Text Moderation Integration"
 ---
 NeMo Guardrails supports using the [GCP Text Moderation API](https://cloud.google.com/natural-language/docs/moderating-text) as an input rail out-of-the-box.
 
-## Setup
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
 
-Install the Google Cloud Natural Language client:
+## Installation requirements
+
+The `gcp_moderate_text` rail declares the following installation resources.
+
+**Required Python packages**
+
+- `google-cloud-language>=2.14`
 
 ```bash
-pip install "google-cloud-language>=2.14"
+pip install 'google-cloud-language>=2.14'
 ```
+
+**Environment variables**
+
+- `GOOGLE_APPLICATION_CREDENTIALS` (optional)
+
+**Services**
+
+- `Google Cloud Natural Language API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail gcp_moderate_text
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
+## Setup
 
 Configure [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) for the environment that runs the rail.
 

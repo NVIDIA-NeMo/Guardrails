@@ -5,6 +5,28 @@ title: "ActiveFence Integration"
 ---
 NeMo Guardrails supports using the [ActiveFence ActiveScore API](https://docs.activefence.com/index.html) as an input and output rail out-of-the-box (you need to have the `ACTIVEFENCE_API_KEY` environment variable set).
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `activefence` rail declares the following installation resources.
+
+**Environment variables**
+
+- `ACTIVEFENCE_API_KEY` (required)
+
+**Services**
+
+- `ActiveFence ActiveScore API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail activefence
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 ```yaml
 rails:
   input:

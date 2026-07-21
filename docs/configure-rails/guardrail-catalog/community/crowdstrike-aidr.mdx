@@ -6,6 +6,29 @@ title: "CrowdStrike AIDR integration"
 The CrowdStrike AIDR guardrail uses configurable detection policies to identify and mitigate risks in AI application
 traffic, including:
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `crowdstrike_aidr` rail declares the following installation resources.
+
+**Environment variables**
+
+- `CS_AIDR_BASE_URL_TEMPLATE` (optional)
+- `CS_AIDR_TOKEN` (required)
+
+**Services**
+
+- `CrowdStrike AIDR API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail crowdstrike_aidr
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 - **Prompt injection and jailbreak attempts** - Adversarial prompts designed to manipulate AI behavior or bypass security controls
 - **Sensitive data exposure** - PII, credentials, financial data, and confidential information in prompts and responses via built-in patterns, natural language processing, and custom definitions
 - **Malicious entities** - Known malicious URLs, IP addresses, and domains in AI outputs using integrated threat intelligence

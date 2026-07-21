@@ -6,6 +6,29 @@ title: "Pangea AI Guard integration"
 > **Warning:** The Pangea AI Guard integration is deprecated and will be removed in a future release.
 > Users should migrate to the CrowdStrike AIDR integration.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `pangea` rail declares the following installation resources.
+
+**Environment variables**
+
+- `PANGEA_API_TOKEN` (required)
+- `PANGEA_BASE_URL_TEMPLATE` (optional)
+
+**Services**
+
+- `Pangea AI Guard` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail pangea
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 The Pangea guardrail uses configurable detection policies (called *recipes*) from the [AI Guard service](https://pangea.cloud/docs/ai-guard/) to identify and mitigate risks in AI application traffic, including:
 
 - Prompt injection attacks (with over 99% efficacy)

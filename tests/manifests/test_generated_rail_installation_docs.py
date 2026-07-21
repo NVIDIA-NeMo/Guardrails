@@ -14,7 +14,17 @@
 # limitations under the License.
 
 from nemoguardrails.manifests import all_rail_manifests
-from scripts.generate_rail_requirements_docs import DOCUMENT_PATH, document_is_current, render_document, write_document
+from scripts.generate_rail_requirements_docs import (
+    BLOCK_END,
+    BLOCK_START,
+    DOCUMENT_PATH,
+    catalog_documents_are_current,
+    document_is_current,
+    render_document,
+    render_page_requirements,
+    update_page_requirements,
+    write_document,
+)
 
 
 def test_generated_rail_installation_document_covers_manifest_requirements():
@@ -41,6 +51,29 @@ def test_generated_rail_installation_document_detects_stale_output(tmp_path):
     assert not document_is_current(path)
 
 
+def test_generated_page_requirements_preserve_manual_content_and_are_idempotent():
+    manifest = all_rail_manifests()["cleanlab"]
+    document = "---\ntitle: Cleanlab\n---\n\nIntroduction.\n\n## Setup\n\nManual setup.\n"
+
+    generated = update_page_requirements(document, (manifest,))
+
+    assert generated.index("Introduction.") < generated.index(BLOCK_START)
+    assert generated.index(BLOCK_END) < generated.index("## Setup")
+    assert "pip install cleanlab-studio" in generated
+    assert "Manual setup." in generated
+    assert update_page_requirements(generated, (manifest,)) == generated
+
+
+def test_generated_page_requirements_show_shared_page_provenance():
+    manifests = all_rail_manifests()
+
+    generated = render_page_requirements((manifests["self_check.input_check"], manifests["self_check.output_check"]))
+
+    assert "`llm` (required; rails: `self_check.input_check`, `self_check.output_check`)" in generated
+    assert "--rail self_check.input_check --rail self_check.output_check" in generated
+
+
 def test_committed_rail_installation_document_is_current():
     assert DOCUMENT_PATH.exists()
     assert document_is_current()
+    assert catalog_documents_are_current(all_rail_manifests().values())

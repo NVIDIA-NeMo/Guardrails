@@ -43,7 +43,11 @@ DETECT_LANGUAGE = ActionRef(
     target="nemoguardrails.library.content_safety.actions:detect_language",
 )
 FAST_LANGDETECT_PACKAGE = PythonPackage(
-    distribution="fast-langdetect", import_name="fast_langdetect", version=">=1", required=False
+    distribution="fast-langdetect",
+    import_name="fast_langdetect",
+    version=">=1",
+    required=False,
+    description="Enables multilingual refusal messages; English fallback remains available without it.",
 )
 RAIL = RailManifest(
     name="content_safety",

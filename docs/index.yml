@@ -124,6 +124,12 @@ navigation:
           - page: Agentic Security
             path: configure-rails/guardrail-catalog/agentic-security.mdx
             slug: agentic-security
+          - page: Context Bloat Detection
+            path: configure-rails/guardrail-catalog/context-bloat-detection.mdx
+            slug: context-bloat-detection
+          - page: Hugging Face Classifier
+            path: configure-rails/guardrail-catalog/hf-classifier.mdx
+            slug: hf-classifier
           - page: Tool Calling
             path: configure-rails/guardrail-catalog/tool-calling.mdx
             slug: tool-calling

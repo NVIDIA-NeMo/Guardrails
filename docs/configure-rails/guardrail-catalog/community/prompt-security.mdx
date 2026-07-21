@@ -5,6 +5,29 @@ title: "Prompt Security Integration"
 ---
 [Prompt Security AI](https://prompt.security/?utm_medium=github&utm_campaign=nemo-guardrails) allows you to protect LLM interaction. This integration enables NeMo Guardrails to use Prompt Security to protect input and output flows.
 
+<!-- BEGIN GENERATED RAIL REQUIREMENTS -->
+
+## Installation requirements
+
+The `prompt_security` rail declares the following installation resources.
+
+**Environment variables**
+
+- `PS_APP_ID` (required)
+- `PS_PROTECT_URL` (required)
+
+**Services**
+
+- `Prompt Security Protect API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail prompt_security
+```
+
+<!-- END GENERATED RAIL REQUIREMENTS -->
+
 You'll need to set the following env variables to work with Prompt Security:
 
 1. PS_PROTECT_URL - This is the URL of the protect endpoint given by Prompt Security. This will look like https://[REGION].prompt.security/api/protect where REGION is eu, useast or apac
