@@ -39,10 +39,10 @@ from pydantic import ValidationError
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.injection_detection.actions import (
-    _check_yara_available,
     _extract_injection_config,
     _injection_detection_outcome,
     _load_rules,
+    _load_yara,
     _omit_injection,
     _reject_injection,
     _sanitize_injection,
@@ -560,18 +560,16 @@ async def test_sanitize_action_not_implemented():
         )
 
 
-def test_yara_import_error():
-    """Test that appropriate error is raised when yara module is not available."""
+def test_yara_loader_uses_declared_package():
+    """Test that YARA is loaded lazily from its declared package."""
+    import nemoguardrails.library.injection_detection.actions as actions
 
-    with patch("nemoguardrails.library.injection_detection.actions.yara", None):
-        with pytest.raises(ImportError) as exc_info:
-            _check_yara_available()
-        assert str(exc_info.value) == (
-            "The yara module is required for injection detection. Please install it using: pip install yara-python"
-        )
-
-    with patch("nemoguardrails.library.injection_detection.actions.yara", yara):
-        _check_yara_available()
+    _load_yara.cache_clear()
+    with patch.object(actions, "require_python_package", return_value=yara) as mock_require:
+        assert _load_yara() is yara
+        assert _load_yara() is yara
+    mock_require.assert_called_once_with("injection_detection", actions.YARA_PACKAGE)
+    _load_yara.cache_clear()
 
 
 @pytest.mark.asyncio

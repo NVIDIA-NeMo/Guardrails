@@ -34,13 +34,10 @@ log = logging.getLogger(__name__)
 # cache for loaded validator classes and guard instances
 _validator_class_cache: Dict[str, Type] = {}
 _guard_cache: Dict[tuple, Any] = {}
-Guard = None
 
 
 @lru_cache
 def _load_guard_class():
-    if Guard is not None:
-        return Guard
     module = require_python_package("guardrails_ai", GUARDRAILS_AI_PACKAGE)
     return module.Guard
 

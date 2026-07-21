@@ -18,7 +18,8 @@ import importlib.metadata
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, Optional, Tuple
+from types import ModuleType
+from typing import Iterable, NoReturn, Optional, Tuple
 
 from packaging.markers import Marker
 from packaging.specifiers import SpecifierSet
@@ -201,7 +202,7 @@ def configured_rail_manifests(config, catalog: RailCatalog) -> Tuple[RailManifes
     return tuple(catalog.manifests[name] for name in sorted(names))
 
 
-def require_python_package(rail_name: str, requirement: PythonPackage):
+def require_python_package(rail_name: str, requirement: PythonPackage) -> ModuleType:
     try:
         return importlib.import_module(requirement.import_name)
     except ModuleNotFoundError as error:
@@ -212,7 +213,7 @@ def require_python_package(rail_name: str, requirement: PythonPackage):
 
 def raise_for_missing_package(
     rail_name: str, requirements: Iterable[PythonPackage], error: ModuleNotFoundError
-) -> None:
+) -> NoReturn:
     for requirement in requirements:
         if error.name == requirement.import_name or requirement.import_name.startswith(f"{error.name}."):
             raise RailDependencyError(rail_name, requirement) from error

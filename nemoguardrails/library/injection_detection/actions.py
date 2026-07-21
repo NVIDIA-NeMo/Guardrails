@@ -43,7 +43,6 @@ from nemoguardrails.manifests import require_python_package
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 
 log = logging.getLogger(__name__)
-yara = None
 
 
 class InjectionDetectionResult(TypedDict):
@@ -68,16 +67,7 @@ def _injection_detection_outcome(
 
 @lru_cache
 def _load_yara():
-    if yara is not None:
-        return yara
     return require_python_package("injection_detection", YARA_PACKAGE)
-
-
-def _check_yara_available():
-    if yara is None:
-        raise ImportError(
-            "The yara module is required for injection detection. Please install it using: pip install yara-python"
-        )
 
 
 def _validate_injection_config(config: RailsConfig) -> None:
