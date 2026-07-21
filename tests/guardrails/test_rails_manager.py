@@ -981,31 +981,25 @@ class TestRailCallRecordNaming:
     the space-separated Colang flow name. ``flow`` itself keeps the space form.
     """
 
-    def test_modelled_rail_uses_underscore_task_and_action_name(self):
-        """A ``$model=`` flow yields an underscore action_name plus an underscore ``$model`` task."""
-        record = _rail_call_record(
-            flow="content safety check input $model=content_safety",
-            rail_type="input",
-            result=RailResult(is_safe=True),
-            call=None,
-        )
+    @pytest.mark.parametrize(
+        "flow, action_name, task",
+        [
+            (
+                "content safety check input $model=content_safety",
+                "content_safety_check_input",
+                "content_safety_check_input $model=content_safety",
+            ),
+            ("jailbreak detection model", "jailbreak_detection_model", "jailbreak_detection_model"),
+        ],
+        ids=["modelled", "modelless"],
+    )
+    def test_underscore_task_and_action_name(self, flow, action_name, task):
+        """action_name/task use the underscore prompt-template key; ``flow`` keeps its space form."""
+        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult(is_safe=True), call=None)
 
-        assert record.flow == "content safety check input $model=content_safety"
-        assert record.action_name == "content_safety_check_input"
-        assert record.task == "content_safety_check_input $model=content_safety"
-
-    def test_modelless_rail_uses_underscore_action_name_and_task(self):
-        """A model-free flow (jailbreak) yields an underscore task with no ``$model`` suffix."""
-        record = _rail_call_record(
-            flow="jailbreak detection model",
-            rail_type="input",
-            result=RailResult(is_safe=True),
-            call=None,
-        )
-
-        assert record.flow == "jailbreak detection model"
-        assert record.action_name == "jailbreak_detection_model"
-        assert record.task == "jailbreak_detection_model"
+        assert record.flow == flow
+        assert record.action_name == action_name
+        assert record.task == task
 
 
 class TestSerializePrompt:

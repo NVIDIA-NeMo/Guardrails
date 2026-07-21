@@ -38,6 +38,24 @@ from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE
 MESSAGES = [{"role": "user", "content": "hi"}]
 
 
+def _hi_model() -> AsyncMock:
+    """Main-model mock returning a fixed 'Hi' response with usage."""
+    return AsyncMock(
+        return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
+    )
+
+
+async def _slow_reject(messages, *, enabled=True):
+    """Input rails that reject after a short delay (so generation finishes first)."""
+    await asyncio.sleep(0.05)
+    return RailResult(is_safe=False, reason="unsafe")
+
+
+async def _immediate_reject(messages, *, enabled=True):
+    """Input rails that reject immediately (so rails and generation finish in the same tick)."""
+    return RailResult(is_safe=False, reason="unsafe")
+
+
 @pytest_asyncio.fixture
 async def iorails():
     async with started_iorails(NEMOGUARDS_SPECULATIVE_CONFIG) as instance:
@@ -482,9 +500,7 @@ class TestSpeculativeGenerationTiming:
         """On the speculative path, the generation call in the log has real timestamps and a duration."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
-        )
+        iorails.engine_registry.model_call = _hi_model()
 
         result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
 
@@ -496,17 +512,14 @@ class TestSpeculativeGenerationTiming:
         assert gen_call.duration is not None
 
     @pytest.mark.asyncio
-    async def test_blocked_after_generation_records_the_completed_call(self, iorails):
-        """When generation completes before the input rails block it, the completed main call is still logged."""
-
-        async def slow_reject(messages, *, enabled=True):
-            await asyncio.sleep(0.05)
-            return RailResult(is_safe=False, reason="unsafe")
-
-        iorails.rails_manager.is_input_safe = slow_reject
-        iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
-        )
+    @pytest.mark.parametrize(
+        "reject_rails", [_slow_reject, _immediate_reject], ids=["gen-first", "rails-first-simultaneous"]
+    )
+    async def test_blocked_speculative_records_completed_call(self, iorails, reject_rails):
+        """A speculative main call that completed before the input rails blocked is still logged —
+        whether generation finished first or both finished in the same tick."""
+        iorails.rails_manager.is_input_safe = reject_rails
+        iorails.engine_registry.model_call = _hi_model()
 
         result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
 
@@ -515,22 +528,3 @@ class TestSpeculativeGenerationTiming:
         gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
         assert len(gen_calls) == 1
         assert gen_calls[0].duration is not None
-
-    @pytest.mark.asyncio
-    async def test_blocked_rails_first_records_simultaneously_completed_call(self, iorails):
-        """Rails block first but generation completed in the same tick — the completed call is still logged."""
-
-        async def immediate_reject(messages, *, enabled=True):
-            return RailResult(is_safe=False, reason="unsafe")
-
-        iorails.rails_manager.is_input_safe = immediate_reject
-        iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
-        )
-
-        result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
-
-        assert isinstance(result, GenerationResponse)
-        assert result.log is not None
-        gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
-        assert len(gen_calls) == 1
