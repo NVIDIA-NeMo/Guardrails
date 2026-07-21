@@ -45,7 +45,7 @@ from typing import Any
 __all__ = ["RailDecision", "TransformTarget", "TransformSpec", "RailOutcome", "require_rail_outcome"]
 
 
-class RailDecision(Enum):
+class RailDecision(str, Enum):
     """The three mutually exclusive things a rail can decide."""
 
     ALLOW = "allow"
