@@ -18,12 +18,77 @@ import os.path
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationResponse,
     GenerationStats,
 )
 from tests.utils import TestChat
+
+_RAIL_OUTCOME_CASES = [
+    pytest.param(
+        RailOutcome.allow(reason="allowed", metadata={"score": 0.9}),
+        id="allow",
+    ),
+    pytest.param(
+        RailOutcome.block(reason="blocked", metadata={"categories": ["unsafe"]}),
+        id="block",
+    ),
+    pytest.param(
+        RailOutcome.transform(
+            [
+                (TransformTarget.USER_MESSAGE, "masked input"),
+                (TransformTarget.BOT_MESSAGE, "masked output"),
+                (TransformTarget.RELEVANT_CHUNKS, "masked chunks"),
+            ],
+            reason="transformed",
+            metadata={"entities": ["name"]},
+        ),
+        id="transform",
+    ),
+]
+
+
+def _generate_with_rail_outcome(outcome, *, log=None, output_vars=None):
+    config = RailsConfig.from_content(
+        colang_content="""
+            define subflow outcome input rail
+              $response = execute outcome_action
+        """,
+        yaml_content="""
+            rails:
+              input:
+                flows:
+                  - outcome input rail
+        """,
+    )
+    chat = TestChat(config, llm_completions=[])
+
+    async def outcome_action():
+        return outcome
+
+    chat.app.register_action(outcome_action)
+    options = {"rails": ["input"]}
+    if log is not None:
+        options["log"] = log
+    if output_vars is not None:
+        options["output_vars"] = output_vars
+
+    return chat.app.generate("Hello!", options=options)
+
+
+def _json_round_trip(model):
+    return json.loads(json.dumps(model.model_dump()))
+
+
+def _expected_serialized_outcome(outcome):
+    return {
+        "decision": outcome.decision.value,
+        "reason": outcome.reason,
+        "metadata": dict(outcome.metadata),
+        "transforms": [{"target": spec.target.value, "text": spec.text} for spec in outcome.transforms],
+    }
 
 
 def test_output_vars_1():
@@ -181,6 +246,61 @@ def test_triggered_abc_bot():
     print(json.dumps(res.log.dict(), indent=True))
 
     res.log.print_summary()
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+@pytest.mark.parametrize("log_field", ["activated_rails", "internal_events"])
+def test_generation_log_with_rail_outcome_is_json_serializable(outcome, log_field):
+    res = _generate_with_rail_outcome(outcome, log={log_field: True})
+
+    data = _json_round_trip(res.log)
+
+    if log_field == "activated_rails":
+        serialized_outcome = data["activated_rails"][0]["executed_actions"][0]["return_value"]
+    else:
+        action_event = next(
+            event
+            for event in data["internal_events"]
+            if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
+        )
+        serialized_outcome = action_event["return_value"]
+
+    assert serialized_outcome == _expected_serialized_outcome(outcome)
+
+
+@pytest.mark.parametrize("outcome", _RAIL_OUTCOME_CASES)
+@pytest.mark.parametrize(
+    "surface",
+    [
+        "activated_rails",
+        "internal_events",
+        "selected_output_vars",
+        "all_output_vars",
+    ],
+)
+def test_generation_response_with_rail_outcome_is_json_serializable(outcome, surface):
+    if surface in {"activated_rails", "internal_events"}:
+        res = _generate_with_rail_outcome(outcome, log={surface: True})
+    elif surface == "selected_output_vars":
+        res = _generate_with_rail_outcome(outcome, output_vars=["response"])
+    else:
+        res = _generate_with_rail_outcome(outcome, output_vars=True)
+
+    data = _json_round_trip(res)
+
+    if surface == "activated_rails":
+        serialized_outcome = data["log"]["activated_rails"][0]["executed_actions"][0]["return_value"]
+    elif surface == "internal_events":
+        action_event = next(
+            event
+            for event in data["log"]["internal_events"]
+            if event["type"] == "InternalSystemActionFinished" and event["action_name"] == "outcome_action"
+        )
+        serialized_outcome = action_event["return_value"]
+    else:
+        serialized_outcome = data["output_data"]["response"]
+
+    assert serialized_outcome == _expected_serialized_outcome(outcome)
 
 
 @pytest.mark.skip(reason="Run manually.")
