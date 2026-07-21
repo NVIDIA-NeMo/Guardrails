@@ -28,6 +28,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/benchmark/aiperf/configs"
 
 SCENARIOS=(dialog rag code_gen agent)
+PYTHON=${AIPERF_PYTHON:-/ephemeral/venv-aiperf/bin/python}
 
 echo "=== IORails Tech Blog Benchmark Suite ==="
 echo "Engine : $ENGINE"
@@ -47,7 +48,7 @@ for SCENARIO in "${SCENARIOS[@]}"; do
     sed "s/^batch_name: scenario_${SCENARIO}/batch_name: ${ENGINE}_scenario_${SCENARIO}/" \
         "$CONFIG" > "$TEMP_CONFIG"
 
-    if PYTHONPATH="$REPO_ROOT" python -m benchmark.aiperf \
+    if PYTHONPATH="$REPO_ROOT" "$PYTHON" -m benchmark.aiperf \
             --config-file "$TEMP_CONFIG"; then
         echo "✓ $SCENARIO complete"
     else
