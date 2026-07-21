@@ -16,6 +16,12 @@
 """Public API for rail manifests, catalog access, and configured surface references."""
 
 from nemoguardrails.manifests.catalog import RailCatalog, RailManifestRecord
+from nemoguardrails.manifests.installation import (
+    InstallationPackage,
+    InstallationPlan,
+    InstallationResource,
+    build_installation_plan,
+)
 from nemoguardrails.manifests.manifest import (
     ActionRef,
     Binding,
@@ -69,6 +75,9 @@ __all__ = [
     "ConfigSpecRef",
     "EnvVar",
     "ImportRef",
+    "InstallationPackage",
+    "InstallationPlan",
+    "InstallationResource",
     "ModelRequirement",
     "PythonPackage",
     "RailActions",
@@ -94,6 +103,7 @@ __all__ = [
     "RequirementStatus",
     "TransformTarget",
     "all_rail_manifests",
+    "build_installation_plan",
     "configured_rail_manifests",
     "default_rail_catalog",
     "import_ref_target",
