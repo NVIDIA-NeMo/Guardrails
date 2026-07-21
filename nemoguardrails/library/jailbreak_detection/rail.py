@@ -81,6 +81,31 @@ RAIL = RailManifest(
                     required=False,
                     description="API key used when the shipped hosted NVIDIA NIM configuration selects this variable.",
                 ),
+                EnvVar(
+                    name="HF_TOKEN",
+                    required=False,
+                    description="Optional Hugging Face Hub token used when downloading local jailbreak models.",
+                ),
+                EnvVar(
+                    name="HF_HOME",
+                    required=False,
+                    description="Optional Hugging Face cache directory used by local jailbreak model downloads.",
+                ),
+                EnvVar(
+                    name="HF_HUB_OFFLINE",
+                    required=False,
+                    description="Optional Hugging Face Hub offline-mode setting used when loading local jailbreak models.",
+                ),
+                EnvVar(
+                    name="JAILBREAK_CHECK_DEVICE",
+                    required=False,
+                    description="Optional device override for local jailbreak detection models, such as cpu or cuda.",
+                ),
+                EnvVar(
+                    name="EMBEDDING_CLASSIFIER_PATH",
+                    required=False,
+                    description="Directory containing or receiving the local jailbreak classifier model.",
+                ),
             ),
             services=(ServiceRequirement(name="NVIDIA NIM", required=False),),
             optional_dependencies=("scikit-learn", "torch"),

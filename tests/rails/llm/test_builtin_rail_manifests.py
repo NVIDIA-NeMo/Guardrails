@@ -143,11 +143,24 @@ def test_configurable_api_key_requirements_document_shipped_names():
         "trend_micro": "V1_API_KEY",
     }
     for rail_name, env_var_name in expected.items():
-        env_vars = manifests[rail_name].requirements.env_vars
-        assert len(env_vars) == 1
-        assert env_vars[0].name == env_var_name
-        assert env_vars[0].required is False
-        assert env_vars[0].description
+        env_vars = {env_var.name: env_var for env_var in manifests[rail_name].requirements.env_vars}
+        assert env_vars[env_var_name].required is False
+        assert env_vars[env_var_name].description
+
+
+def test_jailbreak_requirements_document_local_environment_variables():
+    env_vars = {env_var.name: env_var for env_var in all_rail_manifests()["jailbreak_detection"].requirements.env_vars}
+
+    expected = {
+        "HF_TOKEN",
+        "HF_HOME",
+        "HF_HUB_OFFLINE",
+        "JAILBREAK_CHECK_DEVICE",
+        "EMBEDDING_CLASSIFIER_PATH",
+    }
+    for env_var_name in expected:
+        assert env_vars[env_var_name].required is False
+        assert env_vars[env_var_name].description
 
 
 def test_builtin_surfaces_preserve_flow_contracts():
