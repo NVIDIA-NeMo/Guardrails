@@ -515,3 +515,22 @@ class TestSpeculativeGenerationTiming:
         gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
         assert len(gen_calls) == 1
         assert gen_calls[0].duration is not None
+
+    @pytest.mark.asyncio
+    async def test_blocked_rails_first_records_simultaneously_completed_call(self, iorails):
+        """Rails block first but generation completed in the same tick — the completed call is still logged."""
+
+        async def immediate_reject(messages, *, enabled=True):
+            return RailResult(is_safe=False, reason="unsafe")
+
+        iorails.rails_manager.is_input_safe = immediate_reject
+        iorails.engine_registry.model_call = AsyncMock(
+            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=5, output_tokens=3, total_tokens=8))
+        )
+
+        result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.log is not None
+        gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
+        assert len(gen_calls) == 1
