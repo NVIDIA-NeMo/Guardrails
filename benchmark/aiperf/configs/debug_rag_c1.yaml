@@ -1,0 +1,24 @@
+# One-shot RAG c=1 diagnostic run — for Tim Gasser debug log capture
+# Not intended for committed benchmark results
+
+batch_name: debug_rag_c1
+
+output_base_dir: aiperf_results
+
+base_config:
+  model: nvidia/nemotron-3-nano
+  tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+  url: "http://localhost:9000"
+  endpoint: "/v1/chat/completions"
+  endpoint_type: chat
+
+  warmup_request_count: 5
+  benchmark_duration: 30
+  concurrency: 1
+  request_rate_mode: "constant"
+
+  random_seed: 12345
+  prompt_input_tokens_mean: 4000
+  prompt_input_tokens_stddev: 10
+  prompt_output_tokens_mean: 200
+  prompt_output_tokens_stddev: 10
