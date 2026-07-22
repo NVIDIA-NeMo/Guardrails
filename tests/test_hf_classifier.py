@@ -116,6 +116,17 @@ class TestConfig:
         with pytest.raises(ValidationError, match="http://"):
             _remote(base_url="ftp://host:8000")
 
+    def test_api_key_requires_https_base_url(self):
+        with pytest.raises(ValidationError, match="must use HTTPS"):
+            _remote(base_url="http://host:8000", api_key_env_var="HF_TOKEN")
+
+    def test_api_key_accepts_https_base_url(self):
+        config = _remote(base_url="https://host:8000", api_key_env_var="HF_TOKEN")
+        assert config.base_url == "https://host:8000"
+
+    def test_http_base_url_remains_supported_without_api_key(self):
+        assert _remote(base_url="http://host:8000").base_url == "http://host:8000"
+
     def test_aggregation_rejects_text_classification(self):
         with pytest.raises(ValidationError, match="aggregation_strategy"):
             _local(parameters={"aggregation_strategy": "simple"}, task="text-classification")
@@ -159,11 +170,11 @@ class TestHeaders:
 
     def test_api_key(self, monkeypatch):
         monkeypatch.setenv("K", "secret")
-        h = _build_headers(_remote(api_key_env_var="K"))
+        h = _build_headers(_remote(base_url="https://host:8000", api_key_env_var="K"))
         assert h["Authorization"] == "Bearer secret"
 
     def test_missing_key_warns_once(self, caplog):
-        c = _remote(api_key_env_var="MISSING")
+        c = _remote(base_url="https://host:8000", api_key_env_var="MISSING")
         with caplog.at_level(logging.WARNING):
             _build_headers(c)
         assert "MISSING" in caplog.text

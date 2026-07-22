@@ -107,6 +107,8 @@ class RemoteHFClassifierConfig(_HFClassifierBase):
     def _validate_remote(self) -> "RemoteHFClassifierConfig":
         if not self.base_url.startswith(("http://", "https://")):
             raise ValueError(f"base_url must start with 'http://' or 'https://', got '{self.base_url}'")
+        if self.api_key_env_var and not self.base_url.startswith("https://"):
+            raise ValueError("base_url must use HTTPS when api_key_env_var is configured")
         self.base_url = self.base_url.rstrip("/")
         unknown = set(self.parameters) - self._KNOWN_PARAMS
         if unknown:
