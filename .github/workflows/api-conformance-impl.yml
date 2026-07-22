@@ -44,14 +44,6 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Check conformance
-        run: uv run --locked python scripts/openai_coverage.py --fastapi --fetch
-
-      - name: Weekly summary
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
-          {
-            echo "## Implementation Conformance — Weekly"
-            echo '```'
-            uv run --locked python scripts/openai_coverage.py --fastapi --fetch 2>&1 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          uv run --locked python scripts/openai_coverage.py \
+            --fastapi --fetch --summary "$GITHUB_STEP_SUMMARY"

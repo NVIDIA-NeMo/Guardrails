@@ -152,6 +152,24 @@ def _print_report(report: dict[str, Any], *, verbose: bool = False) -> None:
         print(f"    {c['text']}")
 
 
+def _markdown_report(report: dict[str, Any], source: str) -> str:
+    ver = report["openai_version"]
+    changes = report["changes"]
+    lines = [
+        f"### `{source}` vs OpenAI v{ver}",
+        "",
+        f"**{len(changes)}** conformance gap(s)",
+        "",
+    ]
+    if changes:
+        lines.append("| Endpoint | Change |")
+        lines.append("|---|---|")
+        for c in changes:
+            endpoint = f"`{c.get('operation', '?')} {c.get('path', '?')}`"
+            lines.append(f"| {endpoint} | {c.get('text', '')} |")
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description="OpenAI API conformance analyzer for NeMo Guardrails")
     parser.add_argument(
@@ -178,6 +196,12 @@ def main():
     )
     parser.add_argument("--match-path", type=str, default=MATCH_PATH)
     parser.add_argument("--quiet", action="store_true", help="Only print the summary line")
+    parser.add_argument(
+        "--summary",
+        type=Path,
+        default=None,
+        help="Write a markdown summary to this file (append mode, for $GITHUB_STEP_SUMMARY)",
+    )
     parser.add_argument(
         "--check-breaking",
         action="store_true",
@@ -213,6 +237,10 @@ def main():
         source = "app.openapi()" if args.fastapi else str(args.guardrails_spec)
         print(f"[{source}]", end=" ")
         _print_report(report, verbose=not args.quiet)
+
+        if args.summary is not None:
+            with open(args.summary, "a") as f:
+                f.write(_markdown_report(report, source) + "\n")
     except (FileNotFoundError, RuntimeError) as e:
         print(f"Error: {e}")
         sys.exit(1)

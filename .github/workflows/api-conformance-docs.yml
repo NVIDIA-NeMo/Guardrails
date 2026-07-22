@@ -48,14 +48,6 @@ jobs:
         run: uv run --locked python scripts/openai_coverage.py --fetch --check-breaking
 
       - name: Check conformance
-        run: uv run --locked python scripts/openai_coverage.py --fetch
-
-      - name: Weekly drift summary
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
-          {
-            echo "## Docs Conformance — Weekly Drift Check"
-            echo '```'
-            uv run --locked python scripts/openai_coverage.py --fetch 2>&1 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          uv run --locked python scripts/openai_coverage.py \
+            --fetch --summary "$GITHUB_STEP_SUMMARY"
