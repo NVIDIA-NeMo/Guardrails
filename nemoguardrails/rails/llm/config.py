@@ -1487,4 +1487,4 @@ def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail
 
 
 validate_no_config_export_shadowing(globals().keys())
-__all__ = sorted({name for name in globals() if not name.startswith("_")} | set(config_exported_names()))  # pyright: ignore[reportUnsupportedDunderAll]
+__all__ = sorted({name for name in globals() if not name.startswith("_")} | set(config_exported_names()))  # noqa: PLE0605
