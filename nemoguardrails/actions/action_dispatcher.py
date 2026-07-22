@@ -86,6 +86,7 @@ class ActionDispatcher:
 
         self._registered_actions: Dict[str, RegisteredAction] = {}
         self._lazy_action_refs: Dict[str, ActionRef] = {}
+        self._manifest_action_names: set[str] = set()
         self._manifested_library_paths: set[Path] = set()
         self._rail_catalog = rail_catalog
         self._registered_actions_view = _RegisteredActions(self)
@@ -152,6 +153,7 @@ class ActionDispatcher:
             self._registered_actions.update(actions)
             for action_name in actions:
                 self._lazy_action_refs.pop(action_name, None)
+                self._manifest_action_names.discard(action_name)
 
         actions_py_path = os.path.join(path, "actions.py")
         if os.path.exists(actions_py_path):
@@ -159,6 +161,7 @@ class ActionDispatcher:
             self._registered_actions.update(actions)
             for action_name in actions:
                 self._lazy_action_refs.pop(action_name, None)
+                self._manifest_action_names.discard(action_name)
 
     def register_action(self, action: RegisteredAction, name: Optional[str] = None, override: bool = True):
         """Registers an action with the given name.
@@ -182,6 +185,7 @@ class ActionDispatcher:
                 return
 
         self._lazy_action_refs.pop(action_name, None)
+        self._manifest_action_names.discard(action_name)
         self._registered_actions[action_name] = action
 
     def _has_action_name(self, action_name: str) -> bool:
@@ -197,6 +201,7 @@ class ActionDispatcher:
             return
         self._registered_actions.pop(action_ref.name, None)
         self._lazy_action_refs[action_ref.name] = action_ref
+        self._manifest_action_names.add(action_ref.name)
 
     def register_actions(self, actions_obj: Any, override: bool = True):
         """Registers all the actions from the given object.
@@ -266,6 +271,10 @@ class ActionDispatcher:
         """Check if an action is registered."""
         name = self._normalize_action_name(name)
         return self._has_action_name(name)
+
+    def is_manifest_action(self, name: str) -> bool:
+        name = self._normalize_action_name(name)
+        return name in self._manifest_action_names
 
     def get_action(self, name: str) -> Optional[RegisteredAction]:
         """Get the registered action by name.

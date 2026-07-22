@@ -114,6 +114,7 @@ def test_load_all_actions_registers_builtin_library_action_refs_lazily():
     dispatcher = ActionDispatcher(load_all_actions=True)
 
     assert "content_safety_check_input" in dispatcher.get_registered_actions()
+    assert dispatcher.is_manifest_action("ContentSafetyCheckInputAction")
     assert action_module not in sys.modules
     registered_actions = dispatcher.registered_actions
     assert action_module not in sys.modules
@@ -127,6 +128,7 @@ def test_load_all_actions_preserves_unmanifested_library_actions():
     assert "GetCurrentDateTimeAction" in dispatcher.get_registered_actions()
     assert "GetAttentionPercentageAction" in dispatcher.get_registered_actions()
     assert not isinstance(dispatcher.registered_actions["GetCurrentDateTimeAction"], ActionRef)
+    assert not dispatcher.is_manifest_action("GetCurrentDateTimeAction")
 
 
 @pytest.mark.asyncio
@@ -140,13 +142,29 @@ async def test_lazy_action_ref_resolves_and_caches():
     )
 
     assert dispatcher.has_registered("lazy_test_action")
+    assert dispatcher.is_manifest_action("lazy_test_action")
     assert isinstance(dispatcher._lazy_action_refs["lazy_test_action"], ActionRef)
     assert dispatcher.get_action("lazy_test_action") is _lazy_test_action
+    assert dispatcher.is_manifest_action("lazy_test_action")
     assert dispatcher.registered_actions["lazy_test_action"] is _lazy_test_action
 
     result = await dispatcher.execute_action("lazy_test_action", params={"value": "done"})
 
     assert result == ("done", "success")
+
+
+def test_registered_action_override_clears_manifest_ownership():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name="lazy_test_action",
+            target="tests.test_action_dispatcher:_lazy_test_action",
+        )
+    )
+
+    dispatcher.register_action(_lazy_test_action)
+
+    assert not dispatcher.is_manifest_action("lazy_test_action")
 
 
 @pytest.mark.asyncio
