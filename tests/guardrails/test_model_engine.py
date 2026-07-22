@@ -795,6 +795,46 @@ class TestModelEngineStreamCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_stream_call_requests_usage_by_default(self):
+        """stream_call() sets stream_options.include_usage=True so the provider returns token usage."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": True}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_caller_stream_options_override_default(self):
+        """A caller-provided stream_options is preserved rather than overwritten by the include_usage default."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}], stream_options={"include_usage": False}):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": False}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_stream_call_forwards_kwargs(self):
         """Extra kwargs (temperature, etc.) are included in the request body."""
         engine = ModelEngine(_make_model())
