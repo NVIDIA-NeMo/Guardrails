@@ -117,6 +117,7 @@ class TestRunChat:
             mock_config = MagicMock()
             mock_config.colang_version = "1.0"
             mock_rails_config.from_path.return_value = mock_config
+            mock_asyncio_run.side_effect = lambda coroutine: coroutine.close()
 
             run_chat(config_path="test_config")
 
@@ -135,6 +136,7 @@ class TestRunChat:
 
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
+            mock_loop.run_until_complete.side_effect = lambda coroutine: coroutine.close()
 
             run_chat(config_path="test_config")
 
@@ -160,6 +162,7 @@ class TestRunChat:
             mock_config = MagicMock()
             mock_config.colang_version = "1.0"
             mock_rails_config.from_path.return_value = mock_config
+            mock_asyncio_run.side_effect = lambda coroutine: coroutine.close()
 
             run_chat(config_path="test_config", verbose=True, verbose_llm_calls=True)
 
