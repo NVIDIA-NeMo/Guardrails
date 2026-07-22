@@ -164,6 +164,7 @@ include = [
   "nemoguardrails/tracing/**",
   "nemoguardrails/server/**",
   "nemoguardrails/guardrails/**",
+  "nemoguardrails/manifests/**",
   "tests/recorded/**"
 
 ]
