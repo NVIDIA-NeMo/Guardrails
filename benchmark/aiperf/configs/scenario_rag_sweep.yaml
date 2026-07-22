@@ -17,7 +17,7 @@ base_config:
   endpoint_type: chat
 
   warmup_request_count: 10
-  benchmark_duration: 120
+  benchmark_duration: 300
   concurrency: 0          # Overridden by sweep
   request_rate_mode: "constant"
 
