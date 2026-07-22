@@ -589,6 +589,41 @@ def test_gliner_config_rejects_unknown_nested_option():
         )
 
 
+@pytest.mark.parametrize(
+    ("settings", "field"),
+    [
+        ({"threshold": -0.1}, "threshold"),
+        ({"threshold": 1.1}, "threshold"),
+        ({"chunk_length": 0}, "chunk_length"),
+        ({"overlap": -1}, "overlap"),
+        ({"chunk_length": 64, "overlap": 64}, "overlap"),
+    ],
+)
+@pytest.mark.unit
+def test_gliner_config_rejects_invalid_detection_ranges(settings, field):
+    with pytest.raises(ValueError, match=field):
+        RailsConfig.from_content(
+            config={"models": [], "rails": {"config": {"gliner": settings}}},
+        )
+
+
+@pytest.mark.parametrize("threshold", [0.0, 1.0])
+@pytest.mark.unit
+def test_gliner_config_accepts_threshold_boundaries(threshold):
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+            models: []
+            rails:
+              config:
+                gliner:
+                  threshold: {threshold}
+                  overlap: 0
+        """,
+    )
+
+    assert config.rails.config.gliner.threshold == threshold
+
+
 @pytest.mark.unit
 def test_resolve_api_key_env_var_not_configured(monkeypatch, caplog):
     """No api_key_env_var set => returns None, no warning logged."""

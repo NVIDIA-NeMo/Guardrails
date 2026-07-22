@@ -19,6 +19,7 @@ from nemoguardrails.manifests.config_schema import (
     Field,
     RailConfigBaseModel,
     RailConfigSpec,
+    model_validator,
     rail_field,
 )
 
@@ -59,6 +60,8 @@ class GLiNERDetection(RailConfigBaseModel):
     )
     threshold: float = Field(
         default=0.5,
+        ge=0.0,
+        le=1.0,
         description="Confidence threshold for entity detection (0.0 to 1.0).",
     )
     chunk_length: int = Field(
@@ -85,6 +88,16 @@ class GLiNERDetection(RailConfigBaseModel):
         default_factory=GLiNERDetectionOptions,
         description="Configuration of the entities to be detected on retrieved relevant chunks.",
     )
+
+    @model_validator(mode="after")
+    def _validate_chunking(self) -> "GLiNERDetection":
+        if self.chunk_length <= 0:
+            raise ValueError("chunk_length must be positive")
+        if self.overlap < 0:
+            raise ValueError("overlap must be nonnegative")
+        if self.overlap >= self.chunk_length:
+            raise ValueError("overlap must be less than chunk_length")
+        return self
 
 
 def build_config_spec() -> RailConfigSpec:
