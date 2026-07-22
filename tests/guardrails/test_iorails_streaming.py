@@ -526,12 +526,12 @@ class TestStreamAsyncConcurrency:
         assert iorails_input_only._stream_semaphore._value == STREAM_MAX_CONCURRENCY
 
 
-def _build_sse_streaming_mock(deltas):
+def _build_sse_streaming_mock(deltas, headers=None):
     """Build an aiohttp-like response mock that yields SSE lines for the given deltas.
 
     Each delta is a dict like ``{"content": "Hi"}`` or ``{"reasoning_content": "thinking"}``
     that becomes a ``data: {"choices":[{"delta": <delta>}]}\\n`` line. Always terminates
-    with ``data: [DONE]``.
+    with ``data: [DONE]``. ``headers`` populates ``response.headers`` (defaults to empty).
     """
     lines = []
     for delta in deltas:
@@ -551,6 +551,7 @@ def _build_sse_streaming_mock(deltas):
     mock_response.__aenter__ = AsyncMock(return_value=mock_response)
     mock_response.status = 200
     mock_response.content = mock_content
+    mock_response.headers = headers if headers is not None else {}
 
     mock_client = AsyncMock()
     mock_client.post = MagicMock(return_value=mock_response)
@@ -1012,3 +1013,23 @@ class TestStreamAsyncMetadata:
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert all(isinstance(c, str) for c in chunks)
         assert "".join(chunks) == "Hello world"
+
+    @pytest.mark.asyncio
+    async def test_response_headers_surface_as_provider_metadata(self, iorails_input_only):
+        """HTTP response headers surface as provider_metadata['response_headers'] in include_metadata stream frames."""
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        response_headers = {"nvcf-reqid": "req-xyz", "content-type": "text/event-stream"}
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_sse_streaming_mock([{"content": "Hi"}], headers=response_headers)
+        main_engine._running = True
+
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_frames = [
+            c
+            for c in chunks
+            if isinstance(c, dict) and isinstance(c.get("metadata"), dict) and "provider_metadata" in c["metadata"]
+        ]
+        assert provider_frames
+        assert provider_frames[0]["metadata"]["provider_metadata"] == {"response_headers": response_headers}
