@@ -63,6 +63,16 @@ def test_metadata_retains_unknown_keys():
     assert RailMetadata.model_validate(metadata.model_dump()) == metadata
 
 
+def test_config_schema_preserves_export_names_when_serialized():
+    schema = RailConfigSchema(
+        key="test",
+        spec=ConfigSpecRef(target="pathlib:Path.cwd"),
+        export_names=("model", "threshold"),
+    )
+
+    assert RailConfigSchema.model_validate(schema.model_dump()) == schema
+
+
 def test_spec_rejects_unknown_keys():
     with pytest.raises(ValidationError):
         RailSpec.model_validate({"unknown_field": 1})

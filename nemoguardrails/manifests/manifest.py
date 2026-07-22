@@ -135,7 +135,7 @@ class RailConfigSchema(BaseModel):
 
     key: str
     spec: ConfigSpecRef
-    export_names: Tuple[str, ...] = Field(default=(), exclude=True)
+    export_names: Tuple[str, ...] = ()
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
