@@ -36,6 +36,8 @@ REFUSAL = "I'm sorry, I can't respond to that."
 ANSWER_UNKNOWN = "I don't know the answer to that."
 CLEANLAB_WARNING_SUFFIX = "\nCAUTION: THIS ANSWER HAS BEEN FLAGGED AS POTENTIALLY UNTRUSTWORTHY"
 RENDERED_BLOCK_MESSAGES = {
+    "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation.",
+    "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question.",
     "I will not engage in any abusive_or_harmful behavior.",
     "I will not engage in any abusive or harmful behavior.",
     "I will not engage in any self harm behavior.",
@@ -311,6 +313,14 @@ PRIVATEAI_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+PRIVATEAI_DETECT_RETRIEVAL = RailSpec(
+    name="privateai_detect_retrieval",
+    flow="detect pii on retrieval",
+    direction="retrieval",
+    action="detect_pii",
+    interpret=_blocked_if_true,
+)
+
 PRIVATEAI_MASK_INPUT = RailSpec(
     name="privateai_mask_input",
     flow="mask pii on input",
@@ -347,6 +357,14 @@ GLINER_DETECT_OUTPUT = RailSpec(
     name="gliner_detect_output",
     flow="gliner detect pii on output",
     direction="output",
+    action="gliner_detect_pii",
+    interpret=_blocked_if_true,
+)
+
+GLINER_DETECT_RETRIEVAL = RailSpec(
+    name="gliner_detect_retrieval",
+    flow="gliner detect pii on retrieval",
+    direction="retrieval",
     action="gliner_detect_pii",
     interpret=_blocked_if_true,
 )
@@ -391,6 +409,14 @@ SENSITIVE_DATA_DETECT_OUTPUT = RailSpec(
     interpret=_blocked_if_true,
 )
 
+SENSITIVE_DATA_DETECT_RETRIEVAL = RailSpec(
+    name="sensitive_data_detect_retrieval",
+    flow="detect sensitive data on retrieval",
+    direction="retrieval",
+    action="detect_sensitive_data",
+    interpret=_blocked_if_true,
+)
+
 SENSITIVE_DATA_MASK_INPUT = RailSpec(
     name="sensitive_data_mask_input",
     flow="mask sensitive data on input",
@@ -413,6 +439,28 @@ SENSITIVE_DATA_MASK_RETRIEVAL = RailSpec(
     direction="retrieval",
     action="mask_sensitive_data",
     interpret=_transform_if_changed_from_relevant_chunks,
+)
+
+CONTEXT_BLOAT_INPUT = RailSpec(
+    name="context_bloat_input",
+    flow="context bloat detection on input",
+    direction="input",
+    action="context_bloat_detection",
+)
+
+CONTEXT_BLOAT_RETRIEVAL = RailSpec(
+    name="context_bloat_retrieval",
+    flow="context bloat detection on retrieval",
+    direction="retrieval",
+    action="context_bloat_detection",
+)
+
+POLYGRAF_DETECT_RETRIEVAL = RailSpec(
+    name="polygraf_detect_retrieval",
+    flow="polygraf detect pii on retrieval",
+    direction="retrieval",
+    action="polygraf_detect_pii",
+    interpret=_blocked_if_true,
 )
 
 CONTENT_SAFETY_INPUT = RailSpec(
@@ -572,21 +620,21 @@ FIDDLER_USER_SAFETY = RailSpec(
     name="fiddler_user_safety",
     flow="fiddler user safety",
     direction="input",
-    action="call fiddler safety on user message",
+    action="call_fiddler_safety_user",
 )
 
 FIDDLER_BOT_SAFETY = RailSpec(
     name="fiddler_bot_safety",
     flow="fiddler bot safety",
     direction="output",
-    action="call fiddler safety on bot message",
+    action="call_fiddler_safety_bot",
 )
 
 FIDDLER_BOT_FAITHFULNESS = RailSpec(
     name="fiddler_bot_faithfulness",
     flow="fiddler bot faithfulness",
     direction="output",
-    action="call fiddler faithfulness",
+    action="call_fiddler_faithfulness",
 )
 
 F5_INPUT = RailSpec(
@@ -628,14 +676,14 @@ GCP_MODERATION_INPUT = RailSpec(
     name="gcp_moderation_input",
     flow="gcpnlp moderation",
     direction="input",
-    action="call gcpnlp api",
+    action="call_gcpnlp_api",
 )
 
 GCP_MODERATION_INPUT_DETAILED = RailSpec(
     name="gcp_moderation_input_detailed",
     flow="gcpnlp moderation detailed",
     direction="input",
-    action="call gcpnlp api",
+    action="call_gcpnlp_api",
 )
 
 GUARDRAILS_AI_INPUT = RailSpec(
@@ -694,7 +742,7 @@ CLEANLAB_OUTPUT = RailSpec(
     name="cleanlab_output",
     flow="cleanlab trustworthiness",
     direction="output",
-    action="call cleanlab api",
+    action="call_cleanlab_api",
 )
 
 AI_DEFENSE_INPUT = RailSpec(
@@ -1409,6 +1457,10 @@ FIXTURES = [
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_rail_outcome_cases(
+        PRIVATEAI_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
         GLINER_DETECT_INPUT,
         block_observable=ObservableOutcome.REFUSAL,
     ),
@@ -1417,11 +1469,38 @@ FIXTURES = [
         block_observable=ObservableOutcome.REFUSAL,
     ),
     *_rail_outcome_cases(
+        GLINER_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.REFUSAL,
+    ),
+    *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_INPUT,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_rail_outcome_cases(
         SENSITIVE_DATA_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
+        SENSITIVE_DATA_DETECT_RETRIEVAL,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(CONTEXT_BLOAT_INPUT),
+    *_rail_outcome_cases(CONTEXT_BLOAT_RETRIEVAL),
+    *_output_var_transform_cases(
+        CONTEXT_BLOAT_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="truncated input",
+    ),
+    *_output_var_transform_cases(
+        CONTEXT_BLOAT_RETRIEVAL,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="truncated chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    *_rail_outcome_cases(
+        POLYGRAF_DETECT_RETRIEVAL,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_output_transform_cases(PRIVATEAI_MASK_OUTPUT),
@@ -2174,6 +2253,48 @@ FIXTURES = [
         expected_content="I will not engage in any abusive or harmful behavior.",
     ),
     _case(
+        "gcp_moderation_input_detailed_blocks_sexual_content",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Sexual": 0.41},
+            triggered_violation="Sexual",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
+        "gcp_moderation_input_detailed_blocks_death_harm_and_tragedy",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Death, Harm & Tragedy": 0.41},
+            triggered_violation="Death, Harm & Tragedy",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
+        "gcp_moderation_input_detailed_blocks_firearms_and_weapons",
+        GCP_MODERATION_INPUT_DETAILED,
+        _risk_outcome(
+            0.41,
+            blocked=True,
+            threshold_mode="detailed",
+            violations={"Firearms & Weapons": 0.41},
+            triggered_violation="Firearms & Weapons",
+        ),
+        ObservableOutcome.REFUSAL,
+        FlowDecision.BLOCK,
+        expected_content="I will not engage with inappropriate content.",
+    ),
+    _case(
         "gcp_moderation_input_detailed_fails_closed_without_trigger_metadata",
         GCP_MODERATION_INPUT_DETAILED,
         RailOutcome.block(
@@ -2487,6 +2608,19 @@ def test_runtime_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
             ),
             REFUSAL,
         ),
+        (
+            "gcp_moderate_text",
+            "gcpnlp moderation detailed",
+            "call_gcpnlp_api",
+            _risk_outcome(
+                0.41,
+                blocked=True,
+                threshold_mode="detailed",
+                violations={"Derogatory": 0.41},
+                triggered_violation="Derogatory",
+            ),
+            "I will not engage in any abusive or harmful behavior.",
+        ),
     ],
 )
 def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, action_name, outcome, expected):
@@ -2517,6 +2651,59 @@ def test_colang_2_detailed_moderation_renders_action_verdict(module, flow, actio
         return outcome
 
     chat.app.register_action(stub_action, action_name)
+
+    chat >> USER_INPUT
+    chat << expected
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        (
+            "reject",
+            f"{INJECTION_DETECTION_REFUSAL_PREFIX}SQL injection, XSS.",
+        ),
+        ("omit", ""),
+    ],
+)
+def test_colang_2_injection_detection_preserves_blocked_verdict(action, expected):
+    """Colang 2 preserves blocked injection verdicts and readable detections."""
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+            colang_version: 2.x
+            models: []
+            enable_rails_exceptions: false
+            rails:
+              config:
+                injection_detection:
+                  action: {action}
+        """,
+        colang_content=f"""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.injection_detection
+
+            flow output rails $output_text
+              injection detection
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "{NORMAL_OUTPUT}"
+        """,
+    )
+    chat = TestChat(config)
+
+    async def stub_action(**kwargs):
+        return RailOutcome.block(
+            metadata={
+                "is_injection": True,
+                "detections": ["SQL injection", "XSS"],
+            }
+        )
+
+    chat.app.register_action(stub_action, "injection_detection")
 
     chat >> USER_INPUT
     chat << expected

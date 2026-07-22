@@ -3,19 +3,19 @@ flow injection detection
   Reject, omit, or sanitize injection attempts from the bot.
   This rail operates on the $bot_message.
   """
-  response = await InjectionDetectionAction(text=$bot_message)
-  join_separator = ", "
-  injection_detection_action = $config.rails.config.injection_detection.action
+  $response = await InjectionDetectionAction(text=$bot_message)
+  $injection_detection_action = $system.config.rails.config.injection_detection.action
 
-  if response.is_blocked
-    if $config.enable_rails_exceptions
+  if $response.is_blocked
+    if $system.config.enable_rails_exceptions
       send InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
-    else if injection_detection_action == "reject"
-      bot "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {{ response.metadata.detections | join(join_separator) }}."
+    elif $injection_detection_action == "reject"
+      $detections = ", ".join($response.metadata["detections"])
+      bot say "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {$detections}."
     abort
-  else if response.is_transform
-    if $config.enable_rails_exceptions and response.metadata["is_injection"]
+  elif $response.is_transform
+    if $system.config.enable_rails_exceptions and $response.metadata["is_injection"]
       send InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
       abort
     else
-      $bot_message = response.transform_text["bot_message"]
+      $bot_message = $response.transform_text["bot_message"]

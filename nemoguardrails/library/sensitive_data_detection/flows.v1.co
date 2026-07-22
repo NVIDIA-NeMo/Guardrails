@@ -45,7 +45,9 @@ define subflow detect sensitive data on retrieval
   $response = execute detect_sensitive_data(source="retrieval", text=$relevant_chunks)
 
   if $response.is_blocked
-    bot inform answer unknown
+    $block_message = $config.bot_messages["inform answer unknown"][0]
+    $skip_output_rails = True
+    create event BotMessage(text=$block_message)
     stop
 
 
