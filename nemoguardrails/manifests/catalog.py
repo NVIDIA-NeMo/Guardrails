@@ -99,6 +99,11 @@ class RailCatalog:
                 key = (surface.direction, surface.name)
                 owner = surface_owners.get(key)
                 if owner is not None:
+                    if owner == manifest.name:
+                        raise ValueError(
+                            f"Rail manifest {manifest.name!r} declares duplicate surface {surface.name!r} "
+                            f"for direction {surface.direction.value!r}."
+                        )
                     raise ValueError(
                         f"Rail surface {surface.name!r} for direction {surface.direction.value!r} is already "
                         f"provided by {owner!r}; cannot also provide it from {manifest.name!r}."

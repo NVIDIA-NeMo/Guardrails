@@ -93,6 +93,18 @@ def test_catalog_rejects_duplicate_surface_keys():
         RailCatalog((_record("alpha", surface_name="shared"), _record("beta", surface_name="shared")))
 
 
+def test_catalog_reports_duplicate_surface_within_manifest():
+    action = _action("shared")
+    surface = RailSurface(name="shared", direction=RailDirection.INPUT, action=action)
+    manifest = RailManifest(
+        name="alpha",
+        spec=RailSpec(actions=RailActions(refs=(action,)), surfaces=(surface, surface)),
+    )
+
+    with pytest.raises(ValueError, match="declares duplicate surface"):
+        RailCatalog((RailManifestRecord(manifest=manifest, source="test:alpha"),))
+
+
 def test_catalog_rejects_duplicate_config_key():
     shared_spec = ConfigSpecRef(target="pathlib:Path.cwd")
 
