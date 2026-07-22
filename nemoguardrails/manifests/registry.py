@@ -15,10 +15,13 @@
 
 """Process-wide access to discovered rail manifest catalogs."""
 
+import threading
+
 from nemoguardrails.manifests.catalog import RailCatalog
 
 _catalog: RailCatalog | None = None
 _discovering = False
+_lock = threading.RLock()
 
 
 def default_rail_catalog() -> RailCatalog:
@@ -26,15 +29,18 @@ def default_rail_catalog() -> RailCatalog:
     global _catalog, _discovering
     if _catalog is not None:
         return _catalog
-    if _discovering:
-        raise RuntimeError("Built-in rail manifest discovery re-entered while loading rail modules.")
-    _discovering = True
-    try:
-        catalog = RailCatalog.discover_built_ins()
-        _catalog = catalog
-        return catalog
-    finally:
-        _discovering = False
+    with _lock:
+        if _catalog is not None:
+            return _catalog
+        if _discovering:
+            raise RuntimeError("Built-in rail manifest discovery re-entered while loading rail modules.")
+        _discovering = True
+        try:
+            catalog = RailCatalog.discover_built_ins()
+            _catalog = catalog
+            return catalog
+        finally:
+            _discovering = False
 
 
 def all_rail_manifests():
@@ -44,5 +50,6 @@ def all_rail_manifests():
 
 def _reset_rail_manifest_cache() -> None:
     global _catalog, _discovering
-    _catalog = None
-    _discovering = False
+    with _lock:
+        _catalog = None
+        _discovering = False
