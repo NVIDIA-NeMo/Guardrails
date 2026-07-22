@@ -105,7 +105,10 @@ class TestJailbreakDetectionActions:
         assert result.is_blocked is False
 
         # verify warning was logged
-        assert "api_key_env var at MISSING_API_KEY but the environment variable was not set" in caplog.text
+        assert (
+            "A jailbreak config api_key_env_var was specified, but the referenced environment variable was not set."
+            in caplog.text
+        )
 
         # verify nim request was called with None token
         mock_nim_request.assert_called_once_with(
