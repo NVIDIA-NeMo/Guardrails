@@ -76,6 +76,7 @@ def test_parse_configured_surface_does_not_interpret_parenthesized_custom_flows(
 )
 def test_configured_surface_parser_supports_string_parameters(configured, expected):
     assert parse_configured_surface(configured) == expected
+    assert normalize_configured_surface_name(configured) == expected[0]
 
 
 @pytest.mark.parametrize(

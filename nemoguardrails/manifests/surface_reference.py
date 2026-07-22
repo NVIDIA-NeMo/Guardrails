@@ -108,6 +108,9 @@ def parse_configured_surface(flow_text: str) -> Tuple[str, Dict[str, str]]:
 
 
 def normalize_configured_surface_name(flow_text: str) -> str:
-    """Return the surface name prefix without validating its parameters."""
+    """Return the surface name prefix without validating its parameters.
+
+    Malformed parameter syntax may still yield a normalized name.
+    """
     flow_text = flow_text.strip()
     return flow_text.split("$", 1)[0].strip()
