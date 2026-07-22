@@ -15,7 +15,6 @@
 import os
 import subprocess
 import sys
-import textwrap
 
 CHAT_SETUP = """
 from nemoguardrails import RailsConfig
@@ -28,9 +27,9 @@ chat = TestChat(config, llm_completions=["Hello there!"])
 
 def _run_in_subprocess(source, disable_nest_asyncio):
     env = os.environ.copy()
-    env["DISABLE_NEST_ASYNCIO"] = str(disable_nest_asyncio)
+    env["DISABLE_NEST_ASYNCIO"] = "true" if disable_nest_asyncio else "false"
     result = subprocess.run(
-        [sys.executable, "-c", textwrap.dedent(CHAT_SETUP + source)],
+        [sys.executable, "-c", CHAT_SETUP + source],
         capture_output=True,
         env=env,
         text=True,
