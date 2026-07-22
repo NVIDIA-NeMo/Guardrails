@@ -24,7 +24,7 @@ keys.
 import importlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Mapping, Optional, Tuple
+from typing import Dict, Iterable, Mapping, Optional, Tuple, TypeVar
 
 from nemoguardrails.manifests.manifest import ActionRef, RailDirection, RailManifest, RailSurface
 
@@ -35,6 +35,16 @@ class RailManifestRecord:
 
     manifest: RailManifest
     source: str
+
+
+_OwnerKey = TypeVar("_OwnerKey")
+
+
+def _claim(owners: Dict[_OwnerKey, str], key: _OwnerKey, manifest_name: str, label: str) -> None:
+    owner = owners.get(key)
+    if owner is not None:
+        raise ValueError(f"{label} is already provided by {owner!r}; cannot also provide it from {manifest_name!r}.")
+    owners[key] = manifest_name
 
 
 class RailCatalog:
@@ -65,22 +75,10 @@ class RailCatalog:
                 )
             if manifest.config_schema is not None:
                 key = manifest.config_schema.key
-                owner = config_owners.get(key)
-                if owner is not None:
-                    raise ValueError(
-                        f"Rail config key {key!r} is already provided by {owner!r}; "
-                        f"cannot also provide it from {manifest.name!r}."
-                    )
-                config_owners[key] = manifest.name
+                _claim(config_owners, key, manifest.name, f"Rail config key {key!r}")
             if manifest.flows is not None:
                 for flow_name in manifest.flows.flow_names:
-                    owner = flow_owners.get(flow_name)
-                    if owner is not None:
-                        raise ValueError(
-                            f"Rail flow {flow_name!r} is already provided by {owner!r}; "
-                            f"cannot also provide it from {manifest.name!r}."
-                        )
-                    flow_owners[flow_name] = manifest.name
+                    _claim(flow_owners, flow_name, manifest.name, f"Rail flow {flow_name!r}")
             if manifest.actions is not None:
                 for action_ref in manifest.actions.refs:
                     existing_action = action_owners.get(action_ref.name)
@@ -104,12 +102,13 @@ class RailCatalog:
                             f"Rail manifest {manifest.name!r} declares duplicate surface {surface.name!r} "
                             f"for direction {surface.direction.value!r}."
                         )
-                    raise ValueError(
-                        f"Rail surface {surface.name!r} for direction {surface.direction.value!r} is already "
-                        f"provided by {owner!r}; cannot also provide it from {manifest.name!r}."
-                    )
+                _claim(
+                    surface_owners,
+                    key,
+                    manifest.name,
+                    f"Rail surface {surface.name!r} for direction {surface.direction.value!r}",
+                )
                 surfaces[key] = surface
-                surface_owners[key] = manifest.name
             records_by_name[manifest.name] = record
         self._records = records_by_name
         self._surfaces = surfaces
