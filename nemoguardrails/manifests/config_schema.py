@@ -40,6 +40,7 @@ class RailConfigSpec:
     key: Optional[str] = field(default=None, kw_only=True)
 
 
+# Frozen dataclasses otherwise synthesize a hash that fails because exports is mutable.
 setattr(RailConfigSpec, "__hash__", None)
 
 
