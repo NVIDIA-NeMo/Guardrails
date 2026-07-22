@@ -96,6 +96,8 @@ class LLMTaskManager:
             "nemotron_content_safety_parse_response_safety": nemotron_content_safety_parse_response_safety,
             "nemotron_reasoning_parse_prompt_safety": nemotron_reasoning_parse_prompt_safety,
             "nemotron_reasoning_parse_response_safety": nemotron_reasoning_parse_response_safety,
+            "nemotron_35_parse_prompt_safety": nemotron_35_parse_prompt_safety,
+            "nemotron_35_parse_response_safety": nemotron_35_parse_response_safety,
         }
 
         # The prompt context will hold additional variables that ce also be included
