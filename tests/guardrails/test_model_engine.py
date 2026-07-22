@@ -838,11 +838,11 @@ class TestModelEngineStreamCall:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_stream_call_attaches_response_headers_as_provider_metadata(self):
-        """Every streamed chunk carries the HTTP response headers under provider_metadata['response_headers'] (LLMRails parity)."""
+        """Every chunk carries the response headers under provider_metadata['response_headers'], lowercased to match LLMRails."""
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["Hello", " world"])
-        headers = {"nvcf-reqid": "abc-123", "content-type": "text/event-stream"}
+        headers = {"Nvcf-Reqid": "abc-123", "Content-Type": "text/event-stream"}
         mock_response = _mock_streaming_response(raw_lines, headers=headers)
 
         mock_client = AsyncMock()
@@ -854,8 +854,9 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
+        expected = {"response_headers": {"nvcf-reqid": "abc-123", "content-type": "text/event-stream"}}
         assert chunks
-        assert all(c.provider_metadata == {"response_headers": headers} for c in chunks)
+        assert all(c.provider_metadata == expected for c in chunks)
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio

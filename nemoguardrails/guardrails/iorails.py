@@ -1392,10 +1392,9 @@ class IORails(BaseGuardrails):
                     if chunk.delta_content:
                         content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
-                    elif chunk_metadata:
-                        # Usage-/metadata-only chunk (e.g. OpenAI's terminal usage chunk with
-                        # empty delta_content): push an empty text chunk so its metadata still
-                        # reaches include_metadata consumers instead of being dropped.
+                    elif chunk.usage is not None:
+                        # Surface the terminal usage-only chunk (empty delta_content) so token
+                        # usage isn't dropped.
                         await streaming_handler.push_chunk("", chunk_metadata)
                     if chunk.delta_tool_calls:
                         # Engine emits the complete finalized list once (see

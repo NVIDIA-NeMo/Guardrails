@@ -687,9 +687,14 @@ class ModelEngine(BaseEngine):
             async with req.client.post(req.url, json=req.body, headers=req.headers, timeout=stream_timeout) as response:
                 await self._raise_for_status(response, req_id, t0)
 
-                # Capture the HTTP response headers once and surface them on every chunk
-                # as provider_metadata['response_headers'], matching LLMRails.
-                response_headers = dict(response.headers) if isinstance(response.headers, Mapping) else None
+                # Capture the HTTP response headers once and surface them on every chunk as
+                # provider_metadata['response_headers'], matching LLMRails.
+                # Keys are lowercased for parity with LLMRails' httpx client
+                response_headers = (
+                    {key.lower(): value for key, value in response.headers.items()}
+                    if isinstance(response.headers, Mapping)
+                    else None
+                )
                 provider_metadata = {"response_headers": response_headers} if response_headers else None
 
                 # Use readline() instead of iterating response.content directly.

@@ -1033,3 +1033,34 @@ class TestStreamAsyncMetadata:
         ]
         assert provider_frames
         assert provider_frames[0]["metadata"]["provider_metadata"] == {"response_headers": response_headers}
+
+    @pytest.mark.asyncio
+    async def test_provider_metadata_only_chunks_do_not_emit_empty_frames(self, iorails_input_only):
+        """An empty-content chunk carrying only provider_metadata (no usage) is not surfaced as a standalone empty frame.
+
+        Reasoning models stream many empty-content deltas that each carry the same response
+        headers; emitting one empty frame per delta would flood the stream. Only usage-bearing
+        empty chunks are surfaced; the headers still ride on the content and usage frames.
+        """
+        pm = {"response_headers": {"nvcf-reqid": "abc"}}
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hi", provider_metadata=pm)
+            yield LLMResponseChunk(delta_reasoning="thinking", provider_metadata=pm)
+            yield LLMResponseChunk(
+                usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3), provider_metadata=pm
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_only_empty = [
+            c
+            for c in chunks
+            if isinstance(c, dict)
+            and c.get("text") == ""
+            and isinstance(c.get("metadata"), dict)
+            and set(c["metadata"].keys()) == {"provider_metadata"}
+        ]
+        assert provider_only_empty == []
