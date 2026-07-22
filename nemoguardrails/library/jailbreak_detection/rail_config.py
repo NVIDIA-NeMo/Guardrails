@@ -107,8 +107,7 @@ class JailbreakDetectionConfig(RailConfigBaseModel):
                 return nim_auth_token
 
             log.warning(
-                "Specified a value for jailbreak config api_key_env var at %s but the environment variable was not set!"
-                % self.api_key_env_var
+                "A jailbreak config api_key_env_var was specified, but the referenced environment variable was not set."
             )
 
         return None
