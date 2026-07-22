@@ -41,7 +41,7 @@ class RailConfigSpec:
 
 
 # Frozen dataclasses otherwise synthesize a hash that fails because exports is mutable.
-setattr(RailConfigSpec, "__hash__", None)
+RailConfigSpec.__hash__ = None  # ty: ignore[invalid-assignment]
 
 
 def rail_field(*args: Any, **kwargs: Any) -> FieldInfo:
