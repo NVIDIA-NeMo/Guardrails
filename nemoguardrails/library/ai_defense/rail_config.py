@@ -28,6 +28,7 @@ class AIDefenseRailConfig(RailConfigBaseModel):
 
     timeout: float = Field(
         default=30.0,
+        gt=0,
         description="Timeout in seconds for API requests to AI Defense service",
     )
 
