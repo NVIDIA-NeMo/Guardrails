@@ -163,6 +163,13 @@ def test_jailbreak_requirements_document_local_environment_variables():
         assert env_vars[env_var_name].description
 
 
+def test_polygraf_manifest_declares_remote_endpoint_consistently():
+    manifest = all_rail_manifests()["polygraf"]
+
+    assert tuple(service.name for service in manifest.requirements.services) == ("Polygraf endpoint",)
+    assert manifest.privacy.remote_services == ("Polygraf endpoint",)
+
+
 def test_builtin_surfaces_preserve_flow_contracts():
     surfaces = default_rail_catalog().surfaces()
 

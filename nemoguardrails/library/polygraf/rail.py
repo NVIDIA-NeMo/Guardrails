@@ -24,8 +24,10 @@ from nemoguardrails.manifests import (
     RailManifest,
     RailMetadata,
     RailPrivacy,
+    RailRequirements,
     RailSpec,
     RailSurface,
+    ServiceRequirement,
     TransformTarget,
 )
 
@@ -109,6 +111,14 @@ RAIL = RailManifest(
                 transform_target=TransformTarget.RELEVANT_CHUNKS,
             ),
         ),
-        privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True, sends_retrieved_chunks=True),
+        requirements=RailRequirements(
+            services=(ServiceRequirement(name="Polygraf endpoint", required=True),),
+        ),
+        privacy=RailPrivacy(
+            sends_user_text=True,
+            sends_bot_text=True,
+            sends_retrieved_chunks=True,
+            remote_services=("Polygraf endpoint",),
+        ),
     ),
 )
