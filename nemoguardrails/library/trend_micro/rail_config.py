@@ -65,8 +65,7 @@ class TrendMicroRailConfig(RailConfigBaseModel):
                 return v1_api_key
 
             log.warning(
-                "Specified a value for Trend Micro config api_key_env var at %s but the environment variable was not set!"
-                % self.api_key_env_var
+                "Specified a value for Trend Micro config api_key_env_var, but the referenced environment variable was not set."
             )
 
         return None
