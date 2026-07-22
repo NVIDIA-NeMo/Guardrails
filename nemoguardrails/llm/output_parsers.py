@@ -318,3 +318,43 @@ def nemotron_reasoning_parse_response_safety(
         return [True]
     else:
         return [False]
+
+
+def nemotron_35_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from nemotron-3.5-content-safety for prompt safety.
+
+    Parses the following output format (with optional <think> tags):
+
+        User Safety: safe/unsafe
+        Response Safety: safe/unsafe
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: [True] if safe, [False] otherwise.
+    """
+    cleaned_response = _strip_think_tags(response)
+    match = re.search(r"User Safety\s*:\s*(\w+)", cleaned_response, re.IGNORECASE)
+    result = match.group(1).lower() if match else "unsafe"
+    return [True] if result == "safe" else [False]
+
+
+def nemotron_35_parse_response_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from nemotron-3.5-content-safety for response safety.
+
+    Parses the following output format (with optional <think> tags):
+
+        User Safety: safe/unsafe
+        Response Safety: safe/unsafe
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: [True] if safe, [False] otherwise.
+    """
+    cleaned_response = _strip_think_tags(response)
+    match = re.search(r"Response Safety\s*:\s*(\w+)", cleaned_response, re.IGNORECASE)
+    result = match.group(1).lower() if match else "unsafe"
+    return [True] if result == "safe" else [False]

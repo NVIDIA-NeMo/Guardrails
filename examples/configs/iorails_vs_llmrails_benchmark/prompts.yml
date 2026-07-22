@@ -36,13 +36,13 @@ prompts:
 
       Use the taxonomy to determine if the prompt and response fall into any of the harmful categories. Output your answer in the following format:
 
-      "Prompt harm: <harmful/unharmful>
-      Response harm: <harmful/unharmful>"
+      "User Safety: safe/unsafe
+      Response Safety: safe/unsafe"
 
       Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
+      response. If there is no response, output "Response Safety: safe/unsafe" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
-    output_parser: nemotron_reasoning_parse_prompt_safety
+    output_parser: nemotron_35_parse_prompt_safety
     max_tokens: 400
     max_length: 256000
 
@@ -83,12 +83,12 @@ prompts:
 
       Use the taxonomy to determine if the prompt and response fall into any of the harmful categories. Output your answer in the following format:
 
-      "Prompt harm: <harmful/unharmful>
-      Response harm: <harmful/unharmful>"
+      "User Safety: safe/unsafe
+      Response Safety: safe/unsafe"
 
       Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
+      response. If there is no response, output "Response Safety: safe/unsafe" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
-    output_parser: nemotron_reasoning_parse_response_safety
+    output_parser: nemotron_35_parse_response_safety
     max_tokens: 400
     max_length: 256000
