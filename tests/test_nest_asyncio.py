@@ -33,6 +33,7 @@ def _run_in_subprocess(source, disable_nest_asyncio):
         capture_output=True,
         env=env,
         text=True,
+        timeout=30,
     )
     assert result.returncode == 0, result.stderr
 
