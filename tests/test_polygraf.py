@@ -22,6 +22,7 @@ from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.polygraf.actions import (
     FAILSAFE_MASK_PLACEHOLDER,
+    _entity_shape,
     polygraf_detect_pii,
     polygraf_mask_pii,
 )
@@ -136,6 +137,60 @@ def _polygraf_config():
                       - Person
         """,
     )
+
+
+def test_polygraf_entity_shape_does_not_include_values():
+    assert _entity_shape({"entity_type": "Email", "entity_text": "secret@example.com"}) == (
+        "dict(keys=['entity_text', 'entity_type'])"
+    )
+    assert _entity_shape("secret@example.com") == "str"
+
+
+@pytest.mark.parametrize(("entity_type", "is_blocked"), [("Person", True), ("CreditCard", False)])
+@pytest.mark.asyncio
+async def test_polygraf_detect_pii_filters_valid_entities(monkeypatch, entity_type, is_blocked):
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return [{"entity_type": entity_type, "start": 0, "end": 4}]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_detect_pii("input", "John", _polygraf_config())
+
+    assert result.is_blocked is is_blocked
+
+
+@pytest.mark.asyncio
+async def test_polygraf_detect_pii_fails_closed_on_non_mapping_entity(monkeypatch):
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return ["secret@example.com"]
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_detect_pii("input", "John", _polygraf_config())
+
+    assert result.is_blocked
+
+
+@pytest.mark.asyncio
+async def test_polygraf_actions_reject_unknown_source():
+    with pytest.raises(ValueError, match="current flow, 'unknown'"):
+        await polygraf_detect_pii("unknown", "John", _polygraf_config())
+
+
+@pytest.mark.asyncio
+async def test_polygraf_mask_pii_allows_when_no_entities(monkeypatch):
+    async def mock_request(text, server_endpoint, api_key, session=None):
+        return []
+
+    monkeypatch.setenv("POLYGRAF_API_KEY", "secret")
+    monkeypatch.setattr("nemoguardrails.library.polygraf.actions.polygraf_request", mock_request)
+
+    result = await polygraf_mask_pii("input", "Hello", _polygraf_config())
+
+    assert not result.is_blocked
+    assert not result.transforms
 
 
 class _FakeResponse:
