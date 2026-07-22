@@ -12,60 +12,80 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
-import importlib
+import os
+import subprocess
+import sys
+import textwrap
 
-import pytest
-
-import nemoguardrails
+CHAT_SETUP = """
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
 
-config = RailsConfig.from_content(yaml_content="""models: []""")
+config = RailsConfig.from_content(yaml_content="models: []")
+chat = TestChat(config, llm_completions=["Hello there!"])
+"""
 
-chat = TestChat(
-    config,
-    llm_completions=[
-        "Hello there!",
-        "Hello there!",
-        "Hello there!",
-    ],
-)
+
+def _run_in_subprocess(source, disable_nest_asyncio):
+    env = os.environ.copy()
+    env["DISABLE_NEST_ASYNCIO"] = str(disable_nest_asyncio)
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(CHAT_SETUP + source)],
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_sync_api():
+    _run_in_subprocess(
+        """
+chat >> "Hi!"
+chat << "Hello there!"
+""",
+        True,
+    )
+
+
+def test_async_api():
+    _run_in_subprocess(
+        """
+import asyncio
+import nemoguardrails.patch_asyncio
+
+assert nemoguardrails.patch_asyncio.nest_asyncio_patch_applied is True
+assert hasattr(asyncio, "_nest_patched")
+
+async def main():
     chat >> "Hi!"
     chat << "Hello there!"
 
-
-@pytest.mark.asyncio
-async def test_async_api(monkeypatch):
-    monkeypatch.setenv("DISABLE_NEST_ASYNCIO", "False")
-
-    importlib.reload(nemoguardrails)
-
-    chat >> "Hi!"
-    chat << "Hello there!"
+asyncio.run(main())
+""",
+        False,
+    )
 
 
-@pytest.mark.asyncio
-async def test_async_api_error(monkeypatch):
-    monkeypatch.setenv("DISABLE_NEST_ASYNCIO", "True")
+def test_async_api_error():
+    _run_in_subprocess(
+        """
+import asyncio
+import nemoguardrails.patch_asyncio
 
-    # Reload the module to re-run its top-level code with the new env var
-    importlib.reload(nemoguardrails)
-    importlib.reload(nemoguardrails.patch_asyncio)
-    importlib.reload(asyncio)
+assert nemoguardrails.patch_asyncio.nest_asyncio_patch_applied is False
+assert not hasattr(asyncio, "_nest_patched")
 
-    # Remove the patching marker
-    delattr(asyncio, "_nest_patched")
-
-    assert nemoguardrails.patch_asyncio.nest_asyncio_patch_applied is False
-    assert not hasattr(asyncio, "_nest_patched")
-
-    with pytest.raises(
-        RuntimeError,
-        match=r"await generate_async",
-    ):
+async def main():
+    try:
         chat >> "Hi!"
         chat << "Hello there!"
+    except RuntimeError as exc:
+        assert "await generate_async" in str(exc)
+    else:
+        raise AssertionError("The synchronous API did not reject a running event loop")
+
+asyncio.run(main())
+""",
+        True,
+    )
