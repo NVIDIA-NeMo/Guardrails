@@ -80,7 +80,7 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse, ToolCall
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -141,6 +141,26 @@ def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
         }
         for tool_call in tool_calls
     ]
+
+
+def _stream_chunk_metadata(chunk: LLMResponseChunk) -> Optional[dict]:
+    """Extract per-chunk streaming metadata (usage + provider_metadata) for the StreamingHandler.
+
+    Mirrors LLMRails' streaming metadata contract so ``include_metadata`` consumers see the same
+    frames from both engines: token usage as a flat ``input/output/total_tokens`` dict and
+    ``provider_metadata`` verbatim. Returns ``None`` when the chunk carries neither, so ordinary
+    text tokens push no metadata and the StreamingHandler emits them as bare ``{"text": ...}``.
+    """
+    metadata: dict = {}
+    if chunk.provider_metadata:
+        metadata["provider_metadata"] = chunk.provider_metadata
+    if chunk.usage:
+        metadata["usage"] = {
+            "input_tokens": chunk.usage.input_tokens,
+            "output_tokens": chunk.usage.output_tokens,
+            "total_tokens": chunk.usage.total_tokens,
+        }
+    return metadata or None
 
 
 def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[str, dict]:
@@ -1361,15 +1381,22 @@ class IORails(BaseGuardrails):
                     return
 
                 # Step 2: Stream main LLM content from structured response.
-                # delta_content is forwarded as text chunks; delta_tool_calls are
+                # delta_content is forwarded as text chunks (carrying per-chunk usage /
+                # provider_metadata under include_metadata); delta_tool_calls are
                 # accumulated and surfaced as a terminal JSON chunk after the text
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
+                    chunk_metadata = _stream_chunk_metadata(chunk)
                     if chunk.delta_content:
                         content_parts.append(chunk.delta_content)
-                        await streaming_handler.push_chunk(chunk.delta_content)
+                        await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
+                    elif chunk_metadata:
+                        # Usage-/metadata-only chunk (e.g. OpenAI's terminal usage chunk with
+                        # empty delta_content): push an empty text chunk so its metadata still
+                        # reaches include_metadata consumers instead of being dropped.
+                        await streaming_handler.push_chunk("", chunk_metadata)
                     if chunk.delta_tool_calls:
                         # Engine emits the complete finalized list once (see
                         # ModelEngine.stream_call), so rebind rather than accumulate.

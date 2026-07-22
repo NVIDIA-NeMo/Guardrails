@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.iorails import (
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -931,3 +931,84 @@ class TestIsStreamErrorChunk:
 
     def test_non_string_text(self):
         assert _is_stream_error_chunk({"text": None}) is False
+
+
+class TestStreamAsyncMetadata:
+    """Per-chunk usage and provider_metadata surfaced through include_metadata streaming (LLMRails parity)."""
+
+    @pytest.mark.asyncio
+    async def test_usage_only_chunk_surfaced_once_in_metadata(self, iorails_input_only):
+        """A usage-only terminal chunk (no delta_content) surfaces its token usage in exactly one dict frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=13, output_tokens=8, total_tokens=21))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        usage_frames = [c for c in chunks if isinstance(c, dict) and "usage" in c.get("metadata", {})]
+        assert len(usage_frames) == 1
+        assert usage_frames[0]["metadata"]["usage"] == {
+            "input_tokens": 13,
+            "output_tokens": 8,
+            "total_tokens": 21,
+        }
+
+    @pytest.mark.asyncio
+    async def test_usage_on_content_chunk_surfaced_in_that_frame(self, iorails_input_only):
+        """Token usage delivered on a content-bearing chunk surfaces in that chunk's metadata frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(
+                delta_content=" world",
+                usage=UsageInfo(input_tokens=5, output_tokens=2, total_tokens=7),
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        usage_frames = [c for c in chunks if isinstance(c, dict) and "usage" in c.get("metadata", {})]
+        assert len(usage_frames) == 1
+        assert usage_frames[0]["text"] == " world"
+        assert usage_frames[0]["metadata"]["usage"] == {
+            "input_tokens": 5,
+            "output_tokens": 2,
+            "total_tokens": 7,
+        }
+
+    @pytest.mark.asyncio
+    async def test_provider_metadata_surfaced_in_metadata(self, iorails_input_only):
+        """provider_metadata from the stream is surfaced under the include_metadata dict frames."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(
+                delta_content="Hi",
+                provider_metadata={"response_headers": {"x-request-id": "abc"}},
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_frames = [c for c in chunks if isinstance(c, dict) and "provider_metadata" in c.get("metadata", {})]
+        assert provider_frames
+        assert provider_frames[0]["metadata"]["provider_metadata"] == {"response_headers": {"x-request-id": "abc"}}
+
+    @pytest.mark.asyncio
+    async def test_plain_string_stream_unaffected_by_metadata_chunks(self, iorails_input_only):
+        """With include_metadata=False, usage and provider_metadata chunks leave the plain-text stream intact."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello", provider_metadata={"response_headers": {"h": "1"}})
+            yield LLMResponseChunk(delta_content=" world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert all(isinstance(c, str) for c in chunks)
+        assert "".join(chunks) == "Hello world"
