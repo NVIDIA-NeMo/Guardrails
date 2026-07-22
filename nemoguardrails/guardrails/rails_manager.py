@@ -37,16 +37,17 @@ from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailA
 from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
+    RailCallRecord,
     RailDirection,
     RailResult,
     get_request_id,
 )
-from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.guardrails.rail_action import RailAction, RailLLMCall, get_and_clear_rail_llm_call_contextvar
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.rails.llm.config import _get_flow_name
+from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import ToolCall
 
 if TYPE_CHECKING:
@@ -77,6 +78,39 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 }
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
+
+
+def _rail_call_record(flow: str, rail_type: str, result: RailResult, call: Optional[RailLLMCall]) -> RailCallRecord:
+    """Build the per-rail GenerationLog record from a rail's result + its captured LLM call.
+
+    ``call`` is None for model-free rails (e.g. tool validators); ``return_value`` uses the
+    action's structured verdict when present, else a minimal ``{"allowed": is_safe}``.
+    """
+    verdict = result.return_value if result.return_value is not None else {"allowed": result.is_safe}
+    # GenerationLog parity with LLMRails: action_name/task use the prompt-template key
+    # (underscores) rather than the space-separated Colang flow name; ``flow`` keeps spaces.
+    base_name = _get_flow_name(flow) or flow
+    model = _get_flow_model(flow)
+    action_name = base_name.replace(" ", "_")
+    task = f"{action_name} $model={model}" if model else action_name
+    return RailCallRecord(
+        flow=flow,
+        rail_type=rail_type,
+        is_safe=result.is_safe,
+        made_call=call is not None,
+        action_name=action_name,
+        return_value=verdict,
+        task=task,
+        request_id=call.request_id if call else None,
+        usage=call.usage if call else None,
+        llm_model_name=call.llm_model_name if call else None,
+        llm_provider_name=call.provider_name if call else None,
+        prompt=call.prompt if call else None,
+        completion=call.completion if call else None,
+        started_at=call.started_at if call else None,
+        finished_at=call.finished_at if call else None,
+        duration=call.duration if call else None,
+    )
 
 
 class RailsManager:
@@ -304,8 +338,10 @@ class RailsManager:
         with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
+            call = get_and_clear_rail_llm_call_contextvar()
             if not result.is_safe and result.triggered_rail is None:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
+            result = replace(result, records=(_rail_call_record(flow, direction.value.lower(), result, call),))
             mark_rail_stop(span, result.is_safe)
             # Capture rail input + block reason after the action runs.
             # RailAction.run() catches its own exceptions and returns
@@ -324,6 +360,9 @@ class RailsManager:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = await self._tool_call_actions[flow].run(toolset, tool_calls)
+            # Tool rails are model-free, so no LLM call is captured (usage stays None).
+            call = get_and_clear_rail_llm_call_contextvar()
+            result = replace(result, records=(_rail_call_record(flow, "tool_output", result, call),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 set_rail_content(
@@ -346,6 +385,9 @@ class RailsManager:
                 result = await action.run(exchange.results, exchange.calls)
                 if not result.is_safe:
                     break
+            # Tool rails are model-free, so no LLM call is captured (usage stays None).
+            call = get_and_clear_rail_llm_call_contextvar()
+            result = replace(result, records=(_rail_call_record(flow, "tool_input", result, call),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 all_results = [r for exchange in exchanges for r in exchange.results]
@@ -368,14 +410,16 @@ class RailsManager:
         """Run rail coroutines sequentially, short-circuiting on first unsafe result."""
         req_id = get_request_id()
         remaining = iter(rails.items())
+        collected: list[RailCallRecord] = []
         try:
             for flow, coro in remaining:
                 result = await coro
+                collected.extend(result.records)
                 log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
                 if not result.is_safe:
                     log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
-                    return result
-            return RailResult(is_safe=True)
+                    return replace(result, records=tuple(collected))
+            return RailResult(is_safe=True, records=tuple(collected))
         finally:
             for _, coro in remaining:
                 coro.close()
@@ -385,34 +429,36 @@ class RailsManager:
         rails: Mapping[str, Coroutine[Any, Any, RailResult]],
         direction: RailDirection,
     ) -> RailResult:
-        """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
+        """Run rail coroutines concurrently; on the first unsafe result, finish draining its
+        completion batch (so rails that finished alongside it still contribute their records)
+        before cancelling the rest."""
         req_id = get_request_id()
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
         task_order = {task: i for i, task in enumerate(tasks)}
         pending_tasks: set[asyncio.Task] = set(tasks)
+        collected: list[RailCallRecord] = []
 
         try:
             while pending_tasks:
                 done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+                first_unsafe: Optional[RailResult] = None
                 for task in sorted(done, key=lambda t: task_order[t]):
                     result = task.result()
+                    collected.extend(result.records)
                     flow = task_to_flow[task]
                     log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
-                    if not result.is_safe:
-                        log.info(
-                            "[%s] %s flow %s blocked (cancelling %d remaining)",
-                            req_id,
-                            direction.value,
-                            flow,
-                            len(pending_tasks),
-                        )
+                    if not result.is_safe and first_unsafe is None:
+                        first_unsafe = result
+                        log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
+                if first_unsafe is not None:
+                    if pending_tasks:
+                        log.info("[%s] %s cancelling %d remaining", req_id, direction.value, len(pending_tasks))
                         for t in pending_tasks:
                             t.cancel()
-                        if pending_tasks:
-                            await asyncio.wait(pending_tasks)
-                        return result
-            return RailResult(is_safe=True)
+                        await asyncio.wait(pending_tasks)
+                    return replace(first_unsafe, records=tuple(collected))
+            return RailResult(is_safe=True, records=tuple(collected))
         except BaseException:
             for t in tasks:
                 if not t.done():

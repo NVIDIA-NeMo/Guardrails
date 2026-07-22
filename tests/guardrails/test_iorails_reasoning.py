@@ -138,7 +138,7 @@ class TestReasoningContent:
             return_value=LLMResponse(content="Hello", reasoning="thinking step")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
         # Output rails see the original content unchanged when reasoning came from
@@ -154,7 +154,7 @@ class TestReasoningContent:
             return_value=LLMResponse(content="<think>thinking step</think>Hello")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>thinking step</think>\nHello"}
         # Output rails MUST receive content with <think> tags stripped — this is
@@ -178,7 +178,7 @@ class TestReasoningContent:
             )
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {
             "role": "assistant",
@@ -195,7 +195,7 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="<think>incomplete reasoning"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>incomplete reasoning"}
         iorails.rails_manager.is_output_safe.assert_called_once_with(
@@ -209,7 +209,7 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="orphan</think> reply"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "orphan</think> reply"}
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "orphan</think> reply", enabled=True)
@@ -224,7 +224,7 @@ class TestReasoningContent:
             return_value=LLMResponse(content="bad answer", reasoning="reasoning step")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
 
@@ -238,7 +238,7 @@ class TestReasoningContent:
             return_value=LLMResponse(content="<think>thinking</think>bad answer")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         # Output rails see only the stripped content — they're judging the model
@@ -254,7 +254,7 @@ class TestReasoningContent:
             return_value=LLMResponse(content="<think>fallback reasoning</think>Hi", reasoning="")
         )
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "<think>fallback reasoning</think>\nHi"}
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "Hi", enabled=True)
@@ -266,7 +266,7 @@ class TestReasoningContent:
         _stub_safe_rails(iorails)
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="plain answer"))
 
-        result = await iorails.generate_async(messages)
+        result = await iorails.generate_async(messages=messages)
 
         assert result == {"role": "assistant", "content": "plain answer"}
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "plain answer", enabled=True)

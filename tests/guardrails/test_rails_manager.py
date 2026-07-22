@@ -31,8 +31,8 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
-from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
-from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
+from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
@@ -971,3 +971,102 @@ class TestTriggeredRail:
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
         assert result.triggered_rail is None
+
+
+class TestRailCallRecordNaming:
+    """`_rail_call_record` names task/action_name in LLMRails' underscore form.
+
+    The GenerationLog's ``executed_actions[].action_name`` and ``llm_calls[].task``
+    must match LLMRails, which uses the prompt-template key (underscores) rather than
+    the space-separated Colang flow name. ``flow`` itself keeps the space form.
+    """
+
+    @pytest.mark.parametrize(
+        "flow, action_name, task",
+        [
+            (
+                "content safety check input $model=content_safety",
+                "content_safety_check_input",
+                "content_safety_check_input $model=content_safety",
+            ),
+            ("jailbreak detection model", "jailbreak_detection_model", "jailbreak_detection_model"),
+        ],
+        ids=["modelled", "modelless"],
+    )
+    def test_underscore_task_and_action_name(self, flow, action_name, task):
+        """action_name/task use the underscore prompt-template key; ``flow`` keeps its space form."""
+        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult(is_safe=True), call=None)
+
+        assert record.flow == flow
+        assert record.action_name == action_name
+        assert record.task == task
+
+
+class TestSerializePrompt:
+    """`serialize_prompt` renders a message list to a role-labeled string for the log."""
+
+    def test_role_labeled_join(self):
+        """Each message renders as '<role>: <content>', blank-line separated."""
+        out = serialize_prompt(
+            [
+                {"role": "system", "content": "be nice"},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        assert out == "system: be nice\n\nuser: hi"
+
+    def test_missing_content_renders_empty(self):
+        """A message with no content and no other fields renders as just the role label."""
+        out = serialize_prompt([{"role": "assistant", "content": None}])
+        assert out == "assistant: "
+
+    def test_tool_calls_preserved(self):
+        """An assistant tool-call turn keeps its tool_calls rather than rendering blank."""
+        out = serialize_prompt(
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id": "call_1", "function": {"name": "get_weather"}}],
+                }
+            ]
+        )
+        assert "call_1" in out
+        assert "get_weather" in out
+
+    def test_tool_result_fields_preserved(self):
+        """A tool-result turn keeps its tool_call_id and name alongside the content."""
+        out = serialize_prompt([{"role": "tool", "content": "sunny", "tool_call_id": "call_1", "name": "get_weather"}])
+        assert "sunny" in out
+        assert "call_1" in out
+        assert "get_weather" in out
+
+    def test_reasoning_preserved(self):
+        """A reasoning-only turn keeps its reasoning text instead of dropping it."""
+        out = serialize_prompt([{"role": "assistant", "content": None, "reasoning": "thinking hard"}])
+        assert "thinking hard" in out
+
+
+class TestParallelBatchDrainsRecords:
+    """`_run_rails_parallel` keeps records from every task that completed in a batch."""
+
+    @pytest.mark.asyncio
+    async def test_unsafe_first_does_not_drop_later_safe_records(self):
+        """When an unsafe rail sorts before a safe one that finished in the same wait batch, the safe rail's records survive."""
+        manager = _make_rails_manager(RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG))
+
+        unsafe_record = RailCallRecord(flow="jailbreak detection model", rail_type="input", is_safe=False)
+        safe_record = RailCallRecord(flow="content safety check input", rail_type="input", is_safe=True)
+
+        async def _unsafe():
+            return RailResult(is_safe=False, reason="blocked", records=(unsafe_record,))
+
+        async def _safe():
+            return RailResult(is_safe=True, records=(safe_record,))
+
+        # Insertion order sets task_order, so the unsafe rail sorts first in the done batch.
+        rails = {"unsafe": _unsafe(), "safe": _safe()}
+        result = await manager._run_rails_parallel(rails, RailDirection.INPUT)
+
+        assert result.is_safe is False
+        assert {r.flow for r in result.records} == {"jailbreak detection model", "content safety check input"}

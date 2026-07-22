@@ -92,10 +92,14 @@ class TestTopicSafetyPrompt:
 
 class TestTopicSafetyParseResponse:
     def test_on_topic(self, action):
-        assert action._parse_response("on-topic") == RailResult(is_safe=True)
+        result = action._parse_response("on-topic")
+        assert result == RailResult(is_safe=True)
+        assert result.return_value == {"on_topic": True}
 
     def test_off_topic(self, action):
-        assert action._parse_response("off-topic") == RailResult(is_safe=False, reason="Topic safety: off-topic")
+        result = action._parse_response("off-topic")
+        assert result == RailResult(is_safe=False, reason="Topic safety: off-topic")
+        assert result.return_value == {"on_topic": False}
 
     @pytest.mark.parametrize("text", ["Off-Topic", "  off-topic  \n", "OFF-TOPIC"])
     def test_off_topic_variants(self, action, text):

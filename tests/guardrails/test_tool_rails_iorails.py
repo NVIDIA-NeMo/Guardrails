@@ -308,21 +308,21 @@ class TestNonStreamingToolCalls:
     @pytest.mark.asyncio
     async def test_allowed_tool_call_passes(self, iorails):
         _inject_json_response(iorails, _tool_call_payload("get_weather", '{"city": "Paris"}'))
-        result = await iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+        result = await iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.tool_calls[0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_call_blocked(self, iorails):
         _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
-        result = await iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        result = await iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
 
     @pytest.mark.asyncio
     async def test_invalid_arguments_blocked(self, iorails):
         # Missing the required "city" argument violates the declared schema.
         _inject_json_response(iorails, _tool_call_payload("get_weather", "{}"))
-        result = await iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        result = await iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
 
 
 class TestSpeculativeToolCalls:
@@ -336,14 +336,14 @@ class TestSpeculativeToolCalls:
     @pytest.mark.asyncio
     async def test_undeclared_tool_call_blocked(self, speculative_iorails):
         _inject_json_response(speculative_iorails, _tool_call_payload("rm_rf", "{}"))
-        result = await speculative_iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        result = await speculative_iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
 
     @pytest.mark.asyncio
     async def test_allowed_tool_call_passes(self, speculative_iorails):
         _inject_json_response(speculative_iorails, _tool_call_payload("get_weather", '{"city": "Paris"}'))
-        result = await speculative_iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result["tool_calls"][0]["function"]["name"] == "get_weather"
+        result = await speculative_iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.tool_calls[0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
     async def test_input_toggle_forwarded_to_input_rails(self, speculative_iorails):
@@ -351,7 +351,7 @@ class TestSpeculativeToolCalls:
         spy = AsyncMock(wraps=speculative_iorails.rails_manager.is_input_safe)
         speculative_iorails.rails_manager.is_input_safe = spy
         _inject_json_response(speculative_iorails, _text_payload("ok"))
-        await speculative_iorails.generate_async(MESSAGES, options={"rails": {"input": False}})
+        await speculative_iorails.generate_async(messages=MESSAGES, options={"rails": {"input": False}})
         assert spy.await_args.kwargs.get("enabled") is False
 
 
@@ -368,14 +368,14 @@ class TestConfigDeclaredTools:
     async def test_config_declared_tool_call_passes(self, iorails_config_tools):
         """A call to a config-declared tool passes the rail when the request carries no llm_params."""
         _inject_json_response(iorails_config_tools, _tool_call_payload("get_weather", '{"city": "Paris"}'))
-        result = await iorails_config_tools.generate_async(MESSAGES)
+        result = await iorails_config_tools.generate_async(messages=MESSAGES)
         assert result["tool_calls"][0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
     async def test_undeclared_tool_call_blocked_against_config_tools(self, iorails_config_tools):
         """A call to a tool absent from the config toolset is blocked when the request carries no llm_params."""
         _inject_json_response(iorails_config_tools, _tool_call_payload("rm_rf", "{}"))
-        result = await iorails_config_tools.generate_async(MESSAGES)
+        result = await iorails_config_tools.generate_async(messages=MESSAGES)
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
 
     @pytest.mark.asyncio
@@ -392,7 +392,7 @@ class TestNonStreamingToolResults:
     @pytest.mark.asyncio
     async def test_linked_tool_result_passes(self, iorails):
         _inject_json_response(iorails, _text_payload("It is sunny."))
-        result = await iorails.generate_async(make_tool_conversation(result_call_id="call_1"))
+        result = await iorails.generate_async(messages=make_tool_conversation(result_call_id="call_1"))
         assert result == {"role": "assistant", "content": "It is sunny."}
 
     @pytest.mark.asyncio
@@ -400,7 +400,7 @@ class TestNonStreamingToolResults:
         # A blocked tool result must short-circuit before the model is ever called:
         # wire a transport that fails if used, and assert it stayed untouched.
         forbidden_post = _inject_forbidden_transport(iorails)
-        result = await iorails.generate_async(make_tool_conversation(result_call_id="call_999"))
+        result = await iorails.generate_async(messages=make_tool_conversation(result_call_id="call_999"))
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         forbidden_post.assert_not_called()
 
@@ -409,14 +409,14 @@ class TestNonStreamingToolResults:
         """Multi-turn conversation reusing the same call_id across turns is valid"""
 
         _inject_json_response(iorails, _text_payload("It's 12C in London."))
-        result = await iorails.generate_async(multi_turn_reused_call_id_messages())
+        result = await iorails.generate_async(messages=multi_turn_reused_call_id_messages())
         assert result == {"role": "assistant", "content": "It's 12C in London."}
 
     @pytest.mark.asyncio
     async def test_malformed_prior_tool_call_does_not_block(self, iorails):
         """Malformed tool-call in prior turns must not block request."""
         _inject_json_response(iorails, _text_payload("It's 12C in London."))
-        result = await iorails.generate_async(malformed_prior_tool_call_messages())
+        result = await iorails.generate_async(messages=malformed_prior_tool_call_messages())
         assert result == {"role": "assistant", "content": "It's 12C in London."}
 
 
@@ -473,18 +473,18 @@ class TestPerRequestToggles:
         # An undeclared tool call would normally block; disabling tool_output lets it through.
         _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
         options = {"llm_params": LLM_PARAMS, "rails": {"tool_output": False}}
-        result = await iorails.generate_async(MESSAGES, options=options)
-        assert result["tool_calls"][0]["function"]["name"] == "rm_rf"
+        result = await iorails.generate_async(messages=MESSAGES, options=options)
+        assert result.tool_calls[0]["function"]["name"] == "rm_rf"
 
     @pytest.mark.asyncio
     async def test_tool_input_disabled_skips_tool_result_rail(self, iorails):
         # An unlinked tool result would normally block; disabling tool_input lets it through.
         _inject_json_response(iorails, _text_payload("ok"))
         result = await iorails.generate_async(
-            make_tool_conversation(result_call_id="call_999"),
+            messages=make_tool_conversation(result_call_id="call_999"),
             options={"rails": {"tool_input": False}},
         )
-        assert result == {"role": "assistant", "content": "ok"}
+        assert result.response == [{"role": "assistant", "content": "ok"}]
 
     @pytest.mark.asyncio
     async def test_input_toggle_forwarded_to_input_rails(self, iorails):
@@ -492,7 +492,7 @@ class TestPerRequestToggles:
         spy = AsyncMock(wraps=iorails.rails_manager.is_input_safe)
         iorails.rails_manager.is_input_safe = spy
         _inject_json_response(iorails, _text_payload("ok"))
-        await iorails.generate_async(MESSAGES, options={"rails": {"input": False}})
+        await iorails.generate_async(messages=MESSAGES, options={"rails": {"input": False}})
         assert spy.await_args.kwargs.get("enabled") is False
 
     @pytest.mark.asyncio
@@ -501,7 +501,7 @@ class TestPerRequestToggles:
         spy = AsyncMock(wraps=iorails.rails_manager.is_output_safe)
         iorails.rails_manager.is_output_safe = spy
         _inject_json_response(iorails, _text_payload("ok"))
-        await iorails.generate_async(MESSAGES, options={"rails": {"output": False}})
+        await iorails.generate_async(messages=MESSAGES, options={"rails": {"output": False}})
         assert spy.await_args.kwargs.get("enabled") is False
 
     @pytest.mark.asyncio
@@ -530,8 +530,8 @@ class TestFailClosed:
         # parse_tools raises on a duplicate tool name; the request must fail closed.
         _inject_json_response(iorails, _tool_call_payload("get_weather", '{"city": "Paris"}'))
         dup_params = {"tools": [WEATHER_TOOL, WEATHER_TOOL]}
-        result = await iorails.generate_async(MESSAGES, options={"llm_params": dup_params})
-        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        result = await iorails.generate_async(messages=MESSAGES, options={"llm_params": dup_params})
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
 
 
 class TestToolRailBlockMetrics:
@@ -541,7 +541,7 @@ class TestToolRailBlockMetrics:
     async def test_nonstream_tool_result_block_records_input_metric(self, iorails):
         iorails._metrics_enabled = True
         with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
-            result = await iorails.generate_async(make_tool_conversation(result_call_id="call_999"))
+            result = await iorails.generate_async(messages=make_tool_conversation(result_call_id="call_999"))
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         record_blocked.assert_called_once_with(RailDirection.INPUT)
 
@@ -550,8 +550,8 @@ class TestToolRailBlockMetrics:
         iorails._metrics_enabled = True
         _inject_json_response(iorails, _tool_call_payload("rm_rf", "{}"))
         with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_blocked:
-            result = await iorails.generate_async(MESSAGES, options={"llm_params": LLM_PARAMS})
-        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+            result = await iorails.generate_async(messages=MESSAGES, options={"llm_params": LLM_PARAMS})
+        assert result.response == [{"role": "assistant", "content": REFUSAL_MESSAGE}]
         record_blocked.assert_called_once_with(RailDirection.OUTPUT)
 
     @pytest.mark.asyncio
