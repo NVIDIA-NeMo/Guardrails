@@ -1,5 +1,5 @@
 models:
   - type: main
-    engine: custom_llm
+    engine: custom_chat_model
     parameters:
       model: custom_model
