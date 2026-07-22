@@ -17,7 +17,7 @@
 import pytest
 from pydantic import ValidationError
 
-from nemoguardrails.rails.llm.config import Model, RailsConfig, TaskPrompt
+from nemoguardrails.rails.llm.config import Model, RailsConfig, RailsConfigData, TaskPrompt
 
 
 def test_task_prompt_valid_content():
@@ -25,6 +25,346 @@ def test_task_prompt_valid_content():
     assert prompt.task == "example_task"
     assert prompt.content == "This is a valid prompt."
     assert prompt.messages is None
+
+
+def test_clavata_config_field_preserves_legacy_exports():
+    import nemoguardrails.rails.llm.config as config_module
+    from nemoguardrails.library.clavata import rail_config as clavata_config
+    from nemoguardrails.rails.llm.config import ClavataRailConfig, ClavataRailOptions
+
+    assert ClavataRailConfig is clavata_config.ClavataRailConfig
+    assert ClavataRailOptions is clavata_config.ClavataRailOptions
+    assert "ClavataRailConfig" not in config_module.__dict__
+    assert "ClavataRailConfig" in config_module.__all__
+    assert "ClavataRailConfig" in dir(config_module)
+
+
+def test_clavata_config_field_preserves_defaults_and_schema():
+    from nemoguardrails.rails.llm.config import ClavataRailConfig
+
+    field = RailsConfigData.model_fields["clavata"]
+
+    assert field.default_factory is ClavataRailConfig
+    assert field.description == "Configuration for Clavata."
+    assert isinstance(RailsConfigData().clavata, ClavataRailConfig)
+    assert RailsConfigData.__module__ == "nemoguardrails.rails.llm.config"
+    assert "clavata" in RailsConfigData.model_json_schema()["properties"]
+
+
+def test_clavata_config_field_yaml_preserves_default_and_null():
+    from nemoguardrails.rails.llm.config import ClavataRailConfig
+
+    default_config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+        """,
+    )
+    null_config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                clavata: null
+        """,
+    )
+
+    assert isinstance(default_config.rails.config.clavata, ClavataRailConfig)
+    assert null_config.rails.config.clavata is None
+
+
+def test_clavata_config_field_yaml_parses_configured_value():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                clavata:
+                  policies:
+                    AnimalSounds: 00000000-0000-0000-0000-000000000000
+                  input:
+                    policy: AnimalSounds
+                    labels:
+                      - DogBarking
+        """,
+    )
+
+    assert config.rails.config.clavata.policies["AnimalSounds"] == "00000000-0000-0000-0000-000000000000"
+    assert config.rails.config.clavata.input.policy == "AnimalSounds"
+    assert config.rails.config.clavata.input.labels == ["DogBarking"]
+
+
+def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
+    import nemoguardrails.rails.llm.config as config_module
+    from nemoguardrails.manifests import all_rail_manifests
+    from nemoguardrails.manifests.config_schema import RailConfigSpec
+    from nemoguardrails.rails.llm.rails_config_fields import (
+        all_config_fields,
+        config_key_to_rail_name,
+    )
+
+    expected_exports = {
+        "ai_defense": ("AIDefenseRailConfig",),
+        "autoalign": ("AutoAlignOptions", "AutoAlignRailConfig"),
+        "clavata": ("ClavataRailConfig", "ClavataRailOptions"),
+        "content_safety": ("ContentSafetyConfig", "MultilingualConfig", "ReasoningConfig"),
+        "context_bloat_detection": ("ContextBloatDetectionConfig",),
+        "crowdstrike_aidr": ("CrowdStrikeAIDRRailConfig",),
+        "factchecking": ("FactCheckingRailConfig",),
+        "f5": ("F5GuardrailsRailConfig",),
+        "fiddler": ("FiddlerGuardrails",),
+        "gliner": ("GLiNERDetection", "GLiNERDetectionOptions"),
+        "guardrails_ai": ("GuardrailsAIRailConfig", "GuardrailsAIValidatorConfig"),
+        "hf_classifier": (
+            "HFClassifierConfig",
+            "LocalHFClassifierConfig",
+            "RemoteHFClassifierConfig",
+        ),
+        "injection_detection": ("InjectionDetection",),
+        "jailbreak_detection": ("JailbreakDetectionConfig",),
+        "pangea": ("PangeaRailConfig", "PangeaRailOptions"),
+        "patronusai": (
+            "PatronusEvaluationSuccessStrategy",
+            "PatronusEvaluateApiParams",
+            "PatronusEvaluateConfig",
+            "PatronusRailConfig",
+        ),
+        "polygraf": ("PolygrafDetection", "PolygrafDetectionOptions"),
+        "privateai": ("PrivateAIDetection", "PrivateAIDetectionOptions"),
+        "regex": ("RegexDetection", "RegexDetectionOptions"),
+        "sensitive_data_detection": (
+            "SensitiveDataDetection",
+            "SensitiveDataDetectionOptions",
+        ),
+        "trend_micro": ("TrendMicroRailConfig",),
+    }
+    expected_rail_names = set(expected_exports) | {
+        "activefence",
+        "cleanlab",
+        "factchecking.align_score",
+        "gcp_moderate_text",
+        "hallucination",
+        "llama_guard",
+        "policyai",
+        "prompt_security",
+        "self_check.facts",
+        "self_check.input_check",
+        "self_check.output_check",
+        "topic_safety",
+    }
+    expected_config_keys = {
+        "ai_defense",
+        "autoalign",
+        "clavata",
+        "content_safety",
+        "context_bloat_detection",
+        "crowdstrike_aidr",
+        "fact_checking",
+        "f5",
+        "fiddler",
+        "gliner",
+        "guardrails_ai",
+        "hf_classifier",
+        "injection_detection",
+        "jailbreak_detection",
+        "pangea",
+        "patronus",
+        "polygraf",
+        "privateai",
+        "regex_detection",
+        "sensitive_data_detection",
+        "trend_micro",
+    }
+
+    manifests = all_rail_manifests()
+    config_fields = all_config_fields()
+    config_specs = {field.config_key: field.config for field in config_fields.values()}
+
+    assert set(manifests) == expected_rail_names
+    assert set(config_specs) == expected_config_keys
+    assert set(RailsConfigData.model_fields) == expected_config_keys
+    assert config_key_to_rail_name() == {
+        "fact_checking": "factchecking",
+        "patronus": "patronusai",
+        "regex_detection": "regex",
+    }
+
+    for rail_name, export_names in expected_exports.items():
+        field = config_fields[rail_name]
+        assert isinstance(field.config, RailConfigSpec)
+        assert set(field.config.exports) == set(export_names)
+        for export_name in export_names:
+            assert getattr(config_module, export_name) is field.config.exports[export_name]
+
+    assert "topic_safety" not in config_fields
+
+
+def test_rail_config_specs_are_not_hashable():
+    from nemoguardrails.manifests.config_schema import RailConfigSpec, rail_field
+
+    assert RailConfigSpec.__hash__ is None
+
+    with pytest.raises(TypeError, match="unhashable"):
+        hash(RailConfigSpec(annotation=str, field_info=rail_field(default=None)))
+
+
+def test_legacy_config_spec_key_is_accepted():
+    from nemoguardrails.manifests.config_schema import RailConfigSpec, rail_field
+
+    spec = RailConfigSpec(key="legacy", annotation=str, field_info=rail_field(default=None))
+
+    assert spec.key == "legacy"
+
+
+def test_discover_rails_config_fields_fails_on_reentrant_discovery():
+    import nemoguardrails.rails.llm.rails_config_fields as rails_config_fields
+
+    rails_config_fields._reset_rails_config_fields_cache()
+    rails_config_fields._discovering = True
+
+    try:
+        with pytest.raises(RuntimeError, match="re-entered"):
+            rails_config_fields.discover_rails_config_fields()
+    finally:
+        rails_config_fields._reset_rails_config_fields_cache()
+
+
+def test_builtin_rail_config_modules_use_supported_imports():
+    import ast
+    from pathlib import Path
+
+    allowed_imports = {
+        "__future__",
+        "enum",
+        "logging",
+        "os",
+        "pydantic",
+        "re",
+        "typing",
+        "nemoguardrails.manifests.config_schema",
+    }
+    library_path = Path("nemoguardrails/library")
+    disallowed_imports = []
+
+    for path in sorted(library_path.rglob("rail_config.py")):
+        module = ast.parse(path.read_text(encoding="utf-8"))
+        for node in module.body:
+            if isinstance(node, ast.Import):
+                disallowed_imports.extend(
+                    f"{path}: import {alias.name}" for alias in node.names if alias.name not in allowed_imports
+                )
+            elif isinstance(node, ast.ImportFrom):
+                module_name = node.module or ""
+                if module_name not in allowed_imports:
+                    disallowed_imports.append(f"{path}: from {module_name} import ...")
+
+    assert disallowed_imports == []
+
+
+def test_builtin_rail_config_models_use_supported_base_model():
+    import importlib
+
+    from pydantic import BaseModel
+
+    from nemoguardrails.manifests.config_schema import RailConfigBaseModel
+    from nemoguardrails.rails.llm.rails_config_fields import all_config_fields
+
+    unsupported_models = []
+    for origin in sorted({field.origin for field in all_config_fields().values()}):
+        module = importlib.import_module(origin)
+        for name, value in vars(module).items():
+            if not isinstance(value, type):
+                continue
+            if value.__module__ != origin:
+                continue
+            if not issubclass(value, BaseModel) or value is RailConfigBaseModel:
+                continue
+            if not issubclass(value, RailConfigBaseModel):
+                unsupported_models.append(f"{origin}.{name}")
+                continue
+    assert unsupported_models == []
+
+    from nemoguardrails.library.gliner.rail_config import GLiNERDetection, GLiNERDetectionOptions
+
+    assert RailConfigBaseModel.model_config.get("extra") == "ignore"
+    assert GLiNERDetection.model_config.get("extra") == "forbid"
+    assert GLiNERDetectionOptions.model_config.get("extra") == "forbid"
+
+
+def test_rail_config_schema_exposes_supported_surface():
+    import nemoguardrails.manifests.config_schema as rail_config_schema
+
+    assert "BaseModel" not in rail_config_schema.__all__
+    assert not hasattr(rail_config_schema, "BaseModel")
+    assert rail_config_schema.RailConfigBaseModel.model_config.get("extra") == "ignore"
+
+
+def test_rail_config_modules_are_referenced_by_manifests():
+    from pathlib import Path
+
+    from nemoguardrails.manifests import all_rail_manifests, import_ref_target
+
+    library_path = Path("nemoguardrails/library")
+    config_files = sorted(library_path.rglob("config.py"))
+    rail_config_modules = {
+        ".".join(("nemoguardrails", "library", *path.relative_to(library_path).with_suffix("").parts))
+        for path in sorted(library_path.rglob("rail_config.py"))
+    }
+    manifest_config_modules = [
+        import_ref_target(manifest.config_schema.spec).partition(":")[0]
+        for manifest in all_rail_manifests().values()
+        if manifest.config_schema is not None
+    ]
+
+    assert config_files == []
+    assert rail_config_modules == set(manifest_config_modules)
+    assert len(manifest_config_modules) == len(set(manifest_config_modules))
+
+
+def test_builtin_rail_exports_do_not_shadow_core_config_names():
+    import ast
+    from pathlib import Path
+
+    import nemoguardrails.rails.llm.config as config_module
+    from nemoguardrails.rails.llm.rails_config_fields import config_exported_names
+
+    def collect_targets(target):
+        if isinstance(target, ast.Name):
+            return {target.id}
+        if isinstance(target, (ast.Tuple, ast.List)):
+            return {name for element in target.elts for name in collect_targets(element)}
+        return set()
+
+    config_source = Path(config_module.__file__).read_text(encoding="utf-8")
+    module = ast.parse(config_source)
+    core_names = set()
+
+    for node in module.body:
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
+            core_names.add(node.name)
+        elif isinstance(node, ast.Import):
+            core_names.update(alias.asname or alias.name.partition(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            core_names.update(alias.asname or alias.name for alias in node.names if alias.name != "*")
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                core_names.update(collect_targets(target))
+        elif isinstance(node, ast.AnnAssign):
+            core_names.update(collect_targets(node.target))
+        elif isinstance(node, ast.For):
+            core_names.update(collect_targets(node.target))
+
+    assert config_module.Model is Model
+    assert config_module.Model.__module__ == "nemoguardrails.rails.llm.config"
+    assert set(config_exported_names()).isdisjoint(core_names)
+
+
+def test_rail_config_export_shadowing_validation_reports_origin():
+    from nemoguardrails.rails.llm.rails_config_fields import validate_no_config_export_shadowing
+
+    with pytest.raises(ValueError, match="ClavataRailConfig.*clavata.*rail_config"):
+        validate_no_config_export_shadowing({"ClavataRailConfig"})
+
+    validate_no_config_export_shadowing({"MissingRailExport"})
 
 
 def test_task_prompt_valid_messages():

@@ -1097,6 +1097,20 @@ def test_ai_defense_config_timeout_custom():
     assert ai_defense_config.timeout == 15.0
 
 
+@pytest.mark.parametrize("timeout", [0, -1.0])
+def test_ai_defense_config_rejects_nonpositive_timeout(timeout):
+    with pytest.raises(ValueError, match="greater than 0"):
+        RailsConfig.from_content(
+            yaml_content=f"""
+                models: []
+                rails:
+                  config:
+                    ai_defense:
+                      timeout: {timeout}
+            """,
+        )
+
+
 def test_ai_defense_config_fail_open_default():
     """Test that default fail_open (False) configuration works."""
     config = RailsConfig.from_content(

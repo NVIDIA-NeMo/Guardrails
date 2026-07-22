@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Optional
+
+from nemoguardrails.manifests.config_schema import (
+    Field,
+    RailConfigBaseModel,
+    RailConfigSpec,
+    rail_field,
+)
+
+
+class FiddlerGuardrails(RailConfigBaseModel):
+    """Configuration for Fiddler Guardrails."""
+
+    fiddler_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The global endpoint for Fiddler Guardrails requests.",
+    )
+    safety_threshold: float = Field(
+        default=0.1,
+        description="Fiddler Guardrails safety detection threshold.",
+    )
+    faithfulness_threshold: float = Field(
+        default=0.05,
+        description="Fiddler Guardrails faithfulness detection threshold.",
+    )
+
+
+def build_config_spec() -> RailConfigSpec:
+    return RailConfigSpec(
+        annotation=Optional[FiddlerGuardrails],
+        field_info=rail_field(
+            default_factory=FiddlerGuardrails,
+            description="Configuration for Fiddler Guardrails.",
+        ),
+        exports={"FiddlerGuardrails": FiddlerGuardrails},
+    )

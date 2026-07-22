@@ -165,6 +165,8 @@ include = [
   "nemoguardrails/server/**",
   "nemoguardrails/guardrails/**",
   "nemoguardrails/manifests/**",
+  "nemoguardrails/library/**/rail.py",
+  "nemoguardrails/library/**/rail_config.py",
   "tests/recorded/**"
 
 ]
