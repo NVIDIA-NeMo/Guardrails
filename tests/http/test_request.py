@@ -105,3 +105,39 @@ async def test_http_call_preserves_client_error():
         await http_call(client, "GET", "https://example.com/check")
 
     assert exc_info.value is error
+
+
+@pytest.mark.asyncio
+async def test_http_call_closes_only_the_client_it_creates():
+    response = HTTPResponse(status_code=200, content=b'{"ok": true}')
+    owned = RecordingHTTPClient([response])
+
+    result = await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
+
+    assert owned.close_calls == 1
+    assert result.json() == {"ok": True}
+
+    injected = RecordingHTTPClient([HTTPResponse(status_code=200)])
+    await http_call(injected, "GET", "https://example.com/check")
+
+    assert injected.close_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_http_call_closes_owned_client_when_request_raises():
+    owned = RecordingHTTPClient()
+
+    with pytest.raises(RuntimeError, match="No HTTP responses available"):
+        await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
+
+    assert owned.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_http_call_rejects_unmanaged_factory_result():
+    class UnmanagedClient:
+        async def request(self, method, url, **kwargs):
+            return HTTPResponse(status_code=200)
+
+    with pytest.raises(TypeError, match="managed HTTP client"):
+        await http_call(None, "GET", "https://example.com/check", factory=lambda: UnmanagedClient())

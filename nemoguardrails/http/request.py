@@ -13,12 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any, Mapping
 
-from nemoguardrails.http.client import HTTPClient
-from nemoguardrails.http.runtime import _resolve_http_client, create_http_client
+from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
+from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
+
+
+@asynccontextmanager
+async def _resolve_http_client(
+    client: HTTPClient | None,
+    *,
+    factory: Callable[[], HTTPClient],
+) -> AsyncIterator[HTTPClient]:
+    if client is not None:
+        yield client
+        return
+
+    owned = factory()
+    if not isinstance(owned, ManagedHTTPClient):
+        raise TypeError("HTTP client factory must return a managed HTTP client")
+    try:
+        yield owned
+    finally:
+        await owned.close()
 
 
 async def http_call(

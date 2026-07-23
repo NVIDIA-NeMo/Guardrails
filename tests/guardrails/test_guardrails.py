@@ -1037,23 +1037,15 @@ class TestGuardrailsLifecycle:
         mock_stop.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch.object(LLMRails, "stop", new_callable=AsyncMock)
-    @patch.object(LLMRails, "start", new_callable=AsyncMock)
     @patch.object(LLMRails, "__init__", return_value=None)
-    async def test_startup_calls_start_on_llmrails(
-        self,
-        mock_init,
-        mock_start,
-        mock_stop,
-        _nemoguards_rails_config,
-    ):
+    async def test_startup_skips_start_on_llmrails(self, mock_init, _nemoguards_rails_config):
+        """startup() does not call start() on LLMRails (it has no start method)."""
         guardrails = Guardrails(config=_nemoguards_rails_config, verbose=False, use_iorails=False)
         assert isinstance(guardrails.rails_engine, LLMRails)
 
+        # Should not raise even though LLMRails has no start/stop
         await guardrails.startup()
-        mock_start.assert_called_once()
         await guardrails.shutdown()
-        mock_stop.assert_called_once()
 
     @pytest.mark.asyncio
     @patch.object(IORails, "stop", new_callable=AsyncMock)
