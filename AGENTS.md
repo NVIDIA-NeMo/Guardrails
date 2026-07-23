@@ -95,7 +95,7 @@ as package coverage.
 
 - For PR-ready code changes, pre-commit is the authoritative lint, format,
   license-header, and type-checking path.
-- Standalone Ruff, Ruff format, and Pyright runs are local diagnosis only; run
+- Standalone Ruff, Ruff format, and ty runs are local diagnosis only; run
   pre-commit on changed files before handoff and report if it is skipped.
 - `make test` runs every `pytest.ini` testpath, so it includes `benchmark/tests`,
   not just `tests/`; scope with `TEST=`. The default suite needs no network:
