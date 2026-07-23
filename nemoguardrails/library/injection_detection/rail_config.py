@@ -35,8 +35,7 @@ class InjectionDetection(RailConfigBaseModel):
         default="reject",
         pattern=r"^(reject|omit)$",
         description="Action to take. Options are 'reject' to offer a rejection message, "
-        "'omit' to mask the offending content, and 'sanitize' to pass the content as-is in the safest way. "
-        "These options are listed in descending order of relative safety. 'sanitize' is not implemented at this time.",
+        "and 'omit' to mask the offending content.",
     )
     yara_path: Optional[str] = Field(
         default="",
