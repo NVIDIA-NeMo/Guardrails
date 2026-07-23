@@ -25,8 +25,8 @@ from nemoguardrails.rails.llm.config import RailsConfigData
 
 CONFIG_SCHEMA_SNAPSHOT = Path(__file__).resolve().parents[3] / "schemas" / "rails_config.snapshot.json"
 NON_PORTABLE_DECLARED_FLOWS = {
-    "clavata": {"clavata check for"},
-    "hallucination": {"hallucination warning"},
+    "clavata": {"clavata check for"},  # Colang 2.0-specific flow; no portable surface binding
+    "hallucination": {"hallucination warning"},  # Colang 2.0-specific flow; no portable surface binding
 }
 
 
