@@ -89,10 +89,13 @@ def _check_breaking(spec: str) -> bool:
 
 
 def _fetch_openai_spec(url: str = OPENAI_SPEC_URL) -> Path:
-    tmp = Path(tempfile.mktemp(suffix=".yml"))
-    with urlopen(url) as resp:  # noqa: S310
-        tmp.write_bytes(resp.read())
-    return tmp
+    f = tempfile.NamedTemporaryFile(suffix=".yml", delete=False)
+    try:
+        with urlopen(url) as resp:  # noqa: S310
+            f.write(resp.read())
+    finally:
+        f.close()
+    return Path(f.name)
 
 
 def _export_fastapi_spec() -> Path:
@@ -101,9 +104,12 @@ def _export_fastapi_spec() -> Path:
     from nemoguardrails.server.api import app
 
     spec = app.openapi()
-    tmp = Path(tempfile.mktemp(suffix=".yml"))
-    tmp.write_text(yaml.dump(spec, default_flow_style=False, sort_keys=False))
-    return tmp
+    f = tempfile.NamedTemporaryFile(suffix=".yml", mode="w", delete=False)
+    try:
+        yaml.dump(spec, f, default_flow_style=False, sort_keys=False)
+    finally:
+        f.close()
+    return Path(f.name)
 
 
 def analyze(

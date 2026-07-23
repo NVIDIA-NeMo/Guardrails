@@ -1,6 +1,9 @@
 # Implementation conformance: diffs the actual FastAPI contract (app.openapi())
 # against the upstream OpenAI spec.  Catches schema drift introduced by
 # Pydantic model changes in nemoguardrails/server/.
+#
+# PR checks use a pinned upstream ref for reproducibility.
+# Weekly checks track master to surface upstream drift.
 
 name: "API Conformance: Implementation"
 
@@ -20,6 +23,8 @@ permissions:
 
 env:
   OASDIFF_VERSION: "1.23.0"
+  OPENAI_SPEC_PIN: "f9400172ebe08522ab228b771d885e3bd5456e42"
+  OPENAI_SPEC_URL: "https://raw.githubusercontent.com/openai/openai-openapi"
 
 jobs:
   impl:
@@ -43,7 +48,19 @@ jobs:
           go install github.com/oasdiff/oasdiff@v${{ env.OASDIFF_VERSION }}
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
+      - name: Fetch OpenAI spec
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            REF="master"
+          else
+            REF="${{ env.OPENAI_SPEC_PIN }}"
+          fi
+          curl -fsSL "${{ env.OPENAI_SPEC_URL }}/${REF}/openapi.yaml" \
+            -o /tmp/openai-spec.yml
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
       - name: Check conformance
         run: |
           uv run --locked python scripts/openai_coverage.py \
-            --fastapi --fetch --summary "$GITHUB_STEP_SUMMARY"
+            --openai-spec /tmp/openai-spec.yml --fastapi \
+            --summary "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,9 @@
 # Docs conformance: diffs the hand-written Fern spec (fern/openapi.yml)
 # against the upstream OpenAI spec.  Runs on PRs that touch the spec and
 # weekly to surface upstream drift.
+#
+# PR checks use a pinned upstream ref for reproducibility.
+# Weekly checks track master to surface upstream drift.
 
 name: "API Conformance: Docs"
 
@@ -20,6 +23,8 @@ permissions:
 
 env:
   OASDIFF_VERSION: "1.23.0"
+  OPENAI_SPEC_PIN: "f9400172ebe08522ab228b771d885e3bd5456e42"
+  OPENAI_SPEC_URL: "https://raw.githubusercontent.com/openai/openai-openapi"
 
 jobs:
   docs:
@@ -43,11 +48,24 @@ jobs:
           go install github.com/oasdiff/oasdiff@v${{ env.OASDIFF_VERSION }}
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
+      - name: Fetch OpenAI spec
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            REF="master"
+          else
+            REF="${{ env.OPENAI_SPEC_PIN }}"
+          fi
+          curl -fsSL "${{ env.OPENAI_SPEC_URL }}/${REF}/openapi.yaml" \
+            -o /tmp/openai-spec.yml
+
       - name: Check for breaking changes
         if: github.event_name == 'pull_request'
-        run: uv run --locked python scripts/openai_coverage.py --fetch --check-breaking
+        run: |
+          uv run --locked python scripts/openai_coverage.py \
+            --openai-spec /tmp/openai-spec.yml --check-breaking
 
       - name: Check conformance
         run: |
           uv run --locked python scripts/openai_coverage.py \
-            --fetch --summary "$GITHUB_STEP_SUMMARY"
+            --openai-spec /tmp/openai-spec.yml \
+            --summary "$GITHUB_STEP_SUMMARY"
