@@ -13,6 +13,7 @@ base_config:
   model: nvidia/nemotron-3-nano        # Override per main model under test
   tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4  # Match model above
   url: "http://localhost:8000"
+  health_check_endpoint: "/v1/models"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
 
