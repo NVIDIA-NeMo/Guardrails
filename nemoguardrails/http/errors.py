@@ -26,7 +26,8 @@ def _safe_url(url: str) -> str:
     parts = urlsplit(url)
     hostname = parts.hostname
     if hostname is None:
-        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+        netloc = parts.netloc.rsplit("@", 1)[-1]
+        return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
     host = f"[{hostname}]" if ":" in hostname else hostname
     try:
         port = parts.port

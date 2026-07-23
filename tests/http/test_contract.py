@@ -78,6 +78,22 @@ def test_http_status_error_retains_context_and_redacts_url_credentials():
     assert "secret" not in str(exc_info.value)
 
 
+def test_http_status_error_redacts_url_credentials_without_hostname():
+    request = HTTPRequest(
+        method="get",
+        url="https://user:password@/check?api_key=secret#fragment",
+    )
+    response = HTTPResponse(status_code=500)
+
+    with pytest.raises(HTTPStatusError) as exc_info:
+        response.raise_for_status(request)
+
+    assert "GET https:///check" in str(exc_info.value)
+    assert "user" not in str(exc_info.value)
+    assert "password" not in str(exc_info.value)
+    assert "secret" not in str(exc_info.value)
+
+
 def test_http_response_accepts_success_and_redirect_statuses():
     HTTPResponse(status_code=204).raise_for_status()
     HTTPResponse(status_code=302).raise_for_status()
