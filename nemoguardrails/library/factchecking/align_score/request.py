@@ -17,7 +17,7 @@ import logging
 from typing import Optional
 
 from nemoguardrails.actions import action
-from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, http_call
 
 log = logging.getLogger(__name__)
 
@@ -35,14 +35,13 @@ async def alignscore_request(
 
     payload = {"evidence": evidence, "claim": response}
 
-    async with resolve_http_client(http_client) as client:
-        http_response = await http_call(
-            client,
-            "POST",
-            api_url,
-            json=payload,
-            raise_for_status=False,
-        )
+    http_response = await http_call(
+        http_client,
+        "POST",
+        api_url,
+        json=payload,
+        raise_for_status=False,
+    )
     if http_response.status_code != 200:
         log.error(f"AlignScore API request failed with status {http_response.status_code}")
         return None
