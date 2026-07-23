@@ -21,7 +21,7 @@ from typing import Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, http_call
 
 log = logging.getLogger(__name__)
 
@@ -72,15 +72,14 @@ async def ps_protect_api_async(
     modified_text = None
     ps_action = "log"
     try:
-        async with resolve_http_client(http_client) as client:
-            result = await http_call(
-                client,
-                "POST",
-                ps_protect_url,
-                headers=headers,
-                json=payload,
-                raise_for_status=False,
-            )
+        result = await http_call(
+            http_client,
+            "POST",
+            ps_protect_url,
+            headers=headers,
+            json=payload,
+            raise_for_status=False,
+        )
         data = result.json()
         ps_action = data.get("result", {}).get("action", "log")
         if ps_action == "modify":

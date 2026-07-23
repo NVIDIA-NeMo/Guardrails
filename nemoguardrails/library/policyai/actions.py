@@ -29,7 +29,7 @@ from typing import Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, http_call
 
 log = logging.getLogger(__name__)
 
@@ -89,16 +89,15 @@ async def call_policyai_api(
         ],
     }
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            url,
-            headers=headers,
-            json=data,
-            timeout=30,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        url,
+        headers=headers,
+        json=data,
+        timeout=30,
+        raise_for_status=False,
+    )
     if response.status_code != 200:
         raise ValueError(f"PolicyAI call failed with status code {response.status_code}.\nDetails: {response.text}")
     response_json = response.json()

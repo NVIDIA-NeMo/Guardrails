@@ -30,7 +30,6 @@ from nemoguardrails.http import (
     RetryPolicy,
     create_http_client,
     http_call,
-    resolve_http_client,
 )
 from nemoguardrails.rails.llm.config import F5GuardrailsRailConfig, RailsConfig
 
@@ -77,8 +76,17 @@ def _retry_policy(f5_config: F5GuardrailsRailConfig) -> RetryPolicy:
     )
 
 
-def _create_http_client() -> HTTPClient:
-    return create_http_client(timeout=30.0, retry_policy=RetryPolicy(max_attempts=1))
+def _retrying_http_client(client: HTTPClient, f5_config: F5GuardrailsRailConfig) -> HTTPClient:
+    return RetryingHTTPClient(
+        client,
+        _retry_policy(f5_config),
+        sleep=asyncio.sleep,
+        random_value=lambda: 1.0,
+    )
+
+
+def _create_http_client(f5_config: F5GuardrailsRailConfig) -> HTTPClient:
+    return _retrying_http_client(create_http_client(timeout=30.0), f5_config)
 
 
 @action(name="f5_guardrails_scan", is_system_action=True)
@@ -128,22 +136,17 @@ async def f5_guardrails_scan(
     }
 
     try:
-        async with resolve_http_client(http_client, factory=_create_http_client) as client:
-            retrying_client = RetryingHTTPClient(
-                client,
-                _retry_policy(f5_config),
-                sleep=asyncio.sleep,
-                random_value=lambda: 1.0,
-            )
-            response = await http_call(
-                retrying_client,
-                "POST",
-                endpoint,
-                headers=headers,
-                json=payload,
-                timeout=30.0,
-                raise_for_status=False,
-            )
+        client = _retrying_http_client(http_client, f5_config) if http_client is not None else None
+        response = await http_call(
+            client,
+            "POST",
+            endpoint,
+            headers=headers,
+            json=payload,
+            timeout=30.0,
+            raise_for_status=False,
+            factory=lambda: _create_http_client(f5_config),
+        )
     except (HTTPTimeoutError, asyncio.TimeoutError):
         log.error("F5 Guardrails API call timed out after 30 seconds")
 

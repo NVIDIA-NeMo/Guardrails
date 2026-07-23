@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, http_call
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 
 log = logging.getLogger(__name__)
@@ -168,15 +168,14 @@ async def autoalign_infer(
 
     guardrails_configured = []
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            request_url,
-            headers=headers,
-            json=request_body,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        request_url,
+        headers=headers,
+        json=request_body,
+        raise_for_status=False,
+    )
     if response.status_code != 200:
         raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
     for line in response.content.splitlines():
@@ -204,15 +203,14 @@ async def autoalign_groundedness_infer(
     if guardrails_config:
         groundness_config.update(guardrails_config)
     request_body = {"prompt": text, "documents": documents, "config": groundness_config}
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            request_url,
-            headers=headers,
-            json=request_body,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        request_url,
+        headers=headers,
+        json=request_body,
+        raise_for_status=False,
+    )
     if response.status_code != 200:
         raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
     for line in response.content.splitlines():
@@ -248,15 +246,14 @@ async def autoalign_factcheck_infer(
         "config": guardrails_config,
         "multi_language": multi_language,
     }
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            request_url,
-            headers=headers,
-            json=request_body,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        request_url,
+        headers=headers,
+        json=request_body,
+        raise_for_status=False,
+    )
     if response.status_code != 200:
         raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
     factcheck_response = response.json()
