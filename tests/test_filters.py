@@ -24,19 +24,32 @@ from nemoguardrails.llm.filters import (
 )
 
 
-def test_co_v2_hides_vendor_system_actions():
-    """Colang 2 history excludes internal vendor action results."""
-    for action_name in ("CallActivefenceApiAction", "CallGcpnlpApiAction"):
-        events = [
-            {
-                "type": f"{action_name}Finished",
-                "uid": action_name,
-                "action_name": action_name,
-                "return_value": "internal result",
-            }
-        ]
+def test_co_v2_hides_rail_action_results():
+    events = [
+        {
+            "type": "AnyRailActionFinished",
+            "uid": "rail-action",
+            "action_name": "AnyRailAction",
+            "return_value": "internal result",
+            "is_rail_action": True,
+        }
+    ]
 
-        assert co_v2(events) == ""
+    assert co_v2(events) == ""
+
+
+def test_co_v2_keeps_non_rail_action_results():
+    events = [
+        {
+            "type": "CustomActionFinished",
+            "uid": "custom-action",
+            "action_name": "CustomAction",
+            "return_value": "custom result",
+            "is_rail_action": False,
+        }
+    ]
+
+    assert co_v2(events) == "  # custom result\n"
 
 
 def test_first_turns():

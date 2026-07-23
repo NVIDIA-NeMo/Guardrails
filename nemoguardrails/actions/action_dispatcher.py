@@ -19,14 +19,18 @@ import importlib.util
 import inspect
 import logging
 import os
+from collections.abc import ItemsView, Iterator, Mapping, ValuesView
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Tuple, Type, TypeAlias, Union, cast
 
 from nemoguardrails import utils
 from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.manifests import ActionRef, RailCatalog, default_rail_catalog, resolve_import_ref
 
 log = logging.getLogger(__name__)
+
+LEGACY_UNMANIFESTED_LIBRARY_PACKAGES: Tuple[str, ...] = ("attention", "utils")
 
 
 class AsyncInvokableAction(Protocol):
@@ -45,12 +49,49 @@ RegisteredAction: TypeAlias = Union[
 ]
 
 
+class _RegisteredActions(Mapping[str, RegisteredAction]):
+    """Read-only view over registered and lazily declared actions.
+
+    Iteration, ``in``, and ``len`` reflect every registered and lazily declared
+    action name. Subscripting (and therefore ``dict(view)``) resolves a lazy
+    action on demand, importing its module and raising ``KeyError`` if it cannot
+    be resolved. ``values`` and ``items`` deliberately expose only actions that
+    are already resolved, so iterating them never triggers a lazy import or
+    fails on an action whose optional dependency is missing.
+    """
+
+    def __init__(self, dispatcher: "ActionDispatcher") -> None:
+        self._dispatcher = dispatcher
+
+    def __getitem__(self, name: str) -> RegisteredAction:
+        action = self._dispatcher.get_action(name)
+        if action is None:
+            raise KeyError(name)
+        return action
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._dispatcher._action_names())
+
+    def __len__(self) -> int:
+        return len(self._dispatcher._action_names())
+
+    def __contains__(self, name: object) -> bool:
+        return isinstance(name, str) and self._dispatcher._has_action_name(name)
+
+    def values(self) -> ValuesView[RegisteredAction]:
+        return self._dispatcher._registered_actions.values()
+
+    def items(self) -> ItemsView[str, RegisteredAction]:
+        return self._dispatcher._registered_actions.items()
+
+
 class ActionDispatcher:
     def __init__(
         self,
         load_all_actions: bool = True,
         config_path: Optional[str] = None,
         import_paths: Optional[List[str]] = None,
+        rail_catalog: Optional[RailCatalog] = None,
     ):
         """
         Initializes an actions dispatcher.
@@ -65,8 +106,14 @@ class ActionDispatcher:
         log.info("Initializing action dispatcher")
 
         self._registered_actions: Dict[str, RegisteredAction] = {}
+        self._lazy_action_refs: Dict[str, ActionRef] = {}
+        self._manifest_action_names: set[str] = set()
+        self._rail_catalog = rail_catalog
+        self._registered_actions_view = _RegisteredActions(self)
 
         if load_all_actions:
+            if self._rail_catalog is None:
+                self._rail_catalog = default_rail_catalog()
             # TODO: check for better way to find actions dir path or use constants.py
             current_file_path = Path(__file__).resolve()
             parent_directory_path = current_file_path.parents[1]
@@ -75,14 +122,9 @@ class ActionDispatcher:
             self.load_actions_from_path(parent_directory_path)
             # self.load_actions_from_path(os.path.join(os.path.dirname(__file__), ".."))
 
-            # Next, we load all actions from the library folder
             library_path = parent_directory_path / "library"
-
-            for root, dirs, files in os.walk(library_path):
-                # We only load the actions if there is an `actions` sub-folder or
-                # an `actions.py` file.
-                if "actions" in dirs or "actions.py" in files:
-                    self.load_actions_from_path(Path(root))
+            self._register_manifest_action_refs()
+            self._load_unmanifested_library_actions(library_path)
 
             # Next, we load all actions from the current working directory
             # TODO: add support for an explicit ACTIONS_PATH
@@ -103,7 +145,7 @@ class ActionDispatcher:
                 for import_path in import_paths:
                     self.load_actions_from_path(Path(import_path.strip()))
 
-        log.info(f"Registered Actions :: {sorted(self._registered_actions.keys())}")
+        log.info(f"Registered Actions :: {sorted(self.get_registered_actions())}")
         log.info("Action dispatcher initialized")
 
     @property
@@ -113,7 +155,7 @@ class ActionDispatcher:
         Returns:
             dict: A dictionary where keys are action names and values are callable action functions.
         """
-        return self._registered_actions
+        return self._registered_actions_view
 
     def load_actions_from_path(self, path: Path):
         """Loads all actions from the specified path.
@@ -127,11 +169,19 @@ class ActionDispatcher:
         """
         actions_path = path / "actions"
         if os.path.exists(actions_path):
-            self._registered_actions.update(self._find_actions(actions_path))
+            actions = self._find_actions(actions_path)
+            self._registered_actions.update(actions)
+            for action_name in actions:
+                self._lazy_action_refs.pop(action_name, None)
+                self._manifest_action_names.discard(action_name)
 
         actions_py_path = os.path.join(path, "actions.py")
         if os.path.exists(actions_py_path):
-            self._registered_actions.update(self._load_actions_from_module(actions_py_path))
+            actions = self._load_actions_from_module(actions_py_path)
+            self._registered_actions.update(actions)
+            for action_name in actions:
+                self._lazy_action_refs.pop(action_name, None)
+                self._manifest_action_names.discard(action_name)
 
     def register_action(self, action: RegisteredAction, name: Optional[str] = None, override: bool = True):
         """Registers an action with the given name.
@@ -150,10 +200,28 @@ class ActionDispatcher:
             action_name = name
 
         # If we're not allowed to override, we stop.
-        if action_name in self._registered_actions and not override:
-            return
+        if action_name in self._registered_actions or action_name in self._lazy_action_refs:
+            if not override:
+                return
 
+        self._lazy_action_refs.pop(action_name, None)
+        self._manifest_action_names.discard(action_name)
         self._registered_actions[action_name] = action
+
+    def _has_action_name(self, action_name: str) -> bool:
+        return action_name in self._registered_actions or action_name in self._lazy_action_refs
+
+    def _action_names(self) -> tuple[str, ...]:
+        return tuple(self._registered_actions) + tuple(
+            name for name in self._lazy_action_refs if name not in self._registered_actions
+        )
+
+    def _register_action_ref(self, action_ref: ActionRef, override: bool = True) -> None:
+        if self._has_action_name(action_ref.name) and not override:
+            return
+        self._registered_actions.pop(action_ref.name, None)
+        self._lazy_action_refs[action_ref.name] = action_ref
+        self._manifest_action_names.add(action_ref.name)
 
     def register_actions(self, actions_obj: Any, override: bool = True):
         """Registers all the actions from the given object.
@@ -170,9 +238,53 @@ class ActionDispatcher:
             if hasattr(val, "action_meta"):
                 self.register_action(val, override=override)
 
+    def _register_manifest_action_refs(self) -> None:
+        if self._rail_catalog is None:
+            return
+        for record in self._rail_catalog.records.values():
+            manifest = record.manifest
+            if manifest.actions is None:
+                continue
+            for action_ref in manifest.actions.refs:
+                self._register_action_ref(action_ref)
+
+    def _load_unmanifested_library_actions(self, library_path: Path) -> None:
+        """Load pre-manifest library packages that register actions directly.
+
+        Manifested library actions are indexed as lazy refs by
+        `_register_manifest_action_refs`; only the packages in
+        `LEGACY_UNMANIFESTED_LIBRARY_PACKAGES` still register eagerly.
+        """
+        for package_name in LEGACY_UNMANIFESTED_LIBRARY_PACKAGES:
+            self.load_actions_from_path(library_path / package_name)
+
+    def _resolve_registered_action(self, action_name: str) -> Optional[RegisteredAction]:
+        action = self._registered_actions.get(action_name)
+        if action is None:
+            action_ref = self._lazy_action_refs.get(action_name)
+            if action_ref is None:
+                return None
+            resolved_action = resolve_import_ref(action_ref)
+            action_meta = getattr(resolved_action, "action_meta", {})
+            if action_meta and action_meta.get("name") != action_ref.name:
+                raise ValueError(
+                    f"Lazy action ref {action_ref.name!r} resolved to action "
+                    f"{action_meta.get('name')!r} from {action_ref.target!r}."
+                )
+            self._registered_actions[action_name] = resolved_action
+            self._lazy_action_refs.pop(action_name, None)
+            return cast(RegisteredAction, resolved_action)
+
+        return action
+
+    @staticmethod
+    def _sanitize_for_log(value: Any) -> str:
+        """Sanitize values before logging to prevent log injection."""
+        return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
     def _normalize_action_name(self, name: str) -> str:
         """Normalize the action name to the required format."""
-        if name not in self.registered_actions:
+        if not self._has_action_name(name):
             if name.endswith("Action"):
                 name = name.replace("Action", "")
             name = utils.camelcase_to_snakecase(name)
@@ -181,7 +293,11 @@ class ActionDispatcher:
     def has_registered(self, name: str) -> bool:
         """Check if an action is registered."""
         name = self._normalize_action_name(name)
-        return name in self.registered_actions
+        return self._has_action_name(name)
+
+    def is_manifest_action(self, name: str) -> bool:
+        name = self._normalize_action_name(name)
+        return name in self._manifest_action_names
 
     def get_action(self, name: str) -> Optional[RegisteredAction]:
         """Get the registered action by name.
@@ -193,7 +309,11 @@ class ActionDispatcher:
             callable: The registered action.
         """
         name = self._normalize_action_name(name)
-        return self._registered_actions.get(name, None)
+        try:
+            return self._resolve_registered_action(name)
+        except Exception:
+            log.exception("Failed to resolve action '%s'.", self._sanitize_for_log(name))
+            return None
 
     async def execute_action(
         self, action_name: str, params: Dict[str, Any]
@@ -210,9 +330,13 @@ class ActionDispatcher:
 
         action_name = self._normalize_action_name(action_name)
 
-        if action_name in self._registered_actions:
+        if self._has_action_name(action_name):
             log.info("Executing registered action: %s", action_name)
-            maybe_fn: Optional[RegisteredAction] = self._registered_actions.get(action_name, None)
+            try:
+                maybe_fn = self._resolve_registered_action(action_name)
+            except Exception:
+                log.exception("Failed to resolve action '%s'.", self._sanitize_for_log(action_name))
+                return None, "failed"
             if not maybe_fn:
                 raise Exception(f"Action '{action_name}' is not registered.")
 
@@ -274,7 +398,7 @@ class ActionDispatcher:
         Returns:
             List[str]: List of available actions.
         """
-        return list(self._registered_actions.keys())
+        return list(self._action_names())
 
     @staticmethod
     def _load_actions_from_module(filepath: str):
@@ -324,10 +448,6 @@ class ActionDispatcher:
             if not module.__file__:
                 raise RuntimeError(f"No file found for module {module} at {filepath}.")
 
-            try:
-                relative_filepath = Path(module.__file__).relative_to(Path.cwd())
-            except ValueError:
-                relative_filepath = Path(module.__file__).resolve()
             log.error(f"Failed to register {filename} in action dispatcher due to exception: {e}")
 
         return action_objects
@@ -349,7 +469,7 @@ class ActionDispatcher:
             return action_objects
 
         # Loop through all files in the directory and its subdirectories
-        for root, dirs, files in os.walk(directory):
+        for root, _dirs, files in os.walk(directory):
             for filename in files:
                 if filename.endswith(".py"):
                     filepath = os.path.join(root, filename)

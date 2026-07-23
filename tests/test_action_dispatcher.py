@@ -14,13 +14,33 @@
 # limitations under the License.
 
 import inspect
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from nemoguardrails.actions.action_dispatcher import ActionDispatcher
+import nemoguardrails
+from nemoguardrails.actions.action_dispatcher import (
+    LEGACY_UNMANIFESTED_LIBRARY_PACKAGES,
+    ActionDispatcher,
+)
+from nemoguardrails.manifests import ActionRef, default_rail_catalog
+
+
+def _lazy_test_action(value: str = "ok") -> str:
+    return value
+
+
+setattr(_lazy_test_action, "action_meta", {"name": "lazy_test_action"})
+
+
+def _mismatched_lazy_test_action() -> None:
+    return None
+
+
+setattr(_mismatched_lazy_test_action, "action_meta", {"name": "different_lazy_action"})
 
 
 @pytest.fixture
@@ -91,6 +111,175 @@ async def test_execute_action_with_async_invoke():
     assert result == ("done", "success")
 
 
+def test_load_all_actions_registers_builtin_library_action_refs_lazily():
+    catalog = default_rail_catalog()
+    action_modules = {
+        action_ref.target.partition(":")[0]
+        for record in catalog.records.values()
+        for action_ref in (record.manifest.actions.refs if record.manifest.actions is not None else ())
+    }
+    action_module = "nemoguardrails.library.content_safety.actions"
+    sys.modules.pop(action_module, None)
+    loaded_modules = set(sys.modules)
+
+    dispatcher = ActionDispatcher(load_all_actions=True)
+
+    assert action_modules.isdisjoint(set(sys.modules) - loaded_modules)
+    assert "content_safety_check_input" in dispatcher.get_registered_actions()
+    assert dispatcher.is_manifest_action("ContentSafetyCheckInputAction")
+    assert action_module not in sys.modules
+    registered_actions = dispatcher.registered_actions
+    assert "content_safety_check_input" in registered_actions
+    assert "unknown_action" not in registered_actions
+    assert action_module not in sys.modules
+    assert callable(registered_actions["content_safety_check_input"])
+    assert action_module in sys.modules
+
+
+def test_load_all_actions_preserves_unmanifested_library_actions():
+    dispatcher = ActionDispatcher(load_all_actions=True)
+
+    assert "GetCurrentDateTimeAction" in dispatcher.get_registered_actions()
+    assert "GetAttentionPercentageAction" in dispatcher.get_registered_actions()
+    assert not isinstance(dispatcher.registered_actions["GetCurrentDateTimeAction"], ActionRef)
+    assert not dispatcher.is_manifest_action("GetCurrentDateTimeAction")
+
+
+def test_legacy_unmanifested_packages_match_library_layout():
+    """Eagerly loaded packages must equal the library packages without a manifest.
+
+    The dispatcher only loads `LEGACY_UNMANIFESTED_LIBRARY_PACKAGES` eagerly; a
+    new library action package without a rail.py manifest would otherwise never
+    be registered, so this locks the constant to the actual library layout.
+    """
+    library_root = Path(nemoguardrails.__file__).parent / "library"
+
+    unmanifested_packages = set()
+    for path in library_root.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        if "@action(" not in path.read_text(encoding="utf-8"):
+            continue
+        package_dir = path.parent
+        while package_dir != library_root and not (package_dir / "rail.py").exists():
+            package_dir = package_dir.parent
+        if package_dir == library_root:
+            unmanifested_packages.add(path.relative_to(library_root).parts[0])
+
+    assert unmanifested_packages == set(LEGACY_UNMANIFESTED_LIBRARY_PACKAGES)
+
+
+@pytest.mark.asyncio
+async def test_lazy_action_ref_resolves_and_caches():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name="lazy_test_action",
+            target="tests.test_action_dispatcher:_lazy_test_action",
+        )
+    )
+
+    assert dispatcher.has_registered("lazy_test_action")
+    assert dispatcher.is_manifest_action("lazy_test_action")
+    assert isinstance(dispatcher._lazy_action_refs["lazy_test_action"], ActionRef)
+    assert dispatcher.get_action("lazy_test_action") is _lazy_test_action
+    assert dispatcher.is_manifest_action("lazy_test_action")
+    assert dispatcher.registered_actions["lazy_test_action"] is _lazy_test_action
+
+    result = await dispatcher.execute_action("lazy_test_action", params={"value": "done"})
+
+    assert result == ("done", "success")
+
+
+def test_registered_action_override_clears_manifest_ownership():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name="lazy_test_action",
+            target="tests.test_action_dispatcher:_lazy_test_action",
+        )
+    )
+
+    dispatcher.register_action(_lazy_test_action)
+
+    assert not dispatcher.is_manifest_action("lazy_test_action")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action_ref",
+    [
+        ActionRef(
+            name="missing_module_action",
+            target="tests.missing_lazy_action_module:action",
+        ),
+        ActionRef(
+            name="missing_attribute_action",
+            target="tests.test_action_dispatcher:missing_lazy_action",
+        ),
+        ActionRef(
+            name="mismatched_lazy_action",
+            target="tests.test_action_dispatcher:_mismatched_lazy_test_action",
+        ),
+    ],
+    ids=("missing-module", "missing-attribute", "name-mismatch"),
+)
+async def test_lazy_action_resolution_failures_follow_dispatcher_contract(action_ref):
+    """Lazy resolution failures remain contained by dispatcher APIs."""
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(action_ref)
+
+    assert dispatcher.get_action(action_ref.name) is None
+    with pytest.raises(KeyError, match=action_ref.name):
+        dispatcher.registered_actions[action_ref.name]
+    assert await dispatcher.execute_action(action_ref.name, params={}) == (None, "failed")
+
+
+@pytest.mark.asyncio
+async def test_lazy_action_resolution_logs_escape_line_breaks(caplog):
+    action_name = "unsafe\r\naction"
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name=action_name,
+            target="tests.missing_lazy_action_module:action",
+        )
+    )
+
+    assert dispatcher.get_action(action_name) is None
+    assert await dispatcher.execute_action(action_name, params={}) == (None, "failed")
+
+    expected = "Failed to resolve action 'unsafe\\r\\naction'."
+    assert caplog.messages == [expected, expected]
+
+
+def test_registered_actions_view_does_not_import_lazy_actions():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(name="lazy_test_action", target="tests.test_action_dispatcher:_lazy_test_action")
+    )
+    dispatcher._register_action_ref(ActionRef(name="broken_action", target="tests.missing_lazy_action_module:action"))
+    view = dispatcher.registered_actions
+
+    # Membership and iteration expose the full declared namespace.
+    assert set(view) == {"lazy_test_action", "broken_action"}
+    assert "lazy_test_action" in view and "broken_action" in view
+    assert len(view) == 2
+
+    # Materializing the view resolves nothing, so an unresolvable ref cannot
+    # raise and no module is imported yet.
+    assert dict(view.items()) == {}
+    assert tuple(view.values()) == ()
+
+    # Subscripting still resolves a single action and caches it.
+    assert view["lazy_test_action"] is _lazy_test_action
+    assert dict(view.items()) == {"lazy_test_action": _lazy_test_action}
+
+    # The failure contract for direct access is preserved.
+    with pytest.raises(KeyError, match="broken_action"):
+        view["broken_action"]
+
+
 def test_load_actions_from_nonexistent_module():
     """Test loading actions from a non-existent module"""
 
@@ -118,8 +307,8 @@ def test_load_actions_from_invalid_module():
         assert actions == {}
 
 
-def test_load_actions_from_module_relative_path_exception(monkeypatch):
-    """Test loading actions from a module with invalid code"""
+def test_load_actions_from_module_logs_invalid_syntax(monkeypatch):
+    """Test that invalid action module syntax is logged."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = "invalid_actions.py"
@@ -129,21 +318,10 @@ def test_load_actions_from_module_relative_path_exception(monkeypatch):
 
         dispatcher = ActionDispatcher(load_all_actions=False)
 
-        # Mock the logger to capture the log messages
         mock_logger = MagicMock()
         monkeypatch.setattr("nemoguardrails.actions.action_dispatcher.log", mock_logger)
 
-        # Mock Path.cwd() to raise ValueError when calling relative_to
-        original_cwd = Path.cwd
-        monkeypatch.setattr(
-            "nemoguardrails.actions.action_dispatcher.Path.cwd",
-            lambda: (_ for _ in ()).throw(ValueError),
-        )
-
-        try:
-            actions = dispatcher._load_actions_from_module(str(module_path))
-        finally:
-            monkeypatch.setattr("nemoguardrails.actions.action_dispatcher.Path.cwd", original_cwd)
+        actions = dispatcher._load_actions_from_module(str(module_path))
 
         assert actions == {}
         mock_logger.error.assert_called()

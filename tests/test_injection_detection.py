@@ -740,7 +740,8 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     some_text_that_would_be_injection = "This is a test string."
 
-    caplog.set_level(logging.ERROR, logger="actions.py")
+    logger_name = "nemoguardrails.library.injection_detection.actions"
+    caplog.set_level(logging.ERROR, logger=logger_name)
 
     chat = TestChat(config, llm_completions=[some_text_that_would_be_injection])
     rails = chat.app
@@ -754,7 +755,7 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     # verify the error log was created with the expected content
     assert any(
-        record.name == "actions.py"
+        record.name == logger_name
         and record.levelno == logging.ERROR
         # minor variations in the error message are expected
         and "Failed to initialize injection detection" in record.message

@@ -126,6 +126,52 @@ def test_builtin_action_refs_match_decorated_names_and_bindings():
                 assert binding.action_param in parameters
 
 
+def test_every_manifested_action_is_declared_in_its_manifest():
+    """Every `@action` in a manifested package must be declared in a manifest.
+
+    The dispatcher registers manifested library actions solely from their
+    declared refs; the package itself is no longer scanned. An `@action` in a
+    manifested package that is missing from every manifest's refs would silently
+    never register, so this asserts the reverse of
+    `test_builtin_action_refs_match_decorated_names_and_bindings`.
+    """
+    library_root = Path("nemoguardrails/library")
+    declared_targets = {
+        action_ref.target
+        for manifest in all_rail_manifests().values()
+        if manifest.actions is not None
+        for action_ref in manifest.actions.refs
+    }
+
+    def _is_action_decorator(decorator: ast.expr) -> bool:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Name):
+            return target.id == "action"
+        if isinstance(target, ast.Attribute):
+            return target.attr == "action"
+        return False
+
+    undeclared = []
+    for path in sorted(library_root.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        if path.relative_to(library_root).parts[0] in LEGACY_UNMANIFESTED_PACKAGES:
+            continue
+        source = path.read_text(encoding="utf-8")
+        if "@action" not in source:
+            continue
+        relative_module = path.relative_to(library_root).with_suffix("")
+        module_name = ".".join(("nemoguardrails", "library", *relative_module.parts))
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if any(_is_action_decorator(decorator) for decorator in node.decorator_list):
+                if f"{module_name}:{node.name}" not in declared_targets:
+                    undeclared.append(f"{module_name}:{node.name}")
+
+    assert not undeclared, "Manifested actions missing from every manifest's refs:\n" + "\n".join(undeclared)
+
+
 def test_self_check_surfaces_bind_optional_variant():
     manifests = all_rail_manifests()
 
