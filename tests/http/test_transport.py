@@ -86,9 +86,11 @@ async def test_httpx_transport_forwards_content():
     [
         (httpx.ReadTimeout("slow"), HTTPTimeoutError),
         (httpx.ConnectError("unavailable"), HTTPConnectionError),
+        (httpx.DecodingError("invalid response encoding"), HTTPConnectionError),
+        (httpx.TooManyRedirects("redirect limit exceeded"), HTTPConnectionError),
     ],
 )
-async def test_httpx_transport_translates_transport_errors(transport_error, expected_error):
+async def test_httpx_transport_translates_request_errors(transport_error, expected_error):
     async def handler(request: httpx.Request) -> httpx.Response:
         transport_error.request = request
         raise transport_error

@@ -90,7 +90,7 @@ class HttpxHTTPClient:
 
         Raises:
             HTTPTimeoutError: If the request exceeds its total timeout.
-            HTTPConnectionError: If HTTPX reports a transport failure.
+            HTTPConnectionError: If HTTPX reports a request failure.
             ValueError: If the per-request timeout is not positive.
         """
 
@@ -112,7 +112,7 @@ class HttpxHTTPClient:
             raise HTTPTimeoutError("HTTP request timed out") from error
         except httpx.TimeoutException as error:
             raise HTTPTimeoutError("HTTP request timed out") from error
-        except httpx.TransportError as error:
+        except httpx.RequestError as error:
             raise HTTPConnectionError("HTTP transport failed") from error
         return HTTPResponse(
             status_code=response.status_code,
