@@ -22,7 +22,7 @@ from typing import Any, Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, HTTPClientError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call
 
 log = logging.getLogger(__name__)
 
@@ -90,15 +90,14 @@ async def ai_defense_inspect(
         payload["metadata"] = metadata
 
     try:
-        async with resolve_http_client(http_client) as client:
-            response = await http_call(
-                client,
-                "POST",
-                api_endpoint,
-                headers=headers,
-                json=payload,
-                timeout=timeout,
-            )
+        response = await http_call(
+            http_client,
+            "POST",
+            api_endpoint,
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
         data = response.json()
     except HTTPClientError as e:
         msg = f"Error calling AI Defense API: {e}"

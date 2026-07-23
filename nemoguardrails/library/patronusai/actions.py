@@ -23,7 +23,7 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
-from nemoguardrails.http import HTTPClient, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, http_call
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -196,15 +196,14 @@ async def patronus_evaluate_request(
         "Content-Type": "application/json",
     }
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            url,
-            headers=headers,
-            json=data,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        url,
+        headers=headers,
+        json=data,
+        raise_for_status=False,
+    )
     if 400 <= response.status_code < 500:
         raise ValueError(
             f"The Patronus Evaluate API call failed with status code {response.status_code}. Details: {response.text}"

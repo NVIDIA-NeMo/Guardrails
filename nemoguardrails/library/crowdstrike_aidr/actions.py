@@ -24,7 +24,7 @@ from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call
 from nemoguardrails.rails.llm.config import CrowdStrikeAIDRRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -120,21 +120,20 @@ async def crowdstrike_aidr_guard(
         messages.append(Message(role="assistant", content=bot_message))
 
     endpoint = base_url_template.format(SERVICE_NAME="aiguard").rstrip("/") + "/v1/guard_chat_completions"
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            endpoint,
-            content=to_json({"guard_input": {"messages": messages}}),
-            headers={
-                "Accept": "application/json",
-                "Authorization": f"Bearer {api_token}",
-                "Content-Type": "application/json",
-                "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
-            },
-            timeout=crowdstrike_aidr_config.timeout,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        endpoint,
+        content=to_json({"guard_input": {"messages": messages}}),
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+            "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
+        },
+        timeout=crowdstrike_aidr_config.timeout,
+        raise_for_status=False,
+    )
     try:
         response.raise_for_status()
         guard_response = GuardChatCompletionsResponse(**response.json())
