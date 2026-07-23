@@ -22,8 +22,11 @@ skill discovery.
   submitted as-is.
 - Do not push branches or prepare public-submission-ready PR materials unless
   the linked issue is triaged and assigned to the human contributor.
-- Do not implement refactors unless a maintainer has approved the plan and
-  assigned the work.
+- Opportunistic refactoring in service of an assigned change is welcome: keep
+  it small, local, and within that change's scope. Standalone refactor PRs and
+  broad restructuring (module reshuffles, sweeping renames, architectural
+  overhauls) are maintainer-led; do not implement them without an approved
+  proposal and assignment. See `CONTRIBUTING.md`.
 - Never edit `CHANGELOG.md` or `CHANGELOG-Colang.md` manually.
 - Do not commit secrets, credentials, or sensitive provider data, and do not
   fabricate results, approvals, or citations. See `AI_POLICY.md` Safety and
