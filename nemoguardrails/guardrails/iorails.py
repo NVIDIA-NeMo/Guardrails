@@ -1381,8 +1381,7 @@ class IORails(BaseGuardrails):
                     return
 
                 # Step 2: Stream main LLM content from structured response.
-                # delta_content is forwarded as text chunks (carrying per-chunk usage /
-                # provider_metadata under include_metadata); delta_tool_calls are
+                # delta_content is forwarded as text chunks; delta_tool_calls are
                 # accumulated and surfaced as a terminal JSON chunk after the text
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
@@ -1396,8 +1395,6 @@ class IORails(BaseGuardrails):
                         content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
                     elif chunk.usage is not None:
-                        # Combine terminal usage-only chunk's metadata into the END_OF_STREAM
-                        # frame. Matches LLMRails.
                         pending_usage_metadata = chunk_metadata
                     if chunk.delta_tool_calls:
                         # Engine emits the complete finalized list once (see

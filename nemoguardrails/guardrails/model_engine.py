@@ -53,10 +53,8 @@ _ENGINE_BASE_URLS = {
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 
-# Standard top-level keys in a /v1/chat/completions (chunk) body. Everything else
-# (e.g. NIM's `nvext` telemetry) is surfaced as provider_metadata, mirroring LLMRails'
-# `_STANDARD_RESPONSE_KEYS` (llm/models/openai_chat.py) so both engines expose the same
-# non-standard fields.
+# Standard top-level keys in a chat-completion chunk; everything else (e.g. NIM's `nvext`)
+# is surfaced as provider_metadata, mirroring LLMRails' `_STANDARD_RESPONSE_KEYS`.
 _STANDARD_CHUNK_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created"})
 
 # Parameter keys the engine reserves and handles itself, so they are NOT
@@ -209,7 +207,6 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     if not delta_content and not delta_reasoning and not usage_dict and not finish_reason:
         return None
 
-    # Non-standard top-level body keys are surfaced as provider_metadata as in LLMRails
     provider_metadata = {
         key: value for key, value in chunk.items() if key not in _STANDARD_CHUNK_KEYS and value is not None
     }
@@ -676,8 +673,8 @@ class ModelEngine(BaseEngine):
             ModelEngineError: If the request fails after all retries.
         """
         self._ensure_running()
-        # Request token usage on the terminal stream chunk for parity with LLMRails parity.
-        # A caller can override or disable it via stream_options in llm_params.
+        # Request usage on the terminal stream chunk (LLMRails parity); a caller can override
+        # or disable it via stream_options in llm_params.
         kwargs.setdefault("stream_options", {"include_usage": True})
         req = self._prepare_request(messages, stream=True, **kwargs)
 
@@ -699,9 +696,8 @@ class ModelEngine(BaseEngine):
             async with req.client.post(req.url, json=req.body, headers=req.headers, timeout=stream_timeout) as response:
                 await self._raise_for_status(response, req_id, t0)
 
-                # Capture the HTTP response headers once and surface them on every chunk as
-                # provider_metadata['response_headers'], matching LLMRails.
-                # Keys are lowercased for parity with LLMRails' httpx client
+                # Surface response headers on every chunk as provider_metadata['response_headers'],
+                # lowercased to match LLMRails' httpx client (aiohttp preserves the server's casing).
                 response_headers = (
                     {key.lower(): value for key, value in response.headers.items()}
                     if isinstance(response.headers, Mapping)
@@ -771,8 +767,7 @@ class ModelEngine(BaseEngine):
                         tool_calls_emitted = True
 
                     if parsed_chunk is not None:
-                        # Merge the response headers in after the chunk's own body-level
-                        # provider_metadata so the shape matches LLMRails:
+                        # Merge headers after the chunk's body-level provider_metadata (e.g. nvext), not over it.
                         if response_headers:
                             parsed_chunk.provider_metadata = {
                                 **(parsed_chunk.provider_metadata or {}),
