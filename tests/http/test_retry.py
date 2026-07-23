@@ -221,6 +221,16 @@ async def test_retry_client_closes_wrapped_managed_client_once():
     assert transport.close_calls == 1
 
 
+@pytest.mark.asyncio
+async def test_retry_client_context_manager_closes_wrapped_client():
+    transport = RecordingHTTPClient()
+
+    async with RetryingHTTPClient(transport) as client:
+        assert isinstance(client, RetryingHTTPClient)
+
+    assert transport.close_calls == 1
+
+
 @pytest.mark.parametrize(
     "policy",
     [

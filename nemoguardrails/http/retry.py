@@ -215,3 +215,13 @@ class RetryingHTTPClient:
         self._closed = True
         if isinstance(self._client, ClosableHTTPClient):
             await self._client.close()
+
+    async def __aenter__(self) -> "RetryingHTTPClient":
+        """Return this client from an asynchronous context manager."""
+
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        """Close wrapped resources when leaving an asynchronous context."""
+
+        await self.close()
