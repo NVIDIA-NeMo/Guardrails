@@ -121,11 +121,21 @@ All outbound HTTP goes through `nemoguardrails.http`. An AST test,
   down (from `nemoguardrails/library/clavata/request.py`):
 
 ```python
-async with resolve_http_client(self.http_client, factory=self._create_http_client) as client:
-    retrying_client = RetryingHTTPClient(client, _MY_RETRY_POLICY)
-    response = await http_call(retrying_client, "POST", url, json=payload, headers=headers, raise_for_status=False)
+client = self._retrying_http_client(self.http_client) if self.http_client is not None else None
+response = await http_call(
+    client,
+    "POST",
+    url,
+    json=payload,
+    headers=headers,
+    raise_for_status=False,
+    factory=self._create_http_client,
+)
 ```
 
+- `http_call` manages the fallback client's lifecycle. Wrapping an injected
+  client must not transfer ownership; the factory must return the fully
+  composed managed client for the fallback path.
 - Retries are rail-owned: define a module-level `RetryPolicy` constant. The
   default policy never retries POST; if your vendor call is a POST and safe
   to resend, you must opt in explicitly with
@@ -251,8 +261,8 @@ make test TEST=tests/rails/llm/test_builtin_rail_manifests.py
 make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=tests/test_<rail>.py
-poetry run pytest tests/recorded/rails/library --block-network -q
-poetry run pre-commit run --files <changed files>
+make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
+uv run --locked pre-commit run --files <changed files>
 make docs-fern
 ```
 
