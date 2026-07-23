@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from contextlib import suppress
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
 from nemoguardrails.http._url import sanitize_url, split_url
@@ -22,28 +21,7 @@ from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
 from nemoguardrails.http.types import HTTPResponse
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from opentelemetry.trace import Span, Tracer
-
-
-@dataclass(frozen=True)
-class HTTPBodyCapturePolicy:
-    capture_request: bool = False
-    capture_response: bool = False
-    max_bytes: int = 4096
-    allowed_content_types: frozenset[str] = field(default_factory=lambda: frozenset({"application/json", "text/plain"}))
-    allowed_hosts: frozenset[str] = field(default_factory=frozenset)
-    redactor: "Callable[[str], str] | None" = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        if self.max_bytes < 1:
-            raise ValueError("max_bytes must be at least 1")
-        if self.capture_request or self.capture_response:
-            if not self.allowed_hosts:
-                raise ValueError("body capture requires at least one allowed host")
-            if self.redactor is None:
-                raise ValueError("body capture requires a redactor")
 
 
 class InstrumentedHTTPClient:
@@ -51,12 +29,9 @@ class InstrumentedHTTPClient:
         self,
         client: HTTPClient,
         tracer: "Tracer | None",
-        *,
-        body_capture: HTTPBodyCapturePolicy | None = None,
     ):
         self._client = client
         self._tracer = tracer
-        self._body_capture = body_capture or HTTPBodyCapturePolicy()
         self._closed = False
 
     async def request(
@@ -91,8 +66,6 @@ class InstrumentedHTTPClient:
             set_status_on_exception=False,
         ) as span:
             self._set_request_attributes(span, normalized_method, url, content)
-            with suppress(Exception):
-                self._capture_request_body(span, url, headers, json, content)
             try:
                 response = await self._client.request(
                     method,
@@ -107,8 +80,6 @@ class InstrumentedHTTPClient:
                 self._record_error(span, error, StatusCode)
                 raise
             self._set_response_attributes(span, response, StatusCode)
-            with suppress(Exception):
-                self._capture_response_body(span, url, response)
             return response
 
     def _set_request_attributes(self, span: "Span", method: str, url: str, content: bytes | str | None) -> None:
@@ -144,59 +115,6 @@ class InstrumentedHTTPClient:
                 span.set_attribute("http.request.resend_count", retry_count)
             span.add_event("exception", {"exception.type": type(error).__name__})
             span.set_status(status_code_type.ERROR)
-
-    def _capture_request_body(
-        self,
-        span: "Span",
-        url: str,
-        headers: Mapping[str, str] | None,
-        json_body: Any,
-        content: bytes | str | None,
-    ) -> None:
-        if not self._body_capture.capture_request or not self._host_is_allowed(url):
-            return
-        if json_body is not None:
-            import json
-
-            body = json.dumps(json_body, separators=(",", ":"))
-            content_type = "application/json"
-        elif content is not None:
-            body = content.decode(errors="replace") if isinstance(content, bytes) else content
-            content_type = self._content_type(headers or {})
-        else:
-            return
-        self._add_body_event(span, "http.request.body", body, content_type)
-
-    def _capture_response_body(self, span: "Span", url: str, response: HTTPResponse) -> None:
-        if not self._body_capture.capture_response or not self._host_is_allowed(url):
-            return
-        self._add_body_event(
-            span,
-            "http.response.body",
-            response.text,
-            self._content_type(response.headers),
-        )
-
-    def _host_is_allowed(self, url: str) -> bool:
-        hostname = split_url(url).hostname
-        allowed_hosts = {host.lower() for host in self._body_capture.allowed_hosts}
-        return hostname is not None and hostname.lower() in allowed_hosts
-
-    @staticmethod
-    def _content_type(headers: Mapping[str, str]) -> str:
-        value = next((value for key, value in headers.items() if key.lower() == "content-type"), "")
-        return value.partition(";")[0].strip().lower()
-
-    def _add_body_event(self, span: "Span", name: str, body: str, content_type: str) -> None:
-        allowed_types = {value.lower() for value in self._body_capture.allowed_content_types}
-        if content_type not in allowed_types or self._body_capture.redactor is None:
-            return
-        with suppress(Exception):
-            redacted = self._body_capture.redactor(body)
-            encoded = redacted.encode()
-            truncated = len(encoded) > self._body_capture.max_bytes
-            captured = encoded[: self._body_capture.max_bytes].decode(errors="ignore")
-            span.add_event(name, {"content": captured, "truncated": truncated})
 
     async def close(self) -> None:
         if self._closed:

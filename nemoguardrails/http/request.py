@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
 from typing import Any, Mapping
 
 from nemoguardrails.http.client import HTTPClient
+from nemoguardrails.http.runtime import _resolve_http_client, create_http_client
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
 
 async def http_call(
-    client: HTTPClient,
+    client: HTTPClient | None,
     method: str,
     url: str,
     *,
@@ -30,16 +32,18 @@ async def http_call(
     content: bytes | str | None = None,
     timeout: float | None = None,
     raise_for_status: bool = True,
+    factory: Callable[[], HTTPClient] = create_http_client,
 ) -> HTTPResponse:
-    response = await client.request(
-        method,
-        url,
-        headers=headers,
-        params=params,
-        json=json,
-        content=content,
-        timeout=timeout,
-    )
+    async with _resolve_http_client(client, factory=factory) as resolved:
+        response = await resolved.request(
+            method,
+            url,
+            headers=headers,
+            params=params,
+            json=json,
+            content=content,
+            timeout=timeout,
+        )
     if raise_for_status:
         response.raise_for_status(
             HTTPRequest(

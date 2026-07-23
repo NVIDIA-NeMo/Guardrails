@@ -23,7 +23,7 @@ from nemoguardrails.http import (
     ManagedHTTPClient,
     RetryPolicy,
     create_http_client,
-    resolve_http_client,
+    http_call,
 )
 from nemoguardrails.http.testing import RecordingHTTPClient
 
@@ -104,28 +104,25 @@ async def test_manager_creates_a_fresh_owned_client_after_restart():
 
 
 @pytest.mark.asyncio
-async def test_resolver_closes_only_the_client_it_creates():
+async def test_http_call_closes_only_the_client_it_creates():
     owned = RecordingHTTPClient()
 
-    async with resolve_http_client(factory=lambda: owned) as resolved:
-        assert resolved is owned
+    await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
 
     assert owned.close_calls == 1
 
-    injected = RecordingHTTPClient()
-    async with resolve_http_client(injected) as resolved:
-        assert resolved is injected
+    injected = RecordingHTTPClient([HTTPResponse(status_code=200)])
+    await http_call(injected, "GET", "https://example.com/check")
 
     assert injected.close_calls == 0
 
 
 @pytest.mark.asyncio
-async def test_resolver_closes_owned_client_when_body_raises():
+async def test_http_call_closes_owned_client_when_request_raises():
     owned = RecordingHTTPClient()
 
-    with pytest.raises(RuntimeError, match="action failed"):
-        async with resolve_http_client(factory=lambda: owned):
-            raise RuntimeError("action failed")
+    with pytest.raises(IndexError):
+        await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
 
     assert owned.close_calls == 1
 

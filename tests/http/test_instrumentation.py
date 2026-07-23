@@ -22,11 +22,11 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import SpanKind, StatusCode
 
 from nemoguardrails.http import (
-    HTTPBodyCapturePolicy,
     HTTPConnectionError,
     HTTPResponse,
     InstrumentedHTTPClient,
     RetryingHTTPClient,
+    RetryPolicy,
 )
 from nemoguardrails.http.testing import RecordingHTTPClient
 
@@ -93,7 +93,11 @@ async def test_instrumented_client_creates_one_span_for_all_retry_attempts(otel)
     async def sleep(delay: float) -> None:
         return None
 
-    retrying = RetryingHTTPClient(transport, sleep=sleep)
+    retrying = RetryingHTTPClient(
+        transport,
+        RetryPolicy(retryable_methods=frozenset({"POST"})),
+        sleep=sleep,
+    )
     client = InstrumentedHTTPClient(retrying, tracer)
 
     await client.request("POST", "https://example.com/check", json={"text": "hello"})
@@ -161,77 +165,6 @@ async def test_disabled_instrumentation_is_a_passthrough(otel):
 
     assert result is response
     assert exporter.get_finished_spans() == ()
-
-
-@pytest.mark.asyncio
-async def test_body_capture_requires_explicit_scope_and_redaction(otel):
-    tracer, exporter = otel
-    policy = HTTPBodyCapturePolicy(
-        capture_request=True,
-        capture_response=True,
-        max_bytes=30,
-        allowed_hosts=frozenset({"example.com"}),
-        redactor=lambda value: value.replace("secret", "[redacted]"),
-    )
-    transport = RecordingHTTPClient(
-        [
-            HTTPResponse(
-                status_code=200,
-                headers={"content-type": "text/plain"},
-                content=b"response secret with a long suffix",
-            )
-        ]
-    )
-    client = InstrumentedHTTPClient(transport, tracer, body_capture=policy)
-
-    await client.request(
-        "POST",
-        "https://example.com/check",
-        headers={"content-type": "text/plain"},
-        content="request secret",
-    )
-
-    events = exporter.get_finished_spans()[0].events
-    assert [event.name for event in events] == ["http.request.body", "http.response.body"]
-    assert events[0].attributes == {"content": "request [redacted]", "truncated": False}
-    assert events[1].attributes == {
-        "content": "response [redacted] with a lon",
-        "truncated": True,
-    }
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"capture_request": True},
-        {"capture_response": True, "allowed_hosts": frozenset({"example.com"})},
-        {"max_bytes": 0},
-    ],
-)
-def test_body_capture_rejects_incomplete_policy(kwargs):
-    with pytest.raises(ValueError):
-        HTTPBodyCapturePolicy(**kwargs)
-
-
-@pytest.mark.asyncio
-async def test_body_redactor_failure_does_not_break_request(otel):
-    tracer, exporter = otel
-
-    def reject_body(value: str) -> str:
-        raise RuntimeError("redaction failed")
-
-    policy = HTTPBodyCapturePolicy(
-        capture_request=True,
-        allowed_hosts=frozenset({"example.com"}),
-        redactor=reject_body,
-    )
-    response = HTTPResponse(status_code=200)
-    client = InstrumentedHTTPClient(RecordingHTTPClient([response]), tracer, body_capture=policy)
-
-    result = await client.request("POST", "https://example.com/check", json={"secret": "value"})
-
-    assert result is response
-    assert exporter.get_finished_spans()[0].events == ()
 
 
 @pytest.mark.asyncio
