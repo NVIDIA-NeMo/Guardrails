@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
-from nemoguardrails.manifests import ActionRef
+from nemoguardrails.manifests import ActionRef, default_rail_catalog
 
 
 def _lazy_test_action(value: str = "ok") -> str:
@@ -108,11 +108,19 @@ async def test_execute_action_with_async_invoke():
 
 
 def test_load_all_actions_registers_builtin_library_action_refs_lazily():
+    catalog = default_rail_catalog()
+    action_modules = {
+        action_ref.target.partition(":")[0]
+        for record in catalog.records.values()
+        for action_ref in (record.manifest.actions.refs if record.manifest.actions is not None else ())
+    }
     action_module = "nemoguardrails.library.content_safety.actions"
     sys.modules.pop(action_module, None)
+    loaded_modules = set(sys.modules)
 
     dispatcher = ActionDispatcher(load_all_actions=True)
 
+    assert action_modules.isdisjoint(set(sys.modules) - loaded_modules)
     assert "content_safety_check_input" in dispatcher.get_registered_actions()
     assert dispatcher.is_manifest_action("ContentSafetyCheckInputAction")
     assert action_module not in sys.modules
