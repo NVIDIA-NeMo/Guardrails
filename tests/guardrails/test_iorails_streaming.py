@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.iorails import (
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction
+from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -526,12 +526,12 @@ class TestStreamAsyncConcurrency:
         assert iorails_input_only._stream_semaphore._value == STREAM_MAX_CONCURRENCY
 
 
-def _build_sse_streaming_mock(deltas):
+def _build_sse_streaming_mock(deltas, headers=None):
     """Build an aiohttp-like response mock that yields SSE lines for the given deltas.
 
     Each delta is a dict like ``{"content": "Hi"}`` or ``{"reasoning_content": "thinking"}``
     that becomes a ``data: {"choices":[{"delta": <delta>}]}\\n`` line. Always terminates
-    with ``data: [DONE]``.
+    with ``data: [DONE]``. ``headers`` populates ``response.headers`` (defaults to empty).
     """
     lines = []
     for delta in deltas:
@@ -551,6 +551,7 @@ def _build_sse_streaming_mock(deltas):
     mock_response.__aenter__ = AsyncMock(return_value=mock_response)
     mock_response.status = 200
     mock_response.content = mock_content
+    mock_response.headers = headers if headers is not None else {}
 
     mock_client = AsyncMock()
     mock_client.post = MagicMock(return_value=mock_response)
@@ -931,3 +932,153 @@ class TestIsStreamErrorChunk:
 
     def test_non_string_text(self):
         assert _is_stream_error_chunk({"text": None}) is False
+
+
+class TestStreamAsyncMetadata:
+    """Per-chunk usage and provider_metadata surfaced through include_metadata streaming (LLMRails parity)."""
+
+    @pytest.mark.asyncio
+    async def test_usage_only_chunk_surfaced_once_in_metadata(self, iorails_input_only):
+        """A usage-only terminal chunk (no delta_content) surfaces its token usage in exactly one dict frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=13, output_tokens=8, total_tokens=21))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        usage_frames = [c for c in chunks if isinstance(c, dict) and "usage" in c.get("metadata", {})]
+        assert len(usage_frames) == 1
+        assert usage_frames[0]["metadata"]["usage"] == {
+            "input_tokens": 13,
+            "output_tokens": 8,
+            "total_tokens": 21,
+        }
+
+    @pytest.mark.asyncio
+    async def test_usage_on_content_chunk_surfaced_in_that_frame(self, iorails_input_only):
+        """Token usage delivered on a content-bearing chunk surfaces in that chunk's metadata frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(
+                delta_content=" world",
+                usage=UsageInfo(input_tokens=5, output_tokens=2, total_tokens=7),
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        usage_frames = [c for c in chunks if isinstance(c, dict) and "usage" in c.get("metadata", {})]
+        assert len(usage_frames) == 1
+        assert usage_frames[0]["text"] == " world"
+        assert usage_frames[0]["metadata"]["usage"] == {
+            "input_tokens": 5,
+            "output_tokens": 2,
+            "total_tokens": 7,
+        }
+
+    @pytest.mark.asyncio
+    async def test_provider_metadata_surfaced_in_metadata(self, iorails_input_only):
+        """provider_metadata from the stream is surfaced under the include_metadata dict frames."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(
+                delta_content="Hi",
+                provider_metadata={"response_headers": {"x-request-id": "abc"}},
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_frames = [c for c in chunks if isinstance(c, dict) and "provider_metadata" in c.get("metadata", {})]
+        assert provider_frames
+        assert provider_frames[0]["metadata"]["provider_metadata"] == {"response_headers": {"x-request-id": "abc"}}
+
+    @pytest.mark.asyncio
+    async def test_plain_string_stream_unaffected_by_metadata_chunks(self, iorails_input_only):
+        """With include_metadata=False, usage and provider_metadata chunks leave the plain-text stream intact."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello", provider_metadata={"response_headers": {"h": "1"}})
+            yield LLMResponseChunk(delta_content=" world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert all(isinstance(c, str) for c in chunks)
+        assert "".join(chunks) == "Hello world"
+
+    @pytest.mark.asyncio
+    async def test_response_headers_surface_as_provider_metadata(self, iorails_input_only):
+        """HTTP response headers surface as provider_metadata['response_headers'] in include_metadata stream frames."""
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        response_headers = {"nvcf-reqid": "req-xyz", "content-type": "text/event-stream"}
+        main_engine = iorails_input_only.engine_registry._get_engine("main", ModelEngine)
+        main_engine._client = _build_sse_streaming_mock([{"content": "Hi"}], headers=response_headers)
+        main_engine._running = True
+
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_frames = [
+            c
+            for c in chunks
+            if isinstance(c, dict) and isinstance(c.get("metadata"), dict) and "provider_metadata" in c["metadata"]
+        ]
+        assert provider_frames
+        assert provider_frames[0]["metadata"]["provider_metadata"] == {"response_headers": response_headers}
+
+    @pytest.mark.asyncio
+    async def test_provider_metadata_only_chunks_do_not_emit_empty_frames(self, iorails_input_only):
+        """An empty-content chunk carrying only provider_metadata (no usage) is not surfaced as a standalone empty frame.
+
+        Reasoning models stream many empty-content deltas that each carry the same response
+        headers; emitting one empty frame per delta would flood the stream. Only usage-bearing
+        empty chunks are surfaced; the headers still ride on the content and usage frames.
+        """
+        pm = {"response_headers": {"nvcf-reqid": "abc"}}
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hi", provider_metadata=pm)
+            yield LLMResponseChunk(delta_reasoning="thinking", provider_metadata=pm)
+            yield LLMResponseChunk(
+                usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3), provider_metadata=pm
+            )
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        provider_only_empty = [
+            c
+            for c in chunks
+            if isinstance(c, dict)
+            and c.get("text") == ""
+            and isinstance(c.get("metadata"), dict)
+            and set(c["metadata"].keys()) == {"provider_metadata"}
+        ]
+        assert provider_only_empty == []
+
+    @pytest.mark.asyncio
+    async def test_usage_folds_into_single_terminal_frame(self, iorails_input_only):
+        """Terminal usage rides on the single END_OF_STREAM frame (with usage + response/usage_metadata), not a separate empty frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hi")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        empty_frames = [c for c in chunks if isinstance(c, dict) and c.get("text") == ""]
+        assert len(empty_frames) == 1
+        terminal = empty_frames[0]["metadata"]
+        assert terminal["usage"] == {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
+        assert "response_metadata" in terminal and "usage_metadata" in terminal

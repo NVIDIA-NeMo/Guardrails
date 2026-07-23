@@ -80,7 +80,7 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.tracing.constants import GuardrailsAttributes
-from nemoguardrails.types import LLMModel, LLMResponse, ToolCall
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, ToolCall
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -141,6 +141,26 @@ def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
         }
         for tool_call in tool_calls
     ]
+
+
+def _stream_chunk_metadata(chunk: LLMResponseChunk) -> Optional[dict]:
+    """Extract per-chunk streaming metadata (usage + provider_metadata) for the StreamingHandler.
+
+    Mirrors LLMRails' streaming metadata contract so ``include_metadata`` consumers see the same
+    frames from both engines: token usage as a flat ``input/output/total_tokens`` dict and
+    ``provider_metadata`` verbatim. Returns ``None`` when the chunk carries neither, so ordinary
+    text tokens push no metadata and the StreamingHandler emits them as bare ``{"text": ...}``.
+    """
+    metadata: dict = {}
+    if chunk.provider_metadata:
+        metadata["provider_metadata"] = chunk.provider_metadata
+    if chunk.usage:
+        metadata["usage"] = {
+            "input_tokens": chunk.usage.input_tokens,
+            "output_tokens": chunk.usage.output_tokens,
+            "total_tokens": chunk.usage.total_tokens,
+        }
+    return metadata or None
 
 
 def _frame_for_stream(payload: str, include_metadata: Optional[bool]) -> Union[str, dict]:
@@ -1366,10 +1386,16 @@ class IORails(BaseGuardrails):
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
+                # Usage from the terminal usage-only chunk is folded into the END_OF_STREAM
+                # frame below (not its own frame), matching LLMRails' single terminal frame.
+                pending_usage_metadata: Optional[dict] = None
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
+                    chunk_metadata = _stream_chunk_metadata(chunk)
                     if chunk.delta_content:
                         content_parts.append(chunk.delta_content)
-                        await streaming_handler.push_chunk(chunk.delta_content)
+                        await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
+                    elif chunk.usage is not None:
+                        pending_usage_metadata = chunk_metadata
                     if chunk.delta_tool_calls:
                         # Engine emits the complete finalized list once (see
                         # ModelEngine.stream_call), so rebind rather than accumulate.
@@ -1390,7 +1416,7 @@ class IORails(BaseGuardrails):
                 if accumulated_tool_calls and not content_parts:
                     log.info("[%s] Tool-call-only stream: output rails skipped", req_id)
 
-                await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
+                await streaming_handler.push_chunk(END_OF_STREAM, pending_usage_metadata)  # type: ignore[arg-type]
             except Exception as e:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error(

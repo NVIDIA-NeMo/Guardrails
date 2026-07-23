@@ -58,11 +58,12 @@ def _make_model(
     )
 
 
-def _mock_streaming_response(raw_lines, status=200):
+def _mock_streaming_response(raw_lines, status=200, headers=None):
     """Create a mock aiohttp response with a readline()-based content mock.
 
     Splits each raw_line on ``\\n`` boundaries so that readline() returns
     one line at a time, matching real aiohttp StreamReader behaviour.
+    ``headers`` populates ``response.headers`` (defaults to an empty mapping).
     """
     all_lines = []
     for raw in raw_lines:
@@ -82,6 +83,7 @@ def _mock_streaming_response(raw_lines, status=200):
     mock_response.__aenter__ = AsyncMock(return_value=mock_response)
     mock_response.status = status
     mock_response.content = mock_content
+    mock_response.headers = headers if headers is not None else {}
     return mock_response
 
 
@@ -792,6 +794,96 @@ class TestModelEngineStreamCall:
 
         body = mock_client.post.call_args[1]["json"]
         assert body["stream"] is True
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_requests_usage_by_default(self):
+        """stream_call() sets stream_options.include_usage=True so the provider returns token usage."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": True}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_caller_stream_options_override_default(self):
+        """A caller-provided stream_options is preserved rather than overwritten by the include_usage default."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = _mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}], stream_options={"include_usage": False}):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream_options"] == {"include_usage": False}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_attaches_response_headers_as_provider_metadata(self):
+        """Every chunk carries the response headers under provider_metadata['response_headers'], lowercased to match LLMRails."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["Hello", " world"])
+        headers = {"Nvcf-Reqid": "abc-123", "Content-Type": "text/event-stream"}
+        mock_response = _mock_streaming_response(raw_lines, headers=headers)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        expected = {"response_headers": {"nvcf-reqid": "abc-123", "content-type": "text/event-stream"}}
+        assert chunks
+        assert all(c.provider_metadata == expected for c in chunks)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_surfaces_non_standard_body_keys_as_provider_metadata(self):
+        """Non-standard SSE chunk-body keys (e.g. nvext) are merged into provider_metadata alongside response_headers (LLMRails parity)."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"content": "Hi"}}], "nvext": {"spec_decode": {"enabled": true}}}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = _mock_streaming_response(raw_lines, headers={"nvcf-reqid": "abc"})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks
+        assert chunks[0].provider_metadata == {
+            "nvext": {"spec_decode": {"enabled": True}},
+            "response_headers": {"nvcf-reqid": "abc"},
+        }
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio

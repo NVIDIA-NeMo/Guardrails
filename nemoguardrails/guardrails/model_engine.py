@@ -53,6 +53,10 @@ _ENGINE_BASE_URLS = {
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 
+# Standard top-level keys in a chat-completion chunk; everything else (e.g. NIM's `nvext`)
+# is surfaced as provider_metadata, mirroring LLMRails' `_STANDARD_RESPONSE_KEYS`.
+_STANDARD_CHUNK_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created"})
+
 # Parameter keys the engine reserves and handles itself, so they are NOT
 # forwarded into the /v1/chat/completions request body.  Everything else in
 # a model's ``parameters`` config block becomes a per-request default via
@@ -80,8 +84,8 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         # duplicate keyword argument.
         "stream",
         # Can't set Model-level `stream_options` because the same model can
-        # be used in streaming or non-streaming mode. Defer to inference-time
-        # `llm_params`.
+        # be used in streaming or non-streaming mode. `stream_call` sets the
+        # streaming default (`include_usage`), overridable via `llm_params`.
         "stream_options",
         # client-only options — these configure the OpenAI-compatible client
         # (constructor kwargs), not the chat-completion request body.  IORails
@@ -203,6 +207,10 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     if not delta_content and not delta_reasoning and not usage_dict and not finish_reason:
         return None
 
+    provider_metadata = {
+        key: value for key, value in chunk.items() if key not in _STANDARD_CHUNK_KEYS and value is not None
+    }
+
     return LLMResponseChunk(
         delta_content=delta_content,
         delta_reasoning=delta_reasoning,
@@ -210,6 +218,7 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
         finish_reason=finish_reason,
         request_id=chunk.get("id"),
         usage=_parse_usage(usage_dict) if usage_dict else None,
+        provider_metadata=provider_metadata or None,
     )
 
 
@@ -664,6 +673,9 @@ class ModelEngine(BaseEngine):
             ModelEngineError: If the request fails after all retries.
         """
         self._ensure_running()
+        # Request usage on the terminal stream chunk (LLMRails parity); a caller can override
+        # or disable it via stream_options in llm_params.
+        kwargs.setdefault("stream_options", {"include_usage": True})
         req = self._prepare_request(messages, stream=True, **kwargs)
 
         # For streaming, disable the total timeout (response body streams
@@ -683,6 +695,14 @@ class ModelEngine(BaseEngine):
         try:
             async with req.client.post(req.url, json=req.body, headers=req.headers, timeout=stream_timeout) as response:
                 await self._raise_for_status(response, req_id, t0)
+
+                # Surface response headers on every chunk as provider_metadata['response_headers'],
+                # lowercased to match LLMRails' httpx client (aiohttp preserves the server's casing).
+                response_headers = (
+                    {key.lower(): value for key, value in response.headers.items()}
+                    if isinstance(response.headers, Mapping)
+                    else None
+                )
 
                 # Use readline() instead of iterating response.content directly.
                 # response.content uses readany() which returns arbitrary byte
@@ -747,6 +767,12 @@ class ModelEngine(BaseEngine):
                         tool_calls_emitted = True
 
                     if parsed_chunk is not None:
+                        # Merge headers after the chunk's body-level provider_metadata (e.g. nvext), not over it.
+                        if response_headers:
+                            parsed_chunk.provider_metadata = {
+                                **(parsed_chunk.provider_metadata or {}),
+                                "response_headers": response_headers,
+                            }
                         yield parsed_chunk
 
                 # Safety net: a provider that ends the stream with [DONE]/EOF and no
@@ -756,6 +782,7 @@ class ModelEngine(BaseEngine):
                         finish_reason="tool_calls",
                         request_id=last_chunk_id,
                         delta_tool_calls=_finalize_tool_calls(tool_calls),
+                        provider_metadata={"response_headers": response_headers} if response_headers else None,
                     )
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
