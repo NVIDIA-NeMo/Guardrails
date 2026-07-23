@@ -261,6 +261,27 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
   known limitations, per the integration rules in `nemoguardrails/AGENTS.md`
   and `docs/AGENTS.md`.
 
+## Modifying an existing rail
+
+Steps 1-7 assume a new rail. When you change one that already exists, the
+manifest deliberately mirrors facts that also live in the code, Colang files,
+config schema, and docs, so a change on one side needs the other or a
+conformance gate flags the drift. Update the mirrored artifacts together:
+
+| Change | Required updates |
+| --- | --- |
+| Implementation only | Focused action tests; the manifest usually stays. |
+| Python module or symbol moves | Update the manifest's `ActionRef.target`. |
+| Decorated action name changes | Update `ActionRef.name`, Colang 1 `execute` calls, Colang 2 `CamelCaseAction` calls, and surface references. Treat as a public compatibility change. |
+| Parameters change | Update surface bindings and flow arguments; every `Binding.action_param` must still exist in the signature. |
+| Return contract | Surface actions must still annotate and return `RailOutcome`. |
+| Configuration changes | Update the typed config model, regenerate `schemas/rails_config.snapshot.json`, and review the schema diff. |
+| Dependency or service changes | Update manifest `python_packages`, env vars, services, models, and privacy declarations. |
+
+Then re-run the catalog gates from Step 6; they are the mechanical check that
+the mirrored copies still agree. This same matrix is the always-loaded
+tripwire in `nemoguardrails/library/AGENTS.md`.
+
 ## Final verification loop
 
 Run until green, in this order (cheapest first):
