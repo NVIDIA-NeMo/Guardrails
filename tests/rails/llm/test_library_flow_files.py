@@ -16,8 +16,8 @@
 """Gate: library rail flow files stay valid and consistent in both Colang dialects.
 
 Every manifest-declared rail must ship flow files that parse, define the flow
-names the manifest declares, and invoke only actions that the dispatcher can
-resolve. Parameterized flows are a Colang 2 feature, so a declared flow whose
+names the manifest declares, and invoke only actions declared by the same
+manifest. Parameterized flows are a Colang 2 feature, so a declared flow whose
 Colang 2 definition takes parameters is exempt from the Colang 1 presence
 requirement.
 """
@@ -28,6 +28,7 @@ from pathlib import Path
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.manifests import all_rail_manifests
+from nemoguardrails.utils import camelcase_to_snakecase
 
 LIBRARY_ROOT = Path("nemoguardrails/library")
 
@@ -67,8 +68,23 @@ def _parse_flow_files(manifest, violations: list):
                 message = str(error).splitlines()[0]
                 violations.append(f"{manifest.name}: {path} does not parse as Colang {version}: {message}")
                 continue
+            if not result:
+                violations.append(f"{manifest.name}: {path} does not match Colang {version}")
+                continue
             parsed[version].append((path, result))
     return parsed
+
+
+def test_parse_flow_files_rejects_dialect_mismatches(monkeypatch):
+    _, manifest = next(_manifests_with_flows())
+    monkeypatch.setitem(_parse_flow_files.__globals__, "parse_colang_file", lambda *args, **kwargs: {})
+    violations = []
+
+    parsed = _parse_flow_files(manifest, violations)
+
+    assert all(not files for files in parsed.values())
+    assert violations
+    assert all("does not match Colang" in violation for violation in violations)
 
 
 def test_library_flow_files_parse_and_define_declared_flows():
@@ -123,11 +139,12 @@ def test_library_flows_do_not_invoke_actions_as_flows():
     assert not violations, "\n".join(violations)
 
 
-def test_library_flow_actions_resolve():
-    dispatcher = ActionDispatcher()
+def test_library_flow_actions_are_declared_by_owning_manifest():
     violations = []
 
     for rail_name, manifest in _manifests_with_flows():
+        action_refs = manifest.actions.refs if manifest.actions is not None else ()
+        declared_action_names = {action_ref.name for action_ref in action_refs}
         package_dir = _package_dir(manifest)
         for file_name in manifest.spec.flows.v1_files + manifest.spec.flows.files:
             path = package_dir / file_name
@@ -137,7 +154,12 @@ def test_library_flow_actions_resolve():
             invoked = {match.strip() for match in V1_EXECUTE_RE.findall(content)}
             invoked |= set(V2_ACTION_RE.findall(content))
             for action_name in sorted(invoked):
-                if not dispatcher.has_registered(action_name):
-                    violations.append(f"{rail_name}: {path} invokes unresolvable action {action_name!r}")
+                declared_name = action_name
+                if declared_name not in declared_action_names:
+                    declared_name = camelcase_to_snakecase(declared_name.removesuffix("Action"))
+                if declared_name not in declared_action_names:
+                    violations.append(
+                        f"{rail_name}: {path} invokes action {action_name!r}, which its manifest does not declare"
+                    )
 
     assert not violations, "\n".join(violations)

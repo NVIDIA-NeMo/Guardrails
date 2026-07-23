@@ -22,6 +22,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.manifests import all_rail_manifests, normalize_configured_surface_name
 from nemoguardrails.rails.llm.options import GenerationResponse
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
@@ -455,12 +456,52 @@ CONTEXT_BLOAT_RETRIEVAL = RailSpec(
     action="context_bloat_detection",
 )
 
+POLYGRAF_DETECT_INPUT = RailSpec(
+    name="polygraf_detect_input",
+    flow="polygraf detect pii on input",
+    direction="input",
+    action="polygraf_detect_pii",
+    interpret=_blocked_if_true,
+)
+
+POLYGRAF_DETECT_OUTPUT = RailSpec(
+    name="polygraf_detect_output",
+    flow="polygraf detect pii on output",
+    direction="output",
+    action="polygraf_detect_pii",
+    interpret=_blocked_if_true,
+)
+
 POLYGRAF_DETECT_RETRIEVAL = RailSpec(
     name="polygraf_detect_retrieval",
     flow="polygraf detect pii on retrieval",
     direction="retrieval",
     action="polygraf_detect_pii",
     interpret=_blocked_if_true,
+)
+
+POLYGRAF_MASK_INPUT = RailSpec(
+    name="polygraf_mask_input",
+    flow="polygraf mask pii on input",
+    direction="input",
+    action="polygraf_mask_pii",
+    interpret=_transform_if_changed_from_user_input,
+)
+
+POLYGRAF_MASK_OUTPUT = RailSpec(
+    name="polygraf_mask_output",
+    flow="polygraf mask pii on output",
+    direction="output",
+    action="polygraf_mask_pii",
+    interpret=_transform_if_changed_from_normal_output,
+)
+
+POLYGRAF_MASK_RETRIEVAL = RailSpec(
+    name="polygraf_mask_retrieval",
+    flow="polygraf mask pii on retrieval",
+    direction="retrieval",
+    action="polygraf_mask_pii",
+    interpret=_transform_if_changed_from_relevant_chunks,
 )
 
 CONTENT_SAFETY_INPUT = RailSpec(
@@ -1500,12 +1541,21 @@ FIXTURES = [
         context={"relevant_chunks": RELEVANT_CHUNKS},
     ),
     *_rail_outcome_cases(
+        POLYGRAF_DETECT_INPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
+        POLYGRAF_DETECT_OUTPUT,
+        block_observable=ObservableOutcome.ANSWER_UNKNOWN,
+    ),
+    *_rail_outcome_cases(
         POLYGRAF_DETECT_RETRIEVAL,
         block_observable=ObservableOutcome.ANSWER_UNKNOWN,
     ),
     *_output_transform_cases(PRIVATEAI_MASK_OUTPUT),
     *_output_transform_cases(GLINER_MASK_OUTPUT),
     *_output_transform_cases(SENSITIVE_DATA_MASK_OUTPUT),
+    *_output_transform_cases(POLYGRAF_MASK_OUTPUT),
     *_output_var_transform_cases(
         PRIVATEAI_MASK_INPUT,
         output_var="user_message",
@@ -1523,6 +1573,12 @@ FIXTURES = [
         output_var="user_message",
         original_value=USER_INPUT,
         transformed_value="sensitive data masked input",
+    ),
+    *_output_var_transform_cases(
+        POLYGRAF_MASK_INPUT,
+        output_var="user_message",
+        original_value=USER_INPUT,
+        transformed_value="polygraf masked input",
     ),
     *_output_var_transform_cases(
         PRIVATEAI_MASK_RETRIEVAL,
@@ -1543,6 +1599,13 @@ FIXTURES = [
         output_var="relevant_chunks",
         original_value=RELEVANT_CHUNKS,
         transformed_value="sensitive data masked chunks",
+        context={"relevant_chunks": RELEVANT_CHUNKS},
+    ),
+    *_output_var_transform_cases(
+        POLYGRAF_MASK_RETRIEVAL,
+        output_var="relevant_chunks",
+        original_value=RELEVANT_CHUNKS,
+        transformed_value="polygraf masked chunks",
         context={"relevant_chunks": RELEVANT_CHUNKS},
     ),
     *_guard_result_cases(
@@ -2566,6 +2629,21 @@ def _outcome_decision(raw_return: Any, spec: RailSpec) -> FlowDecision:
         return spec.interpret(raw_return)
 
     raise AssertionError(f"Rail spec {spec.name!r} must use RailOutcome or an explicit interpreter")
+
+
+def test_manifest_surfaces_have_flow_gate_equivalence_coverage():
+    """Built-in execution surfaces and portable verdict coverage match exactly."""
+    declared = {
+        (surface.direction.value, surface.name)
+        for manifest in all_rail_manifests().values()
+        for surface in manifest.surfaces
+    }
+    covered = {(case.spec.direction, normalize_configured_surface_name(case.spec.flow)) for case in FIXTURES}
+
+    assert declared == covered, (
+        f"Manifest surfaces without equivalence cases: {sorted(declared - covered)}; "
+        f"equivalence cases without manifest surfaces: {sorted(covered - declared)}"
+    )
 
 
 @pytest.mark.parametrize("case", FIXTURES, ids=[case.case_id for case in FIXTURES])
