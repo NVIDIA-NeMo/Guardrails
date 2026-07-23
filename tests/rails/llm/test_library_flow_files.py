@@ -67,8 +67,23 @@ def _parse_flow_files(manifest, violations: list):
                 message = str(error).splitlines()[0]
                 violations.append(f"{manifest.name}: {path} does not parse as Colang {version}: {message}")
                 continue
+            if not result:
+                violations.append(f"{manifest.name}: {path} does not match Colang {version}")
+                continue
             parsed[version].append((path, result))
     return parsed
+
+
+def test_parse_flow_files_rejects_dialect_mismatches(monkeypatch):
+    _, manifest = next(_manifests_with_flows())
+    monkeypatch.setitem(_parse_flow_files.__globals__, "parse_colang_file", lambda *args, **kwargs: {})
+    violations = []
+
+    parsed = _parse_flow_files(manifest, violations)
+
+    assert all(not files for files in parsed.values())
+    assert violations
+    assert all("does not match Colang" in violation for violation in violations)
 
 
 def test_library_flow_files_parse_and_define_declared_flows():
