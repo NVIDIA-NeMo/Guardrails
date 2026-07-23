@@ -32,8 +32,13 @@ skill discovery.
   without clear provenance and maintainer alignment.
 - Unit tests must not call live LLM or provider services.
 - Do not add license headers manually. Pre-commit handles license insertion.
-- Do not add comments unless explicitly requested; keep existing comments,
-  docstrings, and license headers unless your change makes them inaccurate.
+- Comments are welcome, not banned. When you feel the urge to comment what a
+  block does, first try to make the comment superfluous: extract a function,
+  rename for clarity, or add an assertion for a required state. Reach for a
+  comment when the code cannot carry the meaning: to explain why (rationale,
+  tradeoff, constraint), warn of a consequence, or flag where you are unsure.
+  Keep existing comments, docstrings, and license headers unless your change
+  makes them inaccurate.
 - Use uv for Python commands: `uv run --locked python ...`,
   `uv run --locked pytest ...`, `uv run --locked pre-commit ...`.
 
