@@ -231,7 +231,7 @@ class ActionDispatcher:
             for action_ref in manifest.actions.refs:
                 self._register_action_ref(action_ref)
             if manifest.origin:
-                module = __import__(manifest.origin, fromlist=["__file__"])
+                module = importlib.import_module(manifest.origin)
                 module_file = getattr(module, "__file__", None)
                 if module_file:
                     self._manifested_library_paths.add(Path(module_file).parent.resolve())
