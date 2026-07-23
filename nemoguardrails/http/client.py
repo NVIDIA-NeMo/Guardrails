@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Protocols implemented by transport-neutral asynchronous HTTP clients."""
+
 from typing import Any, Mapping, Protocol, runtime_checkable
 
 from nemoguardrails.http.types import HTTPResponse
@@ -20,6 +22,8 @@ from nemoguardrails.http.types import HTTPResponse
 
 @runtime_checkable
 class HTTPClient(Protocol):
+    """Send asynchronous HTTP requests without exposing transport-specific types."""
+
     async def request(
         self,
         method: str,
@@ -30,9 +34,33 @@ class HTTPClient(Protocol):
         json: Any = None,
         content: bytes | str | None = None,
         timeout: float | None = None,
-    ) -> HTTPResponse: ...
+    ) -> HTTPResponse:
+        """Send one request and return a response whose content is fully owned.
+
+        Args:
+            method: HTTP method, case-insensitive.
+            url: Absolute request URL.
+            headers: Optional request headers.
+            params: Optional query parameters.
+            json: Optional JSON-serializable request body.
+            content: Optional raw request body.
+            timeout: Optional total request timeout in seconds.
+
+        Returns:
+            A transport-neutral response containing materialized body bytes.
+        """
+
+        ...
 
 
 @runtime_checkable
 class ManagedHTTPClient(HTTPClient, Protocol):
-    async def close(self) -> None: ...
+    """An HTTP client that owns resources requiring asynchronous cleanup."""
+
+    async def close(self) -> None:
+        """Release resources owned by the client.
+
+        Implementations must make repeated calls safe.
+        """
+
+        ...

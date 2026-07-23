@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Bounded retry policies and a transport-neutral retrying HTTP client."""
+
 import asyncio
 import random
 from collections.abc import Awaitable, Callable
@@ -33,6 +35,15 @@ def _header(headers: Mapping[str, str], name: str) -> str | None:
 
 @dataclass(frozen=True)
 class RetryPolicy:
+    """Configure bounded retries for an HTTP client.
+
+    ``max_attempts`` includes the initial request. Methods are normalized to
+    uppercase, and POST is intentionally absent from the safe default set.
+    ``Retry-After`` values are honored only when they fall within
+    ``max_retry_after`` unless clamping is explicitly enabled. Vendor override
+    headers are ignored unless ``honor_retry_override_header`` is enabled.
+    """
+
     max_attempts: int = 3
     retryable_methods: frozenset[str] = field(
         default_factory=lambda: frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PUT", "TRACE"})
@@ -59,6 +70,8 @@ class RetryPolicy:
         object.__setattr__(self, "retryable_methods", frozenset(method.upper() for method in self.retryable_methods))
 
     def should_retry(self, response: HTTPResponse) -> bool:
+        """Return whether a response status or opted-in override requests a retry."""
+
         if self.honor_retry_override_header:
             override = _header(response.headers, "x-should-retry")
             if override is not None:
@@ -69,9 +82,18 @@ class RetryPolicy:
         return response.status_code in self.retryable_status_codes
 
     def can_retry_method(self, method: str) -> bool:
+        """Return whether the policy permits retrying the HTTP method."""
+
         return method.upper() in self.retryable_methods
 
     def retry_after(self, response: HTTPResponse, *, now: datetime) -> float | None:
+        """Return a usable ``Retry-After`` delay in seconds.
+
+        Both delta-seconds and HTTP-date values are supported. Invalid or
+        out-of-policy values return ``None`` so the client uses exponential
+        backoff instead.
+        """
+
         value = _header(response.headers, "retry-after")
         if value is None:
             return None
@@ -93,6 +115,12 @@ class RetryPolicy:
 
 
 class RetryingHTTPClient:
+    """Apply a retry policy around another transport-neutral HTTP client.
+
+    Closing this wrapper closes the wrapped client only when it implements
+    :class:`ManagedHTTPClient`.
+    """
+
     def __init__(
         self,
         client: HTTPClient,
@@ -102,6 +130,16 @@ class RetryingHTTPClient:
         random_value: Callable[[], float] = random.random,
         now: Callable[[], datetime] | None = None,
     ):
+        """Initialize a retrying client.
+
+        Args:
+            client: Client used for each request attempt.
+            policy: Retry policy, or the conservative default policy.
+            sleep: Asynchronous delay function, injectable for tests.
+            random_value: Jitter source returning a value between zero and one.
+            now: Clock used to interpret HTTP-date ``Retry-After`` values.
+        """
+
         self._client = client
         self._policy = policy or RetryPolicy()
         self._sleep = sleep
@@ -120,6 +158,13 @@ class RetryingHTTPClient:
         content: bytes | str | None = None,
         timeout: float | None = None,
     ) -> HTTPResponse:
+        """Send a request and retry eligible failures within policy bounds.
+
+        The returned response includes ``retry_count`` in its extensions.
+        Transport errors also expose their completed retry count before being
+        re-raised.
+        """
+
         retries = 0
         can_retry_method = self._policy.can_retry_method(method)
         while True:
@@ -163,6 +208,8 @@ class RetryingHTTPClient:
         return cap * self._random_value()
 
     async def close(self) -> None:
+        """Close the wrapped managed client at most once."""
+
         if self._closed:
             return
         self._closed = True

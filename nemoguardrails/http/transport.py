@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""HTTPX transport adapter for the transport-neutral HTTP client contract."""
+
 import asyncio
 from typing import Any, Mapping
 
@@ -23,6 +25,13 @@ from nemoguardrails.http.types import HTTPResponse
 
 
 class HttpxHTTPClient:
+    """Adapt an HTTPX asynchronous client to the neutral HTTP contract.
+
+    A client created by this adapter is owned and closed by the adapter. An
+    injected client remains owned by its caller. The configured timeout covers
+    the complete request rather than each HTTPX timeout phase independently.
+    """
+
     def __init__(
         self,
         client: httpx.AsyncClient | None = None,
@@ -31,6 +40,18 @@ class HttpxHTTPClient:
         limits: httpx.Limits | None = None,
         follow_redirects: bool = False,
     ):
+        """Initialize the HTTPX adapter.
+
+        Args:
+            client: Optional caller-owned HTTPX client.
+            timeout: Default total timeout for owned clients, in seconds.
+            limits: Connection-pool limits for an owned client.
+            follow_redirects: Whether an owned client follows redirects.
+
+        Raises:
+            ValueError: If the configured timeout is not positive.
+        """
+
         if timeout is not None and timeout <= 0:
             raise ValueError("HTTP timeout must be greater than zero")
         self._owns_client = client is None
@@ -53,6 +74,26 @@ class HttpxHTTPClient:
         content: bytes | str | None = None,
         timeout: float | None = None,
     ) -> HTTPResponse:
+        """Send one request and materialize the HTTPX response.
+
+        Args:
+            method: HTTP method.
+            url: Absolute request URL.
+            headers: Optional request headers.
+            params: Optional query parameters.
+            json: Optional JSON-serializable request body.
+            content: Optional raw request body.
+            timeout: Optional per-request total timeout in seconds.
+
+        Returns:
+            A neutral response containing copied headers and body bytes.
+
+        Raises:
+            HTTPTimeoutError: If the request exceeds its total timeout.
+            HTTPConnectionError: If HTTPX reports a transport failure.
+            ValueError: If the per-request timeout is not positive.
+        """
+
         kwargs: dict[str, Any] = {
             "headers": headers,
             "params": params,
@@ -81,6 +122,8 @@ class HttpxHTTPClient:
         )
 
     async def close(self) -> None:
+        """Close the owned HTTPX client at most once."""
+
         if self._closed:
             return
         self._closed = True
@@ -88,7 +131,11 @@ class HttpxHTTPClient:
             await self._client.aclose()
 
     async def __aenter__(self) -> "HttpxHTTPClient":
+        """Return this client from an asynchronous context manager."""
+
         return self
 
     async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        """Close owned resources when leaving an asynchronous context."""
+
         await self.close()

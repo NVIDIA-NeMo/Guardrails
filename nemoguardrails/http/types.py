@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Dependency-free request and response values for outbound HTTP calls."""
+
 import json
 import re
 from dataclasses import dataclass, field
@@ -23,6 +25,12 @@ from nemoguardrails.http.errors import HTTPResponseDecodeError, HTTPStatusError
 
 @dataclass(frozen=True)
 class HTTPRequest:
+    """Describe an outbound HTTP request without transport-specific objects.
+
+    The value is suitable for status-error context and deterministic test
+    assertions. It does not perform a request itself.
+    """
+
     method: str
     url: str
     headers: Mapping[str, str] | None = None
@@ -34,6 +42,13 @@ class HTTPRequest:
 
 @dataclass(frozen=True)
 class HTTPResponse:
+    """A materialized, transport-neutral HTTP response.
+
+    ``content`` owns the response bytes, so callers can decode the body after
+    the transport or client context has closed. ``extensions`` carries optional
+    non-portable metadata without changing the core contract.
+    """
+
     status_code: int
     headers: Mapping[str, str] = field(default_factory=dict)
     content: bytes = b""
@@ -41,10 +56,14 @@ class HTTPResponse:
 
     @property
     def is_success(self) -> bool:
+        """Return whether the status code is in the 2xx range."""
+
         return 200 <= self.status_code < 300
 
     @property
     def text(self) -> str:
+        """Decode the response body using its declared charset or UTF-8."""
+
         content_type = next(
             (value for name, value in self.headers.items() if name.lower() == "content-type"),
             "",
@@ -57,11 +76,19 @@ class HTTPResponse:
             return self.content.decode("utf-8", errors="replace")
 
     def json(self) -> Any:
+        """Decode the response body as JSON.
+
+        Raises:
+            HTTPResponseDecodeError: If the body is not valid JSON.
+        """
+
         try:
             return json.loads(self.content)
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise HTTPResponseDecodeError(self) from error
 
     def raise_for_status(self, request: HTTPRequest | None = None) -> None:
+        """Raise :class:`HTTPStatusError` for status codes of 400 or greater."""
+
         if self.status_code >= 400:
             raise HTTPStatusError(self, request)

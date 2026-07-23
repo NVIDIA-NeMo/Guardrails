@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Transport-neutral asynchronous HTTP clients for NeMo Guardrails integrations."""
+
 from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
 from nemoguardrails.http.errors import (
     HTTPClientError,

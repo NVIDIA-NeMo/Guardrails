@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Deterministic HTTP test doubles for NeMo Guardrails tests."""
+
 from collections import deque
 from collections.abc import Iterable
 from typing import Any, Mapping
@@ -21,7 +23,11 @@ from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
 
 class RecordingHTTPClient:
+    """Record requests and return queued responses or exceptions in order."""
+
     def __init__(self, responses: Iterable[HTTPResponse | BaseException] = ()):
+        """Initialize the client with an optional response sequence."""
+
         self.requests: list[HTTPRequest] = []
         self._responses = deque(responses)
         self.close_calls = 0
@@ -37,6 +43,14 @@ class RecordingHTTPClient:
         content: bytes | str | None = None,
         timeout: float | None = None,
     ) -> HTTPResponse:
+        """Record a request and consume the next queued result.
+
+        Raises:
+            RuntimeError: If no queued result is available.
+            BaseException: The queued exception, when the next result is an
+                exception instance.
+        """
+
         self.requests.append(
             HTTPRequest(
                 method=method,
@@ -56,6 +70,8 @@ class RecordingHTTPClient:
         return response
 
     async def close(self) -> None:
+        """Record a close call without discarding captured requests."""
+
         self.close_calls += 1
 
 

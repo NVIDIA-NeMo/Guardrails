@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Transport-neutral exceptions raised by the outbound HTTP subsystem."""
+
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
@@ -35,20 +37,33 @@ def _safe_url(url: str) -> str:
 
 
 class HTTPClientError(Exception):
+    """Base class for outbound HTTP failures.
+
+    ``retry_count`` records how many retries completed before the error was
+    returned to the caller.
+    """
+
     def __init__(self, *args: object):
         super().__init__(*args)
         self.retry_count = 0
 
 
 class HTTPConnectionError(HTTPClientError):
-    pass
+    """Raised when the transport cannot establish or maintain a connection."""
 
 
 class HTTPTimeoutError(HTTPClientError):
-    pass
+    """Raised when an outbound request exceeds its total timeout."""
 
 
 class HTTPStatusError(HTTPClientError):
+    """Raised for an unsuccessful HTTP status.
+
+    Attributes:
+        response: The materialized response that produced the error.
+        request: Request metadata when supplied by the caller.
+    """
+
     def __init__(self, response: "HTTPResponse", request: "HTTPRequest | None" = None):
         message = f"HTTP request failed with status {response.status_code}"
         if request is not None:
@@ -59,6 +74,8 @@ class HTTPStatusError(HTTPClientError):
 
 
 class HTTPResponseDecodeError(HTTPClientError):
+    """Raised when a response body cannot be decoded as JSON."""
+
     def __init__(self, response: "HTTPResponse"):
         super().__init__(f"HTTP response body is not valid JSON (status {response.status_code})")
         self.response = response
