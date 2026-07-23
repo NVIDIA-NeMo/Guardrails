@@ -169,6 +169,10 @@ class AIPerfRunner:
             if value is None:
                 continue
 
+            # health_check_endpoint is consumed by the runner, not passed to aiperf profile
+            if key == "health_check_endpoint":
+                continue
+
             # If `api_key_env_var` is provided, get the value of the env var and add it
             # to the command
             if key == "api_key_env_var":
