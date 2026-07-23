@@ -39,6 +39,12 @@ class BaseConfig(BaseModel):
         description="Type of endpoint (chat or completions)",
     )
     api_key_env_var: Optional[str] = Field(default=None, description="API key environment variable")
+    health_check_endpoint: str = Field(
+        default="/v1/rails/configs",
+        description="Endpoint used to verify the service is up before benchmarking. "
+        "Defaults to /v1/rails/configs (Guardrails-native). Use /v1/models when "
+        "benchmarking a bare LLM NIM directly.",
+    )
     streaming: Optional[bool] = Field(default=False, description="Streaming mode")
 
     # Load generation settings

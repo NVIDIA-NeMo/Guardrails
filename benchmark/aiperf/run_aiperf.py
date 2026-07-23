@@ -279,10 +279,7 @@ class AIPerfRunner:
     def run(self, dry_run: bool = False) -> int:
         """Run benchmarks with AIPerf"""
 
-        # Check the service is up before running anything.
-        # Use the rails/configs endpoint (Guardrails-native) rather than /v1/models,
-        # which proxies to the LLM NIM and returns 502 in IORails mode on startup.
-        self._check_service(endpoint="/v1/rails/configs")
+        self._check_service(endpoint=self.config.base_config.health_check_endpoint)
 
         # Get the directory under which all benchmarks will store results
         batch_dir = self._get_batch_dir()
