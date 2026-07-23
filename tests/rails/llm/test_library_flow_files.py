@@ -27,7 +27,8 @@ from pathlib import Path
 
 from nemoguardrails.actions.action_dispatcher import ActionDispatcher
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.manifests import all_rail_manifests, resolve_import_ref
+from nemoguardrails.manifests import all_rail_manifests
+from nemoguardrails.utils import camelcase_to_snakecase
 
 LIBRARY_ROOT = Path("nemoguardrails/library")
 
@@ -142,9 +143,8 @@ def test_library_flow_actions_are_declared_by_owning_manifest():
     violations = []
 
     for rail_name, manifest in _manifests_with_flows():
-        dispatcher = ActionDispatcher(load_all_actions=False)
-        for action_ref in manifest.actions.refs if manifest.actions is not None else ():
-            dispatcher.register_action(resolve_import_ref(action_ref))
+        action_refs = manifest.actions.refs if manifest.actions is not None else ()
+        declared_action_names = {action_ref.name for action_ref in action_refs}
         package_dir = _package_dir(manifest)
         for file_name in manifest.spec.flows.v1_files + manifest.spec.flows.files:
             path = package_dir / file_name
@@ -154,7 +154,10 @@ def test_library_flow_actions_are_declared_by_owning_manifest():
             invoked = {match.strip() for match in V1_EXECUTE_RE.findall(content)}
             invoked |= set(V2_ACTION_RE.findall(content))
             for action_name in sorted(invoked):
-                if not dispatcher.has_registered(action_name):
+                declared_name = action_name
+                if declared_name not in declared_action_names:
+                    declared_name = camelcase_to_snakecase(declared_name.removesuffix("Action"))
+                if declared_name not in declared_action_names:
                     violations.append(
                         f"{rail_name}: {path} invokes action {action_name!r}, which its manifest does not declare"
                     )
