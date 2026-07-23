@@ -5,6 +5,24 @@ title: "Polygraf Integration"
 ---
 [Polygraf](https://polygraf.ai/) offers a state-of-the-art PII detection and masking API designed to help identify and protect sensitive information in your text. This integration enables NeMo Guardrails to use Polygraf for PII detection and masking in input, output, and retrieval flows.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `polygraf` rail declares the following installation resources.
+
+**Services**
+
+- `Polygraf endpoint` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail polygraf
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 ## Setup
 
 1. Obtain a Polygraf API key and set it as an environment variable so the integration can authenticate cloud requests:

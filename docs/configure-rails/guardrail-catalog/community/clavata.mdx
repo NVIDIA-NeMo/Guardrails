@@ -5,6 +5,28 @@ title: "Clavata Integration"
 ---
 [Clavata](https://clavata.ai) provides real-time moderation capabilities allowing anyone to detect and filter content. The exact rules of what to filter are up to you, but we do provide a number of rulesets for common issues.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `clavata` rail declares the following installation resources.
+
+**Environment variables**
+
+- `CLAVATA_API_KEY` (required)
+
+**Services**
+
+- `Clavata API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail clavata
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 This integration enables NeMo Guardrails to use Clavata for content moderation, topic moderation, and dialog moderation in both input and output flows.
 
 ## Getting Access

@@ -5,6 +5,29 @@ title: "Cisco AI Defense Integration"
 ---
 [Cisco AI Defense](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) allows you to protect LLM interactions. This integration enables NeMo Guardrails to use Cisco AI Defense to protect input and output flows.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `ai_defense` rail declares the following installation resources.
+
+**Environment variables**
+
+- `AI_DEFENSE_API_ENDPOINT` (required)
+- `AI_DEFENSE_API_KEY` (required)
+
+**Services**
+
+- `Cisco AI Defense` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail ai_defense
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 ## Overview
 
 The diagram below shows how Cisco AI Defense integrates with the NeMo Guardrails flow to provide comprehensive protection at both input and output stages:

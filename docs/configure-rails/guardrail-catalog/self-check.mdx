@@ -10,6 +10,24 @@ content:
 
 This category of rails relies on prompting the LLM to perform various tasks like input checking, output checking, or fact-checking.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `self_check.input_check` and `self_check.output_check` rails declare the following installation resources.
+
+**Models**
+
+- `llm` (required; rails: `self_check.input_check`, `self_check.output_check`)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail self_check.input_check --rail self_check.output_check
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 <Info>
 
 You should only use the example self-check prompts as a starting point. For production use cases, you should perform additional evaluations and customizations.

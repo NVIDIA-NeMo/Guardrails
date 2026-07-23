@@ -40,10 +40,25 @@ JAILBREAK_DETECTION_MODEL = ActionRef(
     target="nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_model",
 )
 TRANSFORMERS_PACKAGE = PythonPackage(
-    distribution="transformers", import_name="transformers", version=">=4.35", required=False
+    distribution="transformers",
+    import_name="transformers",
+    version=">=4.35",
+    required=False,
+    description="Used for local execution; remote execution does not require it.",
 )
-TORCH_PACKAGE = PythonPackage(distribution="torch", import_name="torch", version=">=2", required=False)
-HUGGINGFACE_HUB_PACKAGE = PythonPackage(distribution="huggingface-hub", import_name="huggingface_hub", required=False)
+TORCH_PACKAGE = PythonPackage(
+    distribution="torch",
+    import_name="torch",
+    version=">=2",
+    required=False,
+    description="Used for local execution; remote execution does not require it.",
+)
+HUGGINGFACE_HUB_PACKAGE = PythonPackage(
+    distribution="huggingface-hub",
+    import_name="huggingface_hub",
+    required=False,
+    description="Downloads model artifacts for local jailbreak detection; remote execution does not require it.",
+)
 RAIL = RailManifest(
     name="jailbreak_detection",
     metadata=RailMetadata(

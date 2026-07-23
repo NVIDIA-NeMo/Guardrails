@@ -5,17 +5,37 @@ title: "GuardrailsAI Integration"
 ---
 NeMo Guardrails provides out-of-the-box support for [GuardrailsAI](https://github.com/guardrails-ai/guardrails) validators, enabling comprehensive input and output validation using a rich ecosystem of community-built validators. GuardrailsAI offers validators for content safety, PII detection, toxic language filtering, jailbreak detection, topic restriction, and much more.
 
-The integration provides access to both built-in validators and the entire [Guardrails Hub](https://hub.guardrailsai.com/) ecosystem, allowing you to dynamically load and configure validators for your specific use cases.
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
 
-## Setup
+## Installation requirements
 
-To use GuardrailsAI validators, you need to install the `guardrails-ai` package:
+The `guardrails_ai` rail declares the following installation resources.
+
+**Required Python packages**
+
+- `guardrails-ai`
 
 ```bash
 pip install guardrails-ai
 ```
 
-You may also need to install specific validators from the Guardrails Hub:
+**Services**
+
+- `Guardrails Hub` (optional)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail guardrails_ai
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
+The integration provides access to both built-in validators and the entire [Guardrails Hub](https://hub.guardrailsai.com/) ecosystem, allowing you to dynamically load and configure validators for your specific use cases.
+
+## Setup
+
+Install the specific validators you use from the Guardrails Hub:
 
 ```bash
 guardrails hub install guardrails/toxic_language

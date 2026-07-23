@@ -10,6 +10,28 @@ content:
 
 Agentic security provides specialized guardrails for LLM-based agents that use tools and interact with external systems.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `injection_detection` rail declares the following installation resources.
+
+**Required Python packages**
+
+- `yara-python>=4.5.1,<5`
+
+```bash
+pip install 'yara-python>=4.5.1,<5'
+```
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail injection_detection
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 ## Injection Detection
 
 The NeMo Guardrails library offers detection of potential exploitation attempts by using injection such as code injection, cross-site scripting, SQL injection, and template injection.
@@ -107,8 +129,6 @@ Refer to the following table for the `rails.config.injection_detection` field sy
 For information about writing YARA rules, refer to the [YARA documentation](https://yara.readthedocs.io/en/stable/index.html).
 
 ### Example
-
-Before you begin, install the `yara-python` package with `pip install "yara-python>=4.5.1,<5"`.
 
 1. Set your NVIDIA API key as an environment variable:
 

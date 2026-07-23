@@ -1,0 +1,109 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Hugging Face Classifier"
+sidebar-title: "Hugging Face Classifier"
+description: "Check input, output, or retrieved context with local or remotely hosted Hugging Face classifiers."
+content:
+  type: "Reference"
+---
+
+The Hugging Face classifier rail checks user input, model output, or retrieved context with a named classifier. You can run a Transformers pipeline locally or use a classifier served by vLLM, KServe, or FMS guardrails-detectors.
+
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `hf_classifier` rail declares the following installation resources.
+
+**Optional Python packages**
+
+- `torch>=2`: Used for local execution; remote execution does not require it.
+- `transformers>=4.35`: Used for local execution; remote execution does not require it.
+
+```bash
+pip install 'torch>=2' 'transformers>=4.35'
+```
+
+**Environment variables**
+
+- `HF_TOKEN` (optional)
+
+**Services**
+
+- `FMS guardrails-detectors endpoint` (optional)
+- `KServe classifier endpoint` (optional)
+- `vLLM classifier endpoint` (optional)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail hf_classifier
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
+## Configure a local classifier
+
+Define a named local classifier and reference its name from each enabled flow:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      toxicity:
+        engine: local
+        model: <hugging-face-model-id-or-local-path>
+        task: text-classification
+        threshold: 0.8
+        blocked_labels:
+          - <blocked-label>
+
+  input:
+    flows:
+      - hf classifier check input $classifier=toxicity
+
+  output:
+    flows:
+      - hf classifier check output $classifier=toxicity
+
+  retrieval:
+    flows:
+      - hf classifier check retrieval $classifier=toxicity
+```
+
+Local execution uses the optional Transformers and PyTorch packages listed in the installation requirements. Set `HF_TOKEN` when the selected model requires authentication.
+
+## Configure a remote classifier
+
+Remote execution does not require Transformers or PyTorch in the NVIDIA NeMo Guardrails environment. Configure the backend, endpoint, server-side model identifier, and any authentication variable required by your deployment:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      toxicity:
+        engine: vllm
+        base_url: https://classifier.example.com
+        model: <server-side-model-id>
+        api_key_env_var: CLASSIFIER_API_KEY
+        threshold: 0.8
+        blocked_labels:
+          - <blocked-label>
+        parameters:
+          timeout: 30
+          verify_ssl: true
+
+  input:
+    flows:
+      - hf classifier check input $classifier=toxicity
+```
+
+The `engine` field accepts `vllm`, `kserve`, or `fms`. The remote `parameters` mapping supports `timeout`, `verify_ssl`, `ca_cert`, `client_cert`, and `client_key`.
+
+## Rail behavior
+
+- Input and output flows block text when a configured blocked label meets or exceeds the threshold.
+- Retrieval flows clear the relevant chunks when the classifier blocks them.
+- A classifier with an empty `blocked_labels` list never blocks.
+- Each configured flow must reference a classifier name defined under `rails.config.hf_classifier`.

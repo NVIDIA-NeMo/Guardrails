@@ -61,6 +61,36 @@ nemoguardrails chat --config examples/configs/content_safety [--verbose] [--stre
 
 ---
 
+<a id="rails-requirements"></a>
+## `rails requirements`
+
+Print the installation requirements declared by one or more catalog rails:
+
+```bash
+nemoguardrails rails requirements --rail sensitive_data_detection
+nemoguardrails rails requirements --rail hf_classifier --rail jailbreak_detection
+```
+
+You can instead select every catalog rail referenced by a configuration:
+
+```bash
+nemoguardrails rails requirements --config ./config
+```
+
+Exactly one selection method is required: one or more `--rail` options, or one `--config` option. The default human-readable output separates required, optional, and unsupported Python packages and prints copyable `pip install` commands. It also lists declared environment-variable names, services, and models. The command never installs packages or reads environment-variable values.
+
+Use `--format requirements` to emit required packages as requirements-file entries. Optional and environment-incompatible packages are included as comments. Use `--format json` for structured automation output. Version constraints and environment markers are preserved in both formats.
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--rail` | Manifest name of a catalog rail. Repeat to select multiple rails. Cannot be combined with `--config`. |
+| `--config` | Path to a guardrails configuration file or directory. Cannot be combined with `--rail`. |
+| `--format` | Output format: `human`, `requirements`, or `json`. Default: `human`. |
+
+---
+
 <a id="rails-validate"></a>
 ## `rails validate`
 

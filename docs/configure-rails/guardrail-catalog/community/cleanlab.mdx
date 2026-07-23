@@ -5,6 +5,36 @@ title: "Cleanlab Integration"
 ---
 Cleanlab's state-of-the-art [LLM uncertainty estimator](https://cleanlab.ai/blog/trustworthy-language-model/) scores the _trustworthiness_ of any LLM response, to detect incorrect outputs and hallucinations in real-time.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `cleanlab` rail declares the following installation resources.
+
+**Required Python packages**
+
+- `cleanlab-studio`
+
+```bash
+pip install cleanlab-studio
+```
+
+**Environment variables**
+
+- `CLEANLAB_API_KEY` (required)
+
+**Services**
+
+- `Cleanlab TLM` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail cleanlab
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 In question-answering or RAG applications: high trustworthiness is indicative of a correct response. In open-ended chat applications, a high score corresponds to the response being helpful and informative. Low trustworthiness scores indicate outputs that are likely bad or incorrect, or complex prompts where the LLM might have output the right response this time but might output the wrong response when run on the same prompt again (so it cannot be trusted).
 
 The trustworthiness score is further explained and comprehensively benchmarked in [Cleanlab's documentation](https://help.cleanlab.ai/tlm/).
@@ -25,12 +55,6 @@ define bot response untrustworthy
 ```
 
 ## Setup
-
-Install the Python client to use Cleanlab's trustworthiness score:
-
-```bash
-pip install --upgrade cleanlab-studio
-```
 
 You can get an API key for free by [creating a Cleanlab account](https://tlm.cleanlab.ai/) or experiment with the trustworthiness scores in the [playground](https://tlm.cleanlab.ai/). Feel free to [email Cleanlab](mailto:support@cleanlab.ai) with any questions.
 

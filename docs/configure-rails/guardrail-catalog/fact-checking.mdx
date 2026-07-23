@@ -10,6 +10,24 @@ content:
 
 Fact-checking guardrails help ensure that LLM output is well grounded in evidence and reduce so-called hallucinations or false claims.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `factchecking`, `hallucination`, and `self_check.facts` rails declare the following installation resources.
+
+**Models**
+
+- `llm` (required; rails: `hallucination`, `self_check.facts`)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail factchecking --rail hallucination --rail self_check.facts
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 ## Self-Check Fact-Checking
 
 The goal of the self-check fact-checking output rail is to ensure that the answer to a RAG (Retrieval Augmented Generation) query is grounded in the provided evidence extracted from the knowledge base (KB).

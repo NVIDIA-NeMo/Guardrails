@@ -41,6 +41,7 @@ RAIL = RailManifest(
         categories=("input", "retrieval"),
         capabilities=("classify",),
         tags=("context", "retrieval", "denial-of-service"),
+        docs_url="docs/configure-rails/guardrail-catalog/context-bloat-detection.mdx",
     ),
     spec=RailSpec(
         config_schema=RailConfigSchema(

@@ -5,6 +5,29 @@ title: "F5 Guardrails Integration"
 ---
 NeMo Guardrails supports using [F5 AI Guardrails API](https://www.f5.com/products/ai-guardrails) as an input and output rail.
 
+{/* BEGIN GENERATED RAIL REQUIREMENTS */}
+
+## Installation requirements
+
+The `f5` rail declares the following installation resources.
+
+**Environment variables**
+
+- `F5_GUARDRAILS_API_KEY` (required)
+- `F5_GUARDRAILS_API_URL` (optional)
+
+**Services**
+
+- `F5 AI Guardrails API` (required)
+
+Print the requirements from your installed version:
+
+```bash
+nemoguardrails rails requirements --rail f5
+```
+
+{/* END GENERATED RAIL REQUIREMENTS */}
+
 ```yaml
 rails:
   input:
@@ -16,7 +39,6 @@ rails:
 ```
 
 The F5 Guardrails API scans the text for various violations and returns an outcome. If the outcome is not cleared, the rail will trigger and the bot will refuse to respond.
-
 
 ## Data handling
 
