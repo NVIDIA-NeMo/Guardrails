@@ -262,6 +262,11 @@ class ActionDispatcher:
 
         return action
 
+    @staticmethod
+    def _sanitize_for_log(value: Any) -> str:
+        """Sanitize values before logging to prevent log injection."""
+        return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
     def _normalize_action_name(self, name: str) -> str:
         """Normalize the action name to the required format."""
         if not self._has_action_name(name):
@@ -292,7 +297,7 @@ class ActionDispatcher:
         try:
             return self._resolve_registered_action(name)
         except Exception:
-            log.exception("Failed to resolve action '%s'.", name)
+            log.exception("Failed to resolve action '%s'.", self._sanitize_for_log(name))
             return None
 
     async def execute_action(
@@ -315,7 +320,7 @@ class ActionDispatcher:
             try:
                 maybe_fn = self._resolve_registered_action(action_name)
             except Exception:
-                log.exception("Failed to resolve action '%s'.", action_name)
+                log.exception("Failed to resolve action '%s'.", self._sanitize_for_log(action_name))
                 return None, "failed"
             if not maybe_fn:
                 raise Exception(f"Action '{action_name}' is not registered.")

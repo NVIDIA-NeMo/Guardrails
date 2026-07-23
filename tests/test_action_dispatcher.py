@@ -199,6 +199,24 @@ async def test_lazy_action_resolution_failures_follow_dispatcher_contract(action
     assert await dispatcher.execute_action(action_ref.name, params={}) == (None, "failed")
 
 
+@pytest.mark.asyncio
+async def test_lazy_action_resolution_logs_escape_line_breaks(caplog):
+    action_name = "unsafe\r\naction"
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(
+            name=action_name,
+            target="tests.missing_lazy_action_module:action",
+        )
+    )
+
+    assert dispatcher.get_action(action_name) is None
+    assert await dispatcher.execute_action(action_name, params={}) == (None, "failed")
+
+    expected = "Failed to resolve action 'unsafe\\r\\naction'."
+    assert caplog.messages == [expected, expected]
+
+
 def test_load_actions_from_nonexistent_module():
     """Test loading actions from a non-existent module"""
 
