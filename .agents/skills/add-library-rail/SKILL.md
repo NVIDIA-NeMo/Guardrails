@@ -114,9 +114,11 @@ All outbound HTTP goes through `nemoguardrails.http`. An AST test,
 `nemoguardrails/library/` imports `httpx`, `requests`, `aiohttp`, or
 `urllib3` directly.
 
-- The action declares `http_client: HTTPClient | None = None`; LLMRails
-  injects a managed, instrumented client as an action param at runtime. Never
-  construct or manage a transport client inside the rail.
+- Declare `http_client: HTTPClient | None = None` on the action. When it is
+  `None`, `http_call` creates and closes a call-scoped client. Applications
+  can register a caller-owned shared or instrumented client as an action
+  parameter when their workload warrants it; never close an injected client
+  inside the rail.
 - Send requests with the canonical helpers, threading the injected client
   down (from `nemoguardrails/library/clavata/request.py`):
 
@@ -149,8 +151,8 @@ response = await http_call(
   `nemoguardrails/http/retry.py`.
 - Telemetry must stay content-free: never log request or response bodies,
   exception messages containing payloads, URLs with query strings, or
-  credentials. The instrumentation layer already sanitizes; do not undo it in
-  rail-level logging.
+  credentials. Explicitly composed instrumentation sanitizes URLs; do not
+  undo that protection in rail-level logging.
 - Wrap vendor failures in rail-specific error types (`errs.py` pattern) built
   on the `nemoguardrails.http.errors` hierarchy.
 
