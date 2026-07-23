@@ -198,12 +198,19 @@ requirements=RailRequirements(python_packages=(YARA_PACKAGE,)),
 
 Three layers, all required (per `nemoguardrails/library/README.md`):
 
-1. **Catalog gates (free).** `tests/rails/llm/test_builtin_rail_manifests.py`
-   and `tests/rails/llm/test_library_flow_files.py` pick up the new rail
-   automatically: manifest, lazy refs, action names, bindings, and that both
-   dialect flow files parse, define the declared flows, and invoke only
-   dispatcher-resolvable actions. Run them first; they catch most wiring
-   mistakes.
+1. **Catalog gates (free).** `tests/rails/llm/test_builtin_rail_manifests.py`,
+   `tests/rails/llm/test_library_flow_files.py`, and
+   `tests/rails/llm/test_builtin_rail_conformance.py` pick up the new rail
+   automatically: manifest, lazy refs, action names, bindings, both dialect
+   flow files parsing and invoking only dispatcher-resolvable actions, and
+   cross-artifact conformance (surfaces declare `RailOutcome`, requirements
+   and privacy are consistent, and the projected config schema matches
+   `schemas/rails_config.snapshot.json`). Run them first; they catch most
+   wiring mistakes. If a config change moves the schema, regenerate the
+   snapshot with `scripts/generate_rails_config_schema_snapshot.py` and
+   review the diff. Never edit a generic gate or add your rail to an
+   exception list (`LEGACY_UNMANIFESTED_PACKAGES`,
+   `NON_PORTABLE_DECLARED_FLOWS`) to get green; fix the manifest.
 2. **Unit tests** in `tests/test_<rail>*.py`:
    - `TestChat` end-to-end for flow behavior, `FakeLLMModel` for
      deterministic main-model output.
@@ -259,7 +266,7 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
 Run until green, in this order (cheapest first):
 
 ```bash
-make test TEST=tests/rails/llm/test_builtin_rail_manifests.py
+make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=tests/test_<rail>.py
