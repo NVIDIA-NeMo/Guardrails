@@ -163,7 +163,7 @@ async def test_activated_manager_lazily_reuses_client():
 
 @pytest.mark.asyncio
 async def test_http_call_closes_only_the_client_it_creates():
-    owned = RecordingHTTPClient()
+    owned = RecordingHTTPClient([HTTPResponse(status_code=200)])
 
     await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
 
@@ -179,7 +179,7 @@ async def test_http_call_closes_only_the_client_it_creates():
 async def test_http_call_closes_owned_client_when_request_raises():
     owned = RecordingHTTPClient()
 
-    with pytest.raises(IndexError):
+    with pytest.raises(RuntimeError, match="No HTTP responses available"):
         await http_call(None, "GET", "https://example.com/check", factory=lambda: owned)
 
     assert owned.close_calls == 1
