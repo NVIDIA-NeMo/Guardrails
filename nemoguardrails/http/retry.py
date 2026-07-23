@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Mapping
 
-from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
+from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
 from nemoguardrails.http.errors import HTTPConnectionError, HTTPTimeoutError
 from nemoguardrails.http.types import HTTPResponse
 
@@ -118,7 +118,7 @@ class RetryingHTTPClient:
     """Apply a retry policy around another transport-neutral HTTP client.
 
     Closing this wrapper closes the wrapped client only when it implements
-    :class:`ManagedHTTPClient`.
+    :class:`ClosableHTTPClient`.
     """
 
     def __init__(
@@ -208,10 +208,10 @@ class RetryingHTTPClient:
         return cap * self._random_value()
 
     async def close(self) -> None:
-        """Close the wrapped managed client at most once."""
+        """Close the wrapped closable client at most once."""
 
         if self._closed:
             return
         self._closed = True
-        if isinstance(self._client, ManagedHTTPClient):
+        if isinstance(self._client, ClosableHTTPClient):
             await self._client.close()

@@ -16,6 +16,7 @@
 import pytest
 
 from nemoguardrails.http import (
+    ClosableHTTPClient,
     HTTPClient,
     HTTPClientError,
     HTTPConnectionError,
@@ -24,7 +25,6 @@ from nemoguardrails.http import (
     HTTPResponseDecodeError,
     HTTPStatusError,
     HTTPTimeoutError,
-    ManagedHTTPClient,
 )
 from nemoguardrails.http.testing import RecordingHTTPClient
 
@@ -114,7 +114,7 @@ async def test_recording_client_records_request_and_returns_scripted_response():
         )
     ]
     assert isinstance(client, HTTPClient)
-    assert isinstance(client, ManagedHTTPClient)
+    assert isinstance(client, ClosableHTTPClient)
 
 
 @pytest.mark.asyncio

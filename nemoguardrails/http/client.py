@@ -54,8 +54,8 @@ class HTTPClient(Protocol):
 
 
 @runtime_checkable
-class ManagedHTTPClient(HTTPClient, Protocol):
-    """An HTTP client that owns resources requiring asynchronous cleanup."""
+class ClosableHTTPClient(HTTPClient, Protocol):
+    """An HTTP client that exposes asynchronous resource cleanup."""
 
     async def close(self) -> None:
         """Release resources owned by the client.

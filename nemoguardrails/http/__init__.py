@@ -15,7 +15,7 @@
 
 """Transport-neutral asynchronous HTTP clients for NeMo Guardrails integrations."""
 
-from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
+from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
 from nemoguardrails.http.errors import (
     HTTPClientError,
     HTTPConnectionError,
@@ -28,6 +28,7 @@ from nemoguardrails.http.transport import HttpxHTTPClient
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
 __all__ = [
+    "ClosableHTTPClient",
     "HTTPClient",
     "HTTPClientError",
     "HTTPConnectionError",
@@ -37,7 +38,6 @@ __all__ = [
     "HTTPStatusError",
     "HTTPTimeoutError",
     "HttpxHTTPClient",
-    "ManagedHTTPClient",
     "RetryPolicy",
     "RetryingHTTPClient",
 ]
