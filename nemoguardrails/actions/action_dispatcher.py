@@ -63,6 +63,9 @@ class _RegisteredActions(Mapping[str, RegisteredAction]):
     def __len__(self) -> int:
         return len(self._dispatcher._action_names())
 
+    def __contains__(self, name: object) -> bool:
+        return isinstance(name, str) and self._dispatcher._has_action_name(name)
+
 
 class ActionDispatcher:
     def __init__(

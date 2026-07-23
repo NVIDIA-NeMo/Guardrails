@@ -117,6 +117,8 @@ def test_load_all_actions_registers_builtin_library_action_refs_lazily():
     assert dispatcher.is_manifest_action("ContentSafetyCheckInputAction")
     assert action_module not in sys.modules
     registered_actions = dispatcher.registered_actions
+    assert "content_safety_check_input" in registered_actions
+    assert "unknown_action" not in registered_actions
     assert action_module not in sys.modules
     assert callable(registered_actions["content_safety_check_input"])
     assert action_module in sys.modules
