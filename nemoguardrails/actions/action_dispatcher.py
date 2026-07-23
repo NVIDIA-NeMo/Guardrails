@@ -19,7 +19,7 @@ import importlib.util
 import inspect
 import logging
 import os
-from collections.abc import Iterator, Mapping
+from collections.abc import ItemsView, Iterator, Mapping, ValuesView
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Tuple, Type, TypeAlias, Union, cast
@@ -48,6 +48,16 @@ RegisteredAction: TypeAlias = Union[
 
 
 class _RegisteredActions(Mapping[str, RegisteredAction]):
+    """Read-only view over registered and lazily declared actions.
+
+    Iteration, ``in``, and ``len`` reflect every registered and lazily declared
+    action name. Subscripting resolves a single lazy action on demand (importing
+    its module) and raises ``KeyError`` if it cannot be resolved. Bulk value
+    access (``values``/``items``) intentionally returns only actions that are
+    already resolved so that materializing the view never triggers lazy imports
+    or fails on an action whose optional dependency is missing.
+    """
+
     def __init__(self, dispatcher: "ActionDispatcher") -> None:
         self._dispatcher = dispatcher
 
@@ -65,6 +75,12 @@ class _RegisteredActions(Mapping[str, RegisteredAction]):
 
     def __contains__(self, name: object) -> bool:
         return isinstance(name, str) and self._dispatcher._has_action_name(name)
+
+    def values(self) -> ValuesView[RegisteredAction]:
+        return self._dispatcher._registered_actions.values()
+
+    def items(self) -> ItemsView[str, RegisteredAction]:
+        return self._dispatcher._registered_actions.items()
 
 
 class ActionDispatcher:

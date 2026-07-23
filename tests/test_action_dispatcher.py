@@ -225,6 +225,33 @@ async def test_lazy_action_resolution_logs_escape_line_breaks(caplog):
     assert caplog.messages == [expected, expected]
 
 
+def test_registered_actions_view_does_not_import_lazy_actions():
+    dispatcher = ActionDispatcher(load_all_actions=False)
+    dispatcher._register_action_ref(
+        ActionRef(name="lazy_test_action", target="tests.test_action_dispatcher:_lazy_test_action")
+    )
+    dispatcher._register_action_ref(ActionRef(name="broken_action", target="tests.missing_lazy_action_module:action"))
+    view = dispatcher.registered_actions
+
+    # Membership and iteration expose the full declared namespace.
+    assert set(view) == {"lazy_test_action", "broken_action"}
+    assert "lazy_test_action" in view and "broken_action" in view
+    assert len(view) == 2
+
+    # Materializing the view resolves nothing, so an unresolvable ref cannot
+    # raise and no module is imported yet.
+    assert dict(view.items()) == {}
+    assert tuple(view.values()) == ()
+
+    # Subscripting still resolves a single action and caches it.
+    assert view["lazy_test_action"] is _lazy_test_action
+    assert dict(view.items()) == {"lazy_test_action": _lazy_test_action}
+
+    # The failure contract for direct access is preserved.
+    with pytest.raises(KeyError, match="broken_action"):
+        view["broken_action"]
+
+
 def test_load_actions_from_nonexistent_module():
     """Test loading actions from a non-existent module"""
 
