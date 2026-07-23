@@ -137,7 +137,7 @@ response = await http_call(
 
 - `http_call` manages the fallback client's lifecycle. Wrapping an injected
   client must not transfer ownership; the factory must return the fully
-  composed managed client for the fallback path.
+  composed closable client for the fallback path.
 - Retries are rail-owned: define a module-level `RetryPolicy` constant. The
   default policy never retries POST; if your vendor call is a POST and safe
   to resend, you must opt in explicitly with
