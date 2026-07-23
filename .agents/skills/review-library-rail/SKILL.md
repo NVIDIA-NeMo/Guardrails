@@ -145,6 +145,17 @@ Each item names the check, where to look, and what "wrong" looks like.
     exceptions). For any change to `schemas/rails_config.snapshot.json`,
     confirm it was regenerated for a deliberate config-schema change and
     read the diff as a public-schema change, not a mechanical refresh.
+13. **Error-path coverage (unit, exhaustive).** Dimension 4 checks that
+    errors fail closed; this checks that EVERY error branch is actually
+    exercised. Enumerate the action's failure branches (timeout, connection
+    error, each handled status class, 429 retried and retry-exhausted,
+    malformed payload, missing credential, missing optional dependency, each
+    crossed with fail-open/closed where supported) and require a unit test
+    per branch with a mocked transport. A branch with handling code but no
+    test is a finding. These belong in the unit layer, not recorded: a
+    synthetic error forced into `tests/recorded/` violates the placement
+    rule, so do not accept "it's covered by the recorded suite" for anything
+    but the recordable real error.
 
 ## Step 3: Security pass
 

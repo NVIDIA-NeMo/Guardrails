@@ -230,6 +230,17 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    - Include one flow-level test of what happens when the action RAISES
      (vendor down): fail-closed is a claim about the runtime, not your code,
      so test it rather than asserting it in a summary.
+   - Cover EVERY error branch the action can take, not just one. With a
+     mocked transport (`RecordingHTTPClient` or `aioresponses`) synthetic
+     errors are cheap and deterministic, so this is where exhaustive error
+     coverage belongs. For an HTTP/vendor rail, enumerate the action's
+     failure branches and give each a test: timeout, connection error, each
+     handled status class (4xx, 5xx), rate limiting (429 retried-then-success
+     and 429 retry-exhausted), malformed or unexpected payload, missing
+     credential, and the missing optional-dependency path -- each crossed
+     with fail-open and fail-closed where the rail supports both. A silently
+     swallowed vendor error is the worst failure mode for a guardrail, so
+     "one raise test" is not enough.
    - Cover BOTH Colang dialects end to end, not just the default. `TestChat`
      runs Colang 1 (`flows.v1.co`) unless the config sets
      `colang_version: "2.x"`, which exercises `flows.co` instead (exemplar:
@@ -242,7 +253,12 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    `test_<rail>.py` covering the outcome triad (allow, block, and
    provider-error) using `check_rails`, `generate_with_fake_main`, and
    `stream_with_fake_main` from `helpers.py`, with `assert_rails_result` +
-   `snapshot`. Provider-backed rails use `pytest.mark.vcr` and record
+   `snapshot`. The recorded provider-error is only the RECORDABLE real error
+   (an invalid key yielding a real 401 is the canonical one; a real 429 with
+   a `Retry-After` header is a common second). Do NOT try to mirror every
+   error branch here: a synthetic timeout or 5xx injected by test code
+   belongs in the unit layer by the placement rule, and most error paths
+   cannot be recorded against a live vendor anyway. Provider-backed rails use `pytest.mark.vcr` and record
    cassettes with `make record-cassettes`; pure-Python rails use
    `@pytest.mark.pure_runtime(reason=...)` instead. Recorded tests are
    dialect-single: do not duplicate them for Colang 2 (the wire traffic is
