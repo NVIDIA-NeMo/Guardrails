@@ -17,7 +17,7 @@ import logging
 from abc import abstractmethod
 from typing import Any, Callable, List, Mapping, Optional, Tuple
 
-from nemoguardrails.actions.action_dispatcher import ActionDispatcher
+from nemoguardrails.actions.action_dispatcher import ActionDispatcher, RegisteredAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 
@@ -80,7 +80,7 @@ class Runtime:
         self.action_dispatcher.register_actions(actions_obj, override=override)
 
     @property
-    def registered_actions(self) -> Mapping[str, Any]:
+    def registered_actions(self) -> Mapping[str, RegisteredAction]:
         """Return registered actions."""
         return self.action_dispatcher.registered_actions
 
