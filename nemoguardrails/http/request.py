@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any, Mapping
 
-from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
+from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
@@ -33,8 +33,8 @@ async def _resolve_http_client(
         return
 
     owned = factory()
-    if not isinstance(owned, ManagedHTTPClient):
-        raise TypeError("HTTP client factory must return a managed HTTP client")
+    if not isinstance(owned, ClosableHTTPClient):
+        raise TypeError("HTTP client factory must return a closable HTTP client")
     try:
         yield owned
     finally:

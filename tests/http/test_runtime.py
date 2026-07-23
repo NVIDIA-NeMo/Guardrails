@@ -18,16 +18,16 @@ import pytest
 from opentelemetry.sdk.trace import TracerProvider
 
 from nemoguardrails.http import (
+    ClosableHTTPClient,
     HTTPClient,
     InstrumentedHTTPClient,
-    ManagedHTTPClient,
     RetryPolicy,
     create_http_client,
 )
 
 
 @pytest.mark.asyncio
-async def test_default_factory_composes_a_managed_client():
+async def test_default_factory_composes_a_closable_client():
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"ok": True}, request=request)
 
@@ -40,7 +40,7 @@ async def test_default_factory_composes_a_managed_client():
     response = await client.request("GET", "https://example.com/check")
 
     assert isinstance(client, HTTPClient)
-    assert isinstance(client, ManagedHTTPClient)
+    assert isinstance(client, ClosableHTTPClient)
     assert response.json() == {"ok": True}
     assert response.extensions["retry_count"] == 0
     await client.close()

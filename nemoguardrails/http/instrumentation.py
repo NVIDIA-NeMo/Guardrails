@@ -17,7 +17,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Mapping
 
 from nemoguardrails.http._url import sanitize_url, split_url
-from nemoguardrails.http.client import HTTPClient, ManagedHTTPClient
+from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
 from nemoguardrails.http.types import HTTPResponse
 
 if TYPE_CHECKING:
@@ -120,5 +120,5 @@ class InstrumentedHTTPClient:
         if self._closed:
             return
         self._closed = True
-        if isinstance(self._client, ManagedHTTPClient):
+        if isinstance(self._client, ClosableHTTPClient):
             await self._client.close()

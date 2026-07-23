@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from nemoguardrails.http.client import ManagedHTTPClient
+from nemoguardrails.http.client import ClosableHTTPClient
 from nemoguardrails.http.instrumentation import InstrumentedHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
@@ -36,14 +36,14 @@ def create_http_client(
     retry_policy: RetryPolicy | None = None,
     tracer: Tracer | None = None,
     follow_redirects: bool = False,
-) -> ManagedHTTPClient:
+) -> ClosableHTTPClient:
     transport = HttpxHTTPClient(
         httpx_client,
         timeout=timeout,
         limits=limits,
         follow_redirects=follow_redirects,
     )
-    client: ManagedHTTPClient = transport
+    client: ClosableHTTPClient = transport
     if retry_policy is not None:
         client = RetryingHTTPClient(transport, retry_policy)
     if tracer is not None:

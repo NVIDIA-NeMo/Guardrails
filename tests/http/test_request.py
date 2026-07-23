@@ -139,5 +139,5 @@ async def test_http_call_rejects_unmanaged_factory_result():
         async def request(self, method, url, **kwargs):
             return HTTPResponse(status_code=200)
 
-    with pytest.raises(TypeError, match="managed HTTP client"):
+    with pytest.raises(TypeError, match="closable HTTP client"):
         await http_call(None, "GET", "https://example.com/check", factory=lambda: UnmanagedClient())
