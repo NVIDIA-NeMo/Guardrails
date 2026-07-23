@@ -20,6 +20,12 @@ exemplars are the specification.
 | HTTP / vendor API | `nemoguardrails/library/clavata/` | `request.py` (HTTP layer), `errs.py` (vendor errors), `utils.py` |
 | Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; model bound via `Binding.surface_param("model_name", "model")` |
 
+For an HTTP rail, pick the exemplar by complexity: `clavata/` factors its
+vendor client into `request.py` for a multi-endpoint API, while
+`nemoguardrails/library/f5/` inlines a single `http_call` in `actions.py` and
+returns `RailOutcome` directly. F5 is the smallest complete vendor rail on the
+managed HTTP client, so copy it when the vendor is one endpoint.
+
 Core file set required for every rail:
 
 - `rail.py` (the manifest; discovery keys off this file)
