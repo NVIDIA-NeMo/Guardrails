@@ -23,7 +23,6 @@ from nemoguardrails.http import (
     HTTPResponseDecodeError,
     HTTPTimeoutError,
     http_call,
-    resolve_http_client,
 )
 
 # Default per-request timeout for Polygraf calls. Matches the timeout pattern
@@ -73,16 +72,15 @@ async def polygraf_request(
         headers["Authorization"] = f"Bearer {api_key}"
 
     try:
-        async with resolve_http_client(http_client) as client:
-            response = await http_call(
-                client,
-                "POST",
-                server_endpoint,
-                json=payload,
-                headers=headers,
-                timeout=timeout,
-                raise_for_status=False,
-            )
+        response = await http_call(
+            http_client,
+            "POST",
+            server_endpoint,
+            json=payload,
+            headers=headers,
+            timeout=timeout,
+            raise_for_status=False,
+        )
     except HTTPTimeoutError as err:
         raise ValueError(f"Polygraf call timed out after {timeout} seconds.") from err
     except HTTPClientError as err:

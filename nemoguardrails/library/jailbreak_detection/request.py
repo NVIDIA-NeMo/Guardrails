@@ -32,7 +32,7 @@ import logging
 from typing import Optional
 from urllib.parse import urljoin
 
-from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPTimeoutError, http_call
 
 log = logging.getLogger(__name__)
 
@@ -67,8 +67,7 @@ async def jailbreak_detection_heuristics_request(
         "ps_ppl_threshold": ps_ppl_threshold,
     }
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(client, "POST", api_url, json=payload, raise_for_status=False)
+    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
     if response.status_code != 200:
         log.error(f"Jailbreak check API request failed with status {response.status_code}")
         return None
@@ -93,8 +92,7 @@ async def jailbreak_detection_model_request(
         "prompt": prompt,
     }
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(client, "POST", api_url, json=payload, raise_for_status=False)
+    response = await http_call(http_client, "POST", api_url, json=payload, raise_for_status=False)
     if response.status_code != 200:
         log.error(f"Jailbreak check API request failed with status {response.status_code}")
         return None
@@ -126,16 +124,15 @@ async def jailbreak_nim_request(
     try:
         if nim_auth_token is not None:
             headers["Authorization"] = f"Bearer {nim_auth_token}"
-        async with resolve_http_client(http_client) as client:
-            response = await http_call(
-                client,
-                "POST",
-                endpoint,
-                json=payload,
-                headers=headers,
-                timeout=30,
-                raise_for_status=False,
-            )
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
+            json=payload,
+            headers=headers,
+            timeout=30,
+            raise_for_status=False,
+        )
         if response.status_code != 200:
             log.error(f"NemoGuard JailbreakDetect NIM request failed with status {response.status_code}")
             return None

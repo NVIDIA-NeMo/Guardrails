@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPResponseDecodeError, http_call
 
 log = logging.getLogger(__name__)
 
@@ -67,15 +67,14 @@ async def private_ai_request(
     if enabled_entities:
         payload["entity_detection"]["entity_types"] = [{"type": "ENABLE", "value": enabled_entities}]
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            server_endpoint,
-            json=payload,
-            headers=headers,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        server_endpoint,
+        json=payload,
+        headers=headers,
+        raise_for_status=False,
+    )
     if response.status_code != 200:
         raise ValueError(f"Private AI call failed with status code {response.status_code}.\nDetails: {response.text}")
 
