@@ -860,6 +860,33 @@ class TestModelEngineStreamCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_stream_call_surfaces_non_standard_body_keys_as_provider_metadata(self):
+        """Non-standard SSE chunk-body keys (e.g. nvext) are merged into provider_metadata alongside response_headers (LLMRails parity)."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"content": "Hi"}}], "nvext": {"spec_decode": {"enabled": true}}}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = _mock_streaming_response(raw_lines, headers={"nvcf-reqid": "abc"})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks
+        assert chunks[0].provider_metadata == {
+            "nvext": {"spec_decode": {"enabled": True}},
+            "response_headers": {"nvcf-reqid": "abc"},
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_stream_call_forwards_kwargs(self):
         """Extra kwargs (temperature, etc.) are included in the request body."""
         engine = ModelEngine(_make_model())

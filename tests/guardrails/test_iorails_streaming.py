@@ -1064,3 +1064,21 @@ class TestStreamAsyncMetadata:
             and set(c["metadata"].keys()) == {"provider_metadata"}
         ]
         assert provider_only_empty == []
+
+    @pytest.mark.asyncio
+    async def test_usage_folds_into_single_terminal_frame(self, iorails_input_only):
+        """Terminal usage rides on the single END_OF_STREAM frame (with usage + response/usage_metadata), not a separate empty frame."""
+
+        async def _stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="Hi")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=2, total_tokens=3))
+
+        _wire_mocks(iorails_input_only, stream=_stream)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
+        empty_frames = [c for c in chunks if isinstance(c, dict) and c.get("text") == ""]
+        assert len(empty_frames) == 1
+        terminal = empty_frames[0]["metadata"]
+        assert terminal["usage"] == {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
+        assert "response_metadata" in terminal and "usage_metadata" in terminal

@@ -1387,15 +1387,18 @@ class IORails(BaseGuardrails):
                 # stream ends. Reasoning is dropped for LLMRails compatibility.
                 log.info("[%s] Streaming main LLM", req_id)
                 content_parts: list[str] = []
+                # Usage from the terminal usage-only chunk is folded into the END_OF_STREAM
+                # frame below (not its own frame), matching LLMRails' single terminal frame.
+                pending_usage_metadata: Optional[dict] = None
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
                     chunk_metadata = _stream_chunk_metadata(chunk)
                     if chunk.delta_content:
                         content_parts.append(chunk.delta_content)
                         await streaming_handler.push_chunk(chunk.delta_content, chunk_metadata)
                     elif chunk.usage is not None:
-                        # Surface the terminal usage-only chunk (empty delta_content) so token
-                        # usage isn't dropped.
-                        await streaming_handler.push_chunk("", chunk_metadata)
+                        # Combine terminal usage-only chunk's metadata into the END_OF_STREAM
+                        # frame. Matches LLMRails.
+                        pending_usage_metadata = chunk_metadata
                     if chunk.delta_tool_calls:
                         # Engine emits the complete finalized list once (see
                         # ModelEngine.stream_call), so rebind rather than accumulate.
@@ -1416,7 +1419,7 @@ class IORails(BaseGuardrails):
                 if accumulated_tool_calls and not content_parts:
                     log.info("[%s] Tool-call-only stream: output rails skipped", req_id)
 
-                await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
+                await streaming_handler.push_chunk(END_OF_STREAM, pending_usage_metadata)  # type: ignore[arg-type]
             except Exception as e:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error(
