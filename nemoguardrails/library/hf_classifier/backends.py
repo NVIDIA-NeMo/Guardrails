@@ -33,7 +33,6 @@ from nemoguardrails.http import (
     RetryPolicy,
     create_http_client,
     http_call,
-    resolve_http_client,
 )
 
 if TYPE_CHECKING:
@@ -46,6 +45,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 _HF_RETRY_POLICY = RetryPolicy(
     max_attempts=2,
+    retryable_methods=frozenset({"POST"}),
     retryable_status_codes=frozenset(),
     initial_delay=0,
     max_delay=0,
@@ -311,24 +311,30 @@ class _RemoteBackend(ClassifierBackend):
         self._timeout = _get_timeout(config)
         self._ssl = _build_ssl_config(config)
 
+    @staticmethod
+    def _retrying_http_client(client: HTTPClient) -> HTTPClient:
+        return RetryingHTTPClient(client, _HF_RETRY_POLICY)
+
     def _create_http_client(self) -> HTTPClient:
-        return create_http_client(
-            timeout=self._timeout,
-            tls=self._ssl,
+        return self._retrying_http_client(
+            create_http_client(
+                timeout=self._timeout,
+                tls=self._ssl,
+            )
         )
 
     async def _post(self, url: str, json: Dict[str, Any]) -> HTTPResponse:
-        async with resolve_http_client(self._http_client, factory=self._create_http_client) as client:
-            retrying_client = RetryingHTTPClient(client, _HF_RETRY_POLICY)
-            return await http_call(
-                retrying_client,
-                "POST",
-                url,
-                json=json,
-                headers=_build_headers(self._config),
-                timeout=self._timeout,
-                raise_for_status=False,
-            )
+        client = self._retrying_http_client(self._http_client) if self._http_client is not None else None
+        return await http_call(
+            client,
+            "POST",
+            url,
+            json=json,
+            headers=_build_headers(self._config),
+            timeout=self._timeout,
+            raise_for_status=False,
+            factory=self._create_http_client,
+        )
 
 
 class VLLMBackend(_RemoteBackend):
