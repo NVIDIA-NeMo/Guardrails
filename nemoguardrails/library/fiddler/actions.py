@@ -20,7 +20,7 @@ from typing import Callable, Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, HTTPClientError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call
 from nemoguardrails.rails.llm.config import FiddlerGuardrails
 
 log = logging.getLogger(__name__)
@@ -53,15 +53,14 @@ async def call_fiddler_guardrail(
     }
 
     try:
-        async with resolve_http_client(http_client) as client:
-            response = await http_call(
-                client,
-                "POST",
-                endpoint,
-                headers=headers,
-                json={"data": data},
-                raise_for_status=False,
-            )
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
+            headers=headers,
+            json={"data": data},
+            raise_for_status=False,
+        )
         if response.status_code != 200:
             log.error(f"{guardrail_name} could not be run. Fiddler API returned status code {response.status_code}")
             return False

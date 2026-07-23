@@ -22,7 +22,7 @@ from typing_extensions import cast
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call, resolve_http_client
+from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call
 from nemoguardrails.rails.llm.config import RailsConfig, TrendMicroRailConfig
 
 log = logging.getLogger(__name__)
@@ -132,15 +132,14 @@ async def trend_ai_guard(
     else:
         headers["Prefer"] = "return=minimal"
 
-    async with resolve_http_client(http_client) as client:
-        response = await http_call(
-            client,
-            "POST",
-            v1_url,
-            content=to_json(data),
-            headers=headers,
-            raise_for_status=False,
-        )
+    response = await http_call(
+        http_client,
+        "POST",
+        v1_url,
+        content=to_json(data),
+        headers=headers,
+        raise_for_status=False,
+    )
 
     try:
         response.raise_for_status()
