@@ -53,11 +53,11 @@ class _RegisteredActions(Mapping[str, RegisteredAction]):
     """Read-only view over registered and lazily declared actions.
 
     Iteration, ``in``, and ``len`` reflect every registered and lazily declared
-    action name. Subscripting resolves a single lazy action on demand (importing
-    its module) and raises ``KeyError`` if it cannot be resolved. Bulk value
-    access (``values``/``items``) intentionally returns only actions that are
-    already resolved so that materializing the view never triggers lazy imports
-    or fails on an action whose optional dependency is missing.
+    action name. Subscripting (and therefore ``dict(view)``) resolves a lazy
+    action on demand, importing its module and raising ``KeyError`` if it cannot
+    be resolved. ``values`` and ``items`` deliberately expose only actions that
+    are already resolved, so iterating them never triggers a lazy import or
+    fails on an action whose optional dependency is missing.
     """
 
     def __init__(self, dispatcher: "ActionDispatcher") -> None:
