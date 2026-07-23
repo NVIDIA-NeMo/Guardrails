@@ -194,6 +194,65 @@ Response classification by output sequence length (OSL):
 
 ---
 
+## Baseline LLM Sweep (2026-07-23, 300s per level) — direct LLM, no Guardrails
+**Hardware:** 8× H100 80GB (Brev node brev-sax6j9j37)
+**NIM:** Nemotron 3 Nano 2.0.8 (port 8000) — no content safety NIM in the request path
+**Configs:** `benchmark/aiperf/configs/scenario_*_sweep.yaml` (url=http://localhost:8000, health_check_endpoint=/v1/models)
+**Purpose:** Establish raw LLM throughput ceiling per scenario to quantify Guardrails engine overhead
+
+| Scenario | Concurrency | tput (req/s) | P50 (ms) | P99 (ms) |
+|----------|-------------|--------------|----------|----------|
+| Dialog (100 in / 100 out) | 1 | 3.48 | 286.5 | 312.7 |
+| | 2 | 5.95 | 336.0 | 365.3 |
+| | 4 | 9.51 | 420.1 | 471.0 |
+| | 8 | 14.25 | 561.1 | 619.2 |
+| | 16 | 20.23 | 792.0 | 871.9 |
+| | 32 | 28.89 | 1,110.2 | 1,228.6 |
+| | 64 | 40.59 | 1,576.8 | 1,767.3 |
+| | 128 | 54.81 | 2,337.0 | 2,635.1 |
+| | 256 | 63.95 | 4,123.3 | 4,794.1 |
+| RAG (4000 in / 200 out) | 1 | 1.65 | 605.2 | 649.8 |
+| | 2 | 2.79 | 714.3 | 806.4 |
+| | 4 | 4.32 | 927.9 | 1,055.0 |
+| | 8 | 6.11 | 1,310.3 | 1,446.5 |
+| | 16 | 8.20 | 1,952.7 | 2,192.5 |
+| | 32 | 10.54 | 3,030.2 | 3,415.9 |
+| | 64 | 13.35 | 4,783.8 | 5,461.9 |
+| | 128 | 16.71 | 7,577.4 | 9,533.9 |
+| | 256 | 19.31 | 12,871.5 | 19,486.1 |
+| Code Gen (200 in / 2000 out) | 1 | 0.20 | 5,256.6 | 5,319.7 |
+| | 2 | 0.39 | 5,686.4 | 5,824.6 |
+| | 4 | 0.66 | 6,662.8 | 6,774.2 |
+| | 8 | 1.08 | 8,184.9 | 8,335.8 |
+| | 16 | 1.66 | 10,517.1 | 10,756.6 |
+| | 32 | 2.55 | 13,673.7 | 13,951.2 |
+| | 64 | 3.94 | 17,627.3 | 17,996.3 |
+| | 128 | 5.95 | 23,164.8 | 23,885.6 |
+| | 256 | 8.32 | 32,128.7 | 33,541.6 |
+| Agent (8000 in / 4000 out) | 1 | 0.20 | 5,007.3 | 10,448.7 |
+| | 2 | 0.31 | 6,428.9 | 12,120.0 |
+| | 4 | 0.53 | 7,563.0 | 14,182.8 |
+| | 8 | 0.88 | 9,183.8 | 17,742.2 |
+| | 16 | 1.35 | 12,016.0 | 23,581.7 |
+| | 32 | 1.97 | 16,290.1 | 32,815.1 |
+| | 64 | 2.74 | 22,586.3 | 45,661.7 |
+| | 128 | 3.68 | 32,845.2 | 66,602.4 |
+| | 256 | 4.35 | 52,423.7 | 112,254.6 |
+
+**Key finding:** Throughput continues scaling through c=256 without saturating for any scenario —
+the LLM NIM is the bottleneck and data parallelism will be needed before Guardrails engine
+overhead becomes visible in end-to-end measurements.
+
+**Note on Guardrails vs. baseline comparison:** The Scenario Sweeps v2 Guardrails latency
+(e.g. dialog P50=5,245ms at c=1) is far higher than the baseline (287ms) — the gap exceeds
+what two CS NIM calls (~180ms total) can explain. Per-request OSL data from the Guardrails sweep
+shows safe dialog responses reaching 2,982 tokens despite the aiperf config requesting 100,
+suggesting `max_tokens` is not being forwarded from the client request to the main LLM. The
+Guardrails vs. baseline comparison is therefore not apples-to-apples; the LLMRails vs. IORails
+comparison remains valid since both engines share the same issue.
+
+---
+
 ## Key Findings (Scenario Sweeps v2)
 
 ### Safety classification (consistent across concurrency levels)
