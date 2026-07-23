@@ -21,7 +21,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nemoguardrails.actions.action_dispatcher import ActionDispatcher
+import nemoguardrails
+from nemoguardrails.actions.action_dispatcher import (
+    LEGACY_UNMANIFESTED_LIBRARY_PACKAGES,
+    ActionDispatcher,
+)
 from nemoguardrails.manifests import ActionRef, default_rail_catalog
 
 
@@ -139,6 +143,30 @@ def test_load_all_actions_preserves_unmanifested_library_actions():
     assert "GetAttentionPercentageAction" in dispatcher.get_registered_actions()
     assert not isinstance(dispatcher.registered_actions["GetCurrentDateTimeAction"], ActionRef)
     assert not dispatcher.is_manifest_action("GetCurrentDateTimeAction")
+
+
+def test_legacy_unmanifested_packages_match_library_layout():
+    """Eagerly loaded packages must equal the library packages without a manifest.
+
+    The dispatcher only loads `LEGACY_UNMANIFESTED_LIBRARY_PACKAGES` eagerly; a
+    new library action package without a rail.py manifest would otherwise never
+    be registered, so this locks the constant to the actual library layout.
+    """
+    library_root = Path(nemoguardrails.__file__).parent / "library"
+
+    unmanifested_packages = set()
+    for path in library_root.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        if "@action(" not in path.read_text(encoding="utf-8"):
+            continue
+        package_dir = path.parent
+        while package_dir != library_root and not (package_dir / "rail.py").exists():
+            package_dir = package_dir.parent
+        if package_dir == library_root:
+            unmanifested_packages.add(path.relative_to(library_root).parts[0])
+
+    assert unmanifested_packages == set(LEGACY_UNMANIFESTED_LIBRARY_PACKAGES)
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,8 @@ from nemoguardrails.manifests import ActionRef, RailCatalog, default_rail_catalo
 
 log = logging.getLogger(__name__)
 
+LEGACY_UNMANIFESTED_LIBRARY_PACKAGES: Tuple[str, ...] = ("attention", "utils")
+
 
 class AsyncInvokableAction(Protocol):
     def ainvoke(self, *args: Any, **kwargs: Any) -> Awaitable[Any]: ...
@@ -106,7 +108,6 @@ class ActionDispatcher:
         self._registered_actions: Dict[str, RegisteredAction] = {}
         self._lazy_action_refs: Dict[str, ActionRef] = {}
         self._manifest_action_names: set[str] = set()
-        self._manifested_library_paths: set[Path] = set()
         self._rail_catalog = rail_catalog
         self._registered_actions_view = _RegisteredActions(self)
 
@@ -246,18 +247,16 @@ class ActionDispatcher:
                 continue
             for action_ref in manifest.actions.refs:
                 self._register_action_ref(action_ref)
-            if manifest.origin:
-                module = importlib.import_module(manifest.origin)
-                module_file = getattr(module, "__file__", None)
-                if module_file:
-                    self._manifested_library_paths.add(Path(module_file).parent.resolve())
 
     def _load_unmanifested_library_actions(self, library_path: Path) -> None:
-        for root, dirs, files in os.walk(library_path):
-            if Path(root).resolve() in self._manifested_library_paths:
-                continue
-            if "actions" in dirs or "actions.py" in files:
-                self.load_actions_from_path(Path(root))
+        """Load pre-manifest library packages that register actions directly.
+
+        Manifested library actions are indexed as lazy refs by
+        `_register_manifest_action_refs`; only the packages in
+        `LEGACY_UNMANIFESTED_LIBRARY_PACKAGES` still register eagerly.
+        """
+        for package_name in LEGACY_UNMANIFESTED_LIBRARY_PACKAGES:
+            self.load_actions_from_path(library_path / package_name)
 
     def _resolve_registered_action(self, action_name: str) -> Optional[RegisteredAction]:
         action = self._registered_actions.get(action_name)
