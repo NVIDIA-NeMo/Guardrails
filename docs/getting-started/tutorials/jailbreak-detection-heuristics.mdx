@@ -34,10 +34,10 @@ pip install openai
 export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 ```
 
-1. Install the following packages to test the jailbreak detection heuristics locally:
+1. Review the [Jailbreak Protection installation requirements](/configure-guardrails/guardrail-catalog/jailbreak-protection#installation-requirements) and install the local dependencies. You can print the requirements for your installed version:
 
 ```bash
-pip install "transformers>=4.35" "torch>=2" huggingface-hub
+nemoguardrails rails requirements --rail jailbreak_detection
 ```
 
 1. If you're running this inside a notebook, patch the `AsyncIO` loop.
