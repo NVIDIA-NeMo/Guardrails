@@ -31,7 +31,7 @@ numbered check; do not stop at the first few findings.
 ## Step 1: Run the mechanical gates (do not re-review what they check)
 
 ```bash
-make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_library_flow_files.py"
+make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=<the PR's test files>
@@ -134,6 +134,17 @@ Each item names the check, where to look, and what "wrong" looks like.
     re-record, the honest options are maintainer re-recording before
     merge or demoting the tests to the explicit `fake_cassette` regime;
     do not merge unverifiable cassettes as recorded truth.
+12. **Conformance drift (a green suite can hide this).** The conformance
+    gates pass if a contributor made them pass the WRONG way, so diff the
+    generic infrastructure, not just the rail. Reject any change to
+    `test_builtin_rail_manifests.py`, `test_builtin_rail_conformance.py`, or
+    `test_library_flow_files.py` unless the PR's purpose is the gate itself.
+    Reject a new entry in `LEGACY_UNMANIFESTED_PACKAGES` or
+    `NON_PORTABLE_DECLARED_FLOWS` unless it carries an explicit, reviewed
+    design rationale (a new rail should satisfy the contract, not join the
+    exceptions). For any change to `schemas/rails_config.snapshot.json`,
+    confirm it was regenerated for a deliberate config-schema change and
+    read the diff as a public-schema change, not a mechanical refresh.
 
 ## Step 3: Security pass
 
