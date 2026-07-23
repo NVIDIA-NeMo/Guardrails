@@ -29,7 +29,6 @@ from nemoguardrails.http import (
     RetryPolicy,
     create_http_client,
     http_call,
-    resolve_http_client,
 )
 
 from .errs import (
@@ -45,6 +44,7 @@ log = logging.getLogger(__name__)
 _CLAVATA_API_KEY = os.environ.get("CLAVATA_API_KEY")
 _CLAVATA_RETRY_POLICY = RetryPolicy(
     max_attempts=3,
+    retryable_methods=frozenset({"POST"}),
     retryable_status_codes=frozenset({429}),
     initial_delay=0.1,
     max_delay=10.0,
@@ -170,8 +170,12 @@ class ClavataClient:
         return AuthHeader(api_key=self.api_key).to_headers()
 
     @staticmethod
-    def _create_http_client() -> HTTPClient:
-        return create_http_client()
+    def _retrying_http_client(client: HTTPClient) -> HTTPClient:
+        return RetryingHTTPClient(client, _CLAVATA_RETRY_POLICY)
+
+    @classmethod
+    def _create_http_client(cls) -> HTTPClient:
+        return cls._retrying_http_client(create_http_client())
 
     async def _make_request(
         self,
@@ -180,16 +184,16 @@ class ClavataClient:
         response_model: Type[ResponseModelT],
     ) -> ResponseModelT:
         try:
-            async with resolve_http_client(self.http_client, factory=self._create_http_client) as client:
-                retrying_client = RetryingHTTPClient(client, _CLAVATA_RETRY_POLICY)
-                response = await http_call(
-                    retrying_client,
-                    "POST",
-                    self._get_full_endpoint(endpoint),
-                    json=payload.model_dump(),
-                    headers=self._get_headers(),
-                    raise_for_status=False,
-                )
+            client = self._retrying_http_client(self.http_client) if self.http_client is not None else None
+            response = await http_call(
+                client,
+                "POST",
+                self._get_full_endpoint(endpoint),
+                json=payload.model_dump(),
+                headers=self._get_headers(),
+                raise_for_status=False,
+                factory=self._create_http_client,
+            )
 
             if response.status_code == 429:
                 raise ClavataPluginAPIRateLimitError(
