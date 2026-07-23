@@ -5,14 +5,14 @@
 # Run (LLMRails): python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_rag_sweep.yaml
 # Run (IORails):  NEMO_GUARDRAILS_IORAILS_ENGINE=1 python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_rag_sweep.yaml
 
-batch_name: scenario_rag
+batch_name: baseline_llm_scenario_rag
 
 output_base_dir: aiperf_results
 
 base_config:
   model: nvidia/nemotron-3-nano        # Override per main model under test
   tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4  # Match model above
-  url: "http://localhost:9000"
+  url: "http://localhost:8000"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
 
