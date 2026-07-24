@@ -13,34 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.http import HTTPResponse
-from nemoguardrails.http.testing import RecordingHTTPClient
+from nemoguardrails.http.testing import RecordedHTTPResponses
 from nemoguardrails.library.policyai.actions import call_policyai_api
 from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 from tests.utils import TestChat
-
-
-class RecordedHTTPResponses:
-    def __init__(self):
-        self.client = RecordingHTTPClient()
-        self.urls = []
-
-    def post(self, url, *, payload=None, status=200, body=None):
-        content = body.encode() if body is not None else json.dumps(payload).encode()
-        self.client.add_response(HTTPResponse(status_code=status, content=content))
-        self.urls.append(url)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is None:
-            assert all(request.url in self.urls for request in self.client.requests)
 
 
 def test_input_safe(monkeypatch):
