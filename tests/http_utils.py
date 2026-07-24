@@ -58,4 +58,4 @@ class RecordedHTTPResponses:
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         if exc_type is None:
             actual_requests = [(request.method, request.url) for request in self.client.requests]
-            assert self.expected_requests == actual_requests
+            assert self.expected_requests == actual_requests, (self.expected_requests, actual_requests)
