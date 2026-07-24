@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import asyncio
+import logging
+from unittest.mock import MagicMock
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -139,6 +141,18 @@ async def test_instrumented_client_preserves_exceptions(otel):
     assert span.events[0].name == "exception"
     assert span.events[0].attributes == {"exception.type": "HTTPConnectionError"}
     assert "secret" not in repr(span.events)
+
+
+def test_instrumented_client_reports_error_telemetry_failures(caplog):
+    span = MagicMock()
+    span.set_attribute.side_effect = TypeError("invalid attribute")
+    client = InstrumentedHTTPClient(RecordingHTTPClient(), None)
+
+    with caplog.at_level(logging.WARNING):
+        client._record_error(span, HTTPConnectionError("token=secret"), StatusCode)
+
+    assert "Failed to record HTTP error telemetry: TypeError" in caplog.text
+    assert "secret" not in caplog.text
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -22,6 +23,8 @@ from nemoguardrails.http.types import HTTPResponse
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span, Tracer
+
+log = logging.getLogger(__name__)
 
 
 class InstrumentedHTTPClient:
@@ -108,13 +111,18 @@ class InstrumentedHTTPClient:
             span.set_status(status_code_type.ERROR)
 
     def _record_error(self, span: "Span", error: BaseException, status_code_type: Any) -> None:
-        with suppress(Exception):
+        try:
             span.set_attribute("error.type", type(error).__name__)
             retry_count = getattr(error, "retry_count", 0)
             if isinstance(retry_count, int) and retry_count > 0:
                 span.set_attribute("http.request.resend_count", retry_count)
             span.add_event("exception", {"exception.type": type(error).__name__})
             span.set_status(status_code_type.ERROR)
+        except Exception as telemetry_error:
+            log.warning(
+                "Failed to record HTTP error telemetry: %s",
+                type(telemetry_error).__name__,
+            )
 
     async def close(self) -> None:
         if self._closed:
