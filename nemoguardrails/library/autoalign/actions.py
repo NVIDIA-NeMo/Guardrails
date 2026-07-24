@@ -258,7 +258,6 @@ async def autoalign_factcheck_infer(
         raise ValueError(f"AutoAlign call failed with status code {response.status_code}.\nDetails: {response.text}")
     factcheck_response = response.json()
     return factcheck_response["all_overall_fact_scores"][0]
-    return 1.0
 
 
 @action(name="autoalign_input_api")
