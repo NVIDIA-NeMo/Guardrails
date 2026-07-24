@@ -253,8 +253,7 @@ async def clavata_check(
     except ClavataPluginValueError:
         labels = None
 
-    evaluate_kwargs = {"http_client": http_client} if http_client is not None else {}
-    result = await evaluate_with_policy(text, str(policy_id), clavata_config, **evaluate_kwargs)
+    result = await evaluate_with_policy(text, str(policy_id), clavata_config, http_client=http_client)
 
     if labels:
         return _clavata_outcome(is_label_match(result, labels, clavata_config))
