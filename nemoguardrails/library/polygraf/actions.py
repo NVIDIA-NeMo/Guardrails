@@ -208,13 +208,12 @@ async def polygraf_detect_pii(
     polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
     api_key = _get_polygraf_api_key()
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     try:
         entities: List[Dict[str, Any]] = await polygraf_request(
             text,
             server_endpoint,
             api_key,
-            **request_kwargs,
+            http_client=http_client,
         )
     except ValueError as err:
         # Fail closed: a provider failure must not allow potentially-PII text
@@ -263,13 +262,12 @@ async def polygraf_mask_pii(
     polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
     api_key = _get_polygraf_api_key()
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     try:
         entities: List[Dict[str, Any]] = await polygraf_request(
             text,
             server_endpoint,
             api_key,
-            **request_kwargs,
+            http_client=http_client,
         )
     except ValueError as err:
         # Fail closed: if we cannot run masking at all, redact the entire text
