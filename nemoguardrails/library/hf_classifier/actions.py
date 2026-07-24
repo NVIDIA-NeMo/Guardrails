@@ -50,8 +50,7 @@ async def _classify_and_check(
     if not text:
         return True
 
-    backend_kwargs = {"http_client": http_client} if http_client is not None else {}
-    backend = get_backend(classifier_config, name=classifier_name, **backend_kwargs)
+    backend = get_backend(classifier_config, name=classifier_name, http_client=http_client)
     results = await backend.classify(text)
 
     if text and not results and getattr(classifier_config, "task", None) == "text-classification":
