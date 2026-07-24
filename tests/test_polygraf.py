@@ -196,46 +196,6 @@ async def test_polygraf_mask_pii_allows_when_no_entities(monkeypatch):
     assert not result.transforms
 
 
-class _FakeResponse:
-    def __init__(self, status=200, payload=None, text=""):
-        self.status = status
-        self._payload = payload if payload is not None else []
-        self._text = text
-
-    async def json(self):
-        return self._payload
-
-    async def text(self):
-        return self._text
-
-
-class _FakePostContextManager:
-    def __init__(self, response):
-        self.response = response
-
-    async def __aenter__(self):
-        return self.response
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-
-class _FakeSession:
-    def __init__(self, response):
-        self.response = response
-        self.requests = []
-
-    def post(self, server_endpoint, json, headers):
-        self.requests.append(
-            {
-                "server_endpoint": server_endpoint,
-                "json": json,
-                "headers": headers,
-            }
-        )
-        return _FakePostContextManager(self.response)
-
-
 def _http_response(payload=None, *, status: int = 200, text: str = "") -> HTTPResponse:
     content = text.encode() if text else json.dumps(payload if payload is not None else []).encode()
     return HTTPResponse(status_code=status, content=content)
@@ -301,16 +261,6 @@ async def test_polygraf_request_raises_for_non_200_response():
         await polygraf_request("John", "http://polygraf.example/pii", None, http_client=client)
 
 
-class _FakeSessionWithTimeoutKwarg:
-    def __init__(self, response):
-        self.response = response
-        self.timeouts = []
-
-    def post(self, server_endpoint, json, headers, timeout=None):
-        self.timeouts.append(timeout)
-        return _FakePostContextManager(self.response)
-
-
 @pytest.mark.asyncio
 async def test_polygraf_request_forwards_timeout_to_client():
     client = RecordingHTTPClient([_http_response([])])
@@ -318,29 +268,6 @@ async def test_polygraf_request_forwards_timeout_to_client():
     await polygraf_request("hello", "http://polygraf.example/pii", None, http_client=client, timeout=7)
 
     assert client.requests[0].timeout == 7
-
-
-class _FakeRaisingSession:
-    """Test double whose .post() raises a configurable exception when entered."""
-
-    def __init__(self, exc: BaseException):
-        self.exc = exc
-
-    def post(self, *args, **kwargs):
-        async def _raise():
-            raise self.exc
-
-        class _Ctx:
-            def __init__(self, raise_fn):
-                self._raise_fn = raise_fn
-
-            async def __aenter__(self_inner):
-                await self_inner._raise_fn()
-
-            async def __aexit__(self_inner, *a):
-                return False
-
-        return _Ctx(_raise)
 
 
 @pytest.mark.asyncio
