@@ -16,14 +16,17 @@
 import asyncio
 import logging
 import warnings
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode
 
+from nemoguardrails.guardrails import telemetry as guardrails_telemetry
 from nemoguardrails.http import (
     HTTPConnectionError,
     HTTPResponse,
@@ -34,6 +37,9 @@ from nemoguardrails.http import (
 )
 from nemoguardrails.http.telemetry import record_http_error
 from nemoguardrails.http.testing import RecordingHTTPClient
+from nemoguardrails.tracing import constants as tracing_constants
+from nemoguardrails.tracing.constants import SystemConstants
+from tests.guardrails.metric_helpers import collect_metric_points
 
 
 @pytest.fixture
@@ -42,6 +48,19 @@ def otel():
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     return provider.get_tracer("test"), exporter
+
+
+@pytest.fixture
+def metric_reader():
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+    previous_meter = guardrails_telemetry._meter
+    previous_instruments = tracing_constants._http_instruments
+    guardrails_telemetry._meter = provider.get_meter(SystemConstants.SYSTEM_NAME)
+    tracing_constants._http_instruments = None
+    yield reader
+    guardrails_telemetry._meter = previous_meter
+    tracing_constants._http_instruments = previous_instruments
 
 
 @pytest.mark.asyncio
@@ -91,7 +110,7 @@ async def test_instrumented_client_records_safe_http_attributes(otel):
 
 
 @pytest.mark.asyncio
-async def test_instrumented_client_creates_one_span_for_all_retry_attempts(otel):
+async def test_instrumented_client_creates_one_observation_for_all_retry_attempts(otel, metric_reader):
     tracer, exporter = otel
     transport = RecordingHTTPClient([HTTPResponse(status_code=503), HTTPResponse(status_code=200)])
 
@@ -103,13 +122,14 @@ async def test_instrumented_client_creates_one_span_for_all_retry_attempts(otel)
         RetryPolicy(retryable_methods=frozenset({"POST"})),
         sleep=sleep,
     )
-    client = InstrumentedHTTPClient(retrying, tracer)
+    client = InstrumentedHTTPClient(retrying, tracer, metrics_enabled=True)
 
     await client.request("POST", "https://example.com/check", json={"text": "hello"})
 
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].attributes["http.request.resend_count"] == 1
+    assert len(collect_metric_points(metric_reader)["http.client.request.duration"]) == 1
     assert len(transport.requests) == 2
 
 
@@ -194,13 +214,13 @@ async def test_instrumented_client_closes_wrapped_client_once():
 
 
 @pytest.mark.asyncio
-async def test_instrumentation_is_idempotent(otel):
+async def test_instrumentation_is_idempotent(otel, metric_reader):
     tracer, exporter = otel
     transport = RecordingHTTPClient([HTTPResponse(status_code=200)])
 
-    first = instrument_http_client(transport, tracer=tracer)
-    second = instrument_http_client(first, tracer=tracer)
-    third = InstrumentedHTTPClient(second, tracer)
+    first = instrument_http_client(transport, tracer=tracer, metrics_enabled=True)
+    second = instrument_http_client(first, tracer=tracer, metrics_enabled=True)
+    third = InstrumentedHTTPClient(second, tracer, metrics_enabled=True)
 
     assert second is first
     assert third is first
@@ -210,6 +230,7 @@ async def test_instrumentation_is_idempotent(otel):
     await third.request("GET", "https://example.com/check")
 
     assert len(exporter.get_finished_spans()) == 1
+    assert len(collect_metric_points(metric_reader)["http.client.request.duration"]) == 1
 
 
 def test_reinstrument_with_changed_tracer_warns_and_keeps_original(otel):
@@ -263,5 +284,77 @@ async def test_attribute_telemetry_failures_do_not_change_http_result():
     client = InstrumentedHTTPClient(RecordingHTTPClient([response]), tracer)
 
     result = await client.request("GET", "https://example.com/check")
+
+    assert result is response
+
+
+@pytest.mark.asyncio
+async def test_metrics_only_records_http_request_duration(metric_reader):
+    response = HTTPResponse(status_code=200)
+    transport = RecordingHTTPClient([response])
+    client = instrument_http_client(transport, metrics_enabled=True)
+
+    result = await client.request("post", "https://example.com/check")
+
+    assert result is response
+    points = collect_metric_points(metric_reader)["http.client.request.duration"]
+    assert len(points) == 1
+    assert points[0].attributes == {
+        "http.request.method": "POST",
+        "server.address": "example.com",
+        "server.port": 443,
+        "http.response.status_code": 200,
+    }
+
+
+@pytest.mark.asyncio
+async def test_http_error_metrics_include_error_type(metric_reader):
+    response = HTTPResponse(status_code=503)
+    client = instrument_http_client(
+        RecordingHTTPClient([response]),
+        metrics_enabled=True,
+    )
+
+    result = await client.request("GET", "http://example.com/check")
+
+    assert result is response
+    point = collect_metric_points(metric_reader)["http.client.request.duration"][0]
+    assert point.attributes["server.port"] == 80
+    assert point.attributes["http.response.status_code"] == 503
+    assert point.attributes["error.type"] == "503"
+
+
+@pytest.mark.asyncio
+async def test_http_exception_metrics_include_error_type(metric_reader):
+    error = HTTPConnectionError("unavailable")
+    client = instrument_http_client(
+        RecordingHTTPClient([error]),
+        metrics_enabled=True,
+    )
+
+    with pytest.raises(HTTPConnectionError) as exc_info:
+        await client.request("GET", "https://example.com/check")
+
+    assert exc_info.value is error
+    point = collect_metric_points(metric_reader)["http.client.request.duration"][0]
+    assert point.attributes["error.type"] == "HTTPConnectionError"
+    assert "http.response.status_code" not in point.attributes
+
+
+@pytest.mark.asyncio
+async def test_metric_failures_do_not_change_http_result():
+    instruments = MagicMock()
+    instruments.request_duration.record.side_effect = TypeError("invalid metric")
+    response = HTTPResponse(status_code=200)
+    client = instrument_http_client(
+        RecordingHTTPClient([response]),
+        metrics_enabled=True,
+    )
+
+    with patch(
+        "nemoguardrails.http.telemetry._ensure_http_instruments",
+        return_value=instruments,
+    ):
+        result = await client.request("GET", "https://example.com/check")
 
     assert result is response

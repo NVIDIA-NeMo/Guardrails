@@ -14,17 +14,77 @@
 # limitations under the License.
 
 import logging
+import time
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator
 
 from nemoguardrails.http._url import sanitize_url, split_url
 from nemoguardrails.http.types import HTTPResponse
-from nemoguardrails.tracing.constants import HTTPAttributes
+from nemoguardrails.tracing.constants import HTTPAttributes, _ensure_http_instruments
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span, Tracer
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class _HTTPRequestDurationState:
+    response_status_code: int | None = None
+
+
+def _http_metric_attributes(method: str, url: str) -> dict[str, str | int] | None:
+    parts = split_url(url)
+    if parts.hostname is None:
+        return None
+    port = parts.port
+    if port is None:
+        port = {"http": 80, "https": 443}.get(parts.scheme)
+    if port is None:
+        return None
+    return {
+        HTTPAttributes.REQUEST_METHOD: method,
+        HTTPAttributes.SERVER_ADDRESS: parts.hostname,
+        HTTPAttributes.SERVER_PORT: port,
+    }
+
+
+@contextmanager
+def http_request_duration(
+    method: str,
+    url: str,
+) -> Generator[_HTTPRequestDurationState, None, None]:
+    state = _HTTPRequestDurationState()
+    try:
+        instruments = _ensure_http_instruments()
+    except Exception:
+        instruments = None
+    if instruments is None:
+        yield state
+        return
+
+    started_at = time.monotonic()
+    error_type: str | None = None
+    try:
+        yield state
+    except BaseException as error:
+        error_type = type(error).__name__
+        raise
+    finally:
+        with suppress(Exception):
+            attributes = _http_metric_attributes(method, url)
+            if attributes is not None:
+                if state.response_status_code is not None:
+                    attributes[HTTPAttributes.RESPONSE_STATUS_CODE] = state.response_status_code
+                    if state.response_status_code >= 400:
+                        error_type = str(state.response_status_code)
+                if error_type is not None:
+                    attributes[HTTPAttributes.ERROR_TYPE] = error_type
+                instruments.request_duration.record(
+                    time.monotonic() - started_at,
+                    attributes=attributes,
+                )
 
 
 def set_http_request_attributes(
@@ -115,6 +175,7 @@ def http_call_span(
 
 __all__ = [
     "http_call_span",
+    "http_request_duration",
     "record_http_error",
     "set_http_request_attributes",
     "set_http_response_attributes",

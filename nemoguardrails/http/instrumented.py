@@ -14,10 +14,15 @@
 # limitations under the License.
 
 import warnings
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Mapping, overload
 
 from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
-from nemoguardrails.http.telemetry import http_call_span, set_http_response_attributes
+from nemoguardrails.http.telemetry import (
+    http_call_span,
+    http_request_duration,
+    set_http_response_attributes,
+)
 from nemoguardrails.http.types import HTTPResponse
 
 if TYPE_CHECKING:
@@ -34,9 +39,11 @@ class InstrumentedHTTPClient:
         self,
         client: HTTPClient,
         tracer: "Tracer | None",
+        *,
+        metrics_enabled: bool = False,
     ):
         if client is self:
-            if tracer is not self._tracer:
+            if tracer is not self._tracer or metrics_enabled != self._metrics_enabled:
                 warnings.warn(
                     "InstrumentedHTTPClient is already instrumented; new instrumentation "
                     "settings are ignored. Re-instrument the underlying wrapped_client instead.",
@@ -45,6 +52,7 @@ class InstrumentedHTTPClient:
             return
         self._client = client
         self._tracer = tracer
+        self._metrics_enabled = metrics_enabled
         self._closed = False
 
     @property
@@ -62,7 +70,7 @@ class InstrumentedHTTPClient:
         content: bytes | str | None = None,
         timeout: float | None = None,
     ) -> HTTPResponse:
-        if self._tracer is None:
+        if self._tracer is None and not self._metrics_enabled:
             return await self._client.request(
                 method,
                 url,
@@ -75,15 +83,19 @@ class InstrumentedHTTPClient:
 
         normalized_method = method.upper()
         with http_call_span(self._tracer, normalized_method, url, content) as span:
-            response = await self._client.request(
-                method,
-                url,
-                headers=headers,
-                params=params,
-                json=json,
-                content=content,
-                timeout=timeout,
-            )
+            duration = http_request_duration(normalized_method, url) if self._metrics_enabled else nullcontext(None)
+            with duration as metric_state:
+                response = await self._client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    params=params,
+                    json=json,
+                    content=content,
+                    timeout=timeout,
+                )
+                if metric_state is not None:
+                    metric_state.response_status_code = response.status_code
             set_http_response_attributes(span, response)
             return response
 
@@ -100,6 +112,7 @@ def instrument_http_client(
     client: ClosableHTTPClient,
     *,
     tracer: "Tracer | None" = None,
+    metrics_enabled: bool = False,
 ) -> ClosableHTTPClient: ...
 
 
@@ -108,6 +121,7 @@ def instrument_http_client(
     client: HTTPClient,
     *,
     tracer: "Tracer | None" = None,
+    metrics_enabled: bool = False,
 ) -> HTTPClient: ...
 
 
@@ -115,12 +129,13 @@ def instrument_http_client(
     client: HTTPClient,
     *,
     tracer: "Tracer | None" = None,
+    metrics_enabled: bool = False,
 ) -> HTTPClient:
     if isinstance(client, InstrumentedHTTPClient):
         return client
-    if tracer is None:
+    if tracer is None and not metrics_enabled:
         return client
-    return InstrumentedHTTPClient(client, tracer)
+    return InstrumentedHTTPClient(client, tracer, metrics_enabled=metrics_enabled)
 
 
 __all__ = ["InstrumentedHTTPClient", "instrument_http_client"]
