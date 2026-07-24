@@ -31,6 +31,7 @@ from tests.utils import TestChat
 class aioresponses:
     def __init__(self):
         self.client = RecordingHTTPClient()
+        self.urls = []
 
     def post(
         self,
@@ -57,12 +58,22 @@ class aioresponses:
             response = HTTPResponse(status_code=status, headers=response_headers, content=content)
         for _ in range(10 if repeat else 1):
             self.client.add_response(response)
+        self.urls.append(url)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        return None
+        if exc_type is None:
+            assert set(self.urls) == {request.url for request in self.client.requests}
+
+
+@pytest.mark.asyncio
+async def test_aioresponses_rejects_unregistered_url():
+    with pytest.raises(AssertionError):
+        with aioresponses() as responses:
+            responses.post("https://expected.example", payload={"ok": True})
+            await responses.client.request("POST", "https://unexpected.example")
 
 
 @pytest.fixture
