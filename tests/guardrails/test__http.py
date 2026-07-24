@@ -24,6 +24,7 @@ from nemoguardrails.guardrails._http import (
     DEFAULT_TIMEOUT_CONNECT,
     DEFAULT_TIMEOUT_TOTAL,
     RETRYABLE_STATUS_CODES,
+    merge_headers_case_insensitive,
     safe_read_body,
 )
 
@@ -64,6 +65,44 @@ class TestSafeReadBody:
         mock_response.text = AsyncMock(return_value=text)
         result = await safe_read_body(mock_response)
         assert len(result) == 500
+
+
+class TestMergeHeadersCaseInsensitive:
+    """Test case-insensitive header merging (override wins, base preserved)."""
+
+    def test_overrides_added_to_base(self):
+        """Non-colliding override keys are added to the base headers."""
+        base = {"Content-Type": "application/json"}
+        result = merge_headers_case_insensitive(base, {"X-Tenant": "acme"})
+        assert result == {"Content-Type": "application/json", "X-Tenant": "acme"}
+
+    def test_override_replaces_case_insensitive_match(self):
+        """An override replaces a base header that differs only by case, keeping one entry."""
+        base = {"Content-Type": "application/json", "Authorization": "Bearer base"}
+        result = merge_headers_case_insensitive(base, {"authorization": "Bearer override"})
+        auth_keys = [key for key in result if key.lower() == "authorization"]
+        assert auth_keys == ["authorization"]
+        assert result["authorization"] == "Bearer override"
+
+    def test_none_overrides_returns_base_copy(self):
+        """None overrides yields an unchanged copy that does not alias the base."""
+        base = {"Content-Type": "application/json"}
+        result = merge_headers_case_insensitive(base, None)
+        assert result == base
+        assert result is not base
+
+    def test_empty_overrides_returns_base_copy(self):
+        """Empty overrides yields an unchanged copy that does not alias the base."""
+        base = {"Content-Type": "application/json"}
+        result = merge_headers_case_insensitive(base, {})
+        assert result == base
+        assert result is not base
+
+    def test_base_not_mutated(self):
+        """Merging does not mutate the caller's base dict."""
+        base = {"Authorization": "Bearer base"}
+        merge_headers_case_insensitive(base, {"authorization": "Bearer override"})
+        assert base == {"Authorization": "Bearer base"}
 
 
 class TestSharedConstants:
