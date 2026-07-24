@@ -509,6 +509,8 @@ def get_backend(
         raise ValueError(f"Unknown hf_classifier engine: '{config.engine}'. Supported: {', '.join(_BACKENDS)}")
     if http_client is not None and config.engine != "local":
         return cls(config, http_client=http_client)
+    if http_client is not None:
+        log.debug("Ignoring injected HTTP client for local HF classifier backend.")
     cache_key = json.dumps({"name": name, "config": config.model_dump(mode="json")}, sort_keys=True)
     cached = _backend_instances.get(cache_key)
     if cached is not None:
