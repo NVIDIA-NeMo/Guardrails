@@ -90,9 +90,7 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         "stream_options",
         # client-only options — these configure transport, not the
         # chat-completion request body, so they are never forwarded as body
-        # fields.  `default_headers` is read into `self.default_headers` and
-        # applied as request headers by `_prepare_request`; `default_query`
-        # is reserved for future client wiring.
+        # fields.
         "default_headers",
         "default_query",
     }

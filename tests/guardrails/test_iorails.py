@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
@@ -150,6 +152,54 @@ class TestConfigDefaultHeadersEndToEnd:
         assert main_headers != safety_headers
         assert main_headers.get("X-Main-Route") == "main-pool"
         assert safety_headers.get("X-Safety-Route") == "safety-pool"
+
+
+class TestConfigDefaultHeadersOverHTTP:
+    """True end-to-end: run generate_async over a real loopback HTTP server and
+    assert on the headers the aiohttp client actually put on the wire."""
+
+    @pytest.mark.asyncio
+    async def test_config_default_headers_sent_on_the_wire(self):
+        """A configured default_header reaches the provider request, alongside the
+        api-key Authorization, and never leaks into the JSON body."""
+        captured: dict = {}
+
+        async def handler(request):
+            captured["headers"] = dict(request.headers)
+            captured["body"] = await request.json()
+            return web.json_response({"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+        app = web.Application()
+        app.router.add_post("/v1/chat/completions", handler)
+        server = TestServer(app)
+        await server.start_server()
+        try:
+            config = RailsConfig.from_content(
+                config={
+                    "models": [
+                        {
+                            "type": "main",
+                            "engine": "openai",
+                            "model": "test-model",
+                            "parameters": {
+                                "base_url": str(server.make_url("/")),
+                                "default_headers": {"X-Tenant": "acme"},
+                            },
+                        }
+                    ]
+                }
+            )
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                iorails = IORails(config)
+            async with iorails:
+                result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+        finally:
+            await server.close()
+
+        assert result == {"role": "assistant", "content": "ok"}
+        assert captured["headers"]["X-Tenant"] == "acme"
+        assert captured["headers"]["Authorization"] == "Bearer test-key"
+        assert "X-Tenant" not in captured["body"]
 
 
 class TestGenerateAsync:
