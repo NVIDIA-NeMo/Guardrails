@@ -15,7 +15,6 @@
 
 """Deterministic HTTP test doubles for NeMo Guardrails applications."""
 
-import json
 from collections import deque
 from collections.abc import Iterable
 from typing import Any, Mapping
@@ -79,24 +78,4 @@ class RecordingHTTPClient:
         self.close_calls += 1
 
 
-class RecordedHTTPResponses:
-    """Register response payloads and verify that each registered URL is requested."""
-
-    def __init__(self):
-        self.client = RecordingHTTPClient()
-        self.urls: list[str] = []
-
-    def post(self, url: str, *, payload: Any = None, status: int = 200, body: str | None = None) -> None:
-        content = body.encode() if body is not None else json.dumps(payload).encode()
-        self.client.add_response(HTTPResponse(status_code=status, content=content))
-        self.urls.append(url)
-
-    def __enter__(self) -> "RecordedHTTPResponses":
-        return self
-
-    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
-        if exc_type is None:
-            assert set(self.urls) == {request.url for request in self.client.requests}
-
-
-__all__ = ["RecordedHTTPResponses", "RecordingHTTPClient"]
+__all__ = ["RecordingHTTPClient"]

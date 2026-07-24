@@ -15,10 +15,28 @@
 
 import pytest
 
-from nemoguardrails.http.testing import RecordedHTTPResponses
+from tests.http_utils import RecordedHTTPResponses
 
 
 def test_recorded_http_responses_require_registered_urls_to_be_used():
     with pytest.raises(AssertionError):
         with RecordedHTTPResponses() as responses:
             responses.post("https://unused.example", payload={"ok": True})
+
+
+@pytest.mark.asyncio
+async def test_recorded_http_responses_require_exact_request_order():
+    with pytest.raises(AssertionError):
+        with RecordedHTTPResponses() as responses:
+            responses.post("https://first.example", payload={"ok": True})
+            responses.post("https://second.example", payload={"ok": True})
+            await responses.client.request("POST", "https://second.example")
+            await responses.client.request("POST", "https://first.example")
+
+
+@pytest.mark.asyncio
+async def test_recorded_http_responses_require_exact_request_count():
+    with pytest.raises(AssertionError):
+        with RecordedHTTPResponses() as responses:
+            responses.post("https://example.test", payload={"ok": True}, times=2)
+            await responses.client.request("POST", "https://example.test")

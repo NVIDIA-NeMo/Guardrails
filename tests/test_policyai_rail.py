@@ -16,8 +16,8 @@
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.http.testing import RecordedHTTPResponses
 from nemoguardrails.library.policyai.actions import call_policyai_api
+from tests.http_utils import RecordedHTTPResponses
 from tests.policyai_fixtures import POLICYAI_SAFE_OUTCOME_KWARGS, POLICYAI_UNSAFE_OUTCOME_KWARGS
 from tests.utils import TestChat
 

@@ -17,11 +17,11 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.http.testing import RecordedHTTPResponses
 from nemoguardrails.library.patronusai.actions import (
     check_guardrail_pass,
     patronus_evaluate_request,
 )
+from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
 
 PATRONUS_EVALUATE_API_URL = "https://api.patronus.ai/v1/evaluate"
