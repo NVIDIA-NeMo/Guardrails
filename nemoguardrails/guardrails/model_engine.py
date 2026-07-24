@@ -476,9 +476,9 @@ class ModelEngine(BaseEngine):
             max_attempts=int(params.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
         )
 
-        # Static per-model HTTP headers from `parameters.default_headers`, applied
-        # to every request by `_prepare_request` (LLMRails parity).
-        self.default_headers: dict[str, str] = dict(params.get("default_headers") or {})
+        self.default_headers: Mapping[str, str] = MappingProxyType(
+            {str(key): str(value) for key, value in (params.get("default_headers") or {}).items()}
+        )
 
         # Default `llm_params` used on inference are the subset of Model.parameters after
         # filtering out keys in _RESERVED_LLM_PARAMETERS.  Exposed as a read-only

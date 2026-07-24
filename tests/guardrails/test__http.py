@@ -104,6 +104,14 @@ class TestMergeHeadersCaseInsensitive:
         merge_headers_case_insensitive(base, {"authorization": "Bearer override"})
         assert base == {"Authorization": "Bearer base"}
 
+    def test_removes_all_case_equivalent_base_keys(self):
+        """An override collapses every case variant of a name in the base into a single header."""
+        base = {"Authorization": "base-a", "authorization": "base-b"}
+        result = merge_headers_case_insensitive(base, {"Authorization": "override"})
+        auth_keys = [key for key in result if key.lower() == "authorization"]
+        assert auth_keys == ["Authorization"]
+        assert result["Authorization"] == "override"
+
 
 class TestSharedConstants:
     """Test values of shared HTTP constants."""

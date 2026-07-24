@@ -17,6 +17,7 @@
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -763,6 +764,22 @@ class TestModelEngineDefaultHeaders:
 
         headers = self._headers_from(engine._client)
         assert headers == {"Content-Type": "application/json", "Authorization": "Bearer test-key"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_config_default_header_values_coerced_to_str(self):
+        """Non-string YAML header values (int, bool) are stored as strings."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Count": 3, "X-Flag": True}}))
+        assert engine.default_headers["X-Count"] == "3"
+        assert engine.default_headers["X-Flag"] == "True"
+        assert all(isinstance(value, str) for value in engine.default_headers.values())
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_default_headers_mapping_is_immutable(self):
+        """default_headers is a read-only mapping so callers cannot mutate shared per-engine state."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        headers: Any = engine.default_headers
+        with pytest.raises(TypeError):
+            headers["X-Injected"] = "nope"
 
 
 class TestModelEngineStreamCall:

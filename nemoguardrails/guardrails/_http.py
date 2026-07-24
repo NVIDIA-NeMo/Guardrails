@@ -35,8 +35,7 @@ def merge_headers_case_insensitive(base: Mapping[str, str], overrides: Optional[
     """
     merged = dict(base)
     for name, value in (overrides or {}).items():
-        existing = next((key for key in merged if key.lower() == name.lower()), None)
-        if existing is not None:
+        for existing in [key for key in merged if key.lower() == name.lower()]:
             del merged[existing]
         merged[name] = value
     return merged
