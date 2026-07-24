@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - "nemoguardrails/server/**"
+      - "nemoguardrails/rails/llm/options.py"
       - "scripts/openai_coverage.py"
 
   schedule:
@@ -57,7 +58,6 @@ jobs:
           fi
           curl -fsSL "${{ env.OPENAI_SPEC_URL }}/${REF}/openapi.yaml" \
             -o /tmp/openai-spec.yml
-          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
 
       - name: Check conformance
         run: |

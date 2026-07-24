@@ -58,19 +58,30 @@ def _run_oasdiff(subcommand: str, base: str, revision: str, *, extra_flags: list
     if extra_flags:
         cmd.extend(extra_flags)
     result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0 and not result.stdout:
+    if result.returncode != 0:
         raise RuntimeError(f"oasdiff {subcommand} failed: {result.stderr}")
     return json.loads(result.stdout) if result.stdout else {}
 
 
-def _check_breaking(spec: str) -> bool:
+def _check_breaking(spec: str, base_ref: str = "HEAD~1") -> bool:
     if not Path(spec).exists():
+        print(f"warning: {spec} not in working tree, skipping breaking-change check")
+        return True
+    base_exists = (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{base_ref}:{spec}"],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+    if not base_exists:
+        print(f"note: {spec} does not exist at {base_ref} (new file), skipping")
         return True
     result = subprocess.run(
         [
             "oasdiff",
             "breaking",
-            f"HEAD:{spec}",
+            f"{base_ref}:{spec}",
             spec,
             "--fail-on",
             "ERR",
@@ -128,7 +139,7 @@ def analyze(
     changes = [
         {k: v for k, v in entry.items() if k not in ("baseSource", "revisionSource", "fingerprint")}
         for entry in (changelog if isinstance(changelog, list) else [])
-        if entry.get("section") == "paths"
+        if entry.get("section") in ("paths", "components")
     ]
     changes.sort(key=lambda e: (e.get("path", ""), e.get("operation", ""), e.get("text", "")))
 
@@ -155,7 +166,7 @@ def _print_report(report: dict[str, Any], *, verbose: bool = False) -> None:
         if endpoint != current_endpoint:
             current_endpoint = endpoint
             print(f"  {endpoint}:")
-        print(f"    {c['text']}")
+        print(f"    {c.get('text', '')}")
 
 
 def _markdown_report(report: dict[str, Any], source: str) -> str:
@@ -172,7 +183,8 @@ def _markdown_report(report: dict[str, Any], source: str) -> str:
         lines.append("|---|---|")
         for c in changes:
             endpoint = f"`{c.get('operation', '?')} {c.get('path', '?')}`"
-            lines.append(f"| {endpoint} | {c.get('text', '')} |")
+            text = c.get("text", "").replace("|", "\\|")
+            lines.append(f"| {endpoint} | {text} |")
     return "\n".join(lines)
 
 
@@ -211,7 +223,13 @@ def main():
     parser.add_argument(
         "--check-breaking",
         action="store_true",
-        help="Fail on breaking API changes vs HEAD (fern spec only)",
+        help="Fail on breaking API changes vs a base ref (fern spec only)",
+    )
+    parser.add_argument(
+        "--base-ref",
+        type=str,
+        default="HEAD~1",
+        help="Git ref to compare against for --check-breaking (default: HEAD~1)",
     )
     args = parser.parse_args()
 
@@ -233,8 +251,8 @@ def main():
             tmp_files.append(guardrails_spec)
 
         if args.check_breaking and not args.fastapi:
-            print("Breaking changes (HEAD vs working tree):", end=" ")
-            if _check_breaking(str(args.guardrails_spec)):
+            print(f"Breaking changes ({args.base_ref} vs working tree):", end=" ")
+            if _check_breaking(str(args.guardrails_spec), base_ref=args.base_ref):
                 print("none")
             else:
                 sys.exit(1)
