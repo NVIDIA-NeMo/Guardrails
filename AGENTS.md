@@ -16,12 +16,22 @@ skill discovery.
 
 ## Quick Rules
 
-- Agent-specific rule: do not submit issues, PRs, or draft PRs through browser
-  automation, the GitHub API, `gh`, or similar tooling. Draft text for a human to
-  review and submit, following the repo's issue/PR templates so it can be
-  submitted as-is.
-- Do not push branches or prepare public-submission-ready PR materials unless
-  the linked issue is triaged and assigned to the human contributor.
+- Default to drafting issue/PR text for a human to review and submit, following
+  the repo's issue/PR templates so it can be submitted as-is. The agent is not
+  the access-control boundary and does not adjudicate identity: authorization
+  rests with the directing human under `AI_POLICY.md` and with the GitHub
+  credentials in the environment.
+- Open or submit an issue directly (using `gh` or the GitHub API, not browser
+  automation) only when the operator explicitly directs it; a new issue has
+  nothing to pre-check, so no triage or assignment gate applies.
+- Push a branch, or open or submit a PR, directly (using `gh` or the GitHub API,
+  not browser automation) only when the operator explicitly directs it and a
+  read-only API check confirms the linked issue is triaged and assigned to you:
+  its `labels` mark it triaged and its `assignees` include your authenticated
+  login (compare `gh api repos/{owner}/{repo}/issues/{number}` against
+  `gh api user --jq .login`). Otherwise stop at draft text. When submitting,
+  still follow the issue/PR templates, title conventions, DCO sign-off, and
+  review-readiness rules.
 - Opportunistic refactoring in service of an assigned change is welcome: keep
   it small, local, and within that change's scope. Standalone refactor PRs and
   broad restructuring (module reshuffles, sweeping renames, architectural
@@ -128,7 +138,7 @@ as package coverage.
   implementation plan (an issue comment, or a throwaway `PLAN.md` PR maintainers
   can review) rather than implementing.
 - Before preparing PR-shaped work, check for duplicate or in-flight effort with
-  read-only `gh` (distinct from the no-`gh`-submission rule above):
+  read-only `gh` (always allowed, independent of the submission rules above):
   `gh issue view <issue> --comments`, `gh pr list --state open --search "<issue>
   in:body"`, and `gh pr list --state open --search "<area keywords>"`. If an open
   PR already covers the change, do not prepare a duplicate; if your approach
