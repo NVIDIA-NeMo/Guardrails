@@ -13,14 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 from pydantic import ValidationError
 
-from nemoguardrails.http import HTTPConnectionError, HTTPResponse
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse, RetryingHTTPClient
 from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.library.clavata.actions import LabelResult, PolicyResult
 from nemoguardrails.library.clavata.errs import ClavataPluginAPIError
 from nemoguardrails.library.clavata.request import (
+    _CLAVATA_RETRY_POLICY,
     ClavataClient,
     CreateJobResponse,
     Job,
@@ -268,7 +271,18 @@ class TestCreateJobResponse:
         assert section2.result == "OUTCOME_FALSE"
 
     @pytest.mark.asyncio
-    async def test_clavata_client_uses_shared_retry_policy(self):
+    async def test_clavata_client_uses_shared_retry_policy(self, monkeypatch):
+        monkeypatch.setattr(
+            ClavataClient,
+            "_retrying_http_client",
+            staticmethod(
+                lambda client: RetryingHTTPClient(
+                    client,
+                    _CLAVATA_RETRY_POLICY,
+                    sleep=lambda _: asyncio.sleep(0),
+                )
+            ),
+        )
         response = CreateJobResponse(
             job=Job(
                 status="JOB_STATUS_COMPLETED",
