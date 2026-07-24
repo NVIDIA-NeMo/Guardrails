@@ -13,33 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Transport-neutral asynchronous HTTP clients for NeMo Guardrails integrations."""
+from __future__ import annotations
 
-from nemoguardrails.http.client import ClosableHTTPClient, HTTPClient
-from nemoguardrails.http.errors import (
-    HTTPClientError,
-    HTTPConnectionError,
-    HTTPResponseDecodeError,
-    HTTPStatusError,
-    HTTPTimeoutError,
-)
+import httpx
+
+from nemoguardrails.http.client import ClosableHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
-from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.http.transport import HttpxHTTPClient
-from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 
-__all__ = [
-    "ClosableHTTPClient",
-    "HTTPClient",
-    "HTTPClientError",
-    "HTTPConnectionError",
-    "HTTPRequest",
-    "HTTPResponse",
-    "HTTPResponseDecodeError",
-    "HTTPStatusError",
-    "HTTPTimeoutError",
-    "HttpxHTTPClient",
-    "RetryPolicy",
-    "RetryingHTTPClient",
-    "create_http_client",
-]
+
+def create_http_client(
+    *,
+    httpx_client: httpx.AsyncClient | None = None,
+    timeout: float | None = 30.0,
+    limits: httpx.Limits | None = None,
+    retry_policy: RetryPolicy | None = None,
+    follow_redirects: bool = False,
+) -> ClosableHTTPClient:
+    transport = HttpxHTTPClient(
+        httpx_client,
+        timeout=timeout,
+        limits=limits,
+        follow_redirects=follow_redirects,
+    )
+    client: ClosableHTTPClient = transport
+    if retry_policy is not None:
+        client = RetryingHTTPClient(transport, retry_policy)
+    return client
