@@ -64,6 +64,10 @@ for SCENARIO in "${SCENARIOS[@]}"; do
     fi
 
     rm -f "$TEMP_CONFIG"
+
+    # Allow the Guardrails server to drain in-flight requests before the next scenario.
+    echo "Cooling down for 60s..."
+    sleep 60
     echo ""
 done
 
