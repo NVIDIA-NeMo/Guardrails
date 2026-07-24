@@ -161,6 +161,22 @@ class GenAIAttributes:
     GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 
 
+class HTTPAttributes:
+    """HTTP semantic convention attributes."""
+
+    REQUEST_METHOD = "http.request.method"
+    REQUEST_BODY_SIZE = "http.request.body.size"
+    REQUEST_RESEND_COUNT = "http.request.resend_count"
+    RESPONSE_STATUS_CODE = "http.response.status_code"
+    RESPONSE_BODY_SIZE = "http.response.body.size"
+    URL_FULL = "url.full"
+    URL_SCHEME = "url.scheme"
+    SERVER_ADDRESS = "server.address"
+    SERVER_PORT = "server.port"
+    ERROR_TYPE = "error.type"
+    EXCEPTION_TYPE = "exception.type"
+
+
 class CommonAttributes:
     """Common OpenTelemetry attributes used across spans."""
 
