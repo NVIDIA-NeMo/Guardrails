@@ -26,7 +26,7 @@ from nemoguardrails.http.types import HTTPRequest, HTTPResponse
 async def _resolve_http_client(
     client: HTTPClient | None,
     *,
-    factory: Callable[[], HTTPClient],
+    factory: Callable[[], ClosableHTTPClient],
 ) -> AsyncIterator[HTTPClient]:
     if client is not None:
         yield client
@@ -52,7 +52,7 @@ async def http_call(
     content: bytes | str | None = None,
     timeout: float | None = None,
     raise_for_status: bool = True,
-    factory: Callable[[], HTTPClient] = create_http_client,
+    factory: Callable[[], ClosableHTTPClient] = create_http_client,
 ) -> HTTPResponse:
     async with _resolve_http_client(client, factory=factory) as resolved:
         response = await resolved.request(
