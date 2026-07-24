@@ -15,12 +15,31 @@
 
 """Shared aiohttp helpers for IORails engine HTTP clients."""
 
+from typing import Mapping, Optional
+
 import aiohttp
 
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_TIMEOUT_TOTAL = 30
 DEFAULT_TIMEOUT_CONNECT = 5
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+
+
+def merge_headers_case_insensitive(base: Mapping[str, str], overrides: Optional[Mapping[str, str]]) -> dict[str, str]:
+    """Merge ``overrides`` onto a copy of ``base``, matching header names case-insensitively.
+
+    HTTP header names are case-insensitive, so an override replaces any base
+    header with the same name regardless of case, adopting the override's
+    casing (mirrors ``BaseClient._build_headers``). ``base`` is not mutated;
+    ``None`` or empty ``overrides`` yields a plain copy of ``base``.
+    """
+    merged = dict(base)
+    for name, value in (overrides or {}).items():
+        existing = next((key for key in merged if key.lower() == name.lower()), None)
+        if existing is not None:
+            del merged[existing]
+        merged[name] = value
+    return merged
 
 
 async def safe_read_body(response: aiohttp.ClientResponse, max_chars: int = 500) -> str:
