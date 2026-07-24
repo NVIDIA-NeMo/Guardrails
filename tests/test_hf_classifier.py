@@ -851,6 +851,14 @@ class TestConnectionError:
 
 
 class TestBackendCaching:
+    def test_local_backend_reports_ignored_http_client(self, caplog):
+        caplog.set_level(logging.DEBUG, logger=backends_mod.__name__)
+
+        backend = get_backend(_local(), http_client=RecordingHTTPClient())
+
+        assert isinstance(backend, LocalBackend)
+        assert "Ignoring injected HTTP client for local HF classifier backend." in caplog.text
+
     def test_get_backend_returns_same_instance(self):
         cfg = _remote(engine="vllm")
         first = get_backend(cfg, name="my_classifier")
