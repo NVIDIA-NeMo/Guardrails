@@ -16,12 +16,21 @@
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.prompt_security.actions import _protect_text_outcome
 from tests.utils import TestChat
 
 
 def mock_protect_text(return_value):
     def mock_request(*args, **kwargs):
-        return return_value
+        if isinstance(return_value, RailOutcome):
+            return return_value
+        target = TransformTarget.BOT_MESSAGE if kwargs.get("bot_response") else TransformTarget.USER_MESSAGE
+        if return_value.get("is_blocked"):
+            return RailOutcome.block(metadata=return_value)
+        if return_value.get("is_modified"):
+            return RailOutcome.transform([(target, return_value.get("modified_text") or "")], metadata=return_value)
+        return RailOutcome.allow(metadata=return_value)
 
     return mock_request
 
@@ -53,6 +62,30 @@ def test_prompt_security_protection_disabled():
     chat.app.register_action(mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text")
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "Hi! My name is John as well."
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (
+            {"is_blocked": False, "is_modified": False, "modified_text": None},
+            RailOutcome.allow(metadata={"is_blocked": False, "is_modified": False, "modified_text": None}),
+        ),
+        (
+            {"is_blocked": True, "is_modified": False, "modified_text": None},
+            RailOutcome.block(metadata={"is_blocked": True, "is_modified": False, "modified_text": None}),
+        ),
+        (
+            {"is_blocked": False, "is_modified": True, "modified_text": "masked"},
+            RailOutcome.transform(
+                [(TransformTarget.USER_MESSAGE, "masked")],
+                metadata={"is_blocked": False, "is_modified": True, "modified_text": "masked"},
+            ),
+        ),
+    ],
+)
+def test_protect_text_outcome(result, expected):
+    assert _protect_text_outcome(result, TransformTarget.USER_MESSAGE) == expected
 
 
 @pytest.mark.unit

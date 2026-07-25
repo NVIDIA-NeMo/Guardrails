@@ -602,6 +602,12 @@ navigation:
                 title: List Challenges
                 slug: list-challenges
           - health:
+              - endpoint: GET /v1/health
+                title: Health Check
+                slug: get-health
+              - endpoint: GET /healthz
+                title: Health Check (Alias)
+                slug: get-healthz
               - endpoint: GET /
                 title: Get Server Health or Chat UI
                 slug: get-root

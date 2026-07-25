@@ -17,7 +17,7 @@ The aim of this benchmark is to detect performance-regressions as quickly as run
 
 To run benchmarks, two terminals or tmux panes are needed, one for the server-side and client-side processes.
 The first shell runs the Guardrails OpenAI-compatible server and Mock LLMs for a content-safety and application LLM.
-This uses the same poetry environment used to develop code, with extra packages added using `pip install`.
+This uses the same uv-managed virtual environment used to develop code, with extra packages added using `pip install`.
 The second shell uses [AIPerf](https://github.com/ai-dynamo/aiperf) to issue client requests and measure latency.
 
 ### 1. Run Server-side components: Guardrails OpenAI-compatible service with Mock LLMs for Content-Safety and Application LLMs
@@ -29,15 +29,15 @@ This is needed because otherwise the Operating System will limit the number of o
 $ ulimit -n 65536
 ````
 
-Next you'll install the NeMo Guardrails Poetry environment and honcho to run server-side components.
+Next you'll install the NeMo Guardrails uv-managed virtual environment and honcho to run server-side components.
 The honcho package is used to read the [`Procfile`](Procfile) and bring up the OpenAI service and Mock LLMs for benchmarking.
 
 ```shell
-$ poetry install --with dev -E "server"
-$ poetry run pip install honcho
+uv sync --locked --extra server
+uv pip install honcho
 ```
 
-Now all the dependencies are installed in the poetry environment, you'll use honcho to run the Procfile.
+Now all the dependencies are installed in the uv-managed virtual environment, you'll use honcho to run the Procfile.
 This runs the Guardrails server and Mock LLMs for the Application LLM and Content-Safety.
 As the Procfile processes spin up, they log to the console with a prefix. The `system` prefix is used by Honcho, `app_llm` is the Application or Main LLM mock, `cs_llm` is the content-safety mock, and `gr` is the Guardrails service.
 We'll explore the Procfile in more detail below.
@@ -46,7 +46,7 @@ Note these messages are likely not on consecutive lines.
 
 ```shell
 $ cd benchmark
-$ poetry run honcho start
+$ uv run honcho start
 13:40:33 system    | gr.1 started (pid=93634)
 13:40:33 system    | app_llm.1 started (pid=93635)
 13:40:33 system    | cs_llm.1 started (pid=93636)

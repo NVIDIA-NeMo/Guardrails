@@ -148,10 +148,9 @@ class TestGuardrailsAIE2EIntegration:
         assert result_competitor["validation_result"].validation_passed is False
 
     @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
-    def test_validation_mapping_e2e(self):
-        """E2E test: Validation mapping returns boolean (validation_passed)."""
+    def test_validation_result_shape_e2e(self):
+        """E2E test: Validation result exposes validation_passed."""
         from nemoguardrails.library.guardrails_ai.actions import (
-            guardrails_ai_validation_mapping,
             validate_guardrails_ai,
         )
 
@@ -163,8 +162,7 @@ class TestGuardrailsAIE2EIntegration:
                 on_fail="noop",
             )
 
-            mapped = guardrails_ai_validation_mapping(result)
-            assert mapped is True
+            assert result["validation_result"].validation_passed is True
 
             result_fail = validate_guardrails_ai(
                 validator_name="regex_match",
@@ -173,12 +171,11 @@ class TestGuardrailsAIE2EIntegration:
                 on_fail="noop",
             )
 
-            mapped_fail = guardrails_ai_validation_mapping(result_fail)
-            assert mapped_fail is False
+            assert result_fail["validation_result"].validation_passed is False
 
     @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
-    def test_action_returns_valid_for_colang_flows_e2e(self):
-        """E2E test: Actions return both validation_result and valid for Colang flows."""
+    def test_action_returns_outcome_for_colang_flows_e2e(self):
+        """E2E test: Actions return outcome metadata for Colang flows."""
         from nemoguardrails.library.guardrails_ai.actions import (
             validate_guardrails_ai_input,
             validate_guardrails_ai_output,
@@ -195,18 +192,18 @@ class TestGuardrailsAIE2EIntegration:
                 config=mock_config,
                 text="Hello world",
             )
-            assert "validation_result" in result_input
-            assert "valid" in result_input
-            assert result_input["valid"] is True
+            assert result_input.is_blocked is False
+            assert result_input.metadata["validation_result"].validation_passed is True
+            assert result_input.metadata["valid"] is True
 
             result_output = validate_guardrails_ai_output(
                 validator="regex_match",
                 config=mock_config,
                 text="hello world",
             )
-            assert "validation_result" in result_output
-            assert "valid" in result_output
-            assert result_output["valid"] is False
+            assert result_output.is_blocked is True
+            assert result_output.metadata["validation_result"].validation_passed is False
+            assert result_output.metadata["valid"] is False
 
     @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
     def test_metadata_parameter_e2e(self):

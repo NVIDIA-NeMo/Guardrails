@@ -24,6 +24,7 @@ from pydantic_core import to_json
 from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.rails.llm.config import CrowdStrikeAIDRRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,29 @@ def get_crowdstrike_aidr_config(config: RailsConfig) -> CrowdStrikeAIDRRailConfi
     return cast(CrowdStrikeAIDRRailConfig, config.rails.config.crowdstrike_aidr)
 
 
+def _crowdstrike_aidr_outcome(
+    result: GuardChatCompletionsResult,
+    mode: Literal["input", "output"],
+) -> RailOutcome:
+    metadata = {
+        "blocked": bool(result.blocked),
+        "transformed": bool(result.transformed),
+        "guard_output": result.guard_output,
+        "user_message": result.user_message,
+        "bot_message": result.bot_message,
+    }
+    if result.blocked:
+        return RailOutcome.block(metadata=metadata)
+    if result.transformed:
+        target = TransformTarget.USER_MESSAGE if mode == "input" else TransformTarget.BOT_MESSAGE
+        text = result.user_message if mode == "input" else result.bot_message
+        return RailOutcome.transform(
+            [(target, text or "")],
+            metadata=metadata,
+        )
+    return RailOutcome.allow(metadata=metadata)
+
+
 @action(is_system_action=True)
 async def crowdstrike_aidr_guard(
     mode: Literal["input", "output"],
@@ -71,7 +95,7 @@ async def crowdstrike_aidr_guard(
     context: Mapping[str, Any] = {},
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
-) -> GuardChatCompletionsResult:
+) -> RailOutcome:
     base_url_template = os.getenv("CS_AIDR_BASE_URL_TEMPLATE", "https://api.crowdstrike.com/aidr/{SERVICE_NAME}")
     api_token = os.getenv("CS_AIDR_TOKEN")
 
@@ -111,21 +135,27 @@ async def crowdstrike_aidr_guard(
             guard_response = GuardChatCompletionsResponse(**response.json())
         except httpx.HTTPStatusError as e:
             log.error("HTTP status error from CrowdStrike AIDR API: %s", e)
-            return GuardChatCompletionsResult(
-                guard_output={"messages": messages},
-                blocked=False,
-                transformed=False,
-                bot_message=bot_message,
-                user_message=user_message,
+            return _crowdstrike_aidr_outcome(
+                GuardChatCompletionsResult(
+                    guard_output={"messages": messages},
+                    blocked=False,
+                    transformed=False,
+                    bot_message=bot_message,
+                    user_message=user_message,
+                ),
+                mode,
             )
         except Exception as e:
             log.error("Error calling CrowdStrike AIDR API: %s", e)
-            return GuardChatCompletionsResult(
-                guard_output={"messages": messages},
-                blocked=False,
-                transformed=False,
-                bot_message=bot_message,
-                user_message=user_message,
+            return _crowdstrike_aidr_outcome(
+                GuardChatCompletionsResult(
+                    guard_output={"messages": messages},
+                    blocked=False,
+                    transformed=False,
+                    bot_message=bot_message,
+                    user_message=user_message,
+                ),
+                mode,
             )
 
         result = guard_response.result
@@ -134,4 +164,4 @@ async def crowdstrike_aidr_guard(
         result.bot_message = next((m.content for m in output_messages if m.role == "assistant"), bot_message)
         result.user_message = next((m.content for m in output_messages if m.role == "user"), user_message)
 
-        return result
+        return _crowdstrike_aidr_outcome(result, mode)

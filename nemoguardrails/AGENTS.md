@@ -97,11 +97,11 @@ provider, or similar library):
 
 - Keep the dependency optional: import the third-party package lazily inside
   `__init__` or the method that needs it, wrapped in a `try/except ImportError`
-  that names the poetry extra to install. Never import it at module top level in
+  that names the optional extra to install. Never import it at module top level in
   a way that breaks core import when the package is absent.
-- Add the dependency as an optional dependency under a poetry extra in
+- Add the dependency as an optional dependency under a project extra in
   `pyproject.toml`; do not add it to the default runtime dependencies.
-- Packaging-patch hygiene: read the current `pyproject.toml` and `poetry.lock`
+- Packaging-patch hygiene: read the current `pyproject.toml` and `uv.lock`
   first, anchor edits to lines that actually exist, and regenerate the lock with
   project tooling. Do not generate dependency edits from memory or templates; if
   the lock cannot be regenerated, stop and flag that it will be inconsistent.

@@ -6,9 +6,16 @@ on:
       - "**/*.md"
       - ".github/**"
 
+permissions: {}
+
 jobs:
   pr-tests-summary:
     name: PR Tests Summary
     runs-on: ubuntu-latest
     steps:
       - run: echo "Tests skipped (no code changes)"
+  pr-coverage-summary:
+    name: PR Coverage Summary
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Coverage skipped (no code changes)"

@@ -1,32 +1,17 @@
-[tool.poetry]
+[project]
 name = "nemoguardrails"
-description = "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
-authors = ["NVIDIA <nemoguardrails@nvidia.com>"]
-license = "LICENSE.md"
-readme = "README.md"
 version = "0.24.0.dev0"
-packages = [{ include = "nemoguardrails" }]
+description = "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
+license = "Apache-2.0"
+license-files = ["LICENSE*", "LICENCES*"]
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+authors = [{ name = "NVIDIA", email = "nemoguardrails@nvidia.com" }]
 
-
-include = [
-  "LICENSE.md",
-  "LICENSE-Apache-2.0.txt",
-  "LICENCES-3rd-party.txt",
-  "nemoguardrails/**/*.yml",
-  "nemoguardrails/**/*.co",
-  "nemoguardrails/**/*.txt",
-  "nemoguardrails/**/*.json",
-  "nemoguardrails/**/*.lark",
-]
-exclude = [
-  "nemoguardrails/AGENTS.md",
-  "nemoguardrails/CLAUDE.md",
-]
 
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -34,163 +19,140 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 
-[tool.poetry.urls]
-homepage = "https://github.com/NVIDIA-NeMo/Guardrails"
-issues = "https://github.com/NVIDIA-NeMo/Guardrails/issues"
-changelog = "https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md"
-documentation = "https://docs.nvidia.com/nemo/guardrails/"
-repository = "https://github.com/NVIDIA-NeMo/Guardrails"
-
-
-[tool.poetry.scripts]
-nemoguardrails = "nemoguardrails.__main__:app"
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.14"
-aiohttp = ">=3.10.11"
-aiohttp-retry = ">=2.9.0"
-dataclasses-json = ">=0.6.7,<0.7.0"
-fastapi = { version = ">=0.103.0", optional = true }
-fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
-# onnxruntime 1.24+ dropped Python 3.10 wheels; cap it for that version
-onnxruntime = [
-    { version = ">=1.17.0,<1.24", python = ">=3.10,<3.11" },
-    { version = ">=1.17.0", python = ">=3.11" },
+dependencies = [
+  "aiohttp (>=3.10.11)",
+  "aiohttp-retry (>=2.9.0)",
+  "dataclasses-json (>=0.6.7,<0.7.0)",
+  "fastembed (>=0.2.2)",
+  "onnxruntime (>=1.17.0,<1.24) ; python_version>='3.10' and python_version<'3.11'",
+  "onnxruntime (>=1.17.0) ; python_version>='3.11'",
+  "httpx (>=0.24.1)",
+  "jinja2 (>=3.1.6)",
+  "jsonschema (>=4.26.0,<5.0.0)",
+  "lark (>=1.1.7)",
+  "nest-asyncio (>=1.5.6)",
+  "numpy (>=1.21) ; python_version>='3.10' and python_version<'3.12'",
+  "numpy (>=1.26) ; python_version>='3.12' and python_version<'3.13'",
+  "numpy (>=2.1.0) ; python_version>='3.13'",
+  "prompt-toolkit (>=3.0)",
+  "protobuf (>=5.29.5)",
+  "pydantic (>=2.5,<3.0)",
+  "pyyaml (>=6.0)",
+  "rich (>=13.5.2)",
+  "simpleeval (>=0.9.13)",
+  "typer (>=0.8)",
 ]
-httpx = ">=0.24.1"
-jinja2 = ">=3.1.6"
-jsonschema = "^4.26.0"
-lark = ">=1.1.7"
-nest-asyncio = ">=1.5.6,"
-# NOTE:
-# security: ensure protobuf version is patched against CVE-2024-7254
-# must move this to google-cloud-language only once onnxruntime is dropped
-# and streamlit is using the vulnerable protobuf versions
-protobuf = ">=5.29.5"
-prompt-toolkit = ">=3.0"
-pydantic = ">=2.5,<3.0"
-pyyaml = ">=6.0"
-rich = ">=13.5.2"
-simpleeval = ">=0.9.13,"
-starlette = { version = ">=0.49.1", optional = true }
-typer = ">=0.8"
-uvicorn = { version = ">=0.23", optional = true }
-watchdog = { version = ">=3.0.0", optional = true }
 
-# server (openai SDK types used by server/schemas and server/api)
-openai = { version = ">=1.0.0,<3.0.0", optional = true }
+[project.optional-dependencies]
 
-# tracing
-opentelemetry-api = { version = ">=1.27.0,<2.0.0", optional = true }
-aiofiles = { version = ">=24.1.0", optional = true }
+tracing = ["opentelemetry-api (>=1.27.0,<2.0.0)", "aiofiles (>=24.1.0)"]
+
+server = ["aiofiles (>=24.1.0)", "openai (>=1.0.0,<3.0.0)", "fastapi (>=0.103.0)", "starlette (>=0.49.1)", "uvicorn (>=0.23)", "watchdog (>=3.0.0)"]
+
+sdd = [
+  "presidio-analyzer (>=2.2) ; python_version<'3.13'",
+  "presidio-anonymizer (>=2.2) ; python_version<'3.13'",
+]
+
+gcp = ["google-cloud-language (>=2.14.0)"]
+
+jailbreak = ["yara-python (>=4.5.1,<5.0.0)"]
+
+multilingual = ["fast-langdetect (>=1.0.0)"]
+
+chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 
 # eval
-tqdm = { version = ">=4.65,<5.0", optional = true }
-streamlit = { version = "^1.37.0", optional = true, python = ">=3.10,<3.14" }
-tornado = { version = ">=6.5.0", optional = true, python = ">=3.10,<3.14" }
-pandas = { version = ">=1.4.0,<3", optional = true }
-numpy = [
-  { version = ">=1.21", python = ">=3.10,<3.12" },
-  { version = ">=1.26", python = ">=3.12,<3.13" },
-  { version = ">=2.1.0", python = ">=3.13" },
-  { version = ">=1.21,<2.1.0", python = "<3.10" },
+eval = [
+  "tqdm (>=4.65,<5.0)",
+  "streamlit (>=1.37.0,<2.0.0) ; python_version>='3.10' and python_version<'3.14'",
+  "tornado (>=6.5.0) ; python_version>='3.10' and python_version<'3.14'",
+  "pandas (>=1.4.0,<3.0.0)",
+  "numpy (>=1.21) ; python_version>='3.10' and python_version<'3.12'",
+  "numpy (>=1.26) ; python_version>='3.12' and python_version<'3.13'",
+  "numpy (>=2.1.0) ; python_version>='3.13'",
 ]
-# sdd
-# we don't need it and we comment it for sake of documentation
-# spacy = { version = ">=3.4.4,<4.0.0,!=3.7.0", python = "<3.13", optional = true }
-presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
-presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
 
-# gpc
-google-cloud-language = { version = ">=2.14.0", optional = true }
-
-# jailbreak injection
-yara-python = { version = "^4.5.1", optional = true }
-
-# multilingual content safety - language detection
-fast-langdetect = { version = ">=1.0.0", optional = true }
-
-# chat UI
-chainlit = { version = "^2.11.0", optional = true }
-
-# hf classifier (local backend)
-transformers = { version = ">=4.35.0", optional = true }
-torch = { version = ">=2.0.0", optional = true }
-
-[tool.poetry.extras]
-sdd = ["presidio-analyzer", "presidio-anonymizer"]
-eval = ["tqdm", "numpy", "streamlit", "tornado"]
-gcp = ["google-cloud-language"]
-tracing = ["opentelemetry-api", "aiofiles"]
-jailbreak = ["yara-python"]
-multilingual = ["fast-langdetect"]
-server = ["aiofiles", "openai", "fastapi", "starlette", "uvicorn", "watchdog"]
-chat-ui = ["chainlit"]
-hf-classifier = ["transformers", "torch"]
-# Poetry does not support recursive dependencies, so we need to add all the dependencies here.
-# I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
-# It is here for backward compatibility.
 all = [
-  "presidio-analyzer",
-  "presidio-anonymizer",
-  "tqdm",
-  "numpy",
-  "streamlit",
-  "openai",
-  "google-cloud-language",
-  "opentelemetry-api",
-  "aiofiles",
-  "yara-python",
-  "fast-langdetect",
-  "fastapi",
-  "starlette",
-  "uvicorn",
-  "watchdog",
-  "chainlit",
-  "transformers",
-  "torch",
+  "presidio-analyzer (>=2.2) ; python_version<'3.13'",
+  "presidio-anonymizer (>=2.2) ; python_version<'3.13'",
+  "tqdm (>=4.65,<5.0)",
+  "streamlit (>=1.37.0,<2.0.0) ; python_version>='3.10' and python_version<'3.14'",
+  "tornado (>=6.5.0) ; python_version>='3.10' and python_version<'3.14'",
+  "pandas (>=1.4.0,<3.0.0)",
+  "numpy (>=1.21) ; python_version>='3.10' and python_version<'3.12'",
+  "numpy (>=1.26) ; python_version>='3.12' and python_version<'3.13'",
+  "numpy (>=2.1.0) ; python_version>='3.13'",
+  "openai (>=1.0.0,<3.0.0)",
+  "google-cloud-language (>=2.14.0)",
+  "opentelemetry-api (>=1.27.0,<2.0.0)",
+  "aiofiles (>=24.1.0)",
+  "yara-python (>=4.5.1,<5.0.0)",
+  "fast-langdetect (>=1.0.0)",
+  "fastapi (>=0.103.0)",
+  "starlette (>=0.49.1)",
+  "uvicorn (>=0.23)",
+  "watchdog (>=3.0.0)",
+  "chainlit (>=2.11.0,<3.0.0)",
 ]
 
-[tool.poetry.group.dev]
-optional = true
+[dependency-groups]
+lint = ["ruff==0.14.6"]
+typing = ["ty==0.0.56"]
+test = [
+  "pytest>=9.0.3,<10.0.0",
+  "pytest-asyncio>=1.4.0,<2.0.0",
+  "pytest-cov>=4.1.0",
+  "pytest-httpx>=0.22.0",
+  "pytest-xdist>=3.8.0,<4.0.0",
+  "pytest-recording>=0.13.4,<0.14.0",
+  "pytest-profiling>=1.7.0,<2.0.0",
+  "inline-snapshot>=0.33.0,<0.34.0",
+]
+test_integration = [
+  "aioresponses>=0.7.6",
+  "streamlit>=1.37.0",
+  "yara-python>=4.5.1,<5.0.0",
+  "opentelemetry-api>=1.34.1,<2.0.0",
+  "opentelemetry-sdk>=1.34.1,<2.0.0",
+  "fast-langdetect>=1.0.0",
+  "openai>=1.0.0,<3.0.0",
+  "fastapi>=0.103.0",
+  "uvicorn>=0.23",
+  "starlette>=0.49.1",
+  "watchdog>=3.0.0",
+  "chainlit>=2.11.0,<3.0.0",
+  "langchain>=0.2.14,<2.0.0",
+  "langchain-core>=0.2.14,<2.0.0",
+  "langchain-community>=0.2.5,<2.0.0",
+  "langchain-openai>=0.1.0",
+  "langchain-nvidia-ai-endpoints>=0.2.0",
+]
+dev = [
+  "pre-commit>=3.1.1",
+  {include-group = "test"},
+  {include-group = "test_integration"},
+  {include-group = "lint"},
+  {include-group = "typing"},
+]
 
+[tool.uv]
+package = true
+exclude-newer = "7 days"
 
-[tool.poetry.group.dev.dependencies]
-aioresponses = ">=0.7.6"
-pre-commit = ">=3.1.1"
-pytest = ">=7.2.2,<9.0.0"
-pytest-asyncio = ">=0.21.0, <1.0.0"
-pytest-cov = ">=4.1.0"
-pytest-httpx = ">=0.22.0"
-pytest-xdist = "^3.8.0"
-pytest-recording = "^0.13.4"
-streamlit = ">=1.37.0"
-tox = "^4.23.2"
-pytest-profiling = "^1.7.0"
-yara-python = "^4.5.1"
-opentelemetry-api = "^1.34.1"
-opentelemetry-sdk = "^1.34.1"
-fast-langdetect = ">=1.0.0"
-openai = ">=1.0.0,<3.0.0"
-# server (optional at runtime, required for tests/server/)
-fastapi = ">=0.103.0"
-uvicorn = ">=0.23"
-starlette = ">=0.49.1"
-watchdog = ">=3.0.0"
-pyright = "^1.1.405"
-ruff = "0.14.6"
-chainlit = "^2.11.0"
-# LangChain integration is now opt-in at runtime (DefaultFramework replaces it for chat).
-# These dev deps keep the LangChain-specific tests and the NIM embeddings test path working.
-langchain = ">=0.2.14,<2.0.0"
-langchain-core = ">=0.2.14,<2.0.0"
-langchain-community = ">=0.2.5,<2.0.0"
-langchain-openai = ">=0.1.0"
-langchain-nvidia-ai-endpoints = ">=0.2.0"
-inline-snapshot = "^0.33.0"
+# Flat layout: the importable package is ./nemoguardrails (not under ./src).
+# uv_build ships everything under the module dir (Python plus the .co/.lark/.yml
+# data files). The build helper stages the top-level examples under the module.
+[tool.uv.build-backend]
+module-root = ""
+module-name = "nemoguardrails"
+source-exclude = [
+  "/nemoguardrails/AGENTS.md",
+  "/nemoguardrails/CLAUDE.md",
+]
 
-# Directories in which to run Pyright type-checking
-[tool.pyright]
+# Directories in which to run ty type-checking
+[tool.ty.src]
 include = [
   "nemoguardrails/rails/**",
   "nemoguardrails/actions/**",
@@ -201,11 +163,30 @@ include = [
   "nemoguardrails/logging/**",
   "nemoguardrails/tracing/**",
   "nemoguardrails/server/**",
-  "nemoguardrails/guardrails/**"
+  "nemoguardrails/guardrails/**",
+  "nemoguardrails/manifests/**",
+  "nemoguardrails/library/**/rail.py",
+  "nemoguardrails/library/**/rail_config.py",
+  "tests/recorded/**"
+
 ]
 exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
 ]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+  "aioredis",
+  "cohere",
+  "google.genai",
+]
+
+[[tool.ty.overrides]]
+include = ["nemoguardrails/actions/v2_x/generation.py"]
+
+[tool.ty.overrides.rules]
+invalid-method-override = "ignore"
+
 
 [tool.pytest.ini_options]
 addopts = "-p no:warnings"
@@ -220,6 +201,17 @@ log_cli = "False"
 [tool.inline-snapshot]
 format-command = "ruff format --stdin-filename {filename} -"
 
+[project.scripts]
+nemoguardrails = "nemoguardrails.__main__:app"
+
+[project.urls]
+homepage = "https://github.com/NVIDIA-NeMo/Guardrails"
+issues = "https://github.com/NVIDIA-NeMo/Guardrails/issues"
+changelog = "https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md"
+documentation = "https://docs.nvidia.com/nemo/guardrails/"
+repository = "https://github.com/NVIDIA-NeMo/Guardrails"
+
+
 [build-system]
-requires = ["poetry-core>=1.0.0,<2.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.11.17,<0.12.0"]
+build-backend = "uv_build"

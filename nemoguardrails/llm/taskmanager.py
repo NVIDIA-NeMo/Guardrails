@@ -336,11 +336,11 @@ class LLMTaskManager:
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 
-    def parse_task_output(self, task: Task, output: str, forced_output_parser: Optional[str] = None) -> str:
+    def parse_task_output(self, task: Union[str, Task], output: str, forced_output_parser: Optional[str] = None) -> str:
         """Parses the output of a task using the configured output parser.
 
         Args:
-            task (Task): The task for which the output is being parsed.
+            task (Union[str, Task]): The task for which the output is being parsed.
             output (str): The output string to be parsed.
             forced_output_parser (Optional[str]): An optional parser name to force
 
@@ -375,7 +375,9 @@ class LLMTaskManager:
 
     def register_filter(self, filter_fn: Callable, name: Optional[str] = None):
         """Register a custom filter for the rails configuration."""
-        name = name or filter_fn.__name__
+        name = name or getattr(filter_fn, "__name__", None)
+        if not isinstance(name, str) or not name:
+            raise ValueError("An explicit name is required for filters without __name__.")
         self.env.filters[name] = filter_fn
 
     def register_output_parser(self, output_parser: Callable, name: str):

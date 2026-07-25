@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 try:
     import redis  # type: ignore
 except ImportError:
-    redis = None  # type: ignore
+    redis = None
 
 from nemoguardrails.rails.llm.config import EmbeddingsCacheConfig
 

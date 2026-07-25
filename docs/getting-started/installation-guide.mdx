@@ -64,7 +64,7 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
 ## Alternative Installation Methods
 
-Install the NeMo Guardrails library from source using pip or Poetry. Choose this method if you want to contribute to the library or use the latest development version.
+Install the NeMo Guardrails library from source using pip or uv. Choose this method if you want to contribute to the library or use the latest development version.
 
 <Tabs>
 
@@ -80,20 +80,18 @@ pip install -e .
 
 </Tab>
 
-<Tab title="Poetry">
+<Tab title="uv">
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
 cd nemoguardrails
-python -m venv .venv
-source .venv/bin/activate
-poetry install
+uv sync --locked --extra server
 ```
 
-When using Poetry, prefix CLI commands with `poetry run`:
+When using uv, prefix CLI commands with `uv run`:
 
 ```bash
-poetry run nemoguardrails server --config examples/configs
+uv run nemoguardrails server --config examples/configs
 ```
 
 </Tab>
@@ -120,45 +118,3 @@ Some features such as [AlignScore](/configure-guardrails/guardrail-catalog/third
 ## Docker
 
 You can run the NeMo Guardrails library in a Docker container. For containerized deployment, see [NeMo Guardrails with Docker](/more-deployment-options/using-docker).
-
-## Troubleshooting Installation Issues
-
-Use the following information to resolve common installation issues.
-
-### C++ Runtime Errors
-
-The library uses [Annoy](https://github.com/spotify/annoy), which requires a C++ compiler. Most systems already have one installed. To check, run the following command:
-
-<Tabs>
-
-<Tab title="Linux/macOS">
-
-```bash
-g++ --version
-```
-
-If the command prints a version number (for example, `g++ (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0`), a C++ compiler is already installed and no action is needed.
-
-If the command is not found, install the compiler:
-
-```bash
-apt-get install gcc g++ python3-dev
-```
-
-</Tab>
-
-<Tab title="Windows">
-
-Open a terminal (CMD or PowerShell) and run:
-
-```bat
-where cl
-```
-
-If the command prints a file path, a C++ compiler is already installed and no action is needed.
-
-If the command is not found, install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (version 14.0 or greater).
-
-</Tab>
-
-</Tabs>

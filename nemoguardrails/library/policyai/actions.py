@@ -30,32 +30,25 @@ from typing import Optional
 import aiohttp
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 log = logging.getLogger(__name__)
 
 
-def call_policyai_api_mapping(result: dict) -> bool:
-    """
-    Mapping for call_policyai_api.
-
-    Expects result to be a dict with:
-      - "assessment": "SAFE" or "UNSAFE"
-      - "category": the violation category (if UNSAFE)
-      - "severity": severity level 0-3
-
-    Block (return True) if:
-      1. Assessment is "UNSAFE"
-    """
-    assessment = result.get("assessment", "SAFE")
-    return assessment == "UNSAFE"
+def _policyai_outcome(metadata: dict) -> RailOutcome:
+    metadata = dict(metadata)
+    reason = metadata.pop("reason", None)
+    if metadata["assessment"] == "UNSAFE":
+        return RailOutcome.block(reason=reason, metadata=metadata)
+    return RailOutcome.allow(reason=reason, metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=call_policyai_api_mapping)
+@action(is_system_action=True)
 async def call_policyai_api(
     text: Optional[str] = None,
     tag_name: Optional[str] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """
     Call the PolicyAI API to evaluate content.
 
@@ -65,11 +58,8 @@ async def call_policyai_api(
                   If not provided, uses POLICYAI_TAG_NAME env var or "prod".
 
     Returns:
-        dict with:
-          - assessment: "SAFE" or "UNSAFE"
-          - category: the violation category (if UNSAFE)
-          - severity: severity level 0-3
-          - reason: explanation for the decision
+        RailOutcome indicating whether the content is blocked. Assessment, category,
+        severity, and exception_message are metadata; reason is stored on RailOutcome.reason.
     """
     api_key = os.environ.get("POLICYAI_API_KEY")
 
@@ -150,10 +140,12 @@ async def call_policyai_api(
             # (Colang 1.x doesn't support string concatenation in create event)
             exception_message = f"PolicyAI moderation triggered. Content violated policy: {triggered_category}"
 
-            return {
-                "assessment": overall_assessment,
-                "category": triggered_category,
-                "severity": max_severity,
-                "reason": reason,
-                "exception_message": exception_message,
-            }
+            return _policyai_outcome(
+                {
+                    "assessment": overall_assessment,
+                    "category": triggered_category,
+                    "severity": max_severity,
+                    "reason": reason,
+                    "exception_message": exception_message,
+                }
+            )

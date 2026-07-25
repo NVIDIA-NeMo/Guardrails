@@ -45,7 +45,7 @@ def co_v2(
     if not events:
         return history
 
-    system_actions = [
+    excluded_actions = [
         "retrieve_relevant_chunks",
         "create_event",
         "wolfram alpha request",
@@ -59,17 +59,6 @@ def co_v2(
         "wikipedia_query",
         "wolframalpha_query",
         "zapier_nla_query",
-        "call activefence api",
-        "call gcpnlp api",
-        "jailbreak_detection_heuristics",
-        "self_check_hallucination",
-        "llama_guard_check_input",
-        "llama_guard_check_output",
-        "alignscore_check_facts",
-        "alignscore request",
-        "self_check_facts",
-        "self_check_input",
-        "self_check_output",
         "AddFlowsAction",
         "RemoveFlowsAction",
         "CheckForActiveEventMatchAction",
@@ -115,7 +104,8 @@ def co_v2(
                 elif (
                     event["type"].endswith("ActionFinished")
                     and event.get("action_name")
-                    and event["action_name"] not in system_actions
+                    and not event.get("is_rail_action", False)
+                    and event["action_name"] not in excluded_actions
                 ):
                     # history += f"  await {str(event['action_name'])}()\n"
                     history += f"  # {str(event.get('return_value'))}\n"

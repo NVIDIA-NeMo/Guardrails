@@ -3,12 +3,14 @@
 
 define subflow context bloat detection on retrieval
   """Detect bloated or padded content in retrieved RAG chunks."""
-  $bloat_result = execute context_bloat_detection(text=$relevant_chunks)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
-    bot inform retrieval bloated
+  $bloat_result = execute context_bloat_detection(source="retrieval", text=$relevant_chunks)
+  if $bloat_result.is_blocked
+    $block_message = $config.bot_messages["inform retrieval bloated"][0]
+    $skip_output_rails = True
+    create event BotMessage(text=$block_message)
     stop
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $relevant_chunks = $bloat_result.text
+  if $bloat_result.is_transform
+    $relevant_chunks = $bloat_result.transform_text["relevant_chunks"]
 
 define bot inform retrieval bloated
   "The retrieved sources for this question appeared oversized or padded. I'm not using them to avoid context manipulation."
@@ -17,12 +19,12 @@ define bot inform retrieval bloated
 
 define subflow context bloat detection on input
   """Detect bloated or padded user-supplied content."""
-  $bloat_result = execute context_bloat_detection(text=$user_message)
-  if $bloat_result.is_bloat and $bloat_result.action == "reject"
+  $bloat_result = execute context_bloat_detection(source="input", text=$user_message)
+  if $bloat_result.is_blocked
     bot refuse bloated input
     stop
-  if $bloat_result.is_bloat and $bloat_result.action == "truncate"
-    $user_message = $bloat_result.text
+  if $bloat_result.is_transform
+    $user_message = $bloat_result.transform_text["user_message"]
 
 define bot refuse bloated input
   "Your message appears oversized or padded with repetitive content. Please send a shorter message focused on your question."

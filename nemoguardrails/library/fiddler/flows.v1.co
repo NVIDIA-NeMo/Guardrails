@@ -5,9 +5,9 @@ define subflow fiddler user safety
   """
   Use Fiddler's SLMs to detect jailbreaks
   """
-  $is_jailbreak = execute call fiddler safety on user message
+  $is_jailbreak = execute call_fiddler_safety_user
 
-  if $is_jailbreak
+  if $is_jailbreak.is_blocked
     if $config.enable_rails_exceptions
       create event JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
     else
@@ -19,9 +19,9 @@ define subflow fiddler bot safety
   """
   Use Fiddler's SLMs to detect jailbreaks
   """
-  $is_jailbreak = execute call fiddler safety on bot message
+  $is_jailbreak = execute call_fiddler_safety_bot
 
-  if $is_jailbreak
+  if $is_jailbreak.is_blocked
     if $config.enable_rails_exceptions
       create event JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
     else
@@ -32,9 +32,9 @@ define subflow fiddler bot faithfulness
   """
   Use Fiddler's SLMs to detect hallucinations
   """
-  $is_faithful = execute call fiddler faithfulness
+  $is_faithful = execute call_fiddler_faithfulness
 
-  if $is_faithful
+  if $is_faithful.is_blocked
     if $config.enable_rails_exceptions
       create event JailbreakDetectionRailException(message="Hallucination Detected. The output was a hallucination.")
     else

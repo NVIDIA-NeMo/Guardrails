@@ -49,11 +49,11 @@ from nemoguardrails.actions.llm.utils import (
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
-from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.rail_outcome import require_rail_outcome
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.colang import parse_colang_file
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
+from nemoguardrails.colang.v1_0.runtime.flows import _get_flow_params, _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
@@ -913,7 +913,7 @@ class LLMRails(BaseGuardrails):
                     "Invalid Colang 1.0 state format: state must contain an 'events' key. "
                     "Use an empty dict {} to start a new conversation."
                 )
-            if not isinstance(state["events"], list):
+            if not isinstance(state["events"], list):  # ty: ignore[invalid-argument-type]
                 raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
@@ -1032,7 +1032,7 @@ class LLMRails(BaseGuardrails):
             and gen_options.rails.dialog is False
         ):
             # We already have the first message with a context update, so we use that
-            messages[0]["content"]["bot_message"] = messages[-1]["content"]
+            messages[0]["content"]["bot_message"] = messages[-1]["content"]  # ty: ignore[invalid-assignment]
             messages = messages[0:-1]
 
         # TODO: Add support to load back history of events, next to history of messages
@@ -1053,7 +1053,7 @@ class LLMRails(BaseGuardrails):
             state_events = []
             if state:
                 assert isinstance(state, dict)
-                state_events = state["events"]
+                state_events = state["events"]  # ty: ignore[invalid-argument-type]
 
             new_events = []
             # Compute the new events.
@@ -1071,7 +1071,7 @@ class LLMRails(BaseGuardrails):
                     error_payload: str = json.dumps(error_dict)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
-                    await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                    await streaming_handler.push_chunk(END_OF_STREAM)
                 # Re-raise the exact exception
                 raise
         else:
@@ -1180,7 +1180,7 @@ class LLMRails(BaseGuardrails):
         streaming_handler = streaming_handler_var.get()
         if streaming_handler:
             # print("Closing the stream handler explicitly")
-            await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+            await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs
         original_log_options = None
@@ -1209,8 +1209,9 @@ class LLMRails(BaseGuardrails):
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.
-            if prompt:
-                res = GenerationResponse(response=new_message["content"])
+            message_content = new_message["content"]
+            if prompt and isinstance(message_content, str):
+                res = GenerationResponse(response=message_content)
             else:
                 res = GenerationResponse(response=[new_message])
 
@@ -1338,9 +1339,10 @@ class LLMRails(BaseGuardrails):
         else:
             # If a prompt is used, we only return the content of the message.
 
-            if reasoning_content:
+            message_content = new_message["content"]
+            if reasoning_content and isinstance(message_content, str):
                 thinking_trace = f"<think>{reasoning_content}</think>\n"
-                new_message["content"] = thinking_trace + new_message["content"]
+                new_message["content"] = thinking_trace + message_content
 
             if prompt:
                 return new_message["content"]
@@ -1441,7 +1443,7 @@ class LLMRails(BaseGuardrails):
                 error_dict = extract_error_json(error_message)
                 error_payload = json.dumps(error_dict)
                 await streaming_handler.push_chunk(error_payload)
-                await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
+                await streaming_handler.push_chunk(END_OF_STREAM)
 
         task = asyncio.create_task(_generation_task())
 
@@ -1859,10 +1861,11 @@ class LLMRails(BaseGuardrails):
             bot_response_chunk: str,
             prompt: Optional[str] = None,
             messages: Optional[List[dict]] = None,
-            action_params: Dict[str, Any] = {},
+            action_params: Optional[Dict[str, Any]] = None,
         ):
             context_message = _get_last_context_message(messages)
             user_message = prompt or _get_latest_user_message(messages)
+            flow_params = _get_flow_params(flow_id)
 
             context = {
                 "user_message": user_message,
@@ -1871,18 +1874,20 @@ class LLMRails(BaseGuardrails):
 
             if context_message:
                 context.update(context_message["content"])
+            context["triggered_output_rail"] = flow_id
 
             model_name = flow_id.split("$")[-1].split("=")[-1].strip('"')
 
-            # Resolve $bot_message / $user_message into a new dict. action_params
-            # is the shared flow config (reused across chunks and requests) and
-            # must not be mutated in place.
-            resolved_params = dict(action_params or {})
-            for key, value in resolved_params.items():
-                if value == "$bot_message":
-                    resolved_params[key] = bot_response_chunk
-                elif value == "$user_message":
-                    resolved_params[key] = user_message
+            context_params = {
+                "bot_message": bot_response_chunk,
+                "user_message": user_message,
+                **flow_params,
+            }
+            resolved_action_params = {}
+            for key, value in (action_params or {}).items():
+                if isinstance(value, str) and value.startswith("$"):
+                    value = context_params.get(value[1:], value)
+                resolved_action_params[key] = value
 
             return {
                 # TODO:: are there other context variables that need to be passed?
@@ -1894,7 +1899,7 @@ class LLMRails(BaseGuardrails):
                 "model_name": model_name,
                 "llms": self.runtime.registered_action_params.get("llms", {}),
                 "llm": self.runtime.registered_action_params.get(f"{action_name}_llm", self.llm),
-                **resolved_params,
+                **resolved_action_params,
             }
 
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
@@ -2013,13 +2018,44 @@ class LLMRails(BaseGuardrails):
                         action_params=action_params,
                     )
 
-                    result = await self.runtime.action_dispatcher.execute_action(action_name, params)
+                    try:
+                        result, status = await self.runtime.action_dispatcher.execute_action(action_name, params)
+                    except Exception:
+                        log.exception("Action %s failed during sequential streaming", action_name)
+                        result, status = None, "failed"
                     self._explain_info = self._ensure_explain_info()
 
-                    action_func = self.runtime.action_dispatcher.get_action(action_name)
+                    if status != "success":
+                        error_message = f"Action {action_name} failed with status: {status}"
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
 
-                    # Use the mapping to decide if the result indicates blocked content.
-                    if is_output_blocked(result, action_func):
+                    try:
+                        outcome = require_rail_outcome(result)
+                    except TypeError as e:
+                        error_message = str(e)
+                        log.error(error_message)
+                        error_data = {
+                            "error": {
+                                "message": f"Internal error in {flow_id} rail: {error_message}",
+                                "type": "internal_error",
+                                "param": flow_id,
+                                "code": "rail_execution_failure",
+                            }
+                        }
+                        yield json.dumps(error_data)
+                        return
+
+                    if outcome.is_blocked:
                         reason = f"Blocked by {flow_id} rails."
 
                         # return the error as a plain JSON string (not in SSE format)

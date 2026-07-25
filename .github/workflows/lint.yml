@@ -9,50 +9,30 @@ on:
   workflow_dispatch:
 
 env:
-  POETRY_VERSION: 1.8.2
   PYTHON_VERSION: "3.11"
+
+permissions:
+  contents: read
 
 jobs:
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Get full Python version
-        id: full-python-version
-        run: echo "version=$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")" >> $GITHUB_OUTPUT
-
-      - name: Get runner architecture
-        id: runner-arch
-        run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
-
-      - name: Bootstrap poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Set up cache
-        uses: actions/cache@v5
-        id: cache
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Ensure cache is healthy
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: timeout 10s poetry run pip --version || rm -rf .venv
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
 
       - name: Install dependencies
-        run: poetry install --with dev
+        run: uv sync --locked --group dev
 
       - name: Run pre-commit hooks
-        run: poetry run make pre-commit
+        run: make pre-commit

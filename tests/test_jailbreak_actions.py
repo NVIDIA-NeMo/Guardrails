@@ -58,7 +58,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
         mock_nim_request.assert_called_once_with(
             prompt="test prompt",
@@ -102,10 +102,13 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         # verify warning was logged
-        assert "api_key_env var at MISSING_API_KEY but the environment variable was not set" in caplog.text
+        assert (
+            "A jailbreak config api_key_env_var was specified, but the referenced environment variable was not set."
+            in caplog.text
+        )
 
         # verify nim request was called with None token
         mock_nim_request.assert_called_once_with(
@@ -146,7 +149,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="test prompt",
@@ -185,7 +188,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Jailbreak detection model not available" in caplog.text
         assert "No classifier available" in caplog.text
@@ -221,7 +224,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Failed to import required dependencies for local model" in caplog.text
         assert "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
@@ -258,7 +261,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "malicious prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
         assert "Local model jailbreak detection result" in caplog.text
         mock_check_jailbreak.assert_called_once_with(prompt="malicious prompt")
@@ -292,7 +295,7 @@ class TestJailbreakDetectionActions:
         llm_task_manager = LLMTaskManager(config=config)
 
         result = await jailbreak_detection_model(llm_task_manager, None)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="",
@@ -331,7 +334,7 @@ class TestJailbreakDetectionActions:
         context = {"other_key": "other_value"}  # No user_message key
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         mock_nim_request.assert_called_once_with(
             prompt="",
@@ -370,7 +373,7 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is True
+        assert result.is_blocked is True
 
         mock_model_request.assert_called_once_with(prompt="test prompt", api_url="http://legacy-server:1337/model")
 
@@ -404,6 +407,6 @@ class TestJailbreakDetectionActions:
         context = {"user_message": "test prompt"}
 
         result = await jailbreak_detection_model(llm_task_manager, context)
-        assert result is False
+        assert result.is_blocked is False
 
         assert "Jailbreak endpoint not set up properly" in caplog.text

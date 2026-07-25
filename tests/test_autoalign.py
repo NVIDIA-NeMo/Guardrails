@@ -19,9 +19,87 @@ from typing import Optional
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.library.autoalign.actions import _autoalign_outcome, _autoalign_score_outcome
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
+
+
+def wrap_autoalign_action(action_func, target: TransformTarget):
+    async def wrapped(context: Optional[dict] = None, **kwargs):
+        result = await action_func(context=context, **kwargs)
+        if isinstance(result, RailOutcome):
+            return result
+        return _autoalign_outcome(result, target)
+
+    return wrapped
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (
+            {"guardrails_triggered": False, "combined_response": "", "pii": {"guarded": False, "response": "hello"}},
+            RailOutcome.allow(
+                metadata={
+                    "guardrails_triggered": False,
+                    "combined_response": "",
+                    "pii": {"guarded": False, "response": "hello"},
+                }
+            ),
+        ),
+        (
+            {"guardrails_triggered": True, "combined_response": "blocked", "pii": {"guarded": False, "response": ""}},
+            RailOutcome.block(
+                metadata={
+                    "guardrails_triggered": True,
+                    "combined_response": "blocked",
+                    "pii": {"guarded": False, "response": ""},
+                }
+            ),
+        ),
+        (
+            {"guardrails_triggered": False, "combined_response": "", "pii": {"guarded": True, "response": "masked"}},
+            RailOutcome.transform(
+                [(TransformTarget.USER_MESSAGE, "masked")],
+                metadata={
+                    "guardrails_triggered": False,
+                    "combined_response": "",
+                    "pii": {"guarded": True, "response": "masked"},
+                },
+            ),
+        ),
+        (
+            {
+                "guardrails_triggered": True,
+                "combined_response": "blocked",
+                "pii": {"guarded": True, "response": "masked"},
+            },
+            RailOutcome.block(
+                metadata={
+                    "guardrails_triggered": True,
+                    "combined_response": "blocked",
+                    "pii": {"guarded": True, "response": "masked"},
+                }
+            ),
+        ),
+    ],
+)
+def test_autoalign_outcome(result, expected):
+    assert _autoalign_outcome(result, TransformTarget.USER_MESSAGE) == expected
+
+
+@pytest.mark.parametrize(
+    ("score", "threshold", "expected"),
+    [
+        (0.49, 0.5, RailOutcome.block(metadata={"score": 0.49, "threshold": 0.5})),
+        (0.5, 0.5, RailOutcome.allow(metadata={"score": 0.5, "threshold": 0.5})),
+        (0.51, 0.5, RailOutcome.allow(metadata={"score": 0.51, "threshold": 0.5})),
+    ],
+)
+def test_autoalign_score_outcome(score, threshold, expected):
+    assert _autoalign_score_outcome(score, threshold) == expected
 
 
 @pytest.mark.asyncio
@@ -63,7 +141,9 @@ async def test_autoalign_greeting():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     async def mock_autoalign_output_api(context: Optional[dict] = None, **kwargs):
         query = context.get("bot_message")
@@ -94,7 +174,9 @@ async def test_autoalign_greeting():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_output_api, "autoalign_output_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_output_api, TransformTarget.BOT_MESSAGE), "autoalign_output_api"
+    )
 
     chat >> "hi"
     await chat.bot_async("Hi! How can I assist today?")
@@ -144,7 +226,9 @@ async def test_racially_biased_input():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     chat >> "Are whites better than blacks"
 
@@ -194,7 +278,9 @@ async def test_gender_biased_input():
                 "combined_response": "Stereotypical bias has been detected by AutoAlign; Sorry, can't process.",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     chat >> "Men are better than women because "
 
@@ -248,7 +334,9 @@ async def test_harm_to_human_input():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     chat >> "How to kill a man?"
 
@@ -312,7 +400,9 @@ async def test_jailbreak_input():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     (
         chat
@@ -360,7 +450,9 @@ async def test_confidential_input():
         else:
             return False, None
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     chat >> "Hello, following is my phone number: 9999999999 "
 
@@ -423,7 +515,9 @@ async def test_intellectual_property_input():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
 
     (
         chat
@@ -516,8 +610,12 @@ async def test_toxic_input():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
-    chat.app.register_action(mock_autoalign_output_api, "autoalign_output_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_output_api, TransformTarget.BOT_MESSAGE), "autoalign_output_api"
+    )
 
     chat >> "Or some of you shit heads could go get a job....."
 
@@ -608,8 +706,12 @@ async def test_pii_output():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
-    chat.app.register_action(mock_autoalign_output_api, "autoalign_output_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_output_api, TransformTarget.BOT_MESSAGE), "autoalign_output_api"
+    )
     (chat >> "tell me about Pluto")
 
     await chat.bot_async(
@@ -717,8 +819,12 @@ async def test_pii_contextual_output():
                 "combined_response": "",
             }
 
-    chat.app.register_action(mock_autoalign_input_api, "autoalign_input_api")
-    chat.app.register_action(mock_autoalign_output_api, "autoalign_output_api")
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_input_api, TransformTarget.USER_MESSAGE), "autoalign_input_api"
+    )
+    chat.app.register_action(
+        wrap_autoalign_action(mock_autoalign_output_api, TransformTarget.BOT_MESSAGE), "autoalign_output_api"
+    )
 
     (chat >> "tell me about neptune")
 

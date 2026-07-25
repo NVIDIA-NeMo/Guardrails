@@ -60,7 +60,7 @@ class ContentSafetyInputAction(RailAction):
         response_text = llm_response.content
 
         # Parse via LLMTaskManager's registered output parser
-        return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)  # type: ignore[arg-type]
+        return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)
 
     def _parse_response(self, response: Any) -> RailResult:
         return _content_safety_to_rail_result(response)
@@ -75,7 +75,7 @@ class ContentSafetyOutputAction(RailAction):
         if not bot_response:
             raise RuntimeError("bot_response is required for content safety output check")
         return {
-            "user_input": self._last_user_content(messages),
+            "user_input": self._last_user_content_or_empty(messages),
             "bot_response": bot_response,
         }
 
@@ -106,7 +106,7 @@ class ContentSafetyOutputAction(RailAction):
             kwargs["stop"] = stop
 
         response_text = (await self._get_llm_response(model_type, prompt, **kwargs)).content
-        return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)  # type: ignore[arg-type]
+        return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)
 
     def _parse_response(self, response: Any) -> RailResult:
         return _content_safety_to_rail_result(response)
@@ -121,10 +121,13 @@ def _content_safety_to_rail_result(parsed: object) -> RailResult:
     """
     if isinstance(parsed, (list, tuple)):
         if parsed and parsed[0] is True:
-            return RailResult(is_safe=True)
+            return RailResult(is_safe=True, return_value={"allowed": True, "policy_violations": []})
         if parsed and parsed[0] is False:
-            if len(parsed) > 1:
-                categories = ", ".join(str(c) for c in parsed[1:])
-                return RailResult(is_safe=False, reason=f"Safety categories: {categories}")
-            return RailResult(is_safe=False, reason="Unknown")
+            violations = [str(c) for c in parsed[1:]]
+            verdict = {"allowed": False, "policy_violations": violations}
+            if violations:
+                return RailResult(
+                    is_safe=False, reason=f"Safety categories: {', '.join(violations)}", return_value=verdict
+                )
+            return RailResult(is_safe=False, reason="Unknown", return_value=verdict)
     raise RuntimeError(f"Unexpected content safety parse result: {parsed}")

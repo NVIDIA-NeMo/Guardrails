@@ -21,20 +21,33 @@ from typing import List, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.gliner.request import gliner_request
 from nemoguardrails.rails.llm.config import GLiNERDetection
 
 log = logging.getLogger(__name__)
 
 
-def detect_pii_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_pii.
+def _pii_detection_outcome(has_pii: bool) -> RailOutcome:
+    if has_pii:
+        return RailOutcome.block(metadata={"has_pii": has_pii})
+    return RailOutcome.allow(metadata={"has_pii": has_pii})
 
-    Since the function returns True when PII is detected,
-    we block if result is True.
-    """
-    return result
+
+def _mask_pii_outcome(source: str, original_text: str, masked_text: str) -> RailOutcome:
+    target_by_source = {
+        "input": TransformTarget.USER_MESSAGE,
+        "output": TransformTarget.BOT_MESSAGE,
+        "retrieval": TransformTarget.RELEVANT_CHUNKS,
+    }
+    metadata = {
+        "source": source,
+        "text": original_text,
+        "masked_text": masked_text,
+    }
+    if masked_text != original_text:
+        return RailOutcome.transform([(target_by_source[source], masked_text)], metadata=metadata)
+    return RailOutcome.allow(metadata=metadata)
 
 
 def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
@@ -80,13 +93,13 @@ def _resolve_api_key(gliner_config: GLiNERDetection) -> Optional[str]:
     return api_key
 
 
-@action(is_system_action=False, output_mapping=detect_pii_mapping)
+@action(is_system_action=False)
 async def gliner_detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks whether the provided text contains any PII using GLiNER.
 
     Args:
@@ -95,7 +108,7 @@ async def gliner_detect_pii(
         config: The rails configuration object.
 
     Returns:
-        True if PII is detected, False otherwise.
+        RailOutcome.block() if PII is detected, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If the response is invalid or source is not valid.
@@ -129,13 +142,13 @@ async def gliner_detect_pii(
 
     try:
         total_entities = gliner_response.get("total_entities", 0)
-        return total_entities > 0
+        return _pii_detection_outcome(total_entities > 0)
     except (KeyError, TypeError) as e:
         raise ValueError(f"Invalid response from GLiNER service: {str(e)}")
 
 
 @action(is_system_action=False)
-async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
+async def gliner_mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
     """Masks any detected PII in the provided text using GLiNER.
 
     Args:
@@ -144,7 +157,7 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
         config: The rails configuration object.
 
     Returns:
-        The altered text with PII masked.
+        RailOutcome.transform() with the altered text if it changed, RailOutcome.allow() otherwise.
 
     Raises:
         ValueError: If the response is invalid or source is not valid.
@@ -181,6 +194,6 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
 
     try:
         entities = gliner_response.get("entities", [])
-        return _mask_text_with_entities(text, entities)
+        return _mask_pii_outcome(source, text, _mask_text_with_entities(text, entities))
     except (KeyError, TypeError) as e:
         raise ValueError(f"Invalid response from GLiNER service: {str(e)}")

@@ -26,25 +26,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
-      - name: Bootstrap poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 python -
-
-      - name: Update PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
+      - name: Install uv
+        uses: ./.github/actions/setup-uv
+        with:
+          enable-cache: "false"
 
       - name: Install git-cliff
         # not allowed by NVIDIA
@@ -84,9 +80,11 @@ jobs:
         run: |
           git cliff \
             --unreleased \
-            --tag     v${{ steps.version.outputs.version }} \
+            --tag     v${STEPS_VERSION_OUTPUTS_VERSION} \
             --strip all \
             > CHANGELOG.new.md
+        env:
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Inject release block just above the previous entry
         run: |
@@ -103,17 +101,17 @@ jobs:
             && mv CHANGELOG.tmp CHANGELOG.md \
             && rm CHANGELOG.new.md
 
-      - name: Update version with Poetry
-        run: |
-          # Use Poetry to update the version
-          poetry version ${{ steps.version.outputs.version }}
+      - name: Update version with uv
+        run: uv version --no-sync "${STEPS_VERSION_OUTPUTS_VERSION}"
+        env:
+          STEPS_VERSION_OUTPUTS_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Update version in README.md
         env:
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          poetry run python - <<'PY'
+          uv run --no-project python - <<'PY'
           import os
           import re
           from pathlib import Path
@@ -150,7 +148,7 @@ jobs:
           PY
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/release-${{ steps.version.outputs.version }}
@@ -175,7 +173,7 @@ jobs:
           add-paths: |
             CHANGELOG.md
             pyproject.toml
-            poetry.lock
+            uv.lock
             README.md
           commit-message: "chore(release): prepare for v${{ steps.version.outputs.version }}"
 

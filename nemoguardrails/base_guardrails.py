@@ -27,9 +27,10 @@ that actually provide them.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional, Union
 
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import GenerationOptions
 
 
 class BaseGuardrails(ABC):
@@ -44,12 +45,14 @@ class BaseGuardrails(ABC):
     config: RailsConfig
 
     @abstractmethod
-    def generate(self, *args: Any, **kwargs: Any) -> Any:
+    def generate(self, *args: Any, options: Optional[Union[dict, GenerationOptions]] = None, **kwargs: Any) -> Any:
         """Generate an LLM response synchronously with guardrails applied."""
         ...
 
     @abstractmethod
-    async def generate_async(self, *args: Any, **kwargs: Any) -> Any:
+    async def generate_async(
+        self, *args: Any, options: Optional[Union[dict, GenerationOptions]] = None, **kwargs: Any
+    ) -> Any:
         """Generate an LLM response asynchronously with guardrails applied."""
         ...
 

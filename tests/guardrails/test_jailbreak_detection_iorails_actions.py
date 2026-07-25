@@ -52,14 +52,14 @@ class TestJailbreakPrompt:
 
 class TestJailbreakParseResponse:
     def test_safe(self, action):
-        assert action._parse_response({"jailbreak": False, "score": 0.1}) == RailResult(
-            is_safe=True, reason="Score: 0.1"
-        )
+        result = action._parse_response({"jailbreak": False, "score": 0.1})
+        assert result == RailResult(is_safe=True, reason="Score: 0.1")
+        assert result.return_value is False
 
     def test_jailbreak_detected(self, action):
-        assert action._parse_response({"jailbreak": True, "score": 0.95}) == RailResult(
-            is_safe=False, reason="Score: 0.95"
-        )
+        result = action._parse_response({"jailbreak": True, "score": 0.95})
+        assert result == RailResult(is_safe=False, reason="Score: 0.95")
+        assert result.return_value is True
 
     def test_missing_jailbreak_field_raises(self, action):
         with pytest.raises(RuntimeError, match="missing 'jailbreak' field"):

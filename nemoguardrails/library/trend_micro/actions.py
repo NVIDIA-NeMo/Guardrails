@@ -22,6 +22,7 @@ from pydantic_core import to_json
 from typing_extensions import cast
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.rails.llm.config import RailsConfig, TrendMicroRailConfig
 
 log = logging.getLogger(__name__)
@@ -84,13 +85,15 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
     return cast(TrendMicroRailConfig, config.rails.config.trend_micro)
 
 
-def trend_ai_guard_mapping(result: GuardResult) -> bool:
-    """Convert Trend Micro result to boolean for flow logic."""
-    return result.action == "Block"
+def _trend_micro_outcome(result: GuardResult) -> RailOutcome:
+    metadata = {"action": result.action}
+    if result.blocked:
+        return RailOutcome.block(reason=result.reason, metadata=metadata)
+    return RailOutcome.allow(reason=result.reason, metadata=metadata)
 
 
-@action(is_system_action=True, output_mapping=trend_ai_guard_mapping)
-async def trend_ai_guard(config: RailsConfig, text: str):
+@action(is_system_action=True)
+async def trend_ai_guard(config: RailsConfig, text: str) -> RailOutcome:
     """
     Custom action to invoke the Trend Micro AI Guard API.
     """
@@ -103,9 +106,11 @@ async def trend_ai_guard(config: RailsConfig, text: str):
     v1_api_key = trend_config.get_api_key()
     if not v1_api_key:
         log.error("Trend Micro Vision One API Key not found")
-        return GuardResult(
-            action="Block",
-            reason="Trend Micro Vision One API Key not found",
+        return _trend_micro_outcome(
+            GuardResult(
+                action="Block",
+                reason="Trend Micro Vision One API Key not found",
+            )
         )
 
     app_name = trend_config.application_name
@@ -138,8 +143,10 @@ async def trend_ai_guard(config: RailsConfig, text: str):
             log.debug("Trend Micro AI Guard Result: %s", guard_result)
         except httpx.HTTPStatusError as e:
             log.error("Error calling Trend Micro AI Guard API: %s", e)
-            return GuardResult(
-                action="Allow",
-                reason="An error occurred while calling the Trend Micro AI Guard API.",
+            return _trend_micro_outcome(
+                GuardResult(
+                    action="Allow",
+                    reason="An error occurred while calling the Trend Micro AI Guard API.",
+                )
             )
-        return guard_result
+        return _trend_micro_outcome(guard_result)

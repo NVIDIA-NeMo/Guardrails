@@ -63,5 +63,5 @@ class TopicSafetyInputAction(RailAction):
 
     def _parse_response(self, response: Any) -> RailResult:
         if response.lower().strip() == "off-topic":
-            return RailResult(is_safe=False, reason="Topic safety: off-topic")
-        return RailResult(is_safe=True)
+            return RailResult(is_safe=False, reason="Topic safety: off-topic", return_value={"on_topic": False})
+        return RailResult(is_safe=True, return_value={"on_topic": True})

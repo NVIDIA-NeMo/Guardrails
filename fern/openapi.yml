@@ -189,6 +189,51 @@ paths:
                     - id: jailbreak-1
                       description: Attempt to bypass safety guardrails.
                       category: jailbreak
+  /v1/health:
+    get:
+      operationId: getHealth
+      tags:
+        - Health
+      summary: Liveness health check
+      description: |
+        Shallow liveness check. Returns HTTP 200 while the server process is
+        running and able to serve requests. It does not verify guardrails
+        configurations, the model provider, or any datastore.
+      responses:
+        "200":
+          description: The server process is up and able to serve requests.
+          content:
+            application/health+json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: pass
+              example:
+                status: pass
+  /healthz:
+    get:
+      operationId: getHealthz
+      tags:
+        - Health
+      summary: Liveness health check (alias)
+      description: |
+        Kubernetes-style alias for `GET /v1/health`. Returns the same shallow
+        liveness response.
+      responses:
+        "200":
+          description: The server process is up and able to serve requests.
+          content:
+            application/health+json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: pass
+              example:
+                status: pass
   /:
     get:
       operationId: getRoot

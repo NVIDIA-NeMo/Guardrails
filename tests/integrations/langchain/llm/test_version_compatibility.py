@@ -343,7 +343,17 @@ def test_langchain_provider_drift():
     the added/removed providers and, if expected, regenerate the snapshot with
     update_provider_snapshot.py.
     """
-    snapshot = json.loads(_PROVIDER_SNAPSHOT_PATH.read_text())
+    snapshots = json.loads(_PROVIDER_SNAPSHOT_PATH.read_text())
+
+    installed_community = version("langchain-community")
+    series = ".".join(installed_community.split(".")[:2])
+    if series not in snapshots:
+        pytest.skip(
+            f"no snapshot recorded for langchain-community {series}; run "
+            "tests/integrations/langchain/llm/update_provider_snapshot.py "
+            "on this Python version to record the current provider set"
+        )
+    snapshot = snapshots[series]
 
     llm_added, llm_removed = _provider_set_diff(
         snapshot["community_llm_providers"],

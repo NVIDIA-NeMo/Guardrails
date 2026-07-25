@@ -7,12 +7,11 @@ on:
     paths-ignore:
       - "**/*.md"
 
+permissions:
+  contents: read
+
 jobs:
   develop-coverage:
-    uses: ./.github/workflows/_test.yml
-    secrets: inherit
-    with:
-      os: Ubuntu
-      image: ubuntu-latest
-      python-version: "3.11"
-      with-coverage: true
+    uses: ./.github/workflows/_coverage.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

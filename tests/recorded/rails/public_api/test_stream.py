@@ -125,10 +125,10 @@ async def test_stream_async_matches_recorded_chat_completion_metadata(
 
     chunks = []
     async for chunk in rails.stream_async(prompt="Say hello in a few words.", include_metadata=True):
+        assert isinstance(chunk, dict)
         chunks.append(chunk)
 
     assert chunks
-    assert all(isinstance(chunk, dict) for chunk in chunks)
     content = "".join(chunk["text"] for chunk in chunks if isinstance(chunk.get("text"), str))
     assert content.strip()
 

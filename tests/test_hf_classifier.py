@@ -29,10 +29,11 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
-from nemoguardrails.actions.output_mapping import is_output_blocked
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
     _classify_and_check,
+    _hf_classifier_retrieval_outcome,
     hf_classifier_check_input,
     hf_classifier_check_output,
     hf_classifier_check_retrieval,
@@ -109,11 +110,22 @@ class TestConfig:
     @pytest.mark.parametrize("engine", ["vllm", "kserve", "fms"])
     def test_remote_requires_base_url(self, engine):
         with pytest.raises(ValidationError, match="base_url"):
-            RemoteHFClassifierConfig(engine=engine, model="m", blocked_labels=["x"])
+            RemoteHFClassifierConfig(engine=engine, model="m", blocked_labels=["x"])  # type: ignore[reportCallIssue]
 
     def test_invalid_base_url_scheme(self):
         with pytest.raises(ValidationError, match="http://"):
             _remote(base_url="ftp://host:8000")
+
+    def test_api_key_requires_https_base_url(self):
+        with pytest.raises(ValidationError, match="must use HTTPS"):
+            _remote(base_url="http://host:8000", api_key_env_var="HF_TOKEN")
+
+    def test_api_key_accepts_https_base_url(self):
+        config = _remote(base_url="https://host:8000", api_key_env_var="HF_TOKEN")
+        assert config.base_url == "https://host:8000"
+
+    def test_http_base_url_remains_supported_without_api_key(self):
+        assert _remote(base_url="http://host:8000").base_url == "http://host:8000"
 
     def test_aggregation_rejects_text_classification(self):
         with pytest.raises(ValidationError, match="aggregation_strategy"):
@@ -158,11 +170,11 @@ class TestHeaders:
 
     def test_api_key(self, monkeypatch):
         monkeypatch.setenv("K", "secret")
-        h = _build_headers(_remote(api_key_env_var="K"))
+        h = _build_headers(_remote(base_url="https://host:8000", api_key_env_var="K"))
         assert h["Authorization"] == "Bearer secret"
 
     def test_missing_key_warns_once(self, caplog):
-        c = _remote(api_key_env_var="MISSING")
+        c = _remote(base_url="https://host:8000", api_key_env_var="MISSING")
         with caplog.at_level(logging.WARNING):
             _build_headers(c)
         assert "MISSING" in caplog.text
@@ -499,19 +511,27 @@ class TestActionContextKeys:
                 config=cfg,
                 context=None,
             )
-        assert result is True
+        assert result == RailOutcome.allow()
 
 
-class TestOutputMapping:
-    def test_allowed_maps_to_not_blocked(self):
-        assert is_output_blocked(True, hf_classifier_check_output) is False
+class TestOutputVerdict:
+    def test_allow_outcome_is_not_blocked(self):
+        outcome = RailOutcome.allow()
 
-    def test_blocked_maps_to_blocked(self):
-        assert is_output_blocked(False, hf_classifier_check_output) is True
+        assert outcome.is_blocked is False
 
-    def test_has_explicit_output_mapping(self):
-        meta = getattr(hf_classifier_check_output, "action_meta", {})
-        assert meta.get("output_mapping") is not None
+    def test_block_outcome_is_blocked(self):
+        outcome = RailOutcome.block()
+
+        assert outcome.is_blocked is True
+
+
+class TestRetrievalOutcome:
+    def test_allowed_retrieval_maps_to_allow(self):
+        assert _hf_classifier_retrieval_outcome(True) == RailOutcome.allow()
+
+    def test_blocked_retrieval_maps_to_transform(self):
+        assert _hf_classifier_retrieval_outcome(False) == RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")])
 
 
 class TestStreamingOutputFallback:
@@ -526,7 +546,7 @@ class TestStreamingOutputFallback:
                 context={"bot_message": "bad"},
                 model_name="hap",
             )
-        assert result is False
+        assert result == RailOutcome.block()
 
     @pytest.mark.asyncio
     async def test_dollar_classifier_without_model_name_raises(self):

@@ -1,0 +1,1356 @@
+{
+  "$defs": {
+    "AIDefenseRailConfig": {
+      "description": "Configuration data for the Cisco AI Defense API",
+      "properties": {
+        "fail_open": {
+          "default": false,
+          "description": "If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "timeout": {
+          "default": 30.0,
+          "description": "Timeout in seconds for API requests to AI Defense service",
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        }
+      },
+      "title": "AIDefenseRailConfig",
+      "type": "object"
+    },
+    "AutoAlignOptions": {
+      "description": "List of guardrails that are activated",
+      "properties": {
+        "guardrails_config": {
+          "additionalProperties": true,
+          "description": "The guardrails configuration that is passed to the AutoAlign endpoint",
+          "title": "Guardrails Config",
+          "type": "object"
+        }
+      },
+      "title": "AutoAlignOptions",
+      "type": "object"
+    },
+    "AutoAlignRailConfig": {
+      "description": "Configuration data for the AutoAlign API",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AutoAlignOptions",
+          "description": "Input configuration for AutoAlign guardrails"
+        },
+        "output": {
+          "$ref": "#/$defs/AutoAlignOptions",
+          "description": "Output configuration for AutoAlign guardrails"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "title": "AutoAlignRailConfig",
+      "type": "object"
+    },
+    "ClavataRailConfig": {
+      "description": "Configuration data for the Clavata API",
+      "properties": {
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClavataRailOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clavata configuration for an Input Guardrail"
+        },
+        "label_match_logic": {
+          "default": "ANY",
+          "description": "The logic to use when deciding whether the evaluation matched.\n        If ANY, only one of the configured labels needs to be found in the input or output.\n        If ALL, all configured labels must be found in the input or output.",
+          "enum": [
+            "ANY",
+            "ALL"
+          ],
+          "title": "Label Match Logic",
+          "type": "string"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClavataRailOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clavata configuration for an Output Guardrail"
+        },
+        "policies": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "A dictionary of policy aliases and their corresponding IDs.",
+          "title": "Policies",
+          "type": "object"
+        },
+        "server_endpoint": {
+          "default": "https://gateway.app.clavata.ai:8443",
+          "description": "The endpoint for the Clavata API",
+          "title": "Server Endpoint",
+          "type": "string"
+        }
+      },
+      "title": "ClavataRailConfig",
+      "type": "object"
+    },
+    "ClavataRailOptions": {
+      "description": "Configuration data for the Clavata API",
+      "properties": {
+        "labels": {
+          "description": "A list of labels to match against the policy.\n        If no labels are provided, the overall policy result will be returned.\n        If labels are provided, only hits on the provided labels will be considered a hit.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "array"
+        },
+        "policy": {
+          "description": "The policy alias to use when evaluating inputs or outputs.",
+          "title": "Policy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy"
+      ],
+      "title": "ClavataRailOptions",
+      "type": "object"
+    },
+    "ContentSafetyConfig": {
+      "description": "Configuration data for content safety rails.",
+      "properties": {
+        "multilingual": {
+          "$ref": "#/$defs/MultilingualConfig"
+        },
+        "reasoning": {
+          "$ref": "#/$defs/ReasoningConfig"
+        }
+      },
+      "title": "ContentSafetyConfig",
+      "type": "object"
+    },
+    "ContextBloatDetectionConfig": {
+      "description": "Configuration for context bloat / context manipulation detection.",
+      "properties": {
+        "action": {
+          "default": "reject",
+          "description": "Action on detection: 'reject', 'truncate', or 'warn'.",
+          "enum": [
+            "reject",
+            "truncate",
+            "warn"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "max_chars": {
+          "default": 5000,
+          "description": "Size cap in characters. Inputs exceeding this are flagged.",
+          "exclusiveMinimum": 0,
+          "title": "Max Chars",
+          "type": "integer"
+        },
+        "max_repetition_ratio": {
+          "default": 0.4,
+          "description": "Max fraction of repeated n-grams (0.0-1.0).",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Max Repetition Ratio",
+          "type": "number"
+        },
+        "max_run_ratio": {
+          "default": 0.1,
+          "description": "Max fraction of text that is the longest single-char run.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Max Run Ratio",
+          "type": "number"
+        },
+        "min_chars": {
+          "default": 50,
+          "description": "Minimum characters before entropy/run/repetition checks apply. Shorter texts are only checked against size cap.",
+          "minimum": 0,
+          "title": "Min Chars",
+          "type": "integer"
+        },
+        "min_entropy": {
+          "default": 3.5,
+          "description": "Shannon entropy floor (bits/char). English prose is ~4.0-4.5.",
+          "maximum": 8.0,
+          "minimum": 0.0,
+          "title": "Min Entropy",
+          "type": "number"
+        },
+        "ngram_size": {
+          "default": 3,
+          "description": "Size of n-grams used for repetition detection.",
+          "minimum": 1,
+          "title": "Ngram Size",
+          "type": "integer"
+        }
+      },
+      "title": "ContextBloatDetectionConfig",
+      "type": "object"
+    },
+    "CrowdStrikeAIDRRailConfig": {
+      "description": "Configuration data for the CrowdStrike AIDR API",
+      "properties": {
+        "timeout": {
+          "default": 30.0,
+          "description": "Timeout in seconds for API requests to CrowdStrike AIDR",
+          "title": "Timeout",
+          "type": "number"
+        }
+      },
+      "title": "CrowdStrikeAIDRRailConfig",
+      "type": "object"
+    },
+    "F5GuardrailsRailConfig": {
+      "description": "Configuration for the F5 Guardrails integration.\n\nNote: The API key is intentionally not part of this config. It is a secret\nand must be provided via the F5_GUARDRAILS_API_KEY environment variable.",
+      "properties": {
+        "api_url": {
+          "default": "https://us1.calypsoai.app",
+          "description": "Base URL for the F5 Guardrails API.",
+          "title": "Api Url",
+          "type": "string"
+        },
+        "fail_open": {
+          "default": false,
+          "description": "If True, allow content through when the F5 Guardrails API is unreachable or returns an error. This changes the security posture of the rail and should be reviewed as part of the guardrails config.",
+          "title": "Fail Open",
+          "type": "boolean"
+        },
+        "max_retries": {
+          "default": 2,
+          "description": "Number of additional attempts after receiving HTTP 429 from the F5 Guardrails API. Total attempts equal max_retries + 1. Set to 0 to disable rate-limit retries.",
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_retry_after_seconds": {
+          "default": 30.0,
+          "description": "Upper bound (in seconds) on how long to honor a Retry-After header returned by the F5 Guardrails API. Larger values are clamped to this cap to prevent unbounded waits.",
+          "minimum": 0.0,
+          "title": "Max Retry After Seconds",
+          "type": "number"
+        },
+        "retry_backoff_seconds": {
+          "default": 1.0,
+          "description": "Base delay (in seconds) used with exponential backoff when a 429 response has no usable Retry-After header. The delay for attempt N (zero-indexed) is retry_backoff_seconds * 2**N, still clamped to max_retry_after_seconds.",
+          "minimum": 0.0,
+          "title": "Retry Backoff Seconds",
+          "type": "number"
+        }
+      },
+      "title": "F5GuardrailsRailConfig",
+      "type": "object"
+    },
+    "FactCheckingRailConfig": {
+      "description": "Configuration data for the fact-checking rail.",
+      "properties": {
+        "fallback_to_self_check": {
+          "default": false,
+          "description": "Whether to fall back to self-check if another method fail.",
+          "title": "Fallback To Self Check",
+          "type": "boolean"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "title": "FactCheckingRailConfig",
+      "type": "object"
+    },
+    "FiddlerGuardrails": {
+      "description": "Configuration for Fiddler Guardrails.",
+      "properties": {
+        "faithfulness_threshold": {
+          "default": 0.05,
+          "description": "Fiddler Guardrails faithfulness detection threshold.",
+          "title": "Faithfulness Threshold",
+          "type": "number"
+        },
+        "fiddler_endpoint": {
+          "default": "http://localhost:8080/process/text",
+          "description": "The global endpoint for Fiddler Guardrails requests.",
+          "title": "Fiddler Endpoint",
+          "type": "string"
+        },
+        "safety_threshold": {
+          "default": 0.1,
+          "description": "Fiddler Guardrails safety detection threshold.",
+          "title": "Safety Threshold",
+          "type": "number"
+        }
+      },
+      "title": "FiddlerGuardrails",
+      "type": "object"
+    },
+    "GLiNERDetection": {
+      "additionalProperties": false,
+      "description": "Configuration for GLiNER PII detection.",
+      "properties": {
+        "api_key_env_var": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the environment variable containing the API key for authenticated endpoints (e.g., NVIDIA_API_KEY).",
+          "title": "Api Key Env Var"
+        },
+        "chunk_length": {
+          "default": 384,
+          "description": "Length of text chunks for processing.",
+          "title": "Chunk Length",
+          "type": "integer"
+        },
+        "flat_ner": {
+          "default": false,
+          "description": "Whether to use flat NER mode. Setting to False allows for nested entities.",
+          "title": "Flat Ner",
+          "type": "boolean"
+        },
+        "input": {
+          "$ref": "#/$defs/GLiNERDetectionOptions",
+          "description": "Configuration of the entities to be detected on the user input."
+        },
+        "model": {
+          "default": "nvidia/gliner-pii",
+          "description": "Model identifier sent in NIM API requests (only used when server_endpoint ends with /v1/chat/completions).",
+          "title": "Model",
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/GLiNERDetectionOptions",
+          "description": "Configuration of the entities to be detected on the bot output."
+        },
+        "overlap": {
+          "default": 128,
+          "description": "Overlap between chunks.",
+          "title": "Overlap",
+          "type": "integer"
+        },
+        "retrieval": {
+          "$ref": "#/$defs/GLiNERDetectionOptions",
+          "description": "Configuration of the entities to be detected on retrieved relevant chunks."
+        },
+        "server_endpoint": {
+          "default": "http://localhost:8000/v1/chat/completions",
+          "description": "The endpoint for the GLiNER detection server. By default, this is for a locally hosted NIM instance running the GLiNER model. Changed from http://localhost:1235/v1/extract (custom server) to http://localhost:8000/v1/chat/completions (NIM) in this release. If you use the custom gliner_server, set this explicitly to http://localhost:1235/v1/extract.",
+          "title": "Server Endpoint",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 0.5,
+          "description": "Confidence threshold for entity detection (0.0 to 1.0).",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "title": "GLiNERDetection",
+      "type": "object"
+    },
+    "GLiNERDetectionOptions": {
+      "additionalProperties": false,
+      "description": "Configuration options for GLiNER.",
+      "properties": {
+        "entities": {
+          "description": "The list of entity labels to detect (e.g., 'email', 'phone_number', 'ssn').",
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        }
+      },
+      "title": "GLiNERDetectionOptions",
+      "type": "object"
+    },
+    "GuardrailsAIRailConfig": {
+      "description": "Configuration data for Guardrails AI integration.",
+      "properties": {
+        "validators": {
+          "description": "List of Guardrails AI validators to apply. Each validator can have its own parameters and metadata.",
+          "items": {
+            "$ref": "#/$defs/GuardrailsAIValidatorConfig"
+          },
+          "title": "Validators",
+          "type": "array"
+        }
+      },
+      "title": "GuardrailsAIRailConfig",
+      "type": "object"
+    },
+    "GuardrailsAIValidatorConfig": {
+      "description": "Configuration for a single Guardrails AI validator.",
+      "properties": {
+        "metadata": {
+          "additionalProperties": true,
+          "description": "Metadata to pass to the validator during validation (e.g., valid_topics, context).",
+          "title": "Metadata",
+          "type": "object"
+        },
+        "name": {
+          "description": "Unique identifier or import path for the Guardrails AI validator (e.g., 'toxic_language', 'pii', 'regex_match', or 'guardrails/competitor_check').",
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Parameters to pass to the validator during initialization (e.g., threshold, regex pattern).",
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "GuardrailsAIValidatorConfig",
+      "type": "object"
+    },
+    "InjectionDetection": {
+      "properties": {
+        "action": {
+          "default": "reject",
+          "description": "Action to take. Options are 'reject' to offer a rejection message, and 'omit' to mask the offending content.",
+          "pattern": "^(reject|omit)$",
+          "title": "Action",
+          "type": "string"
+        },
+        "injections": {
+          "description": "The list of injection types to detect. Options are 'sqli', 'template', 'code', 'xss'.Currently, only SQL injection, template injection, code injection, and markdown cross-site scripting are supported. Custom rules can be added, provided they are in the `yara_path` and have a `.yara` file extension.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Injections",
+          "type": "array"
+        },
+        "yara_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "",
+          "description": "Location on disk where YARA rules are located. If this parameter is an empty string, the default location defined in injection_detection's actions.py file will be used.",
+          "title": "Yara Path"
+        },
+        "yara_rules": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Dictionary mapping rule names to YARA rule strings. If provided, these rules will be used instead of loading rules from yara_path. Each rule should be a valid YARA rule string.",
+          "title": "Yara Rules"
+        }
+      },
+      "title": "InjectionDetection",
+      "type": "object"
+    },
+    "JailbreakDetectionConfig": {
+      "description": "Configuration data for jailbreak detection.",
+      "properties": {
+        "api_key": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Secret String with API key for use in Jailbreak requests. Takes precedence over api_key_env_var",
+          "title": "Api Key"
+        },
+        "api_key_env_var": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable containing API key for jailbreak detection model",
+          "title": "Api Key Env Var"
+        },
+        "embedding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "deprecated": true,
+          "title": "Embedding"
+        },
+        "length_per_perplexity_threshold": {
+          "default": 89.79,
+          "description": "The length/perplexity threshold.",
+          "exclusiveMinimum": 0,
+          "title": "Length Per Perplexity Threshold",
+          "type": "number"
+        },
+        "nim_base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base URL for jailbreak detection model. Example: http://localhost:8000/v1",
+          "title": "Nim Base Url"
+        },
+        "nim_port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "deprecated": true,
+          "description": "DEPRECATED: Include port in nim_base_url instead",
+          "title": "Nim Port"
+        },
+        "nim_server_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "classify",
+          "description": "Classification path uri. Defaults to 'classify' for NemoGuard JailbreakDetect.",
+          "title": "Nim Server Endpoint"
+        },
+        "nim_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "deprecated": true,
+          "description": "DEPRECATED: Use nim_base_url instead",
+          "title": "Nim Url"
+        },
+        "prefix_suffix_perplexity_threshold": {
+          "default": 1845.65,
+          "description": "The prefix/suffix perplexity threshold.",
+          "exclusiveMinimum": 0,
+          "title": "Prefix Suffix Perplexity Threshold",
+          "type": "number"
+        },
+        "server_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The endpoint for the jailbreak detection heuristics/model container.",
+          "title": "Server Endpoint"
+        }
+      },
+      "title": "JailbreakDetectionConfig",
+      "type": "object"
+    },
+    "LocalHFClassifierConfig": {
+      "description": "Configuration for a local HuggingFace Transformers pipeline classifier.",
+      "properties": {
+        "blocked_labels": {
+          "description": "Labels that should trigger blocking when detected above threshold.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocked Labels",
+          "type": "array"
+        },
+        "engine": {
+          "const": "local",
+          "default": "local",
+          "title": "Engine",
+          "type": "string"
+        },
+        "model": {
+          "description": "HF model ID, local path, or server-side model identifier.",
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Forwarded as kwargs to transformers.pipeline() (e.g. device, dtype, trust_remote_code, token, revision, aggregation_strategy).",
+          "title": "Parameters",
+          "type": "object"
+        },
+        "task": {
+          "default": "text-classification",
+          "description": "HuggingFace pipeline task type.",
+          "enum": [
+            "text-classification",
+            "token-classification"
+          ],
+          "title": "Task",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 0.5,
+          "description": "Minimum score for a detection to trigger blocking.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "LocalHFClassifierConfig",
+      "type": "object"
+    },
+    "MultilingualConfig": {
+      "description": "Configuration for multilingual refusal messages.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "If True, detect the language of user input and return refusal messages in the same language. Supported languages: en (English), es (Spanish), zh (Chinese), de (German), fr (French), hi (Hindi), ja (Japanese), ar (Arabic), th (Thai).",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "refusal_messages": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom refusal messages per language code. If not specified, built-in defaults are used. Example: {'en': 'Sorry, I cannot help.', 'es': 'Lo siento, no puedo ayudar.'}",
+          "title": "Refusal Messages"
+        }
+      },
+      "title": "MultilingualConfig",
+      "type": "object"
+    },
+    "PangeaRailConfig": {
+      "description": "Configuration data for the Pangea AI Guard API",
+      "properties": {
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PangeaRailOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pangea configuration for an Input Guardrail"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PangeaRailOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pangea configuration for an Output Guardrail"
+        }
+      },
+      "title": "PangeaRailConfig",
+      "type": "object"
+    },
+    "PangeaRailOptions": {
+      "description": "Configuration data for the Pangea AI Guard API",
+      "properties": {
+        "recipe": {
+          "description": "Recipe key of a configuration of data types and settings defined in the Pangea User Console. It\n        specifies the rules that are to be applied to the text, such as defang malicious URLs.",
+          "title": "Recipe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "title": "PangeaRailOptions",
+      "type": "object"
+    },
+    "PatronusEvaluateApiParams": {
+      "description": "Config to parameterize the Patronus Evaluate API call",
+      "properties": {
+        "params": {
+          "additionalProperties": true,
+          "description": "Parameters to the Patronus Evaluate API",
+          "title": "Params",
+          "type": "object"
+        },
+        "success_strategy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatronusEvaluationSuccessStrategy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "all_pass",
+          "description": "Strategy to determine whether the Patronus Evaluate API Guardrail passes or not."
+        }
+      },
+      "title": "PatronusEvaluateApiParams",
+      "type": "object"
+    },
+    "PatronusEvaluateConfig": {
+      "description": "Config for the Patronus Evaluate API call",
+      "properties": {
+        "evaluate_config": {
+          "$ref": "#/$defs/PatronusEvaluateApiParams",
+          "description": "Configuration passed to the Patronus Evaluate API"
+        }
+      },
+      "title": "PatronusEvaluateConfig",
+      "type": "object"
+    },
+    "PatronusEvaluationSuccessStrategy": {
+      "description": "Strategy for determining whether a Patronus Evaluation API\nrequest should pass, especially when multiple evaluators\nare called in a single request.\nALL_PASS requires all evaluators to pass for success.\nANY_PASS requires only one evaluator to pass for success.",
+      "enum": [
+        "all_pass",
+        "any_pass"
+      ],
+      "title": "PatronusEvaluationSuccessStrategy",
+      "type": "string"
+    },
+    "PatronusRailConfig": {
+      "description": "Configuration data for the Patronus Evaluate API",
+      "properties": {
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatronusEvaluateConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Patronus Evaluate API configuration for an Input Guardrail"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PatronusEvaluateConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Patronus Evaluate API configuration for an Output Guardrail"
+        }
+      },
+      "title": "PatronusRailConfig",
+      "type": "object"
+    },
+    "PolygrafDetection": {
+      "additionalProperties": false,
+      "description": "Configuration for Polygraf PII detection.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/PolygrafDetectionOptions",
+          "description": "Configuration of the entities to be detected on the user input."
+        },
+        "output": {
+          "$ref": "#/$defs/PolygrafDetectionOptions",
+          "description": "Configuration of the entities to be detected on the bot output."
+        },
+        "retrieval": {
+          "$ref": "#/$defs/PolygrafDetectionOptions",
+          "description": "Configuration of the entities to be detected on retrieved relevant chunks."
+        },
+        "server_endpoint": {
+          "default": "http://localhost:8000/v1/pii/text-detect",
+          "description": "The endpoint for the Polygraf detection server.",
+          "title": "Server Endpoint",
+          "type": "string"
+        }
+      },
+      "title": "PolygrafDetection",
+      "type": "object"
+    },
+    "PolygrafDetectionOptions": {
+      "additionalProperties": false,
+      "description": "Configuration options for Polygraf.",
+      "properties": {
+        "entities": {
+          "description": "The list of entities that should be detected.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        }
+      },
+      "title": "PolygrafDetectionOptions",
+      "type": "object"
+    },
+    "PrivateAIDetection": {
+      "description": "Configuration for Private AI.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/PrivateAIDetectionOptions",
+          "description": "Configuration of the entities to be detected on the user input."
+        },
+        "output": {
+          "$ref": "#/$defs/PrivateAIDetectionOptions",
+          "description": "Configuration of the entities to be detected on the bot output."
+        },
+        "retrieval": {
+          "$ref": "#/$defs/PrivateAIDetectionOptions",
+          "description": "Configuration of the entities to be detected on retrieved relevant chunks."
+        },
+        "server_endpoint": {
+          "default": "http://localhost:8080/process/text",
+          "description": "The endpoint for the private AI detection server.",
+          "title": "Server Endpoint",
+          "type": "string"
+        }
+      },
+      "title": "PrivateAIDetection",
+      "type": "object"
+    },
+    "PrivateAIDetectionOptions": {
+      "description": "Configuration options for Private AI.",
+      "properties": {
+        "entities": {
+          "description": "The list of entities that should be detected.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        }
+      },
+      "title": "PrivateAIDetectionOptions",
+      "type": "object"
+    },
+    "ReasoningConfig": {
+      "description": "Configuration for reasoning mode in content safety models.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "If True, enable reasoning mode (with <think> traces) for content safety models. If False, use low-latency mode without reasoning traces.",
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "ReasoningConfig",
+      "type": "object"
+    },
+    "RegexDetection": {
+      "description": "Configuration for regex pattern detection.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/RegexDetectionOptions",
+          "description": "Configuration for regex patterns to detect on user input."
+        },
+        "output": {
+          "$ref": "#/$defs/RegexDetectionOptions",
+          "description": "Configuration for regex patterns to detect on bot output."
+        },
+        "retrieval": {
+          "$ref": "#/$defs/RegexDetectionOptions",
+          "description": "Configuration for regex patterns to detect on retrieved relevant chunks."
+        }
+      },
+      "title": "RegexDetection",
+      "type": "object"
+    },
+    "RegexDetectionOptions": {
+      "description": "Configuration options for regex pattern detection on a specific source.",
+      "properties": {
+        "case_insensitive": {
+          "default": false,
+          "description": "Whether to perform case-insensitive matching.",
+          "title": "Case Insensitive",
+          "type": "boolean"
+        },
+        "patterns": {
+          "description": "List of regex patterns to match against the text.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Patterns",
+          "type": "array"
+        }
+      },
+      "title": "RegexDetectionOptions",
+      "type": "object"
+    },
+    "RemoteHFClassifierConfig": {
+      "description": "Configuration for a remote HuggingFace classifier (vLLM, KServe, FMS).",
+      "properties": {
+        "api_key_env_var": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable name holding the API key. Resolved at runtime to an Authorization: Bearer header.",
+          "title": "Api Key Env Var"
+        },
+        "base_url": {
+          "description": "Base URL for the inference server (e.g. 'http://host:8000').",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "blocked_labels": {
+          "description": "Labels that should trigger blocking when detected above threshold.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocked Labels",
+          "type": "array"
+        },
+        "engine": {
+          "enum": [
+            "vllm",
+            "kserve",
+            "fms"
+          ],
+          "title": "Engine",
+          "type": "string"
+        },
+        "model": {
+          "description": "HF model ID, local path, or server-side model identifier.",
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Remote backend parameters: 'timeout' (float, seconds), 'verify_ssl' (bool), 'ca_cert'/'client_cert'/'client_key' (str, paths). Note: 'ca_cert' replaces (not extends) system CAs; use a concatenated bundle to include both custom and system CAs.",
+          "title": "Parameters",
+          "type": "object"
+        },
+        "threshold": {
+          "default": 0.5,
+          "description": "Minimum score for a detection to trigger blocking.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "model",
+        "engine",
+        "base_url"
+      ],
+      "title": "RemoteHFClassifierConfig",
+      "type": "object"
+    },
+    "SensitiveDataDetection": {
+      "description": "Configuration of what sensitive data should be detected.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/SensitiveDataDetectionOptions",
+          "description": "Configuration of the entities to be detected on the user input."
+        },
+        "output": {
+          "$ref": "#/$defs/SensitiveDataDetectionOptions",
+          "description": "Configuration of the entities to be detected on the bot output."
+        },
+        "recognizers": {
+          "description": "Additional custom recognizers. Check out https://microsoft.github.io/presidio/tutorial/08_no_code/ for more details.",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Recognizers",
+          "type": "array"
+        },
+        "retrieval": {
+          "$ref": "#/$defs/SensitiveDataDetectionOptions",
+          "description": "Configuration of the entities to be detected on retrieved relevant chunks."
+        }
+      },
+      "title": "SensitiveDataDetection",
+      "type": "object"
+    },
+    "SensitiveDataDetectionOptions": {
+      "properties": {
+        "entities": {
+          "description": "The list of entities that should be detected. Check out https://microsoft.github.io/presidio/supported_entities/ forthe list of supported entities.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "mask_token": {
+          "default": "*",
+          "description": "The token that should be used to mask the sensitive data.",
+          "title": "Mask Token",
+          "type": "string"
+        },
+        "score_threshold": {
+          "default": 0.2,
+          "description": "The score threshold that should be used to detect the sensitive data.",
+          "title": "Score Threshold",
+          "type": "number"
+        }
+      },
+      "title": "SensitiveDataDetectionOptions",
+      "type": "object"
+    },
+    "TrendMicroRailConfig": {
+      "description": "Configuration data for the Trend Micro AI Guard API",
+      "properties": {
+        "api_key_env_var": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Environment variable containing API key for Trend Micro AI Guard",
+          "title": "Api Key Env Var"
+        },
+        "application_name": {
+          "default": "nemo-guardrails",
+          "description": "Application name for TMV1-Application-Name header (REQUIRED). Must contain only letters, numbers, hyphens, and underscores, with a maximum length of 64 characters.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Application Name",
+          "type": "string"
+        },
+        "detailed_response": {
+          "default": false,
+          "description": "If True, returns detailed AI Guard results with confidence scores (Prefer: return=representation). If False, returns minimal response with only action and reasons (Prefer: return=minimal).",
+          "title": "Detailed Response",
+          "type": "boolean"
+        },
+        "v1_url": {
+          "default": "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails",
+          "description": "The endpoint for the Trend Micro AI Guard API. For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails where region is eu, jp, au, in, sg, or mea.",
+          "title": "V1 Url",
+          "type": "string"
+        }
+      },
+      "title": "TrendMicroRailConfig",
+      "type": "object"
+    }
+  },
+  "description": "Configuration data for specific rails that are supported out-of-the-box.",
+  "properties": {
+    "ai_defense": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AIDefenseRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Cisco AI Defense."
+    },
+    "autoalign": {
+      "$ref": "#/$defs/AutoAlignRailConfig",
+      "description": "Configuration data for the AutoAlign guardrails API."
+    },
+    "clavata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClavataRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Clavata."
+    },
+    "content_safety": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContentSafetyConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for content safety rails."
+    },
+    "context_bloat_detection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContextBloatDetectionConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for context bloat / context manipulation detection."
+    },
+    "crowdstrike_aidr": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrowdStrikeAIDRRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for CrowdStrike AIDR."
+    },
+    "f5": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/F5GuardrailsRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for F5 Guardrails (CalypsoAI)."
+    },
+    "fact_checking": {
+      "$ref": "#/$defs/FactCheckingRailConfig"
+    },
+    "fiddler": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FiddlerGuardrails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Fiddler Guardrails."
+    },
+    "gliner": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GLiNERDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for GLiNER PII detection."
+    },
+    "guardrails_ai": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GuardrailsAIRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Guardrails AI validators."
+    },
+    "hf_classifier": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "discriminator": {
+              "mapping": {
+                "fms": "#/$defs/RemoteHFClassifierConfig",
+                "kserve": "#/$defs/RemoteHFClassifierConfig",
+                "local": "#/$defs/LocalHFClassifierConfig",
+                "vllm": "#/$defs/RemoteHFClassifierConfig"
+              },
+              "propertyName": "engine"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/LocalHFClassifierConfig"
+              },
+              {
+                "$ref": "#/$defs/RemoteHFClassifierConfig"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Named HF classifier configurations. Keys are classifier names referenced by flows.",
+      "title": "Hf Classifier"
+    },
+    "injection_detection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InjectionDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for injection detection."
+    },
+    "jailbreak_detection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JailbreakDetectionConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for jailbreak detection."
+    },
+    "pangea": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PangeaRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Pangea."
+    },
+    "patronus": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatronusRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration data for the Patronus Evaluate API."
+    },
+    "polygraf": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolygrafDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Polygraf PII detection."
+    },
+    "privateai": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PrivateAIDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Private AI."
+    },
+    "regex_detection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegexDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for regex pattern detection."
+    },
+    "sensitive_data_detection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SensitiveDataDetection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for detecting sensitive data."
+    },
+    "trend_micro": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TrendMicroRailConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Configuration for Trend Micro."
+    }
+  },
+  "title": "RailsConfigData",
+  "type": "object"
+}

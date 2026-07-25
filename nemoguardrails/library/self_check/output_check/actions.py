@@ -14,28 +14,41 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Dict, List, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
-from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.self_check.utils import (
+    SELF_CHECK_OUTPUT_DEFAULT_TASK,
+    SELF_CHECK_OUTPUT_FLOW,
+    SELF_CHECK_OUTPUT_VARIANT_PARAM,
+    resolve_self_check_task,
+    run_self_check_task,
+)
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.llm.types import Task
-from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
+DEFAULT_TASK = SELF_CHECK_OUTPUT_DEFAULT_TASK
 
-@action(is_system_action=True, output_mapping=lambda value: not value)
+
+def _self_check_outcome(allowed: bool) -> RailOutcome:
+    return RailOutcome.allow() if allowed else RailOutcome.block()
+
+
+@action(is_system_action=True)
 async def self_check_output(
+    llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    events: Optional[List[dict]] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    variant: Optional[str] = None,
     **kwargs,
-):
+) -> RailOutcome:
     """Checks if the output from the bot.
 
     Prompt the LLM, using the `self_check_output` task prompt, to determine if the output
@@ -45,53 +58,45 @@ async def self_check_output(
     (this is consistent with self_check_input_prompt).
 
     Returns:
-        True if the output should be allowed, False otherwise.
+        RailOutcome.allow() if the output should be allowed, RailOutcome.block() otherwise.
     """
 
-    _MAX_TOKENS = 1024
+    context = context or {}
     bot_response = context.get("bot_message")
     user_input = context.get("user_message")
     bot_thinking = context.get("bot_thinking")
 
-    task = Task.SELF_CHECK_OUTPUT
+    task = resolve_self_check_task(
+        variant,
+        context,
+        events,
+        triggered_rail_key="triggered_output_rail",
+        start_rail_event_type="StartOutputRail",
+        flow_id=SELF_CHECK_OUTPUT_FLOW,
+        variant_param=SELF_CHECK_OUTPUT_VARIANT_PARAM,
+        default_task=DEFAULT_TASK,
+    )
 
-    if bot_response:
-        prompt = llm_task_manager.render_task_prompt(
-            task=task,
-            context={
-                "user_input": user_input,
-                "bot_response": bot_response,
-                "bot_thinking": bot_thinking,
-            },
-        )
-        stop = llm_task_manager.get_stop_tokens(task=task)
-        max_tokens = llm_task_manager.get_max_tokens(task=task)
-        max_tokens = max_tokens or _MAX_TOKENS
+    if not bot_response:
+        return _self_check_outcome(False)
 
-        # Initialize the LLMCallInfo object
-        llm_call_info_var.set(LLMCallInfo(task=task.value))
+    is_safe, response = await run_self_check_task(
+        task=task,
+        prompt_context={
+            "user_input": user_input,
+            "bot_response": bot_response,
+            "bot_thinking": bot_thinking,
+        },
+        llms=llms,
+        default_task=DEFAULT_TASK,
+        main_llm=llm,
+        llm_task_manager=llm_task_manager,
+        lowest_temperature=config.lowest_temperature if config is not None else 0.0,
+    )
 
-        llm_response = await llm_call(
-            llm,
-            prompt,
-            stop=stop,
-            llm_params={
-                "temperature": config.lowest_temperature,
-                "max_tokens": max_tokens,
-            },
-        )
-        warn_if_truncated(llm_response, task.value)
-        response = llm_response.content
-
+    if task == DEFAULT_TASK:
         log.info(f"Output self-checking result is: `{response}`.")
+    else:
+        log.info(f"Output self-checking result for task={task} is: `{response}`.")
 
-        # for sake of backward compatibility
-        # if the output_parser is not registered we will use the default one
-        if llm_task_manager.has_output_parser(task):
-            result = llm_task_manager.parse_task_output(task, output=response)
-        else:
-            result = llm_task_manager.parse_task_output(task, output=response, forced_output_parser="is_content_safe")
-
-        is_safe = result[0]
-
-        return is_safe
+    return _self_check_outcome(is_safe)

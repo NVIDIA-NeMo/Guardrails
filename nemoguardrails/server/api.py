@@ -29,7 +29,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
-from starlette.responses import RedirectResponse, StreamingResponse
+from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.config import Model
@@ -55,9 +55,11 @@ from nemoguardrails.server.schemas.utils import (
 )
 
 try:
-    from chainlit.utils import mount_chainlit
+    from chainlit.utils import mount_chainlit as _mount_chainlit
 except ImportError:
-    mount_chainlit = None
+    mount_chainlit: Optional[Callable[..., Any]] = None
+else:
+    mount_chainlit = _mount_chainlit
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -249,6 +251,21 @@ async def get_rails_configs():
     ]
 
     return [{"id": config_id} for config_id in config_ids]
+
+
+@app.get(
+    "/v1/health",
+    summary="Liveness health check.",
+    tags=["Health"],
+)
+@app.get(
+    "/healthz",
+    summary="Liveness health check.",
+    tags=["Health"],
+)
+async def health():
+    """Return HTTP 200 while the server process is running and able to serve requests."""
+    return JSONResponse(content={"status": "pass"}, media_type="application/health+json")
 
 
 @app.get(

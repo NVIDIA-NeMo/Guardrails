@@ -1,11 +1,11 @@
 
 flow llama guard check input
-  $llama_guard_response = await LlamaGuardCheckInputAction
+  $response = await LlamaGuardCheckInputAction
   global $allowed
-  $allowed = $llama_guard_response["allowed"]
+  $allowed = not $response.is_blocked
   # Policy violations are currently unused, but can be used to better phrase the bot output
   global $llama_guard_policy_violations
-  $llama_guard_policy_violations = $llama_guard_response["policy_violations"]
+  $llama_guard_policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $system.config.enable_rails_exceptions
@@ -15,11 +15,11 @@ flow llama guard check input
     abort
 
 flow llama guard check output
-  $llama_guard_response = await LlamaGuardCheckOutputAction
+  $response = await LlamaGuardCheckOutputAction
   global $allowed
-  $allowed = $llama_guard_response["allowed"]
+  $allowed = not $response.is_blocked
   global $llama_guard_policy_violations
-  $llama_guard_policy_violations = $llama_guard_response["policy_violations"]
+  $llama_guard_policy_violations = $response.metadata["policy_violations"]
 
   if not $allowed
     if $system.config.enable_rails_exceptions

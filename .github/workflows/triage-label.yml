@@ -13,16 +13,20 @@ name: triage auto-label
 # and call the labels API. Do not add a checkout of the PR head here.
 
 on:
+  # zizmor: ignore[dangerous-triggers] -- see header comment: no job checks out
+  # or executes PR head code, so the write token is never exposed to untrusted
+  # code. pull_request_target is required for a write token on fork PRs.
   pull_request_target:
     types: [opened, reopened, labeled]
 
-permissions:
-  pull-requests: write
+permissions: {}
 
 jobs:
   initial-label:
     if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/github-script@v9
         with:
@@ -46,6 +50,8 @@ jobs:
   clear-needs-triage:
     if: "github.event.action == 'labeled' && github.event.label.name == 'status: triaged'"
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/github-script@v9
         with:

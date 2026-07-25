@@ -127,15 +127,31 @@ See [AI_POLICY.md](./AI_POLICY.md) for the full policy.
 
 ## Development Setup
 
-NeMo Guardrails supports Python 3.10 through 3.13. Install Git, Poetry
-`>=1.8,<2.0`, and the compiler/dev tools needed to build Annoy on your platform.
+NeMo Guardrails supports Python 3.10 through 3.13. Install Git and uv. Follow the
+[uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/)
+for your platform.
+
+GitHub Actions uses the uv version pinned in
+[`.github/actions/setup-uv/action.yml`](./.github/actions/setup-uv/action.yml)
+as the canonical version. Use that version when changing dependencies or
+`uv.lock`. If another project requires a different uv version, use a
+directory-aware version manager or repository-scoped installation rather than
+replacing a shared global executable.
+
+When updating the canonical uv version, update
+`.github/actions/setup-uv/action.yml`, `.gitlab-ci.yml`, and the uv image version
+and digest in `Dockerfile` together.
+
+Dependency resolution uses a seven-day cooldown, so newly uploaded distributions
+are eligible only after seven days. To make an emergency package update without
+waiting, use `uv lock --upgrade-package <package> --exclude-newer-package <package>=false`.
 
 Clone the repository and install development dependencies:
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
 cd nemoguardrails
-poetry install --with dev
+make install
 ```
 
 Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
@@ -146,28 +162,27 @@ Valid optional extras are `sdd`, `eval`, `gcp`, `tracing`, `jailbreak`,
 `multilingual`, `server`, `chat-ui`, and `all`. For example:
 
 ```bash
-poetry install --with dev -E server -E tracing
+uv sync --locked --extra server --extra tracing
 ```
 
-For temporary local investigation tools, use the Poetry-managed environment
+For temporary local investigation tools, use the uv-managed environment
 without modifying project dependencies:
 
 ```bash
-poetry run pip install <package-name>
+uv pip install <package-name>
 ```
 
 Do not commit environment-only dependency changes.
 
 ## Validation
 
-Run Python commands through Poetry.
+Run Python commands through uv.
 
 | Task | Command |
 | --- | --- |
 | Focused tests | `make test TEST=path/to/test_file.py::test_name` |
 | Full test suite | `make test` |
-| Supported Python versions | `poetry run tox` |
-| Pre-commit hooks | `poetry run pre-commit run --all-files` |
+| Pre-commit hooks | `make pre-commit` |
 | Docs check | `make docs-fern` |
 | Package coverage | `make test-coverage` |
 
@@ -178,11 +193,11 @@ tracing, or docs.
 Set up local pre-commit hooks if you want checks to run before every commit:
 
 ```bash
-poetry run pre-commit install
+make pre-commit-install
 ```
 
 The pre-commit configuration runs Ruff, Ruff format, license-header insertion,
-and Pyright.
+and ty.
 
 ## Documentation and Notebooks
 
@@ -199,7 +214,7 @@ For notebook documentation, place the notebook in its own folder and generate a
 matching `README.md` with:
 
 ```bash
-poetry run python build_notebook_docs.py PATH/TO/SUBFOLDER
+uv run python build_notebook_docs.py PATH/TO/SUBFOLDER
 ```
 
 Important: `build_notebook_docs.py` currently runs broad git staging and

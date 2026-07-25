@@ -31,7 +31,7 @@ Discover access but cannot issue an API key. Workflow:
      locally (e.g. ``kibana.json``).
   4. Run this script:
 
-         poetry run python scripts/kibana_verify_export.py \\
+         uv run python scripts/kibana_verify_export.py \\
              --manifest <run_dir>/manifest.json \\
              --export kibana.json
 

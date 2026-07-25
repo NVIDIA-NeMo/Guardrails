@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-yaml
       - id: end-of-file-fixer
@@ -8,7 +8,7 @@ repos:
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.14.6
+    rev: v0.15.20
     hooks:
       # Run the linter.
       - id: ruff
@@ -17,7 +17,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.4.2
+    rev: v1.5.6
     hooks:
       - id: insert-license
         files: \.py$
@@ -25,11 +25,17 @@ repos:
           - --license-filepath
           - LICENSE.md
           - --use-current-year
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.26.1
+    hooks:
+      - id: zizmor
+
   - repo: local
     hooks:
-      - id: pyright
-        name: pyright
-        entry: poetry run pyright
+      - id: ty
+        name: ty
+        entry: uv run --locked ty check
         language: system
-        types: [python]
         pass_filenames: false
+        always_run: true
+        require_serial: true

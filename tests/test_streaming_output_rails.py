@@ -23,6 +23,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.streaming import StreamingHandler
@@ -103,7 +104,7 @@ async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     )
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 def self_check_output(**params):
     """A dummy self check action that checks if the bot message contains the BLOCK keyword."""
 
@@ -111,9 +112,9 @@ def self_check_output(**params):
         bot_message_chunk = params.get("context", {}).get("bot_message")
         print(f"bot_message_chunk: {bot_message_chunk}")
         if "BLOCK" in bot_message_chunk:
-            return False
+            return RailOutcome.block()
 
-    return True
+    return RailOutcome.allow()
 
 
 async def run_self_check_test(config, llm_completions):
@@ -125,6 +126,29 @@ async def run_self_check_test(config, llm_completions):
         streaming=True,
     )
     chat.app.register_action(self_check_output)
+    chunks = []
+    async for chunk in chat.app.stream_async(
+        messages=[{"role": "user", "content": "Hi!"}],
+    ):
+        chunks.append(chunk)
+    return chunks
+
+
+async def run_rail_outcome_self_check_test(config, llm_completions):
+    chat = TestChat(
+        config,
+        llm_completions=llm_completions,
+        streaming=True,
+    )
+
+    @action(is_system_action=True)
+    def rail_outcome_self_check_output(context=None, **params):
+        bot_message_chunk = (context or {}).get("bot_message", "")
+        if "BLOCK" in bot_message_chunk:
+            return RailOutcome.block()
+        return RailOutcome.allow()
+
+    chat.app.register_action(rail_outcome_self_check_output, "self_check_output")
     chunks = []
     async for chunk in chat.app.stream_async(
         messages=[{"role": "user", "content": "Hi!"}],
@@ -156,6 +180,30 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
 
     error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert len(error_chunks) > 0
+    assert expected_error in error_chunks
+
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+async def test_streaming_output_rails_blocks_rail_outcome(output_rails_streaming_config):
+    llm_completions = [
+        '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
+        '  "This is a [BLOCK] joke that should be blocked."',
+    ]
+
+    chunks = await run_rail_outcome_self_check_test(output_rails_streaming_config, llm_completions)
+
+    expected_error = {
+        "error": {
+            "message": "Blocked by self check output rails.",
+            "type": "guardrails_violation",
+            "param": "self check output",
+            "code": "content_blocked",
+        }
+    }
+
+    error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert expected_error in error_chunks
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
@@ -275,7 +323,7 @@ async def test_external_generator_with_output_rails_allowed():
 
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -319,7 +367,7 @@ async def test_external_generator_output_rails_receive_user_content():
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
         observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -365,7 +413,7 @@ async def test_external_generator_output_rails_use_empty_user_content_without_us
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
         observed_user_messages.append(kwargs.get("context", {}).get("user_message"))
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -414,8 +462,8 @@ async def test_external_generator_with_output_rails_blocked():
         bot_message = kwargs.get("bot_message", kwargs.get("context", {}).get("bot_message", ""))
         # block if message contains "offensive" or "idiot"
         if "offensive" in bot_message.lower() or "idiot" in bot_message.lower():
-            return False
-        return True
+            return RailOutcome.block()
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -533,7 +581,7 @@ async def test_external_generator_single_chunk():
 
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
-        return True
+        return RailOutcome.allow()
 
     rails.register_action(self_check_output, "self_check_output")
 
@@ -576,11 +624,11 @@ async def test_streaming_output_rails_no_stale_substituted_param():
 
     seen = []
 
-    @action(name="capture_output", output_mapping=lambda result: not result)
+    @action(name="capture_output")
     async def capture_output(**params):
         # the substituted `text` kwarg must match this chunk's bot_message
         seen.append((params.get("text"), params["context"]["bot_message"]))
-        return True
+        return RailOutcome.allow()
 
     chat = TestChat(
         config,
@@ -633,11 +681,11 @@ async def test_streaming_output_rails_substitutes_user_message_param():
 
     seen = []
 
-    @action(name="capture_output", output_mapping=lambda result: not result)
+    @action(name="capture_output")
     async def capture_output(**params):
         # the substituted `text` kwarg must be the resolved user message
         seen.append((params.get("text"), params["context"]["user_message"]))
-        return True
+        return RailOutcome.allow()
 
     chat = TestChat(
         config,

@@ -14,7 +14,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.3
+        # zizmor: ignore[artipacked] -- this job pushes the release tag with
+        # `git push origin`, which needs the checkout's persisted credentials;
+        # the job uploads no artifacts, so the token is not exposed.
+        uses: actions/checkout@v7.0.0
         with:
           ref: develop
           fetch-depth: 0
@@ -29,23 +32,29 @@ jobs:
       - name: Check if tag already exists
         id: check-tag
         run: |
-          if git tag -l "${{ steps.version.outputs.tag }}" | grep -q "${{ steps.version.outputs.tag }}"; then
+          if git tag -l "${STEPS_VERSION_OUTPUTS_TAG}" | grep -q "${STEPS_VERSION_OUTPUTS_TAG}"; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.version.outputs.tag }} already exists"
+            echo "Tag ${STEPS_VERSION_OUTPUTS_TAG} already exists"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.version.outputs.tag }} does not exist"
+            echo "Tag ${STEPS_VERSION_OUTPUTS_TAG} does not exist"
           fi
+        env:
+          STEPS_VERSION_OUTPUTS_TAG: ${{ steps.version.outputs.tag }}
 
       - name: Create and push tag
         if: steps.check-tag.outputs.exists == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin ${{ steps.version.outputs.tag }}
+          git tag -a ${STEPS_VERSION_OUTPUTS_TAG} -m "Release ${STEPS_VERSION_OUTPUTS_TAG}"
+          git push origin ${STEPS_VERSION_OUTPUTS_TAG}
+        env:
+          STEPS_VERSION_OUTPUTS_TAG: ${{ steps.version.outputs.tag }}
 
       - name: Tag already exists
         if: steps.check-tag.outputs.exists == 'true'
         run: |
-          echo "::warning::Tag ${{ steps.version.outputs.tag }} already exists, skipping tag creation"
+          echo "::warning::Tag ${STEPS_VERSION_OUTPUTS_TAG} already exists, skipping tag creation"
+        env:
+          STEPS_VERSION_OUTPUTS_TAG: ${{ steps.version.outputs.tag }}

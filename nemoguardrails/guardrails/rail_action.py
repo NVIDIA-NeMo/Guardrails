@@ -23,7 +23,10 @@ helpers for the common call patterns (LLM, API, local).
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -31,17 +34,52 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailResult,
     get_request_id,
+    serialize_prompt,
     truncate,
 )
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RailLLMCall:
+    """Usage/model/timing captured for the call a rail made, for GenerationLog.
+
+    Set by :meth:`RailAction._get_llm_response` (LLM rails) or
+    :meth:`RailAction._get_api_response` (API rails, e.g. jailbreak — usage/model None),
+    and read by RailsManager right after the rail runs (same async task), so the caller
+    can build the per-rail ``RailCallRecord``. ``started_at``/``finished_at`` are
+    wall-clock (``time.time()``) timestamps; ``duration`` is a monotonic delta.
+    """
+
+    usage: Optional[UsageInfo]
+    llm_model_name: Optional[str]
+    request_id: Optional[str]
+    provider_name: Optional[str]
+    prompt: Optional[str]
+    completion: Optional[str]
+    started_at: float
+    finished_at: float
+    duration: float
+
+
+# Request-scoped: the last LLM call a rail made. ``RailAction.run`` clears it at the
+# start of each rail so a rail that makes no model call leaves it None.
+_rail_llm_call_var: ContextVar[Optional[RailLLMCall]] = ContextVar("rail_llm_call", default=None)
+
+
+def get_and_clear_rail_llm_call_contextvar() -> Optional[RailLLMCall]:
+    """Return and clear the LLM call captured for the rail that just ran."""
+    call = _rail_llm_call_var.get()
+    _rail_llm_call_var.set(None)
+    return call
 
 
 class RailAction(ABC):
@@ -81,6 +119,9 @@ class RailAction(ABC):
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Execute the full rail pipeline and return a safety result."""
+        # Clear any capture from a prior rail on this task; a rail that makes no model
+        # call then leaves it None and produces a record with no LLM call.
+        _rail_llm_call_var.set(None)
         with action_span(self._tracer, self.action_name) as span:
             req_id = get_request_id()
             base_flow = _get_flow_name(flow)
@@ -153,10 +194,42 @@ class RailAction(ABC):
         messages: list[dict],
         **kwargs: Any,
     ) -> LLMResponse:
-        """Call an LLM via EngineRegistry and return the structured response."""
+        """Call an LLM via EngineRegistry and return the structured response.
+
+        Captures usage/model/timing into a request-scoped contextvar so RailsManager can
+        record this call in the GenerationLog after the rail runs. The capture happens in a
+        ``finally`` so a call that raises is still recorded as an attempt (usage/model/
+        completion left None), matching LLMRails counting a failed call.
+        """
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
-        return await self.engine_registry.model_call(model_type, messages, **kwargs)
+        started_at = time.time()
+        t0 = time.monotonic()
+        usage: Optional[UsageInfo] = None
+        model_name: Optional[str] = None
+        request_id: Optional[str] = None
+        completion: Optional[str] = None
+        try:
+            response = await self.engine_registry.model_call(model_type, messages, **kwargs)
+            usage = response.usage
+            model_name = response.model
+            request_id = response.request_id
+            completion = response.content
+            return response
+        finally:
+            _rail_llm_call_var.set(
+                RailLLMCall(
+                    usage=usage,
+                    llm_model_name=model_name,
+                    request_id=request_id,
+                    provider_name=self.engine_registry.provider_name(model_type),
+                    prompt=serialize_prompt(messages),
+                    completion=completion,
+                    started_at=started_at,
+                    finished_at=time.time(),
+                    duration=time.monotonic() - t0,
+                )
+            )
 
     async def _get_api_response(
         self,
@@ -164,8 +237,31 @@ class RailAction(ABC):
         body: dict[str, Any],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Call an API endpoint via EngineRegistry and return the response dict."""
-        return await self.engine_registry.api_call(api_name, body, **kwargs)
+        """Call an API endpoint via EngineRegistry and return the response dict.
+
+        Records the call (with no token usage or model name) so API-backed rails such as
+        jailbreak detection still appear in the GenerationLog's ``llm_calls`` and counts,
+        matching LLMRails. Recorded in a ``finally`` so a call that raises is still counted
+        as an attempt.
+        """
+        started_at = time.time()
+        t0 = time.monotonic()
+        try:
+            return await self.engine_registry.api_call(api_name, body, **kwargs)
+        finally:
+            _rail_llm_call_var.set(
+                RailLLMCall(
+                    usage=None,
+                    llm_model_name=None,
+                    request_id=None,
+                    provider_name=None,
+                    prompt=None,
+                    completion=None,
+                    started_at=started_at,
+                    finished_at=time.time(),
+                    duration=time.monotonic() - t0,
+                )
+            )
 
     async def _get_local_response(self, **kwargs: Any) -> Any:
         """Run a local/in-process check. Override in subclasses that need it."""
@@ -186,6 +282,19 @@ class RailAction(ABC):
             if msg.get("role") == "user" and msg.get("content"):
                 return msg["content"]
         raise RuntimeError(f"No user message found in: {messages}")
+
+    @staticmethod
+    def _last_user_content_or_empty(messages: LLMMessages) -> str:
+        """Return the content of the last user message, or "" when there is none.
+
+        Output checks evaluate the bot response; the user prompt only adds context
+        and may legitimately be absent (for example an output-only ``check`` on an
+        assistant message). Unlike :meth:`_last_user_content`, this does not raise.
+        """
+        for msg in reversed(messages):
+            if msg.get("role") == "user" and msg.get("content"):
+                return msg["content"]
+        return ""
 
     @staticmethod
     def _prompt_to_messages(prompt: Union[str, list[dict]]) -> list[dict]:

@@ -14,11 +14,14 @@
 # limitations under the License.
 
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 def self_check_streaming_output(context=None, **params):
-    return (context or {}).get("bot_message") != "BLOCK"
+    if (context or {}).get("bot_message") == "BLOCK":
+        return RailOutcome.block()
+    return RailOutcome.allow()
 
 
 def init(app):

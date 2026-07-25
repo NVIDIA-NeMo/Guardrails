@@ -85,7 +85,7 @@ def select_provider_type() -> Optional[ProviderType]:
 
         # exact match only
         if result in provider_types:
-            return cast(ProviderType, result)  # type: ignore
+            return cast(ProviderType, result)
 
         # fuzzy match
         matches = [t for t in provider_types if result.lower() in t.lower()]

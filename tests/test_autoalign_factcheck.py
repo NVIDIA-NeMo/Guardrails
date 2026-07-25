@@ -20,6 +20,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.library.autoalign.actions import _autoalign_score_outcome
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
@@ -64,19 +65,8 @@ async def test_groundness_correct(httpx_mock):
     )
 
     async def mock_autoalign_groundedness_output_api(context: Optional[dict] = None, **kwargs):
-        query = context.get("bot_message")
-        if (
-            query == "That's correct! Pluto's orbit is indeed eccentric, meaning it is not a perfect circle. This "
-            "causes Pluto to come closer to the Sun than Neptune at times. However, despite this, "
-            "the two planets do not collide due to a stable orbital resonance. Orbital resonance is when two "
-            "objects orbiting a common point exert a regular influence on each other, keeping their orbits "
-            "stable and preventing collisions. In the case of Pluto and Neptune, their orbits are in a "
-            "specific ratio that keeps them from crashing into each other. It's a fascinating example of the "
-            "intricate dance of celestial bodies in our solar system!"
-        ):
-            return 0.52
-        else:
-            return 0.0
+        assert context["bot_message"] == "bot provide pluto answer"
+        return _autoalign_score_outcome(0.52, kwargs["factcheck_threshold"])
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
@@ -115,17 +105,8 @@ async def test_groundness_check_wrong(httpx_mock):
     )
 
     async def mock_autoalign_groundedness_output_api(context: Optional[dict] = None, **kwargs):
-        query = context.get("bot_message")
-        if (
-            query == "Actually, Pluto does have moons! In addition to Charon, which is the largest moon of Pluto and "
-            "has a diameter greater than Pluto's, there are four other known moons: Styx, Nix, Kerberos, "
-            "and Hydra. Styx and Nix were discovered in 2005, while Kerberos and Hydra were discovered in 2011 "
-            "and 2012, respectively. These moons are much smaller than Charon and Pluto, but they are still "
-            "significant in understanding the dynamics of the Pluto system. Isn't that fascinating?"
-        ):
-            return 0.0
-        else:
-            return 1.0
+        assert context["bot_message"] == "bot provide pluto answer"
+        return _autoalign_score_outcome(0.0, kwargs["factcheck_threshold"])
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
@@ -134,13 +115,7 @@ async def test_groundness_check_wrong(httpx_mock):
         chat >> "Pluto has no known moons; Charon, the smallest, has a diameter greater than Pluto's, along with the "
         "non-existent Styx, Nix, Kerberos, and Hydra."
     )
-    await chat.bot_async(
-        "Actually, Pluto does have moons! In addition to Charon, which is the largest moon of Pluto and "
-        "has a diameter greater than Pluto's, there are four other known moons: Styx, Nix, Kerberos, "
-        "and Hydra. Styx and Nix were discovered in 2005, while Kerberos and Hydra were discovered in 2011 "
-        "and 2012, respectively. These moons are much smaller than Charon and Pluto, but they are still "
-        "significant in understanding the dynamics of the Pluto system. Isn't that fascinating?"
-    )
+    await chat.bot_async("I don't know the answer to that.")
 
 
 @pytest.mark.asyncio
@@ -150,13 +125,14 @@ async def test_factcheck():
     chat = TestChat(config, llm_completions=["factually correct response"])
 
     async def mock_autoalign_factcheck_output_api(context: Optional[dict] = None, **kwargs):
+        assert context is not None
         user_prompt = context.get("user_message")
         bot_response = context.get("bot_message")
 
         assert user_prompt == "mock user prompt"
         assert bot_response == "factually correct response"
 
-        return 1.0
+        return _autoalign_score_outcome(1.0, kwargs["factcheck_threshold"])
 
     chat.app.register_action(mock_autoalign_factcheck_output_api, "autoalign_factcheck_output_api")
 

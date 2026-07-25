@@ -14,7 +14,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@v10.3.0
         with:
           any-of-issue-labels: "status: needs info,status: waiting confirmation"
           days-before-issue-stale: 14

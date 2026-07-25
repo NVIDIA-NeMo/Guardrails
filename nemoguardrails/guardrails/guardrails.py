@@ -23,7 +23,7 @@ LLM responses with programmable guardrails.
 
 import logging
 import warnings
-from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast, overload
+from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast
 
 from typing_extensions import Self
 
@@ -38,7 +38,7 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import GenerationResponse, RailsResult, RailType
+from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse, RailsResult, RailType
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
@@ -181,74 +181,44 @@ class Guardrails(BaseGuardrails):
         llmrails = cast(LLMRails, self.rails_engine)
         llmrails.passthrough_fn = fn
 
-    @staticmethod
-    def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
-        """Return messages in standard format, converting a prompt string if needed.
-
-        If messages is provided, returns it as-is.
-        If prompt is provided, wraps it as [{"role": "user", "content": prompt}].
-        """
-
-        # Priority: messages first, then prompt
-        if messages:
-            return messages
-
-        if prompt:
-            # Convert string prompt to standard format
-            return [{"role": "user", "content": prompt}]
-
-        raise ValueError("Neither prompt nor messages provided for generation")
-
     async def _ensure_started(self) -> None:
         """Lazy initialization: call startup() on first use if not already started."""
         if not self._started:
             await self.startup()
 
     def generate(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
-
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return self.rails_engine.generate(messages=generate_messages, **kwargs)
-
-    @overload
-    async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> dict: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> GenerationResponse: ...
-
-    @overload
-    async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
-    ) -> tuple[dict, dict]: ...
+        return self.rails_engine.generate(prompt=prompt, messages=messages, options=options, **kwargs)
 
     async def generate_async(
-        self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
+        self,
+        prompt: str | None = None,
+        messages: LLMMessages | None = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        **kwargs,
     ) -> str | dict | GenerationResponse | tuple[dict, dict]:
         """Generate an LLM response asynchronously with guardrails applied.
         Supported by both LLMRails and IORails
         """
         await self._ensure_started()
 
-        generate_messages = self._convert_to_messages(prompt, messages)
-        return await self.rails_engine.generate_async(messages=generate_messages, **kwargs)
+        return await self.rails_engine.generate_async(prompt=prompt, messages=messages, options=options, **kwargs)
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
         """Generate an LLM response asynchronously with streaming support."""
 
-        stream_messages = self._convert_to_messages(prompt, messages)
+        # TODO: Move prompt/message normalization into IORails when streaming GenerationOptions added
+        stream_messages = IORails._convert_to_messages(prompt, messages)
 
         async def _with_startup(iterator: AsyncIterator[str | dict]) -> AsyncIterator[str | dict]:
             await self._ensure_started()
@@ -374,13 +344,10 @@ class Guardrails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check_async()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return await llmrails.check_async(messages, rail_types=rail_types)
+        await self._ensure_started()
+        return await self.rails_engine.check_async(messages, rail_types=rail_types)
 
     def check(
         self,
@@ -388,13 +355,9 @@ class Guardrails(BaseGuardrails):
         rail_types: Optional[List[RailType]] = None,
     ) -> RailsResult:
         """Synchronous version of check_async.
-        Only supported for LLMRails.
+        Supported by both LLMRails and IORails.
         """
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support check()")
-
-        llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.check(messages, rail_types=rail_types)
+        return self.rails_engine.check(messages, rail_types=rail_types)
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration.

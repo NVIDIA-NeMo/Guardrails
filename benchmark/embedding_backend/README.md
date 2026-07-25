@@ -35,10 +35,10 @@ regardless.
 
 ## Prerequisites
 
-Run inside the project's Poetry environment:
+Sync the project's development environment:
 
 ```bash
-poetry install --with dev
+uv sync --locked
 ```
 
 > **Note (Annoy native build).** Annoy is a C++ extension. On a machine without a prebuilt
@@ -55,10 +55,10 @@ poetry install --with dev
 
 ```bash
 # Default sweep: N = 100, 1k, 10k, 100k
-poetry run python benchmark/embedding_backend/bench_embedding_backend.py
+uv run python benchmark/embedding_backend/bench_embedding_backend.py
 
 # Quick subset
-poetry run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
+uv run python benchmark/embedding_backend/bench_embedding_backend.py --sizes 100 1000 --queries 100
 
 # Flags
 #   --sizes    list of index sizes (default: 100 1000 10000 100000)
@@ -75,8 +75,8 @@ install the previous dependency version into the environment first (needs the
 compiler/headers noted above):
 
 ```bash
-ANNOY_COMPILER_ARGS="-DANNOYLIB_MULTITHREADED_BUILD" poetry run python -m pip install --no-cache-dir --no-binary=:all: "annoy==1.17.3"
-poetry run python benchmark/embedding_backend/bench_embedding_backend.py
+ANNOY_COMPILER_ARGS="-DANNOYLIB_MULTITHREADED_BUILD" uv pip install --no-cache --no-binary annoy "annoy==1.17.3"
+uv run python benchmark/embedding_backend/bench_embedding_backend.py
 ```
 
 If `annoy` is not importable, the script automatically runs the NumPy backend only and

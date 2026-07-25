@@ -1,0 +1,44 @@
+name: Latest uv Compatibility
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: Test Latest uv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install latest uv
+        uses: ./.github/actions/setup-uv
+        with:
+          version: latest
+          cache-suffix: latest
+
+      - name: Check lock file
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --group dev
+
+      - name: Run pre-commit hooks
+        run: make pre-commit
+
+      - name: Run tests
+        run: make test
+
+      - name: Build distributions
+        run: uv build

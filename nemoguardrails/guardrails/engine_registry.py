@@ -172,6 +172,10 @@ class EngineRegistry:
             raise TypeError(f"Engine '{name}' is {type(engine).__name__}, expected {expected_type.__name__}")
         return engine
 
+    def provider_name(self, model_type: str) -> str:
+        """Return the provider/engine name (e.g. 'nim', 'openai') for a model engine."""
+        return self._get_engine(model_type, ModelEngine).model_config.engine or "unknown"
+
     async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> LLMResponse:
         """Route a chat completion request to the named model engine.
 

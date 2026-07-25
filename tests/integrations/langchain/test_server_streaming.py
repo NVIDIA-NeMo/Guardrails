@@ -21,6 +21,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.streaming import StreamingHandler
 from tests.utils import TestChat
@@ -278,15 +279,15 @@ def output_rails_streaming_config():
     )
 
 
-@action(is_system_action=True, output_mapping=lambda result: not result)
+@action(is_system_action=True)
 def self_check_output(**params):
     """A dummy self check action that checks if the bot message contains the BLOCK keyword."""
     if params.get("context", {}).get("bot_message"):
         bot_message_chunk = params.get("context", {}).get("bot_message")
         if "BLOCK" in bot_message_chunk:
-            return False
+            return RailOutcome.block()
 
-    return True
+    return RailOutcome.allow()
 
 
 async def run_self_check_test(config, llm_completions):
