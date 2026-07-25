@@ -329,3 +329,18 @@ NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG = {
         "output": {"flows": []},
     },
 }
+
+# Same, with a release buffer small enough that the overflow path actually runs.
+# The 4096 default is ~80s of generation at 50 tok/s, so the backpressure branch is
+# unreachable in a test at default settings; setting it through config (rather than
+# patching the private attribute) also covers the config -> IORails wiring.
+NEMOGUARDS_SPECULATIVE_STREAMING_SMALL_BUFFER_CONFIG = {
+    **NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG,
+    "rails": {
+        **NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG["rails"],
+        "input": {
+            **NEMOGUARDS_SPECULATIVE_STREAMING_INPUT_ONLY_CONFIG["rails"]["input"],
+            "speculative_max_buffered_chunks": 2,
+        },
+    },
+}

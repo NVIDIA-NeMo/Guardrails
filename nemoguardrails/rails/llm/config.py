@@ -732,18 +732,18 @@ class InputRails(BaseModel):
         ),
     )
 
-    speculative_max_buffered_tokens: int = Field(
+    speculative_max_buffered_chunks: int = Field(
         default=4096,
         gt=0,
         description=(
             "Upper bound on the number of chunks held in the speculative awaiting-release buffer "
-            "during streaming speculation (chunks approximate tokens). When the bound is reached, "
-            "the engine pauses speculative output-rail processing and waits for the input rails "
-            "verdict before buffering more (release on pass, refuse-and-teardown on reject). This "
-            "bounds only the release buffer — the main LLM keeps generating into the internal stream "
-            "buffer — so total speculative memory is bounded by the model's finite output and the "
-            "input-rail latency, not by halting generation. Only used when speculative_generation is "
-            "True for streaming requests."
+            "during streaming speculation. When the bound is reached, the engine stops consuming "
+            "and waits for the input rails verdict before buffering more (release on pass, "
+            "refuse-and-teardown on reject). This caps the release buffer only: the main LLM keeps "
+            "generating into the internal stream buffer, so it does not cap total memory. The "
+            "buffer only grows while the input rails are still pending, so at the default it is "
+            "effectively unreachable — roughly 80 seconds of generation at 50 tokens/sec. Only "
+            "used when speculative_generation is True for streaming requests."
         ),
     )
 

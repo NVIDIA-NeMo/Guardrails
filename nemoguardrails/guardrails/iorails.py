@@ -27,6 +27,7 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
@@ -107,6 +108,41 @@ def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
     except (json.JSONDecodeError, TypeError):
         return False
     return isinstance(parsed, dict) and "error" in parsed
+
+
+@dataclass(frozen=True)
+class _RailFailure:
+    """A rail raised, as distinct from a rail rejecting.
+
+    Speculative streaming runs the input rails in their own task, so the gate
+    receives a verdict rather than an exception. This wrapper keeps an
+    infrastructure failure distinguishable from an ``is_safe=False`` policy
+    decision, so the two are reported as ``generation_error`` and
+    ``guardrails_violation`` respectively rather than collapsing into one.
+    """
+
+    exc: BaseException
+
+
+def _stream_error_field(chunk: Union[str, dict], field: str) -> Optional[str]:
+    """Return ``error.<field>`` from a streamed error payload, or None.
+
+    Returns None for anything that is not an ``{"error": {...}}`` object with
+    that field — including the case where ``error`` holds a non-dict value, which
+    ordinary LLM content can produce (e.g. a model emitting
+    ``{"error": "connection refused"}`` as text). Callers must not assume
+    ``_is_stream_error_chunk`` guarantees a dict ``error``: it only checks that
+    the key is present.
+    """
+    text = chunk.get("text") if isinstance(chunk, dict) else chunk
+    if not isinstance(text, str):
+        return None
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    error = parsed.get("error") if isinstance(parsed, dict) else None
+    return error.get(field) if isinstance(error, dict) else None
 
 
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
@@ -325,7 +361,22 @@ class IORails(BaseGuardrails):
             content_capture_enabled=self._content_capture_enabled,
         )
         self._speculative_generation = config.rails.input.speculative_generation or False
-        self._speculative_max_buffered_tokens = config.rails.input.speculative_max_buffered_tokens
+        self._speculative_max_buffered_chunks = config.rails.input.speculative_max_buffered_chunks
+
+        # Streaming speculation supports check-first only: during the speculation
+        # window tokens cannot reach the client, so a configured stream_first is
+        # overridden.  Decided once here rather than per request so the warning is
+        # visible at startup instead of only once traffic arrives.
+        self._speculative_forces_check_first = (
+            self._speculative_generation
+            and self._has_streaming_output_rails
+            and config.rails.output.streaming.stream_first
+        )
+        if self._speculative_forces_check_first:
+            log.warning(
+                "speculative_generation with stream_first=True is not supported for streaming; "
+                "check-first behavior will be used for speculative streaming requests"
+            )
 
         # Non-streaming admission queue + worker pool (owned by IORails so
         # all request-path concurrency controls sit under one roof).  The
@@ -516,6 +567,18 @@ class IORails(BaseGuardrails):
             }
         )
 
+    @staticmethod
+    def _generation_error_payload(message: str) -> str:
+        """Build the JSON error payload emitted when a streaming request fails.
+
+        Distinct from ``_guardrails_violation_payload``: this is an infrastructure
+        failure (the request could not be completed), not a policy decision, so
+        callers must also record error metrics and mark the request span ERROR.
+        Shared by ``_generation_task`` and the speculative input-rail failure path
+        so both surface the same ``generation_error`` / ``generation_failed`` shape.
+        """
+        return json.dumps({"error": {"message": message, "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}})
+
     async def _do_generate(
         self, messages: LLMMessages, req_id: str, request_span: Optional["Span"] = None, **kwargs
     ) -> LLMMessage:
@@ -690,7 +753,9 @@ class IORails(BaseGuardrails):
 
             # Rails passed — wait for generation to finish
             response = await gen_task
-            set_speculative_span_attrs(request_span, first_completed, "none")
+            set_speculative_span_attrs(
+                request_span, first_completed, GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+            )
         else:
             # Generation finished first — wait for rails verdict
             response = gen_task.result()
@@ -706,7 +771,9 @@ class IORails(BaseGuardrails):
                 )
                 return None
 
-            set_speculative_span_attrs(request_span, first_completed, "none")
+            set_speculative_span_attrs(
+                request_span, first_completed, GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+            )
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response.content))
         return response
@@ -758,20 +825,12 @@ class IORails(BaseGuardrails):
         # Speculative streaming (SG2): input rails race the LLM instead of blocking
         # before it.  Only check-first is supported — during the speculation window
         # tokens cannot reach the client, so stream_first is overridden to
-        # check-first for speculative requests.
-        #
-        # NOTE: this precondition warning fires per stream_async() call (i.e. at
-        # request time), not once at engine startup.  Flagged here so developers
-        # know the check-first override is decided per request, not globally.
+        # check-first for speculative requests.  The operator-facing warning for
+        # that override is emitted once at construction (see __init__), not here:
+        # warnings.warn() never reaches the logger, so a per-request warning is
+        # invisible to anyone tailing logs.
         use_speculative = self._speculative_generation
-        force_check_first = False
-        if use_speculative and self._has_streaming_output_rails and self.config.rails.output.streaming.stream_first:
-            warnings.warn(
-                "speculative_generation with stream_first=True is not supported for streaming; "
-                "forcing check-first behavior for this request",
-                stacklevel=2,
-            )
-            force_check_first = True
+        force_check_first = self._speculative_forces_check_first
 
         if include_metadata and self._has_streaming_output_rails:
             raise ValueError(
@@ -900,9 +959,7 @@ class IORails(BaseGuardrails):
                 # streaming path.
                 if self._metrics_enabled:
                     record_request_error(e)
-                error_payload = json.dumps(
-                    {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
-                )
+                error_payload = self._generation_error_payload(str(e))
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
@@ -1018,8 +1075,7 @@ class IORails(BaseGuardrails):
 
                                     # Gate raw/validated chunks on the input rails verdict during the
                                     # speculation window; pass through unchanged when not speculating.
-                                    if use_speculative:
-                                        assert input_task is not None and spec_stats is not None
+                                    if input_task is not None and spec_stats is not None:
                                         base_iterator = self._gate_on_input(
                                             inner_iterator, input_task, spec_stats, include_metadata=include_metadata
                                         )
@@ -1118,6 +1174,16 @@ class IORails(BaseGuardrails):
                                 # both tasks start together; time_saved is the overlap for
                                 # safe requests and 0 for rejected ones.
                                 if use_speculative and spec_stats is not None:
+                                    # A rail raised inside the speculative input task.
+                                    # The gate converted it to an error chunk and
+                                    # returned normally, so request_metrics /
+                                    # traced_request never saw an exception — record
+                                    # the error here, mirroring _generation_task.
+                                    rail_error = spec_stats.get("rail_error")
+                                    if rail_error is not None:
+                                        record_span_error(request_span, rail_error)
+                                        if self._metrics_enabled:
+                                            record_request_error(rail_error)
                                     rails_ms = spec_stats.get("rails_duration_ms")
                                     gen_ms = spec_stats.get("generation_duration_ms")
                                     overlap_ms = (
@@ -1138,7 +1204,17 @@ class IORails(BaseGuardrails):
                                         overlap_ms=overlap_ms,
                                         time_saved_ms=time_saved_ms,
                                         cancellation_event=spec_stats.get("cancellation_event"),
-                                        output_rails_early_reject=spec_stats.get("output_rails_early_reject"),
+                                        # Only meaningful when output rails are in the
+                                        # pipeline: with none configured, stamping False
+                                        # would assert they did not early-reject when
+                                        # there were none to reject.  Gate at the single
+                                        # read site — the writes are spread across the
+                                        # gate and are easy to miss one of.
+                                        output_rails_early_reject=(
+                                            spec_stats.get("output_rails_early_reject")
+                                            if self._has_streaming_output_rails
+                                            else None
+                                        ),
                                         output_rails_speculation_chunks=spec_stats.get(
                                             "output_rails_speculation_chunks"
                                         ),
@@ -1158,22 +1234,27 @@ class IORails(BaseGuardrails):
         input_enabled: Union[bool, list[str]] = True,
         tool_input_enabled: Union[bool, list[str]] = True,
         spec_stats: Optional[dict] = None,
-    ):
+    ) -> tuple[Union[RailResult, _RailFailure], str]:
         """Concurrent input-safety check for speculative streaming (SG2).
 
-        Runs tool-result rails then input rails, returning ``(RailResult, param)``
+        Runs tool-result rails then input rails, returning ``(verdict, param)``
         for the first failing rail (or the safe input result).  ``param``
-        identifies the rail family for the client-facing violation payload
-        (``tool_input_rails`` vs ``input_rails``), matching the non-speculative
-        path.  Runs as its own task so LLM generation can stream concurrently
-        during the speculation window.  Records its wall-clock duration into
-        ``spec_stats['rails_duration_ms']`` for telemetry.
+        identifies the rail family (``tool_input_rails`` vs ``input_rails``),
+        matching the non-speculative path.  Runs as its own task so LLM
+        generation can stream concurrently during the speculation window.
+        Records its wall-clock duration into ``spec_stats['rails_duration_ms']``.
 
-        Unexpected exceptions from either safety check fail closed: they are
-        converted into an unsafe ``RailResult`` so ``_gate_on_input`` surfaces a
-        structured violation payload instead of crashing the stream, mirroring
-        the non-speculative ``_generation_task`` error contract.  ``CancelledError``
-        is not caught, so the gate can still cancel this task on short-circuit.
+        Unexpected exceptions are wrapped in ``_RailFailure`` rather than
+        returned as an unsafe ``RailResult``: an infrastructure failure is not a
+        policy decision, so the gate must be able to tell them apart and emit a
+        ``generation_error`` payload (plus error metrics and a span ERROR)
+        instead of a ``content_blocked`` violation.  The exception is not
+        re-raised because ``stream_async`` is an async generator — by this point
+        the server has already committed a ``200 OK``, so a raise would truncate
+        the SSE stream instead of delivering a structured error.  This matches
+        ``_generation_task``, the non-speculative streaming path.
+        ``CancelledError`` is not caught, so the gate can still cancel this task
+        on short-circuit.
         """
         req_id = get_request_id()
         t0 = time.monotonic()
@@ -1182,14 +1263,14 @@ class IORails(BaseGuardrails):
                 tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
             except Exception as e:
                 log.error("[%s] Speculative tool-result rails failed: %s", req_id, e, exc_info=True)
-                return RailResult(is_safe=False, reason=f"tool input rails error: {e}"), "tool_input_rails"
+                return _RailFailure(e), "tool_input_rails"
             if not tool_result.is_safe:
                 return tool_result, "tool_input_rails"
             try:
                 input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
             except Exception as e:
                 log.error("[%s] Speculative input rails failed: %s", req_id, e, exc_info=True)
-                return RailResult(is_safe=False, reason=f"input rails error: {e}"), "input_rails"
+                return _RailFailure(e), "input_rails"
             return input_result, "input_rails"
         finally:
             if spec_stats is not None:
@@ -1214,12 +1295,17 @@ class IORails(BaseGuardrails):
         early reject / generation error surfaced as an error chunk) the held
         buffer is discarded and a refusal / the error payload is emitted.
 
+        A rail that *raises* is reported separately from a rail that *rejects*:
+        the input task returns a ``_RailFailure`` and the gate emits a
+        ``generation_error`` payload rather than a ``guardrails_violation``, so
+        callers and metrics can tell an outage from a refusal.
+
         Cancellation (SG2): on input reject the generation task is torn down by
         the caller's ``finally``; on an output-rails early reject the still-
         running input rails task is cancelled here so the request aborts before
         the input verdict arrives.
 
-        When the held buffer reaches ``speculative_max_buffered_tokens`` the gate
+        When the held buffer reaches ``speculative_max_buffered_chunks`` the gate
         stops consuming the base iterator and blocks on the input verdict, forcing
         an early resolve (release on pass, teardown on reject).  This bounds only
         the release buffer — the background generation task keeps producing into
@@ -1256,6 +1342,22 @@ class IORails(BaseGuardrails):
                 include_metadata,
             )
 
+        def _mark_rail_error(exc):
+            """A rail raised: report an infrastructure failure, not a refusal.
+
+            ``first_rejector`` stays ``none`` because nothing rejected the
+            request — matching the generation-error branch above.  The exception
+            is stashed for the caller's ``finally``, which owns ``request_span``
+            and records the error metric and span status there.
+            """
+            spec_stats["rail_error"] = exc
+            spec_stats["first_completed"] = input_rails
+            spec_stats["first_rejector"] = none_value
+            spec_stats["cancellation_event"] = GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION
+            spec_stats["output_rails_wasted_chunks"] = len(held)
+            spec_stats["safe"] = False
+            return _frame_for_stream(self._generation_error_payload(str(exc)), include_metadata)
+
         def _mark_release(first_completed):
             spec_stats["first_completed"] = first_completed
             spec_stats["safe"] = True
@@ -1276,16 +1378,7 @@ class IORails(BaseGuardrails):
                 # forward the payload.  Held (validated-but-unreleased) chunks are
                 # discarded — the request is being refused.
                 if _is_stream_error_chunk(chunk):
-                    text = chunk.get("text") if isinstance(chunk, dict) else chunk
-                    is_output_violation = False
-                    if isinstance(text, str):
-                        try:
-                            parsed = json.loads(text)
-                            is_output_violation = (
-                                isinstance(parsed, dict) and parsed.get("error", {}).get("param") == "output_rails"
-                            )
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+                    is_output_violation = _stream_error_field(chunk, "param") == "output_rails"
                     if not input_task.done():
                         input_task.cancel()
                     if is_output_violation:
@@ -1312,7 +1405,7 @@ class IORails(BaseGuardrails):
                 if input_task.done():
                     input_result, input_param = input_task.result()
                     first_completed = input_rails
-                elif len(held) >= self._speculative_max_buffered_tokens:
+                elif len(held) >= self._speculative_max_buffered_chunks:
                     # Release buffer full — stop consuming the base iterator and block
                     # for the verdict (release on pass, teardown on reject).  This bounds
                     # `held`, not the upstream stream queue: the generation task keeps
@@ -1325,6 +1418,13 @@ class IORails(BaseGuardrails):
                 else:
                     # Still speculating — keep holding.
                     continue
+
+                if isinstance(input_result, _RailFailure):
+                    log.error("[%s] Input rails failed (speculative streaming)", req_id)
+                    error_chunk = _mark_rail_error(input_result.exc)
+                    held.clear()
+                    yield error_chunk
+                    return
 
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked (speculative streaming): %s", req_id, input_result.reason)
@@ -1351,6 +1451,12 @@ class IORails(BaseGuardrails):
             # flush the held buffer or refuse.
             if not released:
                 input_result, input_param = await input_task
+                if isinstance(input_result, _RailFailure):
+                    log.error("[%s] Input rails failed (speculative streaming, gen-first)", req_id)
+                    error_chunk = _mark_rail_error(input_result.exc)
+                    held.clear()
+                    yield error_chunk
+                    return
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked (speculative streaming, gen-first): %s", req_id, input_result.reason)
                     if self._metrics_enabled:
@@ -1416,13 +1522,9 @@ class IORails(BaseGuardrails):
             # If the batch contains a generation error from _generation_task,
             # yield it directly and stop — don't feed error JSON through output rails.
             for chunk in user_output_chunks:
-                try:
-                    parsed = json.loads(chunk)
-                    if isinstance(parsed, dict) and parsed.get("error", {}).get("type") == _GENERATION_ERROR_TYPE:
-                        yield chunk
-                        return
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                if _stream_error_field(chunk, "type") == _GENERATION_ERROR_TYPE:
+                    yield chunk
+                    return
 
             if stream_first:
                 for chunk in user_output_chunks:

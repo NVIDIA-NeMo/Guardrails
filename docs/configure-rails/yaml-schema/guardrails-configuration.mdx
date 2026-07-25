@@ -382,9 +382,35 @@ While the input-rail verdict is still pending (the *speculation window*), valida
     - **Input rails reject:** discard the held buffer, abort the generation, and return the refusal message. No tokens are leaked.
     - **Output rails reject during the speculation window:** return the refusal early and cancel the still-running input rails — the request is refused before the input verdict is known.
 
-Streaming speculation only supports check-first behavior. If `rails.output.streaming.stream_first` is `True`, it is overridden to check-first for speculative requests and a warning is emitted.
+Streaming speculation only supports check-first behavior. If `rails.output.streaming.stream_first` is `True`, it is overridden to check-first for speculative requests, and a warning is logged at engine startup.
 
-The awaiting-release buffer is bounded by `rails.input.speculative_max_buffered_tokens` (default `4096`, counted in chunks). The buffer fills when the input rails are slower than the main LLM plus output rails, so validated chunks accumulate while the input verdict is still pending. When the bound is reached, the engine pauses speculative processing and waits for the input verdict before buffering more validated chunks (releasing on pass, tearing down on reject). This caps the release buffer only — the main LLM continues generating into the internal stream buffer — so total speculative memory is bounded by the model's finite output and the input-rail latency, not by stopping the backend.
+If the main LLM fails during the speculation window, any chunks already held in the buffer are discarded along with the request. Without speculation those chunks would have reached the client before the failure.
+
+If an input rail *raises* rather than rejecting — for example the safety model is unreachable — the request fails with a `generation_error` payload rather than a `guardrails_violation`, and increments the errors counter rather than the blocked counter. An outage and a refusal are reported as different things.
+
+<Warning title="Speculation without output rails">
+    Streaming speculation also runs when no output rails are configured. In that case there is nothing to validate tokens during the speculation window, so raw model tokens are held in the buffer and released once the input rails pass. The client receives no tokens at all until the input verdict, then receives the held tokens at once — expect a pause followed by a burst rather than a smooth stream. Responses on this path are **not** output-rail validated.
+</Warning>
+
+#### Tuning the Release Buffer
+
+The awaiting-release buffer is bounded by `rails.input.speculative_max_buffered_chunks` (default `4096`).
+
+The buffer only grows while the input rails are still pending — that is the speculation window. Once the verdict arrives, the buffer is flushed (on pass) or discarded (on reject) and the stream becomes a pass-through. So its size is simply how much the model produced while the input rails were still working:
+
+| Input-rail latency | Held at ~50 tokens/sec |
+| --- | --- |
+| 361 ms | ~20 chunks |
+| 5 s | ~250 chunks |
+| 80 s | ~4096 chunks (the default bound) |
+
+At the default the bound is effectively unreachable: a request would time out long before the buffer fills.
+
+Lowering the value makes the engine stop consuming and wait for the input verdict sooner. With a slow input rail, the client stream pauses at the bound and resumes when the verdict arrives — you trade stream smoothness for a smaller held buffer.
+
+<Note>
+    This setting does **not** cap total memory. While the gate waits, the main LLM keeps generating into the internal stream buffer, which applies no backpressure to the model. Resident memory is bounded by the maximum response length multiplied by the number of concurrent streams (up to 256), not by this value. Size hosts from expected response length and concurrency rather than from this setting.
+</Note>
 
 ### Configuration Example
 

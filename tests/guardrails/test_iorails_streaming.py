@@ -17,7 +17,7 @@
 
 import asyncio
 import json
-import warnings
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -77,10 +77,7 @@ _INPUT_ONLY_SPECULATIVE_CONFIG = {
     },
 }
 
-_SPECULATIVE_STREAM_FIRST_WARNING = (
-    "speculative_generation with stream_first=True is not supported for streaming; "
-    "forcing check-first behavior for this request"
-)
+_SPECULATIVE_STREAM_FIRST_LOG = "speculative_generation with stream_first=True is not supported for streaming"
 
 
 def _make_speculative_streaming_config(*, stream_first: bool = False) -> dict:
@@ -207,32 +204,44 @@ class TestStreamAsyncValidation:
         assert len(chunks) > 0
 
     @pytest.mark.asyncio
-    async def test_speculative_streaming_runs_no_warning_for_input_only(self):
-        """Speculative streaming now runs for streaming requests (no fallback warning)."""
+    async def test_speculative_streaming_runs_for_input_only(self):
+        """Speculative streaming runs for streaming requests, with no check-first override.
+
+        An input-only config has no output rails, so ``stream_first`` is moot and
+        the startup override must not engage.
+        """
         async with started_iorails(_INPUT_ONLY_SPECULATIVE_CONFIG) as iorails:
             _wire_mocks(iorails)
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                chunks = await _collect(iorails.stream_async(messages=[{"role": "user", "content": "hi"}]))
+            chunks = await _collect(iorails.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
-        # Speculation produced streamed content and emitted no stream_first warning
-        # (input-only config has no output rails, so check-first override is moot).
         assert "".join(c for c in chunks if isinstance(c, str)) == "Hello from the streaming LLM! Have a nice day"
-        assert not [w for w in caught if str(w.message) == _SPECULATIVE_STREAM_FIRST_WARNING]
+        assert iorails._speculative_forces_check_first is False
 
-    @pytest.mark.asyncio
-    async def test_speculative_stream_first_warns_and_forces_check_first(self):
-        """speculative_generation + stream_first=True warns once and forces check-first."""
-        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-            iorails = IORails(RailsConfig.from_content(config=_make_speculative_streaming_config(stream_first=True)))
+    def test_speculative_stream_first_logs_at_startup_and_forces_check_first(self, caplog):
+        """speculative_generation + stream_first=True logs once at construction.
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("default")
-            for _ in range(2):
-                iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
+        Emitted via ``log.warning`` rather than ``warnings.warn``: the latter never
+        reaches the logger, so an operator tailing logs would never see it. Logging
+        at construction also surfaces the misconfiguration at startup instead of
+        only once traffic arrives.
+        """
+        iorails_logger = logging.getLogger("nemoguardrails.guardrails.iorails")
+        original_propagate = iorails_logger.propagate
+        iorails_logger.addHandler(caplog.handler)
+        iorails_logger.propagate = False
+        try:
+            with caplog.at_level(logging.WARNING):
+                with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                    iorails = IORails(
+                        RailsConfig.from_content(config=_make_speculative_streaming_config(stream_first=True))
+                    )
+        finally:
+            iorails_logger.removeHandler(caplog.handler)
+            iorails_logger.propagate = original_propagate
 
-        matching = [w for w in caught if str(w.message) == _SPECULATIVE_STREAM_FIRST_WARNING]
+        matching = [r for r in caplog.records if _SPECULATIVE_STREAM_FIRST_LOG in r.message]
         assert len(matching) == 1
+        assert iorails._speculative_forces_check_first is True
 
     @pytest.mark.asyncio
     async def test_tools_in_llm_params_forwarded_on_stream_async(self, iorails_input_only):
