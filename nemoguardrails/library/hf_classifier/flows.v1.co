@@ -25,6 +25,8 @@ define subflow hf classifier check retrieval
   $response = execute hf_classifier_check_retrieval(classifier=$classifier)
 
   if $response.is_transform
-    # FIX: Added global declaration to propagate the change to calling context
-    global $relevant_chunks
-    $relevant_chunks = $response.transform_text["relevant_chunks"]
+    # Return the transformed chunks as the subflow result
+    return $response.transform_text["relevant_chunks"]
+  else
+    # If no transform, return whatever was passed in (or None)
+    return $relevant_chunks
