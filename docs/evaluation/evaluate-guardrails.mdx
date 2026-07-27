@@ -40,7 +40,7 @@ Thus, when using dialog rails evaluation, we are assessing the performance for:
 The CLI command for evaluating the dialog rails is:
 
 ```bash
-nemoguardrails evaluate topical --config=<rails_app_path> --verbose
+nemoguardrails eval rail topical --config=<rails_app_path> --verbose
 ```
 
 A dialog rails evaluation has the following CLI parameters:
@@ -160,7 +160,7 @@ Please see the [AlignScore Integration](/configure-guardrails/guardrail-catalog/
 To run the fact-checking rail, you can use the following CLI command:
 
 ```bash
-nemoguardrails evaluate fact-checking --config=path/to/guardrails/config
+nemoguardrails eval rail fact-checking --config=path/to/guardrails/config
 ```
 
 Here is a list of arguments that you can use to configure the fact-checking rail:
@@ -223,7 +223,7 @@ For more details, consult the [LLM Self-Check](/configure-guardrails/guardrail-c
 The jailbreak and output moderation can be evaluated using the following CLI command:
 
 ```bash
-nemoguardrails evaluate moderation --config=path/to/guardrails/config
+nemoguardrails eval rail moderation --config=path/to/guardrails/config
 ```
 
 The various arguments that can be passed to evaluate the moderation rails are
@@ -238,11 +238,11 @@ The various arguments that can be passed to evaluate the moderation rails are
 
 It is also possible to evaluate each of the rails individually. To evaluate the input rail only, use the following command:
 
-`nemoguardrails evaluate moderation --check-output False --config=path/to/guardrails/config`
+`nemoguardrails eval rail moderation --check-output False --config=path/to/guardrails/config`
 
 To evaluate the output moderation rail only, use the following command:
 
-`nemoguardrails evaluate moderation --check-input False --config=path/to/guardrails/config`
+`nemoguardrails eval rail moderation --check-input False --config=path/to/guardrails/config`
 
 More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/moderation/README.md).
 
@@ -326,7 +326,7 @@ For more details, consult the [LLM Self-Check](/configure-guardrails/guardrail-c
 To run the hallucination rail, use the following CLI command:
 
 ```bash
-nemoguardrails evaluate hallucination --config=path/to/guardrails/config
+nemoguardrails eval rail hallucination --config=path/to/guardrails/config
 ```
 
 Here is a list of arguments that you can use to configure the hallucination rail:
@@ -339,7 +339,7 @@ Here is a list of arguments that you can use to configure the hallucination rail
 
 To evaluate the hallucination rail on your own dataset, you can follow the create a text file with the list of questions and run the evaluation using the following command
 
-`nemoguardrails evaluate hallucination --dataset-path <path-to-your-text-file>`
+`nemoguardrails eval rail hallucination --dataset-path <path-to-your-text-file>`
 
 #### Evaluation Results
 
