@@ -591,7 +591,11 @@ async def test_streaming_error_handling():
     assert "error" in error_data
     assert "message" in error_data["error"]
     assert "The model `non-existent-model` does not exist" in error_data["error"]["message"]
-    assert error_data["error"]["type"] == "invalid_request_error"
+    # `type` is an internal stream marker, not the provider's category: the
+    # streaming pipeline uses it to recognize its own terminal error frames, so
+    # it must not be settable from provider- or model-controlled text. The
+    # provider's own code still rides along in `code`.
+    assert error_data["error"]["type"] == "generation_error"
     assert error_data["error"]["code"] == "model_not_found"
 
     # Wait for proper cleanup, otherwise we get a Runtime Error

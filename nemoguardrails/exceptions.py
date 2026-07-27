@@ -98,6 +98,13 @@ class LLMCallException(Exception):
         detail: Optional[str] = None,
         status: Optional[int] = None,
     ):
+        """Initialize LLMCallException.
+
+        Args:
+            inner_exception: The original exception that occurred
+            detail: Optional context to prepend (for example, the model name or endpoint)
+            status: Optional upstream HTTP status carried by the inner exception
+        """
         if detail:
             message = f"{detail}: {inner_exception}"
         else:

@@ -131,22 +131,97 @@ def build_error_payload(
     status: Optional[int] = None,
     error_type: Optional[str] = None,
     code: Union[str, int, None] = None,
+    param: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Single source of truth for the OpenAI error envelope.
 
     Always sanitizes the message. ``type`` defaults to the OpenAI category for
-    ``status``; ``code`` stays null unless the caller supplies one (the
-    streaming paths pass the status/marker here because an SSE response has no
-    HTTP status line to carry it).
+    ``status``; ``code`` and ``param`` stay null unless the caller supplies them
+    (the streaming paths pass the status/marker as ``code`` because an SSE
+    response has no HTTP status line to carry it, and the rail-violation path
+    passes the blocking rail family as ``param``).
     """
     return {
         "error": {
             "message": _sanitize(message),
             "type": error_type or _error_type_for_status(status),
-            "param": None,
+            "param": param,
             "code": code,
         }
     }
+
+
+# Internal stream error markers. A chunk only counts as a terminal error frame
+# when its ``type`` is one of these, so model-generated content that merely
+# looks like an OpenAI error object cannot truncate a stream or skip output
+# rails. ``downstream_error`` carries an upstream HTTP status;
+# ``generation_error`` is a status-less generation failure;
+# ``guardrails_violation`` is emitted when a rail blocks.
+GENERATION_ERROR_TYPE = "generation_error"
+DOWNSTREAM_ERROR_TYPE = "downstream_error"
+GUARDRAILS_VIOLATION_TYPE = "guardrails_violation"
+
+STREAM_ERROR_TYPES = frozenset(
+    {
+        GENERATION_ERROR_TYPE,
+        DOWNSTREAM_ERROR_TYPE,
+        GUARDRAILS_VIOLATION_TYPE,
+    }
+)
+
+
+def as_client_error(exception: BaseException) -> Optional[LLMClientError]:
+    """Return the underlying :class:`LLMClientError`, unwrapping ``LLMCallException``."""
+    inner = getattr(exception, "inner_exception", None)
+    if isinstance(inner, LLMClientError):
+        return inner
+    if isinstance(exception, LLMClientError):
+        return exception
+    return None
+
+
+def client_facing_message(exception: BaseException) -> str:
+    """The message to show an API caller for a provider failure.
+
+    Prefers ``LLMClientError.error_message`` over ``str(exception)``: the latter
+    is prefixed with the internal rail model, provider, and endpoint, which must
+    not be disclosed to the caller.
+    """
+    client_error = as_client_error(exception)
+    return client_error.error_message if client_error is not None else str(exception)
+
+
+def build_streaming_error_payload(exception: BaseException) -> str:
+    """Build the JSON error chunk pushed into a stream when generation fails.
+
+    Shared by both streaming backends so they emit the same envelope. A carried
+    HTTP status marks a downstream failure; otherwise any provider-supplied
+    ``type``/``code`` recovered from the message is preserved, falling back to
+    the generation markers. The ``type`` is always one of
+    :data:`STREAM_ERROR_TYPES` so the terminal-chunk detector recognizes it.
+    """
+    from nemoguardrails.utils import extract_error_json
+
+    status = getattr(exception, "status", None)
+    raw_message = client_facing_message(exception)
+    extracted = extract_error_json(raw_message)
+    inner = extracted.get("error") if isinstance(extracted, dict) else None
+
+    if isinstance(inner, dict):
+        message = inner.get("message") or raw_message
+        provider_code = inner.get("code")
+    else:
+        message = inner if isinstance(inner, str) and inner else raw_message
+        provider_code = None
+
+    if status is not None:
+        error_type = DOWNSTREAM_ERROR_TYPE
+        code: Union[str, int, None] = status
+    else:
+        error_type = GENERATION_ERROR_TYPE
+        code = provider_code if provider_code is not None else "generation_failed"
+
+    return json.dumps(build_error_payload(message, status=status, error_type=error_type, code=code))
 
 
 def _parse_retry_after_value(value: Any) -> Optional[float]:

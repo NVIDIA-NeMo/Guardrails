@@ -105,10 +105,18 @@ paths:
               examples:
                 missingConfig:
                   value:
-                    detail: No guardrails config_id provided and server has no default configuration
+                    error:
+                      message: No guardrails config_id provided and server has no default configuration
+                      type: invalid_request_error
+                      param: null
+                      code: null
                 unsupportedColangState:
                   value:
-                    detail: Stateful continuation over HTTP is not supported for Colang 2.0.
+                    error:
+                      message: Stateful continuation over HTTP is not supported for Colang 2.0.
+                      type: invalid_request_error
+                      param: null
+                      code: null
   /v1/models:
     get:
       operationId: listModels
@@ -519,10 +527,35 @@ components:
           description: Guardrails configuration ID.
     ErrorResponse:
       type: object
+      description: |
+        OpenAI-compatible error envelope. Every error response from the server
+        uses this shape, so an OpenAI SDK raises the matching APIStatusError
+        subclass.
+      required:
+        - error
       properties:
-        detail:
-          description: Error detail.
-          oneOf:
-            - type: string
-            - type: object
-              additionalProperties: true
+        error:
+          type: object
+          required:
+            - message
+            - type
+          properties:
+            message:
+              type: string
+              description: Human-readable error message, with secrets and upstream URLs redacted.
+            type:
+              type: string
+              description: |
+                OpenAI error category, derived from the HTTP status
+                (for example `invalid_request_error`, `authentication_error`,
+                `permission_error`, `rate_limit_error`, `server_error`).
+            param:
+              type: string
+              nullable: true
+              description: The request field the error relates to, when known.
+            code:
+              nullable: true
+              description: Provider-supplied error code, when the upstream provider sent one.
+              oneOf:
+                - type: string
+                - type: integer

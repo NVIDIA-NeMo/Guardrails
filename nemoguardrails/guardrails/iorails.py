@@ -62,7 +62,12 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
-from nemoguardrails.llm.clients._errors import build_error_payload
+from nemoguardrails.llm.clients._errors import (
+    GUARDRAILS_VIOLATION_TYPE,
+    STREAM_ERROR_TYPES,
+    build_error_payload,
+    build_streaming_error_payload,
+)
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
@@ -101,18 +106,19 @@ NONSTREAM_MAX_CONCURRENCY = 256
 # semaphore).
 STREAM_MAX_CONCURRENCY = 256
 
-# Error type used by _generation_task when pushing error JSON into the stream
-_GENERATION_ERROR_TYPE = "generation_error"
-
 
 def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
     """True when a streamed chunk is an error/violation payload.
 
-    Covers both the ``generation_error`` payload pushed on a generation failure
-    and the ``guardrails_violation`` payload emitted when output rails block.
-    Handles plain-string chunks and the ``{"text": ...}`` frames produced when
-    ``include_metadata=True``. The cheap ``"error"`` substring guard keeps the
-    per-chunk hot path from JSON-parsing ordinary text tokens.
+    Covers the ``generation_error`` / ``downstream_error`` payloads pushed on a
+    generation failure and the ``guardrails_violation`` payload emitted when
+    rails block. Handles plain-string chunks and the ``{"text": ...}`` frames
+    produced when ``include_metadata=True``. The cheap ``"error"`` substring
+    guard keeps the per-chunk hot path from JSON-parsing ordinary text tokens.
+
+    The ``type`` must be one of the internal markers in ``STREAM_ERROR_TYPES``:
+    matching any object that merely has an ``error`` key would let model output
+    that looks like an OpenAI error truncate the stream and skip output rails.
     """
     text = chunk.get("text") if isinstance(chunk, dict) else chunk
     if not isinstance(text, str) or '"error"' not in text:
@@ -121,7 +127,10 @@ def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
         parsed = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         return False
-    return isinstance(parsed, dict) and "error" in parsed
+    if not isinstance(parsed, dict):
+        return False
+    error_obj = parsed.get("error")
+    return isinstance(error_obj, dict) and error_obj.get("type") in STREAM_ERROR_TYPES
 
 
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
@@ -840,16 +849,18 @@ class IORails(BaseGuardrails):
         ``guardrails_violation`` / ``content_blocked`` shape; ``param`` distinguishes which
         rail family blocked (``input_rails`` / ``tool_input_rails`` / ``tool_output_rails`` /
         ``output_rails``).
+
+        Routed through ``build_error_payload`` so the block reason is sanitized:
+        a rail that fails against an internal endpoint puts that URL in its
+        reason, and this payload goes straight to the client.
         """
         return json.dumps(
-            {
-                "error": {
-                    "message": message,
-                    "type": "guardrails_violation",
-                    "param": param,
-                    "code": "content_blocked",
-                }
-            }
+            build_error_payload(
+                message,
+                error_type=GUARDRAILS_VIOLATION_TYPE,
+                param=param,
+                code="content_blocked",
+            )
         )
 
     async def _do_generate(
@@ -1436,15 +1447,7 @@ class IORails(BaseGuardrails):
                 # streaming path.
                 if self._metrics_enabled:
                     record_request_error(e)
-                status = getattr(e, "status", None)
-                error_payload = json.dumps(
-                    build_error_payload(
-                        str(e),
-                        status=status,
-                        error_type="downstream_error" if status is not None else _GENERATION_ERROR_TYPE,
-                        code=status if status is not None else "generation_failed",
-                    )
-                )
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
@@ -1624,14 +1627,9 @@ class IORails(BaseGuardrails):
             # If the batch contains an error chunk (generation or downstream HTTP),
             # yield it directly and stop — don't feed error JSON through output rails.
             for chunk in user_output_chunks:
-                try:
-                    parsed = json.loads(chunk)
-                    error_obj = parsed.get("error") if isinstance(parsed, dict) else None
-                    if isinstance(error_obj, dict) and "message" in error_obj:
-                        yield chunk
-                        return
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                if _is_stream_error_chunk(chunk):
+                    yield chunk
+                    return
 
             if stream_first:
                 for chunk in user_output_chunks:

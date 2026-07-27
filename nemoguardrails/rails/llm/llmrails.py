@@ -75,7 +75,7 @@ from nemoguardrails.exceptions import (
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
-from nemoguardrails.llm.clients._errors import build_error_payload
+from nemoguardrails.llm.clients._errors import build_streaming_error_payload
 from nemoguardrails.llm.models.initializer import (
     ModelInitializationError,
     init_llm_model,
@@ -106,7 +106,6 @@ from nemoguardrails.rails.llm.utils import (
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import (
-    extract_error_json,
     get_or_create_event_loop,
     new_event_dict,
     new_uuid,
@@ -1066,9 +1065,12 @@ class LLMRails(BaseGuardrails):
                 log.error("Error in generate_async: %s", e, exc_info=True)
                 streaming_handler = streaming_handler_var.get()
                 if streaming_handler:
-                    error_payload: str = _build_streaming_error_payload(e)
+                    # Push an error chunk instead of None.
+                    error_payload: str = build_streaming_error_payload(e)
                     await streaming_handler.push_chunk(error_payload)
+                    # push a termination signal
                     await streaming_handler.push_chunk(END_OF_STREAM)
+                # Re-raise the exact exception
                 raise
         else:
             # In generation mode, by default the bot response is an instant action.
@@ -1432,8 +1434,10 @@ class LLMRails(BaseGuardrails):
                     state=state,
                 )
             except Exception as e:
+                # If an exception occurs during generation, push it to the streaming handler as a json string
+                # This ensures the streaming pipeline is properly terminated
                 log.error(f"Error in generation task: {e}", exc_info=True)
-                error_payload = _build_streaming_error_payload(e)
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)
 
@@ -2129,35 +2133,3 @@ def _get_last_response_content(response: "GenerationResponse") -> str:
     if isinstance(response.response, str):
         return response.response
     return ""
-
-
-def _build_streaming_error_payload(e: Exception) -> str:
-    """Build a JSON error payload for SSE streaming from an exception.
-
-    Normalizes all error shapes from extract_error_json into the
-    {"error": {"message", "type", "code"}} format that iorails.py
-    expects for error chunk detection.
-    """
-    status = getattr(e, "status", None)
-    extracted = extract_error_json(str(e))
-    inner = extracted.get("error") if isinstance(extracted, dict) else None
-
-    if isinstance(inner, dict):
-        message = inner.get("message") or str(e)
-        provider_type = inner.get("type")
-        provider_code = inner.get("code")
-    else:
-        message = inner if isinstance(inner, str) and inner else str(e)
-        provider_type = None
-        provider_code = None
-
-    # A carried HTTP status marks a downstream failure; otherwise preserve any
-    # provider-supplied type/code and fall back to the generation markers.
-    if status is not None:
-        error_type = "downstream_error"
-        code = status
-    else:
-        error_type = provider_type or "generation_error"
-        code = provider_code if provider_code is not None else "generation_failed"
-
-    return json.dumps(build_error_payload(message, status=status, error_type=error_type, code=code))

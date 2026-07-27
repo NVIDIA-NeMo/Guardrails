@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Optional, Union
+from typing import Any, AsyncIterator, Callable, List, Literal, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -35,7 +35,7 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
-from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.exceptions import InvalidStateError, LLMCallException, StreamingNotSupportedError
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.llm.models.initializer import ModelInitializationError
@@ -43,6 +43,7 @@ from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.exception_handlers import (
+    bad_request_error_handler,
     http_exception_handler,
     internal_error_handler,
     llm_call_exception_handler,
@@ -213,6 +214,8 @@ _EXCEPTION_HANDLERS = (
     (ModelEngineError, llm_call_exception_handler),
     (APIEngineError, llm_call_exception_handler),
     (ModelInitializationError, model_initialization_error_handler),
+    (StreamingNotSupportedError, bad_request_error_handler),
+    (InvalidStateError, bad_request_error_handler),
     (RequestValidationError, validation_error_handler),
     (StarletteHTTPException, http_exception_handler),
     (Exception, internal_error_handler),
@@ -451,12 +454,22 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
 
 class ChunkErrorMetadata(BaseModel):
     message: str
-    type: Optional[str] = None
+    # Only the internal stream markers count as a terminal error frame; see
+    # ChunkError below.
+    type: Literal["generation_error", "downstream_error", "guardrails_violation"]
     param: Optional[str] = None
     code: Union[str, int, None] = None
 
 
 class ChunkError(BaseModel):
+    """A terminal error frame pushed into the stream by the guardrails runtime.
+
+    ``type`` is restricted to the internal markers so that model output which
+    merely looks like an OpenAI error object is streamed on as ordinary content
+    rather than ending the stream. Without output rails nothing else inspects a
+    chunk before it reaches ``process_chunk``, so this is the last gate.
+    """
+
     error: ChunkErrorMetadata
 
 
@@ -597,110 +610,106 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             ),
         )
 
-    try:
-        messages = body.messages or []
-        if body.guardrails.context:
-            messages.insert(0, {"role": "context", "content": body.guardrails.context})
+    messages = body.messages or []
+    if body.guardrails.context:
+        messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-        # If we have a `thread_id` specified, we need to look up the thread
-        datastore_key = None
+    # If we have a `thread_id` specified, we need to look up the thread
+    datastore_key = None
 
-        if body.guardrails.thread_id:
-            if datastore is None:
-                raise RuntimeError("No DataStore has been configured.")
-            # We make sure the `thread_id` meets the minimum complexity requirement.
-            if len(body.guardrails.thread_id) < 16:
-                raise HTTPException(
-                    status_code=422,
-                    detail="The `thread_id` must have a minimum length of 16 characters.",
-                )
-
-            # Fetch the existing thread messages. For easier management, we prepend
-            # the string `thread-` to all thread keys.
-            datastore_key = "thread-" + body.guardrails.thread_id
-            thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
-            warn_if_thread_history_invalid_for_tool_use(thread_messages)
-
-            # And prepend them.
-            messages = thread_messages + messages
-
-        generation_options = body.guardrails.options
-
-        # Initialize llm_params if not already set
-        if generation_options.llm_params is None:
-            generation_options.llm_params = {}
-
-        # Set OpenAI-compatible parameters in llm_params
-        if body.max_tokens:
-            generation_options.llm_params["max_tokens"] = body.max_tokens
-        if body.temperature is not None:
-            generation_options.llm_params["temperature"] = body.temperature
-        if body.top_p is not None:
-            generation_options.llm_params["top_p"] = body.top_p
-        if body.stop:
-            generation_options.llm_params["stop"] = body.stop
-        if body.presence_penalty is not None:
-            generation_options.llm_params["presence_penalty"] = body.presence_penalty
-        if body.frequency_penalty is not None:
-            generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
-        if body.tools is not None:
-            generation_options.llm_params["tools"] = body.tools
-        if body.tool_choice is not None:
-            generation_options.llm_params["tool_choice"] = body.tool_choice
-        if body.parallel_tool_calls is not None:
-            generation_options.llm_params["parallel_tool_calls"] = body.parallel_tool_calls
-
-        if body.stream:
-            # Use stream_async for streaming with output rails support
-            stream_iterator = llm_rails.stream_async(
-                messages=messages,
-                options=generation_options,
-                state=body.guardrails.state,
+    if body.guardrails.thread_id:
+        if datastore is None:
+            raise RuntimeError("No DataStore has been configured.")
+        # We make sure the `thread_id` meets the minimum complexity requirement.
+        if len(body.guardrails.thread_id) < 16:
+            raise HTTPException(
+                status_code=422,
+                detail="The `thread_id` must have a minimum length of 16 characters.",
             )
 
-            return StreamingResponse(
-                _format_streaming_response(stream_iterator, model_name=body.model),
-                media_type="text/event-stream",
+        # Fetch the existing thread messages. For easier management, we prepend
+        # the string `thread-` to all thread keys.
+        datastore_key = "thread-" + body.guardrails.thread_id
+        thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
+        warn_if_thread_history_invalid_for_tool_use(thread_messages)
+
+        # And prepend them.
+        messages = thread_messages + messages
+
+    generation_options = body.guardrails.options
+
+    # Initialize llm_params if not already set
+    if generation_options.llm_params is None:
+        generation_options.llm_params = {}
+
+    # Set OpenAI-compatible parameters in llm_params
+    if body.max_tokens:
+        generation_options.llm_params["max_tokens"] = body.max_tokens
+    if body.temperature is not None:
+        generation_options.llm_params["temperature"] = body.temperature
+    if body.top_p is not None:
+        generation_options.llm_params["top_p"] = body.top_p
+    if body.stop:
+        generation_options.llm_params["stop"] = body.stop
+    if body.presence_penalty is not None:
+        generation_options.llm_params["presence_penalty"] = body.presence_penalty
+    if body.frequency_penalty is not None:
+        generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
+    if body.tools is not None:
+        generation_options.llm_params["tools"] = body.tools
+    if body.tool_choice is not None:
+        generation_options.llm_params["tool_choice"] = body.tool_choice
+    if body.parallel_tool_calls is not None:
+        generation_options.llm_params["parallel_tool_calls"] = body.parallel_tool_calls
+
+    if body.stream:
+        # Use stream_async for streaming with output rails support
+        stream_iterator = llm_rails.stream_async(
+            messages=messages,
+            options=generation_options,
+            state=body.guardrails.state,
+        )
+
+        return StreamingResponse(
+            _format_streaming_response(stream_iterator, model_name=body.model),
+            media_type="text/event-stream",
+        )
+    else:
+        res = await llm_rails.generate_async(
+            messages=messages,
+            options=generation_options,
+            state=body.guardrails.state,
+        )
+
+        # Extract bot message for thread storage if needed
+        bot_message = extract_bot_message_from_response(res)
+
+        # If we're using threads, we also need to update the data before returning
+        # the message.
+        if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
+            # If using tool calls, we need to normalize them to OpenAI format before storing.
+            response_tool_calls = res.tool_calls if isinstance(res, GenerationResponse) else None
+            tool_calls_for_storage = resolve_tool_calls(bot_message, response_tool_calls)
+            if tool_calls_for_storage:
+                normalized = [tc.model_dump() for tc in normalize_tool_calls_openai(tool_calls_for_storage)]
+                storable_message = {**bot_message, "tool_calls": normalized}
+            else:
+                storable_message = bot_message
+            await datastore.set(datastore_key, json.dumps(messages + [storable_message]))
+
+        # Build the response with OpenAI-compatible format using utility function
+        if isinstance(res, GenerationResponse):
+            return generation_response_to_chat_completion(
+                response=res,
+                model=body.model,
+                config_id=config_ids[0] if config_ids else None,
             )
         else:
-            res = await llm_rails.generate_async(
-                messages=messages,
-                options=generation_options,
-                state=body.guardrails.state,
+            return bot_message_to_chat_completion(
+                bot_message=bot_message,
+                model=body.model,
+                config_id=config_ids[0] if config_ids else None,
             )
-
-            # Extract bot message for thread storage if needed
-            bot_message = extract_bot_message_from_response(res)
-
-            # If we're using threads, we also need to update the data before returning
-            # the message.
-            if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
-                # If using tool calls, we need to normalize them to OpenAI format before storing.
-                response_tool_calls = res.tool_calls if isinstance(res, GenerationResponse) else None
-                tool_calls_for_storage = resolve_tool_calls(bot_message, response_tool_calls)
-                if tool_calls_for_storage:
-                    normalized = [tc.model_dump() for tc in normalize_tool_calls_openai(tool_calls_for_storage)]
-                    storable_message = {**bot_message, "tool_calls": normalized}
-                else:
-                    storable_message = bot_message
-                await datastore.set(datastore_key, json.dumps(messages + [storable_message]))
-
-            # Build the response with OpenAI-compatible format using utility function
-            if isinstance(res, GenerationResponse):
-                return generation_response_to_chat_completion(
-                    response=res,
-                    model=body.model,
-                    config_id=config_ids[0] if config_ids else None,
-                )
-            else:
-                return bot_message_to_chat_completion(
-                    bot_message=bot_message,
-                    model=body.model,
-                    config_id=config_ids[0] if config_ids else None,
-                )
-
-    except HTTPException:
-        raise
 
 
 def _map_rail_status(status: RailStatus) -> str:
@@ -741,24 +750,17 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
             detail="check_async does not support Colang 2.0 configurations.",
         )
 
-    try:
-        messages = list(body.messages)
-        if body.guardrails.context:
-            messages.insert(0, {"role": "context", "content": body.guardrails.context})
+    messages = list(body.messages)
+    if body.guardrails.context:
+        messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-        result = await llm_rails.check_async(messages=messages)
+    result = await llm_rails.check_async(messages=messages)
 
-        return GuardrailCheckResponse(
-            status=_map_rail_status(result.status),
-            content=result.content,
-            rail=result.rail,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as ex:
-        log.exception(ex)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return GuardrailCheckResponse(
+        status=_map_rail_status(result.status),
+        content=result.content,
+        rail=result.rail,
+    )
 
 
 # By default, there are no challenges
