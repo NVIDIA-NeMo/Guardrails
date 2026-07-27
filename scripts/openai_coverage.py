@@ -139,7 +139,7 @@ def analyze(
     changes = [
         {k: v for k, v in entry.items() if k not in ("baseSource", "revisionSource", "fingerprint")}
         for entry in (changelog if isinstance(changelog, list) else [])
-        if entry.get("section") in ("paths", "components")
+        if entry.get("section") == "paths"
     ]
     changes.sort(key=lambda e: (e.get("path", ""), e.get("operation", ""), e.get("text", "")))
 
