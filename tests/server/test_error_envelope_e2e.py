@@ -271,7 +271,14 @@ class TestUpstreamStatusPassthrough:
             url=MAIN_MODEL_URL,
             method="POST",
             status_code=429,
-            json={"error": {"message": "slow down", "type": "rate_limit_error", "code": "rate_limit_exceeded"}},
+            json={
+                "error": {
+                    "message": "slow down",
+                    "type": "rate_limit_error",
+                    "code": "rate_limit_exceeded",
+                    "param": "messages",
+                }
+            },
             headers={"retry-after": "7"},
             is_reusable=True,
         )
@@ -281,6 +288,7 @@ class TestUpstreamStatusPassthrough:
         assert response.status_code == 429
         assert response.headers["retry-after"] == "7"
         assert response.json()["error"]["code"] == "rate_limit_exceeded"
+        assert response.json()["error"]["param"] == "messages"
 
     def test_message_does_not_disclose_model_or_provider(self, httpx_mock: HTTPXMock, serve_config):
         """``str(LLMClientError)`` prefixes the internal model, provider, and endpoint.
