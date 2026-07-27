@@ -120,9 +120,11 @@ def build_llm_model_resources(
     models: Sequence[Model],
     *,
     main: LLMModel | None = None,
-    initializer: ModelInitializer = init_llm_model,
+    initializer: ModelInitializer | None = None,
     decorator: ModelDecorator | None = None,
 ) -> LLMModelResources:
+    if initializer is None:
+        initializer = init_llm_model
     configured_models = list(models)
     models_to_check = [model for model in configured_models if model.type != "main"] if main else configured_models
     check_langchain_kwargs(models_to_check, get_default_framework())

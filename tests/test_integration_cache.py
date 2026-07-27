@@ -23,7 +23,7 @@ from tests.utils import FakeLLMModel
 
 
 @pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+@patch("nemoguardrails.llm.models.resources.init_llm_model")
 async def test_end_to_end_cache_integration_with_content_safety(mock_init_llm_model):
     mock_llm = FakeLLMModel(responses=["express greeting"])
     mock_init_llm_model.return_value = mock_llm
@@ -70,7 +70,7 @@ async def test_end_to_end_cache_integration_with_content_safety(mock_init_llm_mo
 
 
 @pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+@patch("nemoguardrails.llm.models.resources.init_llm_model")
 async def test_cache_isolation_between_models(mock_init_llm_model):
     mock_llm = FakeLLMModel(responses=["safe"])
     mock_init_llm_model.return_value = mock_llm
@@ -118,7 +118,7 @@ async def test_cache_isolation_between_models(mock_init_llm_model):
 
 
 @pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+@patch("nemoguardrails.llm.models.resources.init_llm_model")
 async def test_cache_disabled_for_main_model_in_integration(mock_init_llm_model):
     mock_llm = FakeLLMModel(responses=["safe"])
     mock_init_llm_model.return_value = mock_llm
