@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
@@ -34,6 +34,7 @@ from nemoguardrails.llm.clients._errors import (
     as_client_error,
     build_error_payload,
     client_facing_message,
+    normalize_error_status,
 )
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 
@@ -55,19 +56,6 @@ def _error_response(
         content=build_error_payload(message, status=status_code, error_type=error_type, code=code, param=param),
         headers=headers,
     )
-
-
-def _client_status(status: Any) -> int:
-    """Clamp an upstream status to a valid error status for our own response.
-
-    A provider exception can carry a non-error status (``APIEngineError`` uses
-    the response status when a 2xx body fails to parse as JSON), and returning
-    that verbatim would send an error envelope under a 2xx/3xx status line,
-    which OpenAI-compatible clients parse as a success body.
-    """
-    if isinstance(status, int) and 400 <= status < 600:
-        return status
-    return 500
 
 
 def _client_error_details(exc: BaseException) -> tuple[str, Union[str, int, None], Optional[str], Dict[str, str]]:
@@ -93,7 +81,7 @@ async def llm_call_exception_handler(
 ) -> Response:
     """Map LLM and engine call failures to their upstream HTTP status."""
     log.exception(exc)
-    status = _client_status(getattr(exc, "status", None))
+    status = normalize_error_status(getattr(exc, "status", None))
     message, code, param, headers = _client_error_details(exc)
     return _error_response(status, message, code=code, param=param, headers=headers or None)
 

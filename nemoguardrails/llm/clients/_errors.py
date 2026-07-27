@@ -125,6 +125,12 @@ def _error_type_for_status(status_code: Optional[int]) -> str:
     return "api_error"
 
 
+def normalize_error_status(status: Any) -> int:
+    if isinstance(status, int) and 400 <= status < 600:
+        return status
+    return 500
+
+
 def build_error_payload(
     message: str,
     *,
@@ -215,6 +221,7 @@ def build_streaming_error_payload(exception: BaseException) -> str:
         provider_code = None
 
     if status is not None:
+        status = normalize_error_status(status)
         error_type = DOWNSTREAM_ERROR_TYPE
         code: Union[str, int, None] = status
     else:

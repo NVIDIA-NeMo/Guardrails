@@ -467,6 +467,18 @@ class TestStreamingErrorFrames:
         assert error["code"] == 503
         assert error["message"] == "overloaded"
 
+    def test_non_error_upstream_status_is_clamped_in_error_frame(self, serve_config):
+        serve_config(RAIL_CONFIG, iorails=True)
+
+        with aioresponses() as mocked:
+            mocked.post(RAIL_ENDPOINT, status=200, body="not json", content_type="text/plain", repeat=True)
+            response = _chat(stream=True)
+
+        assert response.status_code == 200
+        error = _sse_payloads(response)[0]["error"]
+        assert error["type"] == "downstream_error"
+        assert error["code"] == 500
+
     def test_error_frame_does_not_disclose_model_provider_or_endpoint(self, httpx_mock: HTTPXMock, serve_config):
         serve_config(MAIN_MODEL_CONFIG)
         httpx_mock.add_response(
