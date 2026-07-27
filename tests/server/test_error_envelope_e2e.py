@@ -168,11 +168,13 @@ def reset_server_state():
     try:
         with TestClient(api.app, raise_server_exceptions=False) as client:
             _active_client = client
-            yield
-            assert client.portal is not None
-            for rails in api.llm_rails_instances.values():
-                if isinstance(rails, Guardrails):
-                    client.portal.call(rails.shutdown)
+            try:
+                yield
+            finally:
+                assert client.portal is not None
+                for rails in api.llm_rails_instances.values():
+                    if isinstance(rails, Guardrails):
+                        client.portal.call(rails.shutdown)
     finally:
         _active_client = None
         api.llm_rails_instances.clear()
