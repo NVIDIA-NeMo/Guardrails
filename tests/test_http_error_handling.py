@@ -27,6 +27,7 @@ import pytest
 
 pytest.importorskip("openai", reason="openai is required for these tests")
 
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from nemoguardrails.actions.llm.utils import _extract_http_status, _raise_llm_call_exception
@@ -283,6 +284,42 @@ class TestAPIErrorPropagation:
         error = response.json()["error"]
         assert error["message"] == "Internal server error"
         assert error["type"] == "server_error"
+
+    def test_generic_exception_preserves_cors_headers(self):
+        original_middleware = api.app.user_middleware
+        original_middleware_stack = api.app.middleware_stack
+        api.app.user_middleware = list(original_middleware)
+        api.app.middleware_stack = None
+        api.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["https://client.example"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        client = TestClient(api.app, raise_server_exceptions=False)
+
+        try:
+            mock_rails = AsyncMock()
+            mock_rails.generate_async.side_effect = RuntimeError("unexpected")
+            with patch(
+                "nemoguardrails.server.api._get_rails",
+                new_callable=AsyncMock,
+                return_value=mock_rails,
+            ):
+                response = client.post(
+                    "/v1/chat/completions",
+                    json=_REQUEST,
+                    headers={"Origin": "https://client.example"},
+                )
+        finally:
+            client.close()
+            api.app.user_middleware = original_middleware
+            api.app.middleware_stack = original_middleware_stack
+
+        assert response.status_code == 500
+        assert response.headers["access-control-allow-origin"] == "https://client.example"
+        assert response.json()["error"]["message"] == "Internal server error"
 
     def test_happy_path_returns_200(self):
         response = _post(return_value={"role": "assistant", "content": "Hello!"})

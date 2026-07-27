@@ -31,6 +31,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
@@ -220,6 +221,8 @@ for _exc_type, _handler in _EXCEPTION_HANDLERS:
     # Handlers are typed with their specific exception; Starlette's stub expects
     # (Request, Exception), so ty flags the narrower signature as a false positive.
     app.add_exception_handler(_exc_type, _handler)  # ty: ignore[invalid-argument-type]
+
+app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_handler})
 
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
 ALLOWED_ORIGINS = os.getenv("NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS", "*")
