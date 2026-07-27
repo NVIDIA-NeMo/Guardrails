@@ -373,7 +373,7 @@ class TestProtocolLevelResponses:
         assert "POST" in response.headers["allow"]
         assert response.json()["error"]["message"] == "Method Not Allowed"
 
-    def test_validation_error_does_not_echo_the_request_body(self, serve_config):
+    def test_validation_error_does_not_echo_the_request_body(self, serve_config, caplog):
         """``str(RequestValidationError)`` embeds the raw body; the envelope must not.
 
         The body here carries a credential-shaped value and PII that would be
@@ -394,6 +394,16 @@ class TestProtocolLevelResponses:
         # The failing field is still identified, so a client can act on it.
         assert "model" in error["message"]
         assert error["param"] == "model"
+        validation_logs = [
+            record.getMessage()
+            for record in caplog.records
+            if record.name == "nemoguardrails.server.exception_handlers"
+            and record.getMessage().startswith("Request validation failed:")
+        ]
+        assert validation_logs
+        assert "model" in validation_logs[0]
+        assert "AKIAsecret" not in caplog.text
+        assert "123-45-6789" not in caplog.text
 
     def test_unknown_config_id_is_a_client_error(self, monkeypatch):
         """A config that cannot be loaded is the caller's mistake, not a server fault."""
