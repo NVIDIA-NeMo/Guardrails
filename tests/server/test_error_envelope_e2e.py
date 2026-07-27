@@ -154,17 +154,30 @@ def non_mocked_hosts():
     return ["testserver"]
 
 
+_active_client = None
+
+
 @pytest.fixture(autouse=True)
 def reset_server_state():
     """Clear the per-config rails cache and force multi-config mode around each test."""
+    global _active_client
     original_single_config_mode = api.app.single_config_mode
     api.app.single_config_mode = False
     api.llm_rails_instances.clear()
     api.llm_rails_events_history_cache.clear()
-    yield
-    api.llm_rails_instances.clear()
-    api.llm_rails_events_history_cache.clear()
-    api.app.single_config_mode = original_single_config_mode
+    try:
+        with TestClient(api.app, raise_server_exceptions=False) as client:
+            _active_client = client
+            yield
+            assert client.portal is not None
+            for rails in api.llm_rails_instances.values():
+                if isinstance(rails, Guardrails):
+                    client.portal.call(rails.shutdown)
+    finally:
+        _active_client = None
+        api.llm_rails_instances.clear()
+        api.llm_rails_events_history_cache.clear()
+        api.app.single_config_mode = original_single_config_mode
 
 
 @pytest.fixture
@@ -185,7 +198,8 @@ def serve_config(monkeypatch):
 
 
 def _client() -> TestClient:
-    return TestClient(api.app, raise_server_exceptions=False)
+    assert _active_client is not None
+    return _active_client
 
 
 def _chat(stream: bool = False, **body):
