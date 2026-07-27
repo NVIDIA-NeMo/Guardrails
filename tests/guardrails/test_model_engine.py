@@ -17,6 +17,7 @@
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -684,6 +685,101 @@ class TestModelEngineCall:
 
         with pytest.raises(ModelEngineError, match="has not been started"):
             await engine.call([{"role": "user", "content": "Hi"}])
+
+
+class TestModelEngineDefaultHeaders:
+    """Test that config-level parameters.default_headers reach outbound requests."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _headers_from(mock_client):
+        """Extract the headers dict passed to the mocked post()."""
+        return mock_client.post.call_args[1]["headers"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_headers_merged_into_request(self):
+        """A configured default_header is sent alongside Content-Type and Authorization."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_header_overrides_authorization_case_insensitive(self):
+        """A configured 'authorization' header replaces the api_key-derived Authorization."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"authorization": "Bearer custom"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        auth_keys = [key for key in headers if key.lower() == "authorization"]
+        assert auth_keys == ["authorization"]
+        assert headers["authorization"] == "Bearer custom"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_headers_absent_from_body(self):
+        """default_headers configure transport, never the JSON request body."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        body = engine._client.post.call_args[1]["json"]
+        assert "default_headers" not in body
+        assert "X-Tenant" not in body
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_no_config_default_headers_leaves_base_headers(self):
+        """Without default_headers the request carries only the base headers."""
+        engine = ModelEngine(_make_model())
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        assert headers == {"Content-Type": "application/json", "Authorization": "Bearer test-key"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_config_default_header_values_coerced_to_str(self):
+        """Non-string YAML header values (int, bool) are stored as strings."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Count": 3, "X-Flag": True}}))
+        assert engine.default_headers["X-Count"] == "3"
+        assert engine.default_headers["X-Flag"] == "True"
+        assert all(isinstance(value, str) for value in engine.default_headers.values())
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_default_headers_mapping_is_immutable(self):
+        """default_headers is a read-only mapping so callers cannot mutate shared per-engine state."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        headers: Any = engine.default_headers
+        with pytest.raises(TypeError):
+            headers["X-Injected"] = "nope"
 
 
 class TestModelEngineStreamCall:

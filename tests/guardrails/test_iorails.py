@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
@@ -66,6 +68,138 @@ class TestIORailsInit:
     def test_rails_manager_uses_engine_registry(self, iorails_sync):
         """RailsManager receives the same EngineRegistry instance."""
         assert iorails_sync.rails_manager.engine_registry is iorails_sync.engine_registry
+
+
+DEFAULT_HEADERS_CONFIG = {
+    "models": [
+        {
+            "type": "main",
+            "engine": "nim",
+            "model": "meta/llama-3.3-70b-instruct",
+            "parameters": {"default_headers": {"X-Main-Route": "main-pool"}},
+        },
+        {
+            "type": "content_safety",
+            "engine": "nim",
+            "model": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+            "parameters": {"default_headers": {"X-Safety-Route": "safety-pool"}},
+        },
+    ],
+}
+
+
+@pytest_asyncio.fixture
+async def iorails_with_header_config():
+    """Build an IORails whose main and content_safety models carry distinct
+    parameters.default_headers, for end-to-end per-model header assertions."""
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=DEFAULT_HEADERS_CONFIG))
+    try:
+        yield iorails
+    finally:
+        await iorails.stop()
+
+
+class TestConfigDefaultHeadersEndToEnd:
+    """End-to-end: IORails built from config routes each model's
+    parameters.default_headers onto that model's outbound request, and the
+    main LLM and a second LLM carry only their own headers."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records its call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    async def _headers_for_model(self, iorails, model_type):
+        """Route a model_call for model_type through a mock client and return the sent headers."""
+        engine = iorails.engine_registry._get_engine(model_type, ModelEngine)
+        engine._client = self._mock_client()
+        engine._running = True
+        await iorails.engine_registry.model_call(model_type, [{"role": "user", "content": "Hi"}])
+        return engine._client.post.call_args[1]["headers"]
+
+    @pytest.mark.asyncio
+    async def test_main_llm_carries_only_its_config_headers(self, iorails_with_header_config):
+        """The main model request carries its own default_header plus base headers, and not the second model's."""
+        headers = await self._headers_for_model(iorails_with_header_config, "main")
+        assert headers["X-Main-Route"] == "main-pool"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+        assert "X-Safety-Route" not in headers
+
+    @pytest.mark.asyncio
+    async def test_second_llm_carries_only_its_config_headers(self, iorails_with_header_config):
+        """The content_safety model request carries its own default_header plus base headers, and not the main model's."""
+        headers = await self._headers_for_model(iorails_with_header_config, "content_safety")
+        assert headers["X-Safety-Route"] == "safety-pool"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+        assert "X-Main-Route" not in headers
+
+    @pytest.mark.asyncio
+    async def test_main_and_second_llm_get_distinct_headers(self, iorails_with_header_config):
+        """The two models' outbound header sets differ, proving per-model routing."""
+        main_headers = await self._headers_for_model(iorails_with_header_config, "main")
+        safety_headers = await self._headers_for_model(iorails_with_header_config, "content_safety")
+        assert main_headers != safety_headers
+        assert main_headers.get("X-Main-Route") == "main-pool"
+        assert safety_headers.get("X-Safety-Route") == "safety-pool"
+
+
+class TestConfigDefaultHeadersOverHTTP:
+    """True end-to-end: run generate_async over a real loopback HTTP server and
+    assert on the headers the aiohttp client actually put on the wire."""
+
+    @pytest.mark.asyncio
+    async def test_config_default_headers_sent_on_the_wire(self):
+        """A configured default_header reaches the provider request, alongside the
+        api-key Authorization, and never leaks into the JSON body."""
+        captured: dict = {}
+
+        async def handler(request):
+            captured["headers"] = dict(request.headers)
+            captured["body"] = await request.json()
+            return web.json_response({"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+        app = web.Application()
+        app.router.add_post("/v1/chat/completions", handler)
+        server = TestServer(app)
+        await server.start_server()
+        try:
+            config = RailsConfig.from_content(
+                config={
+                    "models": [
+                        {
+                            "type": "main",
+                            "engine": "openai",
+                            "model": "test-model",
+                            "parameters": {
+                                "base_url": str(server.make_url("/")),
+                                "default_headers": {"X-Tenant": "acme"},
+                            },
+                        }
+                    ]
+                }
+            )
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                iorails = IORails(config)
+            async with iorails:
+                result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+        finally:
+            await server.close()
+
+        assert result == {"role": "assistant", "content": "ok"}
+        assert captured["headers"]["X-Tenant"] == "acme"
+        assert captured["headers"]["Authorization"] == "Bearer test-key"
+        assert "X-Tenant" not in captured["body"]
 
 
 class TestGenerateAsync:
