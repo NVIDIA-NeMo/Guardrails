@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
-from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
+from nemoguardrails.guardrails.guardrails_types import get_http_headers, get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.telemetry import (
     api_call_span,
@@ -188,6 +188,11 @@ class EngineRegistry:
         (one observation each for ``input`` and ``output`` token types,
         only when ``LLMResponse.usage`` is populated).
 
+        The request's inference-time HTTP headers are read here from the
+        request-scoped ContextVar and passed to the engine as an explicit
+        ``http_headers`` argument — deliberately not folded into
+        ``merged_params``, which becomes the request body.
+
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
@@ -219,7 +224,7 @@ class EngineRegistry:
             # they land on the span even if the call raises.
             set_llm_request_attributes(span, merged_params)
             with duration_ctx:
-                result = await engine.chat_completion(messages, **merged_params)
+                result = await engine.chat_completion(messages, http_headers=get_http_headers(), **merged_params)
             # Set response/usage and content attrs inside the span context so
             # the helpers see the live LLM CLIENT span and the attributes land
             # before it closes.  Both are skipped on exception, which never
@@ -320,7 +325,9 @@ class EngineRegistry:
                 # — it's never read in that branch.
                 t0 = time.monotonic() if self._metrics_enabled else 0.0
                 last_chunk_time: Optional[float] = None
-                async for chunk in engine.stream_chat_completion(messages, **merged_params):
+                async for chunk in engine.stream_chat_completion(
+                    messages, http_headers=get_http_headers(), **merged_params
+                ):
                     if self._metrics_enabled:
                         # Per OTEL semconv, "first chunk" / "output chunk"
                         # mean content-bearing chunks — gate on
@@ -420,6 +427,10 @@ class EngineRegistry:
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Route an API request to the named API engine.
 
+        Like ``model_call``, the request's inference-time HTTP headers are read
+        from the request-scoped ContextVar and passed as an explicit
+        ``http_headers`` argument rather than merged into the request body.
+
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not an APIEngine.
@@ -429,7 +440,7 @@ class EngineRegistry:
 
         with api_call_span(self._tracer, api_name):
             api_engine = self._get_engine(api_name, APIEngine)
-            response = await api_engine.call(message, **kwargs)
+            response = await api_engine.call(message, http_headers=get_http_headers(), **kwargs)
 
         log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
         return response

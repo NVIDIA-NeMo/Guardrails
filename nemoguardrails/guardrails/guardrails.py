@@ -23,6 +23,7 @@ LLM responses with programmable guardrails.
 
 import logging
 import warnings
+from collections.abc import Mapping
 from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Union, cast
 
 from typing_extensions import Self
@@ -191,11 +192,19 @@ class Guardrails(BaseGuardrails):
         prompt: str | None = None,
         messages: LLMMessages | None = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
+        http_headers: Optional[Mapping[str, Any]] = None,
         **kwargs,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied.
         Supported in both IORails and LLMRails
         """
+        if isinstance(self.rails_engine, IORails):
+            return self.rails_engine.generate(
+                prompt=prompt, messages=messages, options=options, http_headers=http_headers, **kwargs
+            )
+
+        if http_headers is not None:
+            raise NotImplementedError("LLMRails doesn't support inference-time HTTP headers in generate()")
         return self.rails_engine.generate(prompt=prompt, messages=messages, options=options, **kwargs)
 
     async def generate_async(
@@ -203,6 +212,7 @@ class Guardrails(BaseGuardrails):
         prompt: str | None = None,
         messages: LLMMessages | None = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
+        http_headers: Optional[Mapping[str, Any]] = None,
         **kwargs,
     ) -> str | dict | GenerationResponse | tuple[dict, dict]:
         """Generate an LLM response asynchronously with guardrails applied.
@@ -210,6 +220,13 @@ class Guardrails(BaseGuardrails):
         """
         await self._ensure_started()
 
+        if isinstance(self.rails_engine, IORails):
+            return await self.rails_engine.generate_async(
+                prompt=prompt, messages=messages, options=options, http_headers=http_headers, **kwargs
+            )
+
+        if http_headers is not None:
+            raise NotImplementedError("LLMRails doesn't support inference-time HTTP headers in generate_async()")
         return await self.rails_engine.generate_async(prompt=prompt, messages=messages, options=options, **kwargs)
 
     def stream_async(
@@ -226,8 +243,8 @@ class Guardrails(BaseGuardrails):
                 yield chunk
 
         if isinstance(self.rails_engine, IORails):
-            # IORails.stream_async() only accepts messages, options, include_metadata
-            unsupported = set(kwargs) - {"options", "include_metadata"}
+            # IORails.stream_async() only accepts messages, options, include_metadata, http_headers
+            unsupported = set(kwargs) - {"options", "include_metadata", "http_headers"}
             if unsupported:
                 log.warning("IORails stream_async: ignoring unsupported kwargs: %s", unsupported)
             return _with_startup(
@@ -235,8 +252,12 @@ class Guardrails(BaseGuardrails):
                     messages=stream_messages,
                     options=kwargs.get("options"),
                     include_metadata=kwargs.get("include_metadata", False),
+                    http_headers=kwargs.get("http_headers"),
                 )
             )
+
+        if kwargs.pop("http_headers", None) is not None:
+            raise NotImplementedError("LLMRails doesn't support inference-time HTTP headers in stream_async()")
 
         llmrails = cast(LLMRails, self.rails_engine)
         return _with_startup(llmrails.stream_async(messages=stream_messages, **kwargs))

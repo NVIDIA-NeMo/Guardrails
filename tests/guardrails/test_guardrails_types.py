@@ -15,7 +15,19 @@
 
 """Unit tests for guardrails_types module."""
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages, RailResult, truncate
+import contextvars
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from nemoguardrails.guardrails.guardrails_types import (
+    LLMMessage,
+    LLMMessages,
+    RailResult,
+    get_http_headers,
+    request_http_headers,
+    truncate,
+)
 
 
 class TestRailResult:
@@ -123,3 +135,76 @@ class TestTypeAliases:
         ]
         assert isinstance(msgs, list)
         assert all(isinstance(m, dict) for m in msgs)
+
+
+class TestRequestHttpHeaders:
+    """Tests for the request-scoped inference-time HTTP header ContextVar."""
+
+    def test_defaults_to_none_outside_a_request(self):
+        """Without an active request scope there are no inference-time headers."""
+        assert get_http_headers() is None
+
+    def test_headers_visible_inside_scope(self):
+        """Headers bound by the context manager are readable for the duration of the scope."""
+        with request_http_headers({"X-Tenant": "acme"}):
+            assert get_http_headers() == {"X-Tenant": "acme"}
+
+    def test_headers_cleared_after_scope(self):
+        """Leaving the scope restores the previous (absent) value so headers don't leak between requests."""
+        with request_http_headers({"X-Tenant": "acme"}):
+            pass
+        assert get_http_headers() is None
+
+    def test_headers_cleared_when_scope_raises(self):
+        """A failing request still resets the ContextVar."""
+        with pytest.raises(RuntimeError):
+            with request_http_headers({"X-Tenant": "acme"}):
+                raise RuntimeError("request failed")
+        assert get_http_headers() is None
+
+    def test_none_binds_none(self):
+        """Passing None binds None rather than an empty dict."""
+        with request_http_headers(None):
+            assert get_http_headers() is None
+
+    def test_empty_mapping_binds_empty_dict(self):
+        """An empty mapping is preserved as an empty dict, distinct from None."""
+        with request_http_headers({}):
+            assert get_http_headers() == {}
+
+    def test_values_coerced_to_str(self):
+        """Non-string names and values are coerced, matching config default_headers handling."""
+        with request_http_headers({"X-Count": 3, "X-Flag": True}):
+            headers = get_http_headers()
+        assert headers == {"X-Count": "3", "X-Flag": "True"}
+
+    def test_bound_headers_do_not_alias_the_caller_mapping(self):
+        """The bound headers are a copy, so later caller mutation cannot change the request's headers."""
+        caller_headers = {"X-Tenant": "acme"}
+        with request_http_headers(caller_headers):
+            caller_headers["X-Tenant"] = "other"
+            assert get_http_headers() == {"X-Tenant": "acme"}
+
+    def test_nested_scope_restores_outer_headers(self):
+        """An inner scope shadows the outer headers and restores them on exit."""
+        with request_http_headers({"X-Tenant": "outer"}):
+            with request_http_headers({"X-Tenant": "inner"}):
+                assert get_http_headers() == {"X-Tenant": "inner"}
+            assert get_http_headers() == {"X-Tenant": "outer"}
+
+    def test_reset_from_a_different_context_is_tolerated(self):
+        """Exiting the scope from another context, as async-generator teardown does, does not raise."""
+        scope = request_http_headers({"X-Tenant": "acme"})
+        contextvars.Context().run(scope.__enter__)
+
+        scope.__exit__(None, None, None)
+
+    def test_unexpected_reset_error_is_reraised(self):
+        """A reset failure other than the cross-context one surfaces instead of being swallowed."""
+        fake_var = MagicMock()
+        fake_var.reset.side_effect = ValueError("boom")
+
+        with patch("nemoguardrails.guardrails.guardrails_types._http_headers_var", fake_var):
+            with pytest.raises(ValueError, match="boom"):
+                with request_http_headers({"X-Tenant": "acme"}):
+                    pass

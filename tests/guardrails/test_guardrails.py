@@ -178,12 +178,17 @@ class TestGuardrailsRouting:
             with pytest.raises(NotImplementedError, match="IORails doesn't support update_llm()"):
                 guardrails.update_llm(mock_new_llm)
 
-            guardrails.rails_engine.generate.assert_called_once_with(prompt=None, messages=messages, options=None)
-            guardrails.rails_engine.generate_async.assert_called_once_with(prompt=None, messages=messages, options=None)
+            guardrails.rails_engine.generate.assert_called_once_with(
+                prompt=None, messages=messages, options=None, http_headers=None
+            )
+            guardrails.rails_engine.generate_async.assert_called_once_with(
+                prompt=None, messages=messages, options=None, http_headers=None
+            )
             guardrails.rails_engine.stream_async.assert_called_once_with(
                 messages=messages,
                 options=None,
                 include_metadata=False,
+                http_headers=None,
             )
 
     @pytest.mark.asyncio
@@ -1230,6 +1235,7 @@ class TestStreamAsyncIORails:
                 messages=[{"role": "user", "content": "hi"}],
                 options=None,
                 include_metadata=False,
+                http_headers=None,
             )
 
     @pytest.mark.asyncio
@@ -1260,6 +1266,7 @@ class TestStreamAsyncIORails:
                 messages=[{"role": "user", "content": "hi"}],
                 options=opts,
                 include_metadata=True,
+                http_headers=None,
             )
 
     @pytest.mark.asyncio
@@ -1294,6 +1301,7 @@ class TestStreamAsyncIORails:
                 messages=[{"role": "user", "content": "hi"}],
                 options=None,
                 include_metadata=False,
+                http_headers=None,
             )
 
     @pytest.mark.asyncio
@@ -1318,6 +1326,7 @@ class TestStreamAsyncIORails:
                 messages=[{"role": "user", "content": "hello"}],
                 options=None,
                 include_metadata=False,
+                http_headers=None,
             )
 
 
@@ -2010,3 +2019,138 @@ class TestOptionsForwarding:
 
             assert guardrails.rails_engine.generate.call_args.kwargs["options"] is options
             assert guardrails.rails_engine.generate_async.call_args.kwargs["options"] is options
+
+
+class TestHttpHeadersForwarding:
+    """The facade forwards per-request ``http_headers`` to IORails and rejects
+    them on the LLMRails fallback, which has no inference-time header support."""
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_generate_forwards_headers_to_iorails(
+        self, mock_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
+        """The sync generate passes http_headers straight through to IORails."""
+        headers = {"X-Tenant": "acme"}
+        messages = [{"role": "user", "content": "hi"}]
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            engine = _iorails_engine(guardrails)
+            engine.generate = MagicMock(return_value="ok")
+
+            guardrails.generate(messages=messages, http_headers=headers)
+
+            assert engine.generate.call_args.kwargs["http_headers"] is headers
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_generate_async_forwards_headers_to_iorails(
+        self, mock_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
+        """The async generate passes http_headers straight through to IORails."""
+        headers = {"X-Tenant": "acme"}
+        messages = [{"role": "user", "content": "hi"}]
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            engine = _iorails_engine(guardrails)
+            engine.generate_async = AsyncMock(return_value="ok")
+
+            await guardrails.generate_async(messages=messages, http_headers=headers)
+
+            assert engine.generate_async.call_args.kwargs["http_headers"] is headers
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_stream_async_forwards_headers_to_iorails(
+        self, mock_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
+        """http_headers is a supported stream_async kwarg and reaches IORails."""
+        headers = {"X-Tenant": "acme"}
+
+        async def mock_stream():
+            yield "ok"
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            engine = _iorails_engine(guardrails)
+            engine.stream_async = MagicMock(return_value=mock_stream())
+
+            with patch("nemoguardrails.guardrails.guardrails.log") as mock_log:
+                async for _ in guardrails.stream_async(
+                    messages=[{"role": "user", "content": "hi"}], http_headers=headers
+                ):
+                    pass
+
+                mock_log.warning.assert_not_called()
+
+            assert engine.stream_async.call_args.kwargs["http_headers"] is headers
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_generate_rejects_headers_on_llmrails(self, _mock_init, _content_safety_rails_config):
+        """The sync generate raises rather than silently dropping headers on the LLMRails fallback."""
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=False) as guardrails:
+            guardrails.rails_engine.generate = MagicMock(return_value="ok")
+
+            with pytest.raises(
+                NotImplementedError, match=r"LLMRails doesn't support inference-time HTTP headers in generate\(\)"
+            ):
+                guardrails.generate(messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"})
+
+            guardrails.rails_engine.generate.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_generate_async_rejects_headers_on_llmrails(self, _mock_init, _content_safety_rails_config):
+        """The async generate raises rather than silently dropping headers on the LLMRails fallback."""
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=False) as guardrails:
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="ok")
+
+            with pytest.raises(
+                NotImplementedError,
+                match=r"LLMRails doesn't support inference-time HTTP headers in generate_async\(\)",
+            ):
+                await guardrails.generate_async(
+                    messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+                )
+
+            guardrails.rails_engine.generate_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_stream_async_rejects_headers_on_llmrails(self, _mock_init, _content_safety_rails_config):
+        """Streaming raises on the LLMRails fallback before the engine is reached."""
+
+        async def mock_stream():
+            yield "ok"
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=False) as guardrails:
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+            with pytest.raises(
+                NotImplementedError,
+                match=r"LLMRails doesn't support inference-time HTTP headers in stream_async\(\)",
+            ):
+                guardrails.stream_async(messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"})
+
+            guardrails.rails_engine.stream_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_llmrails_unaffected_without_headers(self, _mock_init, _content_safety_rails_config):
+        """Omitting http_headers leaves the LLMRails path exactly as before."""
+        messages = [{"role": "user", "content": "hi"}]
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=False) as guardrails:
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="ok")
+
+            assert await guardrails.generate_async(messages=messages) == "ok"
+
+            guardrails.rails_engine.generate_async.assert_awaited_once_with(
+                prompt=None, messages=messages, options=None
+            )

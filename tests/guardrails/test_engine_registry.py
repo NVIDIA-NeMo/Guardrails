@@ -29,6 +29,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
+from nemoguardrails.guardrails.guardrails_types import request_http_headers
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -330,7 +331,7 @@ class TestEngineRegistryGenerateAsync:
 
         result = await manager.model_call("main", messages)
         assert result is expected
-        engine.chat_completion.assert_called_once_with(messages)
+        engine.chat_completion.assert_called_once_with(messages, http_headers=None)
 
     @pytest.mark.asyncio
     async def test_passes_kwargs_to_engine(self, manager):
@@ -600,7 +601,8 @@ class TestEngineRegistryParameterDefaults:
     @pytest.mark.asyncio
     async def test_model_call_excludes_non_body_keys(self, span_exporter):
         """Transport (base_url/timeout) and streaming-control (stream) keys in
-        parameters never reach the request body; only the sampling param does."""
+        parameters never reach the request body; only the sampling param does,
+        alongside the explicit transport-only http_headers argument."""
         tracer, _ = span_exporter
         registry = _registry_with_main_params(
             {"base_url": "https://custom.example.com", "timeout": 5, "stream": True, "temperature": 0.5},
@@ -612,7 +614,7 @@ class TestEngineRegistryParameterDefaults:
         await registry.model_call("main", [{"role": "user", "content": "hi"}])
 
         body = engine.chat_completion.call_args[1]
-        assert body == {"temperature": 0.5}
+        assert body == {"temperature": 0.5, "http_headers": None}
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -893,7 +895,7 @@ class TestEngineRegistryApiCall:
         result = await manager.api_call("jailbreak_detection", {"input": "hello"})
 
         assert result == mock_response
-        api_engine.call.assert_called_once_with({"input": "hello"})
+        api_engine.call.assert_called_once_with({"input": "hello"}, http_headers=None)
 
     @pytest.mark.asyncio
     async def test_passes_kwargs_to_api_engine(self, manager):
@@ -903,13 +905,102 @@ class TestEngineRegistryApiCall:
 
         await manager.api_call("jailbreak_detection", {"input": "test"}, extra_param="value")
 
-        api_engine.call.assert_called_once_with({"input": "test"}, extra_param="value")
+        api_engine.call.assert_called_once_with({"input": "test"}, http_headers=None, extra_param="value")
 
     @pytest.mark.asyncio
     async def test_raises_key_error_for_unknown_api_name(self, manager):
         """Raises KeyError when the API engine name doesn't exist."""
         with pytest.raises(KeyError):
             await manager.api_call("nonexistent", {"input": "test"})
+
+
+class TestEngineRegistryInferenceHeaders:
+    """The registry is the single choke point that reads the request-scoped
+    inference-time HTTP headers and forwards them to the engines as an explicit
+    transport argument, never as a request-body field."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_forwards_request_headers(self, manager):
+        """model_call passes the bound headers to chat_completion as http_headers."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        with request_http_headers({"X-Tenant": "acme"}):
+            await manager.model_call("main", [{"role": "user", "content": "hi"}])
+
+        assert engine.chat_completion.call_args[1]["http_headers"] == {"X-Tenant": "acme"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_forwards_none_without_a_bound_scope(self, manager):
+        """Outside a request scope the engine is told there are no per-request headers."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await manager.model_call("main", [{"role": "user", "content": "hi"}])
+
+        assert engine.chat_completion.call_args[1]["http_headers"] is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_model_call_headers_reach_every_configured_model(self, manager):
+        """The same bound headers broadcast to a rail model, not just the main one."""
+        main_engine = manager._get_engine("main", ModelEngine)
+        safety_engine = manager._get_engine("content_safety", ModelEngine)
+        main_engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+        safety_engine.chat_completion = AsyncMock(return_value=LLMResponse(content="safe"))
+
+        with request_http_headers({"X-Tenant": "acme"}):
+            await manager.model_call("main", [{"role": "user", "content": "hi"}])
+            await manager.model_call("content_safety", [{"role": "user", "content": "hi"}])
+
+        assert main_engine.chat_completion.call_args[1]["http_headers"] == {"X-Tenant": "acme"}
+        assert safety_engine.chat_completion.call_args[1]["http_headers"] == {"X-Tenant": "acme"}
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_model_call_forwards_request_headers(self, manager):
+        """stream_model_call passes the bound headers through as http_headers."""
+        engine = manager._get_engine("main", ModelEngine)
+
+        captured: dict = {}
+
+        async def _capturing_stream(messages, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+            captured.update(kwargs)
+            yield LLMResponseChunk(delta_content="hi", finish_reason="stop")
+
+        engine.stream_chat_completion = _capturing_stream
+
+        with request_http_headers({"X-Tenant": "acme"}):
+            async for _ in manager.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+                pass
+
+        assert captured["http_headers"] == {"X-Tenant": "acme"}
+
+    @pytest.mark.asyncio
+    async def test_api_call_forwards_request_headers(self, manager):
+        """api_call passes the bound headers to the API engine as http_headers."""
+        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
+        api_engine.call = AsyncMock(return_value={"jailbreak": False, "score": -0.95})
+
+        with request_http_headers({"X-Tenant": "acme"}):
+            await manager.api_call("jailbreak_detection", {"input": "hello"})
+
+        api_engine.call.assert_called_once_with({"input": "hello"}, http_headers={"X-Tenant": "acme"})
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_request_headers_do_not_enter_the_request_body(self, manager):
+        """The bound headers stay out of the merged body params sent to the engine."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        with request_http_headers({"X-Tenant": "acme"}):
+            await manager.model_call("main", [{"role": "user", "content": "hi"}], temperature=0.2)
+
+        sent_kwargs = engine.chat_completion.call_args[1]
+        assert sent_kwargs == {"temperature": 0.2, "http_headers": {"X-Tenant": "acme"}}
 
 
 class TestEngineRegistryApiEngineStartErrors:

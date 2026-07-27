@@ -15,6 +15,8 @@
 
 
 import secrets
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from enum import Enum
@@ -134,6 +136,42 @@ def get_request_id() -> str:
 def reset_request_id(token: Token[str]) -> None:
     """Restore the request ID ContextVar to its previous value."""
     _request_id_var.reset(token)
+
+
+_http_headers_var: ContextVar[Optional[dict[str, str]]] = ContextVar("http_headers", default=None)
+
+
+def get_http_headers() -> Optional[dict[str, str]]:
+    """Return the inference-time HTTP headers bound to the current request, or None."""
+    return _http_headers_var.get()
+
+
+@contextmanager
+def request_http_headers(headers: Optional[Mapping[str, Any]]) -> Iterator[None]:
+    """Bind *headers* as the current request's inference-time HTTP headers.
+
+    Set once at the IORails request boundary and read once at the
+    ``EngineRegistry`` choke point, so every model and API call the request
+    makes carries the same headers without threading an argument through each
+    rail. Names and values are coerced to ``str`` so a non-string value behaves
+    the same as one configured under ``parameters.default_headers``.
+
+    ``ContextVar.reset()`` raises ``ValueError("... was created in a different
+    Context")`` when the enclosing async generator is closed from an outer
+    task's context. That one error is expected on streaming teardown and is
+    tolerated here, the same way the request-ID ContextVar is cleaned up; any
+    other ``ValueError`` indicates a bug and is re-raised.
+    """
+    coerced = None if headers is None else {str(name): str(value) for name, value in headers.items()}
+    token = _http_headers_var.set(coerced)
+    try:
+        yield
+    finally:
+        try:
+            _http_headers_var.reset(token)
+        except ValueError as exc:
+            if "different Context" not in str(exc):
+                raise
 
 
 def truncate(text: object, max_len: int | None = None) -> str:

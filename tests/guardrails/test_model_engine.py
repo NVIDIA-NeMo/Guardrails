@@ -782,6 +782,168 @@ class TestModelEngineDefaultHeaders:
             headers["X-Injected"] = "nope"
 
 
+class TestModelEngineInferenceHeaders:
+    """Test that per-request http_headers layer over the base and config headers."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _headers_from(mock_client):
+        """Extract the headers dict passed to the mocked post()."""
+        return mock_client.post.call_args[1]["headers"]
+
+    @staticmethod
+    def _body_from(mock_client):
+        """Extract the JSON body passed to the mocked post()."""
+        return mock_client.post.call_args[1]["json"]
+
+    def _started_engine(self, parameters=None):
+        """Build a started ModelEngine with a recording mock client."""
+        engine = ModelEngine(_make_model(parameters=parameters))
+        engine._client = self._mock_client()
+        engine._running = True
+        return engine
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_inference_headers_merged_into_request(self):
+        """A per-request header is sent alongside the base headers."""
+        engine = self._started_engine()
+
+        await engine.call([{"role": "user", "content": "Hi"}], http_headers={"X-Request-Tag": "batch-7"})
+
+        headers = self._headers_from(engine._client)
+        assert headers["X-Request-Tag"] == "batch-7"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_headers_kept_when_names_do_not_collide(self):
+        """Config and per-request headers with different names both reach the request."""
+        engine = self._started_engine(parameters={"default_headers": {"X-Tenant": "acme"}})
+
+        await engine.call([{"role": "user", "content": "Hi"}], http_headers={"X-Request-Tag": "batch-7"})
+
+        headers = self._headers_from(engine._client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["X-Request-Tag"] == "batch-7"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_inference_header_overrides_config_header_case_insensitive(self):
+        """On a name collision the per-request header wins over the configured one, regardless of case."""
+        engine = self._started_engine(parameters={"default_headers": {"X-Tenant": "from-config"}})
+
+        await engine.call([{"role": "user", "content": "Hi"}], http_headers={"x-tenant": "from-request"})
+
+        headers = self._headers_from(engine._client)
+        tenant_keys = [key for key in headers if key.lower() == "x-tenant"]
+        assert tenant_keys == ["x-tenant"]
+        assert headers["x-tenant"] == "from-request"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_inference_header_overrides_authorization(self):
+        """A per-request Authorization header replaces the api-key-derived one."""
+        engine = self._started_engine()
+
+        await engine.call([{"role": "user", "content": "Hi"}], http_headers={"Authorization": "Bearer per-request"})
+
+        headers = self._headers_from(engine._client)
+        assert headers["Authorization"] == "Bearer per-request"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_full_precedence_base_then_config_then_request(self):
+        """Base < config < per-request: each layer overrides the one before it."""
+        engine = self._started_engine(
+            parameters={"default_headers": {"Authorization": "Bearer from-config", "X-Tenant": "acme"}}
+        )
+
+        await engine.call(
+            [{"role": "user", "content": "Hi"}],
+            http_headers={"Authorization": "Bearer from-request"},
+        )
+
+        headers = self._headers_from(engine._client)
+        assert headers["Authorization"] == "Bearer from-request"
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_inference_headers_absent_from_body(self):
+        """http_headers is a transport argument and never becomes a request-body field."""
+        engine = self._started_engine()
+
+        await engine.call([{"role": "user", "content": "Hi"}], http_headers={"X-Request-Tag": "batch-7"})
+
+        body = self._body_from(engine._client)
+        assert "http_headers" not in body
+        assert "X-Request-Tag" not in body
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_no_inference_headers_leaves_config_headers_untouched(self):
+        """Omitting http_headers leaves the configured headers exactly as PR-1 behavior."""
+        engine = self._started_engine(parameters={"default_headers": {"X-Tenant": "acme"}})
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        headers = self._headers_from(engine._client)
+        assert headers == {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer test-key",
+            "X-Tenant": "acme",
+        }
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_http_headers_excluded_from_body_param_defaults(self):
+        """A model configured with parameters.http_headers never forwards it as a body field."""
+        engine = ModelEngine(_make_model(parameters={"http_headers": {"X-Tenant": "acme"}, "temperature": 0.5}))
+        assert "http_headers" not in engine.body_param_defaults
+        assert engine.body_param_defaults["temperature"] == 0.5
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_applies_inference_headers(self):
+        """Streaming requests carry the per-request headers layered over the configured ones."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        sse_lines = [
+            b'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_client = MagicMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(sse_lines))
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = [
+            chunk
+            async for chunk in engine.stream_call(
+                [{"role": "user", "content": "Hi"}], http_headers={"X-Request-Tag": "batch-7"}
+            )
+        ]
+
+        assert [chunk.delta_content for chunk in chunks] == ["Hi"]
+        headers = self._headers_from(mock_client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["X-Request-Tag"] == "batch-7"
+        assert "http_headers" not in self._body_from(mock_client)
+
+
 class TestModelEngineStreamCall:
     """Test ModelEngine.stream_call() SSE streaming."""
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 import aiohttp
@@ -28,6 +29,7 @@ from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
     DEFAULT_TIMEOUT_TOTAL,
+    merge_headers_case_insensitive,
     safe_read_body,
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
@@ -91,7 +93,7 @@ class APIEngine(BaseEngine):
             api_key=jailbreak_config.get_api_key(),
         )
 
-    async def call(self, body: dict[str, Any], **kwargs) -> dict:
+    async def call(self, body: dict[str, Any], *, http_headers: Optional[Mapping[str, str]] = None, **kwargs) -> dict:
         """POST the JSON body to the configured endpoint and return the parsed response."""
         if not self._running:
             raise APIEngineError("APIEngine has not been started. Call start() first.", endpoint=self.url)
@@ -105,6 +107,7 @@ class APIEngine(BaseEngine):
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        headers = merge_headers_case_insensitive(headers, http_headers)
 
         req_id = get_request_id()
         log.info("[%s] HTTP POST %s", req_id, url)

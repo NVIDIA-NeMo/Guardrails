@@ -24,7 +24,7 @@ import pytest
 import pytest_asyncio
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import RailResult, get_http_headers
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     STREAM_MAX_CONCURRENCY,
@@ -1082,3 +1082,96 @@ class TestStreamAsyncMetadata:
         terminal = empty_frames[0]["metadata"]
         assert terminal["usage"] == {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
         assert "response_metadata" in terminal and "usage_metadata" in terminal
+
+
+class TestStreamAsyncInferenceHttpHeaders:
+    """stream_async binds its http_headers for the whole stream, so the main LLM
+    call and the rails running in the background generation task all see them,
+    and the binding is cleared once the stream ends."""
+
+    @pytest.mark.asyncio
+    async def test_headers_bound_at_the_main_stream_call(self, iorails_input_only):
+        """Headers passed to stream_async are readable at the main streaming LLM call."""
+        seen: dict = {}
+
+        async def _recording_stream(model_type, messages, **kwargs):
+            seen["stream"] = get_http_headers()
+            yield LLMResponseChunk(delta_content="Hi")
+
+        _wire_mocks(iorails_input_only, stream=_recording_stream)
+
+        await _collect(
+            iorails_input_only.stream_async(
+                messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+            )
+        )
+
+        assert seen["stream"] == {"X-Tenant": "acme"}
+
+    @pytest.mark.asyncio
+    async def test_headers_visible_to_rails_in_the_generation_task(self, iorails_input_only):
+        """The background generation task inherits the headers from its context snapshot."""
+        seen: dict = {}
+
+        async def _recording_input_rail(messages, *, enabled=True):
+            seen["input_rail"] = get_http_headers()
+            return RailResult(is_safe=True)
+
+        _wire_mocks(iorails_input_only)
+        iorails_input_only.rails_manager.is_input_safe = _recording_input_rail
+
+        await _collect(
+            iorails_input_only.stream_async(
+                messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+            )
+        )
+
+        assert seen["input_rail"] == {"X-Tenant": "acme"}
+
+    @pytest.mark.asyncio
+    async def test_headers_visible_to_streaming_output_rails(self, iorails_stream_first):
+        """Output rails checking buffered chunks see the same headers as the main call."""
+        seen: dict = {}
+
+        async def _recording_output_rail(messages, bot_response, *, enabled=True):
+            seen["output_rail"] = get_http_headers()
+            return RailResult(is_safe=True)
+
+        _wire_mocks(iorails_stream_first)
+        iorails_stream_first.rails_manager.is_output_safe = _recording_output_rail
+
+        await _collect(
+            iorails_stream_first.stream_async(
+                messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+            )
+        )
+
+        assert seen["output_rail"] == {"X-Tenant": "acme"}
+
+    @pytest.mark.asyncio
+    async def test_headers_cleared_after_the_stream(self, iorails_input_only):
+        """Draining the stream tears the scope down so headers can't leak into the next request."""
+        _wire_mocks(iorails_input_only)
+
+        await _collect(
+            iorails_input_only.stream_async(
+                messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+            )
+        )
+
+        assert get_http_headers() is None
+
+    @pytest.mark.asyncio
+    async def test_no_headers_leaves_the_scope_unbound(self, iorails_input_only):
+        """Omitting http_headers leaves nothing bound, so only config headers apply."""
+        seen: dict = {}
+
+        async def _recording_stream(model_type, messages, **kwargs):
+            seen["stream"] = get_http_headers()
+            yield LLMResponseChunk(delta_content="Hi")
+
+        _wire_mocks(iorails_input_only, stream=_recording_stream)
+
+        await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert seen["stream"] is None

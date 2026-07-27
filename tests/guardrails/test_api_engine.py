@@ -232,6 +232,21 @@ class TestAPIEngineContextManager:
 class TestAPIEngineCall:
     """Test APIEngine.call() HTTP request construction and error handling."""
 
+    @staticmethod
+    def _start_with_recording_client(engine):
+        """Start *engine* against a mock client and return the client, whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"jailbreak": False, "score": -0.87})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+        return mock_client
+
     @pytest.mark.asyncio
     async def test_successful_call(self):
         """Successful call returns parsed JSON and posts to correct URL with headers."""
@@ -283,6 +298,58 @@ class TestAPIEngineCall:
         call_kwargs = mock_client.post.call_args
         headers = call_kwargs[1]["headers"]
         assert "Authorization" not in headers
+
+    @pytest.mark.asyncio
+    async def test_call_applies_inference_headers(self):
+        """Per-request http_headers are sent alongside the derived base headers."""
+        engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify", api_key="test-key")
+        mock_client = self._start_with_recording_client(engine)
+
+        await engine.call({"input": "Hi"}, http_headers={"X-Tenant": "acme"})
+
+        headers = mock_client.post.call_args[1]["headers"]
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Accept"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @pytest.mark.asyncio
+    async def test_inference_header_overrides_base_header_case_insensitive(self):
+        """A per-request header replaces a base header of the same name, regardless of case."""
+        engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify", api_key="test-key")
+        mock_client = self._start_with_recording_client(engine)
+
+        await engine.call({"input": "Hi"}, http_headers={"authorization": "Bearer per-request"})
+
+        headers = mock_client.post.call_args[1]["headers"]
+        auth_keys = [key for key in headers if key.lower() == "authorization"]
+        assert auth_keys == ["authorization"]
+        assert headers["authorization"] == "Bearer per-request"
+
+    @pytest.mark.asyncio
+    async def test_inference_headers_absent_from_body(self):
+        """http_headers configures transport and never becomes a request-body field."""
+        engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify", api_key="test-key")
+        mock_client = self._start_with_recording_client(engine)
+
+        await engine.call({"input": "Hi"}, http_headers={"X-Tenant": "acme"})
+
+        assert mock_client.post.call_args[1]["json"] == {"input": "Hi"}
+
+    @pytest.mark.asyncio
+    async def test_no_inference_headers_leaves_base_headers(self):
+        """Omitting http_headers leaves only the derived base headers."""
+        engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify", api_key="test-key")
+        mock_client = self._start_with_recording_client(engine)
+
+        await engine.call({"input": "Hi"})
+
+        headers = mock_client.post.call_args[1]["headers"]
+        assert headers == {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": "Bearer test-key",
+        }
 
     @pytest.mark.asyncio
     async def test_call_http_error_raises_api_engine_error(self):

@@ -25,9 +25,9 @@ import json
 import logging
 import time
 import warnings
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import nullcontext, suppress
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
 from nemoguardrails.base_guardrails import BaseGuardrails
@@ -41,6 +41,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailDirection,
     TimedLLMResponse,
     get_request_id,
+    request_http_headers,
     serialize_prompt,
     truncate,
 )
@@ -743,6 +744,7 @@ class IORails(BaseGuardrails):
         prompt: Optional[str] = None,
         messages: Optional[LLMMessages] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
+        http_headers: Optional[Mapping[str, Any]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
         """Synchronous version of generate_async.
@@ -751,6 +753,13 @@ class IORails(BaseGuardrails):
         the ``generate()`` call. For production use, use the asynchronous
         `generate_async()` and `stream_async()` methods for non-streaming
         and streaming requests respectively.
+
+        Args:
+            prompt: Single user turn; ignored when ``messages`` is given.
+            messages: Conversation messages in OpenAI format.
+            options: GenerationOptions; when set, a GenerationResponse is returned.
+            http_headers: Per-request HTTP headers for every model and API call.
+            **kwargs: Forwarded to the pipeline; ``state`` is rejected.
         """
         messages = self._convert_to_messages(prompt, messages)
 
@@ -765,7 +774,9 @@ class IORails(BaseGuardrails):
             """Spin up a short-lived IORails engine for one synchronous generate call."""
             # Avoid counting this sync-API bridge as a separate user-created IORails instance.
             async with IORails(sync_config, _report_usage=False) as iorails_engine:
-                return await iorails_engine.generate_async(messages=messages, options=options, **kwargs)
+                return await iorails_engine.generate_async(
+                    messages=messages, options=options, http_headers=http_headers, **kwargs
+                )
 
         return asyncio.run(_run_sync_iorails())
 
@@ -774,6 +785,7 @@ class IORails(BaseGuardrails):
         prompt: Optional[str] = None,
         messages: Optional[LLMMessages] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
+        http_headers: Optional[Mapping[str, Any]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
         """Public entry: submit the request to the internal work queue.
@@ -790,13 +802,22 @@ class IORails(BaseGuardrails):
         (OTEL HTTP semconv).  A ``QueueFull`` rejection shows up in BOTH
         ``requests.errors{error.type=QueueFull}`` and
         ``nonstream.rejections`` — honest dual-signal reporting.
+
+        Args:
+            prompt: Single user turn; ignored when ``messages`` is given.
+            messages: Conversation messages in OpenAI format.
+            options: GenerationOptions; when set, a GenerationResponse is returned.
+            http_headers: Per-request HTTP headers for every model and API call.
+            **kwargs: Forwarded to the pipeline; ``state`` is rejected.
         """
         messages = self._convert_to_messages(prompt, messages)
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
         with metrics_ctx:
             try:
-                return await self._generate_async_queue.submit(self._run_generate, messages, options=options, **kwargs)
+                return await self._generate_async_queue.submit(
+                    self._run_generate, messages, options=options, http_headers=http_headers, **kwargs
+                )
             except asyncio.QueueFull:
                 if self._metrics_enabled:
                     record_nonstream_rejected()
@@ -806,6 +827,7 @@ class IORails(BaseGuardrails):
         self,
         messages: LLMMessages,
         options: Optional[Union[dict, GenerationOptions]] = None,
+        http_headers: Optional[Mapping[str, Any]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
         """Runs inside a queue worker task.  Wraps the pipeline in
@@ -815,7 +837,7 @@ class IORails(BaseGuardrails):
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
-        with traced_request(tracer) as (request_span, req_id):
+        with request_http_headers(http_headers), traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
                 result = await self._do_generate(messages, req_id, request_span, options=options, **kwargs)
@@ -1137,6 +1159,10 @@ class IORails(BaseGuardrails):
         Mirrors ``generate``: spins up a short-lived IORails engine with tracing
         and metrics disabled and runs the check on it. For production use, prefer
         the asynchronous ``check_async``.
+
+        Args:
+            messages: Conversation messages in OpenAI format.
+            rail_types: Rail types to run; None auto-detects from the message roles.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(
@@ -1167,6 +1193,10 @@ class IORails(BaseGuardrails):
         Submitted through the same admission queue as ``generate_async`` so the
         check path shares non-streaming concurrency limits, request metrics, and
         the per-request trace span.
+
+        Args:
+            messages: Conversation messages in OpenAI format.
+            rail_types: Rail types to run; None auto-detects from the message roles.
         """
         await self.start()
         metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
@@ -1275,6 +1305,7 @@ class IORails(BaseGuardrails):
         messages: LLMMessages,
         options: Optional[Union[dict, GenerationOptions]] = None,
         include_metadata: Optional[bool] = False,
+        http_headers: Optional[Mapping[str, Any]] = None,
     ) -> AsyncIterator[Union[str, dict]]:
         """Stream LLM response tokens with input/output rails applied.
 
@@ -1286,10 +1317,9 @@ class IORails(BaseGuardrails):
 
         Args:
             messages: Conversation messages in OpenAI format.
-            options: Optional GenerationOptions (llm_params are forwarded to
-                the main LLM call).
-            include_metadata: When True, chunks are dicts with ``text`` and
-                ``metadata`` keys instead of plain strings.
+            options: GenerationOptions; ``llm_params`` are forwarded to the main LLM call.
+            include_metadata: When True, chunks are ``text``/``metadata`` dicts, not strings.
+            http_headers: Per-request HTTP headers for every model and API call.
 
         Returns:
             An async iterator of string chunks (or dicts).
@@ -1482,7 +1512,10 @@ class IORails(BaseGuardrails):
                         # request span is the current OTEL context when create_task()
                         # below snapshots contextvars — that's what makes rail / LLM
                         # spans raised inside _generation_task attach as children.
-                        with traced_request(tracer) as (request_span, req_id):
+                        # request_http_headers is entered in the same scope for the
+                        # same reason: _generation_task inherits the headers from the
+                        # context snapshot taken at create_task() time.
+                        with request_http_headers(http_headers), traced_request(tracer) as (request_span, req_id):
                             t0 = time.monotonic()
                             # Accumulate chunks the consumer actually receives.
                             # Declared outside the try so the outer finally can

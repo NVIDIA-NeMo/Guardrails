@@ -93,6 +93,11 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         # fields.
         "default_headers",
         "default_query",
+        # inference-time header argument name — reserved so a model configured
+        # with `parameters.http_headers` (the per-request argument mistaken for
+        # the config key `default_headers`) can't collide with the explicit
+        # http_headers keyword the engine registry passes into chat_completion().
+        "http_headers",
     }
 )
 
@@ -545,8 +550,21 @@ class ModelEngine(BaseEngine):
                 model_name=self.model_name,
             )
 
-    def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
-        """Build the client, URL, headers, and body common to every request."""
+    def _prepare_request(
+        self,
+        messages: LLMMessages,
+        *,
+        http_headers: Optional[Mapping[str, str]] = None,
+        **kwargs: Any,
+    ) -> _RequestParams:
+        """Build the client, URL, headers, and body common to every request.
+
+        Headers are layered so the more specific source wins, matched
+        case-insensitively: the derived ``Content-Type``/``Authorization`` base,
+        then the model's configured ``default_headers``, then the per-request
+        *http_headers*. ``http_headers`` is a transport argument and never
+        reaches ``body``.
+        """
         client = cast(RetryClient, self._client)
         url = self.base_url + _CHAT_COMPLETIONS_ENDPOINT
 
@@ -554,6 +572,7 @@ class ModelEngine(BaseEngine):
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         headers = merge_headers_case_insensitive(headers, self.default_headers)
+        headers = merge_headers_case_insensitive(headers, http_headers)
 
         body: dict[str, Any] = {"model": self.model_name, "messages": messages, **kwargs}
         return _RequestParams(client=client, url=url, headers=headers, body=body)
@@ -588,6 +607,8 @@ class ModelEngine(BaseEngine):
     async def call(
         self,
         messages: LLMMessages,
+        *,
+        http_headers: Optional[Mapping[str, str]] = None,
         **kwargs: Any,
     ) -> dict:
         """Make a POST request to the /v1/chat/completions endpoint.
@@ -597,6 +618,9 @@ class ModelEngine(BaseEngine):
 
         Args:
             messages: List of message dicts in OpenAI format.
+            http_headers: Per-request HTTP headers layered over the model's
+                configured ``default_headers``; sent as headers only, never
+                added to the request body.
             **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
 
         Returns:
@@ -606,7 +630,7 @@ class ModelEngine(BaseEngine):
             ModelEngineError: If the request fails after all retries.
         """
         self._ensure_running()
-        req = self._prepare_request(messages, **kwargs)
+        req = self._prepare_request(messages, http_headers=http_headers, **kwargs)
 
         req_id = get_request_id()
         log.info("[%s] HTTP POST %s model='%s'", req_id, req.url, self.model_name)
@@ -636,6 +660,8 @@ class ModelEngine(BaseEngine):
     async def stream_call(
         self,
         messages: LLMMessages,
+        *,
+        http_headers: Optional[Mapping[str, str]] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[LLMResponseChunk, None]:
         """Make a streaming POST request to the /v1/chat/completions endpoint.
@@ -667,6 +693,9 @@ class ModelEngine(BaseEngine):
 
         Args:
             messages: List of message dicts in OpenAI format.
+            http_headers: Per-request HTTP headers layered over the model's
+                configured ``default_headers``; sent as headers only, never
+                added to the request body.
             **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
 
         Yields:
@@ -680,7 +709,7 @@ class ModelEngine(BaseEngine):
         # Request usage on the terminal stream chunk (LLMRails parity); a caller can override
         # or disable it via stream_options in llm_params.
         kwargs.setdefault("stream_options", {"include_usage": True})
-        req = self._prepare_request(messages, stream=True, **kwargs)
+        req = self._prepare_request(messages, stream=True, http_headers=http_headers, **kwargs)
 
         # For streaming, disable the total timeout (response body streams
         # for the full generation duration) and use sock_read to detect stalls
@@ -797,7 +826,13 @@ class ModelEngine(BaseEngine):
         except Exception as exc:
             raise self._wrap_exception(exc, req_id, t0, label="Stream request") from exc
 
-    async def chat_completion(self, messages: LLMMessages, **kwargs: Any) -> LLMResponse:
+    async def chat_completion(
+        self,
+        messages: LLMMessages,
+        *,
+        http_headers: Optional[Mapping[str, str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
         """Generate a chat completion and return a structured ``LLMResponse``.
 
         Calls the /v1/chat/completions endpoint and parses the OpenAI-format
@@ -805,10 +840,14 @@ class ModelEngine(BaseEngine):
         provider exposes ``reasoning_content``), usage, finish reason, and
         request id.
 
+        ``http_headers`` carries the request's inference-time headers; see
+        ``_prepare_request`` for how they layer over the configured
+        ``default_headers``.
+
         Raises:
             ModelEngineError: If the request fails or the response format is unexpected.
         """
-        response = await self.call(messages, **kwargs)
+        response = await self.call(messages, http_headers=http_headers, **kwargs)
         try:
             return _parse_chat_completion(response)
         except ValueError as exc:
@@ -818,7 +857,11 @@ class ModelEngine(BaseEngine):
             ) from exc
 
     async def stream_chat_completion(
-        self, messages: LLMMessages, **kwargs: Any
+        self,
+        messages: LLMMessages,
+        *,
+        http_headers: Optional[Mapping[str, str]] = None,
+        **kwargs: Any,
     ) -> AsyncGenerator[LLMResponseChunk, None]:
         """Stream a chat completion and yield ``LLMResponseChunk`` objects.
 
@@ -829,7 +872,7 @@ class ModelEngine(BaseEngine):
         Raises:
             ModelEngineError: If the request fails after all retries.
         """
-        async for chunk in self.stream_call(messages, **kwargs):
+        async for chunk in self.stream_call(messages, http_headers=http_headers, **kwargs):
             yield chunk
 
     def parse_tools(self, llm_params: Optional[dict]) -> Toolset:

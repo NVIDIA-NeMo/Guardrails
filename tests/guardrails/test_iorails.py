@@ -16,6 +16,7 @@
 """Unit tests for iorails module."""
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,7 +25,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
+from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult, get_http_headers
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -200,6 +201,184 @@ class TestConfigDefaultHeadersOverHTTP:
         assert captured["headers"]["X-Tenant"] == "acme"
         assert captured["headers"]["Authorization"] == "Bearer test-key"
         assert "X-Tenant" not in captured["body"]
+
+
+_MAIN_MODEL = "meta/llama-3.3-70b-instruct"
+_SAFETY_MODEL = "nvidia/llama-3.1-nemoguard-8b-content-safety"
+_SAFE_VERDICT = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
+
+
+class TestInferenceHttpHeaders:
+    """generate_async binds its http_headers for the whole request so every
+    downstream model call sees them, and clears them when the request ends."""
+
+    @pytest.mark.asyncio
+    async def test_headers_bound_at_the_main_model_call(self, iorails):
+        """Headers passed to generate_async are readable at the main LLM call."""
+        seen: dict = {}
+
+        async def _record_headers(model_type, messages, **kwargs):
+            seen[model_type] = get_http_headers()
+            return LLMResponse(content="Hello")
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = _record_headers
+
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"})
+
+        assert seen["main"] == {"X-Tenant": "acme"}
+
+    @pytest.mark.asyncio
+    async def test_headers_cleared_after_the_request(self, iorails):
+        """The request scope is torn down so headers never leak into the next request."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="Hello"))
+
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"})
+
+        assert get_http_headers() is None
+
+    @pytest.mark.asyncio
+    async def test_no_headers_leaves_the_scope_unbound(self, iorails):
+        """Omitting http_headers leaves nothing bound, so only config headers apply."""
+        seen: dict = {}
+
+        async def _record_headers(model_type, messages, **kwargs):
+            seen[model_type] = get_http_headers()
+            return LLMResponse(content="Hello")
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.model_call = _record_headers
+
+        await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+
+        assert seen["main"] is None
+
+    @pytest.mark.asyncio
+    async def test_headers_bound_when_the_request_fails(self, iorails):
+        """A request that raises still clears the bound headers."""
+        iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("rail exploded"))
+
+        with pytest.raises(RuntimeError, match="rail exploded"):
+            await iorails.generate_async(
+                messages=[{"role": "user", "content": "hi"}], http_headers={"X-Tenant": "acme"}
+            )
+
+        assert get_http_headers() is None
+
+
+class TestInferenceHttpHeadersOverHTTP:
+    """True end-to-end: run generate_async against a loopback HTTP server and
+    assert on the headers the main LLM and the content-safety rail model
+    actually put on the wire."""
+
+    @staticmethod
+    def _build_app(captured: dict):
+        """Serve chat completions, recording the headers and body sent per model."""
+
+        async def handler(request):
+            body = await request.json()
+            captured[body["model"]] = {"headers": dict(request.headers), "body": body}
+            content = _SAFE_VERDICT if body["model"] == _SAFETY_MODEL else "ok"
+            return web.json_response({"choices": [{"message": {"role": "assistant", "content": content}}]})
+
+        app = web.Application()
+        app.router.add_post("/v1/chat/completions", handler)
+        return app
+
+    @staticmethod
+    def _build_config(base_url: str):
+        """A content-safety config whose two models point at the loopback server
+        and carry distinct default_headers, one of which the request will override."""
+        return RailsConfig.from_content(
+            config={
+                **CONTENT_SAFETY_CONFIG,
+                "models": [
+                    {
+                        "type": "main",
+                        "engine": "nim",
+                        "model": _MAIN_MODEL,
+                        "parameters": {
+                            "base_url": base_url,
+                            "default_headers": {"X-Tenant": "from-config", "X-Main-Route": "main-pool"},
+                        },
+                    },
+                    {
+                        "type": "content_safety",
+                        "engine": "nim",
+                        "model": _SAFETY_MODEL,
+                        "parameters": {
+                            "base_url": base_url,
+                            "default_headers": {"X-Safety-Route": "safety-pool"},
+                        },
+                    },
+                ],
+            }
+        )
+
+    async def _run_request(self, captured: dict):
+        """Run one generate_async with inference-time headers against the loopback server."""
+        server = TestServer(self._build_app(captured))
+        await server.start_server()
+        try:
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(self._build_config(str(server.make_url("/"))))
+            async with iorails:
+                return await iorails.generate_async(
+                    messages=[{"role": "user", "content": "hi"}],
+                    http_headers={"X-Tenant": "from-request", "X-Trace": "abc123"},
+                )
+        finally:
+            await server.close()
+
+    @pytest.mark.asyncio
+    async def test_headers_reach_the_main_llm_on_the_wire(self):
+        """The main LLM request carries the inference-time headers on top of its own config headers."""
+        captured: dict = {}
+
+        result = await self._run_request(captured)
+
+        assert result == {"role": "assistant", "content": "ok"}
+        main_headers = captured[_MAIN_MODEL]["headers"]
+        assert main_headers["X-Trace"] == "abc123"
+        assert main_headers["X-Main-Route"] == "main-pool"
+        assert main_headers["Authorization"] == "Bearer test-key"
+
+    @pytest.mark.asyncio
+    async def test_headers_broadcast_to_the_rail_model_on_the_wire(self):
+        """The content-safety rail model request carries the same inference-time headers."""
+        captured: dict = {}
+
+        await self._run_request(captured)
+
+        safety_headers = captured[_SAFETY_MODEL]["headers"]
+        assert safety_headers["X-Trace"] == "abc123"
+        assert safety_headers["X-Tenant"] == "from-request"
+        assert safety_headers["X-Safety-Route"] == "safety-pool"
+        assert "X-Main-Route" not in safety_headers
+
+    @pytest.mark.asyncio
+    async def test_inference_header_overrides_the_config_header_on_the_wire(self):
+        """Where both layers set the same name, the per-request value is what is sent."""
+        captured: dict = {}
+
+        await self._run_request(captured)
+
+        assert captured[_MAIN_MODEL]["headers"]["X-Tenant"] == "from-request"
+
+    @pytest.mark.asyncio
+    async def test_headers_never_reach_the_request_body(self):
+        """Inference-time headers are transport-only and absent from every JSON body sent."""
+        captured: dict = {}
+
+        await self._run_request(captured)
+
+        for model_name, sent in captured.items():
+            assert "http_headers" not in sent["body"], model_name
+            assert "X-Trace" not in sent["body"], model_name
 
 
 class TestGenerateAsync:
