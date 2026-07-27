@@ -92,9 +92,7 @@ async def model_initialization_error_handler(request: Request, exc: ModelInitial
     return _error_response(400, str(exc))
 
 
-async def bad_request_error_handler(
-    request: Request, exc: Union[StreamingNotSupportedError, InvalidStateError]
-) -> Response:
+async def bad_request_error_handler(request: Request, exc: StreamingNotSupportedError) -> Response:
     """Return 400 for request/config combinations the caller can correct.
 
     These carry an actionable message (for example "enable streaming output
@@ -103,6 +101,11 @@ async def bad_request_error_handler(
     """
     log.warning("Bad request: %s", exc)
     return _error_response(400, str(exc))
+
+
+async def invalid_state_error_handler(request: Request, exc: InvalidStateError) -> Response:
+    log.warning("Invalid state: %s", exc)
+    return _error_response(422, str(exc))
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:

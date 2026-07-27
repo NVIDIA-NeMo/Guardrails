@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from nemoguardrails.actions.llm.utils import _extract_http_status, _raise_llm_call_exception
 from nemoguardrails.exceptions import (
+    InvalidStateError,
     LLMAuthenticationError,
     LLMCallException,
     LLMClientError,
@@ -286,6 +287,13 @@ class TestAPIErrorPropagation:
         error = response.json()["error"]
         assert error["message"] == "Internal server error"
         assert error["type"] == "server_error"
+
+    def test_invalid_state_returns_422(self):
+        response = _post(side_effect=InvalidStateError("invalid transcript state"))
+        assert response.status_code == 422
+        error = response.json()["error"]
+        assert error["message"] == "invalid transcript state"
+        assert error["type"] == "invalid_request_error"
 
     def test_generic_exception_preserves_cors_headers(self):
         original_middleware = api.app.user_middleware
