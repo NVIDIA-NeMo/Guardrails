@@ -323,7 +323,7 @@ async def list_models(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     except httpx.HTTPStatusError as exc:
-        log.warning("Error fetching models from upstream: HTTP %s - %s", exc.response.status_code, exc.response.text)
+        log.warning("Error fetching models from upstream: HTTP %s", exc.response.status_code)
         raise HTTPException(
             status_code=exc.response.status_code,
             detail=f"Error fetching models from upstream (HTTP {exc.response.status_code})",

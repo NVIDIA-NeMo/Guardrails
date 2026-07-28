@@ -989,9 +989,10 @@ def test_list_models_empty_upstream():
     assert data["data"] == []
 
 
-def test_list_models_upstream_error():
+def test_list_models_upstream_error(caplog):
     """Test /v1/models returns upstream error status on HTTP error."""
-    mock_response = _make_httpx_response({"error": "unauthorized"}, status_code=401)
+    sensitive_detail = "upstream-secret-detail"
+    mock_response = _make_httpx_response({"error": sensitive_detail}, status_code=401)
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -1003,6 +1004,7 @@ def test_list_models_upstream_error():
 
     assert response.status_code == 401
     assert "Error fetching models from upstream" in response.json()["error"]["message"]
+    assert sensitive_detail not in caplog.text
 
 
 def test_list_models_connection_error():
