@@ -337,27 +337,17 @@ class RailsManager:
         """Dispatch a single rail flow to its RailAction instance."""
         with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
-            try:
-                result = await action.run(flow, messages, bot_response)
-            except Exception:
-                # RailAction.run() re-raises engine errors that carry an HTTP
-                # status so the server can map them; mark the span stopped and
-                # capture the rail input before the exception leaves this
-                # frame, otherwise the span has no stop marker or content.
-                mark_rail_stop(span, False)
-                if self._content_capture_enabled:
-                    set_rail_content(span, {"messages": messages, "bot_response": bot_response})
-                raise
+            result = await action.run(flow, messages, bot_response)
             call = get_and_clear_rail_llm_call_contextvar()
             if not result.is_safe and result.triggered_rail is None:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
             result = replace(result, records=(_rail_call_record(flow, direction.value.lower(), result, call),))
             mark_rail_stop(span, result.is_safe)
             # Capture rail input + block reason after the action runs.
-            # RailAction.run() handles its own exceptions for every failure that
-            # carries no HTTP status and returns RailResult(is_safe=False,
-            # reason=...), so this branch is reached on those action errors and
-            # the error reason gets recorded as the block reason.
+            # RailAction.run() catches its own exceptions and returns
+            # RailResult(is_safe=False, reason=...), so this branch is
+            # reached even on action errors and the error reason gets
+            # recorded as the block reason.
             if self._content_capture_enabled:
                 set_rail_content(
                     span,

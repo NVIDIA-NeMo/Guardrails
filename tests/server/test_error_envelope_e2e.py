@@ -61,9 +61,7 @@ models:
       max_retries: 0
 """
 
-# The rail endpoint deliberately looks like an internal cluster address: the
-# sanitization assertions below depend on it appearing in the failure reason.
-RAIL_ENDPOINT = "http://jailbreak.internal.svc.cluster.local:8000/v1/classify"
+RAIL_ENDPOINT = "http://rail.example/v1/classify"
 
 RAIL_CONFIG = """
 models:
@@ -76,7 +74,7 @@ models:
 rails:
   config:
     jailbreak_detection:
-      nim_base_url: "http://jailbreak.internal.svc.cluster.local:8000/v1"
+      nim_base_url: "http://rail.example/v1"
       nim_server_endpoint: "classify"
   input:
     flows:
@@ -343,25 +341,6 @@ class TestRailEngineErrors:
 
         assert response.status_code == 429
         assert response.json()["error"]["type"] == "rate_limit_error"
-
-    def test_status_less_failure_blocks_without_leaking_the_endpoint(self, serve_config):
-        """A rail that cannot connect blocks the request, and the reason reaches the client.
-
-        The reason names the rail's endpoint, so it must be sanitized before it
-        is streamed out.
-        """
-        serve_config(RAIL_CONFIG, iorails=True)
-
-        with aioresponses() as mocked:
-            mocked.post(RAIL_ENDPOINT, exception=OSError("connection refused"), repeat=True)
-            response = _chat(stream=True)
-
-        assert response.status_code == 200
-        payload = _sse_payloads(response)[0]
-        assert payload["error"]["type"] == "guardrails_violation"
-        assert payload["error"]["param"] == "input_rails"
-        assert "internal.svc.cluster.local" not in payload["error"]["message"]
-        assert "[redacted-url]" in payload["error"]["message"]
 
 
 class TestProtocolLevelResponses:

@@ -40,7 +40,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
-from nemoguardrails.llm.clients._errors import _sanitize
+from nemoguardrails.llm.clients._errors import _redact_secrets
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import LLMResponse, UsageInfo
@@ -146,20 +146,16 @@ class RailAction(ABC):
                 log.debug("[%s] %s response: %s", req_id, base_flow, truncate(response))
                 return self._parse_response(response)
             except (ModelEngineError, APIEngineError) as e:
-                # Record an error on the OTEL span
                 record_span_error(span, e)
                 if e.status is not None:
                     log.error("[%s] %s failed (HTTP %d): %s", req_id, base_flow, e.status, e)
                     raise
                 log.error("[%s] %s failed: %s", req_id, base_flow, e)
-                # The reason reaches the client through the streaming violation
-                # payload, so scrub upstream URLs as well as secrets.
-                return RailResult(is_safe=False, reason=_sanitize(f"{base_flow} error: {e}"))
+                return RailResult(is_safe=False, reason=_redact_secrets(f"{base_flow} error: {e}"))
             except Exception as e:
-                # Record an error on the OTEL span
                 record_span_error(span, e)
                 log.error("[%s] %s failed: %s", req_id, base_flow, e)
-                return RailResult(is_safe=False, reason=_sanitize(f"{base_flow} error: {e}"))
+                return RailResult(is_safe=False, reason=_redact_secrets(f"{base_flow} error: {e}"))
 
     def _get_model_type(self, flow: str) -> Optional[str]:
         """Extract model from the flow's ``$model=`` parameter, falling back to :attr:`fallback_model`."""

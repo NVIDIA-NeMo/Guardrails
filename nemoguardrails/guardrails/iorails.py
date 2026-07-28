@@ -63,9 +63,7 @@ from nemoguardrails.guardrails.telemetry import (
     traced_request,
 )
 from nemoguardrails.llm.clients._errors import (
-    GUARDRAILS_VIOLATION_TYPE,
     STREAM_ERROR_TYPES,
-    build_error_payload,
     build_streaming_error_payload,
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -849,18 +847,16 @@ class IORails(BaseGuardrails):
         ``guardrails_violation`` / ``content_blocked`` shape; ``param`` distinguishes which
         rail family blocked (``input_rails`` / ``tool_input_rails`` / ``tool_output_rails`` /
         ``output_rails``).
-
-        Routed through ``build_error_payload`` so the block reason is sanitized:
-        a rail that fails against an internal endpoint puts that URL in its
-        reason, and this payload goes straight to the client.
         """
         return json.dumps(
-            build_error_payload(
-                message,
-                error_type=GUARDRAILS_VIOLATION_TYPE,
-                param=param,
-                code="content_blocked",
-            )
+            {
+                "error": {
+                    "message": message,
+                    "type": "guardrails_violation",
+                    "param": param,
+                    "code": "content_blocked",
+                }
+            }
         )
 
     async def _do_generate(
