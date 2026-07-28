@@ -130,44 +130,6 @@ def test_config_id_resolves():
     mock_get.assert_called_once_with(["my_config"], model_name="test")
 
 
-def test_config_string_resolves_via_get_rails():
-    result = RailsResult(status=RailStatus.PASSED, content="hi")
-    mock = _mock_rails(result)
-
-    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock) as mock_get:
-        resp = _post(
-            {
-                "model": "test",
-                "messages": [{"role": "user", "content": "hi"}],
-                "guardrails": {"config": "my_config"},
-            }
-        )
-
-    assert resp.status_code == 200
-    mock_get.assert_called_once_with(["my_config"], model_name="test")
-
-
-def test_inline_config():
-    result = RailsResult(status=RailStatus.PASSED, content="hi")
-    mock_llm_rails = _mock_rails(result)
-
-    with (
-        patch("nemoguardrails.server.api.RailsConfig") as mock_config_cls,
-        patch("nemoguardrails.server.api.LLMRails", return_value=mock_llm_rails),
-    ):
-        mock_config_cls.from_content.return_value = MagicMock()
-        resp = _post(
-            {
-                "model": "test",
-                "messages": [{"role": "user", "content": "hi"}],
-                "guardrails": {"config": {"models": [], "rails": {}}},
-            }
-        )
-
-    assert resp.status_code == 200
-    mock_config_cls.from_content.assert_called_once()
-
-
 def test_default_config_used_when_none_specified():
     api.app.default_config_id = "my_default"
     result = RailsResult(status=RailStatus.PASSED, content="hi")
@@ -194,17 +156,6 @@ def test_empty_messages_returns_422():
             "model": "test",
             "messages": [],
             "guardrails": {"config_id": "test"},
-        }
-    )
-    assert resp.status_code == 422
-
-
-def test_config_and_config_id_mutually_exclusive():
-    resp = _post(
-        {
-            "model": "test",
-            "messages": [{"role": "user", "content": "hi"}],
-            "guardrails": {"config": "a", "config_id": "b"},
         }
     )
     assert resp.status_code == 422

@@ -699,35 +699,20 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     if not body.messages:
         raise HTTPException(status_code=422, detail="messages must be non-empty")
 
-    config_ids = None
-    config = body.guardrails.config
-
-    if isinstance(config, dict):
-        try:
-            rails_config = RailsConfig.from_content(config=config)
-            if body.model:
-                rails_config = _inject_model(rails_config, body.model)
-            llm_rails = LLMRails(config=rails_config, verbose=True)
-        except Exception as ex:
-            log.exception(ex)
-            raise HTTPException(status_code=422, detail=f"Invalid inline config: {ex}")
-    else:
-        if isinstance(config, str):
-            config_ids = [config]
-        elif body.guardrails.config_ids:
-            config_ids = list(body.guardrails.config_ids)
-        elif app.default_config_id:
+    config_ids = body.guardrails.config_ids
+    if not config_ids:
+        if app.default_config_id:
             config_ids = [app.default_config_id]
         else:
             raise HTTPException(
                 status_code=422,
                 detail="No guardrails config_id provided and server has no default configuration",
             )
-        try:
-            llm_rails = await _get_rails(config_ids, model_name=body.model)
-        except ValueError as ex:
-            log.exception(ex)
-            raise HTTPException(status_code=422, detail=str(ex))
+    try:
+        llm_rails = await _get_rails(config_ids, model_name=body.model)
+    except ValueError as ex:
+        log.exception(ex)
+        raise HTTPException(status_code=422, detail=str(ex))
 
     if llm_rails.config.colang_version != "1.0":
         raise HTTPException(
