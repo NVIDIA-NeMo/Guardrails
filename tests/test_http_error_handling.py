@@ -27,7 +27,6 @@ import pytest
 
 pytest.importorskip("openai", reason="openai is required for these tests")
 
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from nemoguardrails.actions.llm.utils import _extract_http_status, _raise_llm_call_exception
@@ -313,23 +312,39 @@ class TestAPIErrorPropagation:
         assert error["message"] == "invalid transcript state"
         assert error["type"] == "invalid_request_error"
 
-    def test_generic_exception_preserves_cors_headers(self):
+    @pytest.mark.parametrize(
+        "exception,expected_status,expected_message,expected_retry_after",
+        [
+            (RuntimeError("unexpected"), 500, "Internal server error", None),
+            (
+                LLMCallException(
+                    LLMRateLimitError(429, "slow down", retry_after_seconds=7),
+                    status=429,
+                ),
+                429,
+                "slow down",
+                "7",
+            ),
+        ],
+        ids=["internal-error", "rate-limit"],
+    )
+    def test_error_responses_preserve_cors_headers(
+        self,
+        exception,
+        expected_status,
+        expected_message,
+        expected_retry_after,
+    ):
         original_middleware = api.app.user_middleware
         original_middleware_stack = api.app.middleware_stack
         api.app.user_middleware = list(original_middleware)
         api.app.middleware_stack = None
-        api.app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["https://client.example"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+        api._add_cors_middleware(api.app, ["https://client.example"])
         client = TestClient(api.app, raise_server_exceptions=False)
 
         try:
             mock_rails = AsyncMock()
-            mock_rails.generate_async.side_effect = RuntimeError("unexpected")
+            mock_rails.generate_async.side_effect = exception
             with patch(
                 "nemoguardrails.server.api._get_rails",
                 new_callable=AsyncMock,
@@ -345,9 +360,15 @@ class TestAPIErrorPropagation:
             api.app.user_middleware = original_middleware
             api.app.middleware_stack = original_middleware_stack
 
-        assert response.status_code == 500
+        assert response.status_code == expected_status
         assert response.headers["access-control-allow-origin"] == "https://client.example"
-        assert response.json()["error"]["message"] == "Internal server error"
+        exposed_headers = {
+            header.strip().lower() for header in response.headers["access-control-expose-headers"].split(",")
+        }
+        assert "retry-after" in exposed_headers
+        assert response.json()["error"]["message"] == expected_message
+        if expected_retry_after is not None:
+            assert response.headers["retry-after"] == expected_retry_after
 
     def test_happy_path_returns_200(self):
         response = _post(return_value={"role": "assistant", "content": "Hello!"})

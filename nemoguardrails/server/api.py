@@ -232,19 +232,25 @@ app.add_middleware(ExceptionMiddleware, handlers={Exception: internal_error_hand
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
 ALLOWED_ORIGINS = os.getenv("NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS", "*")
 
+
+def _add_cors_middleware(application: FastAPI, origins: List[str]) -> None:
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["Retry-After"],
+    )
+
+
 if ENABLE_CORS:
     # Split origins by comma
     origins = ALLOWED_ORIGINS.split(",")
 
     log.info(f"CORS enabled with the following origins: {origins}")
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    _add_cors_middleware(app, origins)
 
 app.default_config_id = None
 
