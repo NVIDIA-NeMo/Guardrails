@@ -92,10 +92,24 @@ paths:
             text/event-stream:
               schema:
                 type: string
-              example: |
-                data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
+                description: |
+                  Server-sent events containing chat completion chunks. A
+                  downstream failure before the first chunk is returned as an
+                  HTTP error so clients can retry it. If generation fails after
+                  streaming begins, the final JSON event is an error envelope
+                  whose `type` is an internal streaming marker and whose `code`
+                  carries the downstream HTTP status or generation error code.
+              examples:
+                completion:
+                  value: |
+                    data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Paris"},"index":0,"finish_reason":null}]}
 
-                data: [DONE]
+                    data: [DONE]
+                error:
+                  value: |
+                    data: {"error":{"message":"The upstream model is unavailable.","type":"downstream_error","param":null,"code":503}}
+
+                    data: [DONE]
         "422":
           description: Invalid request or unsupported state continuation.
           content:
@@ -105,10 +119,18 @@ paths:
               examples:
                 missingConfig:
                   value:
-                    detail: No guardrails config_id provided and server has no default configuration
+                    error:
+                      message: No guardrails config_id provided and server has no default configuration
+                      type: invalid_request_error
+                      param: null
+                      code: null
                 unsupportedColangState:
                   value:
-                    detail: Stateful continuation over HTTP is not supported for Colang 2.0.
+                    error:
+                      message: Stateful continuation over HTTP is not supported for Colang 2.0.
+                      type: invalid_request_error
+                      param: null
+                      code: null
   /v1/models:
     get:
       operationId: listModels
@@ -519,10 +541,41 @@ components:
           description: Guardrails configuration ID.
     ErrorResponse:
       type: object
+      description: |
+        OpenAI-compatible error envelope. Every error response from the server
+        uses this shape, so an OpenAI SDK raises the matching APIStatusError
+        subclass.
+      required:
+        - error
       properties:
-        detail:
-          description: Error detail.
-          oneOf:
-            - type: string
-            - type: object
-              additionalProperties: true
+        error:
+          type: object
+          required:
+            - message
+            - type
+            - param
+            - code
+          properties:
+            message:
+              type: string
+              description: Human-readable error message, with secrets and upstream URLs redacted.
+            type:
+              type: string
+              description: |
+                OpenAI error category, derived from the HTTP status
+                (for example `invalid_request_error`, `authentication_error`,
+                `permission_error`, `not_found_error`, `rate_limit_error`,
+                `server_error`).
+            param:
+              type: string
+              nullable: true
+              description: The request field the error relates to, when known.
+            code:
+              nullable: true
+              description: |
+                Provider-supplied error code when available. Streaming error
+                events use an integer downstream HTTP status or a string
+                generation error code.
+              oneOf:
+                - type: string
+                - type: integer

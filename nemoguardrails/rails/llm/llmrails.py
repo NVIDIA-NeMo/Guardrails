@@ -75,6 +75,7 @@ from nemoguardrails.exceptions import (
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
+from nemoguardrails.llm.clients._errors import build_streaming_error_payload
 from nemoguardrails.llm.models.initializer import (
     ModelInitializationError,
     init_llm_model,
@@ -105,7 +106,6 @@ from nemoguardrails.rails.llm.utils import (
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import (
-    extract_error_json,
     get_or_create_event_loop,
     new_event_dict,
     new_uuid,
@@ -1066,9 +1066,7 @@ class LLMRails(BaseGuardrails):
                 streaming_handler = streaming_handler_var.get()
                 if streaming_handler:
                     # Push an error chunk instead of None.
-                    error_message = str(e)
-                    error_dict = extract_error_json(error_message)
-                    error_payload: str = json.dumps(error_dict)
+                    error_payload: str = build_streaming_error_payload(e)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
                     await streaming_handler.push_chunk(END_OF_STREAM)
@@ -1439,9 +1437,7 @@ class LLMRails(BaseGuardrails):
                 # If an exception occurs during generation, push it to the streaming handler as a json string
                 # This ensures the streaming pipeline is properly terminated
                 log.error(f"Error in generation task: {e}", exc_info=True)
-                error_message = str(e)
-                error_dict = extract_error_json(error_message)
-                error_payload = json.dumps(error_dict)
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)
 

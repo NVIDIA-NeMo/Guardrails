@@ -62,6 +62,10 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
+from nemoguardrails.llm.clients._errors import (
+    STREAM_ERROR_TYPES,
+    build_streaming_error_payload,
+)
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
@@ -100,18 +104,19 @@ NONSTREAM_MAX_CONCURRENCY = 256
 # semaphore).
 STREAM_MAX_CONCURRENCY = 256
 
-# Error type used by _generation_task when pushing error JSON into the stream
-_GENERATION_ERROR_TYPE = "generation_error"
-
 
 def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
     """True when a streamed chunk is an error/violation payload.
 
-    Covers both the ``generation_error`` payload pushed on a generation failure
-    and the ``guardrails_violation`` payload emitted when output rails block.
-    Handles plain-string chunks and the ``{"text": ...}`` frames produced when
-    ``include_metadata=True``. The cheap ``"error"`` substring guard keeps the
-    per-chunk hot path from JSON-parsing ordinary text tokens.
+    Covers the ``generation_error`` / ``downstream_error`` payloads pushed on a
+    generation failure and the ``guardrails_violation`` payload emitted when
+    rails block. Handles plain-string chunks and the ``{"text": ...}`` frames
+    produced when ``include_metadata=True``. The cheap ``"error"`` substring
+    guard keeps the per-chunk hot path from JSON-parsing ordinary text tokens.
+
+    The ``type`` must be one of the internal markers in ``STREAM_ERROR_TYPES``:
+    matching any object that merely has an ``error`` key would let model output
+    that looks like an OpenAI error truncate the stream and skip output rails.
     """
     text = chunk.get("text") if isinstance(chunk, dict) else chunk
     if not isinstance(text, str) or '"error"' not in text:
@@ -120,7 +125,10 @@ def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
         parsed = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         return False
-    return isinstance(parsed, dict) and "error" in parsed
+    if not isinstance(parsed, dict):
+        return False
+    error_obj = parsed.get("error")
+    return isinstance(error_obj, dict) and error_obj.get("type") in STREAM_ERROR_TYPES
 
 
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
@@ -1435,9 +1443,7 @@ class IORails(BaseGuardrails):
                 # streaming path.
                 if self._metrics_enabled:
                     record_request_error(e)
-                error_payload = json.dumps(
-                    {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
-                )
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
@@ -1614,16 +1620,12 @@ class IORails(BaseGuardrails):
             user_output_chunks = chunk_batch.user_output_chunks
             bot_response_chunk = buffer_strategy.format_chunks(chunk_batch.processing_context)
 
-            # If the batch contains a generation error from _generation_task,
+            # If the batch contains an error chunk (generation or downstream HTTP),
             # yield it directly and stop — don't feed error JSON through output rails.
             for chunk in user_output_chunks:
-                try:
-                    parsed = json.loads(chunk)
-                    if isinstance(parsed, dict) and parsed.get("error", {}).get("type") == _GENERATION_ERROR_TYPE:
-                        yield chunk
-                        return
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                if _is_stream_error_chunk(chunk):
+                    yield chunk
+                    return
 
             if stream_first:
                 for chunk in user_output_chunks:
