@@ -57,14 +57,14 @@ def test_default_catalog_serializes_concurrent_discovery(monkeypatch):
         def __exit__(self, exc_type, exc_value, traceback):
             self._lock.release()
 
-    def discover_built_ins():
+    def load_builtin_catalog():
         nonlocal calls
         calls += 1
         discovery_started.set()
         assert release_discovery.wait(timeout=5)
         return catalog
 
-    monkeypatch.setattr(RailCatalog, "discover_built_ins", discover_built_ins)
+    monkeypatch.setattr(registry, "_load_builtin_catalog", load_builtin_catalog)
     monkeypatch.setattr(registry, "_lock", TrackingLock())
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -84,10 +84,10 @@ def test_default_catalog_serializes_concurrent_discovery(monkeypatch):
 def test_default_catalog_rejects_same_thread_reentry(monkeypatch):
     registry._reset_rail_manifest_cache()
 
-    def discover_built_ins():
+    def load_builtin_catalog():
         return registry.default_rail_catalog()
 
-    monkeypatch.setattr(RailCatalog, "discover_built_ins", discover_built_ins)
+    monkeypatch.setattr(registry, "_load_builtin_catalog", load_builtin_catalog)
     try:
         with pytest.raises(RuntimeError, match="re-entered"):
             registry.default_rail_catalog()

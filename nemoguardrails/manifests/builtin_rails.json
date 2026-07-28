@@ -1,0 +1,4556 @@
+{
+  "format_version": 1,
+  "records": [
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_pii",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Moderates input and output text with the ActiveFence ActiveScore API.",
+          "display_name": "ActiveFence",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/active-fence.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "moderation"
+          ],
+          "version": null
+        },
+        "name": "activefence",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "call_activefence_api",
+                "target": "nemoguardrails.library.activefence.actions:call_activefence_api"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "activefence moderation on input",
+              "activefence moderation on output",
+              "activefence moderation on input detailed"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "ActiveFence ActiveScore API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "ACTIVEFENCE_API_KEY",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "ActiveFence ActiveScore API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "call_activefence_api",
+                "target": "nemoguardrails.library.activefence.actions:call_activefence_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "threshold_mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "simple"
+                }
+              ],
+              "direction": "input",
+              "name": "activefence moderation on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_activefence_api",
+                "target": "nemoguardrails.library.activefence.actions:call_activefence_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "threshold_mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "simple"
+                }
+              ],
+              "direction": "output",
+              "name": "activefence moderation on output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_activefence_api",
+                "target": "nemoguardrails.library.activefence.actions:call_activefence_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "threshold_mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "detailed"
+                }
+              ],
+              "direction": "input",
+              "name": "activefence moderation on input detailed",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.activefence.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Inspects prompts and responses with Cisco AI Defense.",
+          "display_name": "Cisco AI Defense",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/ai-defense.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "security"
+          ],
+          "version": null
+        },
+        "name": "ai_defense",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "ai_defense_inspect",
+                "target": "nemoguardrails.library.ai_defense.actions:ai_defense_inspect"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "ai_defense",
+            "spec": {
+              "target": "nemoguardrails.library.ai_defense.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "ai defense inspect prompt",
+              "ai defense inspect response"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Cisco AI Defense"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "AI_DEFENSE_API_ENDPOINT",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "AI_DEFENSE_API_KEY",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Cisco AI Defense",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "ai_defense_inspect",
+                "target": "nemoguardrails.library.ai_defense.actions:ai_defense_inspect"
+              },
+              "bindings": [
+                {
+                  "action_param": "user_prompt",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "ai defense inspect prompt",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "ai_defense_inspect",
+                "target": "nemoguardrails.library.ai_defense.actions:ai_defense_inspect"
+              },
+              "bindings": [
+                {
+                  "action_param": "bot_response",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "ai defense inspect response",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.ai_defense.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "fact_check",
+            "mask",
+            "moderate",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Uses AutoAlign APIs for input safety, output safety, groundedness, and fact checking.",
+          "display_name": "AutoAlign",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/auto-align.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "moderation",
+            "pii",
+            "fact-checking"
+          ],
+          "version": null
+        },
+        "name": "autoalign",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "autoalign_input_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_input_api"
+              },
+              {
+                "name": "autoalign_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_output_api"
+              },
+              {
+                "name": "autoalign_groundedness_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_groundedness_output_api"
+              },
+              {
+                "name": "autoalign_factcheck_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_factcheck_output_api"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "autoalign",
+            "spec": {
+              "target": "nemoguardrails.library.autoalign.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "autoalign check input",
+              "autoalign check output",
+              "autoalign groundedness output",
+              "autoalign factcheck output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "AutoAlign API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "AUTOALIGN_API_KEY",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "AutoAlign API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "autoalign_input_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_input_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "show_autoalign_message",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": true
+                }
+              ],
+              "direction": "input",
+              "name": "autoalign check input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "autoalign_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_output_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "show_autoalign_message",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": true
+                }
+              ],
+              "direction": "output",
+              "name": "autoalign check output",
+              "transform_target": "bot_message"
+            },
+            {
+              "action": {
+                "name": "autoalign_groundedness_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_groundedness_output_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "factcheck_threshold",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": 0.5
+                },
+                {
+                  "action_param": "show_autoalign_message",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": true
+                }
+              ],
+              "direction": "output",
+              "name": "autoalign groundedness output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "autoalign_factcheck_output_api",
+                "target": "nemoguardrails.library.autoalign.actions:autoalign_factcheck_output_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "factcheck_threshold",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": 0.5
+                },
+                {
+                  "action_param": "show_autoalign_message",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": true
+                }
+              ],
+              "direction": "output",
+              "name": "autoalign factcheck output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.autoalign.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Evaluates input and output text against Clavata policies.",
+          "display_name": "Clavata",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/clavata.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "policy"
+          ],
+          "version": null
+        },
+        "name": "clavata",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "ClavataCheckAction",
+                "target": "nemoguardrails.library.clavata.actions:clavata_check"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "clavata",
+            "spec": {
+              "target": "nemoguardrails.library.clavata.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "clavata check for",
+              "clavata check input",
+              "clavata check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Clavata API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "CLAVATA_API_KEY",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Clavata API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "ClavataCheckAction",
+                "target": "nemoguardrails.library.clavata.actions:clavata_check"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "rail",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                }
+              ],
+              "direction": "input",
+              "name": "clavata check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "ClavataCheckAction",
+                "target": "nemoguardrails.library.clavata.actions:clavata_check"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "rail",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                }
+              ],
+              "direction": "output",
+              "name": "clavata check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.clavata.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "fact_check"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks bot response trustworthiness using Cleanlab TLM.",
+          "display_name": "Cleanlab",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/cleanlab.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "hallucination",
+            "trustworthiness"
+          ],
+          "version": null
+        },
+        "name": "cleanlab",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "call_cleanlab_api",
+                "target": "nemoguardrails.library.cleanlab.actions:call_cleanlab_api"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "cleanlab trustworthiness"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Cleanlab TLM"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "CLEANLAB_API_KEY",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "cleanlab-studio"
+            ],
+            "services": [
+              {
+                "description": null,
+                "name": "Cleanlab TLM",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "call_cleanlab_api",
+                "target": "nemoguardrails.library.cleanlab.actions:call_cleanlab_api"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "cleanlab trustworthiness",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.cleanlab.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Checks user input and bot output for safety policy violations.",
+          "display_name": "Content Safety",
+          "docs_url": "docs/configure-rails/guardrail-catalog/content-safety.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "nemoguard",
+            "moderation",
+            "safety"
+          ],
+          "version": null
+        },
+        "name": "content_safety",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "content_safety_check_input",
+                "target": "nemoguardrails.library.content_safety.actions:content_safety_check_input"
+              },
+              {
+                "name": "content_safety_check_output",
+                "target": "nemoguardrails.library.content_safety.actions:content_safety_check_output"
+              },
+              {
+                "name": "detect_language",
+                "target": "nemoguardrails.library.content_safety.actions:detect_language"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "content_safety",
+            "spec": {
+              "target": "nemoguardrails.library.content_safety.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "content safety check input",
+              "content safety check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "content_safety_check_input",
+                "target": "nemoguardrails.library.content_safety.actions:content_safety_check_input"
+              },
+              "bindings": [
+                {
+                  "action_param": "model_name",
+                  "key": "model",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "content safety check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "content_safety_check_output",
+                "target": "nemoguardrails.library.content_safety.actions:content_safety_check_output"
+              },
+              "bindings": [
+                {
+                  "action_param": "model_name",
+                  "key": "model",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "content safety check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.content_safety.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "classify"
+          ],
+          "categories": [
+            "input",
+            "retrieval"
+          ],
+          "description": "Detects oversized, repetitive, or low-entropy input and retrieved context.",
+          "display_name": "Context Bloat Detection",
+          "docs_url": null,
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "context",
+            "retrieval",
+            "denial-of-service"
+          ],
+          "version": null
+        },
+        "name": "context_bloat_detection",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "context_bloat_detection",
+                "target": "nemoguardrails.library.context_bloat_detection.actions:context_bloat_detection"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "context_bloat_detection",
+            "spec": {
+              "target": "nemoguardrails.library.context_bloat_detection.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "context bloat detection on input",
+              "context bloat detection on retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "context_bloat_detection",
+                "target": "nemoguardrails.library.context_bloat_detection.actions:context_bloat_detection"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "context bloat detection on input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "context_bloat_detection",
+                "target": "nemoguardrails.library.context_bloat_detection.actions:context_bloat_detection"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "context bloat detection on retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.context_bloat_detection.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "moderate",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Guards input and output messages with CrowdStrike AIDR.",
+          "display_name": "CrowdStrike AIDR",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/crowdstrike-aidr.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "security"
+          ],
+          "version": null
+        },
+        "name": "crowdstrike_aidr",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "crowdstrike_aidr_guard",
+                "target": "nemoguardrails.library.crowdstrike_aidr.actions:crowdstrike_aidr_guard"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "crowdstrike_aidr",
+            "spec": {
+              "target": "nemoguardrails.library.crowdstrike_aidr.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "crowdstrike aidr guard input",
+              "crowdstrike aidr guard output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "CrowdStrike AIDR API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "CS_AIDR_TOKEN",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "CS_AIDR_BASE_URL_TEMPLATE",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "CrowdStrike AIDR API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "crowdstrike_aidr_guard",
+                "target": "nemoguardrails.library.crowdstrike_aidr.actions:crowdstrike_aidr_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "user_message",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "crowdstrike aidr guard input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "crowdstrike_aidr_guard",
+                "target": "nemoguardrails.library.crowdstrike_aidr.actions:crowdstrike_aidr_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "user_message",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": false,
+                  "value": null
+                },
+                {
+                  "action_param": "bot_message",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "crowdstrike aidr guard output",
+              "transform_target": "bot_message"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.crowdstrike_aidr.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "content_safety",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Scans input and output text with the F5 AI Guardrails API.",
+          "display_name": "F5 AI Guardrails",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/f5-ai-guardrails.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "safety"
+          ],
+          "version": null
+        },
+        "name": "f5",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "f5_guardrails_scan",
+                "target": "nemoguardrails.library.f5.actions:f5_guardrails_scan"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "f5",
+            "spec": {
+              "target": "nemoguardrails.library.f5.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "f5 guardrails scan input",
+              "f5 guardrails scan output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "F5 AI Guardrails API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "F5_GUARDRAILS_API_KEY",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "F5_GUARDRAILS_API_URL",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "F5 AI Guardrails API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "f5_guardrails_scan",
+                "target": "nemoguardrails.library.f5.actions:f5_guardrails_scan"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "f5 guardrails scan input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "f5_guardrails_scan",
+                "target": "nemoguardrails.library.f5.actions:f5_guardrails_scan"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "f5 guardrails scan output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.f5.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "fact_check"
+          ],
+          "categories": [
+            "config",
+            "output"
+          ],
+          "description": "Provides shared configuration for fact-checking rails.",
+          "display_name": "Fact Checking",
+          "docs_url": "docs/configure-rails/guardrail-catalog/fact-checking.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "fact-checking",
+            "rag",
+            "grounding"
+          ],
+          "version": null
+        },
+        "name": "factchecking",
+        "spec": {
+          "actions": null,
+          "config_schema": {
+            "export_names": [],
+            "key": "fact_checking",
+            "spec": {
+              "target": "nemoguardrails.library.factchecking.rail_config:build_config_spec"
+            }
+          },
+          "flows": null,
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": []
+        }
+      },
+      "source": "nemoguardrails.library.factchecking.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "fact_check"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks whether bot output is grounded in retrieved chunks using an AlignScore endpoint.",
+          "display_name": "AlignScore Fact Checking",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/alignscore.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "alignscore",
+            "fact-checking",
+            "rag",
+            "grounding"
+          ],
+          "version": null
+        },
+        "name": "factchecking.align_score",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "alignscore_check_facts",
+                "target": "nemoguardrails.library.factchecking.align_score.actions:alignscore_check_facts"
+              },
+              {
+                "name": "alignscore request",
+                "target": "nemoguardrails.library.factchecking.align_score.request:alignscore_request"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "alignscore check facts"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "AlignScore HTTP service"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "AlignScore HTTP service",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "alignscore_check_facts",
+                "target": "nemoguardrails.library.factchecking.align_score.actions:alignscore_check_facts"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "alignscore check facts",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.factchecking.align_score.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "fact_check"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Checks safety and faithfulness with Fiddler Guardrails.",
+          "display_name": "Fiddler Guardrails",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/fiddler.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "safety",
+            "faithfulness"
+          ],
+          "version": null
+        },
+        "name": "fiddler",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "call_fiddler_safety_user",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_safety_user"
+              },
+              {
+                "name": "call_fiddler_safety_bot",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_safety_bot"
+              },
+              {
+                "name": "call_fiddler_faithfulness",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_faithfulness"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "fiddler",
+            "spec": {
+              "target": "nemoguardrails.library.fiddler.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "fiddler user safety",
+              "fiddler bot safety",
+              "fiddler bot faithfulness"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Fiddler Guardrails API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "FIDDLER_API_KEY",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Fiddler Guardrails API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "call_fiddler_safety_user",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_safety_user"
+              },
+              "bindings": [],
+              "direction": "input",
+              "name": "fiddler user safety",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_fiddler_safety_bot",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_safety_bot"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "fiddler bot safety",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_fiddler_faithfulness",
+                "target": "nemoguardrails.library.fiddler.actions:call_fiddler_faithfulness"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "fiddler bot faithfulness",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.fiddler.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "moderate"
+          ],
+          "categories": [
+            "input"
+          ],
+          "description": "Moderates user input with Google Cloud Natural Language.",
+          "display_name": "GCP Text Moderation",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/gcp-text-moderations.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "gcp",
+            "moderation"
+          ],
+          "version": null
+        },
+        "name": "gcp_moderate_text",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "call_gcpnlp_api",
+                "target": "nemoguardrails.library.gcp_moderate_text.actions:call_gcp_text_moderation_api"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "gcpnlp moderation",
+              "gcpnlp moderation detailed"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Google Cloud Natural Language API"
+            ],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "GOOGLE_APPLICATION_CREDENTIALS",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "google-cloud-language"
+            ],
+            "services": [
+              {
+                "description": null,
+                "name": "Google Cloud Natural Language API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "call_gcpnlp_api",
+                "target": "nemoguardrails.library.gcp_moderate_text.actions:call_gcp_text_moderation_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "threshold_mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "simple"
+                }
+              ],
+              "direction": "input",
+              "name": "gcpnlp moderation",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_gcpnlp_api",
+                "target": "nemoguardrails.library.gcp_moderate_text.actions:call_gcp_text_moderation_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "threshold_mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "detailed"
+                }
+              ],
+              "direction": "input",
+              "name": "gcpnlp moderation detailed",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.gcp_moderate_text.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "block",
+            "classify",
+            "detect_pii",
+            "mask",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Detects and masks PII in input, output, and retrieved chunks using GLiNER.",
+          "display_name": "GLiNER",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/gliner.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "pii",
+            "ner",
+            "nim",
+            "gliner"
+          ],
+          "version": null
+        },
+        "name": "gliner",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "gliner_detect_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_detect_pii"
+              },
+              {
+                "name": "gliner_mask_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_mask_pii"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "gliner",
+            "spec": {
+              "target": "nemoguardrails.library.gliner.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "gliner detect pii on input",
+              "gliner detect pii on output",
+              "gliner detect pii on retrieval",
+              "gliner mask pii on input",
+              "gliner mask pii on output",
+              "gliner mask pii on retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "GLiNER endpoint"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": "API key used when the shipped hosted GLiNER configuration selects this variable.",
+                "name": "NVIDIA_API_KEY",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "GLiNER endpoint",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "gliner_detect_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "gliner detect pii on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "gliner_detect_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "gliner detect pii on output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "gliner_detect_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "gliner detect pii on retrieval",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "gliner_mask_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "gliner mask pii on input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "gliner_mask_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "gliner mask pii on output",
+              "transform_target": "bot_message"
+            },
+            {
+              "action": {
+                "name": "gliner_mask_pii",
+                "target": "nemoguardrails.library.gliner.actions:gliner_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "gliner mask pii on retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.gliner.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "topic_control"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Runs configured Guardrails AI validators on input or output text.",
+          "display_name": "Guardrails AI",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/guardrails-ai.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "validators"
+          ],
+          "version": null
+        },
+        "name": "guardrails_ai",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "validate_guardrails_ai_input",
+                "target": "nemoguardrails.library.guardrails_ai.actions:validate_guardrails_ai_input"
+              },
+              {
+                "name": "validate_guardrails_ai_output",
+                "target": "nemoguardrails.library.guardrails_ai.actions:validate_guardrails_ai_output"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "guardrails_ai",
+            "spec": {
+              "target": "nemoguardrails.library.guardrails_ai.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "guardrailsai check input",
+              "guardrailsai check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "guardrails-ai"
+            ],
+            "services": [
+              {
+                "description": null,
+                "name": "Guardrails Hub",
+                "required": false
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "validate_guardrails_ai_input",
+                "target": "nemoguardrails.library.guardrails_ai.actions:validate_guardrails_ai_input"
+              },
+              "bindings": [
+                {
+                  "action_param": "validator",
+                  "key": "validator",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "guardrailsai check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "validate_guardrails_ai_output",
+                "target": "nemoguardrails.library.guardrails_ai.actions:validate_guardrails_ai_output"
+              },
+              "bindings": [
+                {
+                  "action_param": "validator",
+                  "key": "validator",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "guardrailsai check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.guardrails_ai.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "fact_check"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks bot output for hallucinations using LLM self-consistency.",
+          "display_name": "Hallucination Detection",
+          "docs_url": "docs/configure-rails/guardrail-catalog/fact-checking.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "self-check",
+            "hallucination",
+            "llm-prompt"
+          ],
+          "version": null
+        },
+        "name": "hallucination",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "self_check_hallucination",
+                "target": "nemoguardrails.library.hallucination.actions:self_check_hallucination"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "hallucination warning",
+              "self check hallucination"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "llm"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "self_check_hallucination",
+                "target": "nemoguardrails.library.hallucination.actions:self_check_hallucination"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "self check hallucination",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.hallucination.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Checks input, output, or retrieved chunks with named Hugging Face classifier configurations.",
+          "display_name": "Hugging Face Classifier",
+          "docs_url": null,
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "huggingface",
+            "classifier",
+            "local",
+            "remote"
+          ],
+          "version": null
+        },
+        "name": "hf_classifier",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "hf_classifier_check_input",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_input"
+              },
+              {
+                "name": "hf_classifier_check_output",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_output"
+              },
+              {
+                "name": "hf_classifier_check_retrieval",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_retrieval"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "hf_classifier",
+            "spec": {
+              "target": "nemoguardrails.library.hf_classifier.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "hf classifier check input",
+              "hf classifier check output",
+              "hf classifier check retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "vLLM classifier endpoint",
+              "KServe classifier endpoint",
+              "FMS guardrails-detectors endpoint"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "transformers"
+            ],
+            "services": [
+              {
+                "description": null,
+                "name": "vLLM classifier endpoint",
+                "required": false
+              },
+              {
+                "description": null,
+                "name": "KServe classifier endpoint",
+                "required": false
+              },
+              {
+                "description": null,
+                "name": "FMS guardrails-detectors endpoint",
+                "required": false
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "hf_classifier_check_input",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_input"
+              },
+              "bindings": [
+                {
+                  "action_param": "classifier",
+                  "key": "classifier",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "hf classifier check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "hf_classifier_check_output",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_output"
+              },
+              "bindings": [
+                {
+                  "action_param": "classifier",
+                  "key": "classifier",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "hf classifier check output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "hf_classifier_check_retrieval",
+                "target": "nemoguardrails.library.hf_classifier.actions:hf_classifier_check_retrieval"
+              },
+              "bindings": [
+                {
+                  "action_param": "classifier",
+                  "key": "classifier",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "hf classifier check retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.hf_classifier.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "transform"
+          ],
+          "categories": [
+            "output",
+            "tool_output"
+          ],
+          "description": "Detects and mitigates injection patterns in bot output.",
+          "display_name": "Injection Detection",
+          "docs_url": "docs/configure-rails/guardrail-catalog/agentic-security.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "security",
+            "agentic",
+            "yara"
+          ],
+          "version": null
+        },
+        "name": "injection_detection",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "injection_detection",
+                "target": "nemoguardrails.library.injection_detection.actions:injection_detection"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "injection_detection",
+            "spec": {
+              "target": "nemoguardrails.library.injection_detection.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "injection detection"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "yara-python"
+            ],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "injection_detection",
+                "target": "nemoguardrails.library.injection_detection.actions:injection_detection"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "injection detection",
+              "transform_target": "bot_message"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.injection_detection.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "detect_jailbreak"
+          ],
+          "categories": [
+            "input"
+          ],
+          "description": "Detects jailbreak attempts using heuristic, model-based, or remote classifier checks.",
+          "display_name": "Jailbreak Detection",
+          "docs_url": "docs/configure-rails/guardrail-catalog/jailbreak-protection.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "nemoguard",
+            "security",
+            "jailbreak"
+          ],
+          "version": null
+        },
+        "name": "jailbreak_detection",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "jailbreak_detection_heuristics",
+                "target": "nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_heuristics"
+              },
+              {
+                "name": "jailbreak_detection_model",
+                "target": "nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_model"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "jailbreak_detection",
+            "spec": {
+              "target": "nemoguardrails.library.jailbreak_detection.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "jailbreak detection heuristics",
+              "jailbreak detection model"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "NVIDIA NIM"
+            ],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": "API key used when the shipped hosted NVIDIA NIM configuration selects this variable.",
+                "name": "NVIDIA_API_KEY",
+                "required": false
+              },
+              {
+                "description": "Optional Hugging Face Hub token used when downloading local jailbreak models.",
+                "name": "HF_TOKEN",
+                "required": false
+              },
+              {
+                "description": "Optional Hugging Face cache directory used by local jailbreak model downloads.",
+                "name": "HF_HOME",
+                "required": false
+              },
+              {
+                "description": "Optional Hugging Face Hub offline-mode setting used when loading local jailbreak models.",
+                "name": "HF_HUB_OFFLINE",
+                "required": false
+              },
+              {
+                "description": "Optional device override for local jailbreak detection models, such as cpu or cuda.",
+                "name": "JAILBREAK_CHECK_DEVICE",
+                "required": false
+              },
+              {
+                "description": "Directory containing or receiving the local jailbreak classifier model.",
+                "name": "EMBEDDING_CLASSIFIER_PATH",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [
+              "scikit-learn",
+              "torch"
+            ],
+            "services": [
+              {
+                "description": null,
+                "name": "NVIDIA NIM",
+                "required": false
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "jailbreak_detection_heuristics",
+                "target": "nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_heuristics"
+              },
+              "bindings": [],
+              "direction": "input",
+              "name": "jailbreak detection heuristics",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "jailbreak_detection_model",
+                "target": "nemoguardrails.library.jailbreak_detection.actions:jailbreak_detection_model"
+              },
+              "bindings": [],
+              "direction": "input",
+              "name": "jailbreak detection model",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.jailbreak_detection.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Checks user input and bot output with a configured Llama Guard model.",
+          "display_name": "Llama Guard",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/llama-guard.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "llama-guard",
+            "moderation",
+            "safety"
+          ],
+          "version": null
+        },
+        "name": "llama_guard",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "llama_guard_check_input",
+                "target": "nemoguardrails.library.llama_guard.actions:llama_guard_check_input"
+              },
+              {
+                "name": "llama_guard_check_output",
+                "target": "nemoguardrails.library.llama_guard.actions:llama_guard_check_output"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "llama guard check input",
+              "llama guard check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "llama_guard"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "llama_guard_check_input",
+                "target": "nemoguardrails.library.llama_guard.actions:llama_guard_check_input"
+              },
+              "bindings": [],
+              "direction": "input",
+              "name": "llama guard check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "llama_guard_check_output",
+                "target": "nemoguardrails.library.llama_guard.actions:llama_guard_check_output"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "llama guard check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.llama_guard.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "moderate",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Guards input and output messages with Pangea AI Guard.",
+          "display_name": "Pangea AI Guard",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/pangea.mdx",
+          "lifecycle": "deprecated",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "security"
+          ],
+          "version": null
+        },
+        "name": "pangea",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "pangea_ai_guard",
+                "target": "nemoguardrails.library.pangea.actions:pangea_ai_guard"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "pangea",
+            "spec": {
+              "target": "nemoguardrails.library.pangea.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "pangea ai guard input",
+              "pangea ai guard output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Pangea AI Guard"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "PANGEA_API_TOKEN",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "PANGEA_BASE_URL_TEMPLATE",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Pangea AI Guard",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "pangea_ai_guard",
+                "target": "nemoguardrails.library.pangea.actions:pangea_ai_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "user_message",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "pangea ai guard input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "pangea_ai_guard",
+                "target": "nemoguardrails.library.pangea.actions:pangea_ai_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "mode",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "user_message",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": false,
+                  "value": null
+                },
+                {
+                  "action_param": "bot_message",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "pangea ai guard output",
+              "transform_target": "bot_message"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.pangea.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "fact_check",
+            "moderate"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks bot output using Patronus Lynx or the Patronus Evaluate API.",
+          "display_name": "Patronus AI",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/patronus-evaluate-api.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "patronus",
+            "hallucination",
+            "rag",
+            "api"
+          ],
+          "version": null
+        },
+        "name": "patronusai",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "patronus_lynx_check_output_hallucination",
+                "target": "nemoguardrails.library.patronusai.actions:patronus_lynx_check_output_hallucination"
+              },
+              {
+                "name": "patronus_api_check_output",
+                "target": "nemoguardrails.library.patronusai.actions:patronus_api_check_output"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "patronus",
+            "spec": {
+              "target": "nemoguardrails.library.patronusai.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "patronus lynx check output hallucination",
+              "patronus api check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Patronus Evaluate API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "PATRONUS_API_KEY",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": false,
+                "type": "patronus_lynx"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Patronus Evaluate API",
+                "required": false
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "patronus_lynx_check_output_hallucination",
+                "target": "nemoguardrails.library.patronusai.actions:patronus_lynx_check_output_hallucination"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "patronus lynx check output hallucination",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "patronus_api_check_output",
+                "target": "nemoguardrails.library.patronusai.actions:patronus_api_check_output"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "patronus api check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.patronusai.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Moderates input and output text with PolicyAI.",
+          "display_name": "PolicyAI",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/policyai.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "policy"
+          ],
+          "version": null
+        },
+        "name": "policyai",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "call_policyai_api",
+                "target": "nemoguardrails.library.policyai.actions:call_policyai_api"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "policyai moderation on input",
+              "policyai moderation on output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "PolicyAI API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "POLICYAI_API_KEY",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "POLICYAI_BASE_URL",
+                "required": false
+              },
+              {
+                "description": null,
+                "name": "POLICYAI_TAG_NAME",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "PolicyAI API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "call_policyai_api",
+                "target": "nemoguardrails.library.policyai.actions:call_policyai_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "policyai moderation on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "call_policyai_api",
+                "target": "nemoguardrails.library.policyai.actions:call_policyai_api"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "policyai moderation on output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.policyai.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "detect_pii",
+            "mask",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Detects and masks personally identifiable information using Polygraf.",
+          "display_name": "Polygraf PII Detection",
+          "docs_url": null,
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "pii",
+            "polygraf",
+            "privacy"
+          ],
+          "version": null
+        },
+        "name": "polygraf",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "polygraf_detect_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_detect_pii"
+              },
+              {
+                "name": "polygraf_mask_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_mask_pii"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "polygraf",
+            "spec": {
+              "target": "nemoguardrails.library.polygraf.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "polygraf detect pii on input",
+              "polygraf detect pii on output",
+              "polygraf detect pii on retrieval",
+              "polygraf mask pii on input",
+              "polygraf mask pii on output",
+              "polygraf mask pii on retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Polygraf endpoint"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Polygraf endpoint",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "polygraf_detect_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "polygraf detect pii on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "polygraf_detect_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "polygraf detect pii on output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "polygraf_detect_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "polygraf detect pii on retrieval",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "polygraf_mask_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "polygraf mask pii on input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "polygraf_mask_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "polygraf mask pii on output",
+              "transform_target": "bot_message"
+            },
+            {
+              "action": {
+                "name": "polygraf_mask_pii",
+                "target": "nemoguardrails.library.polygraf.actions:polygraf_mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "polygraf mask pii on retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.polygraf.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "block",
+            "classify",
+            "detect_pii",
+            "mask",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Detects and masks PII in input, output, and retrieved chunks using Private AI.",
+          "display_name": "Private AI",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/privateai.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "pii"
+          ],
+          "version": null
+        },
+        "name": "privateai",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "detect_pii",
+                "target": "nemoguardrails.library.privateai.actions:detect_pii"
+              },
+              {
+                "name": "mask_pii",
+                "target": "nemoguardrails.library.privateai.actions:mask_pii"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "privateai",
+            "spec": {
+              "target": "nemoguardrails.library.privateai.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "detect pii on input",
+              "detect pii on output",
+              "detect pii on retrieval",
+              "mask pii on input",
+              "mask pii on output",
+              "mask pii on retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Private AI API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "PAI_API_KEY",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Private AI API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "detect_pii",
+                "target": "nemoguardrails.library.privateai.actions:detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "detect pii on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "detect_pii",
+                "target": "nemoguardrails.library.privateai.actions:detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "detect pii on output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "detect_pii",
+                "target": "nemoguardrails.library.privateai.actions:detect_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "detect pii on retrieval",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "mask_pii",
+                "target": "nemoguardrails.library.privateai.actions:mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "mask pii on input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "mask_pii",
+                "target": "nemoguardrails.library.privateai.actions:mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "mask pii on output",
+              "transform_target": "bot_message"
+            },
+            {
+              "action": {
+                "name": "mask_pii",
+                "target": "nemoguardrails.library.privateai.actions:mask_pii"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "mask pii on retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.privateai.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "detect_jailbreak",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Protects prompts and responses with the Prompt Security API.",
+          "display_name": "Prompt Security",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/prompt-security.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "security"
+          ],
+          "version": null
+        },
+        "name": "prompt_security",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "protect_text",
+                "target": "nemoguardrails.library.prompt_security.actions:protect_text"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "protect prompt",
+              "protect response"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Prompt Security Protect API"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": null,
+                "name": "PS_PROTECT_URL",
+                "required": true
+              },
+              {
+                "description": null,
+                "name": "PS_APP_ID",
+                "required": true
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Prompt Security Protect API",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "protect_text",
+                "target": "nemoguardrails.library.prompt_security.actions:protect_text"
+              },
+              "bindings": [
+                {
+                  "action_param": "user_prompt",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "protect prompt",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "protect_text",
+                "target": "nemoguardrails.library.prompt_security.actions:protect_text"
+              },
+              "bindings": [
+                {
+                  "action_param": "bot_response",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "protect response",
+              "transform_target": "bot_message"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.prompt_security.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "block",
+            "classify",
+            "moderate",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Detects and blocks text matching configured regular expression patterns.",
+          "display_name": "Regex Detection",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/regex.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "built-in",
+            "regex",
+            "pattern-matching"
+          ],
+          "version": null
+        },
+        "name": "regex",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "detect_regex_pattern",
+                "target": "nemoguardrails.library.regex.actions:detect_regex_pattern"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "regex_detection",
+            "spec": {
+              "target": "nemoguardrails.library.regex.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "regex check input",
+              "regex check output",
+              "regex check retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "detect_regex_pattern",
+                "target": "nemoguardrails.library.regex.actions:detect_regex_pattern"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "regex check input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "detect_regex_pattern",
+                "target": "nemoguardrails.library.regex.actions:detect_regex_pattern"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "regex check output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "detect_regex_pattern",
+                "target": "nemoguardrails.library.regex.actions:detect_regex_pattern"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "regex check retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.regex.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "fact_check"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks whether bot output is grounded in relevant chunks using an LLM prompt.",
+          "display_name": "Self-Check Facts",
+          "docs_url": "docs/configure-rails/guardrail-catalog/fact-checking.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "self-check",
+            "fact-checking",
+            "rag",
+            "llm-prompt"
+          ],
+          "version": null
+        },
+        "name": "self_check.facts",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "self_check_facts",
+                "target": "nemoguardrails.library.self_check.facts.actions:self_check_facts"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "self check facts"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": false
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "llm"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "self_check_facts",
+                "target": "nemoguardrails.library.self_check.facts.actions:self_check_facts"
+              },
+              "bindings": [],
+              "direction": "output",
+              "name": "self check facts",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.self_check.facts.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "moderate"
+          ],
+          "categories": [
+            "input"
+          ],
+          "description": "Checks whether user input should be allowed using an LLM prompt.",
+          "display_name": "Self-Check Input",
+          "docs_url": "docs/configure-rails/guardrail-catalog/self-check.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "self-check",
+            "input",
+            "llm-prompt"
+          ],
+          "version": null
+        },
+        "name": "self_check.input_check",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "self_check_input",
+                "target": "nemoguardrails.library.self_check.input_check.actions:self_check_input"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "self check input"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "llm"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "self_check_input",
+                "target": "nemoguardrails.library.self_check.input_check.actions:self_check_input"
+              },
+              "bindings": [
+                {
+                  "action_param": "variant",
+                  "key": "variant",
+                  "kind": "surface_param",
+                  "required": false,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "self check input",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.self_check.input_check.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "moderate"
+          ],
+          "categories": [
+            "output"
+          ],
+          "description": "Checks whether bot output should be returned using an LLM prompt.",
+          "display_name": "Self-Check Output",
+          "docs_url": "docs/configure-rails/guardrail-catalog/self-check.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "self-check",
+            "output",
+            "llm-prompt"
+          ],
+          "version": null
+        },
+        "name": "self_check.output_check",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "self_check_output",
+                "target": "nemoguardrails.library.self_check.output_check.actions:self_check_output"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "self check output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "llm"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "self_check_output",
+                "target": "nemoguardrails.library.self_check.output_check.actions:self_check_output"
+              },
+              "bindings": [
+                {
+                  "action_param": "variant",
+                  "key": "variant",
+                  "kind": "surface_param",
+                  "required": false,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "self check output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.self_check.output_check.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "block",
+            "classify",
+            "detect_pii",
+            "mask",
+            "transform"
+          ],
+          "categories": [
+            "input",
+            "output",
+            "retrieval"
+          ],
+          "description": "Detects and masks sensitive data using Presidio.",
+          "display_name": "Sensitive Data Detection",
+          "docs_url": "docs/configure-rails/guardrail-catalog/pii-detection.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "built-in",
+            "pii",
+            "presidio",
+            "sensitive-data"
+          ],
+          "version": null
+        },
+        "name": "sensitive_data_detection",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "detect_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:detect_sensitive_data"
+              },
+              {
+                "name": "mask_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:mask_sensitive_data"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "sensitive_data_detection",
+            "spec": {
+              "target": "nemoguardrails.library.sensitive_data_detection.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "detect sensitive data on input",
+              "mask sensitive data on input",
+              "detect sensitive data on output",
+              "mask sensitive data on output",
+              "detect sensitive data on retrieval",
+              "mask sensitive data on retrieval"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": true,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [
+              "sdd"
+            ],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "spacy:en_core_web_lg"
+              }
+            ],
+            "optional_dependencies": [
+              "presidio-analyzer",
+              "presidio-anonymizer",
+              "spacy"
+            ],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "detect_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:detect_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "detect sensitive data on input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "mask_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:mask_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "input"
+                },
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "mask sensitive data on input",
+              "transform_target": "user_message"
+            },
+            {
+              "action": {
+                "name": "detect_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:detect_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "detect sensitive data on output",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "mask_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:mask_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "output"
+                },
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "mask sensitive data on output",
+              "transform_target": "bot_message"
+            },
+            {
+              "action": {
+                "name": "detect_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:detect_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "detect sensitive data on retrieval",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "mask_sensitive_data",
+                "target": "nemoguardrails.library.sensitive_data_detection.actions:mask_sensitive_data"
+              },
+              "bindings": [
+                {
+                  "action_param": "source",
+                  "key": null,
+                  "kind": "literal",
+                  "required": true,
+                  "value": "retrieval"
+                },
+                {
+                  "action_param": "text",
+                  "key": "relevant_chunks",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "retrieval",
+              "name": "mask sensitive data on retrieval",
+              "transform_target": "relevant_chunks"
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.sensitive_data_detection.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "topic_control"
+          ],
+          "categories": [
+            "input"
+          ],
+          "description": "Checks whether user input stays within configured topical guidelines.",
+          "display_name": "Topic Safety",
+          "docs_url": "docs/configure-rails/guardrail-catalog/topic-control.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "nemoguard",
+            "topic-control"
+          ],
+          "version": null
+        },
+        "name": "topic_safety",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "topic_safety_check_input",
+                "target": "nemoguardrails.library.topic_safety.actions:topic_safety_check_input"
+              }
+            ]
+          },
+          "config_schema": null,
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "topic safety check input"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [],
+            "sends_bot_text": false,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [],
+            "extras": [],
+            "models": [
+              {
+                "description": null,
+                "required": true,
+                "type": "topic_control"
+              }
+            ],
+            "optional_dependencies": [],
+            "services": []
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "topic_safety_check_input",
+                "target": "nemoguardrails.library.topic_safety.actions:topic_safety_check_input"
+              },
+              "bindings": [
+                {
+                  "action_param": "model_name",
+                  "key": "model",
+                  "kind": "surface_param",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "topic safety check input",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.topic_safety.rail"
+    },
+    {
+      "manifest": {
+        "manifest_version": 1,
+        "metadata": {
+          "capabilities": [
+            "allow",
+            "block",
+            "classify",
+            "content_safety",
+            "detect_jailbreak",
+            "detect_pii",
+            "moderate"
+          ],
+          "categories": [
+            "input",
+            "output"
+          ],
+          "description": "Guards input and output text with Trend Micro Vision One AI Guard.",
+          "display_name": "Trend Micro Vision One AI Guard",
+          "docs_url": "docs/configure-rails/guardrail-catalog/community/trend-micro.mdx",
+          "lifecycle": "stable",
+          "long_description": null,
+          "owner": null,
+          "tags": [
+            "third-party",
+            "api",
+            "security"
+          ],
+          "version": null
+        },
+        "name": "trend_micro",
+        "spec": {
+          "actions": {
+            "refs": [
+              {
+                "name": "trend_ai_guard",
+                "target": "nemoguardrails.library.trend_micro.actions:trend_ai_guard"
+              }
+            ]
+          },
+          "config_schema": {
+            "export_names": [],
+            "key": "trend_micro",
+            "spec": {
+              "target": "nemoguardrails.library.trend_micro.rail_config:build_config_spec"
+            }
+          },
+          "flows": {
+            "files": [
+              "flows.co"
+            ],
+            "flow_names": [
+              "trend ai guard input",
+              "trend ai guard output"
+            ],
+            "v1_files": [
+              "flows.v1.co"
+            ]
+          },
+          "privacy": {
+            "data_retention": null,
+            "remote_services": [
+              "Trend Micro Vision One AI Guard"
+            ],
+            "sends_bot_text": true,
+            "sends_retrieved_chunks": false,
+            "sends_user_text": true
+          },
+          "requirements": {
+            "env_vars": [
+              {
+                "description": "API key used when the shipped Trend Micro configuration selects this variable.",
+                "name": "V1_API_KEY",
+                "required": false
+              }
+            ],
+            "extras": [],
+            "models": [],
+            "optional_dependencies": [],
+            "services": [
+              {
+                "description": null,
+                "name": "Trend Micro Vision One AI Guard",
+                "required": true
+              }
+            ]
+          },
+          "surfaces": [
+            {
+              "action": {
+                "name": "trend_ai_guard",
+                "target": "nemoguardrails.library.trend_micro.actions:trend_ai_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "user_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "input",
+              "name": "trend ai guard input",
+              "transform_target": null
+            },
+            {
+              "action": {
+                "name": "trend_ai_guard",
+                "target": "nemoguardrails.library.trend_micro.actions:trend_ai_guard"
+              },
+              "bindings": [
+                {
+                  "action_param": "text",
+                  "key": "bot_message",
+                  "kind": "context",
+                  "required": true,
+                  "value": null
+                }
+              ],
+              "direction": "output",
+              "name": "trend ai guard output",
+              "transform_target": null
+            }
+          ]
+        }
+      },
+      "source": "nemoguardrails.library.trend_micro.rail"
+    }
+  ]
+}

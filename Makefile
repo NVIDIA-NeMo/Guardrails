@@ -1,7 +1,7 @@
 .PHONY: help install
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
 .PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
-.PHONY: pre-commit pre-commit-install
+.PHONY: generate-builtin-rail-catalog check-builtin-rail-catalog pre-commit pre-commit-install
 
 .DEFAULT_GOAL := help
 
@@ -107,6 +107,12 @@ docs-fern-generate-sdk:
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
 
+generate-builtin-rail-catalog:
+	uv run python scripts/generate_builtin_rail_catalog.py
+
+check-builtin-rail-catalog:
+	uv run python scripts/generate_builtin_rail_catalog.py --check
+
 pre-commit:
 	uv run pre-commit run --all-files
 
@@ -156,5 +162,7 @@ help:
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
 		'' \
 		'Maintenance:' \
+		'  generate-builtin-rail-catalog Regenerate the packaged built-in rail catalog' \
+		'  check-builtin-rail-catalog Verify the packaged built-in rail catalog is current' \
 		'  pre-commit            Run pre-commit hooks against all files' \
 		'  pre-commit-install    Install the Git pre-commit hook'
