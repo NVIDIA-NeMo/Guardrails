@@ -38,6 +38,7 @@ from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import InvalidStateError, LLMCallException, StreamingNotSupportedError
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.llm.clients._errors import normalize_error_status
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
@@ -325,7 +326,7 @@ async def list_models(request: Request):
     except httpx.HTTPStatusError as exc:
         log.warning("Error fetching models from upstream: HTTP %s", exc.response.status_code)
         raise HTTPException(
-            status_code=exc.response.status_code,
+            status_code=normalize_error_status(exc.response.status_code),
             detail=f"Error fetching models from upstream (HTTP {exc.response.status_code})",
         )
     except httpx.RequestError as exc:

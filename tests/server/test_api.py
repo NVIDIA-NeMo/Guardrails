@@ -1007,6 +1007,21 @@ def test_list_models_upstream_error(caplog):
     assert sensitive_detail not in caplog.text
 
 
+def test_list_models_redirect_is_clamped_to_internal_error():
+    mock_response = _make_httpx_response({"error": "redirect"}, status_code=302)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 500
+    assert response.json()["error"]["type"] == "server_error"
+
+
 def test_list_models_connection_error():
     """Test /v1/models returns 502 on connection failure."""
     mock_client = AsyncMock()
