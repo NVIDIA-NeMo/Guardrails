@@ -136,7 +136,7 @@ def test_checks_real_provider_error_preserves_status_and_code(openai_api_key, re
         json={
             "model": OPENAI_MODEL,
             "messages": [{"role": "user", "content": "hello"}],
-            "guardrails": {"config": "recorded"},
+            "guardrails": {"config_id": "recorded"},
         },
     )
 
