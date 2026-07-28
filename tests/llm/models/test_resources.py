@@ -31,7 +31,7 @@ def _config(*models: Model) -> RailsConfig:
     return RailsConfig(models=list(models))
 
 
-def test_builds_main_specialized_models_action_parameters_and_caches():
+def test_builds_main_specialized_models_and_caches():
     main = FakeLLMModel(responses=[])
     content_safety = FakeLLMModel(responses=[])
     initializer = Mock(side_effect=[main, content_safety])
@@ -60,7 +60,7 @@ def test_builds_main_specialized_models_action_parameters_and_caches():
     resources = build_llm_model_resources(config.models, initializer=initializer)
 
     assert resources.main is main
-    assert resources.by_type == {"content_safety": content_safety}
+    assert resources.specialized_models == {"content_safety": content_safety}
     assert set(resources.caches) == {"content_safety", "jailbreak_detection"}
     assert resources.caches["content_safety"].maxsize == 17
     assert resources.caches["content_safety"].track_stats is True
@@ -79,12 +79,6 @@ def test_builds_main_specialized_models_action_parameters_and_caches():
         "mode": "text",
         "kwargs": {},
     }
-    assert resources.action_parameters() == {
-        "llm": main,
-        "llms": {"content_safety": content_safety},
-        "content_safety_llm": content_safety,
-        "model_caches": dict(resources.caches),
-    }
 
 
 def test_injected_main_takes_precedence_and_is_decorated(caplog):
@@ -101,20 +95,20 @@ def test_injected_main_takes_precedence_and_is_decorated(caplog):
     with caplog.at_level(logging.WARNING):
         resources = build_llm_model_resources(
             config.models,
-            main=injected,
+            main_override=injected,
             initializer=initializer,
             decorator=decorator,
         )
 
     assert resources.main is decorated_main
-    assert resources.by_type == {"topic_control": specialized}
+    assert resources.specialized_models == {"topic_control": specialized}
     initializer.assert_called_once_with(
         model_name="topic-model",
         provider_name="fake",
         mode="chat",
         kwargs={"temperature": 0.1},
     )
-    assert decorator.call_args_list[0].args == (injected, {})
+    assert decorator.call_args_list[0].args == (injected, None)
     assert decorator.call_args_list[1].args == (specialized, {"temperature": 0.1})
     assert "Both an LLM was provided via constructor" in caplog.text
 

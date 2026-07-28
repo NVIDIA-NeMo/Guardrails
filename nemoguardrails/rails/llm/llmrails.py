@@ -521,22 +521,31 @@ class LLMRails(BaseGuardrails):
         await self._kb.build()
 
     def _init_llms(self):
-        resources = build_llm_model_resources(self.config.models, main=self.llm)
-        by_type = {}
-        for model_type, model in resources.by_type.items():
+        resources = build_llm_model_resources(self.config.models, main_override=self.llm)
+        specialized_models = {}
+        for model_type, model in resources.specialized_models.items():
             attribute_name = f"{model_type}_llm"
             if not hasattr(self, attribute_name):
                 setattr(self, attribute_name, model)
-            by_type[model_type] = getattr(self, attribute_name)
+            specialized_models[model_type] = getattr(self, attribute_name)
 
         self._model_resources = LLMModelResources(
             main=resources.main,
-            by_type=by_type,
+            specialized_models=specialized_models,
             caches=resources.caches,
         )
         self.llm = self._model_resources.main
-        for name, value in self._model_resources.action_parameters().items():
-            self.runtime.register_action_param(name, value)
+        self._register_model_action_parameters()
+
+    def _register_model_action_parameters(self) -> None:
+        resources = self._model_resources
+        self.runtime.register_action_param("llms", dict(resources.specialized_models))
+        if resources.main is not None:
+            self.runtime.register_action_param("llm", resources.main)
+        for model_type, model in resources.specialized_models.items():
+            self.runtime.register_action_param(f"{model_type}_llm", model)
+        if resources.caches:
+            self.runtime.register_action_param("model_caches", dict(resources.caches))
 
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None

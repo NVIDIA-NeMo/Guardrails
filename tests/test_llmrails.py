@@ -715,6 +715,8 @@ async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
     injected_llm = FakeLLMModel(responses=["express greeting"])
     llm_rails = LLMRails(config=llm_config_with_multiple_models, llm=injected_llm)
     assert hasattr(llm_rails, "content_safety_llm")
+    assert llm_rails.runtime.registered_action_params["llms"] == {"content_safety": llm_rails.content_safety_llm}
+    assert llm_rails.runtime.registered_action_params["content_safety_llm"] is llm_rails.content_safety_llm
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
     assert any(event.get("intent") == "express greeting" for event in new_events)

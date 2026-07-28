@@ -19,7 +19,7 @@ import logging
 import os
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, Protocol, Sequence, cast
 
 from nemoguardrails._compat.langchain_kwargs import check_langchain_kwargs
 from nemoguardrails.exceptions import InvalidModelConfigurationError
@@ -33,32 +33,35 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-ModelInitializer = Callable[..., LLMModel]
-ModelDecorator = Callable[[LLMModel, Mapping[str, Any]], LLMModel]
+_SPECIALIZED_MODEL_EXCLUDED_TYPES = frozenset({"main", "embeddings", "jailbreak_detection"})
+_CACHE_EXCLUDED_TYPES = frozenset({"main", "embeddings"})
+
+
+class ModelInitializer(Protocol):
+    def __call__(
+        self,
+        model_name: str,
+        provider_name: str,
+        kwargs: dict[str, Any],
+        mode: Literal["chat", "text"] = "chat",
+    ) -> LLMModel: ...
+
+
+ModelDecorator = Callable[[LLMModel, Mapping[str, Any] | None], LLMModel]
 
 
 @dataclass(frozen=True, slots=True)
 class LLMModelResources:
     main: LLMModel | None
-    by_type: Mapping[str, LLMModel]
+    specialized_models: Mapping[str, LLMModel]
     caches: Mapping[str, CacheInterface]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "by_type", MappingProxyType(dict(self.by_type)))
+        object.__setattr__(self, "specialized_models", MappingProxyType(dict(self.specialized_models)))
         object.__setattr__(self, "caches", MappingProxyType(dict(self.caches)))
 
     def with_main(self, main: LLMModel) -> LLMModelResources:
         return replace(self, main=main)
-
-    def action_parameters(self) -> dict[str, Any]:
-        parameters: dict[str, Any] = {"llms": dict(self.by_type)}
-        if self.main is not None:
-            parameters["llm"] = self.main
-        for model_type, model in self.by_type.items():
-            parameters[f"{model_type}_llm"] = model
-        if self.caches:
-            parameters["model_caches"] = dict(self.caches)
-        return parameters
 
 
 def prepare_model_kwargs(model_config: Model) -> dict[str, Any]:
@@ -77,7 +80,7 @@ def _create_model_cache(model_config: Model) -> LFUCache:
     if cache_config.maxsize <= 0:
         raise ValueError(
             f"Invalid cache maxsize for model '{model_config.type}': {cache_config.maxsize}. "
-            "Capacity must be greater than 0. Skipping cache creation."
+            "Capacity must be greater than 0."
         )
 
     stats_logging_interval = None
@@ -107,10 +110,11 @@ def _initialize_model(
         )
 
     kwargs = prepare_model_kwargs(model_config)
+    resolved_mode = cast(Literal["chat", "text"], mode or model_config.mode)
     model = initializer(
         model_name=model_name,
         provider_name=model_config.engine,
-        mode=mode or model_config.mode,
+        mode=resolved_mode,
         kwargs=kwargs,
     )
     return decorator(model, kwargs) if decorator is not None else model
@@ -119,17 +123,23 @@ def _initialize_model(
 def build_llm_model_resources(
     models: Sequence[Model],
     *,
-    main: LLMModel | None = None,
+    main_override: LLMModel | None = None,
     initializer: ModelInitializer | None = None,
     decorator: ModelDecorator | None = None,
 ) -> LLMModelResources:
     if initializer is None:
         initializer = init_llm_model
     configured_models = list(models)
-    models_to_check = [model for model in configured_models if model.type != "main"] if main else configured_models
+    models_to_check = (
+        [model for model in configured_models if model.type != "main"]
+        if main_override is not None
+        else configured_models
+    )
     check_langchain_kwargs(models_to_check, get_default_framework())
 
-    resolved_main = decorator(main, {}) if main is not None and decorator is not None else main
+    resolved_main = (
+        decorator(main_override, None) if main_override is not None and decorator is not None else main_override
+    )
     configured_main = next((model for model in configured_models if model.type == "main"), None)
     if resolved_main is not None:
         if configured_main is not None:
@@ -149,13 +159,13 @@ def build_llm_model_resources(
     else:
         log.info("No main LLM specified in the config and no LLM provided via constructor.")
 
-    by_type: dict[str, LLMModel] = {}
+    specialized_models: dict[str, LLMModel] = {}
     for model_config in configured_models:
-        if model_config.type in {"main", "embeddings", "jailbreak_detection"}:
+        if model_config.type in _SPECIALIZED_MODEL_EXCLUDED_TYPES:
             continue
         try:
             model = _initialize_model(model_config, initializer, decorator)
-            by_type.setdefault(model_config.type, model)
+            specialized_models.setdefault(model_config.type, model)
         except ModelInitializationError as error:
             log.error("Failed to initialize model: %s", error)
             raise
@@ -165,14 +175,17 @@ def build_llm_model_resources(
 
     caches: dict[str, CacheInterface] = {}
     for model_config in configured_models:
-        if model_config.type in {"main", "embeddings"}:
+        if model_config.type in _CACHE_EXCLUDED_TYPES:
             continue
         if model_config.cache and model_config.cache.enabled:
             cache = _create_model_cache(model_config)
             caches[model_config.type] = cache
-            log.info("Initialized model '%s' with cache enabled", model_config.type)
 
-    return LLMModelResources(main=resolved_main, by_type=by_type, caches=caches)
+    return LLMModelResources(
+        main=resolved_main,
+        specialized_models=specialized_models,
+        caches=caches,
+    )
 
 
 __all__ = [
