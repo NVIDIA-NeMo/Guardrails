@@ -66,7 +66,7 @@ def _client_error_details(exc: BaseException) -> tuple[str, Union[str, int, None
     """
     client_error = as_client_error(exc)
     if client_error is None:
-        return str(exc), None, None, {}
+        return client_facing_message(exc), None, None, {}
 
     headers: Dict[str, str] = {}
     retry_after = getattr(client_error, "retry_after_seconds", None)

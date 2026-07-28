@@ -284,6 +284,21 @@ class TestAPIErrorPropagation:
         response = _post(side_effect=ModelEngineError("Connection refused", "m", status=None))
         assert response.status_code == 500
 
+    def test_wrapped_provider_error_does_not_disclose_internal_context(self):
+        exception = LLMCallException(
+            RuntimeError("provider rejected the request"),
+            detail=(
+                "Error invoking LLM "
+                "(model=internal-rail, provider=private-provider, endpoint=https://internal.example/v1)"
+            ),
+            status=400,
+        )
+
+        response = _post(side_effect=exception)
+
+        assert response.status_code == 400
+        assert response.json()["error"]["message"] == "provider rejected the request"
+
     def test_generic_exception_returns_500(self):
         response = _post(side_effect=RuntimeError("unexpected"))
         assert response.status_code == 500

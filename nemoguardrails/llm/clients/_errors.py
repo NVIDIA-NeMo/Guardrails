@@ -194,7 +194,12 @@ def client_facing_message(exception: BaseException) -> str:
     not be disclosed to the caller.
     """
     client_error = as_client_error(exception)
-    return client_error.error_message if client_error is not None else str(exception)
+    if client_error is not None:
+        return client_error.error_message
+    inner = getattr(exception, "inner_exception", None)
+    if isinstance(inner, (BaseException, str)):
+        return str(inner)
+    return str(exception)
 
 
 def build_streaming_error_payload(exception: BaseException) -> str:
