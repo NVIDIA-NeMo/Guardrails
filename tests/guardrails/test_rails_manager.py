@@ -29,9 +29,11 @@ import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
+from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -180,6 +182,36 @@ class TestRailsManagerInit:
         assert "content safety check output $model=content_safety" in nemoguards_rails_manager._actions
         assert "topic safety check input $model=topic_control" in nemoguards_rails_manager._actions
         assert "jailbreak detection model" in nemoguards_rails_manager._actions
+
+
+class TestRailEngineFailureObservability:
+    @pytest.mark.asyncio
+    async def test_failure_captures_input_without_marking_policy_stop(
+        self, content_safety_rails_config, content_safety_engine_registry
+    ):
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        manager = RailsManager(
+            engine_registry=content_safety_engine_registry,
+            task_manager=LLMTaskManager(content_safety_rails_config),
+            input_flows=content_safety_rails_config.rails.input.flows,
+            output_flows=[],
+            tracer=provider.get_tracer("test"),
+            content_capture_enabled=True,
+        )
+        content_safety_engine_registry.model_call = AsyncMock(
+            side_effect=ModelEngineError("rate limited", "content-safety", status=429)
+        )
+
+        with pytest.raises(ModelEngineError):
+            await manager.is_input_safe(MESSAGES)
+
+        rail_span = next(span for span in exporter.get_finished_spans() if span.name == "guardrails.rail")
+        assert rail_span.status.status_code == StatusCode.ERROR
+        assert GuardrailsAttributes.RAIL_STOP not in rail_span.attributes
+        rail_input = json.loads(rail_span.attributes[GuardrailsAttributes.RAIL_INPUT])
+        assert rail_input == {"messages": MESSAGES, "bot_response": None}
 
 
 # --- Sequential input/output tests ---
