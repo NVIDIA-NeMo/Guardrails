@@ -475,6 +475,15 @@ class ChunkError(BaseModel):
     error: ChunkErrorMetadata
 
 
+async def _prepend_stream_chunk(
+    first_chunk: Union[str, dict],
+    stream_iterator: AsyncIterator[Union[str, dict]],
+) -> AsyncIterator[Union[str, dict]]:
+    yield first_chunk
+    async for chunk in stream_iterator:
+        yield chunk
+
+
 async def _format_streaming_response(
     stream_iterator: AsyncIterator[Union[str, dict]], model_name: str
 ) -> AsyncIterator[str]:
@@ -672,8 +681,29 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             state=body.guardrails.state,
         )
 
+        try:
+            first_chunk = await anext(stream_iterator)
+        except StopAsyncIteration:
+            return StreamingResponse(
+                iter(("data: [DONE]\n\n",)),
+                media_type="text/event-stream",
+            )
+
+        processed_first_chunk = process_chunk(first_chunk)
+        if isinstance(processed_first_chunk, ChunkError) and processed_first_chunk.error.type == "downstream_error":
+            close = getattr(stream_iterator, "aclose", None)
+            if callable(close):
+                await close()
+            raise HTTPException(
+                status_code=normalize_error_status(processed_first_chunk.error.code),
+                detail=processed_first_chunk.error.message,
+            )
+
         return StreamingResponse(
-            _format_streaming_response(stream_iterator, model_name=body.model),
+            _format_streaming_response(
+                _prepend_stream_chunk(first_chunk, stream_iterator),
+                model_name=body.model,
+            ),
             media_type="text/event-stream",
         )
     else:

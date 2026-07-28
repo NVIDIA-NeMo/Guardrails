@@ -93,11 +93,12 @@ paths:
               schema:
                 type: string
                 description: |
-                  Server-sent events containing chat completion chunks. If
-                  generation fails after streaming begins, the final JSON event
-                  is an error envelope whose `type` is an internal streaming
-                  marker and whose `code` carries the downstream HTTP status or
-                  generation error code.
+                  Server-sent events containing chat completion chunks. A
+                  downstream failure before the first chunk is returned as an
+                  HTTP error so clients can retry it. If generation fails after
+                  streaming begins, the final JSON event is an error envelope
+                  whose `type` is an internal streaming marker and whose `code`
+                  carries the downstream HTTP status or generation error code.
               examples:
                 completion:
                   value: |

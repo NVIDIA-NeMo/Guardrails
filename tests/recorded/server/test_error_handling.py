@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from collections.abc import Callable, Iterator
 
 import pytest
@@ -87,14 +86,6 @@ def _chat_request(*, stream: bool) -> dict:
     }
 
 
-def _sse_payloads(response) -> list[dict]:
-    return [
-        json.loads(line.removeprefix("data: "))
-        for line in response.text.splitlines()
-        if line.startswith("data: ") and line != "data: [DONE]"
-    ]
-
-
 def test_chat_completion_real_provider_error_maps_to_openai_exception(openai_api_key, recorded_server):
     server, serve = recorded_server
     serve(OPENAI_INVALID_MODEL_CONFIG)
@@ -119,23 +110,21 @@ def test_chat_completion_real_provider_error_maps_to_openai_exception(openai_api
     assert OPENAI_INVALID_MODEL in exc_info.value.message
 
 
-def test_streaming_chat_completion_real_provider_error_emits_downstream_frame(openai_api_key, recorded_server):
+def test_streaming_chat_completion_initial_provider_error_preserves_http_status(openai_api_key, recorded_server):
     server, serve = recorded_server
     serve(OPENAI_INVALID_MODEL_CONFIG)
 
     response = server.post("/v1/chat/completions", json=_chat_request(stream=True))
 
-    assert response.status_code == 200
-    assert _sse_payloads(response) == [
-        {
-            "error": {
-                "message": f"The model `{OPENAI_INVALID_MODEL}` does not exist or you do not have access to it.",
-                "type": "downstream_error",
-                "param": None,
-                "code": 404,
-            }
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "message": f"The model `{OPENAI_INVALID_MODEL}` does not exist or you do not have access to it.",
+            "type": "not_found_error",
+            "param": None,
+            "code": None,
         }
-    ]
+    }
 
 
 def test_checks_real_provider_error_preserves_status_and_code(openai_api_key, recorded_server):

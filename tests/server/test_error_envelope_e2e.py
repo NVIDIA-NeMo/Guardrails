@@ -43,6 +43,7 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from aioresponses import aioresponses
 from fastapi.testclient import TestClient
+from openai import InternalServerError, OpenAI
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails import Guardrails, RailsConfig
@@ -452,14 +453,7 @@ class TestUnsupportedRequestCombinations:
 
 
 class TestStreamingErrorFrames:
-    """The SSE frames a streaming client actually receives.
-
-    A streaming response is already committed at HTTP 200, so the status has to
-    travel in the frame; these assert on the emitted ``data:`` lines rather than
-    on a payload the test built itself.
-    """
-
-    def test_downstream_failure_emits_one_error_frame(self, httpx_mock: HTTPXMock, serve_config):
+    def test_initial_downstream_failure_preserves_http_status(self, httpx_mock: HTTPXMock, serve_config):
         serve_config(MAIN_MODEL_CONFIG)
         httpx_mock.add_response(
             url=MAIN_MODEL_URL,
@@ -471,28 +465,47 @@ class TestStreamingErrorFrames:
 
         response = _chat(stream=True)
 
-        assert response.status_code == 200
-        payloads = _sse_payloads(response)
-        assert len(payloads) == 1
-        error = payloads[0]["error"]
-        assert error["type"] == "downstream_error"
-        # The HTTP status has no status line to travel on, so it rides in `code`.
-        assert error["code"] == 503
-        assert error["message"] == "overloaded"
+        assert response.status_code == 503
+        assert response.json()["error"]["type"] == "server_error"
+        assert response.json()["error"]["message"] == "overloaded"
 
-    def test_non_error_upstream_status_is_clamped_in_error_frame(self, serve_config):
+    def test_openai_client_retries_initial_streaming_failure(self, httpx_mock: HTTPXMock, serve_config):
+        serve_config(MAIN_MODEL_CONFIG)
+        httpx_mock.add_response(
+            url=MAIN_MODEL_URL,
+            method="POST",
+            status_code=503,
+            json={"error": {"message": "overloaded", "type": "server_error"}},
+            is_reusable=True,
+        )
+        client = OpenAI(
+            api_key="test-key",
+            base_url="http://testserver/v1",
+            http_client=_client(),
+            max_retries=1,
+        )
+
+        with pytest.raises(InternalServerError):
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": "hello"}],
+                stream=True,
+                extra_body={"guardrails": {"config_id": "test"}},
+            )
+
+        assert len(httpx_mock.get_requests(url=MAIN_MODEL_URL)) == 2
+
+    def test_non_error_upstream_status_is_clamped_before_stream_starts(self, serve_config):
         serve_config(RAIL_CONFIG, iorails=True)
 
         with aioresponses() as mocked:
             mocked.post(RAIL_ENDPOINT, status=200, body="not json", content_type="text/plain", repeat=True)
             response = _chat(stream=True)
 
-        assert response.status_code == 200
-        error = _sse_payloads(response)[0]["error"]
-        assert error["type"] == "downstream_error"
-        assert error["code"] == 500
+        assert response.status_code == 500
+        assert response.json()["error"]["type"] == "server_error"
 
-    def test_error_frame_does_not_disclose_model_provider_or_endpoint(self, httpx_mock: HTTPXMock, serve_config):
+    def test_initial_error_does_not_disclose_model_provider_or_endpoint(self, httpx_mock: HTTPXMock, serve_config):
         serve_config(MAIN_MODEL_CONFIG)
         httpx_mock.add_response(
             url=MAIN_MODEL_URL,
@@ -502,7 +515,7 @@ class TestStreamingErrorFrames:
             is_reusable=True,
         )
 
-        message = _sse_payloads(_chat(stream=True))[0]["error"]["message"]
+        message = _chat(stream=True).json()["error"]["message"]
 
         assert "provider=" not in message
         assert "upstream.invalid" not in message
