@@ -26,7 +26,7 @@ the user's signal to clean up.
 """
 
 # TODO(0.23): delete this module along with its call site in
-#   nemoguardrails.rails.llm.llmrails.LLMRails._init_llms.
+#   nemoguardrails.llm.models.resources.build_llm_model_resources.
 
 import re
 from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple

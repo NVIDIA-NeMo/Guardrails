@@ -572,7 +572,7 @@ NO_MAIN_LLM_WARNING = "No main LLM specified in the config and no LLM provided v
 
 class TestNoMainLLMWarning:
     def test_init_logs_info_not_warning(self, no_main_llm_config, caplog):
-        with caplog.at_level(logging.INFO, logger="nemoguardrails.rails.llm.llmrails"):
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.llm.models.resources"):
             LLMRails(no_main_llm_config)
         matches = [r for r in caplog.records if NO_MAIN_LLM_WARNING in r.message]
         assert len(matches) == 1
@@ -591,7 +591,8 @@ class TestNoMainLLMWarning:
     )
     @pytest.mark.asyncio
     async def test_check_async_does_not_warn(self, no_main_llm_config, caplog, messages, rail_types):
-        rails = LLMRails(no_main_llm_config)
-        with caplog.at_level(logging.WARNING, logger="nemoguardrails.rails.llm.llmrails"):
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.llm.models.resources"):
+            rails = LLMRails(no_main_llm_config)
+            caplog.clear()
             await rails.check_async(messages, rail_types=rail_types)
         assert NO_MAIN_LLM_WARNING not in caplog.text

@@ -37,23 +37,12 @@ from nemoguardrails.eval.models import (
 )
 from nemoguardrails.eval.ui.utils import EvalData
 from nemoguardrails.llm.models.initializer import init_llm_model
+from nemoguardrails.llm.models.resources import prepare_model_kwargs
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.utils import console, new_uuid
 
 executor = ThreadPoolExecutor(max_workers=1)
-
-
-def _prepare_model_kwargs(model_config: Model):
-    kwargs = dict(model_config.parameters or {})
-
-    if model_config.api_key_env_var:
-        api_key = os.environ.get(model_config.api_key_env_var)
-        if api_key:
-            kwargs["api_key"] = api_key
-
-    return kwargs
 
 
 class LLMJudgeComplianceChecker:
@@ -123,7 +112,7 @@ class LLMJudgeComplianceChecker:
             model_name=model_config.model,
             provider_name=model_config.engine,
             mode=model_config.mode,
-            kwargs=_prepare_model_kwargs(model_config),
+            kwargs=prepare_model_kwargs(model_config),
         )
 
         # We create a minimal RailsConfig object, so we can initialize an LLMTaskManager.
