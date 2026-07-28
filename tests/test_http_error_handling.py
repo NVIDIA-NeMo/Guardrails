@@ -120,6 +120,8 @@ class TestRaiseLLMCallException:
         assert exc.status == 401
         assert exc.inner_exception.status_code == 401
         assert exc.__cause__ is exc.inner_exception
+        assert "test-model" in str(exc)
+        assert "test-provider" in str(exc)
 
     def test_none_status_from_generic_exception(self):
         with pytest.raises(LLMCallException) as exc_info:
@@ -143,6 +145,7 @@ class TestLLMCallException:
         exc = LLMCallException(ValueError("boom"))
         assert exc.status is None
         assert exc.detail is None
+        assert str(exc) == "LLM Call Exception: boom"
 
     def test_all_fields(self):
         inner = RuntimeError("fail")
@@ -150,7 +153,7 @@ class TestLLMCallException:
         assert exc.status == 503
         assert exc.detail == "model=gpt-4"
         assert exc.inner_exception is inner
-        assert "fail" in str(exc)
+        assert str(exc) == "model=gpt-4: fail"
 
 
 # ---------------------------------------------------------------------------

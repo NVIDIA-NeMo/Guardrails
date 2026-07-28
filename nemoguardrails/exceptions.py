@@ -105,10 +105,7 @@ class LLMCallException(Exception):
             detail: Optional context to prepend (for example, the model name or endpoint)
             status: Optional upstream HTTP status carried by the inner exception
         """
-        if detail:
-            message = f"{detail}: {inner_exception}"
-        else:
-            message = str(inner_exception)
+        message = f"{detail or 'LLM Call Exception'}: {str(inner_exception)}"
         super().__init__(message)
 
         self.inner_exception = inner_exception
