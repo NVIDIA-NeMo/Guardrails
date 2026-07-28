@@ -38,7 +38,7 @@ from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import InvalidStateError, LLMCallException, StreamingNotSupportedError
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.llm.clients._errors import normalize_error_status
+from nemoguardrails.llm.clients._errors import build_error_payload, normalize_error_status
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
@@ -700,9 +700,14 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             close = getattr(stream_iterator, "aclose", None)
             if callable(close):
                 await close()
-            raise HTTPException(
-                status_code=normalize_error_status(processed_first_chunk.error.code),
-                detail=processed_first_chunk.error.message,
+            status_code = normalize_error_status(processed_first_chunk.error.code)
+            return JSONResponse(
+                status_code=status_code,
+                content=build_error_payload(
+                    processed_first_chunk.error.message,
+                    status=status_code,
+                    code=processed_first_chunk.error.code,
+                ),
             )
 
         return StreamingResponse(

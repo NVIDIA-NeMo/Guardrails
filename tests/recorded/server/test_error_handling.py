@@ -122,7 +122,7 @@ def test_streaming_chat_completion_initial_provider_error_preserves_http_status(
             "message": f"The model `{OPENAI_INVALID_MODEL}` does not exist or you do not have access to it.",
             "type": "not_found_error",
             "param": None,
-            "code": None,
+            "code": 404,
         }
     }
 

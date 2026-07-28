@@ -468,6 +468,7 @@ class TestStreamingErrorFrames:
         assert response.status_code == 503
         assert response.json()["error"]["type"] == "server_error"
         assert response.json()["error"]["message"] == "overloaded"
+        assert response.json()["error"]["code"] == 503
 
     def test_openai_client_retries_initial_streaming_failure(self, httpx_mock: HTTPXMock, serve_config):
         serve_config(MAIN_MODEL_CONFIG)
@@ -485,7 +486,7 @@ class TestStreamingErrorFrames:
             max_retries=1,
         )
 
-        with pytest.raises(InternalServerError):
+        with pytest.raises(InternalServerError) as exc_info:
             client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": "hello"}],
@@ -493,6 +494,8 @@ class TestStreamingErrorFrames:
                 extra_body={"guardrails": {"config_id": "test"}},
             )
 
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.body["code"] == 503
         assert len(httpx_mock.get_requests(url=MAIN_MODEL_URL)) == 2
 
     def test_non_error_upstream_status_is_clamped_before_stream_starts(self, serve_config):
