@@ -14,7 +14,8 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, List, Optional
+from collections.abc import Mapping, Sequence
+from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
@@ -52,6 +53,7 @@ async def topic_safety_check_input(
     context: Optional[dict] = None,
     events: Optional[List[dict]] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
+    messages: Optional[Sequence[Mapping[str, Any]]] = None,
     **kwargs,
 ) -> RailOutcome:
     _MAX_TOKENS = TOPIC_SAFETY_MAX_TOKENS
@@ -61,10 +63,12 @@ async def topic_safety_check_input(
         user_input = context.get("user_message", "")
         model_name = model_name or context.get("model", None)
 
-    if events is not None:
+    if messages is not None:
+        conversation_history = [dict(message) for message in messages]
+    else:
         # convert InternalEvent objects to dictionary format for compatibility with to_chat_messages
         dict_events = []
-        for event in events:
+        for event in events or []:
             if hasattr(event, "name") and hasattr(event, "arguments"):
                 dict_event = {"type": event.name}
                 dict_event.update(event.arguments)
@@ -108,21 +112,27 @@ async def topic_safety_check_input(
 
     max_tokens = max_tokens or _MAX_TOKENS
 
-    messages = []
-    messages.append({"type": "system", "content": system_prompt})
-    messages.extend(conversation_history)
-    messages.append({"type": "user", "content": user_input})
+    prompt_messages = []
+    prompt_messages.append({"type": "system", "content": system_prompt})
+    prompt_messages.extend(conversation_history)
+    if messages is None:
+        prompt_messages.append({"type": "user", "content": user_input})
 
     cache = model_caches.get(model_name) if model_caches else None
 
     if cache:
-        cache_key = create_normalized_cache_key(messages)
+        cache_key = create_normalized_cache_key(prompt_messages)
         cached_result = get_from_cache_and_restore_stats(cache, cache_key)
         if cached_result is not None:
             log.debug(f"Topic safety cache hit for model '{model_name}'")
             return cached_result
 
-    response = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
+    response = await llm_call(
+        llm,
+        prompt_messages,
+        stop=stop,
+        llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE},
+    )
     result = response.content
 
     if result.lower().strip() == "off-topic":
@@ -133,7 +143,7 @@ async def topic_safety_check_input(
     final_result = RailOutcome.allow() if on_topic else RailOutcome.block()
 
     if cache:
-        cache_key = create_normalized_cache_key(messages)
+        cache_key = create_normalized_cache_key(prompt_messages)
         cache_entry: CacheEntry = {
             "result": final_result,
             "llm_stats": extract_llm_stats_for_cache(),

@@ -116,3 +116,20 @@ async def test_absent_history_still_checks_current_input(task_manager):
         },
         {"type": "user", "content": "current question"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_empty_canonical_messages_take_precedence_over_legacy_history(task_manager):
+    result, mock_llm_call = await _run_topic_safety(
+        task_manager,
+        messages=[],
+        events=[{"type": "UserMessage", "text": "ignored event"}],
+    )
+
+    assert result.is_blocked is False
+    assert mock_llm_call.await_args.args[1] == [
+        {
+            "type": "system",
+            "content": f"Stay on topic.\n\n{TOPIC_SAFETY_OUTPUT_RESTRICTION}",
+        }
+    ]
