@@ -91,7 +91,8 @@ async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):
         outcome = await action_func(
             llm_task_manager=task_manager,
             context=context,
-            llama_guard_llm=FakeLLMModel(responses=[llm_response]),
+            llms={"llama_guard": FakeLLMModel(responses=[llm_response])},
+            model_name="llama_guard",
         )
 
         assert outcome == expected
@@ -99,40 +100,21 @@ async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("action_func", [llama_guard_check_input, llama_guard_check_output])
-async def test_llama_guard_actions_prefer_canonical_model_registry(action_func):
+async def test_llama_guard_actions_select_named_model_from_registry(action_func):
     task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
-    canonical_llm = FakeLLMModel(responses=["safe"])
-    legacy_llm = FakeLLMModel(responses=["unsafe"])
+    selected_llm = FakeLLMModel(responses=["safe"])
+    other_llm = FakeLLMModel(responses=["unsafe"])
 
     outcome = await action_func(
         llm_task_manager=task_manager,
         context={"user_message": "hello", "bot_message": "hello"},
-        llms={"llama_guard": canonical_llm},
+        llms={"llama_guard": selected_llm, "other": other_llm},
         model_name="llama_guard",
-        llama_guard_llm=legacy_llm,
     )
 
     assert outcome.is_blocked is False
-    assert canonical_llm.inference_count == 1
-    assert legacy_llm.inference_count == 0
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("action_func", [llama_guard_check_input, llama_guard_check_output])
-async def test_llama_guard_actions_fall_back_when_registry_model_is_missing(action_func):
-    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
-    legacy_llm = FakeLLMModel(responses=["safe"])
-
-    outcome = await action_func(
-        llm_task_manager=task_manager,
-        context={"user_message": "hello", "bot_message": "hello"},
-        llms={},
-        model_name="llama_guard",
-        llama_guard_llm=legacy_llm,
-    )
-
-    assert outcome.is_blocked is False
-    assert legacy_llm.inference_count == 1
+    assert selected_llm.inference_count == 1
+    assert other_llm.inference_count == 0
 
 
 @pytest.mark.asyncio
@@ -171,13 +153,13 @@ def test_llama_guard_check_all_safe():
         ],
     )
 
-    llama_guard_llm = FakeLLMModel(
+    llama_guard_model = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "safe",  # llama_guard_check_output
         ]
     )
-    chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
+    chat.app.register_action_param("llms", {"llama_guard": llama_guard_model})
 
     _ = chat >> "Hi"
     _ = chat << "Hi there! How are you doing?"
@@ -197,12 +179,12 @@ def test_llama_guard_check_input_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLMModel(
+    llama_guard_model = FakeLLMModel(
         responses=[
             "unsafe",  # llama_guard_check_input
         ]
     )
-    chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
+    chat.app.register_action_param("llms", {"llama_guard": llama_guard_model})
 
     _ = chat >> "Unsafe input"
     _ = chat << "I'm sorry, I can't respond to that."
@@ -222,12 +204,12 @@ def test_llama_guard_check_input_unparseable_fail_closed():
         ],
     )
 
-    llama_guard_llm = FakeLLMModel(
+    llama_guard_model = FakeLLMModel(
         responses=[
             "error",  # unparseable llama_guard_check_input response
         ]
     )
-    chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
+    chat.app.register_action_param("llms", {"llama_guard": llama_guard_model})
 
     _ = chat >> "Unsafe input"
     _ = chat << "I'm sorry, I can't respond to that."
@@ -247,13 +229,13 @@ def test_llama_guard_check_output_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLMModel(
+    llama_guard_model = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "unsafe",  # llama_guard_check_output
         ]
     )
-    chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
+    chat.app.register_action_param("llms", {"llama_guard": llama_guard_model})
 
     _ = chat >> "Unsafe input"
     _ = chat << "I'm sorry, I can't respond to that."
@@ -273,13 +255,13 @@ def test_llama_guard_check_output_unparseable_fail_closed():
         ],
     )
 
-    llama_guard_llm = FakeLLMModel(
+    llama_guard_model = FakeLLMModel(
         responses=[
             "safe",  # llama_guard_check_input
             "error",  # unparseable llama_guard_check_output response
         ]
     )
-    chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
+    chat.app.register_action_param("llms", {"llama_guard": llama_guard_model})
 
     _ = chat >> "Unsafe input"
     _ = chat << "I'm sorry, I can't respond to that."

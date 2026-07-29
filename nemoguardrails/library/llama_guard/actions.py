@@ -36,18 +36,13 @@ def _llama_guard_outcome(allowed: bool, policy_violations: Optional[List[str]]) 
 
 
 def _get_llama_guard_model(
-    llms: Optional[Mapping[str, LLMModel]],
-    model_name: Optional[str],
-    llama_guard_llm: Optional[LLMModel],
+    llms: Mapping[str, LLMModel],
+    model_name: str,
 ) -> LLMModel:
-    model = llms.get(model_name) if llms is not None and model_name is not None else None
-    if model is not None:
-        return model
-    if llama_guard_llm is not None:
-        return llama_guard_llm
-    raise ValueError(
-        f"Llama Guard model {model_name!r} is unavailable. Configure the selected model or provide llama_guard_llm."
-    )
+    model = llms.get(model_name)
+    if model is None:
+        raise ValueError(f"Llama Guard model {model_name!r} is unavailable in the shared model registry.")
+    return model
 
 
 def parse_llama_guard_response(response: str) -> Tuple[bool, Optional[List[str]]]:
@@ -77,10 +72,9 @@ def parse_llama_guard_response(response: str) -> Tuple[bool, Optional[List[str]]
 @action()
 async def llama_guard_check_input(
     llm_task_manager: LLMTaskManager,
+    llms: Mapping[str, LLMModel],
+    model_name: str,
     context: Optional[dict] = None,
-    llama_guard_llm: Optional[LLMModel] = None,
-    llms: Optional[Mapping[str, LLMModel]] = None,
-    model_name: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -89,7 +83,7 @@ async def llama_guard_check_input(
     """
     context = context or {}
     user_input = context.get("user_message")
-    llm = _get_llama_guard_model(llms, model_name, llama_guard_llm)
+    llm = _get_llama_guard_model(llms, model_name)
     check_input_prompt = llm_task_manager.render_task_prompt(
         task=Task.LLAMA_GUARD_CHECK_INPUT,
         context={
@@ -110,10 +104,9 @@ async def llama_guard_check_input(
 @action()
 async def llama_guard_check_output(
     llm_task_manager: LLMTaskManager,
+    llms: Mapping[str, LLMModel],
+    model_name: str,
     context: Optional[dict] = None,
-    llama_guard_llm: Optional[LLMModel] = None,
-    llms: Optional[Mapping[str, LLMModel]] = None,
-    model_name: Optional[str] = None,
 ) -> RailOutcome:
     """
     Check the bot response using the configured Llama Guard model
@@ -122,7 +115,7 @@ async def llama_guard_check_output(
     context = context or {}
     user_input = context.get("user_message")
     bot_response = context.get("bot_message")
-    llm = _get_llama_guard_model(llms, model_name, llama_guard_llm)
+    llm = _get_llama_guard_model(llms, model_name)
 
     check_output_prompt = llm_task_manager.render_task_prompt(
         task=Task.LLAMA_GUARD_CHECK_OUTPUT,

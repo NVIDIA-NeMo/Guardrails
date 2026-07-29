@@ -2,7 +2,7 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
 define flow llama guard check input
-  $response = execute llama_guard_check_input
+  $response = execute llama_guard_check_input(model_name="llama_guard")
   $allowed = not $response.is_blocked
   # Policy violations are currently unused, but can be used to better phrase the bot output
   $llama_guard_policy_violations = $response.metadata["policy_violations"]
@@ -15,7 +15,7 @@ define flow llama guard check input
     stop
 
 define flow llama guard check output
-  $response = execute llama_guard_check_output
+  $response = execute llama_guard_check_output(model_name="llama_guard")
   $allowed = not $response.is_blocked
   $llama_guard_policy_violations = $response.metadata["policy_violations"]
 

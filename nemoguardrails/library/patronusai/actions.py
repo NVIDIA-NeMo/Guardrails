@@ -69,27 +69,21 @@ def _patronus_lynx_outcome(hallucination: bool, reasoning: Union[List[str], None
 
 
 def _get_patronus_lynx_model(
-    llms: Optional[Mapping[str, LLMModel]],
-    model_name: Optional[str],
-    patronus_lynx_llm: Optional[LLMModel],
+    llms: Mapping[str, LLMModel],
+    model_name: str,
 ) -> LLMModel:
-    model = llms.get(model_name) if llms is not None and model_name is not None else None
-    if model is not None:
-        return model
-    if patronus_lynx_llm is not None:
-        return patronus_lynx_llm
-    raise ValueError(
-        f"Patronus Lynx model {model_name!r} is unavailable. Configure the selected model or provide patronus_lynx_llm."
-    )
+    model = llms.get(model_name)
+    if model is None:
+        raise ValueError(f"Patronus Lynx model {model_name!r} is unavailable in the shared model registry.")
+    return model
 
 
 @action()
 async def patronus_lynx_check_output_hallucination(
     llm_task_manager: LLMTaskManager,
+    llms: Mapping[str, LLMModel],
+    model_name: str,
     context: Optional[dict] = None,
-    patronus_lynx_llm: Optional[LLMModel] = None,
-    llms: Optional[Mapping[str, LLMModel]] = None,
-    model_name: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -104,7 +98,7 @@ async def patronus_lynx_check_output_hallucination(
         log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
         return _patronus_lynx_outcome(False, None)
 
-    llm = _get_patronus_lynx_model(llms, model_name, patronus_lynx_llm)
+    llm = _get_patronus_lynx_model(llms, model_name)
     check_output_hallucination_prompt = llm_task_manager.render_task_prompt(
         task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
         context={

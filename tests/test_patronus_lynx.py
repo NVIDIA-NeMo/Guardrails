@@ -95,10 +95,10 @@ class _PatronusLynxTaskManager:
 
 
 @pytest.mark.asyncio
-async def test_patronus_lynx_prefers_canonical_model_registry():
+async def test_patronus_lynx_selects_named_model_from_registry():
     task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
-    canonical_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
-    legacy_llm = FakeLLMModel(responses=['{"SCORE": "FAIL"}'])
+    selected_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
+    other_llm = FakeLLMModel(responses=['{"SCORE": "FAIL"}'])
 
     outcome = await patronus_lynx_check_output_hallucination(
         llm_task_manager=task_manager,
@@ -107,35 +107,13 @@ async def test_patronus_lynx_prefers_canonical_model_registry():
             "bot_message": "answer",
             "relevant_chunks": "context",
         },
-        llms={"patronus_lynx": canonical_llm},
+        llms={"patronus_lynx": selected_llm, "other": other_llm},
         model_name="patronus_lynx",
-        patronus_lynx_llm=legacy_llm,
     )
 
     assert outcome.is_blocked is False
-    assert canonical_llm.inference_count == 1
-    assert legacy_llm.inference_count == 0
-
-
-@pytest.mark.asyncio
-async def test_patronus_lynx_falls_back_when_registry_model_is_missing():
-    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
-    legacy_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
-
-    outcome = await patronus_lynx_check_output_hallucination(
-        llm_task_manager=task_manager,
-        context={
-            "user_message": "question",
-            "bot_message": "answer",
-            "relevant_chunks": "context",
-        },
-        llms={},
-        model_name="patronus_lynx",
-        patronus_lynx_llm=legacy_llm,
-    )
-
-    assert outcome.is_blocked is False
-    assert legacy_llm.inference_count == 1
+    assert selected_llm.inference_count == 1
+    assert other_llm.inference_count == 0
 
 
 @pytest.mark.asyncio
@@ -191,12 +169,12 @@ def test_patronus_lynx_returns_no_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is no hallucination."], "SCORE": "PASS"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -220,12 +198,12 @@ def test_patronus_lynx_returns_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "I don't know the answer to that."
@@ -249,12 +227,12 @@ def test_patronus_lynx_parses_score_when_no_double_quote():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is no hallucination."], "SCORE": PASS}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -276,12 +254,12 @@ def test_patronus_lynx_returns_no_hallucination_when_no_retrieved_context():
         ],
     )
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
@@ -305,12 +283,12 @@ def test_patronus_lynx_returns_hallucination_when_no_score_in_llm_output():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"REASONING": ["Mock reasoning."]}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "I don't know the answer to that."
@@ -334,12 +312,12 @@ def test_patronus_lynx_returns_no_hallucination_when_no_reasoning_in_llm_output(
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = FakeLLMModel(
+    patronus_lynx_model = FakeLLMModel(
         responses=[
             '{"SCORE": "PASS"}',
         ]
     )
-    chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
+    chat.app.register_action_param("llms", {"patronus_lynx": patronus_lynx_model})
 
     chat >> "Hi"
     chat << "Hi there! How are you doing?"
