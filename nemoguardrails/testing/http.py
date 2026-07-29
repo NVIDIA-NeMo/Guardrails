@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deterministic HTTP test doubles for NeMo Guardrails tests."""
+"""Deterministic HTTP test doubles for NeMo Guardrails applications."""
 
 from collections import deque
 from collections.abc import Iterable

@@ -26,7 +26,7 @@ from nemoguardrails.http import (
     HTTPStatusError,
     HTTPTimeoutError,
 )
-from nemoguardrails.http.testing import RecordingHTTPClient
+from nemoguardrails.testing import RecordingHTTPClient
 
 
 def test_http_response_exposes_bytes_text_and_json():

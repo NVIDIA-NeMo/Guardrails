@@ -14,11 +14,13 @@ prompt tweaks, flow refactors, and library upgrades cannot regress your
 intended policy.
 
 NeMo Guardrails ships a small public testing surface under
-`nemoguardrails.testing`. The two main building blocks are:
+`nemoguardrails.testing`. Its main building blocks are:
 
 - `FakeLLMModel`: a scriptable implementation of the `LLMModel` protocol that
   returns canned responses. Use it to replace any "main" model so tests do not
   depend on a real LLM provider.
+- `RecordingHTTPClient`: a scriptable implementation of the outbound HTTP
+  client protocol that records requests and returns queued responses.
 - `TestChat`: an ergonomic helper that wires a fake LLM into an `LLMRails`
   app and lets you assert the bot's reply with a single call.
 

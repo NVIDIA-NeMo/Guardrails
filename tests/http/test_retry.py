@@ -19,8 +19,8 @@ import pytest
 
 from nemoguardrails.http.errors import HTTPConnectionError
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
-from nemoguardrails.http.testing import RecordingHTTPClient
 from nemoguardrails.http.types import HTTPResponse
+from nemoguardrails.testing import RecordingHTTPClient
 
 
 @pytest.mark.asyncio
