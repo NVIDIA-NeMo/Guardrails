@@ -15,8 +15,6 @@
 
 """Construction helpers for managed outbound HTTP clients."""
 
-from __future__ import annotations
-
 import httpx
 
 from nemoguardrails.http.client import ClosableHTTPClient
