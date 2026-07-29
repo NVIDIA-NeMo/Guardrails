@@ -766,6 +766,13 @@ class LLMGenerationActions:
         assert event
         assert event["type"] == "BotIntent"
         bot_intent = event["intent"]
+        # If the BotIntent carries natural-language instructions (a comment placed
+        # above the `bot <name>` line in a Colang 1.0 flow), we must always go
+        # through the LLM so those instructions can shape the response. Using a
+        # predefined sample utterance verbatim would silently drop the
+        # instructions, which is the behavior reported in the documented
+        # "bot message instructions" feature.
+        bot_intent_has_instructions = bool(event.get("instructions"))
         context_updates = {}
 
         streaming_handler = streaming_handler_var.get()
@@ -780,7 +787,7 @@ class LLMGenerationActions:
         if streaming_handler and self.config.rails.output.streaming.enabled:
             context_updates["skip_output_rails"] = True
 
-        if bot_intent in self.config.bot_messages:
+        if bot_intent in self.config.bot_messages and not bot_intent_has_instructions:
             # Choose a message randomly from self.config.bot_messages[bot_message]
             # However, in test mode, we always choose the first one, to keep it predictable.
             if "pytest" in sys.modules:
