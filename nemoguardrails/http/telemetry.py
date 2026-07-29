@@ -31,6 +31,8 @@ log = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class _HTTPRequestDurationState:
+    """Carry response status from request execution to metric recording."""
+
     response_status_code: int | None = None
 
 
@@ -55,6 +57,11 @@ def http_request_duration(
     method: str,
     url: str,
 ) -> Generator[_HTTPRequestDurationState, None, None]:
+    """Record one HTTP client request-duration observation.
+
+    The metric contains only low-cardinality endpoint attributes plus response
+    status or exception type. Telemetry failures never affect the request.
+    """
     state = _HTTPRequestDurationState()
     try:
         instruments = _ensure_http_instruments()
@@ -93,6 +100,11 @@ def set_http_request_attributes(
     url: str,
     content: bytes | str | None,
 ) -> None:
+    """Record privacy-safe HTTP request attributes on a span.
+
+    The URL is stripped of credentials, query parameters, and fragments. Raw
+    headers and body content are never recorded.
+    """
     if span is None:
         return
     with suppress(Exception):
@@ -112,6 +124,7 @@ def set_http_request_attributes(
 
 
 def set_http_response_attributes(span: "Span | None", response: HTTPResponse) -> None:
+    """Record response status, body size, and retry count on a span."""
     if span is None:
         return
     with suppress(Exception):
@@ -128,6 +141,7 @@ def set_http_response_attributes(span: "Span | None", response: HTTPResponse) ->
 
 
 def record_http_error(span: "Span | None", error: BaseException) -> None:
+    """Record an exception type and retry count without exposing its message."""
     if span is None:
         return
     from opentelemetry.trace import StatusCode
@@ -153,6 +167,11 @@ def http_call_span(
     url: str,
     content: bytes | str | None,
 ) -> Generator["Span | None", None, None]:
+    """Create a privacy-safe client span for one HTTP call.
+
+    Yields ``None`` when no tracer is configured. Request exceptions are
+    recorded and re-raised unchanged.
+    """
     if tracer is None:
         yield None
         return

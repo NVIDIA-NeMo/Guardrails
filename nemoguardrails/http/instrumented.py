@@ -30,7 +30,15 @@ if TYPE_CHECKING:
 
 
 class InstrumentedHTTPClient:
+    """Decorate an HTTP client with privacy-safe tracing and metrics.
+
+    The decorator preserves request behavior and client ownership. Wrapping an
+    existing ``InstrumentedHTTPClient`` is idempotent, and tracing and metrics
+    can be enabled independently.
+    """
+
     def __new__(cls, client: HTTPClient, *args: Any, **kwargs: Any):
+        """Return an existing instrumented client without wrapping it again."""
         if isinstance(client, cls):
             return client
         return super().__new__(cls)
@@ -42,6 +50,7 @@ class InstrumentedHTTPClient:
         *,
         metrics_enabled: bool = False,
     ):
+        """Configure optional telemetry for the wrapped client."""
         if client is self:
             if tracer is not self._tracer or metrics_enabled != self._metrics_enabled:
                 warnings.warn(
@@ -57,6 +66,7 @@ class InstrumentedHTTPClient:
 
     @property
     def wrapped_client(self) -> HTTPClient:
+        """Return the underlying client for direct access or re-instrumentation."""
         return self._client
 
     async def request(
@@ -70,6 +80,12 @@ class InstrumentedHTTPClient:
         content: bytes | str | None = None,
         timeout: float | None = None,
     ) -> HTTPResponse:
+        """Forward one request while recording privacy-safe HTTP telemetry.
+
+        Telemetry includes the method, sanitized URL, payload sizes, response
+        status, and retry count. Header, query, body, and credential values are
+        never recorded.
+        """
         if self._tracer is None and not self._metrics_enabled:
             return await self._client.request(
                 method,
@@ -100,6 +116,10 @@ class InstrumentedHTTPClient:
             return response
 
     async def close(self) -> None:
+        """Close the wrapped client without taking ownership from its caller.
+
+        Repeated calls are safe. A failed or cancelled close remains retryable.
+        """
         if self._closed:
             return
         self._closed = True
@@ -135,6 +155,11 @@ def instrument_http_client(
     tracer: "Tracer | None" = None,
     metrics_enabled: bool = False,
 ) -> HTTPClient:
+    """Return ``client`` decorated with the requested HTTP telemetry.
+
+    The original client is returned when telemetry is disabled or the client is
+    already instrumented.
+    """
     if isinstance(client, InstrumentedHTTPClient):
         return client
     if tracer is None and not metrics_enabled:

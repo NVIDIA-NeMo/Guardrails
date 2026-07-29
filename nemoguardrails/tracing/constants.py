@@ -408,6 +408,8 @@ class LLMInstruments:
 
 @dataclass(frozen=True, slots=True)
 class HTTPInstruments:
+    """HTTP-client OpenTelemetry instruments shared across callers."""
+
     request_duration: "Histogram"
 
 
@@ -516,6 +518,7 @@ def _ensure_llm_instruments() -> Optional[LLMInstruments]:
 
 
 def _ensure_http_instruments() -> Optional[HTTPInstruments]:
+    """Lazily create HTTP instruments when an OpenTelemetry meter is available."""
     from nemoguardrails.guardrails.telemetry import get_meter
 
     global _http_instruments
