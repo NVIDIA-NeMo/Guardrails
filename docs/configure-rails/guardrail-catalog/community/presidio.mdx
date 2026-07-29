@@ -7,19 +7,16 @@ NeMo Guardrails supports detecting sensitive data out-of-the-box using [Presidio
 
 ## Setup
 
-To use the built-in sensitive data detection rails, you must install Presidio and download the `en_core_web_lg` model for `spacy`.
+To use the built-in sensitive data detection rails, you must use Python 3.10 through 3.12, install Presidio and spaCy, and download the `en_core_web_lg` spaCy model.
 
 ```bash
-pip install presidio-analyzer presidio-anonymizer spacy
+pip install "presidio-analyzer>=2.2; python_version < '3.13'" \
+  "presidio-anonymizer>=2.2; python_version < '3.13'" \
+  "spacy>=3.4.4,<4,!=3.7.0; python_version < '3.13'"
 python -m spacy download en_core_web_lg
 ```
 
-As an alternative, you can also use the `sdd` extra.
-
-```bash
-pip install nemoguardrails[sdd]
-python -m spacy download en_core_web_lg
-```
+The sensitive data detection rail is not supported on Python 3.13. The `nemoguardrails rails validate` command reports this as an unsupported environment.
 
 ## Usage
 

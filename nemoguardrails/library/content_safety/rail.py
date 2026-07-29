@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -24,6 +25,7 @@ from nemoguardrails.manifests import (
     RailManifest,
     RailMetadata,
     RailPrivacy,
+    RailRequirements,
     RailSpec,
     RailSurface,
 )
@@ -39,6 +41,9 @@ CONTENT_SAFETY_CHECK_OUTPUT = ActionRef(
 DETECT_LANGUAGE = ActionRef(
     name="detect_language",
     target="nemoguardrails.library.content_safety.actions:detect_language",
+)
+FAST_LANGDETECT_PACKAGE = PythonPackage(
+    distribution="fast-langdetect", import_name="fast_langdetect", version=">=1", required=False
 )
 RAIL = RailManifest(
     name="content_safety",
@@ -79,6 +84,7 @@ RAIL = RailManifest(
                 bindings=(Binding.surface_param("model_name", "model"),),
             ),
         ),
+        requirements=RailRequirements(python_packages=(FAST_LANGDETECT_PACKAGE,)),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True),
     ),
 )

@@ -18,6 +18,8 @@ from typing import Literal, Optional
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.library.gcp_moderate_text.rail import GCP_LANGUAGE_PACKAGE
+from nemoguardrails.manifests import require_python_package
 
 log = logging.getLogger(__name__)
 
@@ -95,13 +97,7 @@ async def call_gcp_text_moderation_api(
 
     For more information check https://cloud.google.com/docs/authentication/application-default-credentials
     """
-    try:
-        from google.cloud import language_v2  # type: ignore[reportAttributeAccessIssue]
-
-    except ImportError:
-        raise ImportError(
-            "Could not import google.cloud.language_v2, please install it with `pip install google-cloud-language`."
-        )
+    language_v2 = require_python_package("gcp_moderate_text", GCP_LANGUAGE_PACKAGE)
 
     context = context or {}
     user_message = context.get("user_message")

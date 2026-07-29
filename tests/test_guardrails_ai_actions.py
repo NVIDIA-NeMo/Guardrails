@@ -262,18 +262,20 @@ class TestGuardrailsAIIntegration:
         assert "Validation service error" in str(exc_info.value)
 
     @patch("nemoguardrails.library.guardrails_ai.actions._load_validator_class")
-    @patch("nemoguardrails.library.guardrails_ai.actions.Guard")
-    def test_get_guard_creates_and_caches(self, mock_guard_class, mock_load_validator):
+    @patch("nemoguardrails.library.guardrails_ai.actions._load_guard_class")
+    def test_get_guard_creates_and_caches(self, mock_load_guard, mock_load_validator):
         """Test that _get_guard creates and caches guards properly."""
         from nemoguardrails.library.guardrails_ai.actions import _get_guard
 
         mock_validator_class = Mock()
         mock_validator_instance = Mock()
         mock_guard_instance = Mock()
+        mock_guard_class = Mock()
         mock_guard = Mock()
 
         mock_load_validator.return_value = mock_validator_class
         mock_validator_class.return_value = mock_validator_instance
+        mock_load_guard.return_value = mock_guard_class
         mock_guard_class.return_value = mock_guard
         mock_guard.use.return_value = mock_guard_instance
 
@@ -328,16 +330,18 @@ class TestGuardrailsAIIntegration:
         assert any(param.kind == param.VAR_KEYWORD for param in sig.parameters.values())
 
     @patch("nemoguardrails.library.guardrails_ai.actions._load_validator_class")
-    @patch("nemoguardrails.library.guardrails_ai.actions.Guard")
-    def test_guard_cache_key_generation(self, mock_guard_class, mock_load):
+    @patch("nemoguardrails.library.guardrails_ai.actions._load_guard_class")
+    def test_guard_cache_key_generation(self, mock_load_guard, mock_load):
         """Test that guard cache keys are generated correctly for different parameter combinations."""
         from nemoguardrails.library.guardrails_ai.actions import _get_guard
 
         mock_validator_class = Mock()
         mock_guard_instance = Mock()
+        mock_guard_class = Mock()
         mock_guard = Mock()
 
         mock_load.return_value = mock_validator_class
+        mock_load_guard.return_value = mock_guard_class
         mock_guard_class.return_value = mock_guard
         mock_guard.use.return_value = mock_guard_instance
 

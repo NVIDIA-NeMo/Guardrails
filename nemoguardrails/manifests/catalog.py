@@ -112,6 +112,7 @@ class RailCatalog:
             records_by_name[manifest.name] = record
         self._records = records_by_name
         self._surfaces = surfaces
+        self._config_owners = config_owners
         self._flow_owners = flow_owners
 
     @classmethod
@@ -148,3 +149,7 @@ class RailCatalog:
     def owner_for_flow(self, flow_name: str) -> Optional[str]:
         """Return the manifest that owns a declared public flow name."""
         return self._flow_owners.get(flow_name)
+
+    def owner_for_config_key(self, config_key: str) -> Optional[str]:
+        """Return the manifest that owns a declared rail config key."""
+        return self._config_owners.get(config_key)

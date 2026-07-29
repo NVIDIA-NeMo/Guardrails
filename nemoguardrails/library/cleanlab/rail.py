@@ -16,6 +16,7 @@
 from nemoguardrails.manifests import (
     ActionRef,
     EnvVar,
+    PythonPackage,
     RailActions,
     RailDirection,
     RailFlows,
@@ -32,6 +33,7 @@ CALL_CLEANLAB_API = ActionRef(
     name="call_cleanlab_api",
     target="nemoguardrails.library.cleanlab.actions:call_cleanlab_api",
 )
+CLEANLAB_PACKAGE = PythonPackage(distribution="cleanlab-studio", import_name="cleanlab_studio")
 
 RAIL = RailManifest(
     name="cleanlab",
@@ -52,7 +54,7 @@ RAIL = RailManifest(
         requirements=RailRequirements(
             env_vars=(EnvVar(name="CLEANLAB_API_KEY", required=True),),
             services=(ServiceRequirement(name="Cleanlab TLM", required=True),),
-            optional_dependencies=("cleanlab-studio",),
+            python_packages=(CLEANLAB_PACKAGE,),
         ),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True, remote_services=("Cleanlab TLM",)),
     ),

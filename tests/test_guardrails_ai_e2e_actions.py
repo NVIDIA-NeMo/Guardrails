@@ -19,7 +19,7 @@ These tests run against actual Guardrails validators when installed.
 They can be skipped in CI/environments where validators aren't available.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -250,9 +250,9 @@ class TestGuardrailsAIE2EIntegration:
             GuardrailsAIValidationError,
         )
 
-        # Test with completely unknown validator
-        with pytest.raises(GuardrailsAIValidationError) as exc_info:
-            validate_guardrails_ai(validator_name="completely_unknown_validator", text="Test text")
+        with patch("nemoguardrails.library.guardrails_ai.actions._load_guard_class"):
+            with pytest.raises(GuardrailsAIValidationError) as exc_info:
+                validate_guardrails_ai(validator_name="completely_unknown_validator", text="Test text")
 
         assert "Validation failed" in str(exc_info.value)
 

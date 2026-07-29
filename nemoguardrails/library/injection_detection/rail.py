@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -34,6 +35,7 @@ INJECTION_DETECTION = ActionRef(
     name="injection_detection",
     target="nemoguardrails.library.injection_detection.actions:injection_detection",
 )
+YARA_PACKAGE = PythonPackage(distribution="yara-python", import_name="yara", version=">=4.5.1,<5")
 
 RAIL = RailManifest(
     name="injection_detection",
@@ -61,7 +63,7 @@ RAIL = RailManifest(
                 transform_target=TransformTarget.BOT_MESSAGE,
             ),
         ),
-        requirements=RailRequirements(optional_dependencies=("yara-python",)),
+        requirements=RailRequirements(python_packages=(YARA_PACKAGE,)),
         privacy=RailPrivacy(sends_bot_text=True),
     ),
 )

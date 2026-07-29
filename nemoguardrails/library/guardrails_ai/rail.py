@@ -17,6 +17,7 @@ from nemoguardrails.manifests import (
     ActionRef,
     Binding,
     ConfigSpecRef,
+    PythonPackage,
     RailActions,
     RailConfigSchema,
     RailDirection,
@@ -38,6 +39,7 @@ VALIDATE_GUARDRAILS_AI_OUTPUT = ActionRef(
     name="validate_guardrails_ai_output",
     target="nemoguardrails.library.guardrails_ai.actions:validate_guardrails_ai_output",
 )
+GUARDRAILS_AI_PACKAGE = PythonPackage(distribution="guardrails-ai", import_name="guardrails")
 
 RAIL = RailManifest(
     name="guardrails_ai",
@@ -86,7 +88,7 @@ RAIL = RailManifest(
         ),
         requirements=RailRequirements(
             services=(ServiceRequirement(name="Guardrails Hub", required=False),),
-            optional_dependencies=("guardrails-ai",),
+            python_packages=(GUARDRAILS_AI_PACKAGE,),
         ),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True),
     ),
