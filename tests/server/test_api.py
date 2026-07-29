@@ -1178,3 +1178,152 @@ def test_list_models_upstream_missing_data_key():
     assert response.status_code == 200
     data = response.json()
     assert data["data"] == []
+
+
+def test_update_models_in_config_preserves_api_key_env_var(monkeypatch):
+    """Regression test for #1895.
+
+    When a request supplies a ``model`` override, ``_update_models_in_config``
+    must preserve ``api_key_env_var`` from the existing main model entry so
+    env-var-based credential resolution configured in ``config.yml`` is not
+    silently dropped when the model name is swapped at request time.
+    """
+    from nemoguardrails import RailsConfig
+    from nemoguardrails.rails.llm.config import Model
+    from nemoguardrails.server.api import _update_models_in_config
+
+    # The RailsConfig validator checks api_key_env_var resolves at construction.
+    monkeypatch.setenv("MY_CUSTOM_KEY", "sk-test-preserved")
+
+    existing = Model(
+        type="main",
+        engine="openai",
+        model="gpt-3.5-turbo",
+        api_key_env_var="MY_CUSTOM_KEY",
+        parameters={"temperature": 0.7},
+    )
+    config = RailsConfig(models=[existing], colang_version="1.0")
+
+    override = Model(
+        type="main",
+        engine="openai",
+        model="gpt-4",
+        parameters={"base_url": "https://api.example.com/v1"},
+    )
+
+    updated = _update_models_in_config(config, override)
+
+    assert len(updated.models) == 1
+    main = updated.models[0]
+    assert main.model == "gpt-4"
+    assert main.engine == "openai"
+    # api_key_env_var carries over from the config entry.
+    assert main.api_key_env_var == "MY_CUSTOM_KEY"
+    # Parameters merge, with the override winning on collisions.
+    assert main.parameters == {"temperature": 0.7, "base_url": "https://api.example.com/v1"}
+
+
+def test_update_models_in_config_override_takes_precedence_for_api_key_env_var(monkeypatch):
+    """An explicit ``api_key_env_var`` on the override wins over the existing entry."""
+    from nemoguardrails import RailsConfig
+    from nemoguardrails.rails.llm.config import Model
+    from nemoguardrails.server.api import _update_models_in_config
+
+    monkeypatch.setenv("OLD_KEY", "sk-old")
+    monkeypatch.setenv("NEW_KEY", "sk-new")
+
+    existing = Model(
+        type="main",
+        engine="openai",
+        model="gpt-3.5-turbo",
+        api_key_env_var="OLD_KEY",
+    )
+    config = RailsConfig(models=[existing], colang_version="1.0")
+
+    override = Model(
+        type="main",
+        engine="openai",
+        model="gpt-4",
+        api_key_env_var="NEW_KEY",
+    )
+
+    updated = _update_models_in_config(config, override)
+
+    assert updated.models[0].api_key_env_var == "NEW_KEY"
+
+
+def test_update_models_in_config_preserves_mode_and_cache(monkeypatch):
+    """A request-side model override must not drop other config.yml model
+    settings it leaves unset, such as ``mode`` and ``cache``.
+
+    Follow-up to #1895: the override now starts from the existing entry and
+    applies only the fields it explicitly sets, so any field added to ``Model``
+    later is preserved without per-field carry-over.
+    """
+    from nemoguardrails import RailsConfig
+    from nemoguardrails.rails.llm.config import Model, ModelCacheConfig
+    from nemoguardrails.server.api import _update_models_in_config
+
+    monkeypatch.setenv("MY_CUSTOM_KEY", "sk-test-preserved")
+
+    existing = Model(
+        type="main",
+        engine="openai",
+        model="gpt-3.5-turbo-instruct",
+        api_key_env_var="MY_CUSTOM_KEY",
+        mode="text",
+        cache=ModelCacheConfig(enabled=True),
+        parameters={"temperature": 0.7},
+    )
+    config = RailsConfig(models=[existing], colang_version="1.0")
+
+    # The override only swaps the model name, leaving mode, cache, credentials,
+    # and existing parameters unset.
+    override = Model(type="main", engine="openai", model="gpt-4")
+
+    updated = _update_models_in_config(config, override)
+
+    main = updated.models[0]
+    assert main.model == "gpt-4"
+    assert main.mode == "text"
+    assert main.cache is not None and main.cache.enabled is True
+    assert main.api_key_env_var == "MY_CUSTOM_KEY"
+    assert main.parameters == {"temperature": 0.7}
+
+
+def test_get_rails_with_model_override_resolves_env_credentials(monkeypatch, tmp_path):
+    """Regression test for #1895.
+
+    With ``OPENAI_API_KEY`` set in the environment and a ``config.yml`` that
+    omits ``api_key_env_var``, the server-path model initialization must
+    still resolve credentials from the env var when a request supplies a
+    ``model`` override. This mirrors the CLI and non-server path behavior.
+    """
+    import asyncio
+
+    config_dir = tmp_path / "general"
+    config_dir.mkdir()
+    (config_dir / "config.yml").write_text(
+        "colang_version: '1.0'\nmodels:\n  - type: main\n    engine: openai\n    model: gpt-3.5-turbo\n"
+    )
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env-1895")
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://api.openai.com/v1")
+
+    original_path = api.app.rails_config_path
+    api.app.rails_config_path = str(tmp_path)
+    api.llm_rails_instances.clear()
+
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            llm_rails = loop.run_until_complete(api._get_rails(["general"], model_name="gpt-4"))
+        finally:
+            loop.close()
+
+        client_api_key = getattr(llm_rails.llm._client, "_api_key", None)
+        assert client_api_key == "sk-from-env-1895"
+    finally:
+        api.app.rails_config_path = original_path
+        api.llm_rails_instances.clear()

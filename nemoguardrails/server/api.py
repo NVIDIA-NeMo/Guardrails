@@ -371,6 +371,10 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     """Update the main model in the RailsConfig.
 
     If a model with type="main" exists, it replaces it. Otherwise, adds it.
+    Only the fields the override model explicitly sets are applied on top of the
+    existing entry. Fields it leaves unset (such as ``api_key_env_var``, ``mode``,
+    and ``cache``) are carried over from ``config.yml`` so request-driven model
+    overrides do not silently drop credential resolution or other model settings.
     """
     models = config.models.copy()
     main_model_index = None
@@ -381,9 +385,18 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
             break
 
     if main_model_index is not None:
-        parameters = {**models[main_model_index].parameters, **main_model.parameters}
-        models[main_model_index] = main_model
-        models[main_model_index].parameters = parameters
+        existing = models[main_model_index]
+        # Override only the fields the caller actually set on the request model,
+        # starting from the existing entry. This carries over api_key_env_var,
+        # mode, cache, and any future Model field the override leaves unset,
+        # instead of replacing the whole entry and patching fields back by hand
+        # (which silently dropped everything except the few handled explicitly).
+        override = main_model.model_dump(exclude_unset=True)
+        # Merge parameters with override precedence rather than replacing, so a
+        # request-side swap extends the config.yml parameters instead of wiping them.
+        if "parameters" in override:
+            override["parameters"] = {**existing.parameters, **main_model.parameters}
+        models[main_model_index] = existing.model_copy(update=override)
     else:
         models.append(main_model)
 
