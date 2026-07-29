@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 from time import time
@@ -112,12 +113,13 @@ class KnowledgeBase:
         if not index_items:
             return
 
-        # We compute the hash using default hash algorithm
-        # As part of the hash, we also include the embedding engine and the model
-        # to prevent the cache being used incorrectly when the embedding model changes.
-        hash_prefix = self.config.embedding_search_provider.parameters.get(
-            "embedding_engine", ""
-        ) + self.config.embedding_search_provider.parameters.get("embedding_model", "")
+        # We compute the hash using default hash algorithm. Include all provider
+        # parameters so changes such as Gemini dimensionality invalidate the cache.
+        hash_prefix = json.dumps(
+            self.config.embedding_search_provider.parameters,
+            sort_keys=True,
+            default=str,
+        )
 
         hash_value = compute_hash(hash_prefix + "".join(all_text_items))
         cache_file = os.path.join(CACHE_FOLDER, f"{hash_value}.npy")
