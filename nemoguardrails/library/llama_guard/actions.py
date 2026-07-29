@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import logging
+from collections.abc import Mapping
 from typing import List, Optional, Tuple
 
 from nemoguardrails.actions import action
@@ -32,6 +33,21 @@ def _llama_guard_outcome(allowed: bool, policy_violations: Optional[List[str]]) 
     if allowed:
         return RailOutcome.allow(metadata={"policy_violations": policy_violations})
     return RailOutcome.block(metadata={"policy_violations": policy_violations})
+
+
+def _get_llama_guard_model(
+    llms: Optional[Mapping[str, LLMModel]],
+    model_name: Optional[str],
+    llama_guard_llm: Optional[LLMModel],
+) -> LLMModel:
+    model = llms.get(model_name) if llms is not None and model_name is not None else None
+    if model is not None:
+        return model
+    if llama_guard_llm is not None:
+        return llama_guard_llm
+    raise ValueError(
+        f"Llama Guard model {model_name!r} is unavailable. Configure the selected model or provide llama_guard_llm."
+    )
 
 
 def parse_llama_guard_response(response: str) -> Tuple[bool, Optional[List[str]]]:
@@ -63,6 +79,8 @@ async def llama_guard_check_input(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llama_guard_llm: Optional[LLMModel] = None,
+    llms: Optional[Mapping[str, LLMModel]] = None,
+    model_name: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -71,6 +89,7 @@ async def llama_guard_check_input(
     """
     context = context or {}
     user_input = context.get("user_message")
+    llm = _get_llama_guard_model(llms, model_name, llama_guard_llm)
     check_input_prompt = llm_task_manager.render_task_prompt(
         task=Task.LLAMA_GUARD_CHECK_INPUT,
         context={
@@ -82,7 +101,7 @@ async def llama_guard_check_input(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_INPUT.value))
 
-    result = (await llm_call(llama_guard_llm, check_input_prompt, stop=stop, llm_params={"temperature": 0.0})).content
+    result = (await llm_call(llm, check_input_prompt, stop=stop, llm_params={"temperature": 0.0})).content
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return _llama_guard_outcome(allowed, policy_violations)
@@ -93,6 +112,8 @@ async def llama_guard_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llama_guard_llm: Optional[LLMModel] = None,
+    llms: Optional[Mapping[str, LLMModel]] = None,
+    model_name: Optional[str] = None,
 ) -> RailOutcome:
     """
     Check the bot response using the configured Llama Guard model
@@ -101,6 +122,7 @@ async def llama_guard_check_output(
     context = context or {}
     user_input = context.get("user_message")
     bot_response = context.get("bot_message")
+    llm = _get_llama_guard_model(llms, model_name, llama_guard_llm)
 
     check_output_prompt = llm_task_manager.render_task_prompt(
         task=Task.LLAMA_GUARD_CHECK_OUTPUT,
@@ -114,7 +136,7 @@ async def llama_guard_check_output(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_OUTPUT.value))
 
-    result = (await llm_call(llama_guard_llm, check_output_prompt, stop=stop, llm_params={"temperature": 0.0})).content
+    result = (await llm_call(llm, check_output_prompt, stop=stop, llm_params={"temperature": 0.0})).content
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return _llama_guard_outcome(allowed, policy_violations)

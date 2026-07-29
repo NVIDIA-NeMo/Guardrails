@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ModelRequirement,
     RailActions,
     RailDirection,
@@ -50,9 +51,17 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("llama guard check input", "llama guard check output")),
         actions=RailActions(refs=(LLAMA_GUARD_CHECK_INPUT, LLAMA_GUARD_CHECK_OUTPUT)),
         surfaces=(
-            RailSurface(name="llama guard check input", direction=RailDirection.INPUT, action=LLAMA_GUARD_CHECK_INPUT),
             RailSurface(
-                name="llama guard check output", direction=RailDirection.OUTPUT, action=LLAMA_GUARD_CHECK_OUTPUT
+                name="llama guard check input",
+                direction=RailDirection.INPUT,
+                action=LLAMA_GUARD_CHECK_INPUT,
+                bindings=(Binding.literal("model_name", "llama_guard"),),
+            ),
+            RailSurface(
+                name="llama guard check output",
+                direction=RailDirection.OUTPUT,
+                action=LLAMA_GUARD_CHECK_OUTPUT,
+                bindings=(Binding.literal("model_name", "llama_guard"),),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="llama_guard", required=True),)),
