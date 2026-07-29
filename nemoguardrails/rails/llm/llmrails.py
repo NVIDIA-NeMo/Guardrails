@@ -531,7 +531,25 @@ class LLMRails(BaseGuardrails):
         Returns:
             dict: The prepared kwargs for model initialization
         """
-        kwargs = model_config.parameters or {}
+        kwargs = dict(model_config.parameters) if model_config.parameters else {}
+
+        # Setting ``stream`` directly in ``parameters`` is a foot-gun: providers
+        # like OpenAI forward it verbatim to the HTTP client, which returns an
+        # ``AsyncStream`` object on every call. The non-streaming completion path
+        # then tries to ``.model_dump()`` that stream and crashes the server.
+        # See https://github.com/NVIDIA-NeMo/Guardrails/issues/1325. Streaming is
+        # opted in via the ``streaming`` rails-config flag (and requested per
+        # call via the API), not by baking ``stream: true`` into model params.
+        if kwargs.pop("stream", None):
+            log.warning(
+                "Ignoring `stream: true` set in `parameters` for model %r (engine %r). "
+                "Setting `stream` directly on a model causes the provider to return an "
+                "AsyncStream object on every call, which breaks the non-streaming path. "
+                "Request streaming via the API or set the `streaming` flag on the rails "
+                "config instead.",
+                getattr(model_config, "model", None),
+                getattr(model_config, "engine", None),
+            )
 
         # If the optional API Key Environment Variable is set, add it to kwargs
         if model_config.api_key_env_var:
