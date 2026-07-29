@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Managed request lifecycle helpers for outbound HTTP calls."""
+
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any, Mapping
@@ -28,6 +30,8 @@ async def _resolve_http_client(
     *,
     factory: Callable[[], ClosableHTTPClient],
 ) -> AsyncIterator[HTTPClient]:
+    """Yield an injected client or create and close an owned client."""
+
     if client is not None:
         yield client
         return
@@ -54,6 +58,30 @@ async def http_call(
     raise_for_status: bool = True,
     factory: Callable[[], ClosableHTTPClient] = create_http_client,
 ) -> HTTPResponse:
+    """Execute one outbound HTTP request with deterministic client ownership.
+
+    Args:
+        client: Optional caller-owned client. When omitted, ``factory`` creates
+            a client that is closed after the request.
+        method: HTTP method.
+        url: Absolute request URL.
+        headers: Optional request headers.
+        params: Optional query parameters.
+        json: Optional JSON-serializable request body.
+        content: Optional raw request body.
+        timeout: Optional total request timeout in seconds.
+        raise_for_status: Whether responses with status 400 or greater raise.
+        factory: Factory for an owned client when ``client`` is omitted.
+
+    Returns:
+        The materialized transport-neutral response.
+
+    Raises:
+        HTTPStatusError: If ``raise_for_status`` is enabled and the response
+            status is 400 or greater.
+        TypeError: If ``factory`` returns a client that cannot be closed.
+    """
+
     async with _resolve_http_client(client, factory=factory) as resolved:
         response = await resolved.request(
             method,
