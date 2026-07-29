@@ -104,6 +104,7 @@ async def test_httpx_transport_translates_request_errors(transport_error, expect
     assert "password" not in str(exc_info.value)
     assert "secret" not in str(exc_info.value)
     assert exc_info.value.__cause__ is transport_error
+    assert str(transport_error.request.url) == "https://example.com/items"
     await injected.aclose()
 
 

@@ -20,8 +20,18 @@ from typing import Any, Mapping
 
 import httpx
 
+from nemoguardrails.http._url import sanitize_url
 from nemoguardrails.http.errors import HTTPConnectionError, HTTPTimeoutError
 from nemoguardrails.http.types import HTTPResponse
+
+
+def _sanitize_request_error(error: httpx.RequestError) -> httpx.RequestError:
+    try:
+        request = error.request
+    except RuntimeError:
+        return error
+    error.request = httpx.Request(request.method, sanitize_url(str(request.url)))
+    return error
 
 
 class HttpxHTTPClient:
@@ -111,9 +121,9 @@ class HttpxHTTPClient:
         except asyncio.TimeoutError as error:
             raise HTTPTimeoutError("HTTP request timed out") from error
         except httpx.TimeoutException as error:
-            raise HTTPTimeoutError("HTTP request timed out") from error
+            raise HTTPTimeoutError("HTTP request timed out") from _sanitize_request_error(error)
         except httpx.RequestError as error:
-            raise HTTPConnectionError("HTTP transport failed") from error
+            raise HTTPConnectionError("HTTP transport failed") from _sanitize_request_error(error)
         return HTTPResponse(
             status_code=response.status_code,
             headers=dict(response.headers),
