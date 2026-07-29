@@ -37,6 +37,17 @@ from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponse
 
 
 class InstrumentedLLMModel:
+    """Decorate an ``LLMModel`` with tracing, metrics, and content capture.
+
+    Requests and responses are delegated to the wrapped model without changing
+    their runtime contract. Wrapping an existing ``InstrumentedLLMModel`` is
+    idempotent and returns the existing decorator.
+
+    The tracer controls client-span creation, while metrics and content capture
+    are independently opt-in. ``default_request_params`` contributes provider
+    defaults to telemetry without changing the parameters sent to the model.
+    """
+
     def __new__(cls, model: LLMModel, *args: Any, **kwargs: Any):
         if isinstance(model, cls):
             return model
@@ -84,6 +95,7 @@ class InstrumentedLLMModel:
 
     @property
     def wrapped_model(self) -> LLMModel:
+        """Return the underlying model for direct access or re-instrumentation."""
         return self._model
 
     def _request_params(self, stop: Optional[list[str]], kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -105,6 +117,11 @@ class InstrumentedLLMModel:
         stop: Optional[list[str]] = None,
         **kwargs: Any,
     ) -> LLMResponse:
+        """Generate one response while recording the LLM call telemetry.
+
+        The prompt, stop sequences, and provider-specific keyword arguments are
+        forwarded unchanged to the wrapped model.
+        """
         operation_name = OperationNames.CHAT
         provider_name = self.provider_name or SystemConstants.UNKNOWN
         params = self._request_params(stop, kwargs)
@@ -137,6 +154,12 @@ class InstrumentedLLMModel:
         stop: Optional[list[str]] = None,
         **kwargs: Any,
     ) -> AsyncIterator[LLMResponseChunk]:
+        """Stream response chunks while recording one LLM call lifecycle.
+
+        Metrics and response attributes are finalized when the stream completes
+        or closes, and the wrapped stream is always closed when it supports
+        ``aclose``.
+        """
         operation_name = OperationNames.CHAT
         provider_name = self.provider_name or SystemConstants.UNKNOWN
         params = self._request_params(stop, kwargs)
@@ -212,6 +235,11 @@ def instrument_llm_model(
     content_capture_enabled: bool = False,
     default_request_params: Optional[Mapping[str, Any]] = None,
 ) -> LLMModel:
+    """Return ``model`` decorated with the requested telemetry.
+
+    The original model is returned when neither tracing nor metrics are enabled.
+    Existing ``InstrumentedLLMModel`` instances are returned unchanged.
+    """
     if isinstance(model, InstrumentedLLMModel):
         return model
     if tracer is None and not metrics_enabled:

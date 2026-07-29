@@ -107,6 +107,12 @@ def set_llm_call_content(
     input_messages: list[dict[str, Any]],
     output_text: Optional[str] = None,
 ) -> None:
+    """Record LLM input and output content on a span when available.
+
+    The configured OpenTelemetry content format determines whether content is
+    stored as JSON attributes or legacy events. Telemetry failures are ignored
+    so they cannot affect the model call.
+    """
     if span is None:
         return
     with suppress(Exception):
@@ -128,6 +134,10 @@ def _stop_sequences(params: dict) -> Optional[list]:
 
 
 def set_llm_request_attributes(span: Optional["Span"], params: dict, *, stream: bool = False) -> None:
+    """Record supported GenAI request parameters on a span.
+
+    Unknown parameters are ignored, as are telemetry failures.
+    """
     if span is None:
         return
     with suppress(Exception):
@@ -150,6 +160,7 @@ def set_llm_response_attributes(
     finish_reason: Optional[str] = None,
     usage: Optional["UsageInfo"] = None,
 ) -> None:
+    """Record available model response metadata and token usage on a span."""
     if span is None:
         return
     with suppress(Exception):
@@ -170,6 +181,7 @@ def set_llm_response_attributes(
 
 
 def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
+    """Record an exception and error status without changing call behavior."""
     if span is None:
         return
     with suppress(Exception):
@@ -185,6 +197,11 @@ def llm_call_span(
     provider_name: str,
     operation_name: str = "chat",
 ) -> Generator[Optional["Span"], None, None]:
+    """Create a GenAI client span for one LLM call.
+
+    Yields ``None`` when no tracer is configured. Exceptions from the wrapped
+    call are recorded on the span and re-raised unchanged.
+    """
     if tracer is None:
         yield None
         return
