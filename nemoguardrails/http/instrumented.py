@@ -103,8 +103,12 @@ class InstrumentedHTTPClient:
         if self._closed:
             return
         self._closed = True
-        if isinstance(self._client, ClosableHTTPClient):
-            await self._client.close()
+        try:
+            if isinstance(self._client, ClosableHTTPClient):
+                await self._client.close()
+        except BaseException:
+            self._closed = False
+            raise
 
 
 @overload
