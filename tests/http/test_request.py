@@ -13,11 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import pytest
 
 from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPStatusError, http_call
 from nemoguardrails.http.types import HTTPRequest
 from nemoguardrails.testing import RecordingHTTPClient
+
+
+@pytest.mark.asyncio
+async def test_http_call_skips_request_context_for_successful_response():
+    client = RecordingHTTPClient([HTTPResponse(status_code=200)])
+
+    with mock.patch("nemoguardrails.http.request.HTTPRequest") as request_factory:
+        await http_call(client, "GET", "https://example.com/check")
+
+    request_factory.assert_not_called()
 
 
 @pytest.mark.asyncio

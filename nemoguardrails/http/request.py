@@ -92,7 +92,7 @@ async def http_call(
             content=content,
             timeout=timeout,
         )
-    if raise_for_status:
+    if raise_for_status and response.status_code >= 400:
         response.raise_for_status(
             HTTPRequest(
                 method=method,
