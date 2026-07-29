@@ -16,6 +16,7 @@
 import logging
 import os
 import re
+from collections.abc import Mapping
 from typing import List, Literal, Optional, Tuple, Union
 
 import aiohttp
@@ -67,11 +68,22 @@ def _patronus_lynx_outcome(hallucination: bool, reasoning: Union[List[str], None
     return RailOutcome.allow(metadata=metadata)
 
 
+def _get_patronus_lynx_model(
+    llms: Mapping[str, LLMModel],
+    model_name: str,
+) -> LLMModel:
+    model = llms.get(model_name)
+    if model is None:
+        raise ValueError(f"Patronus Lynx model {model_name!r} is unavailable in the shared model registry.")
+    return model
+
+
 @action()
 async def patronus_lynx_check_output_hallucination(
     llm_task_manager: LLMTaskManager,
+    llms: Mapping[str, LLMModel],
+    model_name: str,
     context: Optional[dict] = None,
-    patronus_lynx_llm: Optional[LLMModel] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -86,6 +98,7 @@ async def patronus_lynx_check_output_hallucination(
         log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
         return _patronus_lynx_outcome(False, None)
 
+    llm = _get_patronus_lynx_model(llms, model_name)
     check_output_hallucination_prompt = llm_task_manager.render_task_prompt(
         task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
         context={
@@ -102,7 +115,7 @@ async def patronus_lynx_check_output_hallucination(
 
     result = (
         await llm_call(
-            patronus_lynx_llm,
+            llm,
             check_output_hallucination_prompt,
             stop=stop,
             llm_params={"temperature": 0.0},

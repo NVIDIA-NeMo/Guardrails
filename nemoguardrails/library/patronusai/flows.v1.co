@@ -2,7 +2,7 @@ define bot inform answer unknown
   "I don't know the answer to that."
 
 define flow patronus lynx check output hallucination
-  $patronus_lynx_response = execute patronus_lynx_check_output_hallucination
+  $patronus_lynx_response = execute patronus_lynx_check_output_hallucination(model_name="patronus_lynx")
   $hallucination = $patronus_lynx_response.metadata["hallucination"]
   # The Reasoning trace is currently unused, but can be used to modify the bot output
   $reasoning = $patronus_lynx_response.metadata["reasoning"]

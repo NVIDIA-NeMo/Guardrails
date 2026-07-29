@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ConfigSpecRef,
     EnvVar,
     ModelRequirement,
@@ -62,6 +63,7 @@ RAIL = RailManifest(
                 name="patronus lynx check output hallucination",
                 direction=RailDirection.OUTPUT,
                 action=PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
+                bindings=(Binding.literal("model_name", "patronus_lynx"),),
             ),
             RailSurface(
                 name="patronus api check output", direction=RailDirection.OUTPUT, action=PATRONUS_API_CHECK_OUTPUT

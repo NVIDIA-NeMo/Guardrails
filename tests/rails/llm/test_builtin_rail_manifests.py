@@ -180,6 +180,17 @@ def test_self_check_surfaces_bind_optional_variant():
         assert surface.bindings == (Binding.surface_param(action_param="variant", name="variant", required=False),)
 
 
+def test_named_model_surfaces_bind_literal_model_names():
+    manifests = all_rail_manifests()
+
+    for surface in manifests["llama_guard"].surfaces:
+        assert surface.bindings == (Binding.literal("model_name", "llama_guard"),)
+
+    patronus_surfaces = manifests["patronusai"].surfaces
+    assert patronus_surfaces[0].bindings == (Binding.literal("model_name", "patronus_lynx"),)
+    assert patronus_surfaces[1].bindings == ()
+
+
 def test_configurable_api_key_requirements_document_shipped_names():
     manifests = all_rail_manifests()
 

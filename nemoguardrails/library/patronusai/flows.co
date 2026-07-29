@@ -1,6 +1,6 @@
 
 flow patronus lynx check output hallucination
-  $patronus_lynx_response = await PatronusLynxCheckOutputHallucinationAction
+  $patronus_lynx_response = await PatronusLynxCheckOutputHallucinationAction(model_name="patronus_lynx")
   global $hallucination
   $hallucination = $patronus_lynx_response.metadata["hallucination"]
   # The Reasoning trace is currently unused, but can be used to modify the bot output
