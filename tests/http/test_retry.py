@@ -97,6 +97,35 @@ def test_retry_policy_accepts_zero_retry_after():
     assert delay == 0.0
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "invalid",
+        "-1",
+        "61",
+    ],
+)
+def test_retry_policy_rejects_unusable_retry_after(value):
+    policy = RetryPolicy(max_retry_after=60)
+    response = HTTPResponse(status_code=429, headers={"Retry-After": value})
+
+    delay = policy.retry_after(response, now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    assert delay is None
+
+
+def test_retry_policy_parses_naive_retry_after_date_as_utc():
+    policy = RetryPolicy()
+    response = HTTPResponse(
+        status_code=429,
+        headers={"Retry-After": "Thu, 01 Jan 2026 00:00:03"},
+    )
+
+    delay = policy.retry_after(response, now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    assert delay == 3.0
+
+
 @pytest.mark.asyncio
 async def test_retry_client_respects_retry_override():
     transport = RecordingHTTPClient([HTTPResponse(status_code=503, headers={"X-Should-Retry": "false"})])
@@ -110,6 +139,26 @@ async def test_retry_client_respects_retry_override():
     assert response.status_code == 503
     assert response.extensions["retry_count"] == 0
     assert len(transport.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_client_honors_true_retry_override():
+    transport = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=200, headers={"X-Should-Retry": "true"}),
+            HTTPResponse(status_code=200),
+        ]
+    )
+    client = RetryingHTTPClient(
+        transport,
+        RetryPolicy(honor_retry_override_header=True),
+        sleep=lambda delay: _completed_sleep(delay),
+    )
+
+    response = await client.request("GET", "https://example.com")
+
+    assert response.extensions["retry_count"] == 1
+    assert len(transport.requests) == 2
 
 
 @pytest.mark.asyncio

@@ -120,6 +120,20 @@ async def test_httpx_transport_closes_owned_client_once():
 
 
 @pytest.mark.asyncio
+async def test_httpx_transport_requests_with_owned_client():
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"owned", request=request)
+
+    owned = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient", return_value=owned):
+        async with HttpxHTTPClient(timeout=1.0) as client:
+            response = await client.request("GET", "https://example.com/items")
+
+    assert response.content == b"owned"
+    assert owned.is_closed
+
+
+@pytest.mark.asyncio
 async def test_httpx_transport_enforces_total_request_deadline():
     async def handler(request: httpx.Request) -> httpx.Response:
         await asyncio.sleep(0.05)
@@ -132,6 +146,30 @@ async def test_httpx_transport_enforces_total_request_deadline():
         await client.request("GET", "https://example.com/slow", timeout=0.01)
 
     await injected.aclose()
+
+
+@pytest.mark.asyncio
+async def test_httpx_transport_rejects_invalid_per_request_timeout():
+    injected = mock.AsyncMock(spec=httpx.AsyncClient)
+    client = HttpxHTTPClient(injected)
+
+    with pytest.raises(ValueError, match="greater than zero"):
+        await client.request("GET", "https://example.com/items", timeout=0)
+
+    injected.request.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_httpx_transport_translates_request_error_without_request_context():
+    transport_error = httpx.ConnectError("unavailable")
+    injected = mock.AsyncMock(spec=httpx.AsyncClient)
+    injected.request.side_effect = transport_error
+    client = HttpxHTTPClient(injected)
+
+    with pytest.raises(HTTPConnectionError) as exc_info:
+        await client.request("GET", "https://example.com/items")
+
+    assert exc_info.value.__cause__ is transport_error
 
 
 @pytest.mark.parametrize("timeout", [0, -1])

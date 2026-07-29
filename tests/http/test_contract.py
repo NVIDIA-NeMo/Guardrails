@@ -51,6 +51,16 @@ def test_http_response_uses_declared_charset():
     assert response.text == "caf\u00e9"
 
 
+def test_http_response_falls_back_from_unknown_charset():
+    response = HTTPResponse(
+        status_code=200,
+        headers={"content-type": "text/plain; charset=unknown"},
+        content="caf\u00e9".encode(),
+    )
+
+    assert response.text == "caf\u00e9"
+
+
 def test_http_response_decode_error_does_not_expose_body():
     response = HTTPResponse(status_code=200, content=b"secret-invalid-json")
 
