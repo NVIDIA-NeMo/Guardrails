@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import httpx
 import pytest
 
@@ -22,6 +24,19 @@ from nemoguardrails.http import (
     RetryPolicy,
     create_http_client,
 )
+
+
+def test_default_factory_forwards_owned_client_options():
+    limits = httpx.Limits(max_connections=12, max_keepalive_connections=4)
+
+    with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient") as factory:
+        create_http_client(limits=limits, follow_redirects=True)
+
+    factory.assert_called_once_with(
+        timeout=None,
+        limits=limits,
+        follow_redirects=True,
+    )
 
 
 @pytest.mark.asyncio
