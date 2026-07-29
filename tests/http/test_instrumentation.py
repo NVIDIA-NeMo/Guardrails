@@ -36,7 +36,7 @@ from nemoguardrails.http import (
     instrument_http_client,
 )
 from nemoguardrails.http.telemetry import record_http_error
-from nemoguardrails.http.testing import RecordingHTTPClient
+from nemoguardrails.testing.http import RecordingHTTPClient
 from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
 from tests.guardrails.metric_helpers import collect_metric_points
