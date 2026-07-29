@@ -156,6 +156,24 @@ async def test_patronus_lynx_fails_before_call_without_model():
 
 
 @pytest.mark.asyncio
+async def test_patronus_lynx_without_context_does_not_require_model():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+
+    outcome = await patronus_lynx_check_output_hallucination(
+        llm_task_manager=task_manager,
+        context={
+            "user_message": "question",
+            "bot_message": "answer",
+            "relevant_chunks": "",
+        },
+        llms={},
+        model_name="patronus_lynx",
+    )
+
+    assert outcome.is_blocked is False
+
+
+@pytest.mark.asyncio
 def test_patronus_lynx_returns_no_hallucination():
     """
     Test that that chat flow completes successfully when
