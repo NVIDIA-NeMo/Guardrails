@@ -97,6 +97,58 @@ async def test_llama_guard_actions_return_rail_outcome(llm_response, expected):
         assert outcome == expected
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action_func", [llama_guard_check_input, llama_guard_check_output])
+async def test_llama_guard_actions_prefer_canonical_model_registry(action_func):
+    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
+    canonical_llm = FakeLLMModel(responses=["safe"])
+    legacy_llm = FakeLLMModel(responses=["unsafe"])
+
+    outcome = await action_func(
+        llm_task_manager=task_manager,
+        context={"user_message": "hello", "bot_message": "hello"},
+        llms={"llama_guard": canonical_llm},
+        model_name="llama_guard",
+        llama_guard_llm=legacy_llm,
+    )
+
+    assert outcome.is_blocked is False
+    assert canonical_llm.inference_count == 1
+    assert legacy_llm.inference_count == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action_func", [llama_guard_check_input, llama_guard_check_output])
+async def test_llama_guard_actions_fall_back_when_registry_model_is_missing(action_func):
+    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
+    legacy_llm = FakeLLMModel(responses=["safe"])
+
+    outcome = await action_func(
+        llm_task_manager=task_manager,
+        context={"user_message": "hello", "bot_message": "hello"},
+        llms={},
+        model_name="llama_guard",
+        llama_guard_llm=legacy_llm,
+    )
+
+    assert outcome.is_blocked is False
+    assert legacy_llm.inference_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action_func", [llama_guard_check_input, llama_guard_check_output])
+async def test_llama_guard_actions_fail_before_call_without_model(action_func):
+    task_manager = cast(LLMTaskManager, _LlamaGuardTaskManager())
+
+    with pytest.raises(ValueError, match="Llama Guard model"):
+        await action_func(
+            llm_task_manager=task_manager,
+            context={"user_message": "hello", "bot_message": "hello"},
+            llms={"llama_guard": None},
+            model_name="llama_guard",
+        )
+
+
 def test_llama_guard_output_action_metadata_is_registration_only():
     assert set(getattr(llama_guard_check_output, "action_meta")) == {
         "name",

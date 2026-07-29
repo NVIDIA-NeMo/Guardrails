@@ -13,10 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, cast
+
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.library.patronusai.actions import (
+    patronus_lynx_check_output_hallucination,
+)
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from tests.utils import FakeLLMModel, TestChat
 
 COLANG_CONFIG = """
@@ -78,6 +84,75 @@ def retrieve_relevant_chunks():
         return_value=context_updates["relevant_chunks"],
         context_updates=context_updates,
     )
+
+
+class _PatronusLynxTaskManager:
+    def render_task_prompt(self, task: Any, context: dict[str, Any]) -> str:
+        return "prompt"
+
+    def get_stop_tokens(self, task: Any) -> list[str]:
+        return []
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_prefers_canonical_model_registry():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+    canonical_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
+    legacy_llm = FakeLLMModel(responses=['{"SCORE": "FAIL"}'])
+
+    outcome = await patronus_lynx_check_output_hallucination(
+        llm_task_manager=task_manager,
+        context={
+            "user_message": "question",
+            "bot_message": "answer",
+            "relevant_chunks": "context",
+        },
+        llms={"patronus_lynx": canonical_llm},
+        model_name="patronus_lynx",
+        patronus_lynx_llm=legacy_llm,
+    )
+
+    assert outcome.is_blocked is False
+    assert canonical_llm.inference_count == 1
+    assert legacy_llm.inference_count == 0
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_falls_back_when_registry_model_is_missing():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+    legacy_llm = FakeLLMModel(responses=['{"SCORE": "PASS"}'])
+
+    outcome = await patronus_lynx_check_output_hallucination(
+        llm_task_manager=task_manager,
+        context={
+            "user_message": "question",
+            "bot_message": "answer",
+            "relevant_chunks": "context",
+        },
+        llms={},
+        model_name="patronus_lynx",
+        patronus_lynx_llm=legacy_llm,
+    )
+
+    assert outcome.is_blocked is False
+    assert legacy_llm.inference_count == 1
+
+
+@pytest.mark.asyncio
+async def test_patronus_lynx_fails_before_call_without_model():
+    task_manager = cast(LLMTaskManager, _PatronusLynxTaskManager())
+
+    with pytest.raises(ValueError, match="Patronus Lynx model"):
+        await patronus_lynx_check_output_hallucination(
+            llm_task_manager=task_manager,
+            context={
+                "user_message": "question",
+                "bot_message": "answer",
+                "relevant_chunks": "context",
+            },
+            llms={"patronus_lynx": None},
+            model_name="patronus_lynx",
+        )
 
 
 @pytest.mark.asyncio
