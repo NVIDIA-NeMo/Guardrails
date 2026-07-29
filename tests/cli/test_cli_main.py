@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import os
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -204,6 +206,38 @@ class TestServerCommand:
         assert result.exit_code == 0
         assert mock_app.auto_reload is True
 
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_with_verbose_sets_worker_env(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+        result = runner.invoke(app, ["server", "--verbose"])
+        assert result.exit_code == 0
+        assert os.environ["NEMO_GUARDRAILS_VERBOSE"] == "true"
+
+    def test_server_api_reads_worker_env_on_import(self):
+        env = {
+            **os.environ,
+            "NEMO_GUARDRAILS_CONFIG_PATH": "/worker/config",
+            "NEMO_GUARDRAILS_DISABLE_CHAT_UI": "true",
+            "NEMO_GUARDRAILS_AUTO_RELOAD": "true",
+            "NEMO_GUARDRAILS_DEFAULT_CONFIG_ID": "worker_config",
+        }
+        script = """
+from nemoguardrails.server import api
+
+assert api.app.rails_config_path == "/worker/config"
+assert api.app.disable_chat_ui is True
+assert api.app.auto_reload is True
+assert api.app.default_config_id == "worker_config"
+"""
+
+        result = subprocess.run([sys.executable, "-c", script], env=env)
+        assert result.returncode == 0
+
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
     @patch("nemoguardrails.server.api.set_default_config_id")
@@ -278,6 +312,58 @@ class TestServerCommand:
             telemetry._heartbeat_started = False
             telemetry._deployment_type_override = None
             telemetry._lock = telemetry.threading.Lock()
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_with_workers_uses_app_factory(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+
+        result = runner.invoke(app, ["server", "--workers=2"])
+
+        assert result.exit_code == 0
+        assert os.environ["NEMO_GUARDRAILS_CONFIG_PATH"] == os.path.join("/current/dir", "config")
+        mock_uvicorn.assert_called_once_with(
+            "nemoguardrails.server.api:create_app",
+            factory=True,
+            port=8000,
+            log_level="info",
+            host="0.0.0.0",
+            workers=2,
+        )
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_rejects_prefix_with_workers(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+
+        result = runner.invoke(app, ["server", "--workers=2", "--prefix=/api/v1"])
+
+        assert result.exit_code == 1
+        assert "The --prefix option is not supported with --workers > 1." in result.output
+        mock_uvicorn.assert_not_called()
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_rejects_auto_reload_with_workers(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+
+        result = runner.invoke(app, ["server", "--workers=2", "--auto-reload"])
+
+        assert result.exit_code == 1
+        assert "The --auto-reload option is not supported with --workers > 1." in result.output
+        mock_uvicorn.assert_not_called()
 
 
 class TestConvertCommand:
