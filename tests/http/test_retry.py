@@ -88,6 +88,15 @@ def test_retry_policy_parses_retry_after_date():
     assert delay == 3.0
 
 
+def test_retry_policy_accepts_zero_retry_after():
+    policy = RetryPolicy()
+    response = HTTPResponse(status_code=429, headers={"Retry-After": "0"})
+
+    delay = policy.retry_after(response, now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    assert delay == 0.0
+
+
 @pytest.mark.asyncio
 async def test_retry_client_respects_retry_override():
     transport = RecordingHTTPClient([HTTPResponse(status_code=503, headers={"X-Should-Retry": "false"})])

@@ -109,7 +109,7 @@ class RetryPolicy:
             delay = (parsed - now).total_seconds()
         if self.clamp_retry_after:
             return min(max(delay, 0.0), self.max_retry_after)
-        if 0 < delay <= self.max_retry_after:
+        if 0 <= delay <= self.max_retry_after:
             return delay
         return None
 
