@@ -51,6 +51,9 @@ async def topic_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    # LLMRails injects Colang events only as a compatibility source of
+    # conversation history. Manifests omit events because engine-neutral
+    # executors provide canonical `messages` and must not synthesize events.
     events: Optional[List[dict]] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     messages: Optional[Sequence[Mapping[str, Any]]] = None,
