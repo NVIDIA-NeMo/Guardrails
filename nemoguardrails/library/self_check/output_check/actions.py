@@ -43,6 +43,9 @@ async def self_check_output(
     llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    # LLMRails injects Colang events only to recover variants for legacy 1.0
+    # flows, including parallel rails. Manifests bind `variant` instead so
+    # engine-neutral callers do not provide or synthesize events.
     events: Optional[List[dict]] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
