@@ -22,6 +22,8 @@ base_config:
   concurrency: 0          # Overridden by sweep
   request_rate_mode: "constant"
 
+  use_legacy_max_tokens: true
+
   random_seed: 12345
   prompt_input_tokens_mean: 8000
   prompt_input_tokens_stddev: 100

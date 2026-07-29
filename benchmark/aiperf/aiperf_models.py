@@ -46,6 +46,10 @@ class BaseConfig(BaseModel):
         "benchmarking a bare LLM NIM directly.",
     )
     streaming: Optional[bool] = Field(default=False, description="Streaming mode")
+    use_legacy_max_tokens: Optional[bool] = Field(
+        default=None,
+        description="Use max_tokens instead of max_completion_tokens (workaround for servers that do not support max_completion_tokens)",
+    )
 
     # Load generation settings
     warmup_request_count: int = Field(description="Requests to send before beginning performance-test")
