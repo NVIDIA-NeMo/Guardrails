@@ -145,3 +145,21 @@ def test_httpx_transport_can_enable_redirects_explicitly():
         HttpxHTTPClient(follow_redirects=True)
 
     assert factory.call_args.kwargs["follow_redirects"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"timeout": 10.0},
+        {"limits": httpx.Limits(max_connections=10)},
+        {"follow_redirects": True},
+    ],
+)
+async def test_httpx_transport_rejects_owned_options_with_injected_client(options):
+    injected = httpx.AsyncClient()
+
+    with pytest.raises(ValueError, match="Owned-client options"):
+        HttpxHTTPClient(injected, **options)
+
+    await injected.aclose()

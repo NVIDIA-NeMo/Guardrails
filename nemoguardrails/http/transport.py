@@ -24,6 +24,8 @@ from nemoguardrails.http._url import sanitize_url
 from nemoguardrails.http.errors import HTTPConnectionError, HTTPTimeoutError
 from nemoguardrails.http.types import HTTPResponse
 
+_DEFAULT_TIMEOUT_SECONDS = 30.0
+
 
 def _sanitize_request_error(error: httpx.RequestError) -> httpx.RequestError:
     try:
@@ -46,7 +48,7 @@ class HttpxHTTPClient:
         self,
         client: httpx.AsyncClient | None = None,
         *,
-        timeout: float | None = 30.0,
+        timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
         limits: httpx.Limits | None = None,
         follow_redirects: bool = False,
     ):
@@ -59,9 +61,12 @@ class HttpxHTTPClient:
             follow_redirects: Whether an owned client follows redirects.
 
         Raises:
-            ValueError: If the configured timeout is not positive.
+            ValueError: If the configured timeout is not positive or owned-client
+                options are supplied with an injected client.
         """
 
+        if client is not None and (timeout != _DEFAULT_TIMEOUT_SECONDS or limits is not None or follow_redirects):
+            raise ValueError("Owned-client options cannot be used with an injected HTTPX client")
         if timeout is not None and timeout <= 0:
             raise ValueError("HTTP timeout must be greater than zero")
         self._owns_client = client is None
