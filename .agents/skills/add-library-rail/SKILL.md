@@ -279,6 +279,12 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
      deterministic main-model output.
    - Direct action-level tests parametrized over allow/block/transform and
      config-error paths (exemplar: `tests/test_injection_detection.py`).
+   - Every field in `rail_config.py` needs an action-level test at a
+     NON-default value, and any field that can change the decision
+     (thresholds, policy lists, allowlists) needs one test on each side of
+     its boundary. A declared config field with no test is an unverified
+     public option, and an inverted or off-by-one threshold comparison
+     passes every gate.
    - For HTTP rails, inject the recording double instead of monkeypatching:
      `chat.app.register_action_param("http_client", RecordingHTTPClient([...]))`
      (exemplar: `tests/test_activefence_rail.py`; helper in
