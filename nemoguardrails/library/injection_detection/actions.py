@@ -175,6 +175,7 @@ def _load_rules(
         or None if no rule names are provided.
 
     Raises:
+        ValueError: If a requested rule name is not present in the inline `yara_rules`.
         yara.SyntaxError: If there is a syntax error in the YARA rules.
         ImportError: If the yara module is not installed.
     """
@@ -185,6 +186,17 @@ def _load_rules(
 
     try:
         if yara_rules:
+            # Validate requested names against the inline rules up front so we raise a
+            # clear, actionable error instead of a bare KeyError when indexing below.
+            missing_rules = [rule_name for rule_name in rule_names if rule_name not in yara_rules]
+            if missing_rules:
+                available_rules = ", ".join(sorted(yara_rules.keys())) or "<none>"
+                msg = (
+                    "Provided set of `injections` %r references rule name(s) %r not present in the inline "
+                    "`yara_rules`. Available inline rules are: %s."
+                ) % (tuple(rule_names), tuple(missing_rules), available_rules)
+                log.error(msg)
+                raise ValueError(msg)
             rules_source = {name: rule for name, rule in yara_rules.items() if name in rule_names}
             rules = yara.compile(sources={rule_name: rules_source[rule_name] for rule_name in rule_names})
         else:
