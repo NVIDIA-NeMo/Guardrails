@@ -262,6 +262,14 @@ async def test_polygraf_request_raises_for_non_200_response():
 
 
 @pytest.mark.asyncio
+async def test_polygraf_request_raises_for_invalid_json():
+    client = RecordingHTTPClient([_http_response(text="not-json")])
+
+    with pytest.raises(ValueError, match="Failed to parse Polygraf response as JSON"):
+        await polygraf_request("John", "http://polygraf.example/pii", None, http_client=client)
+
+
+@pytest.mark.asyncio
 async def test_polygraf_request_forwards_timeout_to_client():
     client = RecordingHTTPClient([_http_response([])])
 

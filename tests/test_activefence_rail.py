@@ -13,20 +13,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from nemoguardrails import RailsConfig
 from nemoguardrails.http import HTTPResponse
+from nemoguardrails.library.activefence.actions import call_activefence_api
 from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 
-def _response(payload: dict) -> HTTPResponse:
+def _response(payload: dict, *, status: int = 200) -> HTTPResponse:
     import json
 
     return HTTPResponse(
-        status_code=200,
+        status_code=status,
         headers={"content-type": "application/json"},
         content=json.dumps(payload).encode(),
     )
+
+
+@pytest.mark.asyncio
+async def test_activefence_uses_shared_client(monkeypatch):
+    monkeypatch.setenv("ACTIVEFENCE_API_KEY", "secret")
+    client = RecordingHTTPClient([_response({"violations": []})])
+
+    result = await call_activefence_api("Hello", http_client=client)
+
+    assert not result.is_blocked
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://apis.activefence.com/sync/v3/content/text"
+    assert request.headers == {
+        "af-api-key": "secret",
+        "af-source": "nemo-guardrails",
+    }
+    assert request.json["text"] == "Hello"
+    assert request.json["content_id"].startswith("ng-")
+
+
+@pytest.mark.asyncio
+async def test_activefence_requires_api_key(monkeypatch):
+    monkeypatch.delenv("ACTIVEFENCE_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="ACTIVEFENCE_API_KEY environment variable not set"):
+        await call_activefence_api("Hello", http_client=RecordingHTTPClient())
+
+
+@pytest.mark.asyncio
+async def test_activefence_raises_for_non_200(monkeypatch):
+    monkeypatch.setenv("ACTIVEFENCE_API_KEY", "secret")
+    client = RecordingHTTPClient([_response({}, status=503)])
+
+    with pytest.raises(ValueError, match="ActiveFence call failed with status code 503"):
+        await call_activefence_api("Hello", http_client=client)
 
 
 def test_input(monkeypatch):

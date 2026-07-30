@@ -13,15 +13,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.library.factchecking.align_score.request import alignscore_request
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
+
+
+def _response(payload, *, status: int = 200) -> HTTPResponse:
+    return HTTPResponse(
+        status_code=status,
+        headers={"content-type": "application/json"},
+        content=json.dumps(payload).encode(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_alignscore_request_uses_shared_client():
+    client = RecordingHTTPClient([_response({"alignscore": 0.82})])
+
+    result = await alignscore_request(
+        api_url="http://alignscore.example/score",
+        evidence=["NeMo Guardrails is open source."],
+        response="NeMo Guardrails is open source.",
+        http_client=client,
+    )
+
+    assert result == 0.82
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "http://alignscore.example/score"
+    assert request.json == {
+        "evidence": ["NeMo Guardrails is open source."],
+        "claim": "NeMo Guardrails is open source.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_alignscore_request_returns_one_without_evidence():
+    client = RecordingHTTPClient()
+
+    assert await alignscore_request(evidence=[], http_client=client) == 1.0
+    assert client.requests == []
+
+
+@pytest.mark.asyncio
+async def test_alignscore_request_returns_none_for_non_200():
+    client = RecordingHTTPClient([_response({}, status=503)])
+
+    result = await alignscore_request(evidence=["evidence"], response="claim", http_client=client)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_alignscore_request_returns_none_without_score():
+    client = RecordingHTTPClient([_response({"result": "unknown"})])
+
+    result = await alignscore_request(evidence=["evidence"], response="claim", http_client=client)
+
+    assert result is None
 
 
 def build_kb():
