@@ -289,9 +289,11 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
 
 - Author a catalog page at
   `docs/configure-rails/guardrail-catalog/community/<name>.mdx` (exemplars:
-  `regex.mdx`, `clavata.mdx`) and set the manifest's `docs_url` to it. The
-  `docs_url` value uses the `.md` extension even though the file is authored
-  as `.mdx` (see `regex/rail.py`).
+  `regex.mdx`, `clavata.mdx`) and set the manifest's `docs_url` to that same
+  repo-relative path, extension included, so it ends in `.mdx` (see
+  `regex/rail.py`). `test_builtin_manifest_docs_urls_resolve` asserts
+  `Path(docs_url).is_file()`, so an `.md` value fails a gate this skill
+  tells you to run.
 - Add an example config under `examples/configs/<rail>/`.
 - Document the required Python packages (the `pip install` line), required
   env vars / API keys, the remote service and what text is sent to it, and
