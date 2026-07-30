@@ -106,7 +106,11 @@ Each item names the check, where to look, and what "wrong" looks like.
    evidence in metadata; refusal prose, exception types, or localization in
    the outcome is a finding. Flows must only read metadata keys the action
    actually sets (grep the action for each `metadata[` subscript used in a
-   flow).
+   flow). Then cross-check the config model: every field in `rail_config.py`
+   must have a test at a non-default value, and decision-changing fields
+   need both sides of the boundary. Read the comparison operator against the
+   documented semantics; an inverted or off-by-one threshold passes every
+   gate.
 7. **Telemetry content-freeness.** No logging of checked text, request or
    response bodies, URLs with query strings, API keys, or tokens; exception
    messages must not embed payloads. Check `log.` calls and every f-string
