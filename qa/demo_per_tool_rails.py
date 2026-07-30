@@ -216,14 +216,9 @@ def _is_blocked(gen_response) -> bool:
     return "can't allow" in content.lower() or "sorry" in content.lower()
 
 
-def _fmt_ts(ts):
-    return f"{ts:.3f}s" if ts else "?"
-
-
 def _print_generation_log(gen_response, show_timing: bool = False) -> None:
     log = gen_response.log
     if not log:
-        print("  [no generation log]")
         return
 
     rails = log.activated_rails or []
@@ -231,60 +226,32 @@ def _print_generation_log(gen_response, show_timing: bool = False) -> None:
         print("  [no rails activated]")
         return
 
-    # Compute wall-clock epoch for relative timestamps
     epoch = min((r.started_at for r in rails if r.started_at), default=None)
 
-    print("  GENERATION LOG")
     for rail in rails:
-        tool_label = f" (tool: {rail.tool_name})" if getattr(rail, "tool_name", None) else ""
-        stop_label = " → STOP" if rail.stop else ""
+        tool_label = f"  tool:{rail.tool_name}" if getattr(rail, "tool_name", None) else ""
+        status = "STOP" if rail.stop else "pass"
         timing = ""
-        if show_timing and rail.started_at and epoch:
-            rel_start = rail.started_at - epoch
-            rel_end = (rail.finished_at - epoch) if rail.finished_at else None
-            timing = f" [+{rel_start:.3f}s → +{_fmt_ts(rel_end)}]"
-        print(f"  ┌ [{rail.type}] {rail.name}{tool_label}{stop_label}{timing}")
+        if show_timing and rail.started_at and rail.finished_at and epoch:
+            duration = rail.finished_at - rail.started_at
+            start = rail.started_at - epoch
+            timing = f"  +{start:.2f}s  {duration:.2f}s"
+        print(f"  [{status}] {rail.name}{tool_label}{timing}")
         for action in rail.executed_actions:
             for llm_info in action.llm_calls:
-                prompt_preview = (llm_info.prompt or "")[:200].replace("\n", "↵")
-                completion_preview = (llm_info.completion or "").strip()
-                tokens = (
-                    f"{llm_info.prompt_tokens}p + {llm_info.completion_tokens}c = {llm_info.total_tokens} tokens"
-                    if llm_info.total_tokens
-                    else "tokens: unknown"
-                )
-                duration = f"{llm_info.duration:.2f}s" if llm_info.duration else "?s"
-                print(f"  │   task:       {llm_info.task or action.action_name}")
-                print(f"  │   prompt:     {prompt_preview!r}…")
-                print(f"  │   completion: {completion_preview!r}")
-                print(f"  │   usage:      {tokens} | {duration}")
-        decisions = ", ".join(rail.decisions) if rail.decisions else "none"
-        print(f"  └   decisions: {decisions}")
+                completion = (llm_info.completion or "").strip().replace("\n", " ")
+                duration_s = f"{llm_info.duration:.2f}s" if llm_info.duration else ""
+                print(f"         {completion!r}  {duration_s}")
 
     if show_timing and len(rails) > 1:
-        _print_overlap_summary(rails, epoch)
-
-
-def _print_overlap_summary(rails, epoch) -> None:
-    """Show whether rails ran sequentially or with temporal overlap."""
-    timed = [(r.name, r.started_at, r.finished_at) for r in rails if r.started_at and r.finished_at]
-    if len(timed) < 2:
-        return
-
-    overlapping = []
-    for i, (name_a, start_a, end_a) in enumerate(timed):
-        for name_b, start_b, end_b in timed[i + 1 :]:
-            # Two intervals overlap if one starts before the other finishes
-            if start_b < end_a and start_a < end_b:
-                overlapping.append((name_a, name_b))
-
-    print()
-    if overlapping:
-        print("  PARALLELISM VERIFIED: the following rails had overlapping execution windows:")
-        for a, b in overlapping:
-            print(f"    · {a!r}  ⟷  {b!r}")
-    else:
-        print("  Rails ran sequentially (no overlapping execution windows detected).")
+        timed = [(r.name, r.started_at, r.finished_at) for r in rails if r.started_at and r.finished_at]
+        overlapping = [
+            (a, b) for i, (a, sa, ea) in enumerate(timed) for b, sb, eb in timed[i + 1 :] if sb < ea and sa < eb
+        ]
+        if overlapping:
+            print("  parallelism verified — overlapping windows:")
+            for a, b in overlapping:
+                print(f"    {a}  ⟷  {b}")
 
 
 # ---------------------------------------------------------------------------
@@ -299,12 +266,9 @@ async def run_scenario(
     expect_blocked: bool,
     show_timing: bool = False,
 ) -> None:
-    sep = "-" * 60
-    print(f"\n{sep}")
-    print(f"Scenario: {label}")
-    print(f"Tool:     {tool_name}({json.dumps(arguments)})")
-    print(f"Expect:   {'BLOCKED' if expect_blocked else 'ALLOWED'}")
-    print(sep)
+    print(f"\n{'─' * 60}")
+    print(f"{label}  [{tool_name}]  expect: {'BLOCKED' if expect_blocked else 'ALLOWED'}")
+    print(f"{'─' * 60}")
 
     messages = _make_messages(user_text, tool_name, arguments)
 
@@ -316,17 +280,15 @@ async def run_scenario(
 
     if _is_blocked(response):
         status = "PASS" if expect_blocked else "FAIL"
-        print(f"\n  [{status}] Rail blocked the call.  ({wall_elapsed:.2f}s wall clock)")
-        print(f"         Response: {_message_content(response)!r}")
+        print(f"  [{status}] blocked  ({wall_elapsed:.2f}s)")
         return
 
     allowed_calls = _message_tool_calls(response) or [_tool_call(tool_name, arguments)]
     tool_results = []
-    print()
     for tc in allowed_calls:
         result_content = _execute_stub(tc)
         tc_name = tc.get("function", {}).get("name") or tc.get("name", "")
-        print(f"  Stub executed: {tc_name} → {result_content}")
+        print(f"  stub: {tc_name} → {result_content}")
         tool_results.append(
             {
                 "role": "tool",
@@ -338,17 +300,14 @@ async def run_scenario(
 
     followup_messages = messages + tool_results
     final_response = await rails.generate_async(messages=followup_messages, options=_LOG_OPTIONS)
-    final_content = _message_content(final_response)
 
     status = "PASS" if not expect_blocked else "FAIL"
-    print(f"\n  [{status}] Rail allowed the call.  ({wall_elapsed:.2f}s wall clock)")
-    print(f"         Final response: {final_content!r}")
+    print(f"  [{status}] allowed  ({wall_elapsed:.2f}s)")
 
 
 async def demo() -> None:
     # -----------------------------------------------------------------------
-    print("=" * 60)
-    print("  PART 1 — Per-tool sequential rails")
+    print("PART 1 — Per-tool sequential rails")
     print("=" * 60)
 
     sequential_rails = LLMRails(RailsConfig.from_content(yaml_content=SEQUENTIAL_CONFIG_YAML))
@@ -399,10 +358,7 @@ async def demo() -> None:
     )
 
     # -----------------------------------------------------------------------
-    print("\n" + "=" * 60)
-    print("  PART 2 — Parallel global flows")
-    print("  Both checks (injection + PII) run concurrently on every tool call.")
-    print("  The timing summary below confirms overlapping execution windows.")
+    print("\nPART 2 — Parallel global flows")
     print("=" * 60)
 
     parallel_rails = LLMRails(RailsConfig.from_content(yaml_content=PARALLEL_CONFIG_YAML))
@@ -430,9 +386,7 @@ async def demo() -> None:
         show_timing=True,
     )
 
-    print("\n" + "=" * 60)
-    print("  Done")
-    print("=" * 60)
+    print("\ndone.")
 
 
 if __name__ == "__main__":
