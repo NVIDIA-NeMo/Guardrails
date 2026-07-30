@@ -76,9 +76,10 @@ Each item names the check, where to look, and what "wrong" looks like.
    defaults-only `RailPrivacy()` on a vendor rail is almost always wrong.
 2. **Requirements honesty.** Every env var the code reads
    (`os.environ`/`os.getenv`) appears in `RailRequirements.env_vars`; every
-   lazily imported package appears in `python_packages` with a real PEP 440
-   bound and is loaded via `require_python_package`; the docs `pip install`
-   line matches the declaration.
+   lazily imported package appears in `optional_dependencies` (and in
+   `extras` when the package already ships in a nemoguardrails extra); the
+   docs `pip install` line matches the declaration and carries the version
+   bound, which `RailRequirements` cannot express.
 3. **Retry semantics.** For HTTP rails: a rail-owned `RetryPolicy` constant;
    POST retries only via explicit `retryable_methods={"POST"}` with an
    argument for why the endpoint is safe to resend; no hand-rolled retry
