@@ -205,8 +205,20 @@ response = await http_call(
   exception messages containing payloads, URLs with query strings, or
   credentials. Explicitly composed instrumentation sanitizes URLs; do not
   undo that protection in rail-level logging.
-- Wrap vendor failures in rail-specific error types (`errs.py` pattern) built
-  on the `nemoguardrails.http.errors` hierarchy.
+- Wrap vendor failures in rail-specific error types rooted at your own base
+  exception (the `errs.py` pattern; exemplar
+  `nemoguardrails/library/clavata/errs.py`), catching the
+  `nemoguardrails.http.errors` types at the call site.
+- Security rules the reviewer will check, so satisfy them while writing:
+  read the API key from `os.getenv` only, never from a config field that can
+  reach logs or snapshots (exemplar: `nemoguardrails/library/f5/actions.py`);
+  if the config exposes an `api_url` or `base_url`, use it only as the origin
+  of the vendor call with a fixed path suffix, never as a template a caller
+  can steer; never interpolate user or bot text into a URL, path, header, or
+  shell command, since it belongs in the JSON body; parse responses with
+  `response.json()` and nothing else, never pickle or a yaml load over vendor
+  bytes; and leave redirect handling at the transport default, which is
+  disabled (`nemoguardrails/http/transport.py`).
 
 ## Step 5: Vendor Python dependencies
 
