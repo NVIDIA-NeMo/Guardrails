@@ -66,7 +66,7 @@ the main LLM NIM was never invoked. See Scenario Sweeps v2 for valid end-to-end 
 
 ---
 
-## Scenario Sweeps v2 (2026-07-22–23, 300s per level) ← canonical
+## Scenario Sweeps v2 (2026-07-22–23, 300s per level) ⚠ SUPERSEDED — max_tokens not forwarded, unconstrained LLM output
 **Hardware:** 8× H100 80GB (Brev node brev-sax6j9j37)
 **NIMs:** Nemotron 3 Nano 2.0.8 (port 8000) + Nemotron 3.5 Content Safety 2.0.5-variant (port 8001)
 **Guardrails:** branch dev/schilton/iorails-vs-llmrails-benchmarking (tip 7c4c59c73)
@@ -275,6 +275,161 @@ comparison remains valid since both engines share the same issue.
 ### LLM inference dominates latency
 - Run 1/2 (input-blocked only) showed IORails 5–6× faster than LLMRails. With real end-to-end inference, the advantage at moderate concurrency (c=1–64) narrows to ~5–15% — the Guardrails engine overhead is small relative to LLM inference time
 - The IORails advantage re-emerges at c=128+ through overload handling, which reduces queue depth and P50/P99 latency even when many of those fast responses are non-productive
+
+---
+
+## Scenario Sweeps v3 (2026-07-29, 300s per level) ← canonical
+**Hardware:** 8× H100 80GB (Brev node brev-sax6j9j37)
+**NIMs:** Nemotron 3 Nano 2.0.8 (port 8000) + Nemotron 3.5 Content Safety 2.0.5-variant (port 8001)
+**Guardrails:** branch dev/schilton/iorails-vs-llmrails-benchmarking (tip d94c150ba)
+**Fix vs v2:** `use_legacy_max_tokens: true` — aiperf now sends `max_tokens` instead of `max_completion_tokens`; Guardrails forwards it to the main LLM. Validated: dialog OSL mean 100.7 tokens (was ~2,982 in v2). NGUARD-873 workaround.
+
+Response classification by output sequence length (OSL):
+- **Safe** (OSL > 20): request passed through input rail, main LLM invoked, output rail passed
+- **Blocked** (OSL 6–20): input or output rail blocked the request (Guardrails refusal message)
+- **Overload** (OSL 1–5): IORails fast-fail response under saturation; LLMRails queues instead
+
+---
+
+### Dialog (input 100 tokens / output 100 tokens / std 5)
+
+| Concurrency | LLMRails tput (req/s) | LLMRails P50 (ms) | LLMRails P99 (ms) | IORails tput (req/s) | IORails P50 (ms) | IORails P99 (ms) |
+|-------------|----------------------|-------------------|-------------------|---------------------|------------------|------------------|
+|           1 |                  2.16 |             461.6 |             488.4 |                2.45 |            406.9 |            431.8 |
+|           2 |                  3.73 |             536.1 |             589.8 |                4.33 |            461.0 |            492.2 |
+|           4 |                  6.02 |             653.3 |             900.1 |                7.54 |            530.5 |            572.0 |
+|           8 |                  8.74 |             918.4 |           1,307.2 |               12.33 |            648.0 |            704.9 |
+|          16 |                 11.20 |           1,438.5 |           2,197.1 |               19.38 |            825.1 |            921.0 |
+|          32 |                 12.94 |           2,402.8 |           4,157.4 |               29.47 |          1,084.2 |          1,225.1 |
+|          64 |                 14.50 |           4,083.0 |           9,840.9 |               43.77 |          1,466.9 |          1,694.7 |
+|         128 |                 14.20 |           8,176.4 |          22,214.6 |               47.81 |          2,669.5 |          3,128.9 |
+|         256 |                 13.59 |          17,648.1 |          44,964.6 |               47.40 |          5,429.9 |          5,916.1 |
+
+| Concurrency | LLMRails Safe% | LLMRails Block% | LLMRails Ovld% | IORails Safe% | IORails Block% | IORails Ovld% |
+|-------------|----------------|-----------------|----------------|---------------|----------------|---------------|
+|           1 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           2 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           4 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           8 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          16 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          32 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          64 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|         128 |          99.9% |            0.1% |           0.0% |        100.0% |           0.0% |          0.0% |
+|         256 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+
+**IORails peak:** 47.8 req/s vs LLMRails 14.5 req/s → **3.3× throughput**. IORails P99 at c=256: 5,916ms vs 44,965ms → **7.6× lower**. No overload fast-fails observed.
+
+---
+
+### RAG (input 4,000 tokens / output 200 tokens / std 10)
+
+| Concurrency | LLMRails tput (req/s) | LLMRails P50 (ms) | LLMRails P99 (ms) | IORails tput (req/s) | IORails P50 (ms) | IORails P99 (ms) |
+|-------------|----------------------|-------------------|-------------------|---------------------|------------------|------------------|
+|           1 |                  1.16 |             886.6 |             990.3 |                1.27 |            790.8 |            838.4 |
+|           2 |                  2.15 |             933.0 |           1,151.2 |                2.32 |            865.1 |            924.5 |
+|           4 |                  3.43 |           1,150.4 |           2,373.5 |                3.89 |          1,033.5 |          1,124.0 |
+|           8 |                  4.78 |           1,636.3 |           3,157.1 |                5.99 |          1,339.0 |          1,491.2 |
+|          16 |                  5.48 |           2,779.1 |           5,059.3 |                8.44 |          1,902.9 |          2,231.0 |
+|          32 |                  5.44 |           5,420.5 |          12,178.5 |               11.08 |          2,883.6 |          3,568.7 |
+|          64 |                  5.36 |          10,671.8 |          27,882.4 |               14.05 |          4,537.8 |          5,643.2 |
+|         128 |                  5.16 |          22,021.5 |          54,540.5 |               15.16 |          8,344.5 |          9,785.0 |
+|         256 |                  5.48 |          47,151.6 |          57,408.2 |               14.94 |         12,065.6 |         22,937.3 |
+
+| Concurrency | LLMRails Safe% | LLMRails Block% | LLMRails Ovld% | IORails Safe% | IORails Block% | IORails Ovld% |
+|-------------|----------------|-----------------|----------------|---------------|----------------|---------------|
+|           1 |          83.9% |           16.1% |           0.0% |         95.3% |           4.7% |          0.0% |
+|           2 |          84.3% |           15.7% |           0.0% |         95.1% |           4.9% |          0.0% |
+|           4 |          85.1% |           14.9% |           0.0% |         95.0% |           5.0% |          0.0% |
+|           8 |          85.1% |           14.9% |           0.0% |         95.1% |           4.9% |          0.0% |
+|          16 |          85.6% |           14.4% |           0.0% |         94.7% |           5.3% |          0.0% |
+|          32 |          85.3% |           14.6% |           0.1% |         94.9% |           5.1% |          0.0% |
+|          64 |          83.2% |           16.8% |           0.0% |         95.2% |           4.8% |          0.0% |
+|         128 |          84.8% |           15.2% |           0.0% |         94.9% |           5.1% |          0.0% |
+|         256 |          84.3% |           15.6% |           0.1% |         94.9% |           5.1% |          0.0% |
+
+**IORails peak:** 15.2 req/s vs LLMRails 5.5 req/s → **2.7× throughput**. IORails P99 at c=256: 22,937ms vs 57,408ms → **2.5× lower**. Block rate difference (~15% LLMRails vs ~5% IORails) reflects different aiperf input corpora between runs — cross-engine block rate comparisons are not reliable.
+
+---
+
+### Code Generation (input 200 tokens / output 2,000 tokens / std 10)
+
+| Concurrency | LLMRails tput (req/s) | LLMRails P50 (ms) | LLMRails P99 (ms) | IORails tput (req/s) | IORails P50 (ms) | IORails P99 (ms) |
+|-------------|----------------------|-------------------|-------------------|---------------------|------------------|------------------|
+|           1 |                  0.19 |           5,495.2 |           5,547.3 |                0.20 |          5,384.9 |          5,437.0 |
+|           2 |                  0.34 |           6,016.5 |           6,081.9 |                0.37 |          5,904.9 |          5,986.2 |
+|           4 |                  0.59 |           7,027.5 |           7,242.3 |                0.63 |          6,891.6 |          6,999.2 |
+|           8 |                  0.93 |           8,768.8 |          10,594.1 |                1.01 |          8,574.0 |          8,728.3 |
+|          16 |                  1.42 |          11,406.6 |          12,570.9 |                1.55 |         11,207.8 |         11,422.0 |
+|          32 |                  2.13 |          14,926.4 |          17,876.0 |                2.34 |         14,624.0 |         14,974.6 |
+|          64 |                  3.27 |          18,807.1 |          24,316.9 |                3.66 |         18,644.1 |         19,212.2 |
+|         128 |                  4.15 |          32,117.1 |          40,870.4 |                4.85 |         26,194.8 |         37,102.4 |
+|         256 |                  4.99 |          54,099.9 |          68,269.4 |                4.83 |         27,240.0 |         38,025.4 |
+
+| Concurrency | LLMRails Safe% | LLMRails Block% | LLMRails Ovld% | IORails Safe% | IORails Block% | IORails Ovld% |
+|-------------|----------------|-----------------|----------------|---------------|----------------|---------------|
+|           1 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           2 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           4 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|           8 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          16 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          32 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|          64 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+|         128 |          99.9% |            0.1% |           0.0% |        100.0% |           0.0% |          0.0% |
+|         256 |         100.0% |            0.0% |           0.0% |        100.0% |           0.0% |          0.0% |
+
+**Output-dominated scenario.** IORails advantage narrows to ~10–17% at c=1–64 and disappears at c=256 (LLMRails 4.99 vs IORails 4.83 req/s). However IORails P99 at c=256 is meaningfully better: 38,025ms vs 68,269ms. No overload fast-fails observed at any concurrency level.
+
+---
+
+### Agent (input 8,000 tokens / output 4,000 tokens / std 20)
+
+| Concurrency | LLMRails tput (req/s) | LLMRails P50 (ms) | LLMRails P99 (ms) | IORails tput (req/s) | IORails P50 (ms) | IORails P99 (ms) |
+|-------------|----------------------|-------------------|-------------------|---------------------|------------------|------------------|
+|           1 |                  0.45 |           1,380.3 |          10,834.4 |                0.18 |          5,683.1 |         10,647.6 |
+|           2 |                  0.83 |           1,559.2 |          10,468.7 |                0.33 |          6,339.4 |         11,911.3 |
+|           4 |                  1.43 |           1,901.1 |          14,136.5 |                0.56 |          7,124.7 |         14,488.9 |
+|           8 |                  2.19 |           2,594.2 |          16,428.4 |                0.89 |          8,806.7 |         18,622.7 |
+|          16 |                  2.73 |           4,625.4 |          21,393.5 |                1.34 |         11,995.7 |         25,077.3 |
+|          32 |                  3.06 |           9,021.6 |          27,172.6 |                1.88 |         15,718.6 |         29,941.0 |
+|          64 |                  3.26 |          18,119.5 |          33,782.0 |                2.31 |         20,451.0 |         31,668.3 |
+|         128 |                  3.19 |          36,900.8 |          57,792.9 |                1.76 |         21,893.2 |         37,735.1 |
+|         256 |                  2.92 |          75,748.5 |         116,798.8 |                1.51 |         30,743.8 |         47,461.3 |
+
+| Concurrency | LLMRails Safe% | LLMRails Block% | LLMRails Ovld% | IORails Safe% | IORails Block% | IORails Ovld% |
+|-------------|----------------|-----------------|----------------|---------------|----------------|---------------|
+|           1 |          93.3% |            6.7% |           0.0% |         92.3% |           7.7% |          0.0% |
+|           2 |          94.0% |            6.0% |           0.0% |         88.7% |          11.3% |          0.0% |
+|           4 |          91.8% |            8.2% |           0.0% |         92.9% |           7.1% |          0.0% |
+|           8 |          92.9% |            7.1% |           0.0% |         92.5% |           7.5% |          0.0% |
+|          16 |          90.4% |            9.6% |           0.0% |         91.8% |           8.2% |          0.0% |
+|          32 |          91.9% |            8.1% |           0.0% |         93.4% |           6.6% |          0.0% |
+|          64 |          91.2% |            8.8% |           0.0% |         95.4% |           4.6% |          0.0% |
+|         128 |          93.0% |            7.0% |           0.0% |         92.1% |           7.9% |          0.0% |
+|         256 |          91.9% |            8.1% |           0.0% |         91.3% |           8.7% |          0.0% |
+
+**Notable reversal: LLMRails outperforms IORails on throughput at every concurrency level.** LLMRails peaks at 3.26 req/s (c=64) vs IORails 2.31 req/s — LLMRails ~1.4× higher. LLMRails P50 is also consistently lower (1,380ms vs 5,683ms at c=1). IORails recovers on P99 at c=128+ (37,735ms vs 57,793ms at c=128; 47,461ms vs 116,799ms at c=256) due to queue-depth limiting. Hypothesis: IORails' bounded work queue creates head-of-line blocking for very long (8k in / 4k out) requests; LLM inference time so dominates that IORails' overhead disadvantage outweighs its queuing benefit at moderate concurrency.
+
+---
+
+## Scenario Sweeps v3 — Analysis
+
+### IORails advantage by scenario
+
+| Scenario | Token profile | IORails peak tput advantage | IORails P99 advantage (c=256) |
+|----------|--------------|----------------------------|-------------------------------|
+| Dialog   | 100 in / 100 out | **3.3×** (47.8 vs 14.5 req/s) | **7.6×** (5,916ms vs 44,965ms) |
+| RAG      | 4k in / 200 out  | **2.7×** (15.2 vs 5.5 req/s)  | **2.5×** (22,937ms vs 57,408ms) |
+| Code Gen | 200 in / 2k out  | **~1.1×** (4.85 vs 4.15 req/s) | **1.8×** (38,025ms vs 68,269ms) |
+| Agent    | 8k in / 4k out   | **LLMRails wins** (3.26 vs 2.31 req/s) | IORails wins P99 only (47,461ms vs 116,799ms) |
+
+### Key findings vs v2
+
+- **max_tokens fix eliminates unconstrained output**: Dialog OSL mean 100.7 tokens (v2: ~2,982). Safe% is now 100% for dialog/code gen vs the artificially inflated rates in v2.
+- **IORails advantage is real but scenario-dependent**: Largest for short balanced workloads (Dialog: 3.3×), shrinks as output length grows (Code Gen: ~1.1×), reverses for very long prompts (Agent: LLMRails wins on throughput).
+- **No overload fast-fails observed** in dialog or code gen — unlike v2, where IORails fast-failed 60–70% of dialog requests at c=256. The unconstrained output in v2 made requests take far longer, saturating the IORails queue much earlier.
+- **RAG block rate discrepancy** (~15% LLMRails vs ~5% IORails): reflects different aiperf-generated input corpora between runs, not an engine-level difference.
+
+---
 
 ## Methodology notes
 - OSL classification thresholds (1–5 = overload, 6–20 = blocked, >20 = safe) were validated against the OSL distribution: no records fall in the 12–20 range, confirming a clean natural separator
