@@ -161,10 +161,19 @@ response = await http_call(
 - `http_call` manages the fallback client's lifecycle. Wrapping an injected
   client must not transfer ownership; the factory must return the fully
   composed closable client for the fallback path.
-- Retries are rail-owned: define a module-level `RetryPolicy` constant. The
-  default policy never retries POST; if your vendor call is a POST and safe
-  to resend, you must opt in explicitly with
-  `retryable_methods=frozenset({"POST"})` (see `_CLAVATA_RETRY_POLICY`). If
+- Retries are rail-owned: define the `RetryPolicy` in one named module-level
+  place, either a constant when it is fixed (`_CLAVATA_RETRY_POLICY` in
+  `nemoguardrails/library/clavata/request.py`) or a single builder function
+  when it is derived from the rail config (`_retry_policy` in
+  `nemoguardrails/library/f5/actions.py`). Never construct it inline at the
+  call site. The default policy never retries POST; if your vendor call is a
+  POST and safe to resend, you must opt in explicitly with
+  `retryable_methods=frozenset({"POST"})`, and you may do so only when you
+  can name the resend-safety mechanism in a comment on the policy itself, in
+  one of exactly three forms: the vendor documents the endpoint as
+  idempotent (link the doc), the request carries an idempotency key (name
+  the header), or the endpoint is a stateless scan or classification call
+  that changes nothing server-side. No comment means no POST retry. If
   you find yourself writing `for attempt in range(...)`, an `asyncio.sleep`
   backoff, or a manual timeout race in the action or request helper, stop:
   that is resilience, so declare it in the `RetryPolicy` and wrap the client

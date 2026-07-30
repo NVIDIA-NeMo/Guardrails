@@ -78,9 +78,13 @@ Each item names the check, where to look, and what "wrong" looks like.
    `extras` when the package already ships in a nemoguardrails extra); the
    docs `pip install` line matches the declaration and carries the version
    bound, which `RailRequirements` cannot express.
-3. **Retry semantics.** For HTTP rails: a rail-owned `RetryPolicy` constant;
-   POST retries only via explicit `retryable_methods={"POST"}` with an
-   argument for why the endpoint is safe to resend; no hand-rolled retry
+3. **Retry semantics.** For HTTP rails: a rail-owned `RetryPolicy` in one
+   named module-level place, either a constant or a single config-derived
+   builder, never inline at the call site; POST retries only via explicit
+   `retryable_methods={"POST"}` carrying a comment that names one of the
+   three permitted resend-safety mechanisms (documented idempotency, an
+   idempotency key header, or a stateless scan endpoint), and no comment is
+   a finding; no hand-rolled retry
    loop around `http_call`. Then verify any retry/backoff claims in docs or
    comments against `nemoguardrails/http/retry.py`: backoff is full-jitter
    exponential with a lower bound of zero, `Retry-After` is honored only
