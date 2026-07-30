@@ -193,7 +193,7 @@ def _load_rules(
     except yara.SyntaxError as e:
         msg = f"Failed to initialize injection detection due to configuration or YARA rule error: YARA compilation failed: {e}"
         log.error(msg)
-        return None
+        raise ValueError(msg) from e
     return rules
 
 

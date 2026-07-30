@@ -711,8 +711,8 @@ async def test_omit_action_with_exceptions_enabled():
 
 
 @pytest.mark.asyncio
-async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
-    """Test that a malformed inline YARA rule leads to graceful failure (detection becomes no-op)."""
+async def test_malformed_inline_yara_rule_fails_closed(caplog):
+    """Test that a malformed inline YARA rule fails closed rather than disabling detection."""
 
     inline_rule_name = "malformed_rule"
     # this rule is malformed: missing { after rule name
@@ -750,8 +750,10 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     result = await rails.generate_async(messages=[{"role": "user", "content": "trigger detection"}])
 
-    # check that no exception was raised
-    assert result.get("role") != "exception", f"Expected no exception, but got {result}"
+    # a rule that cannot compile must not silently disable detection: the
+    # unchecked model output must never reach the caller
+    assert some_text_that_would_be_injection not in result["content"]
+    assert "internal error" in result["content"]
 
     # verify the error log was created with the expected content
     assert any(
