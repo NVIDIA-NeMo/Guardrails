@@ -88,7 +88,7 @@ Actions live in `actions.py` and return `RailOutcome`
 @action(is_system_action=True)
 async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -> RailOutcome:
     if violation_found:
-        return RailOutcome.block(reason="matched policy X", rule_id=rule.id)
+        return RailOutcome.block(reason="matched policy X", metadata={"rule_id": rule.id})
     return RailOutcome.allow()
 ```
 
@@ -102,8 +102,12 @@ in the outcome.
 - The three decisions are `allow`, `block`, and `transform`
   (`RailOutcome.transform(rewrites=[(TransformTarget.RELEVANT_CHUNKS, new_text)])`).
   Transforms are required iff the decision is TRANSFORM.
-- Put neutral evidence in `metadata` kwargs. Do NOT put refusal text,
-  exception types, or presentation decisions in the outcome; engines own
+- Put neutral evidence in the single `metadata` mapping argument, meaning
+  machine-shaped values only: identifiers, category names, scores, booleans,
+  and the vendor's own parsed response. `allow`, `block`, and `transform` are
+  keyword-only and take `reason` and `metadata` and nothing else, so evidence
+  goes inside the mapping, not as loose keyword arguments. Do NOT put refusal
+  text, exception types, or presentation decisions in the outcome; engines own
   presentation.
 - Flows consume the outcome via `$response.is_blocked`,
   `$response.is_transform`, and `$response.transform_text["<context var>"]`;
