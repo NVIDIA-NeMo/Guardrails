@@ -8,8 +8,10 @@ license: "Apache-2.0"
 
 `tests/recorded/` is a replay suite: it pins real provider wire traffic in
 cassettes and pins the public API outputs produced from that traffic in inline
-snapshots. Its value is refreshability: `make record-cassettes` re-records
-against live providers and detects drift. A test that records no provider
+snapshots. Its value is refreshability: `make rewrite-cassettes` re-records
+against live providers and detects drift. `make record-cassettes` runs record
+mode `once`, so it only fills in cassettes that are missing and will not
+refresh an existing one. A test that records no provider
 traffic gets none of that value and pays all of the suite's overhead (config
 directory, cassette plumbing, snapshot conventions, refresh workflow).
 
