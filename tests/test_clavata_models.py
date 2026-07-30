@@ -20,7 +20,10 @@ from pydantic import ValidationError
 
 from nemoguardrails.http import HTTPConnectionError, HTTPResponse, RetryingHTTPClient
 from nemoguardrails.library.clavata.actions import LabelResult, PolicyResult
-from nemoguardrails.library.clavata.errs import ClavataPluginAPIError
+from nemoguardrails.library.clavata.errs import (
+    ClavataPluginAPIError,
+    ClavataPluginAPIRateLimitError,
+)
 from nemoguardrails.library.clavata.request import (
     _CLAVATA_RETRY_POLICY,
     ClavataClient,
@@ -316,6 +319,36 @@ class TestCreateJobResponse:
             ).create_job("hello", "policy-id")
 
         assert len(transport.requests) == 1
+
+    @pytest.mark.asyncio
+    async def test_clavata_client_preserves_rate_limit_error(self, monkeypatch):
+        monkeypatch.setattr(
+            ClavataClient,
+            "_retrying_http_client",
+            staticmethod(
+                lambda client: RetryingHTTPClient(
+                    client,
+                    _CLAVATA_RETRY_POLICY,
+                    sleep=lambda _: asyncio.sleep(0),
+                )
+            ),
+        )
+        transport = RecordingHTTPClient(
+            [
+                HTTPResponse(status_code=429),
+                HTTPResponse(status_code=429),
+                HTTPResponse(status_code=429),
+            ]
+        )
+
+        with pytest.raises(ClavataPluginAPIRateLimitError):
+            await ClavataClient(
+                "https://clavata.example",
+                api_key="test-key",
+                http_client=transport,
+            ).create_job("hello", "policy-id")
+
+        assert len(transport.requests) == 3
 
     def test_model_validate_missing_fields(self):
         """Test that CreateJobResponse validation fails on missing required fields"""

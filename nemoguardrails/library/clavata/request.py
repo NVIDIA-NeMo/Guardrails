@@ -35,6 +35,7 @@ from .errs import (
     ClavataPluginAPIError,
     ClavataPluginAPIRateLimitError,
     ClavataPluginConfigurationError,
+    ClavataPluginError,
     ClavataPluginValueError,
 )
 
@@ -218,6 +219,8 @@ class ClavataClient:
             except ValidationError as e:
                 raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
 
+        except ClavataPluginError:
+            raise
         except Exception as e:
             raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {e}") from e
 
