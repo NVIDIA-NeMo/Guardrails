@@ -9,7 +9,7 @@ define flow content safety check input
 
   if not $allowed
     if $config.enable_rails_exceptions
-      create event ContentSafetyCheckInputException(message="Input not allowed. The input was blocked by the 'content safety check input $model='{$model}'' flow.")
+      create event ContentSafetyCheckInputException(message="Input not allowed. The input was blocked by the 'content safety check input' flow.")
     else
       if $config.rails.config.content_safety.multilingual.enabled
         $lang_result = execute detect_language
@@ -26,7 +26,7 @@ define flow content safety check output
 
   if not $allowed
     if $config.enable_rails_exceptions
-      create event ContentSafetyCheckOutputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
+      create event ContentSafetyCheckOutputException(message="Output not allowed. The output was blocked by the 'content safety check output' flow.")
     else
       if $config.rails.config.content_safety.multilingual.enabled
         $lang_result = execute detect_language
