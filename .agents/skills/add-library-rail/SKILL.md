@@ -332,7 +332,13 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    record workflow to fill: `--inline-snapshot=create`/`fix` rewrites your
    test file in place (review that diff, do not revert it), and it only
    works serially, never under xdist `make test`. See the README's
-   Snapshots section for the exact behavior.
+   Snapshots section for the exact behavior. If you do not hold a real vendor
+   key, do NOT hand-author a cassette that looks recorded: either ask a
+   maintainer to record it, or mark the test `@pytest.mark.fake_cassette` and
+   supply the metadata `tests/recorded/README.md` requires (`reason`,
+   `frozen_fields`, `fake_llm_model_considered`). Reviewers will ask how each
+   new cassette was recorded and will not merge an unverifiable one as
+   recorded truth.
 
 ## Step 7: Docs and examples
 
