@@ -59,8 +59,13 @@ def _injection_detection_outcome(
     action_option: str,
     original_text: str,
 ) -> RailOutcome:
-    metadata = dict(result)
-    metadata["action"] = action_option
+    # the checked text is deliberately excluded: outcome metadata reaches
+    # processing logs and tracing exporters
+    metadata = {
+        "is_injection": result["is_injection"],
+        "detections": result["detections"],
+        "action": action_option,
+    }
     if action_option == "reject" and result["is_injection"]:
         return RailOutcome.block(metadata=metadata)
     if result["text"] != original_text:

@@ -30,8 +30,9 @@ class RegexDetectionResult(TypedDict):
 
 
 def _regex_outcome(source: str, result: RegexDetectionResult) -> RailOutcome:
-    metadata = dict(result)
-    metadata["source"] = source
+    # the checked text is deliberately excluded: outcome metadata reaches
+    # processing logs and tracing exporters
+    metadata = {"is_match": result["is_match"], "detections": result["detections"], "source": source}
     if result["is_match"] and source == "retrieval":
         return RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "")], metadata=metadata)
     if result["is_match"]:

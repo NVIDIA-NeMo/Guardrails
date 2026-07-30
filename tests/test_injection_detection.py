@@ -90,15 +90,13 @@ def create_mock_rules(matches=None):
             {"is_injection": False, "text": "normal", "detections": []},
             "reject",
             "normal",
-            RailOutcome.allow(metadata={"is_injection": False, "text": "normal", "detections": [], "action": "reject"}),
+            RailOutcome.allow(metadata={"is_injection": False, "detections": [], "action": "reject"}),
         ),
         (
             {"is_injection": True, "text": "normal", "detections": ["sqli"]},
             "reject",
             "normal",
-            RailOutcome.block(
-                metadata={"is_injection": True, "text": "normal", "detections": ["sqli"], "action": "reject"}
-            ),
+            RailOutcome.block(metadata={"is_injection": True, "detections": ["sqli"], "action": "reject"}),
         ),
         (
             {"is_injection": True, "text": "omitted", "detections": ["sqli"]},
@@ -106,7 +104,7 @@ def create_mock_rules(matches=None):
             "normal",
             RailOutcome.transform(
                 [(TransformTarget.BOT_MESSAGE, "omitted")],
-                metadata={"is_injection": True, "text": "omitted", "detections": ["sqli"], "action": "omit"},
+                metadata={"is_injection": True, "detections": ["sqli"], "action": "omit"},
             ),
         ),
     ],
