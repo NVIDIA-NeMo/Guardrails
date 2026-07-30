@@ -32,6 +32,7 @@ def test_default_factory_forwards_owned_client_options():
     with mock.patch("nemoguardrails.http.transport.httpx.AsyncClient") as factory:
         create_http_client(limits=limits, follow_redirects=True)
 
+    factory.assert_called_once()
     kwargs = factory.call_args.kwargs
     assert kwargs["timeout"] is None
     assert kwargs["limits"] is limits
