@@ -26,6 +26,13 @@ vendor client into `request.py` for a multi-endpoint API, while
 returns `RailOutcome` directly. F5 is the smallest complete vendor rail on the
 managed HTTP client, so copy it when the vendor is one endpoint.
 
+Copy clavata's `request.py` and `errs.py` layering only. Its test coverage
+is NOT exemplary: 8 tests, no Colang 2 coverage, no action-raise flow test,
+and no recorded suite entry, so it fails three of the five completeness
+items in the `review-library-rail` skill. Copy
+`tests/test_f5_guardrails.py` and
+`tests/recorded/rails/library/test_f5_guardrails.py` for the test shape.
+
 For a model-backed rail, the model call is not `http_call`. Use the shared
 generation surface, in this fixed order (exemplar:
 `nemoguardrails/library/content_safety/actions.py`):
@@ -151,6 +158,11 @@ flow owns everything a user sees -- refusal wording, exception-vs-bot-message,
 localization. When you are unsure where a new piece of logic goes, ask which
 side of that line it is on. Anything a human reads belongs in the flow, never
 in the outcome.
+
+One exception exists in the tree and you should not copy it:
+`content_safety`'s `detect_language` action returns localized refusal prose
+from a `DEFAULT_REFUSAL_MESSAGES` table, which predates this seam. Refusal
+strings and localization belong in the flow or in bot message definitions.
 
 - The three decisions are `allow`, `block`, and `transform`
   (`RailOutcome.transform(rewrites=[(TransformTarget.RELEVANT_CHUNKS, new_text)])`).
