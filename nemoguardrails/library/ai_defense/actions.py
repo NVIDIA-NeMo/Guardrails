@@ -22,7 +22,12 @@ from typing import Any, Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, HTTPClientError, http_call
+from nemoguardrails.http import (
+    HTTPClient,
+    HTTPClientError,
+    HTTPResponseDecodeError,
+    http_call,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +39,14 @@ def _ai_defense_outcome(is_blocked: bool) -> RailOutcome:
     if is_blocked:
         return RailOutcome.block(metadata={"is_blocked": is_blocked})
     return RailOutcome.allow(metadata={"is_blocked": is_blocked})
+
+
+def _ai_defense_failure_outcome(fail_open: bool, failure: str) -> RailOutcome:
+    if fail_open:
+        log.warning("%s, but fail_open=True, allowing content.", failure)
+        return _ai_defense_outcome(False)
+    log.warning("%s, fail_open=False, blocking content.", failure)
+    return _ai_defense_outcome(True)
 
 
 @action(is_system_action=True)
@@ -99,15 +112,12 @@ async def ai_defense_inspect(
             timeout=timeout,
         )
         data = response.json()
+    except HTTPResponseDecodeError as e:
+        log.error("AI Defense API returned malformed JSON: %s", e)
+        return _ai_defense_failure_outcome(fail_open, "AI Defense API returned malformed JSON")
     except HTTPClientError as e:
-        msg = f"Error calling AI Defense API: {e}"
-        log.error(msg)
-        if fail_open:
-            log.warning("AI Defense API call failed, but fail_open=True, allowing content.")
-            return _ai_defense_outcome(False)
-        else:
-            log.warning("AI Defense API call failed, fail_open=False, blocking content.")
-            return _ai_defense_outcome(True)
+        log.error("Error calling AI Defense API: %s", e)
+        return _ai_defense_failure_outcome(fail_open, "AI Defense API call failed")
 
     # Compose a consistent return structure for flows
     # Handle malformed responses based on fail_open setting

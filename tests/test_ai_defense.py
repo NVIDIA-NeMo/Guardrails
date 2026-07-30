@@ -19,6 +19,9 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
+from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 # Note: we don't call the action directly in these tests; we exercise it via flows.
@@ -38,6 +41,53 @@ def mock_ai_defense_inspect(return_value):
 
 # Constants for testing
 API_ENDPOINT = "https://us.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat"
+
+
+def _ai_defense_config(*, fail_open: bool) -> RailsConfig:
+    return RailsConfig.from_content(
+        yaml_content=f"""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: {str(fail_open).lower()}
+        """
+    )
+
+
+@pytest.mark.parametrize(("fail_open", "is_blocked"), [(False, True), (True, False)])
+@pytest.mark.asyncio
+async def test_ai_defense_invalid_json_uses_failure_policy(monkeypatch, caplog, fail_open, is_blocked):
+    monkeypatch.setenv("AI_DEFENSE_API_KEY", "secret")
+    monkeypatch.setenv("AI_DEFENSE_API_ENDPOINT", API_ENDPOINT)
+    client = RecordingHTTPClient([HTTPResponse(status_code=200, content=b"not-json")])
+
+    result = await ai_defense_inspect(
+        _ai_defense_config(fail_open=fail_open),
+        user_prompt="Hello",
+        http_client=client,
+    )
+
+    assert result.is_blocked is is_blocked
+    assert "AI Defense API returned malformed JSON" in caplog.text
+    assert "Error calling AI Defense API" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_ai_defense_transport_error_has_distinct_log(monkeypatch, caplog):
+    monkeypatch.setenv("AI_DEFENSE_API_KEY", "secret")
+    monkeypatch.setenv("AI_DEFENSE_API_ENDPOINT", API_ENDPOINT)
+    client = RecordingHTTPClient([HTTPConnectionError("connection failed")])
+
+    result = await ai_defense_inspect(
+        _ai_defense_config(fail_open=False),
+        user_prompt="Hello",
+        http_client=client,
+    )
+
+    assert result.is_blocked
+    assert "Error calling AI Defense API" in caplog.text
+    assert "returned malformed JSON" not in caplog.text
 
 
 # Set environment variables for tests requiring real API calls
