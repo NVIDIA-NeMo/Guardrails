@@ -42,6 +42,27 @@ async def call_fiddler_guardrail(
     default_score: float,
     http_client: Optional[HTTPClient] = None,
 ) -> bool:
+    """Evaluate content with a Fiddler guardrail endpoint.
+
+    Non-success responses, HTTP client failures, and expected score-processing
+    failures are logged and fail open.
+
+    Args:
+        endpoint: Fiddler guardrail endpoint.
+        data: Guardrail-specific request data.
+        guardrail_name: Name used in diagnostic messages.
+        score_key: Response score used for the decision.
+        threshold: Configured decision threshold.
+        compare: Comparison used to determine whether content is blocked.
+        default_score: Score used when the response omits ``score_key``.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        ``True`` when the guardrail blocks the content, otherwise ``False``.
+
+    Raises:
+        ValueError: If ``FIDDLER_API_KEY`` is not set.
+    """
     api_key = os.environ.get("FIDDLER_API_KEY")
 
     if api_key is None:
@@ -100,6 +121,22 @@ async def call_fiddler_safety_user(
     context: Optional[dict] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Check the user message with the Fiddler safety guardrail.
+
+    Scores at or above the configured threshold block. Missing content,
+    missing endpoint configuration, and handled provider failures fail open.
+
+    Args:
+        config: Rails configuration containing the Fiddler settings.
+        context: Runtime context containing the user message.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        An allow or block outcome.
+
+    Raises:
+        ValueError: If ``FIDDLER_API_KEY`` is not set.
+    """
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint
@@ -133,6 +170,22 @@ async def call_fiddler_safety_bot(
     context: Optional[dict] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Check the bot message with the Fiddler safety guardrail.
+
+    Scores at or above the configured threshold block. Missing content,
+    missing endpoint configuration, and handled provider failures fail open.
+
+    Args:
+        config: Rails configuration containing the Fiddler settings.
+        context: Runtime context containing the bot message.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        An allow or block outcome.
+
+    Raises:
+        ValueError: If ``FIDDLER_API_KEY`` is not set.
+    """
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint
@@ -166,6 +219,23 @@ async def call_fiddler_faithfulness(
     context: Optional[dict] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Check the bot message with the Fiddler faithfulness guardrail.
+
+    Scores at or below the configured threshold block. Missing content,
+    missing endpoint configuration, and handled provider failures fail open.
+
+    Args:
+        config: Rails configuration containing the Fiddler settings.
+        context: Runtime context containing the bot message and relevant
+            chunks.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        An allow or block outcome.
+
+    Raises:
+        ValueError: If ``FIDDLER_API_KEY`` is not set.
+    """
     context = context or {}
     fiddler_config: FiddlerGuardrails = getattr(config.rails.config, "fiddler")
     base_url = fiddler_config.fiddler_endpoint

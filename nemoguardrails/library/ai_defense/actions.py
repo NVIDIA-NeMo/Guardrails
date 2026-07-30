@@ -58,6 +58,28 @@ async def ai_defense_inspect(
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
+    """Inspect a user prompt or bot response with Cisco AI Defense.
+
+    A safe response is allowed and an unsafe response is blocked. Transport
+    failures and malformed responses follow the configured ``fail_open``
+    policy, which defaults to fail closed.
+
+    Args:
+        config: Rails configuration containing the AI Defense settings.
+        user_prompt: User content to inspect.
+        bot_response: Bot content to inspect. Takes precedence over
+            ``user_prompt`` when both are provided.
+        http_client: Optional caller-owned HTTP client.
+        **kwargs: Additional action parameters. The ``user`` value, when
+            present, is forwarded as request metadata.
+
+    Returns:
+        The allow or block outcome from AI Defense or the failure policy.
+
+    Raises:
+        ValueError: If the required environment variables or content are
+            missing.
+    """
     # Get configuration with defaults
     ai_defense_config = getattr(config.rails.config, "ai_defense", None)
     timeout = ai_defense_config.timeout if ai_defense_config else DEFAULT_TIMEOUT

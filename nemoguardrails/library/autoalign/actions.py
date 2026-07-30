@@ -276,7 +276,23 @@ async def autoalign_input_api(
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
-    """Calls AutoAlign API for the user message and guardrail configuration provided"""
+    """Calls AutoAlign API for the user message and guardrail configuration provided
+
+    Guardrail matches block, PII redactions transform the user message, and
+    other results allow it. Configuration, transport, status, and response
+    parsing failures propagate to the caller.
+
+    Args:
+        llm_task_manager: Task manager containing the AutoAlign configuration.
+        context: Runtime context containing the user message.
+        show_autoalign_message: Whether to log detected violations.
+        show_toxic_phrases: Whether violation messages include toxic phrases.
+        http_client: Optional caller-owned HTTP client.
+        **kwargs: Additional action parameters.
+
+    Returns:
+        An allow, block, or user-message transform outcome.
+    """
     user_message = context.get("user_message")
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_api_url = autoalign_config.parameters.get("endpoint")
@@ -318,7 +334,23 @@ async def autoalign_output_api(
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
-    """Calls AutoAlign API for the bot message and guardrail configuration provided"""
+    """Calls AutoAlign API for the bot message and guardrail configuration provided
+
+    Guardrail matches block, PII redactions transform the bot message, and
+    other results allow it. Configuration, transport, status, and response
+    parsing failures propagate to the caller.
+
+    Args:
+        llm_task_manager: Task manager containing the AutoAlign configuration.
+        context: Runtime context containing the bot message.
+        show_autoalign_message: Whether to log detected violations.
+        show_toxic_phrases: Whether violation messages include toxic phrases.
+        http_client: Optional caller-owned HTTP client.
+        **kwargs: Additional action parameters.
+
+    Returns:
+        An allow, block, or bot-message transform outcome.
+    """
     bot_message = context.get("bot_message")
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_api_url = autoalign_config.parameters.get("endpoint")
@@ -356,7 +388,22 @@ async def autoalign_groundedness_output_api(
     **kwargs,
 ) -> RailOutcome:
     """Calls AutoAlign groundedness check API and checks whether the bot message is factually grounded according to given
-    documents"""
+    documents
+
+    Scores below ``factcheck_threshold`` block. Configuration, transport,
+    status, and response parsing failures propagate to the caller.
+
+    Args:
+        llm_task_manager: Task manager containing the AutoAlign configuration.
+        context: Runtime context containing the bot message and documents.
+        factcheck_threshold: Minimum score required to allow the response.
+        show_autoalign_message: Whether to log detected violations.
+        http_client: Optional caller-owned HTTP client.
+        **kwargs: Additional action parameters.
+
+    Returns:
+        An allow or block outcome containing the score and threshold.
+    """
 
     bot_message = context.get("bot_message")
     documents = context.get("relevant_chunks_sep", [])
@@ -389,7 +436,21 @@ async def autoalign_factcheck_output_api(
     show_autoalign_message: bool = True,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
-    """Calls Autoalign Factchecker API and checks if the user message is factually answered by the bot message"""
+    """Calls Autoalign Factchecker API and checks if the user message is factually answered by the bot message
+
+    Scores below ``factcheck_threshold`` block. Configuration, transport,
+    status, and response parsing failures propagate to the caller.
+
+    Args:
+        llm_task_manager: Task manager containing the AutoAlign configuration.
+        context: Runtime context containing the user and bot messages.
+        factcheck_threshold: Minimum score required to allow the response.
+        show_autoalign_message: Whether to log detected violations.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        An allow or block outcome containing the score and threshold.
+    """
 
     user_message = context.get("user_message")
     bot_message = context.get("bot_message")

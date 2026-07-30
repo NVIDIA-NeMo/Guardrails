@@ -37,6 +37,9 @@ async def ps_protect_api_async(
 ):
     """Calls Prompt Security Protect API asynchronously.
 
+    Provider failures are logged and fail open with the default ``log``
+    action.
+
     Args:
         ps_protect_url: the URL of the protect endpoint given by Prompt Security.
         URL is https://[REGION].prompt.security/api/protect where REGION is eu, useast or apac
@@ -51,6 +54,8 @@ async def ps_protect_api_async(
         response: the bot message to protect.
 
         user: the user ID or username for context.
+
+        http_client: Optional caller-owned HTTP client.
 
     Returns:
         A dictionary with the following items:
@@ -111,9 +116,15 @@ async def protect_text(
     **kwargs,
 ) -> RailOutcome:
     """Protects the given user_prompt or bot_response.
+
+    Provider results may allow, block, or transform the selected message.
+    Provider failures fail open. A bot response takes precedence when both
+    content arguments are provided.
+
     Args:
         user_prompt: The user message to protect.
         bot_response: The bot message to protect.
+        http_client: Optional caller-owned HTTP client.
     Returns:
         RailOutcome.block(), RailOutcome.transform(), or RailOutcome.allow().
     Raises:

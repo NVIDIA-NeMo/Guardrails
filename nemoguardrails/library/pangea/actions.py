@@ -90,6 +90,26 @@ async def pangea_ai_guard(
     bot_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Evaluate input or output content with Pangea AI Guard.
+
+    Provider results may allow, block, or transform the selected message.
+    Failures while calling or validating the provider response are logged and
+    fail open with the original content.
+
+    Args:
+        mode: Whether to evaluate input or output content.
+        config: Rails configuration containing the Pangea settings.
+        context: Runtime context used to resolve messages.
+        user_message: Optional user message overriding the context value.
+        bot_message: Optional bot message overriding the context value.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        The provider decision, or an allow outcome after a provider failure.
+
+    Raises:
+        ValueError: If the API token or content is missing.
+    """
     pangea_base_url_template = os.getenv("PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud")
     pangea_api_token = os.getenv("PANGEA_API_TOKEN")
 

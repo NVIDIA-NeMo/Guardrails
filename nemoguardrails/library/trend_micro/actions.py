@@ -100,8 +100,19 @@ async def trend_ai_guard(
 ) -> RailOutcome:
     """
     Custom action to invoke the Trend Micro AI Guard API.
-    """
 
+    A missing API key blocks the content. A valid provider response supplies
+    the allow or block decision, while transport, status, decoding, and
+    validation failures fail open.
+
+    Args:
+        config: Rails configuration containing the Trend Micro settings.
+        text: Content to evaluate.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        The provider decision or the integration's fallback outcome.
+    """
     trend_config = get_config(config)
 
     # No checks required since default is set in TrendMicroRailConfig
