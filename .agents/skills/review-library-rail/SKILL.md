@@ -108,7 +108,9 @@ Each item names the check, where to look, and what "wrong" looks like.
    needs tests. Both dialects' block path must be exercised end to end
    (`colang_version: "2.x"` variant present?), and every
    `enable_rails_exceptions` branch must be either tested or absent. Check
-   `flows.co` and `flows.v1.co` do the same thing; divergent semantics
+   `flows.co` and `flows.v1.co` against the four equivalence items in
+   add-library-rail Step 3 (same flow names, same action and bindings per
+   flow, same branch structure, same asserted output); divergent semantics
    between dialects is a finding even when both parse.
 6. **Outcome discipline.** Actions return `RailOutcome` with neutral
    evidence in metadata; refusal prose, exception types, or localization in

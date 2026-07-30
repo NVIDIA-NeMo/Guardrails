@@ -112,7 +112,13 @@ in the outcome.
 - Flows consume the outcome via `$response.is_blocked`,
   `$response.is_transform`, and `$response.transform_text["<context var>"]`;
   copy `regex/flows.co` and `regex/flows.v1.co` for the idiom.
-- Keep `flows.co` and `flows.v1.co` semantically identical, and never
+- Keep `flows.co` and `flows.v1.co` semantically identical, checked as four
+  concrete items, since no gate compares them beyond flow-name presence:
+  (1) both files declare the same set of flow names; (2) each same-named
+  flow invokes the same action with the same argument bindings; (3) each has
+  the same branch structure over `is_blocked`, `is_transform`, and
+  `enable_rails_exceptions`; (4) the both-dialect block test from Step 6
+  asserts the same output in both. Never
   reference a metadata key the action does not actually set. If you include
   the `enable_rails_exceptions` branch, build the exception message only
   from metadata the action provides, and cover that branch with a test; an
