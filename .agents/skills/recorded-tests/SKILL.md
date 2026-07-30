@@ -44,9 +44,12 @@ Concretely, add or update a recorded test when:
    (content safety, topic control, jailbreak detection, self check): the
    block/allow decision depends on real model output, so
    `tests/recorded/rails/library/` needs the outcome triad (allow, block,
-   error). Pure Python rails such as `regex` do not need recordings. For the
-   full contribution checklist of a new rail, see the `add-library-rail`
-   skill.
+   error). Pure Python rails such as `regex` need a suite entry too, since
+   `nemoguardrails/library/README.md` requires recorded e2e coverage for
+   every new library rail; they get non-vcr suite tests with their own config
+   directory (exemplar: `tests/recorded/rails/library/test_regex.py`), not
+   zero coverage. For the full contribution checklist of a new rail, see the
+   `add-library-rail` skill.
 5. **A bug fix whose trigger is provider-shaped data**: the bug only
    reproduces with a real payload (an SSE framing edge, a missing usage field,
    a provider error body variant). The regression test must be recorded, or a
@@ -143,7 +146,10 @@ these hold:
   recorded tests, or is input validation on that surface,
 - it has no natural home in `tests/` (no equivalent unit test exists or could
   express the same public contract),
-- it needs no new config directory of its own.
+- it needs no new config directory of its own, EXCEPT for a rail under
+  `tests/recorded/rails/library/`, where `nemoguardrails/library/README.md`
+  mandates recorded coverage and a per-rail config directory is the required
+  shape.
 
 When in doubt, put it in `tests/`. Do not park a test here just because it
 collects; nothing is checking, so the discipline is yours.
@@ -196,7 +202,8 @@ Follow `tests/recorded/README.md` exactly. The short version:
   it usually signals a test that belongs in `tests/`. Nothing enforces this,
   so read every test in the diff that has no `vcr` mark.
 - New config directory for a single deterministic test: the test is in the
-  wrong suite.
+  wrong suite, unless it is the mandated per-rail config for a new
+  `nemoguardrails/library/` rail.
 - Same behavior asserted in both `tests/` and `tests/recorded/` in one
   change: keep one, prefer the unit test unless the behavior is
   provider-shaped.
