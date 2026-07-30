@@ -26,6 +26,31 @@ vendor client into `request.py` for a multi-endpoint API, while
 returns `RailOutcome` directly. F5 is the smallest complete vendor rail on the
 managed HTTP client, so copy it when the vendor is one endpoint.
 
+For a model-backed rail, the model call is not `http_call`. Use the shared
+generation surface, in this fixed order (exemplar:
+`nemoguardrails/library/content_safety/actions.py`):
+
+```python
+from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
+from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.logging.explain import LLMCallInfo
+
+prompt = llm_task_manager.render_task_prompt(task=task, context={...})
+stop = llm_task_manager.get_stop_tokens(task=task)
+max_tokens = llm_task_manager.get_max_tokens(task=task)
+llm_call_info_var.set(LLMCallInfo(task=task))
+llm_response = await llm_call(llm, prompt, stop=stop, ...)
+result = llm_task_manager.parse_task_output(task, output=llm_response.content)
+```
+
+`llm_task_manager` is injected by the runtime (see Step 3). Setting
+`llm_call_info_var` before the call is what attributes the call in tracing
+and the explain log; skip it and the rail's model call becomes invisible.
+Use `warn_if_truncated` when the response can hit the token limit. Repeated
+judgments can go through the `model_caches` action parameter, which the
+runtime also registers.
+
 Core file set required for every rail:
 
 - `rail.py` (the manifest; discovery keys off this file)
