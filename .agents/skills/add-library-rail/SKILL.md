@@ -171,10 +171,14 @@ response = await http_call(
   instead of implementing it by hand (this is the F5-v1 mistake the managed
   client migration removed).
 - Know what `RetryingHTTPClient` already gives you before documenting or
-  reimplementing anything: exponential backoff with jitter between
-  `initial_delay` and `max_delay`, and the `Retry-After` response header IS
-  honored (capped at `max_retry_after`, default 60s); the `x-should-retry`
-  override header is opt-in via `honor_retry_override_header`. Do not
+  reimplementing anything. Full-jitter exponential backoff: each sleep is a
+  uniform random value in `[0, min(initial_delay * 2**retries, max_delay)]`,
+  so the lower bound is zero, not `initial_delay`. The `Retry-After` response
+  header is honored only when its value already falls within
+  `max_retry_after` (default 60s); a larger value is DISCARDED in favor of
+  backoff unless you set `clamp_retry_after=True`, which clamps it instead
+  (see `nemoguardrails/library/f5/actions.py`). The `x-should-retry` override
+  header is ignored unless `honor_retry_override_header=True`. Do not
   document these semantics from guesswork; read
   `nemoguardrails/http/retry.py`.
 - Telemetry must stay content-free: never log request or response bodies,
