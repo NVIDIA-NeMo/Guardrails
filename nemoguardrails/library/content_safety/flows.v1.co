@@ -26,7 +26,7 @@ define flow content safety check output
 
   if not $allowed
     if $config.enable_rails_exceptions
-      create event ContentSafetyCheckOuputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
+      create event ContentSafetyCheckOutputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
     else
       if $config.rails.config.content_safety.multilingual.enabled
         $lang_result = execute detect_language
