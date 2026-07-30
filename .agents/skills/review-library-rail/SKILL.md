@@ -105,8 +105,10 @@ Each item names the check, where to look, and what "wrong" looks like.
    silent allow. There must be a flow-level test of the action raising; a
    summary or comment claiming fail-closed without a test is a finding.
 5. **Dialect coverage.** The flow-files gate checks structure; behavior
-   needs tests. Both dialects' block path must be exercised end to end
-   (`colang_version: "2.x"` variant present?), and every
+   needs tests. Both dialects' block path must be exercised end to end in
+   the UNIT suite (`colang_version: "2.x"` variant present?), and a per-rail
+   Colang 2 RECORDED test is itself a finding, since the recorded suite is
+   dialect-single with a single shared v2 smoke pin. Every
    `enable_rails_exceptions` branch must be either tested or absent. Check
    `flows.co` and `flows.v1.co` against the four equivalence items in
    add-library-rail Step 3 (same flow names, same action and bindings per
