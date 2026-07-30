@@ -253,17 +253,21 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    - Direct action-level tests parametrized over allow/block/transform and
      config-error paths (exemplar: `tests/test_injection_detection.py`).
    - For HTTP rails, inject the recording double instead of monkeypatching:
-     `chat.app.register_action_param("http_client", RecordingHTTPClient(responses=[...]))`
-     (exemplar: `tests/test_policyai_rail.py`; helper in
-     `nemoguardrails/http/testing.py`). Secrets via `monkeypatch`. Unit tests
+     `chat.app.register_action_param("http_client", RecordingHTTPClient([...]))`
+     (exemplar: `tests/test_activefence_rail.py`; helper in
+     `nemoguardrails/testing/http.py`, re-exported from
+     `nemoguardrails.testing`). Secrets via `monkeypatch`. Unit tests
      must never reach live services.
    - Include one flow-level test of what happens when the action RAISES
      (vendor down): fail-closed is a claim about the runtime, not your code,
      so test it rather than asserting it in a summary.
    - Cover EVERY error branch the action can take, not just one. With a
-     mocked transport (`RecordingHTTPClient` or `aioresponses`) synthetic
-     errors are cheap and deterministic, so this is where exhaustive error
-     coverage belongs. For an HTTP/vendor rail, enumerate the action's
+     mocked transport synthetic errors are cheap and deterministic, so this
+     is where exhaustive error coverage belongs. Use `RecordingHTTPClient`,
+     which is the double that intercepts the httpx-backed
+     `nemoguardrails.http` client; `aioresponses` mocks aiohttp and will
+     never intercept a library rail, so a test built on it silently attempts
+     a real network call. For an HTTP/vendor rail, enumerate the action's
      failure branches and give each a test: timeout, connection error, each
      handled status class (4xx, 5xx), rate limiting (429 retried-then-success
      and 429 retry-exhausted), malformed or unexpected payload, missing

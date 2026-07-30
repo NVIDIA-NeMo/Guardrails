@@ -112,7 +112,7 @@ Each item names the check, where to look, and what "wrong" looks like.
    messages must not embed payloads. Check `log.` calls and every f-string
    in raised errors.
 8. **Test placement and hygiene.** Deterministic tests in `tests/` with
-   `RecordingHTTPClient` injected via `register_action_param`; recorded
+   `RecordingHTTPClient` (from `nemoguardrails.testing`) injected via `register_action_param`; recorded
    suite entries follow the `recorded-tests` skill (vcr-structured, or
    non-vcr with a defensible reason). Nothing enforces that split, so read
    every suite test in the diff that has no `vcr` mark and challenge it
