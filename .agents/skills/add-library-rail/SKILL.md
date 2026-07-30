@@ -190,6 +190,17 @@ response = await http_call(
   header is ignored unless `honor_retry_override_header=True`. Do not
   document these semantics from guesswork; read
   `nemoguardrails/http/retry.py`.
+- Vendor failure is never a silent allow. A timeout, transport error,
+  non-success status, or unparseable payload must either raise a rail error
+  type or return `RailOutcome.block`; the default is fail-closed. Offer
+  fail-open only when the vendor's users ask for it, and then all five of
+  these hold: the switch is a field on the rail's pydantic config model,
+  never an env var, so a config reviewer sees it (exemplar: `fail_open` in
+  `nemoguardrails/library/f5/rail_config.py`); it defaults to `False`; every
+  fail-open return carries an explicit marker in metadata so it is
+  distinguishable from a genuine vendor clear (`_fail_open_outcome` in
+  `nemoguardrails/library/f5/actions.py`); the fail-open path logs at warning
+  level; and it has its own test alongside the fail-closed one.
 - Telemetry must stay content-free: never log request or response bodies,
   exception messages containing payloads, URLs with query strings, or
   credentials. Explicitly composed instrumentation sanitizes URLs; do not
