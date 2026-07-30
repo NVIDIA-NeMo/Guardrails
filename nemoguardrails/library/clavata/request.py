@@ -203,27 +203,26 @@ class ClavataClient:
                 )
 
             if response.status_code != 200:
-                raise ClavataPluginAPIError(
-                    f"Clavata call failed with status code {response.status_code}.\nDetails: {response.text}"
-                )
+                raise ClavataPluginAPIError(f"Clavata call failed with status code {response.status_code}.")
 
             try:
                 parsed_response = response.json()
             except HTTPResponseDecodeError as e:
                 raise ClavataPluginValueError(
-                    f"Failed to parse Clavata response as JSON. Status: {response.status_code}, "
-                    f"Content: {response.text}"
+                    f"Failed to parse Clavata response as JSON. Status: {response.status_code}"
                 ) from e
 
             try:
                 return response_model.model_validate(parsed_response)
             except ValidationError as e:
-                raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
+                raise ClavataPluginValueError(
+                    f"Invalid response format from Clavata API. Validation errors: {e.error_count()}"
+                ) from e
 
         except ClavataPluginError:
             raise
         except Exception as e:
-            raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {e}") from e
+            raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {type(e).__name__}") from e
 
     async def create_job(self, text: str, policy_id: str) -> Job:
         """
