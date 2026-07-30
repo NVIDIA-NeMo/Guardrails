@@ -35,6 +35,7 @@ from typing import Dict, Optional
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
     jailbreak_detection_model_request,
@@ -57,6 +58,7 @@ log = logging.getLogger(__name__)
 async def jailbreak_detection_heuristics(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks the user's prompt to determine if it is attempt to jailbreak the model."""
@@ -80,7 +82,13 @@ async def jailbreak_detection_heuristics(
         jailbreak = any([lp_check["jailbreak"], ps_ppl_check["jailbreak"]])
         return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
-    jailbreak = await jailbreak_detection_heuristics_request(prompt, jailbreak_api_url, lp_threshold, ps_ppl_threshold)
+    jailbreak = await jailbreak_detection_heuristics_request(
+        prompt,
+        jailbreak_api_url,
+        lp_threshold,
+        ps_ppl_threshold,
+        http_client=http_client,
+    )
     if jailbreak is None:
         log.warning("Jailbreak endpoint not set up properly.")
         # If no result, assume not a jailbreak
@@ -94,6 +102,7 @@ async def jailbreak_detection_model(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Uses a trained classifier to determine if a user input is a jailbreak attempt"""
     prompt: str = ""
@@ -157,9 +166,14 @@ async def jailbreak_detection_model(
                 nim_url=nim_base_url,
                 nim_auth_token=nim_auth_token,
                 nim_classification_path=nim_classification_path,
+                http_client=http_client,
             )
         elif jailbreak_api_url:
-            jailbreak = await jailbreak_detection_model_request(prompt=prompt, api_url=jailbreak_api_url)
+            jailbreak = await jailbreak_detection_model_request(
+                prompt=prompt,
+                api_url=jailbreak_api_url,
+                http_client=http_client,
+            )
 
         if jailbreak is None:
             log.warning("Jailbreak endpoint not set up properly.")

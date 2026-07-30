@@ -22,6 +22,7 @@ from typing import List, Optional
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.gliner.request import gliner_request
 from nemoguardrails.rails.llm.config import GLiNERDetection
 
@@ -98,6 +99,7 @@ async def gliner_detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
+    http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks whether the provided text contains any PII using GLiNER.
@@ -138,6 +140,7 @@ async def gliner_detect_pii(
         flat_ner=gliner_config.flat_ner,
         api_key=api_key,
         model=gliner_config.model,
+        http_client=http_client,
     )
 
     try:
@@ -148,7 +151,12 @@ async def gliner_detect_pii(
 
 
 @action(is_system_action=False)
-async def gliner_mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
+async def gliner_mask_pii(
+    source: str,
+    text: str,
+    config: RailsConfig,
+    http_client: HTTPClient | None = None,
+) -> RailOutcome:
     """Masks any detected PII in the provided text using GLiNER.
 
     Args:
@@ -187,6 +195,7 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig) -> RailOu
         flat_ner=gliner_config.flat_ner,
         api_key=api_key,
         model=gliner_config.model,
+        http_client=http_client,
     )
 
     if not gliner_response or not isinstance(gliner_response, dict):
