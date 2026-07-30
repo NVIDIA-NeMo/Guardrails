@@ -238,7 +238,11 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    `tests/rails/llm/test_library_flow_files.py`, and
    `tests/rails/llm/test_builtin_rail_conformance.py` pick up the new rail
    automatically: manifest, lazy refs, action names, bindings, both dialect
-   flow files parsing and invoking only dispatcher-resolvable actions, and
+   flow files parsing, invoking only actions their own manifest declares
+   (`test_library_flow_actions_are_declared_by_owning_manifest`), never
+   awaiting a registered action's snake_case name as a Colang 2 flow, which
+   must be `CamelCaseAction`
+   (`test_library_flows_do_not_invoke_actions_as_flows`), and
    cross-artifact conformance (surfaces declare `RailOutcome`, requirements
    and privacy are consistent, and the projected config schema matches
    `schemas/rails_config.snapshot.json`). Run them first; they catch most
