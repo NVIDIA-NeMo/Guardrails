@@ -107,8 +107,9 @@ Each item names the check, where to look, and what "wrong" looks like.
 8. **Test placement and hygiene.** Deterministic tests in `tests/` with
    `RecordingHTTPClient` injected via `register_action_param`; recorded
    suite entries follow the `recorded-tests` skill (vcr-structured, or
-   `pure_runtime(reason=...)` with a defensible reason; challenge every new
-   `pure_runtime`). Secrets via `monkeypatch`; any real-looking key in a
+   non-vcr with a defensible reason). Nothing enforces that split, so read
+   every suite test in the diff that has no `vcr` mark and challenge it
+   against the skill's criteria. Secrets via `monkeypatch`; any real-looking key in a
    test or cassette is a blocking finding.
 9. **Docs accuracy.** Every statement in the catalog page must match the
    code: config options, defaults, env vars, install line, limitations.

@@ -36,8 +36,8 @@ a test, not skill text: manifest completeness
 (`tests/rails/llm/test_builtin_rail_manifests.py`), cross-artifact
 conformance (`tests/rails/llm/test_builtin_rail_conformance.py`), the HTTP
 transport boundary
-(`tests/http/test_library_boundary.py`), recorded-suite marker discipline
-(the `pure_runtime` fixture in `tests/recorded/conftest.py`), and flow-file
+(`tests/http/test_library_boundary.py`), cassette provenance
+(`tests/recorded/test_cassette_provenance.py`), and flow-file
 validity across dialects (`tests/rails/llm/test_library_flow_files.py`).
 Skills own placement decisions and judgment calls; the review skill's first
 step is to run the gates and then spend attention only on what they cannot
