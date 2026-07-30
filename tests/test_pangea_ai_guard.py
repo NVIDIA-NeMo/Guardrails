@@ -18,7 +18,9 @@ from pytest_httpx import HTTPXMock
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPConnectionError
 from nemoguardrails.library.pangea.actions import TextGuardResult, _pangea_outcome, pangea_ai_guard
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 input_rail_config = RailsConfig.from_content(
@@ -230,12 +232,32 @@ async def test_pangea_ai_guard_api_error_returns_allow_outcome(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
-    httpx_mock.add_response(status_code=500, json={"result": {}})
+    httpx_mock.add_response(is_reusable=True, status_code=500, json={"result": {}})
 
     outcome = await pangea_ai_guard(
         mode="output",
         config=output_rail_config,
         context={"user_message": "Hi", "bot_message": "Hello"},
+    )
+
+    assert outcome.is_blocked is False
+    assert outcome.is_transform is False
+    assert outcome.metadata["blocked"] is False
+    assert outcome.metadata["transformed"] is False
+    assert outcome.metadata["user_message"] == "Hi"
+    assert outcome.metadata["bot_message"] == "Hello"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pangea_ai_guard_transport_error_returns_allow_outcome(monkeypatch):
+    monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
+
+    outcome = await pangea_ai_guard(
+        mode="output",
+        config=output_rail_config,
+        context={"user_message": "Hi", "bot_message": "Hello"},
+        http_client=RecordingHTTPClient([HTTPConnectionError("connection failed")]),
     )
 
     assert outcome.is_blocked is False

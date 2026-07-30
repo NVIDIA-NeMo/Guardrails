@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.clavata.errs import (
     ClavataPluginAPIError,
     ClavataPluginConfigurationError,
@@ -205,10 +206,12 @@ async def evaluate_with_policy(
     text: str,
     policy_id: str,
     clavata_config: ClavataRailConfig,
+    http_client: HTTPClient | None = None,
 ) -> PolicyResult:
     """Get the policy result for the given source."""
     client = ClavataClient(
         base_endpoint=get_server_endpoint(clavata_config),
+        http_client=http_client,
     )
 
     job = await client.create_job(text, policy_id)
@@ -227,6 +230,7 @@ async def clavata_check(
     labels: Optional[Union[List[str], str]] = None,
     rail: Union[ValidRailsType, None] = None,
     config: Optional[RailsConfig] = None,
+    http_client: HTTPClient | None = None,
     **kwargs: Any,
 ) -> RailOutcome:
     """Check for matches against a Clavata policy."""
@@ -249,7 +253,7 @@ async def clavata_check(
     except ClavataPluginValueError:
         labels = None
 
-    result = await evaluate_with_policy(text, str(policy_id), clavata_config)
+    result = await evaluate_with_policy(text, str(policy_id), clavata_config, http_client=http_client)
 
     if labels:
         return _clavata_outcome(is_label_match(result, labels, clavata_config))

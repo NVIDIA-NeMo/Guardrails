@@ -16,13 +16,13 @@
 import logging
 from typing import Literal
 
-import httpx
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_core import to_json
 from typing_extensions import cast
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call
 from nemoguardrails.rails.llm.config import RailsConfig, TrendMicroRailConfig
 
 log = logging.getLogger(__name__)
@@ -93,11 +93,26 @@ def _trend_micro_outcome(result: GuardResult) -> RailOutcome:
 
 
 @action(is_system_action=True)
-async def trend_ai_guard(config: RailsConfig, text: str) -> RailOutcome:
+async def trend_ai_guard(
+    config: RailsConfig,
+    text: str,
+    http_client: HTTPClient | None = None,
+) -> RailOutcome:
     """
     Custom action to invoke the Trend Micro AI Guard API.
-    """
 
+    A missing API key blocks the content. A valid provider response supplies
+    the allow or block decision, while transport, status, decoding, and
+    validation failures fail open.
+
+    Args:
+        config: Rails configuration containing the Trend Micro settings.
+        text: Content to evaluate.
+        http_client: Optional caller-owned HTTP client.
+
+    Returns:
+        The provider decision or the integration's fallback outcome.
+    """
     trend_config = get_config(config)
 
     # No checks required since default is set in TrendMicroRailConfig
@@ -115,38 +130,37 @@ async def trend_ai_guard(config: RailsConfig, text: str) -> RailOutcome:
 
     app_name = trend_config.application_name
 
-    async with httpx.AsyncClient() as client:
-        data = Guard(prompt=text).model_dump()
+    data = Guard(prompt=text).model_dump()
 
-        # Build headers with required TMV1-Application-Name
-        headers = {
-            "Authorization": f"Bearer {v1_api_key}",
-            "Content-Type": "application/json",
-            "TMV1-Application-Name": app_name,
-        }
+    headers = {
+        "Authorization": f"Bearer {v1_api_key}",
+        "Content-Type": "application/json",
+        "TMV1-Application-Name": app_name,
+    }
 
-        # Add Prefer header for detail level control
-        if trend_config.detailed_response:
-            headers["Prefer"] = "return=representation"
-        else:
-            headers["Prefer"] = "return=minimal"
+    if trend_config.detailed_response:
+        headers["Prefer"] = "return=representation"
+    else:
+        headers["Prefer"] = "return=minimal"
 
-        response = await client.post(
+    try:
+        response = await http_call(
+            http_client,
+            "POST",
             v1_url,
             content=to_json(data),
             headers=headers,
+            raise_for_status=False,
         )
-
-        try:
-            response.raise_for_status()
-            guard_result = GuardResult(**response.json())
-            log.debug("Trend Micro AI Guard Result: %s", guard_result)
-        except httpx.HTTPStatusError as e:
-            log.error("Error calling Trend Micro AI Guard API: %s", e)
-            return _trend_micro_outcome(
-                GuardResult(
-                    action="Allow",
-                    reason="An error occurred while calling the Trend Micro AI Guard API.",
-                )
+        response.raise_for_status()
+        guard_result = GuardResult.model_validate(response.json())
+        log.debug("Trend Micro AI Guard Result: %s", guard_result)
+    except (HTTPClientError, ValidationError) as e:
+        log.error("Error calling Trend Micro AI Guard API: %s", e)
+        return _trend_micro_outcome(
+            GuardResult(
+                action="Allow",
+                reason="An error occurred while calling the Trend Micro AI Guard API.",
             )
-        return _trend_micro_outcome(guard_result)
+        )
+    return _trend_micro_outcome(guard_result)

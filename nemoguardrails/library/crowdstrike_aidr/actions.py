@@ -18,13 +18,13 @@ import os
 from collections.abc import Mapping
 from typing import Any, Optional, cast
 
-import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_core import to_json
 from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPStatusError, http_call
 from nemoguardrails.rails.llm.config import CrowdStrikeAIDRRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -69,6 +69,12 @@ def _crowdstrike_aidr_outcome(
     result: GuardChatCompletionsResult,
     mode: Literal["input", "output"],
 ) -> RailOutcome:
+    """Convert a CrowdStrike result into a rail decision.
+
+    Blocking takes precedence over transformation. A transformed input rewrites
+    the user message, while a transformed output rewrites the bot message.
+    """
+
     metadata = {
         "blocked": bool(result.blocked),
         "transformed": bool(result.transformed),
@@ -95,7 +101,37 @@ async def crowdstrike_aidr_guard(
     context: Mapping[str, Any] = {},
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Evaluate conversation content with CrowdStrike AI Guard.
+
+    The action evaluates the user message for input rails and includes the bot
+    message for output rails. A successful provider response can allow, block,
+    or transform the active message.
+
+    Expected provider failures fail open: unsuccessful HTTP status responses,
+    transport failures, malformed JSON, and response-schema validation errors
+    are logged and return an allow outcome containing the original messages.
+    Unexpected programming errors are not swallowed.
+
+    Args:
+        mode: Whether the action is evaluating an input or output rail.
+        config: Active rails configuration.
+        context: Conversation context used when explicit messages are omitted.
+        user_message: Optional user message override.
+        bot_message: Optional bot message override.
+        http_client: Optional caller-owned HTTP client. The action does not
+            close an injected client.
+
+    Returns:
+        The provider-derived rail outcome, or an allow outcome for an expected
+        provider failure.
+
+    Raises:
+        ValueError: If the API token or required conversation content is
+            missing.
+    """
+
     base_url_template = os.getenv("CS_AIDR_BASE_URL_TEMPLATE", "https://api.crowdstrike.com/aidr/{SERVICE_NAME}")
     api_token = os.getenv("CS_AIDR_TOKEN")
 
@@ -118,9 +154,19 @@ async def crowdstrike_aidr_guard(
     if mode == "output" and bot_message:
         messages.append(Message(role="assistant", content=bot_message))
 
-    async with httpx.AsyncClient(base_url=base_url_template.format(SERVICE_NAME="aiguard")) as client:
-        response = await client.post(
-            "/v1/guard_chat_completions",
+    endpoint = base_url_template.format(SERVICE_NAME="aiguard").rstrip("/") + "/v1/guard_chat_completions"
+    fallback = GuardChatCompletionsResult(
+        guard_output={"messages": messages},
+        blocked=False,
+        transformed=False,
+        bot_message=bot_message,
+        user_message=user_message,
+    )
+    try:
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
             content=to_json({"guard_input": {"messages": messages}}),
             headers={
                 "Accept": "application/json",
@@ -129,35 +175,15 @@ async def crowdstrike_aidr_guard(
                 "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
             },
             timeout=crowdstrike_aidr_config.timeout,
+            raise_for_status=False,
         )
-        try:
-            response.raise_for_status()
-            guard_response = GuardChatCompletionsResponse(**response.json())
-        except httpx.HTTPStatusError as e:
-            log.error("HTTP status error from CrowdStrike AIDR API: %s", e)
-            return _crowdstrike_aidr_outcome(
-                GuardChatCompletionsResult(
-                    guard_output={"messages": messages},
-                    blocked=False,
-                    transformed=False,
-                    bot_message=bot_message,
-                    user_message=user_message,
-                ),
-                mode,
-            )
-        except Exception as e:
-            log.error("Error calling CrowdStrike AIDR API: %s", e)
-            return _crowdstrike_aidr_outcome(
-                GuardChatCompletionsResult(
-                    guard_output={"messages": messages},
-                    blocked=False,
-                    transformed=False,
-                    bot_message=bot_message,
-                    user_message=user_message,
-                ),
-                mode,
-            )
-
+        response.raise_for_status()
+        guard_response = GuardChatCompletionsResponse.model_validate(response.json())
+    except HTTPStatusError as e:
+        log.error("HTTP status error from CrowdStrike AIDR API: %s", e)
+    except (HTTPClientError, ValidationError) as e:
+        log.error("Error calling CrowdStrike AIDR API: %s", e)
+    else:
         result = guard_response.result
         output_messages = result.guard_output.get("messages", []) if result.guard_output else []
 
@@ -165,3 +191,5 @@ async def crowdstrike_aidr_guard(
         result.user_message = next((m.content for m in output_messages if m.role == "user"), user_message)
 
         return _crowdstrike_aidr_outcome(result, mode)
+
+    return _crowdstrike_aidr_outcome(fallback, mode)

@@ -22,7 +22,7 @@ import httpx
 
 from nemoguardrails.http._url import sanitize_url
 from nemoguardrails.http.errors import HTTPConnectionError, HTTPTimeoutError
-from nemoguardrails.http.types import HTTPResponse
+from nemoguardrails.http.types import HTTPResponse, HTTPTLSConfig
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -51,6 +51,7 @@ class HttpxHTTPClient:
         timeout: float | None = _DEFAULT_TIMEOUT_SECONDS,
         limits: httpx.Limits | None = None,
         follow_redirects: bool = False,
+        tls: HTTPTLSConfig | None = None,
     ):
         """Initialize the HTTPX adapter.
 
@@ -59,22 +60,34 @@ class HttpxHTTPClient:
             timeout: Default total timeout for owned clients, in seconds.
             limits: Connection-pool limits for an owned client.
             follow_redirects: Whether an owned client follows redirects.
+            tls: TLS settings for an owned client.
 
         Raises:
             ValueError: If the configured timeout is not positive or owned-client
                 options are supplied with an injected client.
         """
 
+        if client is not None and tls is not None:
+            raise ValueError("TLS configuration cannot be combined with an injected HTTPX client")
         if client is not None and (timeout != _DEFAULT_TIMEOUT_SECONDS or limits is not None or follow_redirects):
             raise ValueError("Owned-client options cannot be used with an injected HTTPX client")
         if timeout is not None and timeout <= 0:
             raise ValueError("HTTP timeout must be greater than zero")
+        tls_config = tls or HTTPTLSConfig()
+        verify: bool | str = tls_config.verify
+        if tls_config.verify and tls_config.ca_bundle is not None:
+            verify = tls_config.ca_bundle
+        cert = None
+        if tls_config.client_certificate is not None and tls_config.client_key is not None:
+            cert = (tls_config.client_certificate, tls_config.client_key)
         self._owns_client = client is None
         self._timeout = timeout if self._owns_client else None
         self._client = client or httpx.AsyncClient(
             timeout=None,
             limits=limits or httpx.Limits(max_connections=100, max_keepalive_connections=20),
             follow_redirects=follow_redirects,
+            verify=verify,
+            cert=cert,
         )
         self._closed = False
 

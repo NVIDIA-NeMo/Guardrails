@@ -20,6 +20,7 @@ import httpx
 from nemoguardrails.http.client import ClosableHTTPClient
 from nemoguardrails.http.retry import RetryingHTTPClient, RetryPolicy
 from nemoguardrails.http.transport import HttpxHTTPClient
+from nemoguardrails.http.types import HTTPTLSConfig
 
 
 def create_http_client(
@@ -29,6 +30,7 @@ def create_http_client(
     limits: httpx.Limits | None = None,
     retry_policy: RetryPolicy | None = None,
     follow_redirects: bool = False,
+    tls: HTTPTLSConfig | None = None,
 ) -> ClosableHTTPClient:
     """Create a transport-neutral HTTP client with optional retry behavior.
 
@@ -39,6 +41,7 @@ def create_http_client(
         retry_policy: Optional policy applied to created or injected clients.
         follow_redirects: Whether a client created by this function follows
             redirects.
+        tls: TLS settings for a client created by this function.
 
     Returns:
         A closable transport-neutral HTTP client.
@@ -48,7 +51,7 @@ def create_http_client(
             injected client.
 
     When ``httpx_client`` is provided, it remains caller-owned and ``timeout``,
-    ``limits``, and ``follow_redirects`` must retain their defaults.
+    ``limits``, ``follow_redirects``, and ``tls`` must retain their defaults.
     ``retry_policy`` is still applied when supplied.
     """
 
@@ -57,6 +60,7 @@ def create_http_client(
         timeout=timeout,
         limits=limits,
         follow_redirects=follow_redirects,
+        tls=tls,
     )
     client: ClosableHTTPClient = transport
     if retry_policy is not None:
