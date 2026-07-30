@@ -92,6 +92,13 @@ async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -
     return RailOutcome.allow()
 ```
 
+The seam here is **actions decide, flows present**: the action returns a
+neutral verdict (allow/block/transform plus evidence in `metadata`), and the
+flow owns everything a user sees -- refusal wording, exception-vs-bot-message,
+localization. When you are unsure where a new piece of logic goes, ask which
+side of that line it is on. Anything a human reads belongs in the flow, never
+in the outcome.
+
 - The three decisions are `allow`, `block`, and `transform`
   (`RailOutcome.transform(rewrites=[(TransformTarget.RELEVANT_CHUNKS, new_text)])`).
   Transforms are required iff the decision is TRANSFORM.
@@ -120,6 +127,12 @@ All outbound HTTP goes through `nemoguardrails.http`. An AST test,
 `nemoguardrails/library/` imports `httpx`, `requests`, `aiohttp`, or
 `urllib3` directly.
 
+The seam here is **the helper owns provider semantics; resilience is
+composed, not hand-rolled**. Your code owns the endpoint, body, auth, and how
+to read the response; retries, backoff, timeout, TLS, and telemetry belong to
+the injected or composed client. The rail's only resilience input is a
+declared `RetryPolicy` value -- the client applies it.
+
 - Declare `http_client: HTTPClient | None = None` on the action. When it is
   `None`, `http_call` creates and closes a call-scoped client. Applications
   can register a caller-owned shared or instrumented client as an action
@@ -147,7 +160,12 @@ response = await http_call(
 - Retries are rail-owned: define a module-level `RetryPolicy` constant. The
   default policy never retries POST; if your vendor call is a POST and safe
   to resend, you must opt in explicitly with
-  `retryable_methods=frozenset({"POST"})` (see `_CLAVATA_RETRY_POLICY`).
+  `retryable_methods=frozenset({"POST"})` (see `_CLAVATA_RETRY_POLICY`). If
+  you find yourself writing `for attempt in range(...)`, an `asyncio.sleep`
+  backoff, or a manual timeout race in the action or request helper, stop:
+  that is resilience, so declare it in the `RetryPolicy` and wrap the client
+  instead of implementing it by hand (this is the F5-v1 mistake the managed
+  client migration removed).
 - Know what `RetryingHTTPClient` already gives you before documenting or
   reimplementing anything: exponential backoff with jitter between
   `initial_delay` and `max_delay`, and the `Retry-After` response header IS
