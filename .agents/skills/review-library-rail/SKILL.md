@@ -145,8 +145,10 @@ Each item names the check, where to look, and what "wrong" looks like.
     default to fail-closed; the switch must live in the rail's config model
     where a config reviewer sees it, not in an env var (env vars are for
     secrets, and fail-open flips the rail's security posture); a fail-open
-    pass must be distinguishable from a genuine vendor clear (never return
-    a synthesized vendor payload as the result) and must be logged. A
+    pass must be distinguishable from a genuine vendor clear, carrying an
+    explicit marker in the outcome metadata (as `_fail_open_outcome` in
+    `nemoguardrails/library/f5/actions.py` does) so it is never mistaken for
+    a real clear in logs and traces, and it must be logged. A
     fail-open path also needs its own test alongside the fail-closed one.
 11. **Cassette provenance.** A cassette is a claim by its submitter, and an
     agent or contributor without service access can fabricate one that
