@@ -82,27 +82,35 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   action. The ref `name` MUST equal the name the `@action` decorator
   registers; enforced by
   `test_builtin_action_refs_match_decorated_names_and_bindings`.
-- `RailSpec.surfaces`: one `RailSurface` per flow entry point, with
+- `RailSpec.flows`: `RailFlows(flow_names=(...), files=(...), v1_files=(...))`
+  naming the flows the rail exposes and the two dialect files. Every shipped
+  manifest sets this; the flow-files gate reads it to find the files to
+  parse.
+- `RailSpec.surfaces`: one `RailSurface` per flow entry point, with `name`,
   `direction` (input/output/retrieval), the action, and `bindings`
   (`Binding.context(...)` for `user_message`/`bot_message`/`relevant_chunks`,
   `Binding.literal(...)` for fixed params, `Binding.surface_param(...)` for
   values the user passes in the flow name). Every surface's action must be in
   `actions.refs`, and every binding's `action_param` must be a real parameter
-  of the action.
-- `RailSpec.config_schema`: `key` plus a `ConfigSpecRef` to
-  `rail_config:build_config_spec`.
+  of the action. A transform surface must also set `transform_target`.
+- `RailSpec.config_schema`: a `RailConfigSchema` with `key` plus a
+  `ConfigSpecRef` to `rail_config:build_config_spec`. Optional: 12 shipped
+  rails have no configurable options and omit both this and `rail_config.py`.
 - `RailRequirements`: declare `env_vars` (e.g.
-  `EnvVar(name="CLAVATA_API_KEY", required=True)`), `services`, `models`,
-  `extras`, and `optional_dependencies` truthfully; this is what users and
-  tooling see (Step 5).
+  `EnvVar(name="CLAVATA_API_KEY", required=True)`), `services`
+  (`ServiceRequirement(name=...)`), `models`
+  (`ModelRequirement(type=...)`, keyed by type, not name), `extras`, and
+  `optional_dependencies` truthfully; this is what users and tooling see
+  (Step 5).
 - `RailPrivacy`: declare `sends_user_text` / `sends_bot_text` /
   `remote_services` / `data_retention` honestly for any rail that ships text
   off-box; if the vendor states a retention period, record it here, not just
   in the docs page.
 
 The catalog rejects duplicates at construction: manifest name, config key,
-action name, and `(direction, surface name)` must all be unique across the
-library.
+declared flow name, action name, and `(direction, surface name)` must all be
+unique across the library, and a surface whose action its own manifest does
+not declare is rejected (`nemoguardrails/manifests/catalog.py`).
 
 ## Step 3: Actions and the outcome contract
 
@@ -146,7 +154,11 @@ in the outcome.
 
 - The three decisions are `allow`, `block`, and `transform`
   (`RailOutcome.transform(rewrites=[(TransformTarget.RELEVANT_CHUNKS, new_text)])`).
-  Transforms are required iff the decision is TRANSFORM.
+  Transforms are required iff the decision is TRANSFORM. `TransformTarget`
+  has two legitimate import paths by design: `actions.py` imports it from
+  `nemoguardrails.actions.rail_outcome`, while `rail.py` must take it from
+  `nemoguardrails.manifests` because that is the only module `rail.py` may
+  import from.
 - Put neutral evidence in the single `metadata` mapping argument, meaning
   machine-shaped values only: identifiers, category names, scores, booleans,
   and the vendor's own parsed response. `allow`, `block`, and `transform` are
@@ -170,8 +182,12 @@ in the outcome.
   untested exceptions path that reads a missing key is a latent crash.
 
 Config models go in `rail_config.py`: pydantic models subclassing
-`RailConfigBaseModel` plus `build_config_spec() -> RailConfigSpec`. The spec's
-`key` must match the manifest's `config_schema.key` (enforced in
+`RailConfigBaseModel` plus `build_config_spec() -> RailConfigSpec`. Import
+these from `nemoguardrails.manifests.config_schema`, which also provides
+`Field` and `rail_field` for declaring the fields themselves; this is a
+different module from the `nemoguardrails.manifests` restriction that
+applies to `rail.py`. When the spec sets a `key`, it must match the
+manifest's `config_schema.key` (enforced in
 `nemoguardrails/rails/llm/rails_config_fields.py`), and exported names become
 importable from `nemoguardrails.rails.llm.config`.
 
@@ -211,7 +227,8 @@ response = await http_call(
 
 - `http_call` manages the fallback client's lifecycle. Wrapping an injected
   client must not transfer ownership; the factory must return the fully
-  composed closable client for the fallback path.
+  composed closable client (a `ClosableHTTPClient`) for the fallback path,
+  built with `create_http_client` from `nemoguardrails.http`.
 - Retries are rail-owned: define the `RetryPolicy` in one named module-level
   place, either a constant when it is fixed (`_CLAVATA_RETRY_POLICY` in
   `nemoguardrails/library/clavata/request.py`) or a single builder function
