@@ -112,12 +112,13 @@ Each item names the check, where to look, and what "wrong" looks like.
    messages must not embed payloads. Check `log.` calls and every f-string
    in raised errors.
 8. **Test placement and hygiene.** Deterministic tests in `tests/` with
-   `RecordingHTTPClient` (from `nemoguardrails.testing`) injected via `register_action_param`; recorded
-   suite entries follow the `recorded-tests` skill (vcr-structured, or
-   non-vcr with a defensible reason). Nothing enforces that split, so read
-   every suite test in the diff that has no `vcr` mark and challenge it
-   against the skill's criteria. Secrets via `monkeypatch`; any real-looking key in a
-   test or cassette is a blocking finding.
+   `RecordingHTTPClient` (from `nemoguardrails.testing`) injected via
+   `register_action_param`; recorded suite entries follow the
+   `recorded-tests` skill (vcr-structured, or non-vcr with a defensible
+   reason). Nothing enforces that split, so read every suite test in the
+   diff that has no `vcr` mark and challenge it against the skill's
+   criteria. Secrets via `monkeypatch`; any real-looking key in a test or
+   cassette is a blocking finding.
 9. **Docs accuracy.** Every statement in the catalog page must match the
    code: config options, defaults, env vars, install line, limitations.
    Verify each "known limitation" is real; a false limitation is as bad as
@@ -164,6 +165,16 @@ Each item names the check, where to look, and what "wrong" looks like.
     synthetic error forced into `tests/recorded/` violates the placement
     rule, so do not accept "it's covered by the recorded suite" for anything
     but the recordable real error.
+14. **Client ownership and error typing.** Neither is gate-checked; the HTTP
+    boundary test is an import-only AST check, so read the code. The action
+    must never call `close` or `aclose` on an injected `http_client`; only
+    the `factory=` path passed to `http_call` may own a client, and that
+    factory must return the fully composed closable client, since wrapping
+    an injected client must not transfer ownership
+    (`nemoguardrails/http/request.py`). Vendor failures must surface as
+    rail-specific error types (the `errs.py` pattern, exemplar
+    `nemoguardrails/library/clavata/errs.py`), not as raw transport or
+    vendor SDK exceptions escaping the action.
 
 ## Step 3: Security pass
 
