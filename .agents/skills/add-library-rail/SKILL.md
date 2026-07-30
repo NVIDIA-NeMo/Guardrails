@@ -323,7 +323,6 @@ Run until green, in this order (cheapest first):
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=tests/test_<rail>.py
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
