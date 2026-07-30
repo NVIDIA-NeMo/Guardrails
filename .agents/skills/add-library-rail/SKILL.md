@@ -17,7 +17,7 @@ exemplars are the specification.
 | Archetype | Exemplar to copy | Extra files beyond the core set |
 | --- | --- | --- |
 | Pure Python (no network, no model) | `nemoguardrails/library/regex/` | none |
-| HTTP / vendor API | `nemoguardrails/library/clavata/` | `request.py` (HTTP layer), `errs.py` (vendor errors), `utils.py` |
+| HTTP / vendor API | `nemoguardrails/library/clavata/` | `request.py` (HTTP layer), `errs.py` (vendor errors) |
 | Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; model bound via `Binding.surface_param("model_name", "model")` |
 
 For an HTTP rail, pick the exemplar by complexity: `clavata/` factors its
@@ -62,7 +62,8 @@ Core file set required for every rail:
 
 - `rail.py` (the manifest; discovery keys off this file)
 - `actions.py` (`@action` functions returning `RailOutcome`)
-- `rail_config.py` (pydantic config models + `build_config_spec()`)
+- `rail_config.py` (pydantic config models + `build_config_spec()`), only
+  when the rail has configurable options
 - `flows.co` (Colang 2.x) and `flows.v1.co` (Colang 1.0)
 - `__init__.py` (empty package marker)
 
@@ -108,11 +109,15 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   (`ServiceRequirement(name=...)`), `models`
   (`ModelRequirement(type=...)`, keyed by type, not name), `extras`, and
   `optional_dependencies` truthfully; this is what users and tooling see
-  (Step 5).
-- `RailPrivacy`: declare `sends_user_text` / `sends_bot_text` /
-  `remote_services` / `data_retention` honestly for any rail that ships text
-  off-box; if the vendor states a retention period, record it here, not just
-  in the docs page.
+  (Step 5). Self-check by grepping `actions.py` for every `os.getenv` and
+  `os.environ` read and for every import inside a function, then confirming
+  each appears here and in the docs install line.
+- `RailPrivacy`: `sends_user_text`, `sends_bot_text`, and
+  `sends_retrieved_chunks` must match the surfaces' bindings;
+  `remote_services` must be non-empty for any rail that makes an HTTP call;
+  `data_retention` must be stated whenever the vendor states one, here and
+  not only in the docs page. A defaults-only `RailPrivacy()` on a vendor rail
+  is almost always wrong.
 
 The catalog rejects duplicates at construction: manifest name, config key,
 declared flow name, action name, and `(direction, surface name)` must all be
@@ -281,10 +286,12 @@ response = await http_call(
   distinguishable from a genuine vendor clear (`_fail_open_outcome` in
   `nemoguardrails/library/f5/actions.py`); the fail-open path logs at warning
   level; and it has its own test alongside the fail-closed one.
-- Telemetry must stay content-free: never log request or response bodies,
-  exception messages containing payloads, URLs with query strings, or
-  credentials. Explicitly composed instrumentation sanitizes URLs; do not
-  undo that protection in rail-level logging.
+- Telemetry must stay content-free. This applies to EVERY rail, not only
+  HTTP ones: never log the checked user or bot text, request or response
+  bodies, exception messages containing payloads, URLs with query strings,
+  or credentials. Explicitly composed instrumentation sanitizes URLs; do not
+  undo that protection in rail-level logging. Self-check by reading every
+  `log.` call and every f-string in a raised error.
 - Wrap vendor failures in rail-specific error types rooted at your own base
   exception (the `errs.py` pattern; exemplar
   `nemoguardrails/library/clavata/errs.py`), catching the
@@ -335,7 +342,8 @@ requirements=RailRequirements(optional_dependencies=("yara-python",)),
 
 ## Step 6: Tests
 
-Three layers, all required (per `nemoguardrails/library/README.md`):
+Three layers, all required; `nemoguardrails/library/README.md` makes layer 3
+explicitly mandatory:
 
 1. **Catalog gates (free).** `tests/rails/llm/test_builtin_rail_manifests.py`,
    `tests/rails/llm/test_library_flow_files.py`, and
@@ -439,10 +447,13 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
   `Path(docs_url).is_file()`, so an `.md` value fails a gate this skill
   tells you to run.
 - Add an example config under `examples/configs/<rail>/`.
-- Document the required Python packages (the `pip install` line), required
-  env vars / API keys, the remote service and what text is sent to it, and
+- Document the required Python packages (the `pip install` line, carrying
+  the version bound the manifest cannot express), required env vars / API
+  keys, the remote service and what text is sent to it, the vendor's data
+  retention period (the same string as `RailPrivacy.data_retention`), and
   known limitations, per the integration rules in `nemoguardrails/AGENTS.md`
-  and `docs/AGENTS.md`.
+  and `docs/AGENTS.md`. State each limitation with the code path or config
+  field that causes it, so a reviewer can check the citation.
 
 ## Modifying an existing rail
 
@@ -477,6 +488,11 @@ make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
 uv run --locked pre-commit run --files <changed files>
 make docs-fern
 ```
+
+Report the outcome of every command in this list by name, including any you
+could not run and why. A command that was skipped is not a command that
+passed; do not summarize the loop as green unless each line above actually
+ran.
 
 A rail is contribution-ready only when all of these pass and every
 declaration in the manifest (optional_dependencies, env vars, privacy, docs_url)

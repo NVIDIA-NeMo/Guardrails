@@ -164,10 +164,12 @@ collects; nothing is checking, so the discipline is yours.
 
 Belongs in `tests/recorded/`:
 
-- Streaming against a real OpenAI model, pinning chunk framing, final
-  content, and usage metadata (`test_openai_stream_async_public_contract`).
-  The chunk boundaries come from the provider's SSE stream; only a recording
-  can pin them honestly.
+- Streaming against a real OpenAI model, pinning chunk framing and final
+  content (`test_openai_stream_async_public_contract`), with usage metadata
+  pinned separately by
+  `test_stream_async_matches_recorded_chat_completion_metadata`. The chunk
+  boundaries come from the provider's SSE stream; only a recording can pin
+  them honestly.
 - A content-safety rail whose checker model is a real provider call, pinning
   what the rail blocks. The block decision depends on the real model output.
 - An invalid model name producing the provider's real 404, pinning that a

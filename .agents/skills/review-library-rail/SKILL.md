@@ -77,7 +77,8 @@ Each item names the check, where to look, and what "wrong" looks like.
 1. **Privacy honesty.** Compare `RailPrivacy` in `rail.py` against what the
    request layer actually transmits and what the vendor's own documentation
    says about retention. `sends_user_text`/`sends_bot_text` must match the
-   surfaces' bindings; `remote_services` must be non-empty for any HTTP
+   surfaces' bindings, including `sends_retrieved_chunks` for a retrieval
+   surface; `remote_services` must be non-empty for any HTTP
    rail; `data_retention` must be stated if the vendor states one. A
    defaults-only `RailPrivacy()` on a vendor rail is almost always wrong.
 2. **Requirements honesty.** Every env var the code reads
@@ -136,9 +137,11 @@ Each item names the check, where to look, and what "wrong" looks like.
    criteria. Secrets via `monkeypatch`; any real-looking key in a test or
    cassette is a blocking finding.
 9. **Docs accuracy.** Every statement in the catalog page must match the
-   code: config options, defaults, env vars, install line, limitations.
-   Verify each "known limitation" is real; a false limitation is as bad as
-   a missing one. `docs_url` in the manifest is the repo-relative `.mdx`
+   code: config options, defaults, env vars, install line, the vendor's data
+   retention period (matching `RailPrivacy.data_retention`), and
+   limitations. Verify each "known limitation" is real; a false limitation
+   is as bad as a missing one, and an uncited or unreproducible one is a
+   finding. `docs_url` in the manifest is the repo-relative `.mdx`
    path of the page the PR adds; the manifest gate asserts that path
    resolves.
 10. **Fail-open semantics.** If the rail supports fail-open at all: it must
