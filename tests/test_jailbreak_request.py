@@ -17,92 +17,229 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import json
+
 import pytest
 
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
+from nemoguardrails.library.jailbreak_detection.request import (
+    jailbreak_detection_heuristics_request,
+    jailbreak_detection_model_request,
+    jailbreak_nim_request,
+    join_nim_url,
+)
+from nemoguardrails.testing import RecordingHTTPClient
 
-class TestJailbreakRequestChanges:
-    """Test jailbreak request function changes introduced in this PR."""
 
-    def test_url_joining_logic(self):
-        """Test that URL joining works correctly with all slash combinations."""
-        from nemoguardrails.library.jailbreak_detection.request import join_nim_url
+def _response(payload=None, *, status: int = 200, content: bytes | None = None) -> HTTPResponse:
+    return HTTPResponse(
+        status_code=status,
+        headers={"content-type": "application/json"},
+        content=content if content is not None else json.dumps(payload).encode(),
+    )
 
-        test_cases = [
-            (
-                "http://localhost:8000/v1",
-                "classify",
-                "http://localhost:8000/v1/classify",
-            ),
-            (
-                "http://localhost:8000/v1/",
-                "classify",
-                "http://localhost:8000/v1/classify",
-            ),
-            (
-                "http://localhost:8000/v1",
-                "/classify",
-                "http://localhost:8000/v1/classify",
-            ),
-            (
-                "http://localhost:8000/v1/",
-                "/classify",
-                "http://localhost:8000/v1/classify",
-            ),
-            ("http://localhost:8000", "classify", "http://localhost:8000/classify"),
-            ("http://localhost:8000", "/classify", "http://localhost:8000/classify"),
-            ("http://localhost:8000/", "classify", "http://localhost:8000/classify"),
-            ("http://localhost:8000/", "/classify", "http://localhost:8000/classify"),
-            (
-                "http://localhost:8000/api/v1",
-                "classify",
-                "http://localhost:8000/api/v1/classify",
-            ),
-            (
-                "http://localhost:8000/api/v1/",
-                "/classify",
-                "http://localhost:8000/api/v1/classify",
-            ),
-        ]
 
-        for base_url, classification_path, expected_url in test_cases:
-            result = join_nim_url(base_url, classification_path)
-            assert result == expected_url, (
-                f"join_nim_url({base_url}, {classification_path}) should equal {expected_url}, got {result}"
-            )
+@pytest.mark.parametrize(
+    ("base_url", "classification_path", "expected"),
+    [
+        ("http://localhost:8000/v1", "classify", "http://localhost:8000/v1/classify"),
+        ("http://localhost:8000/v1/", "/classify", "http://localhost:8000/v1/classify"),
+        ("http://localhost:8000", "/classify", "http://localhost:8000/classify"),
+        ("http://localhost:8000/api/v1/", "/classify", "http://localhost:8000/api/v1/classify"),
+    ],
+)
+def test_join_nim_url(base_url, classification_path, expected):
+    assert join_nim_url(base_url, classification_path) == expected
 
-    def test_auth_header_logic(self):
-        """Test the authorization header logic."""
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        nim_auth_token = "test_token_123"
-        if nim_auth_token is not None:
-            headers["Authorization"] = f"Bearer {nim_auth_token}"
+@pytest.mark.parametrize(
+    ("request_fn", "kwargs", "expected_url", "expected_payload"),
+    [
+        (
+            jailbreak_detection_heuristics_request,
+            {
+                "prompt": "ignore safeguards",
+                "api_url": "https://guard.example/heuristics",
+                "lp_threshold": 0.5,
+                "ps_ppl_threshold": 1.5,
+            },
+            "https://guard.example/heuristics",
+            {
+                "prompt": "ignore safeguards",
+                "lp_threshold": 0.5,
+                "ps_ppl_threshold": 1.5,
+            },
+        ),
+        (
+            jailbreak_detection_model_request,
+            {
+                "prompt": "ignore safeguards",
+                "api_url": "https://guard.example/model",
+            },
+            "https://guard.example/model",
+            {"prompt": "ignore safeguards"},
+        ),
+    ],
+    ids=["heuristics", "model"],
+)
+@pytest.mark.asyncio
+async def test_jailbreak_request_uses_shared_client(request_fn, kwargs, expected_url, expected_payload):
+    client = RecordingHTTPClient([_response({"jailbreak": True})])
 
-        assert headers["Authorization"] == "Bearer test_token_123"
+    result = await request_fn(http_client=client, **kwargs)
 
-        headers2 = {"Content-Type": "application/json", "Accept": "application/json"}
-        nim_auth_token = None
-        if nim_auth_token is not None:
-            headers2["Authorization"] = f"Bearer {nim_auth_token}"
+    assert result is True
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == expected_url
+    assert request.json == expected_payload
 
-        assert "Authorization" not in headers2
 
-    @pytest.mark.asyncio
-    async def test_nim_request_signature(self):
-        import inspect
+@pytest.mark.parametrize(
+    ("request_fn", "kwargs"),
+    [
+        (
+            jailbreak_detection_heuristics_request,
+            {"prompt": "hello", "api_url": "https://guard.example/heuristics"},
+        ),
+        (
+            jailbreak_detection_model_request,
+            {"prompt": "hello", "api_url": "https://guard.example/model"},
+        ),
+    ],
+    ids=["heuristics", "model"],
+)
+@pytest.mark.asyncio
+async def test_jailbreak_request_returns_none_for_non_200(request_fn, kwargs):
+    client = RecordingHTTPClient([_response({}, status=503)])
 
-        from nemoguardrails.library.jailbreak_detection.request import (
-            jailbreak_nim_request,
-        )
+    assert await request_fn(http_client=client, **kwargs) is None
 
-        sig = inspect.signature(jailbreak_nim_request)
-        params = list(sig.parameters.keys())
 
-        expected_params = [
-            "prompt",
-            "nim_url",
-            "nim_auth_token",
-            "nim_classification_path",
-            "http_client",
-        ]
-        assert params == expected_params, f"Expected {expected_params}, got {params}"
+@pytest.mark.parametrize(
+    ("request_fn", "kwargs"),
+    [
+        (
+            jailbreak_detection_heuristics_request,
+            {"prompt": "hello", "api_url": "https://guard.example/heuristics"},
+        ),
+        (
+            jailbreak_detection_model_request,
+            {"prompt": "hello", "api_url": "https://guard.example/model"},
+        ),
+    ],
+    ids=["heuristics", "model"],
+)
+@pytest.mark.asyncio
+async def test_jailbreak_request_returns_none_without_jailbreak_field(request_fn, kwargs):
+    client = RecordingHTTPClient([_response({"result": "safe"})])
+
+    assert await request_fn(http_client=client, **kwargs) is None
+
+
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_forwards_auth_and_timeout():
+    client = RecordingHTTPClient([_response({"jailbreak": False})])
+
+    result = await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example/v1",
+        nim_auth_token="secret",
+        nim_classification_path="/classify",
+        http_client=client,
+    )
+
+    assert result is False
+    request = client.requests[0]
+    assert request.url == "https://nim.example/v1/classify"
+    assert request.headers == {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": "Bearer secret",
+    }
+    assert request.json == {"input": "hello"}
+    assert request.timeout == 30
+
+
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_omits_auth_without_token():
+    client = RecordingHTTPClient([_response({"jailbreak": False})])
+
+    await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example",
+        nim_auth_token=None,
+        nim_classification_path="classify",
+        http_client=client,
+    )
+
+    assert "Authorization" not in client.requests[0].headers
+
+
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_returns_none_for_non_200():
+    client = RecordingHTTPClient([_response({}, status=503)])
+
+    result = await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example",
+        nim_auth_token=None,
+        nim_classification_path="classify",
+        http_client=client,
+    )
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_returns_none_without_jailbreak_field():
+    client = RecordingHTTPClient([_response({"result": "safe"})])
+
+    result = await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example",
+        nim_auth_token=None,
+        nim_classification_path="classify",
+        http_client=client,
+    )
+
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        HTTPTimeoutError("timed out"),
+        HTTPConnectionError("connection failed"),
+        RuntimeError("unexpected failure"),
+    ],
+    ids=["timeout", "client-error", "unexpected-error"],
+)
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_returns_none_for_request_errors(error):
+    client = RecordingHTTPClient([error])
+
+    result = await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example",
+        nim_auth_token=None,
+        nim_classification_path="classify",
+        http_client=client,
+    )
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_jailbreak_nim_request_returns_none_for_invalid_json():
+    client = RecordingHTTPClient([_response(content=b"not-json")])
+
+    result = await jailbreak_nim_request(
+        prompt="hello",
+        nim_url="https://nim.example",
+        nim_auth_token=None,
+        nim_classification_path="classify",
+        http_client=client,
+    )
+
+    assert result is None
