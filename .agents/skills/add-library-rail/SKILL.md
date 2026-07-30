@@ -1,6 +1,6 @@
 ---
 name: "add-library-rail"
-description: "Step-by-step contribution guide for adding a new rail to nemoguardrails/library/: manifest, actions returning RailOutcome, config schema, flows, HTTP rules for vendor backends, Python package requirements, unit and recorded tests, docs and examples. Use when implementing, scaffolding, or reviewing a new built-in or vendor guardrail integration. Trigger keywords - add rail, new rail, library rail, vendor integration, guardrail integration, RailManifest, RailOutcome, PythonPackage, rails validate, rail.py, guardrail catalog, third-party rail."
+description: "Step-by-step contribution guide for adding a new rail to nemoguardrails/library/: manifest, actions returning RailOutcome, config schema, flows, HTTP rules for vendor backends, Python package requirements, unit and recorded tests, docs and examples. Use when implementing, scaffolding, or reviewing a new built-in or vendor guardrail integration. Trigger keywords - add rail, new rail, library rail, vendor integration, guardrail integration, RailManifest, RailOutcome, RailRequirements, optional_dependencies, rail.py, guardrail catalog, third-party rail."
 license: "Apache-2.0"
 ---
 
@@ -67,9 +67,9 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
 - `RailSpec.config_schema`: `key` plus a `ConfigSpecRef` to
   `rail_config:build_config_spec`.
 - `RailRequirements`: declare `env_vars` (e.g.
-  `EnvVar(name="CLAVATA_API_KEY", required=True)`), `services`, `models`, and
-  `python_packages` truthfully; this is what users, tooling, and the
-  `nemoguardrails rails validate` CLI see (Step 5).
+  `EnvVar(name="CLAVATA_API_KEY", required=True)`), `services`, `models`,
+  `extras`, and `optional_dependencies` truthfully; this is what users and
+  tooling see (Step 5).
 - `RailPrivacy`: declare `sends_user_text` / `sends_bot_text` /
   `remote_services` / `data_retention` honestly for any rail that ships text
   off-box; if the vendor states a retention period, record it here, not just
@@ -183,40 +183,35 @@ response = await http_call(
 ## Step 5: Vendor Python dependencies
 
 Rail dependencies are declared in the manifest, NOT in packaging. Do NOT add
-the vendor package to `pyproject.toml` or to a poetry extra; the packaging
-gate `tests/test_rail_packaging.py::test_rail_dependencies_are_not_package_extras`
-fails if you do. Users install the package themselves, guided by the
-manifest declaration and the `nemoguardrails rails validate` CLI.
+the vendor package to `pyproject.toml`; users install it themselves, guided by
+the manifest declaration and the docs page install line.
 
-- Declare the package in `rail.py` as a module-level constant and reference
-  it from the requirements (exemplar:
+- Declare the distribution name in `rail.py` through
+  `RailRequirements.optional_dependencies` (exemplar:
   `nemoguardrails/library/injection_detection/rail.py`):
 
 ```python
-YARA_PACKAGE = PythonPackage(distribution="yara-python", import_name="yara", version=">=4.5.1,<5")
-...
-requirements=RailRequirements(python_packages=(YARA_PACKAGE,)),
+requirements=RailRequirements(optional_dependencies=("yara-python",)),
 ```
 
-  `PythonPackage` also supports `required=False`, an environment `marker`,
-  and a `description`; `version` must be a valid PEP 440 specifier
-  (validated at manifest construction).
+  `optional_dependencies` is a tuple of PyPI distribution names
+  (`Tuple[str, ...]`, `nemoguardrails/manifests/manifest.py`).
+  `RailRequirements` accepts only `extras`, `env_vars`, `services`, `models`,
+  and `optional_dependencies`, and it is declared `extra="forbid"`, so any
+  other key fails at manifest construction. Version bounds are not
+  expressible here; state them in the docs page `pip install` line. Use
+  `extras=("<extra>",)` only when the package already ships in a
+  nemoguardrails extra (exemplar:
+  `nemoguardrails/library/sensitive_data_detection/rail.py`).
 
-- Load the package lazily in `actions.py` via
-  `require_python_package("<rail name>", PACKAGE)` from
-  `nemoguardrails.manifests`, typically behind an `lru_cache` helper
-  (exemplar: `_load_yara` in
-  `nemoguardrails/library/injection_detection/actions.py`). It raises
-  `RailDependencyError` with an actionable install message when the package
-  is missing or incompatible. Never import the vendor package at module top
-  level in a way that breaks `import nemoguardrails`, and never in `rail.py`
-  (Step 2 rule; `PythonPackage` comes from `nemoguardrails.manifests`, so
-  declaring it there is fine).
-- Static and runtime checking is handled for you:
-  `nemoguardrails rails validate --config <path> [--runtime]` reports every
-  configured rail's requirement status and prints the `pip install` line for
-  anything missing (`nemoguardrails/cli/rails.py`); behavior is pinned by
-  `tests/rails/llm/test_rail_requirements.py`.
+- Import the vendor package lazily in `actions.py` behind a module-level
+  guard that leaves the name bound to `None` on ImportError, then check
+  availability inside the action and raise with the exact `pip install` line
+  (exemplar: the `yara = None` / `try: import yara` guard and
+  `_check_yara_available` in
+  `nemoguardrails/library/injection_detection/actions.py`). Never import the
+  vendor package at module top level in a way that breaks
+  `import nemoguardrails`, and never in `rail.py` (Step 2 rule).
 
 ## Step 6: Tests
 
@@ -316,7 +311,7 @@ conformance gate flags the drift. Update the mirrored artifacts together:
 | Parameters change | Update surface bindings and flow arguments; every `Binding.action_param` must still exist in the signature. |
 | Return contract | Surface actions must still annotate and return `RailOutcome`. |
 | Configuration changes | Update the typed config model, regenerate `schemas/rails_config.snapshot.json`, and review the schema diff. |
-| Dependency or service changes | Update manifest `python_packages`, env vars, services, models, and privacy declarations. |
+| Dependency or service changes | Update manifest `optional_dependencies`, `extras`, env vars, services, models, and privacy declarations. |
 
 Then re-run the catalog gates from Step 6; they are the mechanical check that
 the mirrored copies still agree. This same matrix is the always-loaded
@@ -337,7 +332,7 @@ make docs-fern
 ```
 
 A rail is contribution-ready only when all of these pass and every
-declaration in the manifest (python_packages, env vars, privacy, docs_url)
+declaration in the manifest (optional_dependencies, env vars, privacy, docs_url)
 matches what the code actually does. Reviewers of rail PRs apply the
 `review-library-rail` skill; running its judgment dimensions on your own
 diff before handoff is the cheapest review you will get.

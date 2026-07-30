@@ -17,7 +17,7 @@ repository `AGENTS.md`). Each skill is a `SKILL.md` with frontmatter
   cannot check.
 
 The three rail/testing skills assume the manifest, RailOutcome,
-`nemoguardrails.http`, and `python_packages` contracts; they describe this
+`nemoguardrails.http`, and `RailRequirements` contracts; they describe this
 codebase state, not older releases.
 
 ## Design rationale for the rail and testing skills
