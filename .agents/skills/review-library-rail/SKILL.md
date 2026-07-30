@@ -35,11 +35,19 @@ make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/t
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=<the PR's test files>
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
-git diff <merge-base> -- pyproject.toml uv.lock   # must be empty for a rail PR
+git diff <merge-base> -- pyproject.toml uv.lock   # usually empty; see below
 ```
 
 A red gate is a finding by itself; report it and keep going. A green gate
 means that dimension is DONE; spend review attention only on what follows.
+
+Most rail PRs leave `pyproject.toml` untouched, since a rail's optional
+vendor package is declared in the manifest rather than in packaging. A
+diff there is not automatically wrong: rail-scoped extras exist (`sdd`,
+`gcp`, `jailbreak`, `multilingual`) and `RailRequirements.extras` is a
+first-class field, so a PR adding one must justify the extra and declare it
+(exemplar: `nemoguardrails/library/sensitive_data_detection/rail.py`). An
+undeclared or unjustified dependency change is the finding.
 
 ## Step 1b: New-rail completeness (presence, not quality)
 
