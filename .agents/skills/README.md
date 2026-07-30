@@ -33,8 +33,9 @@ rule in the skill, not better prose.
 
 **Division of labor with enforcement.** Anything mechanically checkable is
 a test, not skill text: manifest completeness
-(`tests/rails/llm/test_builtin_rail_manifests.py`), packaging
-(`tests/test_rail_packaging.py`), the HTTP transport boundary
+(`tests/rails/llm/test_builtin_rail_manifests.py`), cross-artifact
+conformance (`tests/rails/llm/test_builtin_rail_conformance.py`), the HTTP
+transport boundary
 (`tests/http/test_library_boundary.py`), recorded-suite marker discipline
 (the `pure_runtime` fixture in `tests/recorded/conftest.py`), and flow-file
 validity across dialects (`tests/rails/llm/test_library_flow_files.py`).

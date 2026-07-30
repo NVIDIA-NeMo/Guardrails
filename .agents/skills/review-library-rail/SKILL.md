@@ -32,12 +32,10 @@ numbered check; do not stop at the first few findings.
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
-make test TEST="tests/rails/llm/test_rail_requirements.py tests/test_rail_packaging.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=<the PR's test files>
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
 git diff <merge-base> -- pyproject.toml uv.lock   # must be empty for a rail PR
-uv run --locked nemoguardrails rails validate --config examples/configs/<rail>
 ```
 
 A red gate is a finding by itself; report it and keep going. A green gate
