@@ -1,0 +1,24 @@
+# One-shot LLMRails Agent c=32 re-run — sanity check for anomalous 0.68 req/s result
+# 300s duration per Tim Gasser's suggestion (transient 10s event = 1/30th, not 1/6th)
+
+batch_name: llmrails_scenario_agent_c32_rerun
+
+output_base_dir: aiperf_results
+
+base_config:
+  model: nvidia/nemotron-3-nano
+  tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+  url: "http://localhost:9000"
+  endpoint: "/v1/chat/completions"
+  endpoint_type: chat
+
+  warmup_request_count: 10
+  benchmark_duration: 300
+  concurrency: 32
+  request_rate_mode: "constant"
+
+  random_seed: 12345
+  prompt_input_tokens_mean: 8000
+  prompt_input_tokens_stddev: 100
+  prompt_output_tokens_mean: 4000
+  prompt_output_tokens_stddev: 100
