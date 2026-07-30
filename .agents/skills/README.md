@@ -48,7 +48,8 @@ files in both Colang dialects, and historically only Colang 1 was tested,
 which let structurally broken Colang 2 files ship silently. The split:
 
 - The flow-files gate owns structure: both dialect files parse, define the
-  manifest-declared flows, and invoke dispatcher-resolvable actions. A
+  manifest-declared flows, invoke only actions their own manifest declares,
+  and never await a registered action's snake_case name as a Colang 2 flow. A
   declared flow whose Colang 2 definition is parameterized is exempt from
   Colang 1 presence, because Colang 1 has no parameterized flows; the
   exemption is derived from the parse result rather than an allowlist.
