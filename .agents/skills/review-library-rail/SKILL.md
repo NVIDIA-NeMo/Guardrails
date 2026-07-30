@@ -114,8 +114,9 @@ Each item names the check, where to look, and what "wrong" looks like.
 9. **Docs accuracy.** Every statement in the catalog page must match the
    code: config options, defaults, env vars, install line, limitations.
    Verify each "known limitation" is real; a false limitation is as bad as
-   a missing one. `docs_url` in the manifest uses the `.md` extension and
-   points at the page the PR adds.
+   a missing one. `docs_url` in the manifest is the repo-relative `.mdx`
+   path of the page the PR adds; the manifest gate asserts that path
+   resolves.
 10. **Fail-open semantics.** If the rail supports fail-open at all: it must
     default to fail-closed; the switch must live in the rail's config model
     where a config reviewer sees it, not in an env var (env vars are for
