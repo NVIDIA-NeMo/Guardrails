@@ -82,13 +82,12 @@ async def jailbreak_detection_heuristics(
         jailbreak = any([lp_check["jailbreak"], ps_ppl_check["jailbreak"]])
         return RailOutcome.block() if jailbreak else RailOutcome.allow()
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     jailbreak = await jailbreak_detection_heuristics_request(
         prompt,
         jailbreak_api_url,
         lp_threshold,
         ps_ppl_threshold,
-        **request_kwargs,
+        http_client=http_client,
     )
     if jailbreak is None:
         log.warning("Jailbreak endpoint not set up properly.")
@@ -161,20 +160,19 @@ async def jailbreak_detection_model(
             )
             jailbreak_result = False
     else:
-        request_kwargs = {"http_client": http_client} if http_client is not None else {}
         if nim_base_url:
             jailbreak = await jailbreak_nim_request(
                 prompt=prompt,
                 nim_url=nim_base_url,
                 nim_auth_token=nim_auth_token,
                 nim_classification_path=nim_classification_path,
-                **request_kwargs,
+                http_client=http_client,
             )
         elif jailbreak_api_url:
             jailbreak = await jailbreak_detection_model_request(
                 prompt=prompt,
                 api_url=jailbreak_api_url,
-                **request_kwargs,
+                http_client=http_client,
             )
 
         if jailbreak is None:

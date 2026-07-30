@@ -47,8 +47,12 @@ async def alignscore_check_facts(
     evidence = context.get("relevant_chunks", [])
     response = context.get("bot_message")
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
-    alignscore = await alignscore_request(alignscore_api_url, evidence, response, **request_kwargs)
+    alignscore = await alignscore_request(
+        alignscore_api_url,
+        evidence,
+        response,
+        http_client=http_client,
+    )
     if alignscore is None:
         log.warning("AlignScore endpoint not set up properly. Falling back to the ask_llm approach for fact-checking.")
         if fallback_to_self_check:

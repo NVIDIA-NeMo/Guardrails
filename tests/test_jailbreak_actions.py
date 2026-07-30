@@ -65,6 +65,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token="test_token_123",
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -116,6 +117,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -156,6 +158,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -302,6 +305,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -341,6 +345,7 @@ class TestJailbreakDetectionActions:
             nim_url="http://localhost:8000/v1",
             nim_auth_token=None,
             nim_classification_path="classify",
+            http_client=None,
         )
 
     @pytest.mark.asyncio
@@ -375,7 +380,11 @@ class TestJailbreakDetectionActions:
         result = await jailbreak_detection_model(llm_task_manager, context)
         assert result.is_blocked is True
 
-        mock_model_request.assert_called_once_with(prompt="test prompt", api_url="http://legacy-server:1337/model")
+        mock_model_request.assert_called_once_with(
+            prompt="test prompt",
+            api_url="http://legacy-server:1337/model",
+            http_client=None,
+        )
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_none_response_handling(self, monkeypatch, caplog):

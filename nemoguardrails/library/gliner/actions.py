@@ -130,7 +130,6 @@ async def gliner_detect_pii(
 
     api_key = _resolve_api_key(gliner_config)
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     gliner_response = await gliner_request(
         text=text,
         server_endpoint=server_endpoint,
@@ -141,7 +140,7 @@ async def gliner_detect_pii(
         flat_ner=gliner_config.flat_ner,
         api_key=api_key,
         model=gliner_config.model,
-        **request_kwargs,
+        http_client=http_client,
     )
 
     try:
@@ -186,7 +185,6 @@ async def gliner_mask_pii(
 
     api_key = _resolve_api_key(gliner_config)
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     gliner_response = await gliner_request(
         text=text,
         server_endpoint=server_endpoint,
@@ -197,7 +195,7 @@ async def gliner_mask_pii(
         flat_ner=gliner_config.flat_ner,
         api_key=api_key,
         model=gliner_config.model,
-        **request_kwargs,
+        http_client=http_client,
     )
 
     if not gliner_response or not isinstance(gliner_response, dict):

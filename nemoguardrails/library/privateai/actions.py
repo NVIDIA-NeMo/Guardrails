@@ -88,13 +88,12 @@ async def detect_pii(
             f"The current flow, '{source}', is not allowed."
         )
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     private_ai_response = await private_ai_request(
         text,
         enabled_entities,
         server_endpoint,
         pai_api_key,
-        **request_kwargs,
+        http_client=http_client,
     )
 
     try:
@@ -140,13 +139,12 @@ async def mask_pii(
             f"The current flow, '{source}', is not allowed."
         )
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     private_ai_response = await private_ai_request(
         text,
         enabled_entities,
         server_endpoint,
         pai_api_key,
-        **request_kwargs,
+        http_client=http_client,
     )
 
     if not private_ai_response or not isinstance(private_ai_response, list):
