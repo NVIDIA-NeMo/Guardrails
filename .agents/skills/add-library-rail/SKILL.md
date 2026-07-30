@@ -282,7 +282,8 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    - Cover BOTH Colang dialects end to end, not just the default. `TestChat`
      runs Colang 1 (`flows.v1.co`) unless the config sets
      `colang_version: "2.x"`, which exercises `flows.co` instead (exemplar:
-     `tests/test_polygraf.py`). Minimum: the block path in both dialects,
+     the `config_v2` fixture and the `test_f5_guardrails_colang_2_*` tests in
+     `tests/test_f5_guardrails.py`). Minimum: the block path in both dialects,
      plus the `enable_rails_exceptions` variant wherever the flow has that
      branch. The flow-files gate checks structure only; dialect behavior
      needs these tests.
