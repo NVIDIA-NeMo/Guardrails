@@ -16,13 +16,13 @@
 import logging
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_core import to_json
 from typing_extensions import cast
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call
+from nemoguardrails.http import HTTPClient, HTTPClientError, http_call
 from nemoguardrails.rails.llm.config import RailsConfig, TrendMicroRailConfig
 
 log = logging.getLogger(__name__)
@@ -132,20 +132,19 @@ async def trend_ai_guard(
     else:
         headers["Prefer"] = "return=minimal"
 
-    response = await http_call(
-        http_client,
-        "POST",
-        v1_url,
-        content=to_json(data),
-        headers=headers,
-        raise_for_status=False,
-    )
-
     try:
+        response = await http_call(
+            http_client,
+            "POST",
+            v1_url,
+            content=to_json(data),
+            headers=headers,
+            raise_for_status=False,
+        )
         response.raise_for_status()
-        guard_result = GuardResult(**response.json())
+        guard_result = GuardResult.model_validate(response.json())
         log.debug("Trend Micro AI Guard Result: %s", guard_result)
-    except HTTPStatusError as e:
+    except (HTTPClientError, ValidationError) as e:
         log.error("Error calling Trend Micro AI Guard API: %s", e)
         return _trend_micro_outcome(
             GuardResult(

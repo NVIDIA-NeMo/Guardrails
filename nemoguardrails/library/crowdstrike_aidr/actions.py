@@ -18,13 +18,13 @@ import os
 from collections.abc import Mapping
 from typing import Any, Optional, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_core import to_json
 from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http import HTTPClient, HTTPStatusError, http_call
+from nemoguardrails.http import HTTPClient, HTTPClientError, HTTPStatusError, http_call
 from nemoguardrails.rails.llm.config import CrowdStrikeAIDRRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
@@ -120,52 +120,41 @@ async def crowdstrike_aidr_guard(
         messages.append(Message(role="assistant", content=bot_message))
 
     endpoint = base_url_template.format(SERVICE_NAME="aiguard").rstrip("/") + "/v1/guard_chat_completions"
-    response = await http_call(
-        http_client,
-        "POST",
-        endpoint,
-        content=to_json({"guard_input": {"messages": messages}}),
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json",
-            "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
-        },
-        timeout=crowdstrike_aidr_config.timeout,
-        raise_for_status=False,
+    fallback = GuardChatCompletionsResult(
+        guard_output={"messages": messages},
+        blocked=False,
+        transformed=False,
+        bot_message=bot_message,
+        user_message=user_message,
     )
     try:
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
+            content=to_json({"guard_input": {"messages": messages}}),
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json",
+                "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
+            },
+            timeout=crowdstrike_aidr_config.timeout,
+            raise_for_status=False,
+        )
         response.raise_for_status()
-        guard_response = GuardChatCompletionsResponse(**response.json())
+        guard_response = GuardChatCompletionsResponse.model_validate(response.json())
     except HTTPStatusError as e:
         log.error("HTTP status error from CrowdStrike AIDR API: %s", e)
-        return _crowdstrike_aidr_outcome(
-            GuardChatCompletionsResult(
-                guard_output={"messages": messages},
-                blocked=False,
-                transformed=False,
-                bot_message=bot_message,
-                user_message=user_message,
-            ),
-            mode,
-        )
-    except Exception as e:
+    except (HTTPClientError, ValidationError) as e:
         log.error("Error calling CrowdStrike AIDR API: %s", e)
-        return _crowdstrike_aidr_outcome(
-            GuardChatCompletionsResult(
-                guard_output={"messages": messages},
-                blocked=False,
-                transformed=False,
-                bot_message=bot_message,
-                user_message=user_message,
-            ),
-            mode,
-        )
+    else:
+        result = guard_response.result
+        output_messages = result.guard_output.get("messages", []) if result.guard_output else []
 
-    result = guard_response.result
-    output_messages = result.guard_output.get("messages", []) if result.guard_output else []
+        result.bot_message = next((m.content for m in output_messages if m.role == "assistant"), bot_message)
+        result.user_message = next((m.content for m in output_messages if m.role == "user"), user_message)
 
-    result.bot_message = next((m.content for m in output_messages if m.role == "assistant"), bot_message)
-    result.user_message = next((m.content for m in output_messages if m.role == "user"), user_message)
+        return _crowdstrike_aidr_outcome(result, mode)
 
-    return _crowdstrike_aidr_outcome(result, mode)
+    return _crowdstrike_aidr_outcome(fallback, mode)

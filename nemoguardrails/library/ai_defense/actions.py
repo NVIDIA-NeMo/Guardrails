@@ -17,6 +17,7 @@
 
 import logging
 import os
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from nemoguardrails import RailsConfig
@@ -118,6 +119,12 @@ async def ai_defense_inspect(
     except HTTPClientError as e:
         log.error("Error calling AI Defense API: %s", e)
         return _ai_defense_failure_outcome(fail_open, "AI Defense API call failed")
+
+    if not isinstance(data, Mapping):
+        return _ai_defense_failure_outcome(
+            fail_open,
+            "AI Defense API returned malformed response (expected an object)",
+        )
 
     # Compose a consistent return structure for flows
     # Handle malformed responses based on fail_open setting

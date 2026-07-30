@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 
 import pytest
@@ -71,6 +72,32 @@ async def test_ai_defense_invalid_json_uses_failure_policy(monkeypatch, caplog, 
     assert result.is_blocked is is_blocked
     assert "AI Defense API returned malformed JSON" in caplog.text
     assert "Error calling AI Defense API" not in caplog.text
+
+
+@pytest.mark.parametrize("body", [[], "text", 1, None])
+@pytest.mark.parametrize(("fail_open", "is_blocked"), [(False, True), (True, False)])
+@pytest.mark.asyncio
+async def test_ai_defense_non_object_json_uses_failure_policy(monkeypatch, caplog, body, fail_open, is_blocked):
+    monkeypatch.setenv("AI_DEFENSE_API_KEY", "secret")
+    monkeypatch.setenv("AI_DEFENSE_API_ENDPOINT", API_ENDPOINT)
+    client = RecordingHTTPClient(
+        [
+            HTTPResponse(
+                status_code=200,
+                content=json.dumps(body).encode(),
+            )
+        ]
+    )
+
+    result = await ai_defense_inspect(
+        _ai_defense_config(fail_open=fail_open),
+        user_prompt="Hello",
+        http_client=client,
+    )
+
+    assert result.is_blocked is is_blocked
+    assert "AI Defense API returned malformed response (expected an object)" in caplog.text
+    assert f"fail_open={fail_open}" in caplog.text
 
 
 @pytest.mark.asyncio

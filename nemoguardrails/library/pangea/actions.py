@@ -121,20 +121,20 @@ async def pangea_ai_guard(
     data = {"messages": messages, "recipe": recipe}
     data = {k: v for k, v in data.items() if v is not None}
     endpoint = pangea_base_url_template.format(SERVICE_NAME="ai-guard").rstrip("/") + "/v1/text/guard"
-    response = await http_call(
-        http_client,
-        "POST",
-        endpoint,
-        content=to_json(data),
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {pangea_api_token}",
-            "Content-Type": "application/json",
-            "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
-        },
-        raise_for_status=False,
-    )
     try:
+        response = await http_call(
+            http_client,
+            "POST",
+            endpoint,
+            content=to_json(data),
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {pangea_api_token}",
+                "Content-Type": "application/json",
+                "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
+            },
+            raise_for_status=False,
+        )
         response.raise_for_status()
         text_guard_response = TextGuardResponse(**response.json())
     except Exception as e:
