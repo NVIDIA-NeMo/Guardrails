@@ -114,7 +114,7 @@ define parallel extension flow process bot tool call
   $tool_calls = $event.tool_calls
 
   # Run tool-specific output rails if configured (Phase 2)
-  if $config.rails.tool_output.flows
+  if $config.rails.tool_output.flows or $config.rails.tool_output.per_tool
     # If we have generation options, we make sure the tool output rails are enabled.
     if $generation_options is None or $generation_options.rails.tool_output:
       # Create a marker event.
@@ -141,7 +141,7 @@ define parallel flow process user tool messages
   $tool_messages = $event["tool_messages"]
 
   # If we have tool input rails, we run them, otherwise we just create the user message event
-  if $config.rails.tool_input.flows
+  if $config.rails.tool_input.flows or $config.rails.tool_input.per_tool
     # If we have generation options, we make sure the tool input rails are enabled.
     $tool_input_enabled = True
     if $generation_options is not None
@@ -234,43 +234,97 @@ define subflow run retrieval rails
 
 
 define subflow run tool output rails
-  """Runs all the tool output rails in a sequential order."""
+  """Runs all the tool output rails, sequentially or in parallel."""
   $tool_output_flows = $config.rails.tool_output.flows
 
-  $i = 0
-  while $i < len($tool_output_flows)
-    # We set the current rail as being triggered.
-    $triggered_tool_output_rail = $tool_output_flows[$i]
+  if $config.rails.tool_output.parallel
+    execute run_tool_output_rails_in_parallel(flows=$tool_output_flows)
+  else
+    $i = 0
+    while $i < len($tool_output_flows)
+      # We set the current rail as being triggered.
+      $triggered_tool_output_rail = $tool_output_flows[$i]
 
-    create event StartToolOutputRail(flow_id=$triggered_tool_output_rail)
-    event StartToolOutputRail
+      create event StartToolOutputRail(flow_id=$triggered_tool_output_rail)
+      event StartToolOutputRail
 
-    do $tool_output_flows[$i]
-    $i = $i + 1
+      do $tool_output_flows[$i]
+      $i = $i + 1
 
-    create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail)
-    event ToolOutputRailFinished
+      create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail)
+      event ToolOutputRailFinished
 
-    # If all went smooth, we remove it.
-    $triggered_tool_output_rail = None
+      # If all went smooth, we remove it.
+      $triggered_tool_output_rail = None
+
+  # Per-tool rails: iterate over each call in the batch and run the
+  # flows configured for that specific tool name.
+  $j = 0
+  while $j < len($tool_calls)
+    $tool_call = $tool_calls[$j]
+    $tool_name = execute get_tool_call_name(tool_call=$tool_call)
+
+    if $tool_name is not None
+      $per_tool_flows = execute get_per_tool_output_flows(tool_name=$tool_name)
+
+      $k = 0
+      while $k < len($per_tool_flows)
+        $triggered_tool_output_rail = $per_tool_flows[$k]
+
+        create event StartToolOutputRail(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
+        event StartToolOutputRail
+
+        do $per_tool_flows[$k]
+        $k = $k + 1
+
+        create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
+        event ToolOutputRailFinished
+
+        $triggered_tool_output_rail = None
+
+    $tool_name = None
+    $tool_call = None
+    $j = $j + 1
 
 define subflow run tool input rails
-  """Runs all the tool input rails in a sequential order."""
+  """Runs all the tool input rails, sequentially or in parallel."""
   $tool_input_flows = $config.rails.tool_input.flows
 
-  $i = 0
-  while $i < len($tool_input_flows)
-    # We set the current rail as being triggered.
-    $triggered_tool_input_rail = $tool_input_flows[$i]
+  if $config.rails.tool_input.parallel
+    execute run_tool_input_rails_in_parallel(flows=$tool_input_flows)
+  else
+    $i = 0
+    while $i < len($tool_input_flows)
+      # We set the current rail as being triggered.
+      $triggered_tool_input_rail = $tool_input_flows[$i]
 
-    create event StartToolInputRail(flow_id=$triggered_tool_input_rail)
+      create event StartToolInputRail(flow_id=$triggered_tool_input_rail)
+      event StartToolInputRail
+
+      do $tool_input_flows[$i]
+      $i = $i + 1
+
+      create event ToolInputRailFinished(flow_id=$triggered_tool_input_rail)
+      event ToolInputRailFinished
+
+      # If all went smooth, we remove it.
+      $triggered_tool_input_rail = None
+
+  # Per-tool rails: $tool_name is already in scope from the outer loop
+  # in process user tool messages.
+  $per_tool_input_flows = execute get_per_tool_input_flows(tool_name=$tool_name)
+
+  $m = 0
+  while $m < len($per_tool_input_flows)
+    $triggered_tool_input_rail = $per_tool_input_flows[$m]
+
+    create event StartToolInputRail(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
     event StartToolInputRail
 
-    do $tool_input_flows[$i]
-    $i = $i + 1
+    do $per_tool_input_flows[$m]
+    $m = $m + 1
 
-    create event ToolInputRailFinished(flow_id=$triggered_tool_input_rail)
+    create event ToolInputRailFinished(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
     event ToolInputRailFinished
 
-    # If all went smooth, we remove it.
     $triggered_tool_input_rail = None

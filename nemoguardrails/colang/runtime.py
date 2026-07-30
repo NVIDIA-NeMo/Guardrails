@@ -42,6 +42,8 @@ class Runtime:
             "run_flows_in_parallel",
             "run_input_rails_in_parallel",
             "run_output_rails_in_parallel",
+            "run_tool_output_rails_in_parallel",
+            "run_tool_input_rails_in_parallel",
         ):
             action = getattr(self, f"_{action_name}", None)
             if action is not None:

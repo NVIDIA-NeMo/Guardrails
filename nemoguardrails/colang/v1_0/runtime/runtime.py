@@ -459,6 +459,32 @@ class RuntimeV1_0(Runtime):
             flows=flows, events=events, pre_events=pre_events, post_events=post_events
         )
 
+    async def _run_tool_output_rails_in_parallel(self, flows: List[str], events: List[dict]) -> ActionResult:
+        """Run the tool output rails in parallel."""
+        pre_events = [
+            (await create_event({"_type": "StartToolOutputRail", "flow_id": flow})).events[0] for flow in flows
+        ]
+        post_events = [
+            (await create_event({"_type": "ToolOutputRailFinished", "flow_id": flow})).events[0] for flow in flows
+        ]
+
+        return await self._run_flows_in_parallel(
+            flows=flows, events=events, pre_events=pre_events, post_events=post_events
+        )
+
+    async def _run_tool_input_rails_in_parallel(self, flows: List[str], events: List[dict]) -> ActionResult:
+        """Run the tool input rails in parallel."""
+        pre_events = [
+            (await create_event({"_type": "StartToolInputRail", "flow_id": flow})).events[0] for flow in flows
+        ]
+        post_events = [
+            (await create_event({"_type": "ToolInputRailFinished", "flow_id": flow})).events[0] for flow in flows
+        ]
+
+        return await self._run_flows_in_parallel(
+            flows=flows, events=events, pre_events=pre_events, post_events=post_events
+        )
+
     async def _run_output_rails_in_parallel_streaming(
         self, flows_with_params: Dict[str, dict], events: List[dict]
     ) -> ActionResult:

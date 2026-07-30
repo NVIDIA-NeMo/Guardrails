@@ -1,0 +1,11 @@
+define bot refuse tool call
+  "I'm sorry, I can't allow that tool call."
+
+define subflow check tool call
+  $outcome = execute check_tool_call(check=$check)
+  if $outcome["is_blocked"]
+    if $config.enable_rails_exceptions
+      create event ToolCallGuardException(message=$outcome["reason"])
+    else
+      bot refuse tool call
+    stop

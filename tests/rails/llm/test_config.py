@@ -149,6 +149,7 @@ def test_builtin_rails_config_fields_canonical_set_and_legacy_exports():
         "self_check.facts",
         "self_check.input_check",
         "self_check.output_check",
+        "tool_call_check",
         "topic_safety",
     }
     expected_config_keys = {
