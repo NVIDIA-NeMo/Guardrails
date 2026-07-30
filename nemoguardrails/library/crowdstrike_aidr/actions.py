@@ -69,6 +69,12 @@ def _crowdstrike_aidr_outcome(
     result: GuardChatCompletionsResult,
     mode: Literal["input", "output"],
 ) -> RailOutcome:
+    """Convert a CrowdStrike result into a rail decision.
+
+    Blocking takes precedence over transformation. A transformed input rewrites
+    the user message, while a transformed output rewrites the bot message.
+    """
+
     metadata = {
         "blocked": bool(result.blocked),
         "transformed": bool(result.transformed),
@@ -97,6 +103,35 @@ async def crowdstrike_aidr_guard(
     bot_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
+    """Evaluate conversation content with CrowdStrike AI Guard.
+
+    The action evaluates the user message for input rails and includes the bot
+    message for output rails. A successful provider response can allow, block,
+    or transform the active message.
+
+    Expected provider failures fail open: unsuccessful HTTP status responses,
+    transport failures, malformed JSON, and response-schema validation errors
+    are logged and return an allow outcome containing the original messages.
+    Unexpected programming errors are not swallowed.
+
+    Args:
+        mode: Whether the action is evaluating an input or output rail.
+        config: Active rails configuration.
+        context: Conversation context used when explicit messages are omitted.
+        user_message: Optional user message override.
+        bot_message: Optional bot message override.
+        http_client: Optional caller-owned HTTP client. The action does not
+            close an injected client.
+
+    Returns:
+        The provider-derived rail outcome, or an allow outcome for an expected
+        provider failure.
+
+    Raises:
+        ValueError: If the API token or required conversation content is
+            missing.
+    """
+
     base_url_template = os.getenv("CS_AIDR_BASE_URL_TEMPLATE", "https://api.crowdstrike.com/aidr/{SERVICE_NAME}")
     api_token = os.getenv("CS_AIDR_TOKEN")
 
