@@ -106,16 +106,36 @@ library.
 
 ## Step 3: Actions and the outcome contract
 
-Actions live in `actions.py` and return `RailOutcome`
-(`nemoguardrails/actions/rail_outcome.py`):
+Actions live in `actions.py` and return `RailOutcome`:
 
 ```python
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
 @action(is_system_action=True)
 async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -> RailOutcome:
     if violation_found:
         return RailOutcome.block(reason="matched policy X", metadata={"rule_id": rule.id})
     return RailOutcome.allow()
 ```
+
+The runtime fills parameters BY NAME, so the signature is the injection
+contract. It injects `events`, `context`, `config`, and `llm_task_manager`,
+then anything registered as an action parameter (`llm`, `llms`, `kb`,
+`model_caches`, plus whatever the application adds through
+`register_action_param`, which is also how tests inject `http_client`). A
+per-action `<action_name>_llm` registration overrides `llm` for that action.
+Anything else your action needs must come from a manifest `Binding`: in the
+example above, `source` is not injected, it is
+`Binding.literal("source", "input")` in `rail.py`, and `text` is
+`Binding.context("text", "user_message")`.
+
+`config` is the whole `RailsConfig`, not your section. Read your own
+settings at `config.rails.config.<config_schema key>` and handle `None`
+(exemplar: `nemoguardrails/library/regex/actions.py`). `is_system_action=True`
+is not automatic: it defaults to `False` and only controls whether the
+action's start and finish events are omitted from rendered prompt history,
+and no gate checks it.
 
 The seam here is **actions decide, flows present**: the action returns a
 neutral verdict (allow/block/transform plus evidence in `metadata`), and the
