@@ -275,19 +275,108 @@ class TestCreateJobResponse:
         assert section2.message == "No cat sounds detected"
         assert section2.result == "OUTCOME_FALSE"
 
+    def test_model_validate_missing_fields(self):
+        """Test that CreateJobResponse validation fails on missing required fields"""
+        # Missing 'results' field
+        json_data = {
+            "job": {
+                "status": "JOB_STATUS_COMPLETED"
+                # Missing 'results' field
+            }
+        }
+
+        with pytest.raises(ValidationError):
+            CreateJobResponse.model_validate(json_data)
+
+    def test_model_validate_invalid_enum_values(self):
+        """Test that CreateJobResponse validation fails on invalid enum values"""
+        # Invalid status
+        json_data = {
+            "job": {"status": "INVALID_STATUS", "results": []}  # Invalid status
+        }
+
+        with pytest.raises(ValidationError):
+            CreateJobResponse.model_validate(json_data)
+
+    def test_model_validate_complete_job_response(self):
+        """Test that CreateJobResponse can parse a complete job response with nested structures"""
+        json_data = {
+            "job": {
+                "status": "JOB_STATUS_COMPLETED",
+                "results": [
+                    {
+                        "report": {
+                            "result": "OUTCOME_TRUE",
+                            "sectionEvaluationReports": [
+                                {
+                                    "name": "Label1",
+                                    "message": "First section matched",
+                                    "result": "OUTCOME_TRUE",
+                                },
+                                {
+                                    "name": "Label2",
+                                    "message": "Second section did not match",
+                                    "result": "OUTCOME_FALSE",
+                                },
+                                {
+                                    "name": "Label3",
+                                    "message": "Third section evaluation failed",
+                                    "result": "OUTCOME_FAILED",
+                                },
+                            ],
+                        }
+                    }
+                ],
+            }
+        }
+
+        response = CreateJobResponse.model_validate(json_data)
+
+        # Check overall response
+        assert response.job.status == "JOB_STATUS_COMPLETED"
+
+        # Check results
+        assert len(response.job.results) == 1
+        report = response.job.results[0].report
+        assert report.result == "OUTCOME_TRUE"
+
+        # Check sections
+        sections = report.sectionEvaluationReports
+        assert len(sections) == 3
+
+        # Verify all section fields
+        assert sections[0].name == "Label1"
+        assert sections[0].message == "First section matched"
+        assert sections[0].result == "OUTCOME_TRUE"
+
+        assert sections[1].name == "Label2"
+        assert sections[1].message == "Second section did not match"
+        assert sections[1].result == "OUTCOME_FALSE"
+
+        assert sections[2].name == "Label3"
+        assert sections[2].message == "Third section evaluation failed"
+        assert sections[2].result == "OUTCOME_FAILED"
+
+
+@pytest.fixture
+def zero_sleep_clavata_retry(monkeypatch):
+    monkeypatch.setattr(
+        ClavataClient,
+        "_retrying_http_client",
+        staticmethod(
+            lambda client: RetryingHTTPClient(
+                client,
+                _CLAVATA_RETRY_POLICY,
+                sleep=lambda _: asyncio.sleep(0),
+            )
+        ),
+    )
+
+
+@pytest.mark.unit
+class TestClavataClientTransport:
     @pytest.mark.asyncio
-    async def test_clavata_client_uses_shared_retry_policy(self, monkeypatch):
-        monkeypatch.setattr(
-            ClavataClient,
-            "_retrying_http_client",
-            staticmethod(
-                lambda client: RetryingHTTPClient(
-                    client,
-                    _CLAVATA_RETRY_POLICY,
-                    sleep=lambda _: asyncio.sleep(0),
-                )
-            ),
-        )
+    async def test_clavata_client_uses_shared_retry_policy(self, zero_sleep_clavata_retry):
         response = CreateJobResponse(
             job=Job(
                 status="JOB_STATUS_COMPLETED",
@@ -383,18 +472,7 @@ class TestCreateJobResponse:
         assert len(transport.requests) == 1
 
     @pytest.mark.asyncio
-    async def test_clavata_client_preserves_rate_limit_error(self, monkeypatch):
-        monkeypatch.setattr(
-            ClavataClient,
-            "_retrying_http_client",
-            staticmethod(
-                lambda client: RetryingHTTPClient(
-                    client,
-                    _CLAVATA_RETRY_POLICY,
-                    sleep=lambda _: asyncio.sleep(0),
-                )
-            ),
-        )
+    async def test_clavata_client_preserves_rate_limit_error(self, zero_sleep_clavata_retry):
         transport = RecordingHTTPClient(
             [
                 HTTPResponse(status_code=429),
@@ -411,85 +489,3 @@ class TestCreateJobResponse:
             ).create_job("hello", "policy-id")
 
         assert len(transport.requests) == 3
-
-    def test_model_validate_missing_fields(self):
-        """Test that CreateJobResponse validation fails on missing required fields"""
-        # Missing 'results' field
-        json_data = {
-            "job": {
-                "status": "JOB_STATUS_COMPLETED"
-                # Missing 'results' field
-            }
-        }
-
-        with pytest.raises(ValidationError):
-            CreateJobResponse.model_validate(json_data)
-
-    def test_model_validate_invalid_enum_values(self):
-        """Test that CreateJobResponse validation fails on invalid enum values"""
-        # Invalid status
-        json_data = {
-            "job": {"status": "INVALID_STATUS", "results": []}  # Invalid status
-        }
-
-        with pytest.raises(ValidationError):
-            CreateJobResponse.model_validate(json_data)
-
-    def test_model_validate_complete_job_response(self):
-        """Test that CreateJobResponse can parse a complete job response with nested structures"""
-        json_data = {
-            "job": {
-                "status": "JOB_STATUS_COMPLETED",
-                "results": [
-                    {
-                        "report": {
-                            "result": "OUTCOME_TRUE",
-                            "sectionEvaluationReports": [
-                                {
-                                    "name": "Label1",
-                                    "message": "First section matched",
-                                    "result": "OUTCOME_TRUE",
-                                },
-                                {
-                                    "name": "Label2",
-                                    "message": "Second section did not match",
-                                    "result": "OUTCOME_FALSE",
-                                },
-                                {
-                                    "name": "Label3",
-                                    "message": "Third section evaluation failed",
-                                    "result": "OUTCOME_FAILED",
-                                },
-                            ],
-                        }
-                    }
-                ],
-            }
-        }
-
-        response = CreateJobResponse.model_validate(json_data)
-
-        # Check overall response
-        assert response.job.status == "JOB_STATUS_COMPLETED"
-
-        # Check results
-        assert len(response.job.results) == 1
-        report = response.job.results[0].report
-        assert report.result == "OUTCOME_TRUE"
-
-        # Check sections
-        sections = report.sectionEvaluationReports
-        assert len(sections) == 3
-
-        # Verify all section fields
-        assert sections[0].name == "Label1"
-        assert sections[0].message == "First section matched"
-        assert sections[0].result == "OUTCOME_TRUE"
-
-        assert sections[1].name == "Label2"
-        assert sections[1].message == "Second section did not match"
-        assert sections[1].result == "OUTCOME_FALSE"
-
-        assert sections[2].name == "Label3"
-        assert sections[2].message == "Third section evaluation failed"
-        assert sections[2].result == "OUTCOME_FAILED"

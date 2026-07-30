@@ -23,6 +23,7 @@ from typing import Dict, List, Literal, Optional, Type, TypeVar
 from pydantic import BaseModel, Field, ValidationError
 
 from nemoguardrails.http import (
+    ClosableHTTPClient,
     HTTPClient,
     HTTPResponseDecodeError,
     RetryingHTTPClient,
@@ -171,11 +172,11 @@ class ClavataClient:
         return AuthHeader(api_key=self.api_key).to_headers()
 
     @staticmethod
-    def _retrying_http_client(client: HTTPClient) -> HTTPClient:
+    def _retrying_http_client(client: HTTPClient) -> ClosableHTTPClient:
         return RetryingHTTPClient(client, _CLAVATA_RETRY_POLICY)
 
     @classmethod
-    def _create_http_client(cls) -> HTTPClient:
+    def _create_http_client(cls) -> ClosableHTTPClient:
         return cls._retrying_http_client(create_http_client())
 
     async def _make_request(
