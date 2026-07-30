@@ -82,9 +82,12 @@ Each item names the check, where to look, and what "wrong" looks like.
    POST retries only via explicit `retryable_methods={"POST"}` with an
    argument for why the endpoint is safe to resend; no hand-rolled retry
    loop around `http_call`. Then verify any retry/backoff claims in docs or
-   comments against `nemoguardrails/http/retry.py` (Retry-After IS honored,
-   backoff is jittered exponential); contributors document this from
-   guesswork.
+   comments against `nemoguardrails/http/retry.py`: backoff is full-jitter
+   exponential with a lower bound of zero, `Retry-After` is honored only
+   within `max_retry_after` and is otherwise discarded rather than capped
+   unless `clamp_retry_after=True`, and vendor override headers are ignored
+   unless `honor_retry_override_header` is set. Contributors document this
+   from guesswork.
 4. **Fail-closed behavior, tested not asserted.** Vendor errors, timeouts,
    and malformed payloads must surface as typed errors or blocks, never a
    silent allow. There must be a flow-level test of the action raising; a
