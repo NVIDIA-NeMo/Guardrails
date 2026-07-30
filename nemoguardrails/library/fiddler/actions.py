@@ -114,7 +114,6 @@ async def call_fiddler_safety_user(
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": user_message}
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -123,7 +122,7 @@ async def call_fiddler_safety_user(
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
-        **request_kwargs,
+        http_client=http_client,
     )
     return _fiddler_outcome(blocked)
 
@@ -148,7 +147,6 @@ async def call_fiddler_safety_bot(
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"input": bot_message}
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -157,7 +155,7 @@ async def call_fiddler_safety_bot(
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
-        **request_kwargs,
+        http_client=http_client,
     )
     return _fiddler_outcome(blocked)
 
@@ -183,7 +181,6 @@ async def call_fiddler_faithfulness(
         return RailOutcome.allow(metadata={"blocked": False})
 
     data = {"context": knowledge, "response": bot_message}
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     blocked = await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-response-faithfulness",
         data=data,
@@ -192,6 +189,6 @@ async def call_fiddler_faithfulness(
         threshold=fiddler_config.faithfulness_threshold,
         compare=lambda score, threshold: score <= threshold,
         default_score=1,
-        **request_kwargs,
+        http_client=http_client,
     )
     return _fiddler_outcome(blocked)

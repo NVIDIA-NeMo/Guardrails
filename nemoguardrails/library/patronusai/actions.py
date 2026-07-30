@@ -238,13 +238,12 @@ async def patronus_api_check_output(
     evaluate_config = getattr(patronus_config, "evaluate_config", {})
     success_strategy: Literal["all_pass", "any_pass"] = getattr(evaluate_config, "success_strategy", "all_pass")
     api_params = getattr(evaluate_config, "params", {})
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     response = await patronus_evaluate_request(
         api_params=api_params,
         user_input=user_input,
         bot_response=bot_response,
         provided_context=provided_context,
-        **request_kwargs,
+        http_client=http_client,
     )
     passed = check_guardrail_pass(response=response, success_strategy=success_strategy)
     metadata = {"pass": passed}

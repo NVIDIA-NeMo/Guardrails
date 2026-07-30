@@ -132,16 +132,26 @@ async def protect_text(
         raise ValueError("PS_APP_ID env variable is required for Prompt Security.")
 
     if bot_response:
-        request_kwargs = {"http_client": http_client} if http_client is not None else {}
         return _protect_text_outcome(
-            await ps_protect_api_async(ps_protect_url, ps_app_id, None, None, bot_response, **request_kwargs),
+            await ps_protect_api_async(
+                ps_protect_url,
+                ps_app_id,
+                None,
+                None,
+                bot_response,
+                http_client=http_client,
+            ),
             TransformTarget.BOT_MESSAGE,
         )
 
     if user_prompt:
-        request_kwargs = {"http_client": http_client} if http_client is not None else {}
         return _protect_text_outcome(
-            await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt, **request_kwargs),
+            await ps_protect_api_async(
+                ps_protect_url,
+                ps_app_id,
+                user_prompt,
+                http_client=http_client,
+            ),
             TransformTarget.USER_MESSAGE,
         )
 

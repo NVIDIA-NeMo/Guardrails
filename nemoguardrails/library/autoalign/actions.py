@@ -281,14 +281,13 @@ async def autoalign_input_api(
         raise ValueError("Provide the guardrails and their configuration")
     text = user_message
 
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     autoalign_response = await autoalign_infer(
         autoalign_api_url,
         text,
         task_config,
         show_toxic_phrases,
         multi_language=multi_language,
-        **request_kwargs,
+        http_client=http_client,
     )
     if autoalign_response["guardrails_triggered"] and show_autoalign_message:
         log.warning(
@@ -324,14 +323,13 @@ async def autoalign_output_api(
         raise ValueError("Provide the guardrails and their configuration")
 
     text = bot_message
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     autoalign_response = await autoalign_infer(
         autoalign_api_url,
         text,
         task_config,
         show_toxic_phrases,
         multi_language=multi_language,
-        **request_kwargs,
+        http_client=http_client,
     )
     if autoalign_response["guardrails_triggered"] and show_autoalign_message:
         log.warning(
@@ -362,13 +360,12 @@ async def autoalign_groundedness_output_api(
     if not autoalign_groundedness_api_url:
         raise ValueError("Provide the autoalign groundedness check endpoint in the config")
     text = bot_message
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     score = await autoalign_groundedness_infer(
         request_url=autoalign_groundedness_api_url,
         text=text,
         documents=documents,
         guardrails_config=guardrails_config,
-        **request_kwargs,
+        http_client=http_client,
     )
     if score < factcheck_threshold and show_autoalign_message:
         log.warning(
@@ -396,14 +393,13 @@ async def autoalign_factcheck_output_api(
     guardrails_config = getattr(autoalign_config.output, "guardrails_config", None)
     if not autoalign_factcheck_api_url:
         raise ValueError("Provide the autoalign fact check endpoint in the config")
-    request_kwargs = {"http_client": http_client} if http_client is not None else {}
     score = await autoalign_factcheck_infer(
         request_url=autoalign_factcheck_api_url,
         user_message=user_message,
         bot_message=bot_message,
         guardrails_config=guardrails_config,
         multi_language=multi_language,
-        **request_kwargs,
+        http_client=http_client,
     )
 
     if score < factcheck_threshold and show_autoalign_message:
