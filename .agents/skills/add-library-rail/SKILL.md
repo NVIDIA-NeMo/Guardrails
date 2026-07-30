@@ -337,8 +337,11 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    module-level `pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]`
    and no `vcr` mark (exemplar:
    `tests/recorded/rails/library/test_regex.py`). Recorded tests are
-   dialect-single: do not duplicate them for Colang 2 (the wire traffic is
-   identical; dialect behavior is unit-test territory). For what belongs in
+   dialect-single: do not add a Colang 2 recorded test for YOUR rail (the
+   wire traffic is identical; dialect behavior is unit-test territory). The
+   suite is allowed exactly one v2 smoke pin across all library rails, and
+   adding or moving it is a separate maintainer-directed change, not part of
+   a new-rail PR. For what belongs in
    the recorded suite versus `tests/`, follow the `recorded-tests` skill.
    Snapshot the NORMALIZED output and leave `snapshot()` empty for the
    record workflow to fill: `--inline-snapshot=create`/`fix` rewrites your
