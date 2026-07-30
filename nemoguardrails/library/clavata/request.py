@@ -43,7 +43,6 @@ from .errs import (
 log = logging.getLogger(__name__)
 
 
-_CLAVATA_API_KEY = os.environ.get("CLAVATA_API_KEY")
 _CLAVATA_RETRY_POLICY = RetryPolicy(
     max_attempts=3,
     retryable_methods=frozenset({"POST"}),
@@ -64,7 +63,7 @@ class AuthHeader:
         """
         Converts the auth token into request headers.
         """
-        api_key = self.api_key or _CLAVATA_API_KEY
+        api_key = self.api_key or os.environ.get("CLAVATA_API_KEY")
         if api_key is None:
             raise ClavataPluginConfigurationError(
                 "CLAVATA_API_KEY environment variable is not set. "
