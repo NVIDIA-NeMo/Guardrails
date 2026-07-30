@@ -80,11 +80,15 @@ Answer these in order. The first "no" that routes you to `tests/` is final.
    a rail's model, or embeddings must actually cross the wire during the test.
    If nothing crosses the wire, there is nothing to record. Write a unit test
    in `tests/` using `TestChat` with `llm_completions` (see
-   `tests/utils.py`), or `FakeLLM` directly.
+   `tests/utils.py`), or `FakeLLMModel` from
+   `nemoguardrails.testing.fake_model` directly.
 
    Red flags that mean the answer is "no":
-   - The test passes `generator=` to `stream_async`, which bypasses the LLM
-     entirely.
+   - The test passes `generator=` to `stream_async` AND no rail model or
+     vendor call is made. `generator=` bypasses the MAIN model only, so a
+     rail whose own model or HTTP call still crosses the wire remains
+     recorded-suite material; the library suite's own `stream_with_fake_main`
+     helper is built on it.
    - The only rail action involved is a local Python action registered by the
      test config (a fake checker, a deliberately failing action).
    - The assertion fires before any model call (input validation,
@@ -133,7 +137,7 @@ dialects is deterministic flow routing, which unit tests own (both-dialect
 
 The suite intentionally hosts a small number of non-vcr, pure-runtime tests
 (for example `StreamingNotSupportedError` validation, `check()` contracts
-over `FakeLLM`) because `public_api` doubles as the public API surface
+over `FakeLLMModel`) because `public_api` doubles as the public API surface
 contract used for refactor equivalence proofs. This exception is a
 convention, not an enforcement: nothing in `tests/recorded/conftest.py`
 inspects markers, so a misplaced test collects and passes silently and no
