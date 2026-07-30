@@ -102,6 +102,8 @@ async def f5_guardrails_scan(
     Args:
         text: The text to scan.
         config: The active RailsConfig; used to resolve ``rails.config.f5``.
+        http_client: Optional caller-owned HTTP client used with the F5 retry
+            policy. The action does not close an injected client.
 
     Returns:
         The rail decision with the F5 Guardrails API response as metadata.
