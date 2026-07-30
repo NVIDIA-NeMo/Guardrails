@@ -1,6 +1,6 @@
 ---
 name: "recorded-tests"
-description: "Decides when a code change requires a recorded/VCR test, whether a test belongs in tests/recorded/ or the plain unit suite under tests/, and how to structure it in either place. Use when adding, reviewing, or relocating tests that involve LLM calls, streaming, cassettes, snapshots, or provider traffic, and when changing provider clients, public API output shapes, or model-calling rails. Trigger keywords - recorded test, cassette, VCR, replay, snapshot test, tests/recorded, record-cassettes, fake cassette, pure_runtime, TestChat, FakeLLM."
+description: "Decides when a code change requires a recorded/VCR test, whether a test belongs in tests/recorded/ or the plain unit suite under tests/, and how to structure it in either place. Use when adding, reviewing, or relocating tests that involve LLM calls, streaming, cassettes, snapshots, or provider traffic, and when changing provider clients, public API output shapes, or model-calling rails. Trigger keywords - recorded test, cassette, VCR, replay, snapshot test, tests/recorded, record-cassettes, fake cassette, TestChat, FakeLLMModel."
 license: "Apache-2.0"
 ---
 
@@ -129,12 +129,15 @@ dialects is deterministic flow routing, which unit tests own (both-dialect
 The suite intentionally hosts a small number of non-vcr, pure-runtime tests
 (for example `StreamingNotSupportedError` validation, `check()` contracts
 over `FakeLLM`) because `public_api` doubles as the public API surface
-contract used for refactor equivalence proofs. This exception is enforced,
-not just documented: an autouse fixture in `tests/recorded/conftest.py` fails
-any suite test (everything under a subdirectory of `tests/recorded/`) at setup
-unless it is marked `@pytest.mark.vcr` or
-`@pytest.mark.pure_runtime(reason="...")`. Add
-`pure_runtime` only when all of these hold:
+contract used for refactor equivalence proofs. This exception is a
+convention, not an enforcement: nothing in `tests/recorded/conftest.py`
+inspects markers, so a misplaced test collects and passes silently and no
+tooling will tell you it is in the wrong suite. A non-vcr suite test carries
+only the module-level `pytestmark = [pytest.mark.recorded,
+pytest.mark.asyncio]` and no `vcr` mark (exemplar:
+`tests/recorded/rails/library/test_regex.py`). Because nothing fails for you,
+apply these criteria yourself. Add a non-vcr suite test only when all of
+these hold:
 
 - it pins a public API contract of the same surface as the neighboring
   recorded tests, or is input validation on that surface,
@@ -142,9 +145,8 @@ unless it is marked `@pytest.mark.vcr` or
   express the same public contract),
 - it needs no new config directory of its own.
 
-When in doubt, put it in `tests/`. Do not add `pure_runtime` just to make
-collection pass; the marker failing is usually the suite telling you the test
-belongs elsewhere.
+When in doubt, put it in `tests/`. Do not park a test here just because it
+collects; nothing is checking, so the discipline is yours.
 
 ## Worked examples
 
@@ -190,8 +192,9 @@ Follow `tests/recorded/README.md` exactly. The short version:
 ## Review checklist for diffs touching tests/recorded/
 
 - vcr-marked test with no committed cassette: incomplete, must be recorded.
-- New `pure_runtime` marker: challenge it against the exception criteria
-  above; it usually signals a test that belongs in `tests/`.
+- New non-vcr suite test: challenge it against the exception criteria above;
+  it usually signals a test that belongs in `tests/`. Nothing enforces this,
+  so read every test in the diff that has no `vcr` mark.
 - New config directory for a single deterministic test: the test is in the
   wrong suite.
 - Same behavior asserted in both `tests/` and `tests/recorded/` in one

@@ -272,8 +272,10 @@ Three layers, all required (per `nemoguardrails/library/README.md`):
    error branch here: a synthetic timeout or 5xx injected by test code
    belongs in the unit layer by the placement rule, and most error paths
    cannot be recorded against a live vendor anyway. Provider-backed rails use `pytest.mark.vcr` and record
-   cassettes with `make record-cassettes`; pure-Python rails use
-   `@pytest.mark.pure_runtime(reason=...)` instead. Recorded tests are
+   cassettes with `make record-cassettes`; pure-Python rails carry only the
+   module-level `pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]`
+   and no `vcr` mark (exemplar:
+   `tests/recorded/rails/library/test_regex.py`). Recorded tests are
    dialect-single: do not duplicate them for Colang 2 (the wire traffic is
    identical; dialect behavior is unit-test territory). For what belongs in
    the recorded suite versus `tests/`, follow the `recorded-tests` skill.
