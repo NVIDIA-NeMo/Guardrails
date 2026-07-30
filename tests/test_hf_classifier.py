@@ -464,6 +464,14 @@ class TestGetBackend:
         with pytest.raises(ValueError, match="Unknown hf_classifier engine"):
             get_backend(c)
 
+    def test_remote_backend_uses_injected_http_client(self):
+        client = RecordingHTTPClient()
+
+        backend = get_backend(_remote(engine="vllm"), http_client=client)
+
+        assert isinstance(backend, VLLMBackend)
+        assert backend._http_client is client
+
 
 class TestClassifyAndCheck:
     @pytest.mark.asyncio

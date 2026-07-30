@@ -19,9 +19,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import nemoguardrails.library.f5.actions as f5_actions
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
 from nemoguardrails.library.f5.actions import f5_guardrails_scan
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
 
@@ -187,6 +190,46 @@ async def test_f5_guardrails_timeout_fail_open(config_fail_open, monkeypatch):
         result = await f5_guardrails_scan(text="Hello!", config=config_fail_open, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_connection_failure_respects_policy(config, config_fail_open, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    fail_open_result = await f5_guardrails_scan(
+        text="Hello!",
+        config=config_fail_open,
+        http_client=RecordingHTTPClient([HTTPConnectionError("connection failed")]),
+    )
+
+    assert fail_open_result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
+
+    with pytest.raises(RuntimeError, match="Connection error to F5 Guardrails API"):
+        await f5_guardrails_scan(
+            text="Hello!",
+            config=config,
+            http_client=RecordingHTTPClient([HTTPConnectionError("connection failed")]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_closes_owned_shared_client(config, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    transport = RecordingHTTPClient(
+        [
+            HTTPResponse(
+                status_code=200,
+                content=b'{"result":{"outcome":"cleared"}}',
+            )
+        ]
+    )
+    monkeypatch.setattr(f5_actions, "create_http_client", lambda **kwargs: transport)
+
+    result = await f5_guardrails_scan(text="Hello!", config=config)
+
+    assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
+    assert transport.close_calls == 1
+    assert transport.requests[0].timeout == 30.0
 
 
 @pytest.mark.asyncio

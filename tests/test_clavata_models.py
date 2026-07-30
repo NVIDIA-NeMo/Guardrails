@@ -18,11 +18,13 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
+import nemoguardrails.library.clavata.request as request_module
 from nemoguardrails.http import HTTPConnectionError, HTTPResponse, RetryingHTTPClient
 from nemoguardrails.library.clavata.actions import LabelResult, PolicyResult
 from nemoguardrails.library.clavata.errs import (
     ClavataPluginAPIError,
     ClavataPluginAPIRateLimitError,
+    ClavataPluginValueError,
 )
 from nemoguardrails.library.clavata.request import (
     _CLAVATA_RETRY_POLICY,
@@ -306,6 +308,66 @@ class TestCreateJobResponse:
 
         assert job.status == "JOB_STATUS_COMPLETED"
         assert len(transport.requests) == 2
+        request = transport.requests[1]
+        assert request.method == "POST"
+        assert request.url == "https://clavata.example/v1/jobs"
+        assert request.headers == {"Authorization": "Bearer test-key"}
+        assert request.json == {
+            "content_data": [{"text": "hello"}],
+            "policy_id": "policy-id",
+            "wait_for_completion": True,
+        }
+        assert request.timeout is None
+
+    @pytest.mark.asyncio
+    async def test_clavata_client_closes_owned_shared_client(self, monkeypatch):
+        response = CreateJobResponse(
+            job=Job(
+                status="JOB_STATUS_COMPLETED",
+                results=[Result(report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[]))],
+            )
+        )
+        transport = RecordingHTTPClient([HTTPResponse(status_code=200, content=response.model_dump_json().encode())])
+        monkeypatch.setattr(request_module, "create_http_client", lambda: transport)
+
+        job = await ClavataClient(
+            "https://clavata.example",
+            api_key="test-key",
+        ).create_job("hello", "policy-id")
+
+        assert job.status == "JOB_STATUS_COMPLETED"
+        assert transport.close_calls == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("response", "error", "message"),
+        [
+            (
+                HTTPResponse(status_code=503, content=b"unavailable"),
+                ClavataPluginAPIError,
+                "Clavata call failed with status code 503",
+            ),
+            (
+                HTTPResponse(status_code=200, content=b"not-json"),
+                ClavataPluginValueError,
+                "Failed to parse Clavata response as JSON",
+            ),
+            (
+                HTTPResponse(status_code=200, content=b'{"unexpected":true}'),
+                ClavataPluginValueError,
+                "Invalid response format from Clavata API",
+            ),
+        ],
+    )
+    async def test_clavata_client_preserves_response_failure_type(self, response, error, message):
+        transport = RecordingHTTPClient([response])
+
+        with pytest.raises(error, match=message):
+            await ClavataClient(
+                "https://clavata.example",
+                api_key="test-key",
+                http_client=transport,
+            ).create_job("hello", "policy-id")
 
     @pytest.mark.asyncio
     async def test_clavata_client_does_not_retry_ambiguous_transport_failure(self):

@@ -19,7 +19,8 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.http import HTTPResponse
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
+from nemoguardrails.library.fiddler.actions import call_fiddler_guardrail
 from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
@@ -28,6 +29,38 @@ CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 def _response(payload: dict) -> HTTPResponse:
     return HTTPResponse(status_code=200, content=json.dumps(payload).encode())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("response", "log_message"),
+    [
+        (
+            HTTPResponse(status_code=503, content=b"unavailable"),
+            "Fiddler Test could not be run. Fiddler API returned status code 503",
+        ),
+        (
+            HTTPConnectionError("connection failed"),
+            "Fiddler Test request failed: connection failed",
+        ),
+    ],
+)
+async def test_fiddler_guardrail_preserves_http_failure_contract(monkeypatch, caplog, response, log_message):
+    monkeypatch.setenv("FIDDLER_API_KEY", "test-key")
+
+    result = await call_fiddler_guardrail(
+        endpoint="https://fiddler.example/guardrail",
+        data={"input": "text"},
+        guardrail_name="Fiddler Test",
+        score_key="score",
+        threshold=0.5,
+        compare=lambda score, threshold: score >= threshold,
+        default_score=0,
+        http_client=RecordingHTTPClient([response]),
+    )
+
+    assert result is False
+    assert log_message in caplog.text
 
 
 @action(is_system_action=True)
@@ -254,7 +287,15 @@ async def test_fiddler_safety_request_format_user_message(monkeypatch):
     context = {"user_message": "Hello, how are you?"}
     await call_fiddler_safety_user(config, context, http_client=client)
 
-    request_payload = client.requests[0].json
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://testfiddler.ai/v3/guardrails/ftl-safety"
+    assert request.headers == {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer test-key",
+    }
+    assert request.timeout is None
+    request_payload = request.json
     assert "data" in request_payload
     assert request_payload["data"]["input"] == "Hello, how are you?"
     assert "prompt" not in request_payload["data"]  # Old format should not be present
