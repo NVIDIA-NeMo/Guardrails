@@ -203,6 +203,33 @@ def test_inject_model_preserves_main_model_api_key_env_var(monkeypatch):
     assert headers["X-Tenant"] == "acme"
 
 
+def test_thread_id_without_datastore_returns_400(monkeypatch):
+    mock_rails = AsyncMock()
+    mock_rails.config = RailsConfig.from_content(config={"models": []})
+    monkeypatch.setattr(api, "datastore", None)
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "guardrails": {
+                    "config_id": "test_config",
+                    "thread_id": "0123456789abcdef",
+                },
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == {
+        "message": "Conversation threads are not enabled on this server.",
+        "type": "invalid_request_error",
+        "param": None,
+        "code": None,
+    }
+
+
 def test_request_body_state():
     """Test GuardrailsChatCompletionRequest state handling."""
     data = {
