@@ -29,7 +29,6 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
 from typing import TYPE_CHECKING, Optional, Union
 
-from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -62,6 +61,7 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
+from nemoguardrails.llm.call import _extract_and_remove_think_tags
 from nemoguardrails.llm.clients._errors import (
     STREAM_ERROR_TYPES,
     build_streaming_error_payload,

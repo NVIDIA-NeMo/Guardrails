@@ -29,7 +29,6 @@ pytest.importorskip("openai", reason="openai is required for these tests")
 
 from fastapi.testclient import TestClient
 
-from nemoguardrails.actions.llm.utils import _extract_http_status, _raise_llm_call_exception
 from nemoguardrails.exceptions import (
     InvalidStateError,
     LLMAuthenticationError,
@@ -44,6 +43,7 @@ from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.llm.call import _extract_http_status, _raise_llm_call_exception
 from nemoguardrails.llm.clients._errors import build_streaming_error_payload
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.server import api

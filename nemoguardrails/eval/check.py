@@ -24,7 +24,6 @@ from rich.progress import Progress
 from rich.text import Text
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.eval.models import (
     ComplianceCheckLog,
@@ -36,6 +35,7 @@ from nemoguardrails.eval.models import (
     InteractionSet,
 )
 from nemoguardrails.eval.ui.utils import EvalData
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo

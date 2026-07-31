@@ -15,7 +15,7 @@
 import json
 from typing import Any, Dict, List, Tuple, Union
 
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
+from nemoguardrails.utils import _normalize_flow_id
 
 
 def get_history_cache_key(messages: List[dict]) -> str:

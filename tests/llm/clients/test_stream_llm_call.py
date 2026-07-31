@@ -15,8 +15,8 @@
 
 import pytest
 
-from nemoguardrails.actions.llm.utils import _stream_llm_call
 from nemoguardrails.context import llm_response_metadata_var, reasoning_trace_var, tool_calls_var
+from nemoguardrails.llm.call import _stream_llm_call
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
