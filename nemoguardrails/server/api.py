@@ -381,9 +381,14 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
             break
 
     if main_model_index is not None:
-        parameters = {**models[main_model_index].parameters, **main_model.parameters}
-        models[main_model_index] = main_model
-        models[main_model_index].parameters = parameters
+        configured_model = models[main_model_index]
+        parameters = {**configured_model.parameters, **main_model.parameters}
+        models[main_model_index] = main_model.model_copy(
+            update={
+                "api_key_env_var": main_model.api_key_env_var or configured_model.api_key_env_var,
+                "parameters": parameters,
+            }
+        )
     else:
         models.append(main_model)
 

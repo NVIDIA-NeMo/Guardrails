@@ -24,6 +24,8 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
+from nemoguardrails import RailsConfig
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.server import api
 from nemoguardrails.server.api import _format_streaming_response
 from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
@@ -164,6 +166,41 @@ def test_model_field_independent_of_config_id():
     assert request_body.model == "gpt-4"
     assert request_body.guardrails.config_id == "test_config"
     assert request_body.guardrails.config_ids == ["test_config"]
+
+
+def test_inject_model_preserves_main_model_api_key_env_var(monkeypatch):
+    monkeypatch.setenv("CUSTOM_MAIN_API_KEY", "main-key")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://request.example/v1")
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "model": "configured-model",
+                    "api_key_env_var": "CUSTOM_MAIN_API_KEY",
+                    "parameters": {
+                        "base_url": "http://configured.example/v1",
+                        "default_headers": {"X-Tenant": "acme"},
+                    },
+                }
+            ]
+        }
+    )
+
+    injected = api._inject_model(config, "requested-model")
+    main_model = injected.models[0]
+    headers = ModelEngine(main_model)._prepare_request([{"role": "user", "content": "hi"}]).headers
+
+    assert main_model.model == "requested-model"
+    assert main_model.engine == "custom_llm"
+    assert main_model.api_key_env_var == "CUSTOM_MAIN_API_KEY"
+    assert main_model.parameters == {
+        "base_url": "http://request.example/v1",
+        "default_headers": {"X-Tenant": "acme"},
+    }
+    assert headers["Authorization"] == "Bearer main-key"
+    assert headers["X-Tenant"] == "acme"
 
 
 def test_request_body_state():
