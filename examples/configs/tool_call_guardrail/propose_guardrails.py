@@ -22,6 +22,7 @@ nothing — default-deny holds until a human flips a candidate to approved.
 
     python3 propose_guardrails.py --docs advisories/
     python3 propose_guardrails.py --docs advisories/ --extractor llm
+    python3 propose_guardrails.py --docs advisories_hermes/ --policies hermes
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from example_policies import PRINCIPAL_ATTRS, TOOL_REGISTRY, TOOL_SCHEMAS, VULNERABLE_GUARD  # noqa: E402
 from scanner.scan import KeywordExtractor, ScanContext, _finding_to_dict, scan  # noqa: E402
 from synthesis.catalog import CLASS_DESCRIPTIONS, CLASS_REQUIRED_PARAMS, CLASS_TO_FACTORY  # noqa: E402
 from synthesis.proposals import dropped_findings, find_gaps, synthesize  # noqa: E402
@@ -43,6 +43,12 @@ from synthesis.review import write_review_queue  # noqa: E402
 def main() -> int:
     p = argparse.ArgumentParser(description="Scan docs and propose tool-call guardrails (no apply).")
     p.add_argument("--docs", default="advisories", help="docs folder to scan")
+    p.add_argument(
+        "--policies",
+        choices=("example", "hermes"),
+        default="example",
+        help="tool registry to scan against: example (coding/dev agent) or hermes",
+    )
     p.add_argument("--extractor", choices=("keyword", "llm"), default="keyword", help="keyword (offline) or llm")
     p.add_argument("--model", default="azure/openai/gpt-4o-mini", help="model id for the llm extractor")
     p.add_argument("--base-url", default="https://inference-api.nvidia.com/v1", help="OpenAI-compatible base URL")
@@ -50,6 +56,14 @@ def main() -> int:
     p.add_argument("--findings-out", default="findings.json", help="where to write the scanner findings")
     p.add_argument("--queue-out", default="review_queue.json", help="where to write the unapproved review queue")
     args = p.parse_args()
+
+    import importlib  # noqa: E402 (deferred so --help works without the module)
+
+    _policies = importlib.import_module("hermes_policies" if args.policies == "hermes" else "example_policies")
+    PRINCIPAL_ATTRS = _policies.PRINCIPAL_ATTRS
+    TOOL_REGISTRY = _policies.TOOL_REGISTRY
+    TOOL_SCHEMAS = _policies.TOOL_SCHEMAS
+    VULNERABLE_GUARD = _policies.VULNERABLE_GUARD
 
     ctx = ScanContext(
         docs_dir=args.docs,
