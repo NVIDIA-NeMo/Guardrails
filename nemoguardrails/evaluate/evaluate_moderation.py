@@ -20,8 +20,8 @@ import os
 import tqdm
 
 from nemoguardrails import LLMRails
-from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.evaluate.utils import load_dataset
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig

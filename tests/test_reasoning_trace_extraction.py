@@ -15,8 +15,8 @@
 
 import pytest
 
-from nemoguardrails.actions.llm.utils import _store_reasoning_traces
 from nemoguardrails.context import reasoning_trace_var
+from nemoguardrails.llm.call import _store_reasoning_traces
 from nemoguardrails.types import LLMResponse
 from tests.utils import FakeLLMModel
 

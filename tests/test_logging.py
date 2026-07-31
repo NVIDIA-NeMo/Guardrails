@@ -17,8 +17,8 @@ import asyncio
 
 import pytest
 
-from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
+from nemoguardrails.llm.call import _log_prompt, _update_token_stats
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.logging.processing_log import compute_generation_log, processing_log_var

@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
+from nemoguardrails.utils import _normalize_flow_id
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import RailsConfig

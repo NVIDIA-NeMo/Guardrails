@@ -18,9 +18,9 @@ from typing import Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.call import llm_call, warn_if_truncated
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo

@@ -17,15 +17,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from nemoguardrails.actions.llm.utils import (
-    _log_completion,
-    _store_reasoning_traces,
-    _store_tool_calls,
-    _stream_llm_call,
-    _update_token_stats_from_chunk,
-    llm_call,
-    warn_if_truncated,
-)
 from nemoguardrails.context import (
     llm_call_info_var,
     llm_response_metadata_var,
@@ -37,6 +28,15 @@ from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.llm_adapter import (
     LangChainLLMAdapter,
     _infer_provider_from_module,
+)
+from nemoguardrails.llm.call import (
+    _log_completion,
+    _store_reasoning_traces,
+    _store_tool_calls,
+    _stream_llm_call,
+    _update_token_stats_from_chunk,
+    llm_call,
+    warn_if_truncated,
 )
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats

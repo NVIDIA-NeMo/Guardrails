@@ -32,8 +32,6 @@ from nemoguardrails.actions.llm.utils import (
     get_first_nonempty_line,
     get_first_user_intent,
     get_last_user_utterance_event_v2_x,
-    llm_call,
-    remove_action_intent_identifiers,
 )
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, SpecOp
 from nemoguardrails.colang.v2_x.runtime.errors import LlmResponseError
@@ -53,6 +51,8 @@ from nemoguardrails.context import (
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import remove_action_intent_identifiers
 from nemoguardrails.llm.filters import colang
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging import verbose

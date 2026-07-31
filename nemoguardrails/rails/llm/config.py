@@ -31,10 +31,6 @@ from pydantic import (
 )
 
 from nemoguardrails import utils
-from nemoguardrails.colang import parse_colang_file, parse_flow_elements
-from nemoguardrails.colang.v1_0.runtime.flows import _get_flow_params, _normalize_flow_id
-from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
-from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
@@ -46,6 +42,7 @@ from nemoguardrails.rails.llm.rails_config_fields import (
     resolve_config_export,
     validate_no_config_export_shadowing,
 )
+from nemoguardrails.utils import _get_flow_params, _normalize_flow_id
 
 log = logging.getLogger(__name__)
 
@@ -789,6 +786,10 @@ def _parse_colang_files_recursively(
 
     If there are imports, they will be imported recursively
     """
+    from nemoguardrails.colang import parse_colang_file
+    from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
+    from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+
     colang_version = raw_config.get("colang_version", "1.0")
     _rails_parsed_config = None
 
@@ -1246,6 +1247,8 @@ class RailsConfig(BaseModel):
         config: Optional[dict] = None,
     ):
         """Loads a configuration from the provided colang/YAML content/config dict."""
+        from nemoguardrails.colang import parse_colang_file
+
         raw_config = {}
 
         if config:
@@ -1296,6 +1299,8 @@ class RailsConfig(BaseModel):
     @classmethod
     def parse_object(cls, obj):
         """Parses a configuration object from a given dictionary."""
+        from nemoguardrails.colang import parse_flow_elements
+
         # If we have flows, we need to process them further from CoYML to CIL, but only for
         # version 1.0.
 
