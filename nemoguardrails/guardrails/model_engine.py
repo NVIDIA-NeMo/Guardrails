@@ -25,8 +25,9 @@ import logging
 import os
 import time
 from collections.abc import AsyncGenerator, Mapping
+from contextlib import nullcontext
 from types import MappingProxyType
-from typing import Any, NamedTuple, Optional, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 
 import aiohttp
 from aiohttp_retry import RetryClient
@@ -40,11 +41,30 @@ from nemoguardrails.guardrails._http import (
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
+from nemoguardrails.guardrails.telemetry import (
+    llm_call_span,
+    set_llm_call_content,
+    set_llm_request_attributes,
+    set_llm_response_attributes,
+)
 from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.tracing.constants import (
+    llm_operation_duration,
+    record_time_per_output_chunk,
+    record_time_to_first_chunk,
+    record_token_usage,
+)
 from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
+if TYPE_CHECKING:
+    from opentelemetry.trace import Tracer
+
 log = logging.getLogger(__name__)
+
+# The OTEL GenAI operation name for every call this engine makes; it only speaks
+# /v1/chat/completions.
+_OPERATION_NAME = "chat"
 
 # Default base URLs by engine type
 _ENGINE_BASE_URLS = {
@@ -104,6 +124,41 @@ class _RequestParams(NamedTuple):
     url: str
     headers: dict[str, str]
     body: dict[str, Any]
+
+
+# TODO: duplicates OpenAIChatModel._to_messages in
+# nemoguardrails/llm/models/openai_chat.py . Needs consolidating.
+def _to_wire_messages(prompt: str | list) -> LLMMessages:
+    """Normalize an ``LLMModel`` prompt into OpenAI-format message dicts.
+
+    This is the ``LLMModel`` protocol boundary. Library rail actions render a
+    task prompt with ``LLMTaskManager.render_task_prompt``, which returns either
+    a string or a list of ``{"type": ..., "content": ...}`` dicts depending on
+    whether the task prompt was configured with ``content:`` or ``messages:``;
+    ``llm_call`` then hands over a string or a list of ``ChatMessage``. Both
+    shapes are converted here. A list of dicts that is already in wire form
+    passes through untouched.
+
+    ``ChatMessage`` conversion drops ``provider_metadata`` — it is an internal
+    field the completions endpoint would reject — and re-encodes tool-call
+    arguments as a JSON string, which is the wire shape the API expects. It also
+    maps the task manager's ``type`` key onto ``role``, which the API requires.
+    """
+    if isinstance(prompt, str):
+        return [{"role": "user", "content": prompt}]
+    if not prompt or not isinstance(prompt[0], ChatMessage):
+        return prompt
+
+    messages: LLMMessages = []
+    for message in prompt:
+        wire_message = message.to_dict()
+        wire_message.pop("provider_metadata", None)
+        for tool_call in wire_message.get("tool_calls", []):
+            function = tool_call.get("function", {})
+            if isinstance(function.get("arguments"), dict):
+                function["arguments"] = json.dumps(function["arguments"])
+        messages.append(wire_message)
+    return messages
 
 
 def _parse_usage(usage_dict: dict) -> UsageInfo:
@@ -454,20 +509,54 @@ class ModelEngineError(Exception):
         self.status = status
         super().__init__(message)
 
+    @property
+    def status_code(self) -> int | None:
+        """The upstream HTTP status, under the name status extractors look for.
+
+        A rail reaching the model through ``llm_call`` has this error wrapped into
+        ``LLMCallException``, and ``nemoguardrails.llm.call._extract_http_status``
+        duck-types on ``status_code`` — the OpenAI SDK and httpx spelling.  Without
+        this alias the upstream status is dropped and the server reports 500 for
+        what was really a 429 or 503, which SDKs retry differently.  Callers that
+        hold the concrete type can keep reading ``status``.
+        """
+        return self.status
+
 
 class ModelEngine(BaseEngine):
     """Wraps a single Model config and makes HTTP calls to its endpoint.
 
     Each ModelEngine owns its own RetryClient with per-model timeout,
     retry, and connection pool settings.
+
+    Implements the :class:`~nemoguardrails.types.LLMModel` protocol through
+    ``generate_async`` / ``stream_async``, so library rail actions can reach an
+    IORails-configured model through ``nemoguardrails.llm.call.llm_call`` the
+    same way they reach any other backend.
     """
 
-    def __init__(self, model_config: Model) -> None:
-        """Resolve base URL, API key, and retry settings from the model config."""
+    def __init__(
+        self,
+        model_config: Model,
+        *,
+        tracer: Optional["Tracer"] = None,
+        metrics_enabled: bool = False,
+        content_capture_enabled: bool = False,
+    ) -> None:
+        """Resolve base URL, API key, and retry settings from the model config.
+
+        The telemetry arguments carry the OTEL instrumentation for every call
+        this engine makes.  They live here rather than one level up in
+        ``EngineRegistry`` because rails reach the model through
+        ``generate_async``, not through ``EngineRegistry.model_call``.
+        """
         self.model_config = model_config
         self.model_name: str = model_config.model or ""
         self.base_url: str = self._resolve_base_url()
         self.api_key: Optional[str] = self._resolve_api_key(model_config.engine)
+        self._tracer = tracer
+        self._metrics_enabled = metrics_enabled
+        self._content_capture_enabled = content_capture_enabled
 
         params = model_config.parameters or {}
         super().__init__(
@@ -486,6 +575,25 @@ class ModelEngine(BaseEngine):
         self.body_param_defaults: Mapping[str, Any] = MappingProxyType(
             {key: value for key, value in params.items() if key not in _RESERVED_LLM_PARAMETERS}
         )
+
+    @property
+    def provider_name(self) -> str:
+        """The provider this model is served by ('nim', 'openai', ...).
+
+        Falls back to ``"unknown"`` so telemetry always carries a
+        ``gen_ai.provider.name`` label rather than dropping the attribute.
+        """
+        return self.model_config.engine or "unknown"
+
+    @property
+    def provider_url(self) -> str:
+        """The OpenAI-compatible API root for this model.
+
+        ``base_url`` is stored without the ``/v1`` suffix (see
+        ``_resolve_base_url``), so it is re-appended here to match what
+        ``OpenAIChatModel.provider_url`` reports for the same endpoint.
+        """
+        return f"{self.base_url}/v1"
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type.
@@ -831,6 +939,201 @@ class ModelEngine(BaseEngine):
         """
         async for chunk in self.stream_call(messages, **kwargs):
             yield chunk
+
+    def _merge_params(self, stop: Optional[list[str]], kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Merge the model's configured body defaults under the per-call kwargs.
+
+        ``stop=None`` means "not specified by this call", so a model-level
+        ``stop`` default survives rather than being overwritten with ``None``.
+        """
+        merged = {**self.body_param_defaults, **kwargs}
+        if stop is not None:
+            merged["stop"] = stop
+        return merged
+
+    def _duration_metric(self):
+        """Return the operation-duration metric context, or a no-op when metrics are off."""
+        if not self._metrics_enabled:
+            return nullcontext()
+        return llm_operation_duration(self.model_name, self.provider_name, _OPERATION_NAME)
+
+    async def generate_async(
+        self,
+        prompt: str | list,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Generate a completion, implementing the ``LLMModel`` protocol.
+
+        Adapter only: it normalizes *prompt* — a plain string or a list of
+        ``ChatMessage``, which is what ``llm_call`` passes on behalf of library
+        rail actions — into wire messages and delegates.  All the work is in
+        ``generate_from_messages``.
+
+        Raises:
+            ModelEngineError: If the request fails or the response format is unexpected.
+        """
+        return await self.generate_from_messages(_to_wire_messages(prompt), stop=stop, **kwargs)
+
+    async def generate_from_messages(
+        self,
+        messages: LLMMessages,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Generate a completion from OpenAI-format messages.
+
+        The instrumented entry point every caller ends up at: rails through
+        ``generate_async``, main generation directly from
+        ``EngineRegistry.model_call``, which already holds wire messages and so
+        does not need the protocol adapter.  The model's configured
+        ``parameters`` supply request-body defaults which *kwargs* override.
+
+        Raises:
+            ModelEngineError: If the request fails or the response format is unexpected.
+        """
+        params = self._merge_params(stop, kwargs)
+
+        # Request params are known before the call, so they land on the span
+        # even if the call raises.  Response, usage, and content attrs are set
+        # inside the span context so the helpers see the live span; all three
+        # are skipped on exception, which never reaches them.
+        with llm_call_span(self._tracer, self.model_name, self.provider_name, _OPERATION_NAME) as span:
+            set_llm_request_attributes(span, params)
+            with self._duration_metric():
+                result = await self.chat_completion(messages, **params)
+            set_llm_response_attributes(
+                span,
+                model=result.model,
+                response_id=result.request_id,
+                finish_reason=result.finish_reason,
+                usage=result.usage,
+            )
+            if self._content_capture_enabled:
+                set_llm_call_content(span, messages, result.content)
+
+        if self._metrics_enabled:
+            record_token_usage(self.model_name, self.provider_name, _OPERATION_NAME, result.usage)
+
+        return result
+
+    async def stream_async(
+        self,
+        prompt: str | list,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[LLMResponseChunk, None]:
+        """Stream a completion, implementing the ``LLMModel`` protocol.
+
+        The streaming counterpart of ``generate_async``: normalize *prompt* into
+        wire messages, then delegate to ``stream_from_messages``.
+
+        Raises:
+            ModelEngineError: If the request fails after all retries.
+        """
+        stream = self.stream_from_messages(_to_wire_messages(prompt), stop=stop, **kwargs)
+        try:
+            async for chunk in stream:
+                yield chunk
+        finally:
+            # Close the delegate explicitly.  A consumer that abandons this
+            # generator only unwinds *this* one; without the aclose the
+            # instrumented core stays suspended at its yield until garbage
+            # collection, so the duration metric's `finally` never runs.
+            await stream.aclose()
+
+    async def stream_from_messages(
+        self,
+        messages: LLMMessages,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[LLMResponseChunk, None]:
+        """Stream a completion from OpenAI-format messages.
+
+        The streaming counterpart of ``generate_from_messages``.  Parameter
+        merging matches it; the chunk contract is ``stream_call``'s, including
+        the terminal usage-only chunk.
+
+        Raises:
+            ModelEngineError: If the request fails after all retries.
+        """
+        params = self._merge_params(stop, kwargs)
+
+        # Providers spread the response fields across the SSE chunks —
+        # OpenAI-compatible engines only populate ``usage`` on the terminal
+        # chunk (when ``stream_options.include_usage=true``) and finish_reason
+        # likewise arrives last — so each field keeps its latest non-None value.
+        captured_usage: Optional[UsageInfo] = None
+        captured_model: Optional[str] = None
+        captured_response_id: Optional[str] = None
+        captured_finish_reason: Optional[str] = None
+        # Accumulate streamed delta_content here when content capture is on;
+        # joined and recorded onto the LLM span at stream end.  The list is
+        # allocated unconditionally (cost: one empty list per stream); the
+        # per-chunk appends are gated on the flag so the disabled path
+        # doesn't carry chunk strings in memory.
+        content_parts: list[str] = []
+
+        with llm_call_span(self._tracer, self.model_name, self.provider_name, _OPERATION_NAME) as span:
+            set_llm_request_attributes(span, params, stream=True)
+            with self._duration_metric():
+                # Gate timing-state setup on ``_metrics_enabled`` so the cold
+                # path skips ``time.monotonic()`` and the per-chunk bookkeeping
+                # entirely.  ``t0`` defaults to ``0.0`` in the disabled path so
+                # the type stays a plain ``float`` — it's never read there.
+                t0 = time.monotonic() if self._metrics_enabled else 0.0
+                last_chunk_time: Optional[float] = None
+                async for chunk in self.stream_chat_completion(messages, **params):
+                    if self._metrics_enabled:
+                        # Per OTEL semconv, "first chunk" / "output chunk" mean
+                        # content-bearing chunks — gate on ``delta_content`` /
+                        # ``delta_reasoning`` to skip the terminal usage frame
+                        # and any other cosmetic SSE events the parser leaves in
+                        # place.
+                        if chunk.delta_content or chunk.delta_reasoning:
+                            now = time.monotonic()
+                            if last_chunk_time is None:
+                                record_time_to_first_chunk(
+                                    self.model_name, self.provider_name, _OPERATION_NAME, now - t0
+                                )
+                            else:
+                                record_time_per_output_chunk(
+                                    self.model_name, self.provider_name, _OPERATION_NAME, now - last_chunk_time
+                                )
+                            last_chunk_time = now
+                    # Captured regardless of ``_metrics_enabled`` because they
+                    # feed the span's response/usage attrs as well as the metric.
+                    if chunk.model is not None:
+                        captured_model = chunk.model
+                    if chunk.request_id is not None:
+                        captured_response_id = chunk.request_id
+                    if chunk.finish_reason is not None:
+                        captured_finish_reason = chunk.finish_reason
+                    if chunk.usage is not None:
+                        captured_usage = chunk.usage
+                    if self._content_capture_enabled and chunk.delta_content:
+                        content_parts.append(chunk.delta_content)
+                    yield chunk
+            set_llm_response_attributes(
+                span,
+                model=captured_model,
+                response_id=captured_response_id,
+                finish_reason=captured_finish_reason,
+                usage=captured_usage,
+            )
+            # Empty ``content_parts`` -> output_text=None so we don't claim an
+            # empty assistant response (matches iorails.py's request-span
+            # streaming path).
+            if self._content_capture_enabled:
+                output_text = "".join(content_parts) if content_parts else None
+                set_llm_call_content(span, messages, output_text)
+
+        if self._metrics_enabled:
+            record_token_usage(self.model_name, self.provider_name, _OPERATION_NAME, captured_usage)
 
     def parse_tools(self, llm_params: Optional[dict]) -> Toolset:
         """Parse the provider tool block in ``llm_params`` into a ``Toolset``.
