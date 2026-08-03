@@ -120,6 +120,75 @@ async def test_log_prompt_with_message_list():
     assert "Hi there" in llm_call_info.prompt
 
 
+class TestLLMCallInfoVarLifetime:
+    """Pin the lifetime contract of llm_call_info_var.
+
+    Unlike IORails' ``_rail_llm_call_var``, which is cleared on entry and drained with a
+    read-and-clear, ``llm_call_info_var`` is never reset by production code. Consumers must
+    therefore set a fresh ``LLMCallInfo`` before each call and read it immediately after,
+    in the same task. These tests document that contract so a consumer built on top of it
+    cannot silently attribute a stale call to a rail that made none.
+    """
+
+    @pytest.mark.asyncio
+    async def test_var_is_not_cleared_after_a_call_completes(self):
+        """A completed call leaves its LLMCallInfo in the context."""
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get() is not None
+
+    @pytest.mark.asyncio
+    async def test_consecutive_calls_reuse_the_same_info_object(self):
+        """Without a fresh set between calls, the second call mutates the first's record."""
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+        first = llm_call_info_var.get()
+
+        await mock_llm_call()
+        second = llm_call_info_var.get()
+
+        assert second is first
+
+    @pytest.mark.asyncio
+    async def test_a_stale_task_label_survives_into_an_unlabelled_call(self):
+        """An unlabelled call inherits the previous call's task, misattributing it."""
+        llm_call_info_var.set(LLMCallInfo(task="content_safety_check_input"))
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get().task == "content_safety_check_input"
+
+    @pytest.mark.asyncio
+    async def test_clearing_before_a_call_prevents_misattribution(self):
+        """Clearing on entry is what makes a per-call read trustworthy."""
+        llm_call_info_var.set(LLMCallInfo(task="content_safety_check_input"))
+
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get().task is None
+
+
 @pytest.mark.asyncio
 async def test_log_prompt_with_chat_message_list():
     """Test that ChatMessage prompts are logged with the same labels as dict prompts."""
