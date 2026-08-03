@@ -161,27 +161,31 @@ class EngineRegistry:
         if self._running:
             return
 
-        started: list[BaseEngine] = []
+        started: list[tuple[str, BaseEngine]] = []
         self._http_client = create_http_client()
 
         for name, engine in self._engines.items():
             try:
                 await engine.start()
-                started.append(engine)
+                started.append((name, engine))
             except Exception as e:
                 log.error("Error starting engine %s: %s", name, e)
-                for eng in started:
-                    try:
-                        await eng.stop()
-                    except Exception:
-                        pass
-                try:
-                    await self._close_http_client()
-                except Exception:
-                    pass
+                await self._rollback_start(started)
                 raise RuntimeError(f"Failed to start engine: Engine {name}: exception {e}") from e
 
         self._running = True
+
+    async def _rollback_start(self, started: list[tuple[str, BaseEngine]]) -> None:
+        """Release everything a partial ``start`` brought up."""
+        for name, engine in started:
+            try:
+                await engine.stop()
+            except Exception as stop_error:
+                log.warning("Error stopping engine %s during start rollback: %s", name, stop_error)
+        try:
+            await self._close_http_client()
+        except Exception as close_error:
+            log.warning("Error closing the managed HTTP client during start rollback: %s", close_error)
 
     async def stop(self) -> None:
         """Stop all engine clients and the managed HTTP client.

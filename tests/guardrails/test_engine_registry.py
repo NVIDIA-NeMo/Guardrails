@@ -16,6 +16,7 @@
 """Unit tests for engine_registry module."""
 
 import json
+import logging
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,7 +27,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.context import llm_call_info_var, llm_response_metadata_var, llm_stats_var
 from nemoguardrails.guardrails import engine_registry as engine_registry_module
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
@@ -1140,7 +1140,13 @@ class TestEngineRegistryStreamModelCallMetrics:
         ``record_token_usage`` line after the ``with`` block doesn't
         run (GeneratorExit unwinds the with-stack but skips trailing
         code).  Duration still records via the ``finally`` in
-        ``llm_operation_duration``."""
+        ``llm_operation_duration``.
+
+        This also pins ``stream_model_call``'s ``finally: await stream.aclose()``.
+        The metric context lives one generator down, in
+        ``ModelEngine.stream_from_messages``; closing this generator only unwinds
+        this one, so without that explicit close the delegate stays suspended at
+        its yield and the duration is not recorded until garbage collection."""
         engine = manager_with_metrics._get_engine("main", ModelEngine)
         engine.stream_chat_completion = _mock_stream(
             LLMResponseChunk(delta_content="Hello"),
@@ -1759,6 +1765,46 @@ class TestEngineRegistryHTTPClient:
         assert fake_http_client.close_count == 1
 
     @pytest.mark.asyncio
+    async def test_start_rollback_logs_a_failing_client_close(self, manager, monkeypatch, caplog):
+        """A close() failure during rollback is logged, not silently swallowed.
+
+        The engine-start error must still be what propagates — a cleanup failure
+        raised from the rollback would replace the reason the start failed — so the
+        log line is the only signal that the client leaked.
+        """
+        monkeypatch.setattr(
+            engine_registry_module,
+            "create_http_client",
+            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
+        )
+        for name, engine in manager._engines.items():
+            engine.stop = AsyncMock()
+            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="Failed to start engine"):
+                await manager.start()
+
+        assert "socket stuck" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_start_rollback_logs_a_failing_engine_stop(self, manager, fake_http_client, caplog):
+        """A stop() failure during rollback names the engine that failed to release.
+
+        Rollback continues past it (pinned by ``test_start_rollback_swallows_stop_errors``);
+        this pins that the failure is reported rather than lost.
+        """
+        for name, engine in manager._engines.items():
+            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
+            engine.stop = AsyncMock(side_effect=RuntimeError("close failed") if name == "main" else None)
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="Failed to start engine"):
+                await manager.start()
+
+        assert "Error stopping engine main during start rollback" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_stop_reports_a_failing_client_close(self, mocked_engine_lifecycle, monkeypatch):
         """A close() failure is surfaced, not swallowed, and still clears running state."""
         monkeypatch.setattr(
@@ -1772,22 +1818,6 @@ class TestEngineRegistryHTTPClient:
             await mocked_engine_lifecycle.stop()
 
         assert not mocked_engine_lifecycle._running
-
-
-@pytest.fixture
-def reset_llm_call_context():
-    """Reset the context variables ``llm_call`` writes, before and after a test.
-
-    ``reasoning_trace_var``, ``tool_calls_var``, and ``explain_info_var`` already
-    have autouse resets in ``tests/conftest.py``; these three do not.
-    """
-    call_info_token = llm_call_info_var.set(None)
-    stats_token = llm_stats_var.set(None)
-    metadata_token = llm_response_metadata_var.set(None)
-    yield
-    llm_call_info_var.reset(call_info_token)
-    llm_stats_var.reset(stats_token)
-    llm_response_metadata_var.reset(metadata_token)
 
 
 class TestRailCallTelemetryParity:

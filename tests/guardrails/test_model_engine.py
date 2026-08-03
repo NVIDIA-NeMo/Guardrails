@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
-from nemoguardrails.context import llm_call_info_var, llm_response_metadata_var, llm_stats_var
+from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
@@ -132,22 +132,6 @@ def _started_engine(client, **model_kwargs) -> ModelEngine:
 def _posted_body(mock_client) -> dict:
     """Return the JSON body of the single request made through ``mock_client``."""
     return mock_client.post.call_args[1]["json"]
-
-
-@pytest.fixture
-def reset_llm_call_context():
-    """Reset the context variables ``llm_call`` writes, before and after a test.
-
-    ``reasoning_trace_var``, ``tool_calls_var``, and ``explain_info_var`` already
-    have autouse resets in ``tests/conftest.py``; these three do not.
-    """
-    call_info_token = llm_call_info_var.set(None)
-    stats_token = llm_stats_var.set(None)
-    metadata_token = llm_response_metadata_var.set(None)
-    yield
-    llm_call_info_var.reset(call_info_token)
-    llm_stats_var.reset(stats_token)
-    llm_response_metadata_var.reset(metadata_token)
 
 
 class TestModelEngineError:
