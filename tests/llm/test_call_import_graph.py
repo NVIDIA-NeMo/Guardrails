@@ -96,7 +96,10 @@ def _imports_of(module: str, path: Path) -> Set[str]:
             else:
                 visit(ast.iter_child_nodes(node))
 
-    visit(ast.iter_child_nodes(ast.parse(path.read_text(), filename=str(path))))
+    # Read bytes so ``ast`` applies the PEP 263 source encoding rather than the platform
+    # default. ``read_text()`` decodes as cp1252 on Windows, which fails on the non-ASCII
+    # refusal strings in library/content_safety/actions.py.
+    visit(ast.iter_child_nodes(ast.parse(path.read_bytes(), filename=str(path))))
     return {name for name in found if name == PACKAGE or name.startswith(f"{PACKAGE}.")}
 
 
@@ -188,7 +191,7 @@ def test_moved_helpers_are_still_importable_from_their_previous_locations():
     assert _get_flow_params is canonical_params
 
 
-def test_function_local_imports_do_not_count_as_import_time_dependencies():
+def test_function_local_imports_do_not_count_as_import_time_dependencies(tmp_path):
     """The walker distinguishes a deferred import from an eager one.
 
     Several Colang edges were cut by moving the import into the one function that needs
@@ -196,12 +199,10 @@ def test_function_local_imports_do_not_count_as_import_time_dependencies():
     behavior the other assertions rely on.
     """
     source = "import nemoguardrails.context\n\ndef f():\n    import nemoguardrails.colang.v1_0.runtime.flows\n"
-    tmp = PACKAGE_ROOT / "_import_graph_probe.py"
-    tmp.write_text(source)
-    try:
-        imports = _imports_of("nemoguardrails._import_graph_probe", tmp)
-    finally:
-        tmp.unlink()
+    probe = tmp_path / "_import_graph_probe.py"
+    probe.write_text(source, encoding="utf-8")
+
+    imports = _imports_of("nemoguardrails._import_graph_probe", probe)
 
     assert "nemoguardrails.context" in imports
     assert not any(name.startswith(FORBIDDEN_PREFIX) for name in imports)
