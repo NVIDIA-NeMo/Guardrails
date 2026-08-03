@@ -213,8 +213,35 @@ def _setup_llm_call_info(model: LLMModel, model_name: Optional[str], model_provi
     llm_call_info.llm_provider_name = model_provider or model.provider_name
 
 
-def _log_prompt(prompt: Union[str, List[dict]]) -> None:
-    """Log the prompt to LLM call info."""
+def _prompt_message_role(message: Union[dict, ChatMessage]) -> str:
+    """Return a message's role, accepting either a raw dict or a ``ChatMessage``.
+
+    ``Role`` is a ``str`` subclass, so it is returned as-is: it maps correctly through
+    ``type_map`` and supports ``str`` methods. Passing it through ``str()`` would yield
+    ``"Role.USER"`` because ``Enum.__str__`` wins over the ``str`` mixin.
+    """
+    if isinstance(message, ChatMessage):
+        return message.role or ""
+    return message.get("role") or message.get("type") or ""
+
+
+def _prompt_message_content(message: Union[dict, ChatMessage]) -> str:
+    """Return a message's textual content, or "" when it is absent or non-textual.
+
+    Multimodal payloads carry a list of content parts rather than a string; those are
+    omitted from the logged prompt, matching the previous dict-only behavior.
+    """
+    content = message.content if isinstance(message, ChatMessage) else message.get("content", "")
+    return content if isinstance(content, str) else ""
+
+
+def _log_prompt(prompt: Union[str, List[dict], List[ChatMessage]]) -> None:
+    """Log the prompt to LLM call info.
+
+    Accepts the normalized ``ChatMessage`` form as well as raw dicts, because
+    ``llm_call`` logs the prompt before ``_ensure_chat_messages`` runs and callers may
+    already supply ``ChatMessage`` objects.
+    """
     llm_call_info = llm_call_info_var.get()
     if llm_call_info is None:
         return
@@ -235,13 +262,10 @@ def _log_prompt(prompt: Union[str, List[dict]]) -> None:
         formatted_prompt = "\n" + "\n".join(
             [
                 "[cyan]"
-                + type_map.get(
-                    msg.get("role") or msg.get("type") or "",
-                    (msg.get("role") or msg.get("type") or "").title(),
-                )
+                + type_map.get(_prompt_message_role(msg), _prompt_message_role(msg).title())
                 + "[/]"
                 + "\n"
-                + (msg.get("content", "") if isinstance(msg.get("content", ""), str) else "")
+                + _prompt_message_content(msg)
                 for msg in prompt
             ]
         )
