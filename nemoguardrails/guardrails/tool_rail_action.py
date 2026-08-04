@@ -33,8 +33,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Callable, Optional
 
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id
-from nemoguardrails.guardrails.telemetry import action_span, record_span_error
+from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.rail_guard import rail_error_result
+from nemoguardrails.guardrails.telemetry import action_span
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -55,14 +56,12 @@ class ToolRailAction:
     def _guarded(self, check: Callable[[], RailResult]) -> RailResult:
         """Run *check* inside an action span, converting any error into a block.
 
-        Mirrors ``RailAction``'s error contract: an unexpected exception is recorded
-        on the span and returned as ``RailResult(is_safe=False, ...)`` so a malformed
+        Shares the engine's fail-closed contract with every other rail through
+        :func:`~nemoguardrails.guardrails.rail_guard.rail_error_result`, so a malformed
         input or a rail bug fails closed rather than crashing the request.
         """
         with action_span(self._tracer, self.action_name) as span:
             try:
                 return check()
             except Exception as e:
-                record_span_error(span, e)
-                log.error("[%s] %s failed: %s", get_request_id(), self.action_name, e)
-                return RailResult(is_safe=False, reason=f"{self.action_name} error: {e}")
+                return rail_error_result(span, self.action_name, e)
