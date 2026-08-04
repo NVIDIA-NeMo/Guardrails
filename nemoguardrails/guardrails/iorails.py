@@ -1862,6 +1862,16 @@ class IORails(BaseGuardrails):
 
         def _mark_reject_input(reason, first_completed, cancellation_event, param):
             spec_stats["first_completed"] = first_completed
+            # ``first_rejector`` is pinned to input_rails, so a tool-result rejection
+            # reports as input_rails in the span while the payload says tool_input_rails.
+            # ``param`` could be assigned directly here: it is already exactly
+            # "input_rails" or "tool_input_rails", so existing rejections keep their
+            # current value and only tool rejections change.  Not done yet because
+            # ``first_rejector`` draws from the SPECULATIVE_FIRST_COMPLETED_* constants,
+            # which have no tool_input_rails member — adding one introduces a span
+            # attribute value that only the streaming path can ever emit (non-streaming
+            # runs tool rails before speculation), and that consumers grouping on
+            # ``first_rejector`` would see appear.
             spec_stats["first_rejector"] = input_rails
             spec_stats["cancellation_event"] = cancellation_event
             spec_stats["output_rails_wasted_chunks"] = len(held)
