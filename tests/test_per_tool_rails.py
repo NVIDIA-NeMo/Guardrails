@@ -461,3 +461,76 @@ rails:
     with pytest.raises(InvalidRailsConfigurationError, match="another missing flow"):
         config = RailsConfig.from_content(COLANG_REFUSE, yaml_config)
         LLMRails(config)
+
+
+@pytest.mark.asyncio
+async def test_parallel_per_tool_output_flows_any_block():
+    """With parallel=true, per-tool flows for a tool run concurrently; a BLOCK from any stops the turn."""
+    yaml_config = """
+models: []
+passthrough: true
+rails:
+  tool_output:
+    per_tool:
+      run_sql:
+        - check tool call $check=check_a
+        - check tool call $check=check_b
+    parallel: true
+prompts:
+  - task: check_a
+    content: |
+      Check A: {{ tool_call }}
+      ALLOW
+  - task: check_b
+    content: |
+      Check B: {{ tool_call }}
+      BLOCK
+"""
+    rails = _make_rails(
+        yaml_config,
+        COLANG_REFUSE,
+        [
+            LLMResponse(content="", tool_calls=[_sql_tool_call()]),
+            LLMResponse(content="ALLOW"),
+            LLMResponse(content="BLOCK"),
+        ],
+    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "run query"}])
+    assert "can't allow" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_parallel_per_tool_output_flows_all_allow():
+    """With parallel=true, per-tool flows all allowing means the tool call passes through."""
+    yaml_config = """
+models: []
+passthrough: true
+rails:
+  tool_output:
+    per_tool:
+      run_sql:
+        - check tool call $check=check_a
+        - check tool call $check=check_b
+    parallel: true
+prompts:
+  - task: check_a
+    content: |
+      Check A: {{ tool_call }}
+      ALLOW
+  - task: check_b
+    content: |
+      Check B: {{ tool_call }}
+      ALLOW
+"""
+    rails = _make_rails(
+        yaml_config,
+        COLANG_REFUSE,
+        [
+            LLMResponse(content="", tool_calls=[_sql_tool_call()]),
+            LLMResponse(content="ALLOW"),
+            LLMResponse(content="ALLOW"),
+        ],
+    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "run query"}])
+    assert result.get("tool_calls") is not None
+    assert result["tool_calls"][0]["function"]["name"] == "run_sql"

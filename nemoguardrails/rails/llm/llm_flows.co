@@ -237,7 +237,7 @@ define subflow run tool output rails
   """Runs all the tool output rails, sequentially or in parallel."""
   $tool_output_flows = $config.rails.tool_output.flows
 
-  if $config.rails.tool_output.parallel
+  if $config.rails.tool_output.parallel and len($tool_output_flows) > 0
     execute run_tool_output_rails_in_parallel(flows=$tool_output_flows)
   else
     $i = 0
@@ -267,20 +267,23 @@ define subflow run tool output rails
     if $tool_name is not None
       $per_tool_flows = execute get_per_tool_output_flows(tool_name=$tool_name)
 
-      $k = 0
-      while $k < len($per_tool_flows)
-        $triggered_tool_output_rail = $per_tool_flows[$k]
+      if $config.rails.tool_output.parallel and len($per_tool_flows) > 0
+        execute run_per_tool_output_flows_in_parallel(flows=$per_tool_flows, tool_call=$tool_call, tool_name=$tool_name)
+      else
+        $k = 0
+        while $k < len($per_tool_flows)
+          $triggered_tool_output_rail = $per_tool_flows[$k]
 
-        create event StartToolOutputRail(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
-        event StartToolOutputRail
+          create event StartToolOutputRail(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
+          event StartToolOutputRail
 
-        do $per_tool_flows[$k]
-        $k = $k + 1
+          do $per_tool_flows[$k]
+          $k = $k + 1
 
-        create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
-        event ToolOutputRailFinished
+          create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail, tool_name=$tool_name)
+          event ToolOutputRailFinished
 
-        $triggered_tool_output_rail = None
+          $triggered_tool_output_rail = None
 
     $tool_name = None
     $tool_call = None
@@ -290,7 +293,7 @@ define subflow run tool input rails
   """Runs all the tool input rails, sequentially or in parallel."""
   $tool_input_flows = $config.rails.tool_input.flows
 
-  if $config.rails.tool_input.parallel
+  if $config.rails.tool_input.parallel and len($tool_input_flows) > 0
     execute run_tool_input_rails_in_parallel(flows=$tool_input_flows)
   else
     $i = 0
@@ -314,17 +317,20 @@ define subflow run tool input rails
   # in process user tool messages.
   $per_tool_input_flows = execute get_per_tool_input_flows(tool_name=$tool_name)
 
-  $m = 0
-  while $m < len($per_tool_input_flows)
-    $triggered_tool_input_rail = $per_tool_input_flows[$m]
+  if $config.rails.tool_input.parallel and len($per_tool_input_flows) > 0
+    execute run_per_tool_input_flows_in_parallel(flows=$per_tool_input_flows, tool_name=$tool_name)
+  else
+    $m = 0
+    while $m < len($per_tool_input_flows)
+      $triggered_tool_input_rail = $per_tool_input_flows[$m]
 
-    create event StartToolInputRail(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
-    event StartToolInputRail
+      create event StartToolInputRail(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
+      event StartToolInputRail
 
-    do $per_tool_input_flows[$m]
-    $m = $m + 1
+      do $per_tool_input_flows[$m]
+      $m = $m + 1
 
-    create event ToolInputRailFinished(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
-    event ToolInputRailFinished
+      create event ToolInputRailFinished(flow_id=$triggered_tool_input_rail, tool_name=$tool_name)
+      event ToolInputRailFinished
 
-    $triggered_tool_input_rail = None
+      $triggered_tool_input_rail = None

@@ -41,6 +41,8 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         "run_output_rails_in_parallel",
         "run_tool_output_rails_in_parallel",
         "run_tool_input_rails_in_parallel",
+        "run_per_tool_output_flows_in_parallel",
+        "run_per_tool_input_flows_in_parallel",
         "run_flows_in_parallel",
     ]
     ignored_flows = [
