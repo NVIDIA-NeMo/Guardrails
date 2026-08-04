@@ -663,6 +663,13 @@ INJECTION_DETECTION_OMIT = RailSpec(
     rails_config=INJECTION_DETECTION_OMIT_RAILS_CONFIG,
 )
 
+ATR_INPUT = RailSpec(
+    name="atr_input",
+    flow="atr detection",
+    direction="input",
+    action="atr_detection",
+)
+
 CLAVATA_INPUT = RailSpec(
     name="clavata_input",
     flow="clavata check input",
@@ -2514,6 +2521,12 @@ FIXTURES = [
     ),
     *_rail_outcome_cases(
         JAILBREAK_MODEL_INPUT,
+        include_exception_case=True,
+    ),
+    *_rail_outcome_cases(
+        ATR_INPUT,
+        allow_return=RailOutcome.allow(metadata={"rules": [], "max_severity": None}),
+        block_return=RailOutcome.block(metadata={"rules": ["ATR-2026-00001"], "max_severity": "critical"}),
         include_exception_case=True,
     ),
 ]
