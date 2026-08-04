@@ -75,6 +75,9 @@ multilingual = ["fast-langdetect (>=1.0.0)"]
 
 chat-ui = ["chainlit (>=2.11.0,<3.0.0)"]
 
+# agent threat rules (ATR) detection rail
+atr = ["pyatr (>=0.2.6)"]
+
 # eval
 eval = [
   "tqdm (>=4.65,<5.0)",
@@ -111,6 +114,7 @@ all = [
   "prometheus-client (>=0.20.0,<2.0.0)",
   "chainlit (>=2.11.0,<3.0.0)",
   "common-expression-language (>=0.10.0,<0.11.0) ; python_version>='3.11'",
+  "pyatr (>=0.2.6)",
 ]
 
 [dependency-groups]
@@ -147,6 +151,7 @@ test_integration = [
   "langchain-community>=0.2.5,<2.0.0",
   "langchain-openai>=0.1.0",
   "langchain-nvidia-ai-endpoints>=0.2.0",
+  "pyatr>=0.2.6",
 ]
 dev = [
   "pre-commit>=3.1.1",
