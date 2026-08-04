@@ -100,6 +100,7 @@ async def llm_call(
     _log_completion(response)
     _update_token_stats(response)
     _store_tool_calls(response)
+    _store_request_id(response)
     _store_response_metadata(response)
     return response
 
@@ -453,6 +454,20 @@ def _store_tool_calls(response: LLMResponse) -> None:
         tool_calls_var.set([tc.to_dict() for tc in response.tool_calls])
     else:
         tool_calls_var.set(None)
+
+
+def _store_request_id(response: LLMResponse) -> None:
+    """Record the provider's response id on the current call, when it returned one.
+
+    Kept separate from ``LLMCallInfo.id``, which ``track_llm_call`` generates client-side:
+    only this value can be quoted to a provider, and only this value matches
+    ``gen_ai.response.id`` on the OTEL span for the same call, so overloading one field with
+    both meanings would make log-to-trace correlation unreliable.
+    """
+    llm_call_info = llm_call_info_var.get()
+    if llm_call_info is None:
+        return
+    llm_call_info.request_id = response.request_id
 
 
 def _store_response_metadata(response: LLMResponse) -> None:

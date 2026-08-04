@@ -144,9 +144,9 @@ class TestGenerationLogEndToEnd:
         cs_rail = next(rail for rail in result.log.activated_rails if rail.name == _CS_INPUT)
         assert cs_rail.type == "input"
         assert cs_rail.executed_actions[0].return_value == {"allowed": True, "policy_violations": []}
-        # id + provider are threaded through the capture (parity fixes).
+        # The provider's response id is threaded through as request_id.
         cs_call = cs_rail.executed_actions[0].llm_calls[0]
-        assert cs_call.id == "req-cs"
+        assert cs_call.request_id == "req-cs"
         assert cs_call.llm_provider_name == "nim"
         assert any(rail.type == "generation" for rail in result.log.activated_rails)
 

@@ -141,6 +141,22 @@ def test_llm_call_module_does_not_depend_on_colang():
     assert chain is None, "nemoguardrails.llm.call must not depend on Colang; chain:\n  " + "\n  -> ".join(chain or [])
 
 
+def test_compiled_rail_does_not_depend_on_colang():
+    """``compiled_rail`` emits Colang-shaped *events* for actions but doesn't require
+    a Colang runtime
+    """
+    chain = _import_chain_to_colang("nemoguardrails.guardrails.compiled_rail")
+
+    assert chain is None, "compiled_rail must not depend on Colang; chain:\n  " + "\n  -> ".join(chain or [])
+
+
+def test_rail_guard_does_not_depend_on_colang():
+    """The shared rail error envelope stays Colang-free alongside compiled_rail."""
+    chain = _import_chain_to_colang("nemoguardrails.guardrails.rail_guard")
+
+    assert chain is None, "rail_guard must not depend on Colang; chain:\n  " + "\n  -> ".join(chain or [])
+
+
 def test_import_graph_walker_detects_a_known_colang_dependent():
     """The walker is not vacuously passing: a known Colang-dependent module is flagged."""
     chain = _import_chain_to_colang("nemoguardrails.actions.llm.utils")
