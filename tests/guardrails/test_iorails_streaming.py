@@ -1020,6 +1020,9 @@ class TestIsStreamErrorChunk:
     def test_error_object_without_a_type_is_not_a_terminal_chunk(self):
         assert _is_stream_error_chunk('{"error": {"message": "something"}}') is False
 
+    def test_json_that_is_not_an_object_is_not_a_terminal_chunk(self):
+        assert _is_stream_error_chunk('["error"]') is False
+
 
 class TestStreamAsyncMetadata:
     """Per-chunk usage and provider_metadata surfaced through include_metadata streaming (LLMRails parity)."""

@@ -148,23 +148,14 @@ class _RailFailure:
 
 
 def _stream_error_field(chunk: Union[str, dict], field: str) -> Optional[str]:
-    """Return ``error.<field>`` from a streamed error payload, or None.
+    """Return ``error.<field>`` from a chunk already accepted by ``_is_stream_error_chunk``.
 
-    Returns None for anything that is not an ``{"error": {...}}`` object with
-    that field. The non-dict ``error`` guard is kept even though
-    ``_is_stream_error_chunk`` now rejects those payloads: this helper is also
-    called on chunks that have not been through that predicate, and ordinary
-    LLM content can produce ``{"error": "connection refused"}`` as text.
+    That predicate guarantees a parseable ``{"error": {...}}`` payload, so the
+    only case left is a field the payload does not carry.  Keep the guard at the
+    call site: this raises on anything else.
     """
-    text = chunk.get("text") if isinstance(chunk, dict) else chunk
-    if not isinstance(text, str):
-        return None
-    try:
-        parsed = json.loads(text)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    error = parsed.get("error") if isinstance(parsed, dict) else None
-    return error.get(field) if isinstance(error, dict) else None
+    text = chunk["text"] if isinstance(chunk, dict) else chunk
+    return json.loads(text)["error"].get(field)
 
 
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:

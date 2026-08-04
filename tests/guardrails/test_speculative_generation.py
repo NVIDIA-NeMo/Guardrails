@@ -671,6 +671,61 @@ class TestSpeculativeStreaming:
         assert error["param"] is None  # no rail family attributed: this is not a block
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exc, expected_type, expected_param",
+        [(None, "guardrails_violation", "input_rails"), (RuntimeError("boom"), "generation_error", None)],
+        ids=["reject", "raise"],
+    )
+    async def test_streaming_verdict_lands_after_stream_ends(
+        self, iorails_spec_stream_input_only, exc, expected_type, expected_param
+    ):
+        """Generation outruns the rails: the verdict is applied after the stream ends.
+
+        Every other reject test has the verdict land mid-stream and short-circuit;
+        this drives the post-loop branch, where the held buffer must still be
+        dropped rather than flushed.
+        """
+        io = iorails_spec_stream_input_only
+
+        async def _slow_verdict(messages, *, enabled=True):
+            await asyncio.sleep(0.15)
+            if exc:
+                raise exc
+            return RailResult(is_safe=False, reason="unsafe")
+
+        _wire_stream(io, stream=_token_stream(delay=0.0))
+        io.rails_manager.is_input_safe = _slow_verdict
+        io._metrics_enabled = True
+
+        with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as blocked:
+            chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""
+        error = json.loads(_error_chunks(chunks)[0])["error"]
+        assert error["type"] == expected_type
+        assert error["param"] == expected_param
+        # An outage is not a block, so it must not move the blocked counter.
+        assert blocked.call_count == (0 if exc else 1)
+
+    @pytest.mark.asyncio
+    async def test_streaming_generation_error_during_speculation_is_not_a_rejection(
+        self, iorails_spec_stream_input_only
+    ):
+        """An LLM failure while input rails are still pending is an outage, not a reject."""
+        io = iorails_spec_stream_input_only
+
+        async def _failing_stream(model_type, messages, **kwargs):
+            yield LLMResponseChunk(delta_content="partial")
+            raise RuntimeError("LLM died")
+
+        _wire_stream(io, input_delay=1.0, stream=_failing_stream)
+
+        chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""  # the held token is dropped with the request
+        assert json.loads(_error_chunks(chunks)[0])["error"]["type"] == "generation_error"
+
+    @pytest.mark.asyncio
     async def test_streaming_error_shaped_content_is_not_an_error_chunk(self, iorails_spec_stream_input_only):
         """Model content shaped like an error payload flows through as content.
 
