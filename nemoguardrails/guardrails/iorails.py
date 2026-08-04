@@ -1789,24 +1789,16 @@ class IORails(BaseGuardrails):
     ) -> tuple[Union[RailResult, _RailFailure], str]:
         """Concurrent input-safety check for speculative streaming (SG2).
 
-        Runs tool-result rails then input rails, returning ``(verdict, param)``
-        for the first failing rail (or the safe input result).  ``param``
-        identifies the rail family (``tool_input_rails`` vs ``input_rails``),
-        matching the non-speculative path.  Runs as its own task so LLM
-        generation can stream concurrently during the speculation window.
-        Records its wall-clock duration into ``spec_stats['rails_duration_ms']``.
+        Runs tool-result rails then input rails as its own task, returning
+        ``(verdict, param)`` for the first failing rail; ``param`` names the
+        rail family, matching the non-speculative path.
 
-        Unexpected exceptions are wrapped in ``_RailFailure`` rather than
-        returned as an unsafe ``RailResult``: an infrastructure failure is not a
-        policy decision, so the gate must be able to tell them apart and emit a
-        ``generation_error`` payload (plus error metrics and a span ERROR)
-        instead of a ``content_blocked`` violation.  The exception is not
-        re-raised because ``stream_async`` is an async generator — by this point
-        the server has already committed a ``200 OK``, so a raise would truncate
-        the SSE stream instead of delivering a structured error.  This matches
-        ``_generation_task``, the non-speculative streaming path.
-        ``CancelledError`` is not caught, so the gate can still cancel this task
-        on short-circuit.
+        A rail that *raises* comes back as ``_RailFailure`` rather than an
+        unsafe ``RailResult``, so the gate can report an outage as a generation
+        error instead of a block.  It is not re-raised: ``stream_async`` has
+        already committed a ``200 OK``, so a raise would truncate the SSE
+        stream.  ``CancelledError`` stays uncaught so the gate can still cancel
+        this task on short-circuit.
         """
         req_id = get_request_id()
         t0 = time.monotonic()
@@ -1838,33 +1830,19 @@ class IORails(BaseGuardrails):
     ) -> AsyncGenerator[Union[str, dict], None]:
         """Hold streamed chunks until the input rails verdict is known (SG2).
 
-        During the speculation window the LLM (and output rails, when
-        configured) run concurrently with input rails.  Chunks that arrive
-        before the input verdict are held in a bounded in-memory buffer rather
-        than sent to the client — the input safety verdict is not yet known, so
-        nothing may reach the caller.  On input PASS the held buffer is flushed
-        and streaming continues normally.  On input REJECT (or an output-rails
-        early reject / generation error surfaced as an error chunk) the held
-        buffer is discarded and a refusal / the error payload is emitted.
+        The LLM (and output rails, when configured) run concurrently with input
+        rails, so chunks arrive before anything may reach the caller.  They are
+        held in a bounded buffer: flushed on input PASS, discarded on a reject
+        or on an error chunk surfaced by the base iterator.  Teardown is split —
+        this gate cancels the input task on an output-rails early reject, while
+        the caller's ``finally`` tears down generation on input reject.
 
-        A rail that *raises* is reported separately from a rail that *rejects*:
-        the input task returns a ``_RailFailure`` and the gate emits a
-        ``generation_error`` payload rather than a ``guardrails_violation``, so
-        callers and metrics can tell an outage from a refusal.
-
-        Cancellation (SG2): on input reject the generation task is torn down by
-        the caller's ``finally``; on an output-rails early reject the still-
-        running input rails task is cancelled here so the request aborts before
-        the input verdict arrives.
-
-        When the held buffer reaches ``speculative_max_buffered_chunks`` the gate
-        stops consuming the base iterator and blocks on the input verdict, forcing
-        an early resolve (release on pass, teardown on reject).  This bounds only
-        the release buffer — the background generation task keeps producing into
-        the stream queue — so total memory is bounded by the input-rail latency and
-        the model's finite output, not by halting generation.  (An alternative
-        overflow policy, aborting the request when the bound is exceeded, would cap
-        total memory by cancelling the producer; backpressure is used here instead.)
+        At ``speculative_max_buffered_chunks`` the gate stops consuming and
+        blocks on the verdict, forcing an early resolve.  This is backpressure
+        on the release buffer only — generation keeps producing into the stream
+        queue — so memory is bounded by input-rail latency and the model's
+        finite output, not by halting generation.  Aborting the request on
+        overflow was the considered alternative.
         """
         req_id = get_request_id()
         input_rails = GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
