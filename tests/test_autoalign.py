@@ -20,7 +20,17 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.library.autoalign.actions import _autoalign_outcome, _autoalign_score_outcome
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.library.autoalign.actions import (
+    _autoalign_outcome,
+    _autoalign_score_outcome,
+    autoalign_factcheck_output_api,
+    autoalign_groundedness_output_api,
+    autoalign_input_api,
+    autoalign_output_api,
+)
+from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
@@ -100,6 +110,149 @@ def test_autoalign_outcome(result, expected):
 )
 def test_autoalign_score_outcome(score, threshold, expected):
     assert _autoalign_score_outcome(score, threshold) == expected
+
+
+def _autoalign_config() -> RailsConfig:
+    return RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                autoalign:
+                  parameters:
+                    endpoint: https://autoalign.example/guardrail
+                    groundedness_check_endpoint: https://autoalign.example/groundedness
+                    fact_check_endpoint: https://autoalign.example/factcheck
+                    multi_language: true
+                  input:
+                    guardrails_config:
+                      toxicity_detection: {}
+                  output:
+                    guardrails_config:
+                      toxicity_detection: {}
+        """
+    )
+
+
+@pytest.mark.asyncio
+async def test_autoalign_actions_use_shared_client(monkeypatch):
+    monkeypatch.setenv("AUTOALIGN_API_KEY", "secret")
+    safe_response = b'{"task":"toxicity_detection","guarded":false,"response":"","output_data":[]}\n'
+    client = RecordingHTTPClient(
+        [
+            HTTPResponse(status_code=200, content=safe_response),
+            HTTPResponse(status_code=200, content=safe_response),
+            HTTPResponse(
+                status_code=200,
+                content=b'{"task":"groundedness_checker","response":"Factcheck Score: 0.75"}\n',
+            ),
+            HTTPResponse(
+                status_code=200,
+                content=b'{"all_overall_fact_scores":[0.9]}',
+            ),
+        ]
+    )
+    task_manager = LLMTaskManager(config=_autoalign_config())
+
+    input_outcome = await autoalign_input_api(
+        task_manager,
+        context={"user_message": "input"},
+        http_client=client,
+    )
+    output_outcome = await autoalign_output_api(
+        task_manager,
+        context={"bot_message": "output"},
+        http_client=client,
+    )
+    groundedness_outcome = await autoalign_groundedness_output_api(
+        task_manager,
+        context={"bot_message": "answer", "relevant_chunks_sep": ["evidence"]},
+        factcheck_threshold=0.5,
+        http_client=client,
+    )
+    factcheck_outcome = await autoalign_factcheck_output_api(
+        task_manager,
+        context={"user_message": "question", "bot_message": "answer"},
+        factcheck_threshold=0.5,
+        http_client=client,
+    )
+
+    assert input_outcome.decision == "allow"
+    assert output_outcome.decision == "allow"
+    assert groundedness_outcome == RailOutcome.allow(metadata={"score": 0.75, "threshold": 0.5})
+    assert factcheck_outcome == RailOutcome.allow(metadata={"score": 0.9, "threshold": 0.5})
+
+    input_request, output_request, groundedness_request, factcheck_request = client.requests
+    assert input_request.method == "POST"
+    assert input_request.url == "https://autoalign.example/guardrail"
+    assert input_request.headers == {"x-api-key": "secret"}
+    assert input_request.json["prompt"] == "input"
+    assert input_request.json["multi_language"] is True
+    assert input_request.json["config"]["toxicity_detection"]["mode"] == "DETECT"
+    assert input_request.timeout is None
+
+    assert output_request.url == "https://autoalign.example/guardrail"
+    assert output_request.json["prompt"] == "output"
+    assert output_request.timeout is None
+
+    assert groundedness_request.url == "https://autoalign.example/groundedness"
+    assert groundedness_request.json == {
+        "prompt": "answer",
+        "documents": ["evidence"],
+        "config": {
+            "groundedness_checker": {"verify_response": False},
+            "toxicity_detection": {},
+        },
+    }
+    assert groundedness_request.timeout is None
+
+    assert factcheck_request.url == "https://autoalign.example/factcheck"
+    assert factcheck_request.json == {
+        "labels": {"session_id": "nemo", "api_key": "secret"},
+        "content_moderation_docs": [
+            {
+                "content": "answer",
+                "type": "text_content",
+                "file_name": "HighlightedText.txt",
+            }
+        ],
+        "user_query": "question",
+        "config": {"toxicity_detection": {}},
+        "multi_language": True,
+    }
+    assert factcheck_request.timeout is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "context", "endpoint"),
+    [
+        (autoalign_input_api, {"user_message": "input"}, "guardrail"),
+        (autoalign_output_api, {"bot_message": "output"}, "guardrail"),
+        (
+            autoalign_groundedness_output_api,
+            {"bot_message": "answer", "relevant_chunks_sep": ["evidence"]},
+            "groundedness",
+        ),
+        (
+            autoalign_factcheck_output_api,
+            {"user_message": "question", "bot_message": "answer"},
+            "factcheck",
+        ),
+    ],
+)
+async def test_autoalign_actions_preserve_http_failures(monkeypatch, action, context, endpoint):
+    monkeypatch.setenv("AUTOALIGN_API_KEY", "secret")
+    client = RecordingHTTPClient([HTTPResponse(status_code=503, content=b"unavailable")])
+
+    with pytest.raises(ValueError, match="AutoAlign call failed with status code 503"):
+        await action(
+            LLMTaskManager(config=_autoalign_config()),
+            context=context,
+            http_client=client,
+        )
+
+    assert client.requests[0].url == f"https://autoalign.example/{endpoint}"
 
 
 @pytest.mark.asyncio

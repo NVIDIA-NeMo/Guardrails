@@ -338,7 +338,7 @@ def test_chat_completion_rejects_tools_for_non_passthrough_config():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_rejects_tool_choice_without_passthrough():
@@ -359,7 +359,7 @@ def test_chat_completion_rejects_tool_choice_without_passthrough():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
@@ -383,7 +383,7 @@ def test_chat_completion_rejects_tools_with_streaming_even_in_passthrough():
         )
 
     assert response.status_code == 422
-    assert "passthrough" in response.json()["detail"].lower()
+    assert "passthrough" in response.json()["error"]["message"].lower()
 
 
 def test_chat_completion_returns_tool_calls():
@@ -537,8 +537,8 @@ def test_no_config_error_returns_proper_response():
     )
     assert response.status_code == 422
     res = response.json()
-    assert "detail" in res
-    assert "config" in res["detail"].lower()
+    assert "error" in res
+    assert "config" in res["error"]["message"].lower()
 
 
 def test_invalid_state_returns_error():
@@ -556,8 +556,8 @@ def test_invalid_state_returns_error():
     )
     assert response.status_code == 422
     res = response.json()
-    assert "detail" in res
-    assert "state" in res["detail"].lower() or "events" in res["detail"].lower()
+    assert "error" in res
+    assert "state" in res["error"]["message"].lower() or "events" in res["error"]["message"].lower()
 
 
 def test_chat_completion_response_structure():
@@ -931,7 +931,7 @@ def test_list_models_no_base_url_known_engine():
         os.environ.pop("MAIN_MODEL_BASE_URL", None)
         response = client.get("/v1/models")
     assert response.status_code == 502
-    assert "MAIN_MODEL_BASE_URL" in response.json()["detail"]
+    assert "MAIN_MODEL_BASE_URL" in response.json()["error"]["message"]
 
 
 def test_list_models_unknown_engine_no_base_url():
@@ -989,9 +989,10 @@ def test_list_models_empty_upstream():
     assert data["data"] == []
 
 
-def test_list_models_upstream_error():
+def test_list_models_upstream_error(caplog):
     """Test /v1/models returns upstream error status on HTTP error."""
-    mock_response = _make_httpx_response({"error": "unauthorized"}, status_code=401)
+    sensitive_detail = "upstream-secret-detail"
+    mock_response = _make_httpx_response({"error": sensitive_detail}, status_code=401)
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -1002,7 +1003,23 @@ def test_list_models_upstream_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 401
-    assert "Error fetching models from upstream" in response.json()["detail"]
+    assert "Error fetching models from upstream" in response.json()["error"]["message"]
+    assert sensitive_detail not in caplog.text
+
+
+def test_list_models_redirect_is_clamped_to_internal_error():
+    mock_response = _make_httpx_response({"error": "redirect"}, status_code=302)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 500
+    assert response.json()["error"]["type"] == "server_error"
 
 
 def test_list_models_connection_error():
@@ -1017,7 +1034,7 @@ def test_list_models_connection_error():
             response = client.get("/v1/models")
 
     assert response.status_code == 502
-    assert "Error connecting to upstream" in response.json()["detail"]
+    assert "Error connecting to upstream" in response.json()["error"]["message"]
 
 
 def test_list_models_forwards_auth_header():

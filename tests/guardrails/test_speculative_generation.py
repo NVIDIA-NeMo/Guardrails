@@ -30,6 +30,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails, _is_stream_error_chunk
+from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
@@ -708,9 +709,45 @@ class TestSpeculativeStreaming:
         assert error["type"] == "generation_error"
         assert error["code"] == "generation_failed"
         assert "boom" in error["message"]
-        # No ``param``: that field distinguishes rail families on a *block*, and
-        # this is not one.  Matches the _generation_task payload shape exactly.
-        assert "param" not in error
+        # ``param`` stays null: that field attributes a rail family on a
+        # *block*, and this is not one.  The shared error envelope always
+        # emits the key, so assert on the value rather than its absence.
+        assert error["param"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failing_rail", ["is_input_safe", "are_tool_results_safe"])
+    async def test_streaming_rail_http_failure_reports_downstream_error(
+        self, iorails_spec_stream_input_only, failing_rail
+    ):
+        """A rail-provider HTTP failure surfaces as ``downstream_error``, not a block.
+
+        ``RailAction`` swallows a rail failure into ``is_safe=False`` only while
+        it carries no status; once the engine attaches one the error propagates,
+        so the outage reaches the speculation gate as an exception rather than a
+        verdict. The upstream status must survive into the frame — an SSE
+        response has no status line to carry it — and must not be reported as a
+        policy refusal.
+        """
+        io = iorails_spec_stream_input_only
+        io.rails_manager.are_tool_results_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        io.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        setattr(
+            io.rails_manager,
+            failing_rail,
+            AsyncMock(side_effect=ModelEngineError("upstream unavailable", model_name="rail-model", status=503)),
+        )
+        io.engine_registry.stream_model_call = _token_stream(delay=0.01)
+
+        chunks = await asyncio.wait_for(_collect(io.stream_async(MESSAGES)), timeout=3.0)
+
+        assert _content_of(chunks) == ""  # nothing leaks on failure
+        errs = _error_chunks(chunks)
+        assert errs
+        error = json.loads(errs[0])["error"]
+        assert error["type"] == "downstream_error"
+        assert error["code"] == 503
+        assert error["param"] is None
 
     @pytest.mark.asyncio
     async def test_streaming_json_with_string_error_value_does_not_crash(self, iorails_spec_stream_input_only):

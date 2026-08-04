@@ -25,6 +25,7 @@ from nemoguardrails.library.privateai import actions as privateai_actions
 from nemoguardrails.library.privateai.actions import detect_pii
 from nemoguardrails.library.sensitive_data_detection import actions as sensitive_data_actions
 from nemoguardrails.library.sensitive_data_detection.actions import detect_sensitive_data
+from nemoguardrails.testing import RecordingHTTPClient
 
 
 def _privateai_config() -> RailsConfig:
@@ -80,12 +81,20 @@ def _sensitive_data_config() -> RailsConfig:
     ],
 )
 async def test_privateai_detect_pii_returns_rail_outcome(monkeypatch, response, expected):
-    async def fake_private_ai_request(text, enabled_entities, server_endpoint, api_key):
+    client = RecordingHTTPClient()
+
+    async def fake_private_ai_request(text, enabled_entities, server_endpoint, api_key, http_client=None):
+        assert http_client is client
         return response
 
     monkeypatch.setattr(privateai_actions, "private_ai_request", fake_private_ai_request)
 
-    outcome = await detect_pii(source="input", text="hello", config=_privateai_config())
+    outcome = await detect_pii(
+        source="input",
+        text="hello",
+        config=_privateai_config(),
+        http_client=client,
+    )
 
     assert outcome == expected
 

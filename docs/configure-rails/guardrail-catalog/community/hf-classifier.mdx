@@ -1,0 +1,278 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "HuggingFace Classifier Integration"
+---
+Content moderation using HuggingFace text classification models on input, output, and retrieval flows.
+
+## Overview
+
+Fast, prompt-free alternative to LLM-based self-check rails. Supports four inference backends:
+
+| Backend | Engine | Endpoint | Use Case |
+|---------|--------|----------|----------|
+| **Local** | `local` | N/A (in-process) | HuggingFace Transformers pipeline |
+| **vLLM** | `vllm` | `{base_url}/classify` | vLLM classify endpoint |
+| **KServe** | `kserve` | `{base_url}/v1/models/{model}:predict` | KServe v1 predict endpoint |
+| **FMS** | `fms` | `{base_url}/api/v1/text/contents` | IBM FMS guardrails-detectors endpoint |
+
+## Setup
+
+For the **local** backend, install the required dependencies:
+
+```bash
+pip install transformers torch
+```
+
+The model is downloaded on first use from HuggingFace Hub. For air-gapped environments, set `HF_HUB_OFFLINE=1` and point `model` to a local path.
+
+For **remote** backends, a running inference server is required. No additional Python dependencies are needed.
+
+Colang 2.x requires an explicit import in your Colang file (e.g., `config.co`):
+
+```text
+import nemoguardrails.library.hf_classifier
+```
+
+Colang 1.0 auto-discovers library flows.
+
+## Usage
+
+### Configuration Structure
+
+Add the classifier configuration to your `config.yml`:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      named_entity_recognition:
+        engine: local
+        model: dslim/distilbert-NER
+        task: token-classification
+        threshold: 0.7
+        blocked_labels:
+          - "PER"
+          - "LOC"
+          - "ORG"
+        parameters:
+          aggregation_strategy: simple
+  input:
+    flows:
+      - hf classifier check input $classifier=named_entity_recognition
+  output:
+    flows:
+      - hf classifier check output $classifier=named_entity_recognition
+```
+
+The `$classifier` parameter must match the name under `rails.config.hf_classifier`.
+
+### Configuration Options
+
+**Common fields (all engines)**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `engine` | string | *required* | `local`, `vllm`, `kserve`, or `fms`. |
+| `model` | string | *required* | HuggingFace model ID, local path, or server-side model name. |
+| `threshold` | float | `0.5` | Minimum score to trigger blocking (0.0-1.0). |
+| `blocked_labels` | list | `[]` | Labels that trigger blocking above threshold. See [Blocked Labels](#blocked-labels). |
+
+#### Blocked Labels
+
+Values must match the label strings returned by the model or server. For **local** and **vLLM** backends with `text-classification`, labels come from the model's `id2label` mapping (e.g., `"toxic"`, `"LABEL_1"`). For `token-classification` with `aggregation_strategy`, labels are entity groups with the B-/I- prefix stripped (e.g., `"PER"`, `"LOC"`). For **FMS**, labels come from the `detection_type` field in the server response. For **KServe**, labels are stringified class indices (`"0"`, `"1"`).
+
+To discover labels, inspect `id2label` from the model config:
+
+```python
+from transformers import AutoConfig
+config = AutoConfig.from_pretrained("dslim/distilbert-NER")
+print(config.id2label)
+# {0: 'O', 1: 'B-PER', 2: 'I-PER', 3: 'B-ORG', 4: 'I-ORG', 5: 'B-LOC', 6: 'I-LOC', 7: 'B-MISC', 8: 'I-MISC'}
+# With aggregation_strategy: simple, use "PER", "ORG", "LOC", "MISC" (prefix stripped)
+```
+
+For remote servers, send a test request and inspect the response.
+
+**Local engine fields**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `task` | string | `text-classification` | Pipeline task type. Use `token-classification` for NER models. |
+| `parameters` | dict | `{}` | Kwargs forwarded to `transformers.pipeline()`. |
+
+**Remote engine fields (vllm, kserve, fms)**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `base_url` | string | *required* | Inference server URL. |
+| `api_key_env_var` | string | `null` | Environment variable name holding the API key. |
+| `parameters.timeout` | float | `30.0` | Request timeout in seconds. |
+| `parameters.verify_ssl` | bool | `true` | Set `false` to skip TLS verification. |
+| `parameters.ca_cert` | string | `null` | CA bundle path for custom CAs. |
+| `parameters.client_cert` | string | `null` | Client certificate path for mTLS. |
+| `parameters.client_key` | string | `null` | Client key path for mTLS. Requires `client_cert`. |
+
+### Input Rails
+
+Prompt injection detection using KServe:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      prompt_injection:
+        engine: kserve
+        model: prompt-injection-detector
+        base_url: "https://prompt-injection-detector-route.apps.example.com"
+        api_key_env_var: OCP_TOKEN
+        threshold: 0.5
+        blocked_labels:
+          - "1"
+        parameters:
+          verify_ssl: false
+  input:
+    flows:
+      - hf classifier check input $classifier=prompt_injection
+```
+
+### Output Rails
+
+HAP detection using FMS:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      hap:
+        engine: fms
+        model: hap-detector
+        base_url: "https://detector-hap-route.apps.example.com"
+        api_key_env_var: OCP_TOKEN
+        threshold: 0.7
+        blocked_labels:
+          - "LABEL_1"
+        parameters:
+          verify_ssl: false
+  output:
+    flows:
+      - hf classifier check output $classifier=hap
+```
+
+### Retrieval Rails
+
+The retrieval rail classifies the combined retrieved text as a single input. If any blocked label is detected above threshold, **all** retrieved chunks are cleared.
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      named_entity_recognition:
+        engine: local
+        model: dslim/distilbert-NER
+        task: token-classification
+        threshold: 0.7
+        blocked_labels:
+          - "PER"
+          - "LOC"
+          - "ORG"
+        parameters:
+          aggregation_strategy: simple
+  retrieval:
+    flows:
+      - hf classifier check retrieval $classifier=named_entity_recognition
+```
+
+## Complete Example
+
+HAP (FMS), prompt injection (KServe), and language classification (vLLM) with streaming:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: my-model
+    parameters:
+      base_url: "https://llm-server.apps.example.com/v1"
+
+rails:
+  config:
+    hf_classifier:
+      hap:
+        engine: fms
+        model: hap-detector
+        base_url: "https://detector-hap-route.apps.example.com"
+        api_key_env_var: OCP_TOKEN
+        threshold: 0.7
+        blocked_labels:
+          - "LABEL_1"
+        parameters:
+          verify_ssl: false
+
+      prompt_injection:
+        engine: kserve
+        model: prompt-injection-detector
+        base_url: "https://prompt-injection-detector-route.apps.example.com"
+        api_key_env_var: OCP_TOKEN
+        threshold: 0.5
+        blocked_labels:
+          - "1"
+        parameters:
+          verify_ssl: false
+
+      lang:
+        engine: vllm
+        model: language-classifier
+        base_url: "https://language-classifier-route.apps.example.com"
+        api_key_env_var: OCP_TOKEN
+        threshold: 0.5
+        blocked_labels:
+          - "fr"
+          - "de"
+          - "es"
+        parameters:
+          verify_ssl: false
+
+  input:
+    flows:
+      - hf classifier check input $classifier=prompt_injection
+      - hf classifier check input $classifier=hap
+      - hf classifier check input $classifier=lang
+  output:
+    flows:
+      - hf classifier check output $classifier=hap
+    streaming:
+      enabled: true
+      stream_first: false
+```
+
+## Return Value
+
+Returns `True` if allowed, `False` if blocked. Triggered labels and scores are logged at `INFO` level:
+
+```text
+HF classifier 'hap': blocked (detections: [('LABEL_1', 0.92)])
+```
+
+## mTLS and Custom CA
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      toxicity:
+        engine: kserve
+        model: toxic-bert
+        base_url: "https://classifier.internal:443"
+        threshold: 0.7
+        blocked_labels:
+          - toxic
+        parameters:
+          ca_cert: /etc/ssl/custom-ca.pem
+          client_cert: /etc/ssl/client.pem
+          client_key: /etc/ssl/client.key
+```
+
+## HF Classifier Rail Behavior
+
+When blocked, **input and output rails** respond with `"I'm sorry, I can't respond to that."` and abort. If `enable_rails_exceptions` is set, an `InputRailException` or `OutputRailException` is raised instead. **Retrieval rails** clear all retrieved chunks if any blocked label is detected. With streaming enabled, the output rail checks the accumulated response after streaming completes.

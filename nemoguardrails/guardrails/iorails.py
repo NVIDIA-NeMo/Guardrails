@@ -64,6 +64,10 @@ from nemoguardrails.guardrails.telemetry import (
     stream_active_metric,
     traced_request,
 )
+from nemoguardrails.llm.clients._errors import (
+    STREAM_ERROR_TYPES,
+    build_streaming_error_payload,
+)
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
@@ -102,18 +106,19 @@ NONSTREAM_MAX_CONCURRENCY = 256
 # semaphore).
 STREAM_MAX_CONCURRENCY = 256
 
-# Error type used by _generation_task when pushing error JSON into the stream
-_GENERATION_ERROR_TYPE = "generation_error"
-
 
 def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
     """True when a streamed chunk is an error/violation payload.
 
-    Covers both the ``generation_error`` payload pushed on a generation failure
-    and the ``guardrails_violation`` payload emitted when output rails block.
-    Handles plain-string chunks and the ``{"text": ...}`` frames produced when
-    ``include_metadata=True``. The cheap ``"error"`` substring guard keeps the
-    per-chunk hot path from JSON-parsing ordinary text tokens.
+    Covers the ``generation_error`` / ``downstream_error`` payloads pushed on a
+    generation failure and the ``guardrails_violation`` payload emitted when
+    rails block. Handles plain-string chunks and the ``{"text": ...}`` frames
+    produced when ``include_metadata=True``. The cheap ``"error"`` substring
+    guard keeps the per-chunk hot path from JSON-parsing ordinary text tokens.
+
+    The ``type`` must be one of the internal markers in ``STREAM_ERROR_TYPES``:
+    matching any object that merely has an ``error`` key would let model output
+    that looks like an OpenAI error truncate the stream and skip output rails.
     """
     text = chunk.get("text") if isinstance(chunk, dict) else chunk
     if not isinstance(text, str) or '"error"' not in text:
@@ -122,7 +127,10 @@ def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
         parsed = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         return False
-    return isinstance(parsed, dict) and "error" in parsed
+    if not isinstance(parsed, dict):
+        return False
+    error_obj = parsed.get("error")
+    return isinstance(error_obj, dict) and error_obj.get("type") in STREAM_ERROR_TYPES
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,11 +151,10 @@ def _stream_error_field(chunk: Union[str, dict], field: str) -> Optional[str]:
     """Return ``error.<field>`` from a streamed error payload, or None.
 
     Returns None for anything that is not an ``{"error": {...}}`` object with
-    that field — including the case where ``error`` holds a non-dict value, which
-    ordinary LLM content can produce (e.g. a model emitting
-    ``{"error": "connection refused"}`` as text). Callers must not assume
-    ``_is_stream_error_chunk`` guarantees a dict ``error``: it only checks that
-    the key is present.
+    that field. The non-dict ``error`` guard is kept even though
+    ``_is_stream_error_chunk`` now rejects those payloads: this helper is also
+    called on chunks that have not been through that predicate, and ordinary
+    LLM content can produce ``{"error": "connection refused"}`` as text.
     """
     text = chunk.get("text") if isinstance(chunk, dict) else chunk
     if not isinstance(text, str):
@@ -904,18 +911,6 @@ class IORails(BaseGuardrails):
             }
         )
 
-    @staticmethod
-    def _generation_error_payload(message: str) -> str:
-        """Build the JSON error payload emitted when a streaming request fails.
-
-        Distinct from ``_guardrails_violation_payload``: this is an infrastructure
-        failure (the request could not be completed), not a policy decision, so
-        callers must also record error metrics and mark the request span ERROR.
-        Shared by ``_generation_task`` and the speculative input-rail failure path
-        so both surface the same ``generation_error`` / ``generation_failed`` shape.
-        """
-        return json.dumps({"error": {"message": message, "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}})
-
     async def _do_generate(
         self,
         messages: LLMMessages,
@@ -1516,7 +1511,7 @@ class IORails(BaseGuardrails):
                 # streaming path.
                 if self._metrics_enabled:
                     record_request_error(e)
-                error_payload = self._generation_error_payload(str(e))
+                error_payload = build_streaming_error_payload(e)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
@@ -1906,6 +1901,9 @@ class IORails(BaseGuardrails):
             request — matching the generation-error branch above.  The exception
             is stashed for the caller's ``finally``, which owns ``request_span``
             and records the error metric and span status there.
+
+            Uses the same envelope builder as ``_generation_task`` so a rail
+            outage and a generation outage are indistinguishable to the client.
             """
             spec_stats["rail_error"] = exc
             spec_stats["first_completed"] = input_rails
@@ -1913,7 +1911,7 @@ class IORails(BaseGuardrails):
             spec_stats["cancellation_event"] = GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION
             spec_stats["output_rails_wasted_chunks"] = len(held)
             spec_stats["safe"] = False
-            return _frame_for_stream(self._generation_error_payload(str(exc)), include_metadata)
+            return _frame_for_stream(build_streaming_error_payload(exc), include_metadata)
 
         def _mark_release(first_completed):
             spec_stats["first_completed"] = first_completed
@@ -2076,10 +2074,10 @@ class IORails(BaseGuardrails):
             user_output_chunks = chunk_batch.user_output_chunks
             bot_response_chunk = buffer_strategy.format_chunks(chunk_batch.processing_context)
 
-            # If the batch contains a generation error from _generation_task,
+            # If the batch contains an error chunk (generation or downstream HTTP),
             # yield it directly and stop — don't feed error JSON through output rails.
             for chunk in user_output_chunks:
-                if _stream_error_field(chunk, "type") == _GENERATION_ERROR_TYPE:
+                if _is_stream_error_chunk(chunk):
                     yield chunk
                     return
 

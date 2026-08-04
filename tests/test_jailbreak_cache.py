@@ -158,6 +158,7 @@ async def test_jailbreak_without_cache(mock_nim_request, mock_task_manager):
         nim_url="https://ai.api.nvidia.com",
         nim_auth_token="test-key",
         nim_classification_path="/v1/security/nvidia/nemoguard-jailbreak-detect",
+        http_client=None,
     )
 
 

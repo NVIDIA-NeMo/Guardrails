@@ -26,6 +26,7 @@ from nemoguardrails.library.self_check.facts.actions import _fact_check_outcome,
 from nemoguardrails.library.self_check.input_check.actions import self_check_input
 from nemoguardrails.library.self_check.output_check.actions import self_check_output
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.testing import RecordingHTTPClient
 from tests.utils import FakeLLMModel, TestChat
 
 
@@ -189,7 +190,10 @@ async def test_self_check_facts_without_evidence_allows():
     ],
 )
 async def test_alignscore_check_facts_returns_rail_outcome(monkeypatch, score, expected):
-    async def fake_alignscore_request(url, evidence, response):
+    client = RecordingHTTPClient()
+
+    async def fake_alignscore_request(url, evidence, response, http_client=None):
+        assert http_client is client
         return score
 
     task_manager = cast(
@@ -214,6 +218,7 @@ async def test_alignscore_check_facts_returns_rail_outcome(monkeypatch, score, e
         context={"relevant_chunks": ["evidence"], "bot_message": "answer"},
         llm=FakeLLMModel(responses=[]),
         config=_config(),
+        http_client=client,
     )
 
     assert outcome == expected
@@ -222,10 +227,12 @@ async def test_alignscore_check_facts_returns_rail_outcome(monkeypatch, score, e
 @pytest.mark.asyncio
 async def test_alignscore_check_facts_preserves_missing_endpoint(monkeypatch):
     observed_url = None
+    client = RecordingHTTPClient()
 
-    async def fake_alignscore_request(url, evidence, response):
+    async def fake_alignscore_request(url, evidence, response, http_client=None):
         nonlocal observed_url
         observed_url = url
+        assert http_client is client
         return 1.0
 
     task_manager = cast(
@@ -250,6 +257,7 @@ async def test_alignscore_check_facts_preserves_missing_endpoint(monkeypatch):
         context={"relevant_chunks": ["evidence"], "bot_message": "answer"},
         llm=FakeLLMModel(responses=[]),
         config=_config(),
+        http_client=client,
     )
 
     assert observed_url is None

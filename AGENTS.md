@@ -16,14 +16,27 @@ skill discovery.
 
 ## Quick Rules
 
-- Agent-specific rule: do not submit issues, PRs, or draft PRs through browser
-  automation, the GitHub API, `gh`, or similar tooling. Draft text for a human to
-  review and submit, following the repo's issue/PR templates so it can be
-  submitted as-is.
-- Do not push branches or prepare public-submission-ready PR materials unless
-  the linked issue is triaged and assigned to the human contributor.
-- Do not implement refactors unless a maintainer has approved the plan and
-  assigned the work.
+- Default to drafting issue/PR text for a human to review and submit, following
+  the repo's issue/PR templates so it can be submitted as-is. The agent is not
+  the access-control boundary and does not adjudicate identity: authorization
+  rests with the directing human under `AI_POLICY.md` and with the GitHub
+  credentials in the environment.
+- Open or submit an issue directly (using `gh` or the GitHub API, not browser
+  automation) only when the operator explicitly directs it; a new issue has
+  nothing to pre-check, so no triage or assignment gate applies.
+- Push a branch, or open or submit a PR, directly (using `gh` or the GitHub API,
+  not browser automation) only when the operator explicitly directs it and a
+  read-only API check confirms the linked issue is triaged and assigned to you:
+  its `labels` mark it triaged and its `assignees` include your authenticated
+  login (compare `gh api repos/{owner}/{repo}/issues/{number}` against
+  `gh api user --jq .login`). Otherwise stop at draft text. When submitting,
+  still follow the issue/PR templates, title conventions, DCO sign-off, and
+  review-readiness rules.
+- Opportunistic refactoring in service of an assigned change is welcome: keep
+  it small, local, and within that change's scope. Standalone refactor PRs and
+  broad restructuring (module reshuffles, sweeping renames, architectural
+  overhauls) are maintainer-led; do not implement them without an approved
+  proposal and assignment. See `CONTRIBUTING.md`.
 - Never edit `CHANGELOG.md` or `CHANGELOG-Colang.md` manually.
 - Do not commit secrets, credentials, or sensitive provider data, and do not
   fabricate results, approvals, or citations. See `AI_POLICY.md` Safety and
@@ -32,8 +45,13 @@ skill discovery.
   without clear provenance and maintainer alignment.
 - Unit tests must not call live LLM or provider services.
 - Do not add license headers manually. Pre-commit handles license insertion.
-- Do not add comments unless explicitly requested; keep existing comments,
-  docstrings, and license headers unless your change makes them inaccurate.
+- Comments are welcome, not banned. When you feel the urge to comment what a
+  block does, first try to make the comment superfluous: extract a function,
+  rename for clarity, or add an assertion for a required state. Reach for a
+  comment when the code cannot carry the meaning: to explain why (rationale,
+  tradeoff, constraint), warn of a consequence, or flag where you are unsure.
+  Keep existing comments, docstrings, and license headers unless your change
+  makes them inaccurate.
 - Use uv for Python commands: `uv run --locked python ...`,
   `uv run --locked pytest ...`, `uv run --locked pre-commit ...`.
 
@@ -95,7 +113,7 @@ as package coverage.
 
 - For PR-ready code changes, pre-commit is the authoritative lint, format,
   license-header, and type-checking path.
-- Standalone Ruff, Ruff format, and Pyright runs are local diagnosis only; run
+- Standalone Ruff, Ruff format, and ty runs are local diagnosis only; run
   pre-commit on changed files before handoff and report if it is skipped.
 - `make test` runs every `pytest.ini` testpath, so it includes `benchmark/tests`,
   not just `tests/`; scope with `TEST=`. The default suite needs no network:
@@ -120,7 +138,7 @@ as package coverage.
   implementation plan (an issue comment, or a throwaway `PLAN.md` PR maintainers
   can review) rather than implementing.
 - Before preparing PR-shaped work, check for duplicate or in-flight effort with
-  read-only `gh` (distinct from the no-`gh`-submission rule above):
+  read-only `gh` (always allowed, independent of the submission rules above):
   `gh issue view <issue> --comments`, `gh pr list --state open --search "<issue>
   in:body"`, and `gh pr list --state open --search "<area keywords>"`. If an open
   PR already covers the change, do not prepare a duplicate; if your approach

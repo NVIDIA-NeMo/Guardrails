@@ -167,6 +167,9 @@ navigation:
               - page: GuardrailsAI
                 path: configure-rails/guardrail-catalog/community/guardrails-ai.mdx
                 slug: guardrails-ai
+              - page: HuggingFace Classifier
+                path: configure-rails/guardrail-catalog/community/hf-classifier.mdx
+                slug: hf-classifier
               - page: Llama Guard
                 path: configure-rails/guardrail-catalog/community/llama-guard.mdx
                 slug: llama-guard

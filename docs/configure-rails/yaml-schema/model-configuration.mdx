@@ -280,3 +280,40 @@ models:
 ```
 
 Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.
+
+### Custom HTTP Headers
+
+Set `parameters.default_headers` to attach custom HTTP headers to every request a model sends to its provider endpoint.
+This is useful for multi-tenant routing, request attribution, or correlation IDs.
+Headers are configured per model: each model sends only the headers declared in its own `parameters` block, so a header you want on several models must be repeated under each one.
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      default_headers:
+        X-Tenant-Id: acme-corp
+        X-Routing-Pool: main-llm
+        X-Correlation-Source: guardrails-app
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      default_headers:
+        X-Tenant-Id: acme-corp
+        X-Routing-Pool: safety-pool
+        X-Team: trust-and-safety
+```
+
+The configured headers apply on top of the request's base headers, which are `Content-Type` and the `Authorization` bearer token derived from the API key.
+Header names are matched case-insensitively, and a configured header overrides a base header of the same name.
+For example, setting `Authorization` under `default_headers` replaces the token built from the API key, which lets you use a custom authentication scheme.
+Configured headers are sent only as HTTP headers and never appear in the request body.
+
+Header values must be strings; a bare numeric or boolean value in YAML, such as `X-Retry: 3`, is converted to its string form.
+Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_headers` in a checked-in `config.yml`.
+
+This behavior is the same for both the IORails and LLMRails engines.

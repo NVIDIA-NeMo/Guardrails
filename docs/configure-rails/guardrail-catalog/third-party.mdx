@@ -278,3 +278,37 @@ rails:
 ```
 
 For more details, check out the [Cisco AI Defense Integration](/configure-guardrails/guardrail-catalog/third-party/ai-defense) page.
+
+## HuggingFace Classifier
+
+The NeMo Guardrails library supports using HuggingFace text classification models for fast, prompt-free content moderation on input, output, and retrieval flows. Classifiers can run locally via `transformers` or connect to remote inference servers (vLLM, KServe, FMS).
+
+### Example usage
+
+To set up a local HuggingFace classifier rail for named entity recognition on input and output flows:
+
+```yaml
+rails:
+  config:
+    hf_classifier:
+      named_entity_recognition:
+        engine: local
+        model: dslim/distilbert-NER
+        task: token-classification
+        threshold: 0.7
+        blocked_labels:
+          - "PER"
+          - "LOC"
+          - "ORG"
+        parameters:
+          aggregation_strategy: simple
+
+  input:
+    flows:
+      - hf classifier check input $classifier=named_entity_recognition
+  output:
+    flows:
+      - hf classifier check output $classifier=named_entity_recognition
+```
+
+For more details, check out the [HuggingFace Classifier Integration](/configure-guardrails/guardrail-catalog/third-party/hf-classifier) page.

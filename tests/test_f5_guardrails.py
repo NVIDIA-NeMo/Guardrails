@@ -18,11 +18,14 @@ import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from aioresponses import aioresponses
 
+import nemoguardrails.library.f5.actions as f5_actions
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.http import HTTPConnectionError, HTTPResponse
 from nemoguardrails.library.f5.actions import f5_guardrails_scan
+from nemoguardrails.testing import RecordingHTTPClient
+from tests.http_utils import RecordedHTTPResponses
 from tests.utils import TestChat
 
 
@@ -76,13 +79,14 @@ def test_f5_guardrails_input_cleared(config, monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
-            repeat=True,
+            times=3,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello!"
         chat << "express greeting"
         chat << "Hello! How can I assist you today?"
@@ -97,13 +101,13 @@ def test_f5_guardrails_input_blocked(config, monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "flagged"}},
-            repeat=True,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "bad message"
         chat << "I'm sorry, I can't respond to that."
 
@@ -117,7 +121,7 @@ def test_f5_guardrails_output_blocked(config, monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Input scan cleared
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
@@ -129,6 +133,7 @@ def test_f5_guardrails_output_blocked(config, monkeypatch):
             payload={"result": {"outcome": "flagged"}},
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello"
         chat << "I'm sorry, I can't respond to that."
 
@@ -143,14 +148,15 @@ def test_f5_guardrails_fail_open(config_fail_open, monkeypatch):
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Simulate an API error (e.g., 500)
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=500,
-            repeat=True,
+            times=3,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello!"
         chat << "express greeting"
         chat << "Hello! How can I assist you today?"
@@ -160,13 +166,13 @@ def test_f5_guardrails_fail_closed(config, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     chat = TestChat(config)
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=500,
-            repeat=True,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello!"
         chat << "I'm sorry, an internal error has occurred."
 
@@ -175,29 +181,69 @@ def test_f5_guardrails_fail_closed(config, monkeypatch):
 async def test_f5_guardrails_timeout_fail_open(config_fail_open, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             exception=asyncio.TimeoutError(),
         )
 
-        result = await f5_guardrails_scan(text="Hello!", config=config_fail_open)
+        result = await f5_guardrails_scan(text="Hello!", config=config_fail_open, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_connection_failure_respects_policy(config, config_fail_open, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+
+    fail_open_result = await f5_guardrails_scan(
+        text="Hello!",
+        config=config_fail_open,
+        http_client=RecordingHTTPClient([HTTPConnectionError("connection failed")]),
+    )
+
+    assert fail_open_result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
+
+    with pytest.raises(RuntimeError, match="Connection error to F5 Guardrails API"):
+        await f5_guardrails_scan(
+            text="Hello!",
+            config=config,
+            http_client=RecordingHTTPClient([HTTPConnectionError("connection failed")]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_f5_guardrails_closes_owned_shared_client(config, monkeypatch):
+    monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
+    transport = RecordingHTTPClient(
+        [
+            HTTPResponse(
+                status_code=200,
+                content=b'{"result":{"outcome":"cleared"}}',
+            )
+        ]
+    )
+    monkeypatch.setattr(f5_actions, "create_http_client", lambda **kwargs: transport)
+
+    result = await f5_guardrails_scan(text="Hello!", config=config)
+
+    assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
+    assert transport.close_calls == 1
+    assert transport.requests[0].timeout == 30.0
 
 
 @pytest.mark.asyncio
 async def test_f5_guardrails_fail_open_marker_on_http_error(config_fail_open, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=500,
             body="upstream failure",
         )
 
-        result = await f5_guardrails_scan(text="Hello!", config=config_fail_open)
+        result = await f5_guardrails_scan(text="Hello!", config=config_fail_open, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
 
@@ -215,7 +261,7 @@ async def test_f5_guardrails_error_body_not_logged(config_fail_open, monkeypatch
     sentinel = "SENSITIVE-USER-INPUT-DO-NOT-LOG-12345"
     caplog.set_level(logging.DEBUG, logger="nemoguardrails.library.f5.actions")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=500,
@@ -223,7 +269,7 @@ async def test_f5_guardrails_error_body_not_logged(config_fail_open, monkeypatch
             content_type="application/json",
         )
 
-        await f5_guardrails_scan(text=sentinel, config=config_fail_open)
+        await f5_guardrails_scan(text=sentinel, config=config_fail_open, http_client=m.client)
 
     for record in caplog.records:
         assert sentinel not in record.getMessage(), f"Vendor error body leaked into log record: {record.getMessage()!r}"
@@ -260,13 +306,14 @@ def test_f5_guardrails_colang_2_input_blocked(config_v2, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     chat = TestChat(config_v2)
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "flagged"}},
-            repeat=True,
+            times=2,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "bad message"
         chat << "I'm sorry, I can't respond to that."
 
@@ -275,13 +322,14 @@ def test_f5_guardrails_colang_2_input_cleared(config_v2, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     chat = TestChat(config_v2)
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
-            repeat=True,
+            times=2,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello!"
         chat << "Hello! How can I assist you today?"
 
@@ -290,7 +338,7 @@ def test_f5_guardrails_colang_2_output_blocked(config_v2, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     chat = TestChat(config_v2)
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         # Input scan cleared
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
@@ -302,6 +350,7 @@ def test_f5_guardrails_colang_2_output_blocked(config_v2, monkeypatch):
             payload={"result": {"outcome": "flagged"}},
         )
 
+        chat.app.register_action_param("http_client", m.client)
         chat >> "Hello!"
         chat << "I'm sorry, I can't respond to that."
 
@@ -310,14 +359,14 @@ def test_f5_guardrails_colang_2_output_blocked(config_v2, monkeypatch):
 async def test_f5_guardrails_timeout_fail_closed(config, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             exception=asyncio.TimeoutError(),
         )
 
         with pytest.raises(RuntimeError, match="timed out"):
-            await f5_guardrails_scan(text="Hello!", config=config)
+            await f5_guardrails_scan(text="Hello!", config=config, http_client=m.client)
 
 
 @pytest.mark.asyncio
@@ -335,15 +384,24 @@ async def test_f5_guardrails_custom_api_url(monkeypatch):
         """,
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://custom.example.com/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
         )
 
-        result = await f5_guardrails_scan(text="Hello!", config=custom_config)
+        result = await f5_guardrails_scan(text="Hello!", config=custom_config, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
+    request = m.client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://custom.example.com/backend/v1/scans"
+    assert request.headers == {
+        "Authorization": "Bearer test-key",
+        "Content-Type": "application/json",
+    }
+    assert request.json == {"input": "Hello!"}
+    assert request.timeout == 30.0
 
 
 @pytest.mark.asyncio
@@ -352,15 +410,16 @@ async def test_f5_guardrails_api_url_env_fallback(config, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
     monkeypatch.setenv("F5_GUARDRAILS_API_URL", "https://env.example.com")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://env.example.com/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
         )
 
-        result = await f5_guardrails_scan(text="Hello!", config=config)
+        result = await f5_guardrails_scan(text="Hello!", config=config, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
+    assert m.client.requests[0].url == "https://env.example.com/backend/v1/scans"
 
 
 @pytest.mark.asyncio
@@ -379,15 +438,16 @@ async def test_f5_guardrails_env_api_url_wins_over_config(monkeypatch):
         """,
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://beta.example.com/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
         )
 
-        result = await f5_guardrails_scan(text="Hello!", config=custom_config)
+        result = await f5_guardrails_scan(text="Hello!", config=custom_config, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
+    assert m.client.requests[0].url == "https://beta.example.com/backend/v1/scans"
 
 
 @pytest.fixture
@@ -417,13 +477,13 @@ async def test_f5_guardrails_input_rails_exception(config_exceptions, monkeypatc
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "flagged"}},
-            repeat=True,
         )
 
+        chat.app.register_action_param("http_client", m.client)
         messages = [{"role": "user", "content": "bad message"}]
         result = await chat.app.generate_async(messages=messages)
 
@@ -443,7 +503,7 @@ async def test_f5_guardrails_output_rails_exception(config_exceptions, monkeypat
         ],
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             payload={"result": {"outcome": "cleared"}},
@@ -453,6 +513,7 @@ async def test_f5_guardrails_output_rails_exception(config_exceptions, monkeypat
             payload={"result": {"outcome": "flagged"}},
         )
 
+        chat.app.register_action_param("http_client", m.client)
         messages = [{"role": "user", "content": "Hello"}]
         result = await chat.app.generate_async(messages=messages)
 
@@ -498,7 +559,7 @@ async def test_f5_guardrails_429_then_success(config_no_backoff, monkeypatch):
     """A 429 with Retry-After: 0 is retried and the second call succeeds."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
@@ -513,7 +574,7 @@ async def test_f5_guardrails_429_then_success(config_no_backoff, monkeypatch):
             "nemoguardrails.library.f5.actions.asyncio.sleep",
             new=AsyncMock(return_value=None),
         ) as sleep_mock:
-            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
     sleep_mock.assert_awaited_once()
@@ -525,7 +586,7 @@ async def test_f5_guardrails_429_retry_after_http_date(config_no_backoff, monkey
     """HTTP-date Retry-After values are parsed and honored."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
@@ -540,7 +601,7 @@ async def test_f5_guardrails_429_retry_after_http_date(config_no_backoff, monkey
             "nemoguardrails.library.f5.actions.asyncio.sleep",
             new=AsyncMock(return_value=None),
         ) as sleep_mock:
-            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
     sleep_mock.assert_awaited_once()
@@ -552,7 +613,7 @@ async def test_f5_guardrails_429_retry_after_capped(config_no_backoff, monkeypat
     """Retry-After values larger than max_retry_after_seconds are clamped."""
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
@@ -567,7 +628,7 @@ async def test_f5_guardrails_429_retry_after_capped(config_no_backoff, monkeypat
             "nemoguardrails.library.f5.actions.asyncio.sleep",
             new=AsyncMock(return_value=None),
         ) as sleep_mock:
-            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
     sleep_mock.assert_awaited_once()
@@ -578,19 +639,19 @@ async def test_f5_guardrails_429_retry_after_capped(config_no_backoff, monkeypat
 async def test_f5_guardrails_429_exhausted_fail_open(config_no_backoff_fail_open, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
             headers={"Retry-After": "0"},
-            repeat=True,
+            times=3,
         )
 
         with patch(
             "nemoguardrails.library.f5.actions.asyncio.sleep",
             new=AsyncMock(return_value=None),
         ):
-            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff_fail_open)
+            result = await f5_guardrails_scan(text="Hello!", config=config_no_backoff_fail_open, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}, "fail_open": True})
 
@@ -599,12 +660,12 @@ async def test_f5_guardrails_429_exhausted_fail_open(config_no_backoff_fail_open
 async def test_f5_guardrails_429_exhausted_fail_closed(config_no_backoff, monkeypatch):
     monkeypatch.setenv("F5_GUARDRAILS_API_KEY", "test-key")
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
             headers={"Retry-After": "0"},
-            repeat=True,
+            times=3,
         )
 
         with patch(
@@ -612,7 +673,7 @@ async def test_f5_guardrails_429_exhausted_fail_closed(config_no_backoff, monkey
             new=AsyncMock(return_value=None),
         ):
             with pytest.raises(RuntimeError, match="rate limited"):
-                await f5_guardrails_scan(text="Hello!", config=config_no_backoff)
+                await f5_guardrails_scan(text="Hello!", config=config_no_backoff, http_client=m.client)
 
 
 @pytest.mark.asyncio
@@ -632,7 +693,7 @@ async def test_f5_guardrails_429_no_retry_after_uses_backoff(monkeypatch):
         """,
     )
 
-    with aioresponses() as m:
+    with RecordedHTTPResponses() as m:
         m.post(
             "https://us1.calypsoai.app/backend/v1/scans",
             status=429,
@@ -650,7 +711,7 @@ async def test_f5_guardrails_429_no_retry_after_uses_backoff(monkeypatch):
             "nemoguardrails.library.f5.actions.asyncio.sleep",
             new=AsyncMock(return_value=None),
         ) as sleep_mock:
-            result = await f5_guardrails_scan(text="Hello!", config=cfg)
+            result = await f5_guardrails_scan(text="Hello!", config=cfg, http_client=m.client)
 
     assert result == RailOutcome.allow(metadata={"result": {"outcome": "cleared"}})
     assert sleep_mock.await_count == 2

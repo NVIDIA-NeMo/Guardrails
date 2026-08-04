@@ -115,7 +115,7 @@ def test_2_x_raw_state_rejected_at_server():
         json=_chat_payload("config_2", {"version": "2.x", "state": "{}"}),
     )
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["detail"]
+    assert "Colang 2.0" in response.json()["error"]["message"]
 
 
 def test_2_x_raw_state_rejected_at_server_streaming():
@@ -126,7 +126,7 @@ def test_2_x_raw_state_rejected_at_server_streaming():
     )
 
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["detail"]
+    assert "Colang 2.0" in response.json()["error"]["message"]
 
 
 def test_2_x_events_state_rejected_after_config_load():
@@ -137,7 +137,7 @@ def test_2_x_events_state_rejected_after_config_load():
     )
 
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["detail"]
+    assert "Colang 2.0" in response.json()["error"]["message"]
 
 
 def test_2_x_thread_id_rejected_after_config_load():
@@ -157,8 +157,8 @@ def test_2_x_thread_id_rejected_after_config_load():
     )
 
     assert response.status_code == 422
-    assert "thread_id" in response.json()["detail"]
-    assert "Colang 2.0" in response.json()["detail"]
+    assert "thread_id" in response.json()["error"]["message"]
+    assert "Colang 2.0" in response.json()["error"]["message"]
 
 
 def test_invalid_state_shape_rejected_before_model_init():
@@ -171,7 +171,7 @@ def test_invalid_state_shape_rejected_before_model_init():
     )
 
     assert response.status_code == 422
-    assert "events" in response.json()["detail"]
+    assert "events" in response.json()["error"]["message"]
 
 
 def test_invalid_events_state_type_rejected_before_model_init():
@@ -184,4 +184,4 @@ def test_invalid_events_state_type_rejected_before_model_init():
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Invalid state format: 'events' must be a list."
+    assert response.json()["error"]["message"] == "Invalid state format: 'events' must be a list."

@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
@@ -55,6 +56,7 @@ async def detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
+    http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks whether the provided text contains any PII.
@@ -91,6 +93,7 @@ async def detect_pii(
         enabled_entities,
         server_endpoint,
         pai_api_key,
+        http_client=http_client,
     )
 
     try:
@@ -101,7 +104,12 @@ async def detect_pii(
 
 
 @action(is_system_action=False)
-async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
+async def mask_pii(
+    source: str,
+    text: str,
+    config: RailsConfig,
+    http_client: HTTPClient | None = None,
+) -> RailOutcome:
     """Masks any detected PII in the provided text.
 
     Args:
@@ -136,6 +144,7 @@ async def mask_pii(source: str, text: str, config: RailsConfig) -> RailOutcome:
         enabled_entities,
         server_endpoint,
         pai_api_key,
+        http_client=http_client,
     )
 
     if not private_ai_response or not isinstance(private_ai_response, list):

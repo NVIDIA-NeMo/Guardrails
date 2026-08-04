@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
+from nemoguardrails.http import HTTPClient
 from nemoguardrails.library.polygraf.request import polygraf_request
 from nemoguardrails.rails.llm.config import PolygrafDetection
 
@@ -185,6 +186,7 @@ async def polygraf_detect_pii(
     source: str,
     text: str,
     config: RailsConfig,
+    http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks whether the provided text contains any PII using Polygraf.
@@ -206,10 +208,13 @@ async def polygraf_detect_pii(
     polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
     api_key = _get_polygraf_api_key()
-    session = kwargs.get("session")
-
     try:
-        entities: List[Dict[str, Any]] = await polygraf_request(text, server_endpoint, api_key, session=session)
+        entities: List[Dict[str, Any]] = await polygraf_request(
+            text,
+            server_endpoint,
+            api_key,
+            http_client=http_client,
+        )
     except ValueError as err:
         # Fail closed: a provider failure must not allow potentially-PII text
         # through. Log only the failure category, never the input text or
@@ -232,7 +237,13 @@ async def polygraf_detect_pii(
 
 
 @action(is_system_action=False)
-async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwargs) -> RailOutcome:
+async def polygraf_mask_pii(
+    source: str,
+    text: str,
+    config: RailsConfig,
+    http_client: Optional[HTTPClient] = None,
+    **kwargs,
+) -> RailOutcome:
     """Masks any detected PII in the provided text using Polygraf.
 
     Args:
@@ -251,10 +262,13 @@ async def polygraf_mask_pii(source: str, text: str, config: RailsConfig, **kwarg
     polygraf_config, _source_config, enabled_entities = _resolve_source_config(config, source)
     server_endpoint = polygraf_config.server_endpoint
     api_key = _get_polygraf_api_key()
-    session = kwargs.get("session")
-
     try:
-        entities: List[Dict[str, Any]] = await polygraf_request(text, server_endpoint, api_key, session=session)
+        entities: List[Dict[str, Any]] = await polygraf_request(
+            text,
+            server_endpoint,
+            api_key,
+            http_client=http_client,
+        )
     except ValueError as err:
         # Fail closed: if we cannot run masking at all, redact the entire text
         # rather than risk forwarding raw PII downstream.

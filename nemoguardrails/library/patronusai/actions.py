@@ -16,14 +16,14 @@
 import logging
 import os
 import re
+from collections.abc import Mapping
 from typing import List, Literal, Optional, Tuple, Union
-
-import aiohttp
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.http import HTTPClient, http_call
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -67,11 +67,22 @@ def _patronus_lynx_outcome(hallucination: bool, reasoning: Union[List[str], None
     return RailOutcome.allow(metadata=metadata)
 
 
+def _get_patronus_lynx_model(
+    llms: Mapping[str, LLMModel],
+    model_name: str,
+) -> LLMModel:
+    model = llms.get(model_name)
+    if model is None:
+        raise ValueError(f"Patronus Lynx model {model_name!r} is unavailable in the shared model registry.")
+    return model
+
+
 @action()
 async def patronus_lynx_check_output_hallucination(
     llm_task_manager: LLMTaskManager,
+    llms: Mapping[str, LLMModel],
+    model_name: str,
     context: Optional[dict] = None,
-    patronus_lynx_llm: Optional[LLMModel] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -86,6 +97,7 @@ async def patronus_lynx_check_output_hallucination(
         log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
         return _patronus_lynx_outcome(False, None)
 
+    llm = _get_patronus_lynx_model(llms, model_name)
     check_output_hallucination_prompt = llm_task_manager.render_task_prompt(
         task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
         context={
@@ -102,7 +114,7 @@ async def patronus_lynx_check_output_hallucination(
 
     result = (
         await llm_call(
-            patronus_lynx_llm,
+            llm,
             check_output_hallucination_prompt,
             stop=stop,
             llm_params={"temperature": 0.0},
@@ -144,6 +156,7 @@ async def patronus_evaluate_request(
     user_input: Optional[str] = None,
     bot_response: Optional[str] = None,
     provided_context: Optional[Union[str, List[str]]] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> Optional[dict]:
     """
     Make a call to the Patronus Evaluate API.
@@ -183,34 +196,35 @@ async def patronus_evaluate_request(
         "Content-Type": "application/json",
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url=url,
-            headers=headers,
-            json=data,
-        ) as response:
-            if 400 <= response.status < 500:
-                raise ValueError(
-                    f"The Patronus Evaluate API call failed with status code {response.status}. "
-                    f"Details: {await response.text()}"
-                )
+    response = await http_call(
+        http_client,
+        "POST",
+        url,
+        headers=headers,
+        json=data,
+        raise_for_status=False,
+    )
+    if 400 <= response.status_code < 500:
+        raise ValueError(
+            f"The Patronus Evaluate API call failed with status code {response.status_code}. Details: {response.text}"
+        )
 
-            if response.status != 200:
-                log.error(
-                    "The Patronus Evaluate API call failed with status code %s. Details: %s",
-                    response.status,
-                    await response.text(),
-                )
-                return None
+    if response.status_code != 200:
+        log.error(
+            "The Patronus Evaluate API call failed with status code %s. Details: %s",
+            response.status_code,
+            response.text,
+        )
+        return None
 
-            response_json = await response.json()
-            return response_json
+    return response.json()
 
 
 @action(name="patronus_api_check_output")
 async def patronus_api_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """
     Check the user message, bot response, and/or provided context
@@ -229,6 +243,7 @@ async def patronus_api_check_output(
         user_input=user_input,
         bot_response=bot_response,
         provided_context=provided_context,
+        http_client=http_client,
     )
     passed = check_guardrail_pass(response=response, success_strategy=success_strategy)
     metadata = {"pass": passed}

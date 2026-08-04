@@ -35,6 +35,7 @@ from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
     DEFAULT_TIMEOUT_TOTAL,
+    merge_headers_case_insensitive,
     safe_read_body,
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
@@ -87,11 +88,9 @@ _RESERVED_LLM_PARAMETERS = frozenset(
         # be used in streaming or non-streaming mode. `stream_call` sets the
         # streaming default (`include_usage`), overridable via `llm_params`.
         "stream_options",
-        # client-only options — these configure the OpenAI-compatible client
-        # (constructor kwargs), not the chat-completion request body.  IORails
-        # doesn't wire the shared client yet; reserve them so they're never
-        # forwarded as body fields, leaving proper client support to a future
-        # refactor.
+        # client-only options — these configure transport, not the
+        # chat-completion request body, so they are never forwarded as body
+        # fields.
         "default_headers",
         "default_query",
     }
@@ -477,6 +476,10 @@ class ModelEngine(BaseEngine):
             max_attempts=int(params.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
         )
 
+        self.default_headers: Mapping[str, str] = MappingProxyType(
+            {str(key): str(value) for key, value in (params.get("default_headers") or {}).items()}
+        )
+
         # Default `llm_params` used on inference are the subset of Model.parameters after
         # filtering out keys in _RESERVED_LLM_PARAMETERS.  Exposed as a read-only
         # MappingProxyType view so callers can't mutate the shared per-engine defaults.
@@ -550,6 +553,7 @@ class ModelEngine(BaseEngine):
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        headers = merge_headers_case_insensitive(headers, self.default_headers)
 
         body: dict[str, Any] = {"model": self.model_name, "messages": messages, **kwargs}
         return _RequestParams(client=client, url=url, headers=headers, body=body)
