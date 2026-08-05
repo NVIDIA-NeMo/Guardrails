@@ -60,7 +60,15 @@ from nemoguardrails.library.jailbreak_detection.actions import jailbreak_detecti
 from nemoguardrails.library.topic_safety.actions import topic_safety_check_input
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
-from nemoguardrails.manifests import RailDirection, default_rail_catalog, resolve_import_ref
+from nemoguardrails.manifests import (
+    ActionRef,
+    Binding,
+    RailCatalog,
+    RailDirection,
+    RailSurface,
+    default_rail_catalog,
+    resolve_import_ref,
+)
 from nemoguardrails.testing.fake_model import FakeLLMModel
 
 CONTENT_SAFETY_INPUT = "content safety check input $model=content_safety"
@@ -70,6 +78,63 @@ TOPIC_SAFETY_ACTION = "nemoguardrails.library.topic_safety.actions.topic_safety_
 JAILBREAK_INPUT = "jailbreak detection model"
 
 USER_MESSAGES = [{"role": "user", "content": "hello there"}]
+
+SYNTHETIC_FLOW = "synthetic rail"
+CONTENT_SAFETY_ACTION_REF = ActionRef(
+    name="content_safety_check_input",
+    target="nemoguardrails.library.content_safety.actions:content_safety_check_input",
+)
+
+
+class StubCatalog(RailCatalog):
+    """A catalog holding one synthetic surface.
+
+    ``compile_rail`` takes the catalog as a parameter precisely so a test can hand it a
+    surface no shipped manifest produces — an unimportable action, a literal binding, a
+    binding the schema forbids. Without this seam those compilation paths are unreachable.
+
+    Subclasses the real catalog rather than duck-typing it: an empty record list constructs
+    fine, and inheriting keeps the parameter's declared type honest instead of casting.
+    """
+
+    def __init__(self, surface: RailSurface, direction: RailDirection = RailDirection.INPUT):
+        super().__init__(())
+        self._stub_surfaces: dict[tuple[RailDirection, str], RailSurface] = {(direction, surface.name): surface}
+
+    def surfaces(self, direction: Optional[RailDirection] = None) -> dict[tuple[RailDirection, str], RailSurface]:
+        """Return the synthetic surface, filtered by *direction* as the real catalog does."""
+        if direction is None:
+            return self._stub_surfaces
+        return {key: surface for key, surface in self._stub_surfaces.items() if key[0] is direction}
+
+
+def synthetic_surface(
+    action: ActionRef,
+    bindings: tuple[Binding, ...] = (),
+    *,
+    bypass_validation: bool = False,
+) -> RailSurface:
+    """Build a one-off input surface for a compilation path the real catalog cannot reach.
+
+    ``bypass_validation`` uses ``model_construct`` to skip Pydantic, which is the only way to
+    build a manifest the schema rejects. Reach for it only when the branch under test exists
+    to defend against exactly that.
+    """
+    if bypass_validation:
+        return RailSurface.model_construct(
+            name=SYNTHETIC_FLOW,
+            direction=RailDirection.INPUT,
+            action=action,
+            bindings=bindings,
+            transform_target=None,
+        )
+    return RailSurface(
+        name=SYNTHETIC_FLOW,
+        direction=RailDirection.INPUT,
+        action=action,
+        bindings=bindings,
+        transform_target=None,
+    )
 
 
 class RecordingAction:
@@ -148,6 +213,15 @@ class TestCompilation:
         with pytest.raises(RailCompilationError, match="no surface"):
             compile_rail("not a real rail", RailDirection.INPUT, deps)
 
+    def test_unparseable_flow_string_raises(self, deps):
+        """A flow string that is not valid surface-reference syntax fails as a compilation error.
+
+        The parser raises ``ValueError``; compilation must report it as a rail problem naming
+        the flow, not let a bare parser error escape to the caller.
+        """
+        with pytest.raises(RailCompilationError, match="not a valid flow reference"):
+            compile_rail("$model=orphaned", RailDirection.INPUT, deps)
+
     def test_wrong_direction_raises(self, deps):
         """An output-only surface configured as an input rail fails at compile time."""
         with pytest.raises(RailCompilationError, match="direction"):
@@ -198,6 +272,53 @@ class TestCompilation:
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, catch_all_action)
 
         assert compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps) is not None
+
+
+class TestMalformedManifest:
+    """Compilation refuses a manifest that is well-formed on paper but cannot be executed.
+
+    None of these arise from a shipped manifest, so each drives compilation through an
+    injected catalog. They are worth pinning anyway: the catalog is populated by rglobbing
+    ``library/**/rail.py``, so a third-party or in-progress manifest reaches this code, and
+    the failure has to name the flow rather than surface as an import error from deep inside
+    ``resolve_import_ref``.
+    """
+
+    def test_action_that_cannot_be_imported_raises(self, deps):
+        """A manifest naming a module that does not exist fails compilation, not at import."""
+        surface = synthetic_surface(ActionRef(name="ghost", target="nemoguardrails.no_such_module:action"))
+
+        with pytest.raises(RailCompilationError, match="cannot be imported"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+
+    def test_action_resolving_to_a_non_callable_raises(self, deps):
+        """A manifest pointing at a module attribute that is not callable fails compilation.
+
+        Resolution succeeds, so nothing raises until the rail is invoked — by which point the
+        fail-closed envelope would report a config error as a rail block.
+        """
+        surface = synthetic_surface(
+            ActionRef(name="not_a_function", target="nemoguardrails.guardrails.compiled_rail:_USER_MESSAGE_EVENT")
+        )
+
+        with pytest.raises(RailCompilationError, match="non-callable"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+
+    def test_binding_with_no_source_key_raises(self, deps):
+        """A non-literal binding carrying no source key fails compilation.
+
+        Requires bypassing Pydantic at both the ``Binding`` and ``RailSurface`` level, because
+        both reject it — so this guard is defence in depth against a manifest built through
+        ``model_construct`` rather than a state the schema permits. It is retained rather than
+        deleted because the alternative is a confusing ``$None=`` message further down.
+        """
+        keyless = Binding.model_construct(
+            kind="surface_param", action_param="model_name", key=None, value=None, required=True
+        )
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (keyless,), bypass_validation=True)
+
+        with pytest.raises(RailCompilationError, match="no source key"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
 
 
 class TestManifestBindingContract:
@@ -275,6 +396,36 @@ class TestBindingResolution:
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
         assert action.kwargs["context"]["user_message"] == "hello there"
+
+    @pytest.mark.asyncio
+    async def test_literal_binding_supplies_a_constant(self, deps, monkeypatch):
+        """A literal binding reaches the action as the value baked into the manifest.
+
+        Uses a synthetic surface because every shipped surface carrying a literal binding
+        belongs to an optional integration, and a unit test must not depend on which extras
+        happen to be installed.
+        """
+        action = RecordingAction(signature_of=content_safety_check_input)
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("model_name", "baked_in"),))
+
+        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface)).run(USER_MESSAGES)
+
+        assert action.kwargs["model_name"] == "baked_in"
+
+    @pytest.mark.asyncio
+    async def test_user_message_is_empty_when_the_request_has_no_user_turn(self, deps, monkeypatch):
+        """A request with no user turn yields an empty user_message instead of raising.
+
+        Matches the library actions, which read ``context.get(...)`` with a default and call
+        the model with empty text. The hand-written rails raised here and failed closed.
+        """
+        action = RecordingAction(signature_of=content_safety_check_input)
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
+
+        await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run([{"role": "system", "content": "hi"}])
+
+        assert action.kwargs["context"]["user_message"] == ""
 
     @pytest.mark.asyncio
     async def test_bot_response_reaches_an_output_rail_as_bot_message(self, deps, monkeypatch):
