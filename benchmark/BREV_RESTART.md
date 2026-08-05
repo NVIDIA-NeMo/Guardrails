@@ -18,7 +18,7 @@ docker run -d --gpus '"device=0,1"' \
   -e NGC_API_KEY=$NVIDIA_API_KEY \
   -v /ephemeral/nim-cache:/opt/nim/.cache \
   -p 8000:8000 \
-  nvcr.io/nim/nvidia/nemotron-3-nano:2.0.8
+  nvcr.io/nim/nvidia/nemotron-3-nano:2.0.10
 
 # Content Safety — Nemotron 3.5 (GPU 2 → port 8001)
 docker run -d --gpus '"device=2"' \
@@ -106,3 +106,75 @@ PYTHONPATH=/ephemeral/Guardrails \
 ```
 
 Results land in `benchmark/aiperf_results/`.
+
+---
+
+## 4. Data-Parallel Setup (Agent Scenario / Throughput Testing)
+
+Tim Gasser's recommendation (2026-08-05): replicate Nano across 6 GPUs and Content Safety across 2 GPUs so the downstream models don't bottleneck before IORails/LLMRails overhead is visible. Percentile latency must stay stable as concurrency ramps.
+
+**Layout:** 6 × Nano (GPUs 0–5, 1 GPU each) + 2 × Content Safety (GPUs 6–7, 1 GPU each).
+**Why Nano fits on 1 GPU:** 30B-A3B-NVFP4 ≈ 15 GB weights — well within 80 GB H100.
+**Load balancing:** Guardrails points at a single URL, so put nginx in round-robin in front of all Nano replicas (and optionally the CS replicas).
+
+### Start 6 Nano replicas
+
+```bash
+for i in 0 1 2 3 4 5; do
+  docker run -d --gpus "\"device=$i\"" \
+    -e NGC_API_KEY=$NVIDIA_API_KEY \
+    -v /ephemeral/nim-cache:/opt/nim/.cache \
+    -p $((8010 + i)):8000 \
+    nvcr.io/nim/nvidia/nemotron-3-nano:2.0.10
+done
+# Replicas on ports 8010–8015
+```
+
+### Start 2 Content Safety replicas
+
+```bash
+for i in 6 7; do
+  docker run -d --gpus "\"device=$i\"" \
+    -e NGC_API_KEY=$NVIDIA_API_KEY \
+    -v /ephemeral/nim-cache:/opt/nim/.cache \
+    -p $((8001 + i - 6)):8001 \
+    nvcr.io/nim/nvidia/nemotron-3.5-content-safety:2.0.5-variant
+done
+# Replicas on ports 8001–8002
+```
+
+### nginx load balancer
+
+Install nginx (`sudo apt-get install -y nginx`) and write `/etc/nginx/conf.d/nim_lb.conf`:
+
+```nginx
+upstream nano_lb {
+    server localhost:8010;
+    server localhost:8011;
+    server localhost:8012;
+    server localhost:8013;
+    server localhost:8014;
+    server localhost:8015;
+}
+
+upstream cs_lb {
+    server localhost:8001;
+    server localhost:8002;
+}
+
+server {
+    listen 8000;
+    location / { proxy_pass http://nano_lb; }
+}
+
+server {
+    listen 8003;
+    location / { proxy_pass http://cs_lb; }
+}
+```
+
+Reload nginx: `sudo nginx -s reload`
+
+Guardrails then points at `http://localhost:8000/v1` (Nano, load-balanced) and `http://localhost:8003` (Content Safety, load-balanced) — same as the single-instance setup from Guardrails' perspective.
+
+**Note:** the Guardrails config's content safety NIM URL may need updating from port 8001 → 8003 when using this layout.
