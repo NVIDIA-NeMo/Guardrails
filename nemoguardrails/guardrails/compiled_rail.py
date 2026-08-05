@@ -16,18 +16,10 @@
 """Manifest-driven rail execution for IORails.
 
 A ``CompiledRail`` is the executable unit behind one configured flow string. It is built
-once, at engine construction: it resolves the flow's ``RailSurface`` from the manifest
+once, at engine construction. It resolves the flow's ``RailSurface`` from the manifest
 catalog, imports the library action the surface declares, and freezes a plan for filling
 that action's parameters. Thereafter each request is one ``await action(**kwargs)`` and
 the returned ``RailOutcome`` is passed back to the caller unchanged.
-
-``CompiledRail`` knows nothing about ``RailResult``; converting the engine-neutral outcome
-to the IORails-specific result is ``RailsManager._run_rail``'s job, where ``triggered_rail``
-and ``records`` are attached anyway.
-
-This replaces the hand-written ``RailAction`` hierarchy. The rail logic itself lives in
-``nemoguardrails/library/``, shared with LLMRails, so there is one implementation of each
-rail rather than two.
 """
 
 from __future__ import annotations
@@ -63,9 +55,9 @@ log = logging.getLogger(__name__)
 class RailCompilationError(Exception):
     """A configured flow cannot be turned into an executable rail.
 
-    Raised only during compilation, never while serving a request. ``IORails`` treats it as
-    the reason a config must fall back to LLMRails, so its message is user-facing and
-    should name the flow and what is wrong with it.
+    Raised while compiling, never while serving a request: a rail that fails mid-request
+    produces a blocking outcome through ``rail_guard`` instead. The message is user-facing —
+    it is why a config is not servable — so name the flow and what is wrong with it.
     """
 
 
@@ -108,16 +100,7 @@ _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 
 def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
     """Convert IORails messages into the event shapes conversation-history actions read.
-
-    ``topic_safety_check_input`` and its kin reach history through
-    ``nemoguardrails.llm.filters.to_chat_messages``, which recognises exactly these three
-    event types. Emitting them here gives IORails the same history LLMRails passes, without
-    changing a shipped library signature.
-
-    The coupling runs both ways and is pinned by tests at both ends: a change to the event
-    vocabulary in ``llm/filters.py`` would otherwise silently drop a rail's history rather
-    than fail. Turns with no content — an assistant tool-call turn, for instance — are
-    skipped, matching what ``to_chat_messages`` emits for them.
+    Used by actions which are tightly-coupled with colang event definitions for backwards-compatibility.
     """
     events: list[dict[str, Any]] = []
     for message in messages:
@@ -201,11 +184,6 @@ class CompiledRail:
         duration of the action. Every path that produces an ``LLMCallInfo`` appends to that
         var — a live call through ``track_llm_call``, a cache hit, and jailbreak's NIM call
         — so the sink sees them all, and it sees only this rail's.
-
-        Do not replace this with a read of ``llm_call_info_var`` after the action returns.
-        Library actions set that var inside themselves, so once it is given a scope the read
-        yields the *caller's* value for every rail. A sink is written during the call and is
-        indifferent to the var's lifetime.
         """
         sink: list[dict[str, Any]] = []
         token = processing_log_var.set(sink)
@@ -385,7 +363,8 @@ def compile_rail(
     catalog: Optional["RailCatalog"] = None,
 ) -> CompiledRail:
     """Compile one configured flow string into an executable rail.
-    Unservable rails raise a ``RailCompilationError``, validated ad compile-time.
+
+    Unservable rails raise a ``RailCompilationError``, validated at compile time.
     """
     catalog = catalog if catalog is not None else default_rail_catalog()
     surface, params = _resolve_surface(flow, direction, catalog)
