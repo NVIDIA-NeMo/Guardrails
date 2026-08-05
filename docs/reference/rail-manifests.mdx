@@ -1,0 +1,253 @@
+---
+title: "Rail Manifest Reference"
+sidebar-title: "Rail Manifests"
+description: "Declare built-in rail metadata, configuration, actions, flows, surfaces, requirements, and privacy behavior."
+keywords: ["rail manifest", "RailManifest", "rail catalog", "rail surfaces", "action manifest"]
+content:
+  type: "reference"
+---
+
+A rail manifest is the versioned, declarative contract for a built-in rail under `nemoguardrails/library`. It identifies the rail, describes its configuration and dependencies, declares its actions and Colang flows, and exposes action-backed input, output, or retrieval surfaces.
+
+The manifest keeps discovery separate from execution. Import references remain strings until the runtime needs the corresponding configuration factory or action. This lets the catalog inspect a rail without eagerly importing its optional integration dependencies.
+
+## File layout
+
+A manifest-backed library rail uses the following files:
+
+```text
+nemoguardrails/library/example_rail/
+├── __init__.py
+├── actions.py
+├── flows.co
+├── flows.v1.co
+├── rail.py
+└── rail_config.py
+```
+
+Only `rail.py` and `actions.py` are required. Add the other files when the rail provides Colang flows or typed configuration.
+
+The `rail.py` module must:
+
+- Import manifest types from `nemoguardrails.manifests`.
+- Define one module-level `RAIL` value containing a `RailManifest`.
+- Avoid importing the action implementation, configuration implementation, or optional provider packages.
+
+The built-in catalog discovers `rail.py` modules under `nemoguardrails/library`. It does not discover arbitrary application or third-party package paths.
+
+## Minimal manifest
+
+The following manifest declares one action and one input surface:
+
+```python
+from nemoguardrails.manifests import (
+    ActionRef,
+    Binding,
+    RailActions,
+    RailDirection,
+    RailManifest,
+    RailMetadata,
+    RailPrivacy,
+    RailSpec,
+    RailSurface,
+)
+
+CHECK_CUSTOM_POLICY = ActionRef(
+    name="check_custom_policy",
+    target="nemoguardrails.library.example_rail.actions:check_custom_policy",
+)
+
+RAIL = RailManifest(
+    name="example_rail",
+    metadata=RailMetadata(
+        display_name="Example Rail",
+        description="Checks user messages against an example policy.",
+        categories=("input",),
+        capabilities=("allow", "block"),
+        tags=("built-in",),
+        docs_url="docs/configure-rails/guardrail-catalog/community/example-rail.mdx",
+    ),
+    spec=RailSpec(
+        actions=RailActions(refs=(CHECK_CUSTOM_POLICY,)),
+        surfaces=(
+            RailSurface(
+                name="example check input",
+                direction=RailDirection.INPUT,
+                action=CHECK_CUSTOM_POLICY,
+                bindings=(Binding.context("text", "user_message"),),
+            ),
+        ),
+        privacy=RailPrivacy(),
+    ),
+)
+```
+
+## Top-level fields
+
+| Field | Purpose |
+| --- | --- |
+| `manifest_version` | Selects the manifest schema. The current and default value is `1`. |
+| `name` | Provides the unique, stable identifier for the rail. |
+| `metadata` | Describes the rail for documentation, discovery, and filtering. It does not change runtime behavior. |
+| `spec` | Declares executable configuration, flows, actions, surfaces, requirements, and privacy behavior. |
+
+`RailMetadata` supports display text, categories, capabilities, tags, documentation URL, lifecycle, owner, and version. Categories and capabilities use the manifest taxonomies. Use `tags` for labels that do not belong to those taxonomies.
+
+## Actions
+
+Declare each rail action with an `ActionRef`:
+
+```python
+CHECK_CUSTOM_POLICY = ActionRef(
+    name="check_custom_policy",
+    target="nemoguardrails.library.example_rail.actions:check_custom_policy",
+)
+```
+
+The `name` is the registered action name. It must agree with the action decorator. The `target` uses the `module:attribute` import-reference format.
+
+List every action reference in `RailActions`, including actions used by surfaces:
+
+```python
+actions=RailActions(refs=(CHECK_CUSTOM_POLICY,))
+```
+
+Manifest actions are registered lazily. The action module and its optional dependencies are imported when the action is resolved, not when the catalog first reads the manifest.
+
+Every action declared by a rail manifest must return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes). Actions decide whether to allow, block, or transform content. Colang flows and other runtimes decide how to present and enforce that decision.
+
+## Colang flows
+
+Use `RailFlows` when the rail includes Colang implementations:
+
+```python
+from nemoguardrails.manifests import RailFlows
+
+flows=RailFlows(
+    files=("flows.co",),
+    v1_files=("flows.v1.co",),
+    flow_names=("example check input",),
+)
+```
+
+`files` lists Colang 2.x files, `v1_files` lists Colang 1.0 files, and `flow_names` declares the public flow names owned by the rail. The default file names are `flows.co` and `flows.v1.co`.
+
+Keep both dialect implementations behaviorally equivalent when the rail supports both. The flows should consume `RailOutcome` properties and own presentation behavior such as refusal intents and stopping the flow.
+
+## Action-backed surfaces
+
+A `RailSurface` describes how to invoke a declared action in one pipeline direction. It is independent of a Colang implementation.
+
+| Field | Purpose |
+| --- | --- |
+| `name` | Identifies the configured rail surface. |
+| `direction` | Selects `input`, `output`, or `retrieval`. |
+| `action` | References an action declared in the same manifest. |
+| `bindings` | Maps runtime values and configured parameters to action parameters. |
+| `transform_target` | Declares the conversation value a transform surface rewrites. |
+
+Use binding constructors to identify where each action argument comes from:
+
+| Binding | Source |
+| --- | --- |
+| `Binding.context("text", "user_message")` | A runtime context value. |
+| `Binding.surface_param("model_name", "model")` | A parameter supplied with the configured surface. |
+| `Binding.literal("source", "input")` | A constant declared by the manifest. |
+
+Set `required=False` on a context or surface-parameter binding only when the action can operate without that value. A surface cannot bind the same action parameter more than once.
+
+When an action can return a transform outcome, set `transform_target` to the value it rewrites:
+
+```python
+from nemoguardrails.manifests import TransformTarget
+
+RailSurface(
+    name="example sanitize retrieval",
+    direction=RailDirection.RETRIEVAL,
+    action=SANITIZE_CUSTOM_TEXT,
+    bindings=(Binding.context("text", "relevant_chunks"),),
+    transform_target=TransformTarget.RELEVANT_CHUNKS,
+)
+```
+
+## Typed configuration
+
+Use `RailConfigSchema` to project a rail-specific field under `rails.config`:
+
+```python
+from nemoguardrails.manifests import ConfigSpecRef, RailConfigSchema
+
+config_schema=RailConfigSchema(
+    key="example_rail",
+    spec=ConfigSpecRef(
+        target="nemoguardrails.library.example_rail.rail_config:build_config_spec"
+    ),
+)
+```
+
+The referenced factory must return a `RailConfigSpec`. Keep the factory and its model types in `rail_config.py` so reading the manifest does not import the implementation eagerly.
+
+## Requirements and privacy
+
+Declare install and runtime requirements instead of leaving them implicit:
+
+```python
+from nemoguardrails.manifests import (
+    EnvVar,
+    RailPrivacy,
+    RailRequirements,
+    ServiceRequirement,
+)
+
+requirements=RailRequirements(
+    extras=("example",),
+    env_vars=(EnvVar(name="EXAMPLE_API_KEY", required=True),),
+    services=(ServiceRequirement(name="Example API", required=True),),
+)
+
+privacy=RailPrivacy(
+    sends_user_text=True,
+    remote_services=("Example API",),
+    data_retention="See the provider data policy.",
+)
+```
+
+`RailRequirements` can declare package extras, environment variables, services, model resources, and optional dependencies. `RailPrivacy` records whether the rail sends user messages, bot messages, or retrieved chunks to remote services, and can describe provider retention behavior.
+
+These declarations must match the action's actual behavior. Do not include credentials or secret values in the manifest.
+
+## Catalog validation
+
+The built-in `RailCatalog` validates the combined manifest set. Catalog construction fails when it finds:
+
+- Duplicate manifest names.
+- Duplicate configuration keys.
+- Duplicate public flow names.
+- Duplicate action names.
+- Duplicate surface names in the same direction.
+- A surface that references an action not declared by its manifest.
+
+You can inspect the built-in catalog through the public manifest API:
+
+```python
+from nemoguardrails.manifests import (
+    RailDirection,
+    all_rail_manifests,
+    default_rail_catalog,
+)
+
+manifests = all_rail_manifests()
+input_surfaces = default_rail_catalog().surfaces(direction=RailDirection.INPUT)
+```
+
+## Author checklist
+
+- Define a lightweight `RAIL` value in `rail.py`.
+- Use stable, globally unique manifest, action, flow, configuration, and surface names.
+- Keep import targets declarative and point them to the owning implementation modules.
+- Return `RailOutcome` from every declared action.
+- Keep Colang 1.0 and 2.x flows equivalent when both are present.
+- Bind every action parameter that the runtime must supply.
+- Declare transform targets, dependencies, external services, environment variables, and privacy behavior accurately.
+- Add unit tests for the action and manifest contract and recorded tests for LLM or HTTP boundaries when applicable.
+- Add or update the rail's catalog documentation page.
