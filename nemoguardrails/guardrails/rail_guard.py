@@ -65,19 +65,29 @@ def _upstream_http_status(exc: Exception) -> Optional[int]:
 def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Exception) -> str:
     """Record *exc* on *span* and return a redacted block reason, or re-raise on an HTTP status.
 
+    The exception text is redacted once, up front, and that redacted form is what reaches the
+    log on both paths. A provider error can carry a credential in its message — an API key in
+    a request URL, an echoed bearer token — and logging it raw would defeat the redaction
+    applied to the reason a few lines below (CWE-532).
+
+    *exc* itself is propagated unmodified. The server maps the original exception to a
+    response and sanitises the client-facing payload separately, so rewriting its message here
+    would only cost an operator the real text in a traceback.
+
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.
     """
     record_span_error(span, exc)
     request_id = get_request_id()
+    detail = _redact_secrets(str(exc))
 
     status = _upstream_http_status(exc)
     if status is not None:
-        log.error("[%s] %s failed (HTTP %d): %s", request_id, action_name, status, exc)
+        log.error("[%s] %s failed (HTTP %d): %s", request_id, action_name, status, detail)
         raise exc
 
-    log.error("[%s] %s failed: %s", request_id, action_name, exc)
-    return _redact_secrets(f"{action_name} error: {exc}")
+    log.error("[%s] %s failed: %s", request_id, action_name, detail)
+    return f"{action_name} error: {detail}"
 
 
 def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) -> RailResult:

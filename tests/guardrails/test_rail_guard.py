@@ -25,6 +25,7 @@ The policy previously lived in ``RailAction.run`` and was duplicated in
 call sites, so the coverage survives the deletion of ``RailAction``.
 """
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -96,6 +97,55 @@ class TestPropagatesUpstreamStatus:
             rail_error_result(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
+
+
+class TestLogsAreRedacted:
+    """Credentials are kept out of the log on both paths, not just out of the reason.
+
+    The returned reason has always been redacted. The log lines were not, so the same
+    exception text was protected in one direction and written verbatim in the other —
+    and the propagating path logs without returning a reason at all, so it was the only
+    place that text appeared.
+    """
+
+    SECRET = "nvapi-abc123secret"
+    REDACTED = "nvapi-***"
+    LOGGER = "nemoguardrails.guardrails.rail_guard"
+
+    def test_blocking_path_logs_the_redacted_message(self, caplog):
+        """A blocked rail logs the redacted text rather than the raw credential."""
+        with caplog.at_level(logging.ERROR, logger=self.LOGGER):
+            rail_error_result(None, ACTION_NAME, RuntimeError(f"auth rejected {self.SECRET}"))
+
+        assert self.SECRET not in caplog.text
+        assert self.REDACTED in caplog.text
+
+    def test_propagating_path_logs_the_redacted_message(self, caplog):
+        """A provider failure carrying a status is logged redacted before it is re-raised."""
+        exc = ModelEngineError(f"auth rejected {self.SECRET}", model_name="guard-model", status=401)
+
+        with caplog.at_level(logging.ERROR, logger=self.LOGGER):
+            with pytest.raises(ModelEngineError):
+                rail_error_result(None, ACTION_NAME, exc)
+
+        assert self.SECRET not in caplog.text
+        assert self.REDACTED in caplog.text
+
+    def test_propagated_exception_itself_is_not_rewritten(self, caplog):
+        """Redaction applies to the log and the reason, never to the exception that propagates.
+
+        The server maps the original exception to a response, and rewriting its message would
+        change what an operator sees in a traceback for no security gain — the client-facing
+        payload is sanitised separately.
+        """
+        exc = ModelEngineError(f"auth rejected {self.SECRET}", model_name="guard-model", status=401)
+
+        with caplog.at_level(logging.ERROR, logger=self.LOGGER):
+            with pytest.raises(ModelEngineError) as excinfo:
+                rail_error_result(None, ACTION_NAME, exc)
+
+        assert excinfo.value is exc
+        assert self.SECRET in str(excinfo.value)
 
 
 class TestSpanErrorRecording:
