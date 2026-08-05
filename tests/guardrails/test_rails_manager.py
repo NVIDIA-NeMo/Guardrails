@@ -22,6 +22,7 @@ individual iorails_actions test files.
 """
 
 import asyncio
+import copy
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -30,13 +31,16 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
+from tests.guardrails.async_helpers import mock_jailbreak_nim, mock_jailbreak_nim_failure, mock_rail_model
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -167,19 +171,19 @@ class TestRailsManagerInit:
             **CONTENT_SAFETY_CONFIG,
             "rails": {"input": {"flows": ["unknown rail $model=content_safety"]}},
         }
-        with pytest.raises(RuntimeError, match="not supported"):
+        with pytest.raises(RailCompilationError, match="no surface named"):
             config = RailsConfig.from_content(config=config_with_unknown)
             _make_rails_manager(config)
 
-    def test_actions_created_for_flows(self, content_safety_rails_manager):
-        assert "content safety check input $model=content_safety" in content_safety_rails_manager._actions
-        assert "content safety check output $model=content_safety" in content_safety_rails_manager._actions
+    def test_rails_compiled_for_flows(self, content_safety_rails_manager):
+        assert "content safety check input $model=content_safety" in content_safety_rails_manager._rails
+        assert "content safety check output $model=content_safety" in content_safety_rails_manager._rails
 
-    def test_nemoguards_actions_created(self, nemoguards_rails_manager):
-        assert "content safety check input $model=content_safety" in nemoguards_rails_manager._actions
-        assert "content safety check output $model=content_safety" in nemoguards_rails_manager._actions
-        assert "topic safety check input $model=topic_control" in nemoguards_rails_manager._actions
-        assert "jailbreak detection model" in nemoguards_rails_manager._actions
+    def test_nemoguards_rails_compiled(self, nemoguards_rails_manager):
+        assert "content safety check input $model=content_safety" in nemoguards_rails_manager._rails
+        assert "content safety check output $model=content_safety" in nemoguards_rails_manager._rails
+        assert "topic safety check input $model=topic_control" in nemoguards_rails_manager._rails
+        assert "jailbreak detection model" in nemoguards_rails_manager._rails
 
 
 # --- Sequential input/output tests ---
@@ -190,20 +194,20 @@ class TestIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_safe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
-        assert "Violence" in result.reason
+        assert result.return_value["policy_violations"] == ["S1: Violence"]
 
     @pytest.mark.asyncio
     async def test_no_flows_returns_safe(self, content_safety_rails_manager):
@@ -213,7 +217,7 @@ class TestIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("timeout"))
+        mock_rail_model(content_safety_rails_manager.engine_registry, AsyncMock(side_effect=RuntimeError("timeout")))
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert "error" in result.reason.lower()
@@ -224,20 +228,21 @@ class TestIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_safe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_OUTPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_OUTPUT_JSON))
         )
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry,
+            AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)),
         )
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "bad response")
         assert not result.is_safe
-        assert "S17: Malware" in result.reason
+        assert result.return_value["policy_violations"] == ["S17: Malware"]
 
     @pytest.mark.asyncio
     async def test_no_flows_returns_safe(self, content_safety_rails_manager):
@@ -247,7 +252,7 @@ class TestIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("fail"))
+        mock_rail_model(content_safety_rails_manager.engine_registry, AsyncMock(side_effect=RuntimeError("fail")))
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe
 
@@ -258,8 +263,8 @@ class TestIsInputSafeToggle:
     @pytest.mark.asyncio
     async def test_disabled_toggle_skips_input_rails(self, content_safety_rails_manager):
         """enabled=False runs no input rails, so an otherwise-unsafe input passes."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=False)
         assert result.is_safe
@@ -267,8 +272,8 @@ class TestIsInputSafeToggle:
     @pytest.mark.asyncio
     async def test_empty_list_toggle_skips_input_rails(self, content_safety_rails_manager):
         """enabled=[] selects no input rails, so an otherwise-unsafe input passes."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=[])
         assert result.is_safe
@@ -276,18 +281,18 @@ class TestIsInputSafeToggle:
     @pytest.mark.asyncio
     async def test_normalized_name_list_runs_input_rail(self, content_safety_rails_manager):
         """A toggle listing the canonical rail name matches the configured $model=-suffixed flow and runs it."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=["content safety check input"])
         assert not result.is_safe
-        assert "Violence" in result.reason
+        assert result.return_value["policy_violations"] == ["S1: Violence"]
 
     @pytest.mark.asyncio
     async def test_true_toggle_runs_input_rails(self, content_safety_rails_manager):
         """enabled=True runs every configured input rail, matching the default."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES, enabled=True)
         assert not result.is_safe
@@ -299,8 +304,9 @@ class TestIsOutputSafeToggle:
     @pytest.mark.asyncio
     async def test_disabled_toggle_skips_output_rails(self, content_safety_rails_manager):
         """enabled=False runs no output rails, so an otherwise-unsafe response passes."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry,
+            AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)),
         )
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "bad response", enabled=False)
         assert result.is_safe
@@ -308,14 +314,15 @@ class TestIsOutputSafeToggle:
     @pytest.mark.asyncio
     async def test_normalized_name_list_runs_output_rail(self, content_safety_rails_manager):
         """A toggle listing the canonical rail name matches the configured $model=-suffixed flow and runs it."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry,
+            AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)),
         )
         result = await content_safety_rails_manager.is_output_safe(
             MESSAGES, "bad response", enabled=["content safety check output"]
         )
         assert not result.is_safe
-        assert "S17: Malware" in result.reason
+        assert result.return_value["policy_violations"] == ["S17: Malware"]
 
 
 # --- Multi-rail sequential tests (nemoguards config: content + topic + jailbreak) ---
@@ -325,36 +332,35 @@ class TestSequentialMultiRail:
     """Test sequential execution with multiple rails."""
 
     @pytest.mark.asyncio
-    async def test_all_safe(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+    async def test_all_safe(self, nemoguards_rails_manager, httpx_mock):
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
-    async def test_first_rail_blocks(self, nemoguards_rails_manager):
+    async def test_first_rail_blocks(self, nemoguards_rails_manager, httpx_mock):
         """Content safety blocks -> topic safety and jailbreak never called."""
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock()
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         # Jailbreak API should not have been called (short-circuit)
-        nemoguards_rails_manager.engine_registry.api_call.assert_not_awaited()
+        assert not httpx_mock.get_requests()
 
     @pytest.mark.asyncio
-    async def test_jailbreak_blocks(self, nemoguards_rails_manager):
+    async def test_jailbreak_blocks(self, nemoguards_rails_manager, httpx_mock):
         """Content and topic pass, jailbreak blocks."""
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.95})
+        mock_jailbreak_nim(httpx_mock, jailbreak=True, score=0.95)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
-        assert "0.95" in result.reason
+        assert result.return_value == {"allowed": False}
 
 
 # --- Topic safety via is_input_safe ---
@@ -365,20 +371,24 @@ class TestTopicSafetyIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_on_topic(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="on-topic"))
+        mock_rail_model(
+            topic_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content="on-topic"))
+        )
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_off_topic(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="off-topic"))
+        mock_rail_model(
+            topic_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content="off-topic"))
+        )
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
-        assert "off-topic" in result.reason
+        assert result.return_value == {"allowed": False}
 
     @pytest.mark.asyncio
     async def test_model_error(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("timeout"))
+        mock_rail_model(topic_safety_rails_manager.engine_registry, AsyncMock(side_effect=RuntimeError("timeout")))
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
@@ -390,31 +400,32 @@ class TestJailbreakDetectionIsInputSafe:
     """Test jailbreak detection via the public is_input_safe method (nemoguards config)."""
 
     @pytest.mark.asyncio
-    async def test_safe(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+    async def test_safe(self, nemoguards_rails_manager, httpx_mock):
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": -0.99})
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=-0.99)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
-    async def test_jailbreak_detected(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+    async def test_jailbreak_detected(self, nemoguards_rails_manager, httpx_mock):
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.92})
+        mock_jailbreak_nim(httpx_mock, jailbreak=True, score=0.92)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
-    async def test_api_error(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+    async def test_endpoint_error_allows(self, nemoguards_rails_manager, httpx_mock):
+        """An unreachable NIM allows the request; the library action swallows every failure."""
+        mock_rail_model(
+            nemoguards_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(side_effect=RuntimeError("connection refused"))
+        mock_jailbreak_nim_failure(httpx_mock)
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
-        assert not result.is_safe
+        assert result.is_safe
 
 
 # --- Parallel init ---
@@ -447,24 +458,20 @@ class TestParallelIsInputSafe:
     """Test parallel input rail execution."""
 
     @pytest.mark.asyncio
-    async def test_all_safe(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+    async def test_all_safe(self, parallel_input_rails_manager, httpx_mock):
+        mock_rail_model(
+            parallel_input_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
-        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
-            return_value={"jailbreak": False, "score": 0.01}
-        )
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
-    async def test_one_unsafe(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+    async def test_one_unsafe(self, parallel_input_rails_manager, httpx_mock):
+        mock_rail_model(
+            parallel_input_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
-        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
-            return_value={"jailbreak": False, "score": 0.01}
-        )
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
@@ -475,11 +482,9 @@ class TestParallelIsInputSafe:
         assert result.is_safe
 
     @pytest.mark.asyncio
-    async def test_model_error(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("fail"))
-        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
-            return_value={"jailbreak": False, "score": 0.01}
-        )
+    async def test_model_error(self, parallel_input_rails_manager, httpx_mock):
+        mock_rail_model(parallel_input_rails_manager.engine_registry, AsyncMock(side_effect=RuntimeError("fail")))
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
@@ -492,16 +497,17 @@ class TestParallelIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_all_safe(self, parallel_output_rails_manager):
-        parallel_output_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_OUTPUT_JSON)
+        mock_rail_model(
+            parallel_output_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_OUTPUT_JSON))
         )
         result = await parallel_output_rails_manager.is_output_safe(MESSAGES, "response")
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_one_unsafe(self, parallel_output_rails_manager):
-        parallel_output_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            parallel_output_rails_manager.engine_registry,
+            AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)),
         )
         result = await parallel_output_rails_manager.is_output_safe(MESSAGES, "bad response")
         assert not result.is_safe
@@ -520,31 +526,33 @@ class TestParallelBothDirections:
     """Test with both input and output parallel enabled."""
 
     @pytest.mark.asyncio
-    async def test_both_safe(self, parallel_rails_manager):
-        parallel_rails_manager.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
-        parallel_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+    async def test_both_safe(self, parallel_rails_manager, httpx_mock):
+        mock_rail_model(
+            parallel_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
+        )
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         input_result = await parallel_rails_manager.is_input_safe(MESSAGES)
         assert input_result.is_safe
 
-        parallel_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_OUTPUT_JSON)
+        mock_rail_model(
+            parallel_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_OUTPUT_JSON))
         )
         output_result = await parallel_rails_manager.is_output_safe(MESSAGES, "response")
         assert output_result.is_safe
 
     @pytest.mark.asyncio
-    async def test_input_unsafe(self, parallel_rails_manager):
-        parallel_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+    async def test_input_unsafe(self, parallel_rails_manager, httpx_mock):
+        mock_rail_model(
+            parallel_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
-        parallel_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+        mock_jailbreak_nim(httpx_mock, jailbreak=False, score=0.01)
         result = await parallel_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
     async def test_output_unsafe(self, parallel_rails_manager):
-        parallel_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            parallel_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON))
         )
         result = await parallel_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe
@@ -945,8 +953,8 @@ class TestTriggeredRail:
     @pytest.mark.asyncio
     async def test_input_block_sets_triggered_rail(self, content_safety_rails_manager):
         """An input-rail block records the flow's base name in triggered_rail."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=UNSAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
@@ -955,8 +963,9 @@ class TestTriggeredRail:
     @pytest.mark.asyncio
     async def test_output_block_sets_triggered_rail(self, content_safety_rails_manager):
         """An output-rail block records the flow's base name in triggered_rail."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry,
+            AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON)),
         )
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe
@@ -965,8 +974,8 @@ class TestTriggeredRail:
     @pytest.mark.asyncio
     async def test_safe_result_has_no_triggered_rail(self, content_safety_rails_manager):
         """A safe result leaves triggered_rail unset (None)."""
-        content_safety_rails_manager.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(content=SAFE_INPUT_JSON)
+        mock_rail_model(
+            content_safety_rails_manager.engine_registry, AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
         )
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
@@ -995,7 +1004,7 @@ class TestRailCallRecordNaming:
     )
     def test_underscore_task_and_action_name(self, flow, action_name, task):
         """action_name/task use the underscore prompt-template key; ``flow`` keeps its space form."""
-        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult(is_safe=True), call=None)
+        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult(is_safe=True))
 
         assert record.flow == flow
         assert record.action_name == action_name
@@ -1070,3 +1079,75 @@ class TestParallelBatchDrainsRecords:
 
         assert result.is_safe is False
         assert {r.flow for r in result.records} == {"jailbreak detection model", "content safety check input"}
+
+
+def _content_safety_config_without_max_tokens() -> dict:
+    """CONTENT_SAFETY_CONFIG with the prompt max_tokens removed, so the action's default applies."""
+    config = copy.deepcopy(CONTENT_SAFETY_CONFIG)
+    for prompt in config["prompts"]:
+        prompt.pop("max_tokens", None)
+    return config
+
+
+def _mocked_reply(reply: str):
+    """Patch the transport both the old and new rail paths bottom out in."""
+    return patch.object(ModelEngine, "chat_completion", AsyncMock(return_value=LLMResponse(content=reply)))
+
+
+class TestLibraryActionContract:
+    """What a rail's RailResult carries once the library action produces the verdict."""
+
+    @pytest.mark.asyncio
+    async def test_a_block_carries_no_reason(self, content_safety_rails_manager):
+        """A blocking rail leaves reason unset; the action supplies evidence, not prose."""
+        with _mocked_reply(UNSAFE_INPUT_JSON):
+            result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.is_safe is False
+        assert result.reason is None
+
+    @pytest.mark.asyncio
+    async def test_a_block_verdict_carries_the_outcome_metadata(self, content_safety_rails_manager):
+        """The verdict merges the decision with the action's evidence."""
+        with _mocked_reply(UNSAFE_INPUT_JSON):
+            result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+
+    @pytest.mark.asyncio
+    async def test_topic_safety_reports_its_decision_under_allowed(self, topic_safety_rails_manager):
+        """Topic safety uses the same verdict key as every other migrated rail."""
+        with _mocked_reply("off-topic"):
+            result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.is_safe is False
+        assert result.return_value == {"allowed": False}
+
+    @pytest.mark.asyncio
+    async def test_an_unconfigured_max_tokens_uses_the_library_default(self):
+        """With no max_tokens in the prompt config, the library's own default reaches the model."""
+        manager = _make_rails_manager(RailsConfig.from_content(config=_content_safety_config_without_max_tokens()))
+        chat = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
+
+        with patch.object(ModelEngine, "chat_completion", chat):
+            await manager.is_input_safe(MESSAGES)
+
+        assert chat.await_args.kwargs["max_tokens"] == 1024
+
+    @pytest.mark.asyncio
+    async def test_a_request_with_no_user_message_does_not_block(self, content_safety_rails_manager):
+        """An absent user turn reaches the model as empty text rather than failing closed."""
+        with _mocked_reply(SAFE_INPUT_JSON):
+            result = await content_safety_rails_manager.is_input_safe([{"role": "system", "content": "be nice"}])
+
+        assert result.is_safe is True
+
+    @pytest.mark.asyncio
+    async def test_the_model_call_reaches_the_generation_record(self, content_safety_rails_manager):
+        """A rail's model call is captured with the task label GenerationLog reports."""
+        with _mocked_reply(SAFE_INPUT_JSON):
+            result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        record = result.records[0]
+        assert record.made_call is True
+        assert record.task == "content_safety_check_input $model=content_safety"

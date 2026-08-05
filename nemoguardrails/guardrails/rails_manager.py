@@ -15,7 +15,7 @@
 
 """Rails manager for IORails engine.
 
-Orchestrates input/output safety checks by delegating to RailAction instances.
+Orchestrates input/output safety checks by delegating to compiled, manifest-driven rails.
 Rails run sequentially by default; the first failing rail short-circuits.
 When parallel mode is enabled, all rails run concurrently and the first
 unsafe result cancels remaining rails immediately.
@@ -23,47 +23,41 @@ unsafe result cancels remaining rails immediately.
 
 import asyncio
 import logging
-from collections.abc import Coroutine, Mapping
+from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
-from nemoguardrails.guardrails.actions.content_safety_action import (
-    ContentSafetyInputAction,
-    ContentSafetyOutputAction,
-)
-from nemoguardrails.guardrails.actions.jailbreak_detection_action import JailbreakDetectionAction
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
-from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
+from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
     RailResult,
+    display_reason,
     get_request_id,
 )
-from nemoguardrails.guardrails.rail_action import RailAction, RailLLMCall, get_and_clear_rail_llm_call_contextvar
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
-from nemoguardrails.types import ToolCall
+from nemoguardrails.types import ToolCall, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
+    from nemoguardrails.logging.explain import LLMCallInfo
+
 log = logging.getLogger(__name__)
 
-# All known RailAction subclasses, keyed by their action_name.
-_ACTION_CLASSES: dict[str, type[RailAction]] = {
-    cls.action_name: cls
-    for cls in [
-        ContentSafetyInputAction,
-        ContentSafetyOutputAction,
-        TopicSafetyInputAction,
-        JailbreakDetectionAction,
-    ]
+# IORails labels its directions for logging; the manifest catalog keys surfaces by its own.
+_SURFACE_DIRECTIONS = {
+    RailDirection.INPUT: SurfaceDirection.INPUT,
+    RailDirection.OUTPUT: SurfaceDirection.OUTPUT,
 }
 
 # All known ToolRailAction subclasses, keyed by their action_name. Tool rails are
@@ -80,37 +74,60 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
 
 
-def _rail_call_record(flow: str, rail_type: str, result: RailResult, call: Optional[RailLLMCall]) -> RailCallRecord:
-    """Build the per-rail GenerationLog record from a rail's result + its captured LLM call.
+def _rail_result(outcome: RailOutcome) -> RailResult:
+    """Map an engine-neutral rail verdict onto IORails' rail result."""
+    allowed = not outcome.is_blocked
+    return RailResult(is_safe=allowed, reason=outcome.reason, return_value={"allowed": allowed, **outcome.metadata})
 
-    ``call`` is None for model-free rails (e.g. tool validators); ``return_value`` uses the
-    action's structured verdict when present, else a minimal ``{"allowed": is_safe}``.
-    """
-    verdict = result.return_value if result.return_value is not None else {"allowed": result.is_safe}
-    # GenerationLog parity with LLMRails: action_name/task use the prompt-template key
-    # (underscores) rather than the space-separated Colang flow name; ``flow`` keeps spaces.
+
+def _model_free_record(flow: str, rail_type: str, result: RailResult) -> RailCallRecord:
+    """Build the per-rail GenerationLog record for a rail that reached no model."""
     base_name = _get_flow_name(flow) or flow
     model = _get_flow_model(flow)
     action_name = base_name.replace(" ", "_")
-    task = f"{action_name} $model={model}" if model else action_name
     return RailCallRecord(
         flow=flow,
         rail_type=rail_type,
         is_safe=result.is_safe,
-        made_call=call is not None,
+        made_call=False,
         action_name=action_name,
-        return_value=verdict,
-        task=task,
-        request_id=call.request_id if call else None,
-        usage=call.usage if call else None,
-        llm_model_name=call.llm_model_name if call else None,
-        llm_provider_name=call.provider_name if call else None,
-        prompt=call.prompt if call else None,
-        completion=call.completion if call else None,
-        started_at=call.started_at if call else None,
-        finished_at=call.finished_at if call else None,
-        duration=call.duration if call else None,
+        return_value=result.return_value if result.return_value is not None else {"allowed": result.is_safe},
+        task=f"{action_name} $model={model}" if model else action_name,
     )
+
+
+def _merge_llm_call_info(record: RailCallRecord, call: "LLMCallInfo") -> RailCallRecord:
+    """Merge a captured model call's usage, naming and timing into *record*."""
+    return replace(
+        record,
+        made_call=True,
+        request_id=call.request_id,
+        usage=UsageInfo(
+            input_tokens=call.prompt_tokens or 0,
+            output_tokens=call.completion_tokens or 0,
+            total_tokens=call.total_tokens or 0,
+        ),
+        llm_model_name=call.llm_model_name,
+        llm_provider_name=call.llm_provider_name,
+        prompt=call.prompt,
+        completion=call.completion,
+        started_at=call.started_at,
+        finished_at=call.finished_at,
+        duration=call.duration,
+    )
+
+
+def _rail_call_record(
+    flow: str, rail_type: str, result: RailResult, calls: Sequence["LLMCallInfo"] = ()
+) -> RailCallRecord:
+    """Build the per-rail GenerationLog record from a rail's result and the calls it made."""
+    record = _model_free_record(flow, rail_type, result)
+    if not calls:
+        return record
+    if len(calls) > 1:
+        # RailCallRecord holds one call. No in-scope rail makes two, so say so rather than drop silently.
+        log.warning("[%s] rail %s made %d model calls; recording only the last", get_request_id(), flow, len(calls))
+    return _merge_llm_call_info(record, calls[-1])
 
 
 class RailsManager:
@@ -160,11 +177,12 @@ class RailsManager:
         self.tool_call_flows: list[str] = list(tool_call_flows or [])
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
 
-        # Build action instances for each configured flow
-        self._actions: dict[str, RailAction] = {}
-        for flow in self.input_flows + self.output_flows:
-            base_name = _get_flow_name(flow) or flow
-            self._actions[flow] = self._create_action(base_name)
+        deps = self._rail_dependencies()
+        self._rails: dict[str, CompiledRail] = {
+            flow: compile_rail(flow, _SURFACE_DIRECTIONS[direction], deps)
+            for direction, flows in ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows))
+            for flow in flows
+        }
 
         # Tool Call Actions run on tool invocations from the main LLM response
         # Tool Result Actions run on the results of executing Tool Calls in the harness
@@ -182,13 +200,14 @@ class RailsManager:
             self.output_parallel,
         )
 
-    def _create_action(self, base_name: str) -> RailAction:
-        """Instantiate the RailAction for a given flow base name."""
-        action_cls = _ACTION_CLASSES.get(base_name)
-        if action_cls is None:
-            available = sorted(_ACTION_CLASSES.keys())
-            raise RuntimeError(f"Rail flow '{base_name}' not supported. Available: {available}")
-        return action_cls(self.engine_registry, self.task_manager, tracer=self._tracer)
+    def _rail_dependencies(self) -> RailDependencies:
+        """Bundle the collaborators a compiled rail's action may declare as parameters."""
+        return RailDependencies(
+            llms=self.engine_registry.llms,
+            llm_task_manager=self.task_manager,
+            config=self.task_manager.config,
+            tracer=self._tracer,
+        )
 
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
@@ -315,7 +334,7 @@ class RailsManager:
         non-empty list is never mistaken for ``True``.
 
         List membership is compared on the normalized flow name (``_get_flow_name``),
-        the same way ``_create_action``, ``_build_tool_actions`` and ``unsupported_reason``
+        the same way ``compile_rail``, ``_build_tool_actions`` and ``unsupported_reason``
         do, so a request toggle carrying the canonical rail name matches a configured flow
         that carries a ``$model=``/``(...)`` suffix instead of silently dropping it
         (fail-open). Shared by the input, output, and tool rail families.
@@ -334,25 +353,22 @@ class RailsManager:
         messages: list[dict],
         bot_response: Optional[str] = None,
     ) -> RailResult:
-        """Dispatch a single rail flow to its RailAction instance."""
+        """Dispatch a single rail flow to its compiled rail and record what it did."""
         with rail_span(self._tracer, flow, direction) as span:
-            action = self._actions[flow]
-            result = await action.run(flow, messages, bot_response)
-            call = get_and_clear_rail_llm_call_contextvar()
-            if not result.is_safe and result.triggered_rail is None:
+            execution = await self._rails[flow].execute(messages, bot_response)
+            result = _rail_result(execution.outcome)
+            if not result.is_safe:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
-            result = replace(result, records=(_rail_call_record(flow, direction.value.lower(), result, call),))
+            records = (_rail_call_record(flow, direction.value.lower(), result, execution.llm_calls),)
+            result = replace(result, records=records)
             mark_rail_stop(span, result.is_safe)
-            # Capture rail input + block reason after the action runs.
-            # RailAction.run() catches its own exceptions and returns
-            # RailResult(is_safe=False, reason=...), so this branch is
-            # reached even on action errors and the error reason gets
-            # recorded as the block reason.
+            # CompiledRail converts an action error into a blocking outcome, so this branch is
+            # reached on failures too and the redacted error text becomes the block reason.
             if self._content_capture_enabled:
                 set_rail_content(
                     span,
                     {"messages": messages, "bot_response": bot_response},
-                    reason=result.reason if not result.is_safe else None,
+                    reason=display_reason(result) if not result.is_safe else None,
                 )
             return result
 
@@ -360,15 +376,13 @@ class RailsManager:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = await self._tool_call_actions[flow].run(toolset, tool_calls)
-            # Tool rails are model-free, so no LLM call is captured (usage stays None).
-            call = get_and_clear_rail_llm_call_contextvar()
-            result = replace(result, records=(_rail_call_record(flow, "tool_output", result, call),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 set_rail_content(
                     span,
                     {"tool_calls": [tc.to_dict() for tc in tool_calls]},
-                    reason=result.reason if not result.is_safe else None,
+                    reason=display_reason(result) if not result.is_safe else None,
                 )
             return result
 
@@ -385,9 +399,7 @@ class RailsManager:
                 result = await action.run(exchange.results, exchange.calls)
                 if not result.is_safe:
                     break
-            # Tool rails are model-free, so no LLM call is captured (usage stays None).
-            call = get_and_clear_rail_llm_call_contextvar()
-            result = replace(result, records=(_rail_call_record(flow, "tool_input", result, call),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 all_results = [r for exchange in exchanges for r in exchange.results]
@@ -398,7 +410,7 @@ class RailsManager:
                             {"call_id": r.call_id, "name": r.name, "is_error": r.is_error} for r in all_results
                         ]
                     },
-                    reason=result.reason if not result.is_safe else None,
+                    reason=display_reason(result) if not result.is_safe else None,
                 )
             return result
 

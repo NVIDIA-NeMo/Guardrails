@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
@@ -277,11 +278,8 @@ class TestJailbreakAgreesAcrossEngines:
         httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
         llmrails_content = await _llmrails_reply(config_dict)
 
-        with patch(
-            "nemoguardrails.guardrails.engine_registry.EngineRegistry.api_call",
-            new=AsyncMock(return_value=verdict),
-        ):
-            iorails_content = await _iorails_reply(config_dict)
+        httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
+        iorails_content = await _iorails_reply(config_dict)
 
         expected_content = REFUSAL_MESSAGE if expect_blocked else MAIN_OUTPUT
 
@@ -289,16 +287,21 @@ class TestJailbreakAgreesAcrossEngines:
         assert iorails_content == expected_content
 
     @pytest.mark.asyncio
-    async def test_iorails_fails_closed_when_the_endpoint_errors(self):
-        """IORails blocks when the NIM call raises, where the library action allows.
+    async def test_both_engines_allow_when_the_endpoint_errors(self, httpx_mock):
+        """An unreachable NIM lets the request through on both engines.
 
-        The engines genuinely disagree here: the library swallows every exception and allows.
-        Recorded so that closing the gap reads as an intended change, not an unexplained diff.
+        This inverts the pre-migration expectation, which recorded IORails failing closed
+        while the library allowed. Sharing the library action is what closes that gap, and
+        the fail-open posture is a deliberate decision rather than an accident: a NIM outage
+        now stops blocking jailbreaks on both engines.
         """
-        with patch(
-            "nemoguardrails.guardrails.engine_registry.EngineRegistry.api_call",
-            new=AsyncMock(side_effect=RuntimeError("connection refused")),
-        ):
-            iorails_content = await _iorails_reply(_jailbreak_config())
+        config_dict = _jailbreak_config()
 
-        assert iorails_content == REFUSAL_MESSAGE
+        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
+        llmrails_content = await _llmrails_reply(config_dict)
+
+        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
+        iorails_content = await _iorails_reply(config_dict)
+
+        assert llmrails_content == MAIN_OUTPUT
+        assert iorails_content == MAIN_OUTPUT

@@ -31,7 +31,7 @@ import pytest_asyncio
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
-from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.async_helpers import mock_rail_model, started_iorails
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
 
 _USER = [{"role": "user", "content": "hi"}]
@@ -66,6 +66,18 @@ def _cs_and_main_model_call(*, cs_request_id=None, main_request_id=None):
     return _model_call
 
 
+def _rail_chat_completion(content=_SAFE_BOTH, request_id="req-cs"):
+    """The content-safety engine's transport double, answering the rail's own model call."""
+    return AsyncMock(
+        return_value=LLMResponse(
+            content=content,
+            usage=UsageInfo(input_tokens=100, output_tokens=10, total_tokens=110),
+            model=_CS_MODEL,
+            request_id=request_id,
+        )
+    )
+
+
 @pytest_asyncio.fixture
 async def iorails():
     """Started IORails on a content-safety-only config (input + output rails)."""
@@ -79,13 +91,17 @@ class TestRailRecordCapture:
     @pytest.mark.asyncio
     async def test_is_input_safe_captures_usage_and_verdict(self, iorails):
         """is_input_safe returns a record carrying the rail's tokens, model, and verdict."""
-        iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(
-                content=_SAFE_BOTH,
-                usage=UsageInfo(input_tokens=762, output_tokens=8, total_tokens=770),
-                model=_CS_MODEL,
-                request_id="req-cs-input",
-            )
+        mock_rail_model(
+            iorails.engine_registry,
+            AsyncMock(
+                return_value=LLMResponse(
+                    content=_SAFE_BOTH,
+                    usage=UsageInfo(input_tokens=762, output_tokens=8, total_tokens=770),
+                    model=_CS_MODEL,
+                    request_id="req-cs-input",
+                )
+            ),
+            model_type="content_safety",
         )
 
         result = await iorails.rails_manager.is_input_safe(_USER)
@@ -104,8 +120,10 @@ class TestRailRecordCapture:
 
     @pytest.mark.asyncio
     async def test_failed_model_call_still_records_the_attempt(self, iorails):
-        """A rail whose model call raises still yields a record marked made_call=True (usage/model None)."""
-        iorails.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("provider down"))
+        """A rail whose model call raises still yields a record naming the model it attempted."""
+        mock_rail_model(
+            iorails.engine_registry, AsyncMock(side_effect=RuntimeError("provider down")), model_type="content_safety"
+        )
 
         result = await iorails.rails_manager.is_input_safe(_USER)
 
@@ -113,8 +131,8 @@ class TestRailRecordCapture:
         assert len(result.records) == 1
         record = result.records[0]
         assert record.made_call is True
-        assert record.usage is None
-        assert record.llm_model_name is None
+        assert record.usage.total_tokens == 0
+        assert record.llm_model_name == _CS_MODEL
         assert record.llm_provider_name == "nim"
         assert record.duration is not None
 
@@ -128,6 +146,7 @@ class TestGenerationLogEndToEnd:
         iorails.engine_registry.model_call = AsyncMock(
             side_effect=_cs_and_main_model_call(cs_request_id="req-cs", main_request_id="req-main")
         )
+        mock_rail_model(iorails.engine_registry, _rail_chat_completion(), model_type="content_safety")
 
         result = await iorails.generate_async(
             messages=_USER, options={"log": {"llm_calls": True, "activated_rails": True}}
@@ -154,6 +173,7 @@ class TestGenerationLogEndToEnd:
     async def test_llm_calls_capture_prompt_and_completion(self, iorails):
         """Each LLM-backed call in the log carries its serialized prompt and raw completion."""
         iorails.engine_registry.model_call = AsyncMock(side_effect=_cs_and_main_model_call())
+        mock_rail_model(iorails.engine_registry, _rail_chat_completion(), model_type="content_safety")
 
         result = await iorails.generate_async(messages=_USER, options={"log": {"llm_calls": True}})
 
@@ -174,12 +194,9 @@ class TestGenerationLogEndToEnd:
     async def test_prompt_serializes_role_and_content(self, iorails):
         """The serialized prompt is role-labeled so a reader can tell system from user turns."""
         iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(
-                content=_SAFE_BOTH,
-                usage=UsageInfo(input_tokens=100, output_tokens=10, total_tokens=110),
-                model=_CS_MODEL,
-            )
+            return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=20, output_tokens=5, total_tokens=25))
         )
+        mock_rail_model(iorails.engine_registry, _rail_chat_completion(), model_type="content_safety")
 
         result = await iorails.generate_async(messages=_USER, options={"log": {"llm_calls": True}})
 
@@ -192,12 +209,8 @@ class TestGenerationLogEndToEnd:
     @pytest.mark.asyncio
     async def test_blocked_input_logs_verdict_and_stop(self, iorails):
         """A blocked input rail logs its unsafe verdict + stop, and the request refuses."""
-        iorails.engine_registry.model_call = AsyncMock(
-            return_value=LLMResponse(
-                content=_UNSAFE_INPUT,
-                usage=UsageInfo(input_tokens=762, output_tokens=22, total_tokens=784),
-                model=_CS_MODEL,
-            )
+        mock_rail_model(
+            iorails.engine_registry, _rail_chat_completion(content=_UNSAFE_INPUT), model_type="content_safety"
         )
 
         result = await iorails.generate_async(messages=_USER, options={"log": {"activated_rails": True}})

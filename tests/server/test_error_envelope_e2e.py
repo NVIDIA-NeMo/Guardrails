@@ -28,20 +28,20 @@ Two transports are mocked because the stack uses two:
 * the main model goes through the OpenAI-compatible client over **httpx**, so
   those cases use ``httpx_mock`` (with ``testserver`` excluded so ``TestClient``
   still reaches the app);
-* IORails rail engines (``model_engine`` / ``api_engine``) use **aiohttp**, so
-  those cases use ``aioresponses``.
+* an IORails rail reaches its model through ``ModelEngine``, which uses
+  **aiohttp**, so those cases use ``aioresponses``.
 
 The matrix mirrors the manual smoke harness (``smoke_client.py`` +
-``fake_upstream.py``): upstream status passthrough, non-error upstream status,
-rail-engine failures, protocol-level responses, and streaming frames.
+``fake_upstream.py``): upstream status passthrough, rail failures, protocol-level
+responses, and streaming frames.
 """
 
 import json
 
 import pytest
+from aioresponses import aioresponses
 
 pytest.importorskip("openai", reason="openai is required for server tests")
-from aioresponses import aioresponses
 from fastapi.testclient import TestClient
 from openai import InternalServerError, OpenAI
 from pytest_httpx import HTTPXMock
@@ -61,27 +61,6 @@ models:
       api_key: sk-dummy
       max_retries: 0
 """
-
-RAIL_ENDPOINT = "http://rail.example/v1/classify"
-
-RAIL_CONFIG = """
-models:
-  - type: main
-    engine: openai
-    model: gpt-4o-mini
-    parameters:
-      base_url: http://upstream.invalid/v1
-      api_key: sk-dummy
-rails:
-  config:
-    jailbreak_detection:
-      nim_base_url: "http://rail.example/v1"
-      nim_server_endpoint: "classify"
-  input:
-    flows:
-      - jailbreak detection model
-"""
-
 
 # A rail that calls the main model, so an upstream failure surfaces through
 # /v1/checks. The jailbreak rail cannot be used here: it runs on an IORails
@@ -314,30 +293,19 @@ class TestUpstreamStatusPassthrough:
 
 
 class TestRailEngineErrors:
-    """Failures raised by an IORails rail engine, which talks aiohttp, not httpx."""
-
-    def test_non_error_upstream_status_is_clamped_to_500(self, serve_config):
-        """A 2xx response with a non-JSON body must not become a 2xx error envelope.
-
-        ``api_engine`` raises ``APIEngineError(status=exc.status)`` on a
-        ``ContentTypeError``, and that status is 200 because the >=400 case was
-        already handled. Returning it verbatim would make an OpenAI-compatible
-        client parse the error body as a ChatCompletion.
-        """
-        serve_config(RAIL_CONFIG, iorails=True)
-
-        with aioresponses() as mocked:
-            mocked.post(RAIL_ENDPOINT, status=200, body="not json", content_type="text/plain", repeat=True)
-            response = _chat()
-
-        assert response.status_code == 500
-        assert response.json()["error"]["type"] == "server_error"
+    """Failures raised by an IORails rail, forwarded rather than reported as a verdict."""
 
     def test_rail_upstream_429_is_forwarded(self, serve_config):
-        serve_config(RAIL_CONFIG, iorails=True)
+        """A provider rate limit hit by a rail reaches the client as a 429, not a block.
+
+        A rail that blocks and a provider that is rate-limiting mean very different things to
+        a caller, and only one is worth retrying. ``aioresponses`` rather than ``httpx_mock``
+        because the rail reaches its model through ``ModelEngine``, which talks aiohttp.
+        """
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
 
         with aioresponses() as mocked:
-            mocked.post(RAIL_ENDPOINT, status=429, body="slow down", repeat=True)
+            mocked.post(MAIN_MODEL_URL, status=429, body="slow down", repeat=True)
             response = _chat()
 
         assert response.status_code == 429
@@ -497,16 +465,6 @@ class TestStreamingErrorFrames:
         assert exc_info.value.status_code == 503
         assert exc_info.value.body["code"] == 503
         assert len(httpx_mock.get_requests(url=MAIN_MODEL_URL)) == 2
-
-    def test_non_error_upstream_status_is_clamped_before_stream_starts(self, serve_config):
-        serve_config(RAIL_CONFIG, iorails=True)
-
-        with aioresponses() as mocked:
-            mocked.post(RAIL_ENDPOINT, status=200, body="not json", content_type="text/plain", repeat=True)
-            response = _chat(stream=True)
-
-        assert response.status_code == 500
-        assert response.json()["error"]["type"] == "server_error"
 
     def test_initial_error_does_not_disclose_model_provider_or_endpoint(self, httpx_mock: HTTPXMock, serve_config):
         serve_config(MAIN_MODEL_CONFIG)

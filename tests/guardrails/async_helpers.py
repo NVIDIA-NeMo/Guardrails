@@ -26,9 +26,12 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from unittest.mock import patch
 
+import httpx
+
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
 @asynccontextmanager
@@ -93,3 +96,35 @@ def saturate_stream_semaphore(iorails: IORails) -> None:
     breaks silently if that constant grows.
     """
     iorails._stream_semaphore = asyncio.Semaphore(0)
+
+
+def mock_rail_model(engine_registry, mock, model_type=None):
+    """Route rail model calls to *mock* and return it.
+
+    Compiled rails reach the model through ``ModelEngine.chat_completion`` rather than
+    ``EngineRegistry.model_call``, so the double belongs on the engine instances. Naming a
+    *model_type* leaves the other engines alone, which is what a test needs when main
+    generation and a rail must answer differently.
+    """
+    engines = engine_registry.llms
+    targets = [engines[model_type]] if model_type is not None else list(engines.values())
+    for engine in targets:
+        engine.chat_completion = mock
+    return mock
+
+
+JAILBREAK_NIM_URL = (
+    NEMOGUARDS_CONFIG["rails"]["config"]["jailbreak_detection"]["nim_base_url"].rstrip("/")
+    + NEMOGUARDS_CONFIG["rails"]["config"]["jailbreak_detection"]["nim_server_endpoint"]
+)
+
+
+def mock_jailbreak_nim(httpx_mock, *, jailbreak: bool, score: float = 0.5, times: int = 1) -> None:
+    """Register the NIM verdict the jailbreak rail now fetches over httpx."""
+    for _ in range(times):
+        httpx_mock.add_response(url=JAILBREAK_NIM_URL, json={"jailbreak": jailbreak, "score": score})
+
+
+def mock_jailbreak_nim_failure(httpx_mock, message: str = "connection refused") -> None:
+    """Register a transport failure for the NIM endpoint; the library action allows on any error."""
+    httpx_mock.add_exception(httpx.ConnectError(message), url=JAILBREAK_NIM_URL)

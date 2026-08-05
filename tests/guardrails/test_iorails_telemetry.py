@@ -512,9 +512,8 @@ class TestSpanHierarchy:
         """When the engine raises, the action span must record it (not swallow it)."""
         from nemoguardrails.guardrails.model_engine import ModelEngine
 
-        # Make the content_safety engine fail — RailAction.run will catch and
-        # convert to RailResult(is_safe=False), but the action span must still
-        # reflect the error.
+        # CompiledRail catches and converts to a blocking outcome, but the action span
+        # must still reflect the error.
         for name, engine in iorails_tracing.engine_registry._engines.items():
             if isinstance(engine, ModelEngine) and name == "content_safety":
                 engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
@@ -530,11 +529,11 @@ class TestSpanHierarchy:
             s for s in action_spans if s.attributes["action.name"] == "content safety check input"
         )
 
-        # Span has ERROR status and an exception event recording the RuntimeError
+        # llm_call wraps every provider failure, so the recorded type is the wrapper.
         assert content_safety_action.status.status_code == StatusCode.ERROR
         exc_events = [e for e in content_safety_action.events if e.name == "exception"]
         assert len(exc_events) == 1
-        assert exc_events[0].attributes["exception.type"] == "RuntimeError"
+        assert exc_events[0].attributes["exception.type"] == "nemoguardrails.exceptions.LLMCallException"
         assert "LLM down" in exc_events[0].attributes["exception.message"]
 
     @pytest.mark.asyncio
@@ -614,10 +613,14 @@ class TestSpanHierarchy:
             else:
                 raise AssertionError(f"CLIENT span '{client.name}' has unexpected parent")
 
-        # Exactly one main LLM call, and one CLIENT span per action
+        # Exactly one main LLM call, and one CLIENT span per model-backed action. The four
+        # actions are the three model-backed rails plus jailbreak detection, which reaches its
+        # NIM over the library's HTTP path and so emits no CLIENT span -- the vendor-call span
+        # that went with APIEngine. Losing it brings IORails to parity with LLMRails.
         assert len(main_llm_spans) == 1
         assert main_llm_spans[0].attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
-        assert len(rail_call_spans) == len(action_spans)
+        assert len(action_spans) == 4
+        assert len(rail_call_spans) == 3
 
     @pytest.mark.asyncio
     async def test_action_span_attributes(self, iorails_tracing, exporter):
