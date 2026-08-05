@@ -13,7 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .llm.config import RailsConfig
-from .llm.llmrails import LLMRails
+import importlib
+from typing import TYPE_CHECKING
+
+# Resolve exports lazily (PEP 562) through their narrowest modules so that
+# importing `RailsConfig` does not eagerly initialize `LLMRails` (and its Colang
+# runtime), and so that submodules such as `nemoguardrails.rails.llm.options`
+# can initialize this package without pulling in the full runtime.
+_LAZY_ATTRS = {
+    "RailsConfig": "nemoguardrails.rails.llm.config",
+    "LLMRails": "nemoguardrails.rails.llm.llmrails",
+}
+
+if TYPE_CHECKING:
+    from nemoguardrails.rails.llm.config import RailsConfig
+    from nemoguardrails.rails.llm.llmrails import LLMRails
+
+
+def __getattr__(name: str):
+    module_name = _LAZY_ATTRS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(importlib.import_module(module_name), name)
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
+
 
 __all__ = ["RailsConfig", "LLMRails"]
