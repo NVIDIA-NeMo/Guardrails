@@ -381,9 +381,14 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
             break
 
     if main_model_index is not None:
-        parameters = {**models[main_model_index].parameters, **main_model.parameters}
-        models[main_model_index] = main_model
-        models[main_model_index].parameters = parameters
+        configured_model = models[main_model_index]
+        parameters = {**configured_model.parameters, **main_model.parameters}
+        models[main_model_index] = main_model.model_copy(
+            update={
+                "api_key_env_var": main_model.api_key_env_var or configured_model.api_key_env_var,
+                "parameters": parameters,
+            }
+        )
     else:
         models.append(main_model)
 
@@ -636,12 +641,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     if body.guardrails.thread_id:
         if datastore is None:
-            raise RuntimeError("No DataStore has been configured.")
-        # We make sure the `thread_id` meets the minimum complexity requirement.
-        if len(body.guardrails.thread_id) < 16:
             raise HTTPException(
-                status_code=422,
-                detail="The `thread_id` must have a minimum length of 16 characters.",
+                status_code=400,
+                detail="Conversation threads are not enabled on this server.",
             )
 
         # Fetch the existing thread messages. For easier management, we prepend
