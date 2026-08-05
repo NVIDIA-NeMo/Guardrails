@@ -67,6 +67,22 @@ CONTENT_SAFETY_ACTION_REF = ActionRef(
     target="nemoguardrails.library.content_safety.actions:content_safety_check_input",
 )
 
+EXECUTABLE_SURFACES = {
+    "content safety check input",
+    "content safety check output",
+    "topic safety check input",
+    "jailbreak detection model",
+}
+
+
+def _declared_parameters(action: Callable[..., Any]) -> set[str]:
+    """Parameter names *action* declares, excluding ``*args`` and ``**kwargs``."""
+    return {
+        name
+        for name, spec in inspect.signature(action).parameters.items()
+        if spec.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+    }
+
 
 class StubCatalog(RailCatalog):
     """A catalog holding one synthetic surface no shipped manifest would produce.
@@ -151,6 +167,14 @@ def deps() -> RailDependencies:
         model_caches=None,
         tracer=None,
     )
+
+
+@pytest.fixture
+def content_safety_action(monkeypatch) -> RecordingAction:
+    """Patch the content-safety action with a recording double and hand it back."""
+    action = RecordingAction(signature_of=content_safety_check_input)
+    monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
+    return action
 
 
 @pytest.fixture
@@ -313,99 +337,67 @@ class TestManifestBindingContract:
 
     def test_every_manifest_binding_names_a_declared_parameter(self):
         """No surface binds a parameter its action does not declare by name."""
-        catalog = default_rail_catalog()
         mismatches: list[str] = []
-        unimportable: list[str] = []
         checked: set[str] = set()
 
-        for (direction, name), surface in catalog.surfaces().items():
+        for (direction, name), surface in default_rail_catalog().surfaces().items():
             try:
                 action = resolve_import_ref(surface.action)
-            except Exception as exc:
-                # An optional integration that is not installed in this environment.
-                unimportable.append(f"{name} ({type(exc).__name__})")
-                continue
-
-            declared = {
-                param
-                for param, spec in inspect.signature(action).parameters.items()
-                if spec.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
-            }
+            except Exception:
+                continue  # an optional integration that is not installed here
+            declared = _declared_parameters(action)
             checked.add(name)
-            for binding in surface.bindings:
-                if binding.action_param not in declared:
-                    mismatches.append(
-                        f"{direction.value} {name!r} binds {binding.action_param!r}, "
-                        f"but {surface.action.name!r} declares {sorted(declared)}"
-                    )
+            mismatches += [
+                f"{direction.value} {name!r} binds {b.action_param!r}, not in {sorted(declared)}"
+                for b in surface.bindings
+                if b.action_param not in declared
+            ]
 
         assert not mismatches, "manifest bindings naming undeclared parameters:\n" + "\n".join(mismatches)
-
-        # Guard against passing vacuously if a future environment cannot import anything:
-        # the four rails IORails executes have no optional dependencies, so they are always
-        # importable and must always have been checked.
-        always_importable = {
-            "content safety check input",
-            "content safety check output",
-            "topic safety check input",
-            "jailbreak detection model",
-        }
-        assert always_importable <= checked, f"expected these to be checked, skipped: {sorted(unimportable)}"
+        # Cannot pass vacuously: these four have no optional dependencies, so they always import.
+        assert EXECUTABLE_SURFACES <= checked, f"only checked {sorted(checked)}"
 
 
 class TestBindingResolution:
     """Each BindingKind fills its action parameter from the right source."""
 
     @pytest.mark.asyncio
-    async def test_surface_param_binding_supplies_the_configured_value(self, deps, monkeypatch):
+    async def test_surface_param_binding_supplies_the_configured_value(self, deps, content_safety_action):
         """$model=content_safety reaches the action as model_name."""
-        action = RecordingAction(signature_of=content_safety_check_input)
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
-
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert action.kwargs is not None
-        assert action.kwargs["model_name"] == "content_safety"
+        assert content_safety_action.kwargs["model_name"] == "content_safety"
 
     @pytest.mark.asyncio
-    async def test_context_carries_the_request_messages(self, deps, monkeypatch):
+    async def test_context_carries_the_request_messages(self, deps, content_safety_action):
         """The per-request context dict exposes user_message for context-bound actions."""
-        action = RecordingAction(signature_of=content_safety_check_input)
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
-
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert action.kwargs["context"]["user_message"] == "hello there"
+        assert content_safety_action.kwargs["context"]["user_message"] == "hello there"
 
     @pytest.mark.asyncio
-    async def test_literal_binding_supplies_a_constant(self, deps, monkeypatch):
+    async def test_literal_binding_supplies_a_constant(self, deps, content_safety_action):
         """A literal binding reaches the action as the value baked into the manifest.
 
-        Uses a synthetic surface because every shipped surface carrying a literal binding
-        belongs to an optional integration, and a unit test must not depend on which extras
-        happen to be installed.
+        Uses a synthetic surface because every shipped surface with a literal binding belongs
+        to an optional integration, and a unit test must not depend on installed extras.
         """
-        action = RecordingAction(signature_of=content_safety_check_input)
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("model_name", "baked_in"),))
 
         await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface)).run(USER_MESSAGES)
 
-        assert action.kwargs["model_name"] == "baked_in"
+        assert content_safety_action.kwargs["model_name"] == "baked_in"
 
     @pytest.mark.asyncio
-    async def test_user_message_is_empty_when_the_request_has_no_user_turn(self, deps, monkeypatch):
+    async def test_user_message_is_empty_when_the_request_has_no_user_turn(self, deps, content_safety_action):
         """A request with no user turn yields an empty user_message instead of raising.
 
         Matches the library actions, which read ``context.get(...)`` with a default and call
         the model with empty text. The hand-written rails raised here and failed closed.
         """
-        action = RecordingAction(signature_of=content_safety_check_input)
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
-
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run([{"role": "system", "content": "hi"}])
 
-        assert action.kwargs["context"]["user_message"] == ""
+        assert content_safety_action.kwargs["context"]["user_message"] == ""
 
     @pytest.mark.asyncio
     async def test_bot_response_reaches_an_output_rail_as_bot_message(self, deps, monkeypatch):
@@ -469,49 +461,26 @@ class TestOutcomePassthrough:
     """The action's RailOutcome is returned unmodified; CompiledRail invents nothing."""
 
     @pytest.mark.asyncio
-    async def test_allow_outcome_passes_through(self, deps, monkeypatch):
-        """An ALLOW outcome is returned with its metadata intact."""
-        expected = RailOutcome.allow(metadata={"policy_violations": []})
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            pytest.param(RailOutcome.allow(metadata={"policy_violations": []}), id="allow_with_metadata"),
+            pytest.param(RailOutcome.block(metadata={"policy_violations": ["S1"]}), id="block_with_evidence"),
+            pytest.param(RailOutcome.block(reason="policy 4 tripped"), id="block_with_reason"),
+            pytest.param(RailOutcome.block(), id="block_without_reason"),
+        ],
+    )
+    async def test_outcome_is_returned_unmodified(self, deps, monkeypatch, expected):
+        """Whatever the action returns comes back identical — decision, reason and metadata.
+
+        Equality covers the cases that used to be separate tests: an absent reason stays
+        ``None`` rather than being invented, and metadata is neither dropped nor added to.
+        """
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(expected, signature_of=content_safety_check_input))
 
         outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert not outcome.is_blocked
-        assert outcome.metadata == {"policy_violations": []}
-
-    @pytest.mark.asyncio
-    async def test_block_outcome_passes_through(self, deps, monkeypatch):
-        """A BLOCK outcome is returned with its evidence intact."""
-        expected = RailOutcome.block(metadata={"policy_violations": ["S1: Violence"]})
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(expected, signature_of=content_safety_check_input))
-
-        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
-
-        assert outcome.is_blocked
-        assert outcome.metadata == {"policy_violations": ["S1: Violence"]}
-
-    @pytest.mark.asyncio
-    async def test_reason_is_passed_through_untouched(self, deps, monkeypatch):
-        """A rail that supplies a reason keeps it verbatim; the engine never rewrites it."""
-        monkeypatch.setattr(
-            CONTENT_SAFETY_ACTION,
-            RecordingAction(RailOutcome.block(reason="policy 4 tripped"), signature_of=content_safety_check_input),
-        )
-
-        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
-
-        assert outcome.reason == "policy 4 tripped"
-
-    @pytest.mark.asyncio
-    async def test_absent_reason_stays_absent(self, deps, monkeypatch):
-        """A rail that supplies no reason yields reason=None rather than invented text."""
-        monkeypatch.setattr(
-            CONTENT_SAFETY_ACTION, RecordingAction(RailOutcome.block(), signature_of=content_safety_check_input)
-        )
-
-        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
-
-        assert outcome.reason is None
+        assert outcome == expected
 
     @pytest.mark.asyncio
     async def test_non_outcome_return_is_rejected(self, deps, monkeypatch):
@@ -533,21 +502,17 @@ class TestMessagesToEvents:
     history.
     """
 
-    def test_user_message_becomes_a_user_event(self):
-        """A user turn maps to the UserMessage shape to_chat_messages reads."""
-        assert messages_to_events([{"role": "user", "content": "hi"}]) == [{"type": "UserMessage", "text": "hi"}]
-
-    def test_assistant_message_becomes_an_utterance_event(self):
-        """An assistant turn maps to StartUtteranceBotAction with its script."""
-        events = messages_to_events([{"role": "assistant", "content": "hello"}])
-
-        assert events == [{"type": "StartUtteranceBotAction", "script": "hello"}]
-
-    def test_system_message_becomes_a_system_event(self):
-        """A system turn maps to SystemMessage with its content."""
-        events = messages_to_events([{"role": "system", "content": "be brief"}])
-
-        assert events == [{"type": "SystemMessage", "content": "be brief"}]
+    @pytest.mark.parametrize(
+        ("role", "event"),
+        [
+            ("user", {"type": "UserMessage", "text": "hi"}),
+            ("assistant", {"type": "StartUtteranceBotAction", "script": "hi"}),
+            ("system", {"type": "SystemMessage", "content": "hi"}),
+        ],
+    )
+    def test_each_role_maps_to_its_event_shape(self, role, event):
+        """Each role maps to the event type and payload key ``to_chat_messages`` reads."""
+        assert messages_to_events([{"role": role, "content": "hi"}]) == [event]
 
     def test_contentless_turn_is_skipped(self):
         """An assistant tool-call turn has no content and is dropped rather than crashing."""
@@ -579,10 +544,9 @@ class TestModelCallCapture:
     """Model calls are captured from a per-rail sink, so attribution cannot leak."""
 
     @pytest.mark.asyncio
-    async def test_a_rail_that_makes_no_model_call_reports_none(self, deps, monkeypatch):
+    @pytest.mark.usefixtures("content_safety_action")
+    async def test_a_rail_that_makes_no_model_call_reports_none(self, deps):
         """A vendor rail that never reaches a model produces no captured call."""
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(signature_of=content_safety_check_input))
-
         execution = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).execute(USER_MESSAGES)
 
         assert execution.llm_calls == ()

@@ -73,97 +73,90 @@ status_bearing_types = pytest.mark.parametrize(
 )
 
 
+entry_points = pytest.mark.parametrize(
+    "call", [rail_error_result, rail_error_outcome], ids=["rail_error_result", "rail_error_outcome"]
+)
+
+
+def verdict_of(returned) -> tuple[bool, str | None]:
+    """Flatten either return shape to ``(blocked, reason)``.
+
+    Lets one test cover both entry points, which pins that they agree by construction rather
+    than by a separate parity assertion someone could forget to update.
+    """
+    if isinstance(returned, RailResult):
+        return not returned.is_safe, returned.reason
+    return returned.is_blocked, returned.reason
+
+
 class TestFailsClosed:
-    """A rail that raises without an HTTP status blocks rather than propagating."""
+    """A rail that raises without an HTTP status blocks, identically at both entry points."""
 
-    def test_unexpected_exception_returns_a_blocking_result(self):
-        """An arbitrary exception becomes RailResult(is_safe=False) instead of propagating."""
-        result = rail_error_result(None, ACTION_NAME, RuntimeError("parser blew up"))
+    @entry_points
+    def test_unexpected_exception_blocks_with_a_reason(self, call):
+        """An arbitrary exception becomes a blocking verdict naming the action."""
+        blocked, reason = verdict_of(call(None, ACTION_NAME, RuntimeError("parser blew up")))
 
-        assert result == RailResult(is_safe=False, reason="content safety check input error: parser blew up")
+        assert blocked
+        assert reason == "content safety check input error: parser blew up"
 
+    @entry_points
     @status_bearing_types
-    def test_status_bearing_exception_without_a_status_blocks(self, make_exc):
+    def test_status_bearing_exception_without_a_status_blocks(self, call, make_exc):
         """A connection-level failure carries status=None, so it fails closed rather than propagating."""
-        result = rail_error_result(None, ACTION_NAME, make_exc(None))
+        blocked, reason = verdict_of(call(None, ACTION_NAME, make_exc(None)))
 
-        assert result.is_safe is False
-        assert result.reason is not None
-        assert "upstream refused" in result.reason
+        assert blocked
+        assert reason is not None
+        assert "upstream refused" in reason
 
-    def test_reason_redacts_secrets(self):
+    @entry_points
+    def test_reason_redacts_secrets(self, call):
         """Credentials in an exception message are redacted before reaching the reason."""
-        result = rail_error_result(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
+        _, reason = verdict_of(call(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret")))
 
-        assert result.reason == "content safety check input error: auth rejected token nvapi-***"
+        assert reason == "content safety check input error: auth rejected token nvapi-***"
+
+    @entry_points
+    def test_blocking_verdict_records_the_span_error(self, call):
+        """A blocked rail marks its span, so the failure is visible in the trace."""
+        span = MagicMock()
+
+        call(span, ACTION_NAME, RuntimeError("parser blew up"))
+
+        span.record_exception.assert_called_once()
+        span.set_attribute.assert_any_call("error.type", "RuntimeError")
 
 
 class TestPropagatesUpstreamStatus:
     """An exception carrying an HTTP status propagates so the server can map it."""
 
+    @entry_points
     @status_bearing_types
-    def test_exception_with_a_status_is_reraised(self, make_exc):
+    def test_exception_with_a_status_is_reraised(self, call, make_exc):
         """A 503 from the upstream provider propagates rather than becoming a block."""
         exc = make_exc(503)
 
         with pytest.raises(type(exc)) as excinfo:
-            rail_error_result(None, ACTION_NAME, exc)
+            call(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
 
 
-class TestRailErrorOutcome:
-    """The compiled-rail entry point applies the same policy in a different return shape.
+class TestReturnShapes:
+    """The entry points differ only in the type they return, asserted whole."""
 
-    The property worth pinning is that nothing else differs: a divergence would mean two
-    fail-closed policies again, which is what extracting the envelope removed.
-    """
+    def test_tool_rail_entry_point_returns_a_rail_result(self):
+        """``rail_error_result`` yields a blocking RailResult."""
+        returned = rail_error_result(None, ACTION_NAME, RuntimeError("parser blew up"))
 
-    def test_unexpected_exception_returns_a_blocking_outcome(self):
-        """An arbitrary exception becomes a BLOCK outcome carrying the reason, not an ALLOW."""
-        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
+        assert returned == RailResult(is_safe=False, reason="content safety check input error: parser blew up")
 
-        assert outcome == RailOutcome.block(reason="content safety check input error: parser blew up")
+    def test_compiled_rail_entry_point_returns_a_rail_outcome(self):
+        """``rail_error_outcome`` yields a blocking RailOutcome with no metadata or transforms."""
+        returned = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
-    @status_bearing_types
-    def test_exception_with_a_status_is_reraised(self, make_exc):
-        """A provider failure propagates from a compiled rail exactly as from a tool rail."""
-        exc = make_exc(503)
-
-        with pytest.raises(type(exc)) as excinfo:
-            rail_error_outcome(None, ACTION_NAME, exc)
-
-        assert excinfo.value is exc
-
-    def test_reason_redacts_secrets(self):
-        """Credentials are redacted in the outcome's reason, as in the result's."""
-        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
-
-        assert outcome.reason == "content safety check input error: auth rejected token nvapi-***"
-
-    def test_blocking_outcome_records_the_span_error(self):
-        """A blocked compiled rail marks its span, so the failure is visible in the trace."""
-        span = MagicMock()
-
-        rail_error_outcome(span, ACTION_NAME, RuntimeError("parser blew up"))
-
-        span.record_exception.assert_called_once()
-        span.set_attribute.assert_any_call("error.type", "RuntimeError")
-
-    def test_differs_from_rail_error_result_only_in_return_type(self):
-        """Given one exception, both entry points agree on verdict and reason.
-
-        The assertion the shared helper exists to support: if someone later reimplements one
-        entry point instead of delegating, the reasons drift and this fails.
-        """
-        message = "auth rejected token nvapi-abc123secret"
-
-        result = rail_error_result(None, ACTION_NAME, RuntimeError(message))
-        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError(message))
-
-        assert result.is_safe is False
-        assert outcome.is_blocked is True
-        assert outcome.reason == result.reason
+        assert returned == RailOutcome.block(reason="content safety check input error: parser blew up")
 
 
 class TestLogsAreRedacted:
@@ -214,23 +207,18 @@ class TestLogsAreRedacted:
 
 
 class TestSpanErrorRecording:
-    """The failure is recorded on the action span on both the blocking and propagating paths."""
+    """A failure produces exactly one exception event on the action span, never two.
 
-    def test_error_recorded_when_blocking(self):
-        """A blocked rail still marks its span as errored."""
-        span = MagicMock()
-
-        rail_error_result(span, ACTION_NAME, RuntimeError("parser blew up"))
-
-        span.record_exception.assert_called_once()
-        span.set_attribute.assert_any_call("error.type", "RuntimeError")
+    Neither layer is wrong alone — the envelope records so a swallowed error stays visible,
+    ``action_span`` records so an escaping one does — so only the composition shows the
+    duplicate, and no standalone test of either could catch it.
+    """
 
     def test_reraising_leaves_the_recording_to_the_enclosing_span(self):
         """The envelope does not record on the path where it re-raises.
 
-        ``action_span`` records any exception that escapes it, so recording here too would
-        double up. Pinned directly on the helper as well as through the composition below,
-        so that restoring the unconditional record cannot pass by only fixing one of them.
+        Pinned on the helper as well as through the compositions below, so restoring the
+        unconditional record cannot pass by fixing only one of them.
         """
         span = MagicMock()
         exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
@@ -239,21 +227,6 @@ class TestSpanErrorRecording:
             rail_error_result(span, ACTION_NAME, exc)
 
         span.record_exception.assert_not_called()
-
-    def test_absent_span_is_accepted(self):
-        """Tracing being disabled yields span=None, which the envelope tolerates."""
-        result = rail_error_result(None, ACTION_NAME, RuntimeError("parser blew up"))
-
-        assert result.is_safe is False
-
-
-class TestSpanRecordsTheFailureExactlyOnce:
-    """Composed with a real action span, a failure produces one exception event, not two.
-
-    Neither layer is wrong alone — the envelope records so a swallowed error stays visible,
-    ``action_span`` records so an escaping one does — so only the composition shows the
-    duplicate, and no standalone test of either could catch it.
-    """
 
     def test_blocking_path_records_once(self):
         """A blocked rail records a single exception event on its action span."""
@@ -323,17 +296,11 @@ class TestToolRailsShareTheEnvelope:
         """A check that returns normally is passed through untouched."""
         assert DummyToolRail().check() == RailResult(is_safe=True)
 
-    def test_exception_becomes_a_blocking_result(self):
-        """A malformed tool payload fails closed with the rail's name in the reason."""
-        result = DummyToolRail(ValueError("malformed tool payload")).check()
-
-        assert result == RailResult(is_safe=False, reason="tool call validation error: malformed tool payload")
-
-    def test_reason_redacts_secrets(self):
-        """Tool rails gain the secret redaction that only RailAction applied before."""
+    def test_exception_becomes_a_blocking_result_with_secrets_redacted(self):
+        """A malformed payload fails closed, named after the rail and with credentials removed."""
         result = DummyToolRail(ValueError("bad header sk-abc123secret")).check()
 
-        assert result.reason == "tool call validation error: bad header sk-***"
+        assert result == RailResult(is_safe=False, reason="tool call validation error: bad header sk-***")
 
     def test_status_bearing_exception_is_reraised(self):
         """A tool rail is held to the same propagation policy, though no shipped one can raise this."""
