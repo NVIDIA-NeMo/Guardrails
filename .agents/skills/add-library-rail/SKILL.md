@@ -362,6 +362,19 @@ explicitly mandatory:
    review the diff. Never edit a generic gate or add your rail to an
    exception list (`LEGACY_UNMANIFESTED_PACKAGES`,
    `NON_PORTABLE_DECLARED_FLOWS`) to get green; fix the manifest.
+
+   **Rail registries you must join by hand.** Two gates enumerate library
+   rails explicitly and will NOT pick your rail up automatically. They are
+   not exception lists, and adding your rail to them is required, not a
+   workaround:
+   - `tests/rails/llm/test_config.py::test_builtin_rails_config_fields_canonical_set_and_legacy_exports`:
+     add your config key and your exported config model name.
+   - `tests/test_runtime_flow_gate_equivalence.py`: add one case per
+     manifest surface, including transform surfaces.
+
+   Neither is in the focused loop below, so the loop can be green while
+   `make test` is red. Run the full suite once before you believe you are
+   done.
 2. **Unit tests** in `tests/test_<rail>*.py`:
    - `TestChat` end-to-end for flow behavior, `FakeLLMModel` for
      deterministic main-model output.
@@ -482,9 +495,11 @@ Run until green, in this order (cheapest first):
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
+make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=tests/test_<rail>.py
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
+make test          # the focused lines above can be green while the suite is red
 uv run --locked pre-commit run --files <changed files>
 make docs-fern
 ```
