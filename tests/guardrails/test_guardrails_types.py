@@ -15,7 +15,15 @@
 
 """Unit tests for guardrails_types module."""
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages, RailResult, truncate
+import pytest
+
+from nemoguardrails.guardrails.guardrails_types import (
+    LLMMessage,
+    LLMMessages,
+    RailResult,
+    display_reason,
+    truncate,
+)
 
 
 class TestRailResult:
@@ -105,6 +113,55 @@ class TestTruncate:
 
     def test_non_string_input_converted(self):
         assert truncate(12345, 3) == "123..."
+
+
+class TestDisplayReason:
+    """Tests for the display_reason helper."""
+
+    @pytest.mark.parametrize(
+        "result, expected",
+        [
+            (RailResult(is_safe=False, reason="Safety categories: S1: Violence"), "Safety categories: S1: Violence"),
+            (
+                RailResult(
+                    is_safe=False,
+                    reason="Safety categories: S1: Violence",
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": ["S2: Sexual"]},
+                ),
+                "Safety categories: S1: Violence",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": ["S1: Violence", "S2: Sexual"]},
+                ),
+                "policy_violations: S1: Violence, S2: Sexual",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": [], "score": 0},
+                ),
+                "score: 0",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="jailbreak detection model",
+                    return_value={"allowed": False},
+                ),
+                "jailbreak detection model",
+            ),
+            (RailResult(is_safe=False), "unspecified"),
+        ],
+        ids=["reason", "reason-beats-evidence", "evidence", "empty-evidence-skipped", "rail-name", "nothing-at-all"],
+    )
+    def test_prefers_the_most_specific_source(self, result, expected):
+        """A stated reason wins, then the verdict's non-empty evidence, then the rail's name."""
+        assert display_reason(result) == expected
 
 
 class TestTypeAliases:

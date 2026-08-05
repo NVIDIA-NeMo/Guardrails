@@ -284,21 +284,63 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
     return tuple(bound)
 
 
-def _reject_unfillable_binding_kinds(surface: RailSurface, flow: str) -> None:
-    """Fail compilation for a binding kind request-time injection cannot fill.
-
-    A ``context`` binding maps one conversation variable onto a specific action parameter
-    (``user_message`` into ``text``), which injection does not do — it supplies the whole
-    ``context`` dict and nothing else. Compiling one would call the action short a required
-    argument on every request, and the fail-closed envelope would report that as a block.
-    """
+def _unfillable_bindings_reason(surface: RailSurface) -> Optional[str]:
+    """Report a binding kind request-time injection cannot fill."""
     unfillable = sorted({binding.action_param for binding in surface.bindings if binding.kind == "context"})
     if not unfillable:
-        return
-    raise RailCompilationError(
-        f"{flow!r} declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
+        return None
+    return (
+        f"declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
         f"which manifest-driven execution does not fill yet"
     )
+
+
+def _transform_target_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface that rewrites content, which IORails cannot apply yet."""
+    if surface.transform_target is None:
+        return None
+    return f"transforms {surface.transform_target.value!r}"
+
+
+# Surfaces whose actions read retrieval evidence out of the request context: ``relevant_chunks``,
+# ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``. Keyed by direction as well
+# as name, because one rail can surface in both directions.
+_RETRIEVAL_CONTEXT_SURFACES: frozenset[tuple[RailDirection, str]] = frozenset(
+    {
+        (RailDirection.OUTPUT, "alignscore check facts"),
+        (RailDirection.OUTPUT, "autoalign groundedness output"),
+        (RailDirection.OUTPUT, "fiddler bot faithfulness"),
+        (RailDirection.OUTPUT, "patronus api check output"),
+        (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
+        (RailDirection.OUTPUT, "self check facts"),
+        (RailDirection.OUTPUT, "self check hallucination"),
+    }
+)
+
+
+def _retrieval_context_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface needing retrieval evidence IORails has no source for."""
+    if (surface.direction, surface.name) not in _RETRIEVAL_CONTEXT_SURFACES:
+        return None
+    return "needs retrieval evidence, which manifest-driven execution does not supply yet"
+
+
+# Ordered so the cheapest, most structural check reports first. Each entry is removed by the
+# work that lifts its limitation: context bindings in PR 4, transforms in PR 5.
+_SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
+    _transform_target_reason,
+    _unfillable_bindings_reason,
+    _retrieval_context_reason,
+)
+
+
+def unsupported_surface_reason(surface: RailSurface) -> Optional[str]:
+    """Why manifest-driven execution cannot run *surface*, or None when it can."""
+    for check in _SURFACE_SUPPORT_CHECKS:
+        reason = check(surface)
+        if reason is not None:
+            return reason
+    return None
 
 
 def _accepts_arbitrary_keywords(action: Callable[..., Any]) -> bool:
@@ -346,8 +388,10 @@ def compile_rail(
     catalog = catalog if catalog is not None else default_rail_catalog()
     surface, params = _resolve_surface(flow, direction, catalog)
 
-    # Don't import dependencies if an unsupported surface is compiled
-    _reject_unfillable_binding_kinds(surface, flow)
+    # Ahead of resolve_import_ref, so a refused surface never pulls in an optional dependency.
+    unsupported = unsupported_surface_reason(surface)
+    if unsupported is not None:
+        raise RailCompilationError(f"{flow!r} {unsupported}")
 
     try:
         action = resolve_import_ref(surface.action)

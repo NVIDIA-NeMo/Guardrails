@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.rail_outcome import RailOutcome
@@ -54,8 +54,8 @@ async def topic_safety_check_input(
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> RailOutcome:
-    _MAX_TOKENS = TOPIC_SAFETY_MAX_TOKENS
     user_input: str = ""
+    conversation_history: List[dict] = []
 
     if context is not None:
         user_input = context.get("user_message", "")
@@ -106,8 +106,6 @@ async def topic_safety_check_input(
 
     llm_call_info_var.set(LLMCallInfo(task=task))
 
-    max_tokens = max_tokens or _MAX_TOKENS
-
     messages = []
     messages.append({"type": "system", "content": system_prompt})
     messages.extend(conversation_history)
@@ -122,7 +120,11 @@ async def topic_safety_check_input(
             log.debug(f"Topic safety cache hit for model '{model_name}'")
             return cached_result
 
-    response = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
+    llm_params: Dict[str, Any] = {"temperature": TOPIC_SAFETY_TEMPERATURE}
+    if max_tokens:
+        llm_params["max_tokens"] = max_tokens
+
+    response = await llm_call(llm, messages, stop=stop, llm_params=llm_params)
     result = response.content
 
     if result.lower().strip() == "off-topic":

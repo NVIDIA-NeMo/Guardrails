@@ -28,11 +28,13 @@ import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.compiled_rail import (
+    _RETRIEVAL_CONTEXT_SURFACES,
     CompiledRail,
     RailCompilationError,
     RailDependencies,
     compile_rail,
     messages_to_events,
+    unsupported_surface_reason,
 )
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
@@ -72,6 +74,20 @@ EXECUTABLE_SURFACES = {
     "content safety check output",
     "topic safety check input",
     "jailbreak detection model",
+}
+
+# Surfaces whose actions read retrieval evidence from the request context —
+# ``relevant_chunks``, ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``.
+# Keyed by direction as well as name, because one rail can surface in both directions.
+# Held here independently of the production deny-list so the two cross-check each other.
+RETRIEVAL_DEPENDENT_SURFACES = {
+    (RailDirection.OUTPUT, "alignscore check facts"),
+    (RailDirection.OUTPUT, "autoalign groundedness output"),
+    (RailDirection.OUTPUT, "fiddler bot faithfulness"),
+    (RailDirection.OUTPUT, "patronus api check output"),
+    (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
+    (RailDirection.OUTPUT, "self check facts"),
+    (RailDirection.OUTPUT, "self check hallucination"),
 }
 
 
@@ -325,6 +341,55 @@ class TestMalformedManifest:
 
         with pytest.raises(RailCompilationError, match="unsupported"):
             compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+
+
+class TestUnrunnableSurfaces:
+    """A surface the catalog can compile but IORails cannot execute is refused, not run."""
+
+    @pytest.mark.parametrize("name", sorted(EXECUTABLE_SURFACES))
+    def test_an_executable_surface_reports_no_reason(self, name):
+        """Each shipped rail passes every support check, so compilation proceeds to the action."""
+        surfaces = default_rail_catalog().surfaces()
+        surface = next(s for (_, surface_name), s in surfaces.items() if surface_name == name)
+
+        assert unsupported_surface_reason(surface) is None
+
+    def test_transform_surfaces_do_not_compile(self, deps):
+        """A surface that rewrites content is refused until IORails can apply the rewrite."""
+        with pytest.raises(RailCompilationError, match="transform"):
+            compile_rail("autoalign check input", RailDirection.INPUT, deps)
+
+    @pytest.mark.parametrize(
+        "direction, flow",
+        sorted(RETRIEVAL_DEPENDENT_SURFACES, key=lambda surface: surface[1]),
+        ids=lambda value: value if isinstance(value, str) else value.value,
+    )
+    def test_retrieval_dependent_surfaces_do_not_compile(self, deps, direction, flow):
+        """A surface reading retrieval evidence is refused; IORails supplies none."""
+        with pytest.raises(RailCompilationError, match="retrieval"):
+            compile_rail(flow, direction, deps)
+
+    def test_the_deny_list_names_only_real_surfaces(self):
+        """Every refused surface exists in the catalog, so no entry can rot into a no-op."""
+        surfaces = default_rail_catalog().surfaces()
+        missing = sorted(
+            f"{direction.value} {name!r}"
+            for direction, name in _RETRIEVAL_CONTEXT_SURFACES
+            if (direction, name) not in surfaces
+        )
+
+        assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
+
+    def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
+        """An unrunnable surface is refused before its action module is imported."""
+
+        def unreachable(ref):
+            raise AssertionError(f"resolve_import_ref ran for a refused surface: {ref}")
+
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail.resolve_import_ref", unreachable)
+
+        with pytest.raises(RailCompilationError, match="retrieval"):
+            compile_rail("self check facts", RailDirection.OUTPUT, deps)
 
 
 class TestManifestBindingContract:

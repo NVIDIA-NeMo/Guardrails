@@ -15,6 +15,7 @@
 
 
 import secrets
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from enum import Enum
@@ -162,3 +163,43 @@ def serialize_prompt(messages: list[dict]) -> str:
             line += f" [{', '.join(extras)}]"
         lines.append(line)
     return "\n\n".join(lines)
+
+
+_VERDICT_DECISION_KEY = "allowed"
+_UNSPECIFIED_REASON = "unspecified"
+
+
+def _rendered_evidence(value: Any) -> str:
+    """Render one verdict value, flattening a sequence into a comma-separated list."""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def _has_evidence(value: Any) -> bool:
+    """Whether a verdict value carries anything worth showing."""
+    # Emptiness rather than falsiness, so a legitimate ``0`` or ``False`` still renders.
+    if value is None:
+        return False
+    if isinstance(value, (str, list, tuple, dict, set)):
+        return len(value) > 0
+    return True
+
+
+def _verdict_evidence(return_value: Any) -> Optional[str]:
+    """Render a rail's structured verdict as text, or None when it carries no evidence."""
+    if not isinstance(return_value, Mapping):
+        return None
+    parts = [
+        f"{key}: {_rendered_evidence(value)}"
+        for key, value in return_value.items()
+        if key != _VERDICT_DECISION_KEY and _has_evidence(value)
+    ]
+    return "; ".join(parts) or None
+
+
+def display_reason(result: RailResult) -> str:
+    """Render a blocked rail's explanation for a log line, a span, or a client error payload."""
+    if result.reason:
+        return result.reason
+    return _verdict_evidence(result.return_value) or result.triggered_rail or _UNSPECIFIED_REASON

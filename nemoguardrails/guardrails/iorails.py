@@ -39,6 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
     TimedLLMResponse,
+    display_reason,
     get_request_id,
     serialize_prompt,
     truncate,
@@ -902,7 +903,7 @@ class IORails(BaseGuardrails):
         tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
         records.extend(tool_result.records)
         if not tool_result.is_safe:
-            log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
+            log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
             return _blocked_return()
@@ -936,7 +937,7 @@ class IORails(BaseGuardrails):
             )
             records.extend(tool_call.records)
             if not tool_call.is_safe:
-                log.info("[%s] Tool call blocked: %s", req_id, tool_call.reason)
+                log.info("[%s] Tool call blocked: %s", req_id, display_reason(tool_call))
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return()
@@ -952,7 +953,7 @@ class IORails(BaseGuardrails):
             output_result = await self.rails_manager.is_output_safe(messages, response_text, enabled=output_enabled)
             records.extend(output_result.records)
             if not output_result.is_safe:
-                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return()
@@ -1000,7 +1001,7 @@ class IORails(BaseGuardrails):
         if records_out is not None:
             records_out.extend(input_result.records)
         if not input_result.is_safe:
-            log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+            log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
             return None
@@ -1094,7 +1095,7 @@ class IORails(BaseGuardrails):
                 records_out.extend(input_result.records)
 
             if not input_result.is_safe:
-                log.info("[%s] Input blocked (speculative): %s", req_id, input_result.reason)
+                log.info("[%s] Input blocked (speculative): %s", req_id, display_reason(input_result))
                 gen_task.cancel()
                 # Use gather(return_exceptions=True) instead of bare await: when both
                 # tasks finish simultaneously, gen_task may hold a stored exception that
@@ -1124,7 +1125,7 @@ class IORails(BaseGuardrails):
                 records_out.extend(input_result.records)
 
             if not input_result.is_safe:
-                log.info("[%s] Input blocked (speculative, gen-first): %s", req_id, input_result.reason)
+                log.info("[%s] Input blocked (speculative, gen-first): %s", req_id, display_reason(input_result))
                 _record_generation(timed)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
@@ -1240,7 +1241,7 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Running input rails", req_id)
                 input_result = await self.rails_manager.is_input_safe(messages)
                 if not input_result.is_safe:
-                    log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                    log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
                     return RailsResult(
@@ -1257,7 +1258,7 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Running output rails", req_id)
                 output_result = await self.rails_manager.is_output_safe(messages, bot_response)
                 if not output_result.is_safe:
-                    log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                    log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.OUTPUT)
                     return RailsResult(
@@ -1362,12 +1363,12 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Running tool result rails", req_id)
                 tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
                 if not tool_result.is_safe:
-                    log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
+                    log.info("[%s] Tool result blocked: %s", req_id, display_reason(tool_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
-                            f"Blocked by tool input rails: {tool_result.reason}", "tool_input_rails"
+                            f"Blocked by tool input rails: {display_reason(tool_result)}", "tool_input_rails"
                         )
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1377,12 +1378,12 @@ class IORails(BaseGuardrails):
                 log.info("[%s] Running input rails", req_id)
                 input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
                 if not input_result.is_safe:
-                    log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                    log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
                     if self._metrics_enabled:
                         record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
-                            f"Blocked by input rails: {input_result.reason}", "input_rails"
+                            f"Blocked by input rails: {display_reason(input_result)}", "input_rails"
                         )
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1549,12 +1550,12 @@ class IORails(BaseGuardrails):
                                             log.info(
                                                 "[%s] Streamed tool call blocked: %s",
                                                 req_id,
-                                                tool_call.reason,
+                                                display_reason(tool_call),
                                             )
                                             if self._metrics_enabled:
                                                 record_request_blocked(RailDirection.OUTPUT)
                                             violation = self._guardrails_violation_payload(
-                                                f"Blocked by tool output rails: {tool_call.reason}",
+                                                f"Blocked by tool output rails: {display_reason(tool_call)}",
                                                 "tool_output_rails",
                                             )
                                             if self._content_capture_enabled:
@@ -1643,11 +1644,11 @@ class IORails(BaseGuardrails):
             log.info("[%s] Running output rails", req_id)
             output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk, enabled=enabled)
             if not output_result.is_safe:
-                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 violation = self._guardrails_violation_payload(
-                    f"Blocked by output rails: {output_result.reason}", "output_rails"
+                    f"Blocked by output rails: {display_reason(output_result)}", "output_rails"
                 )
                 yield _frame_for_stream(violation, include_metadata)
                 return
