@@ -413,6 +413,8 @@ class HTTPInstruments:
     request_duration: "Histogram"
 
 
+# Matches the OpenTelemetry HTTP client request-duration recommendation:
+# https://opentelemetry.io/docs/specs/semconv/http/http-metrics/#metric-httpclientrequestduration
 _HTTP_DURATION_BUCKETS = [
     0.005,
     0.01,
