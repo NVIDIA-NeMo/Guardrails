@@ -98,8 +98,7 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
 def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) -> RailResult:
     """Map a failed tool rail to a blocking ``RailResult``, or re-raise on an HTTP status.
 
-    Call this from the ``except`` handler of a tool rail's own ``try``. *exc* is recorded
-    on *span* on both paths, so a propagated failure is still visible in the trace.
+    Call this from the ``except`` handler of a tool rail's own ``try``.
 
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.
@@ -110,8 +109,7 @@ def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) 
 def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception) -> RailOutcome:
     """Map a failed compiled rail to a blocking ``RailOutcome``, or re-raise on an HTTP status.
 
-    Call this from the ``except`` handler of a ``CompiledRail``'s own ``try``. *exc* is
-    recorded on *span* on both paths, so a propagated failure is still visible in the trace.
+    Call this from the ``except`` handler of a ``CompiledRail``'s own ``try``.
 
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.

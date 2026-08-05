@@ -15,10 +15,16 @@
 
 """Unit tests for the shared IORails rail error envelope.
 
-``rail_error_result`` is the single home for the engine's fail-closed policy: a rail
-that raises produces a blocking ``RailResult`` with a redacted reason, unless the
-exception carries an upstream HTTP status, in which case it propagates so the server
-can map it to the right response code.
+The envelope is the single home for the engine's fail-closed policy: a rail that raises
+produces a blocking verdict with a redacted reason, unless the exception carries an
+upstream HTTP status, in which case it propagates so the server can map it to the right
+response code.
+
+It has two entry points over one private helper, differing only in return shape —
+``rail_error_result`` for the hand-written tool rails and ``rail_error_outcome`` for
+``CompiledRail``. Both are tested directly here, because transitive execution from
+``test_compiled_rail.py`` is enough to mark the lines covered without asserting anything
+about them.
 
 The policy previously lived in ``RailAction.run`` and was duplicated in
 ``ToolRailAction._guarded``; these tests pin it at the extracted helper and at both
@@ -34,11 +40,12 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Tracer
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.guardrails.rail_guard import rail_error_result
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome, rail_error_result
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 
@@ -116,6 +123,62 @@ class TestPropagatesUpstreamStatus:
             rail_error_result(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
+
+
+class TestRailErrorOutcome:
+    """The compiled-rail entry point applies the same policy in a different return shape.
+
+    ``CompiledRail`` returns ``RailOutcome`` so it never touches an IORails type; tool rails
+    return ``RailResult``. Both delegate to one private helper, and the property worth pinning
+    is that nothing else differs — a divergence here would mean two fail-closed policies again,
+    which is what extracting the envelope removed.
+    """
+
+    def test_unexpected_exception_returns_a_blocking_outcome(self):
+        """An arbitrary exception becomes a BLOCK outcome carrying the reason, not an ALLOW."""
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
+
+        assert outcome == RailOutcome.block(reason="content safety check input error: parser blew up")
+
+    @status_bearing_types
+    def test_exception_with_a_status_is_reraised(self, make_exc):
+        """A provider failure propagates from a compiled rail exactly as from a tool rail."""
+        exc = make_exc(503)
+
+        with pytest.raises(type(exc)) as excinfo:
+            rail_error_outcome(None, ACTION_NAME, exc)
+
+        assert excinfo.value is exc
+
+    def test_reason_redacts_secrets(self):
+        """Credentials are redacted in the outcome's reason, as in the result's."""
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
+
+        assert outcome.reason == "content safety check input error: auth rejected token nvapi-***"
+
+    def test_blocking_outcome_records_the_span_error(self):
+        """A blocked compiled rail marks its span, so the failure is visible in the trace."""
+        span = MagicMock()
+
+        rail_error_outcome(span, ACTION_NAME, RuntimeError("parser blew up"))
+
+        span.record_exception.assert_called_once()
+        span.set_attribute.assert_any_call("error.type", "RuntimeError")
+
+    def test_differs_from_rail_error_result_only_in_return_type(self):
+        """Given one exception, both entry points agree on verdict and reason.
+
+        The assertion the shared helper exists to support: if someone later reimplements one
+        entry point instead of delegating, the reasons drift and this fails.
+        """
+        message = "auth rejected token nvapi-abc123secret"
+
+        result = rail_error_result(None, ACTION_NAME, RuntimeError(message))
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError(message))
+
+        assert result.is_safe is False
+        assert outcome.is_blocked is True
+        assert outcome.reason == result.reason
 
 
 class TestLogsAreRedacted:
