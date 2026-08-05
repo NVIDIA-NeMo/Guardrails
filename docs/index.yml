@@ -219,6 +219,9 @@ navigation:
           - page: Registering Actions
             path: configure-rails/actions/registering-actions.mdx
             slug: registering-actions
+          - page: Rail Outcomes
+            path: configure-rails/actions/rail-outcomes.mdx
+            slug: rail-outcomes
       - section: Custom Initialization
         path: configure-rails/custom-initialization/index.mdx
         slug: custom-initialization
