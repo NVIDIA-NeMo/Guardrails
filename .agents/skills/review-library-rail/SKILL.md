@@ -157,6 +157,10 @@ Each item names the check, where to look, and what "wrong" looks like.
     `nemoguardrails/library/f5/actions.py` does) so it is never mistaken for
     a real clear in logs and traces, and it must be logged. A
     fail-open path also needs its own test alongside the fail-closed one.
+    Cross-check the docs against the code: if the page claims the switch
+    covers availability only, confirm the fail-open branch actually excludes
+    4xx. Failing open on 401 or 403 while documenting otherwise leaves a
+    revoked key silently unguarded, and is a finding.
 11. **Cassette provenance.** A cassette is a claim by its submitter, and an
     agent or contributor without service access can fabricate one that
     looks recorded. The sanitizer fixed-point gate

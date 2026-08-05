@@ -285,7 +285,13 @@ response = await http_call(
   fail-open return carries an explicit marker in metadata so it is
   distinguishable from a genuine vendor clear (`_fail_open_outcome` in
   `nemoguardrails/library/f5/actions.py`); the fail-open path logs at warning
-  level; and it has its own test alongside the fail-closed one.
+  level; and it has its own test alongside the fail-closed one. Sixth, the
+  docs page must enumerate the failure classes the switch actually covers.
+  If the code fails open on any non-success status, say so, including 401
+  and 403 from a revoked key; do not write "availability only" unless the
+  code excludes 4xx from the fail-open branch. An operator whose key is
+  revoked would otherwise run silently unguarded while the docs say that
+  cannot happen.
 - Telemetry must stay content-free. This applies to EVERY rail, not only
   HTTP ones: never log the checked user or bot text, request or response
   bodies, exception messages containing payloads, URLs with query strings,
