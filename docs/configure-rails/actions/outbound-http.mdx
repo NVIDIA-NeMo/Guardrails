@@ -1,0 +1,223 @@
+---
+title: "Outbound HTTP in Actions"
+sidebar-title: "Outbound HTTP"
+description: "Use the canonical asynchronous HTTP boundary for action requests, retries, telemetry, lifecycle management, and deterministic tests."
+keywords: ["HTTPClient", "http_call", "action HTTP", "HTTP retries", "HTTP telemetry"]
+content:
+  type: "how_to"
+---
+
+Use the `nemoguardrails.http` boundary for outbound HTTP requests from actions and library rails. It provides transport-neutral request, response, error, retry, and instrumentation contracts while keeping client ownership explicit.
+
+Do not construct `aiohttp`, `httpx`, `requests`, or `urllib3` clients inside an action. Direct transports bypass shared ownership, retry, testing, and observability policy.
+
+## Send a request from an action
+
+Accept an optional `HTTPClient` and call `http_call`:
+
+```python
+from nemoguardrails.actions import action
+from nemoguardrails.http import HTTPClient, http_call
+
+@action()
+async def query_policy_service(
+    text: str,
+    http_client: HTTPClient | None = None,
+):
+    response = await http_call(
+        http_client,
+        "POST",
+        "https://policy.example.com/v1/check",
+        json={"text": text},
+        timeout=10.0,
+    )
+    return response.json()
+```
+
+`http_call` raises `HTTPStatusError` for responses with status code 400 or greater by default. Pass `raise_for_status=False` only when the integration must inspect an error response and apply provider-specific behavior.
+
+## Client ownership
+
+The client argument determines ownership for each call:
+
+| Client value | Owner | Behavior |
+| --- | --- | --- |
+| Injected `HTTPClient` | Caller | `http_call` borrows the client and leaves it open. |
+| `None` | `http_call` | The helper creates a client for the call and closes it after the response body is materialized. |
+
+The `None` fallback is safe and deterministic. Inject a shared client for applications that make repeated requests and benefit from connection-pool reuse.
+
+Create and close a shared client at the same application-lifecycle boundary:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.http import create_http_client
+
+async def run():
+    http_client = create_http_client(timeout=10.0)
+    config = RailsConfig.from_path("config")
+    app = LLMRails(config)
+    app.register_action_param("http_client", http_client)
+
+    try:
+        return await app.generate_async(
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+    finally:
+        await http_client.close()
+```
+
+The synchronous `config.py` initialization hook has no asynchronous teardown hook. Do not create a long-lived HTTP client there unless another application component owns and closes it.
+
+## Request and response contract
+
+`HTTPClient.request` and `http_call` support:
+
+- HTTP method and absolute URL.
+- Headers and query parameters.
+- A JSON body or raw string or byte content.
+- A per-request total timeout.
+
+They return a materialized `HTTPResponse`. Its body bytes remain available after a call-scoped client closes.
+
+```python
+response.status_code
+response.headers
+response.content
+response.text
+response.json()
+response.is_success
+```
+
+`HTTPResponse.json()` raises `HTTPResponseDecodeError` for invalid JSON. `HTTPResponse.raise_for_status()` and `http_call` raise `HTTPStatusError` for status codes of 400 or greater.
+
+The canonical error hierarchy is:
+
+- `HTTPClientError`
+- `HTTPConnectionError`
+- `HTTPTimeoutError`
+- `HTTPStatusError`
+- `HTTPResponseDecodeError`
+
+Catch the narrowest error that the integration can handle without changing its intended fail-open or fail-closed behavior. Do not log response bodies, request bodies, credentials, or unsanitized exception details.
+
+## Configure the pooled transport
+
+`create_http_client` creates a closable HTTPX-backed client behind the neutral protocol. The default client:
+
+- Uses a 30-second total timeout.
+- Verifies TLS certificates.
+- Does not follow redirects.
+- Pools up to 100 connections, including up to 20 keep-alive connections.
+
+Override these policies explicitly when an integration requires different behavior:
+
+```python
+import httpx
+
+from nemoguardrails.http import HTTPTLSConfig, create_http_client
+
+client = create_http_client(
+    timeout=10.0,
+    limits=httpx.Limits(max_connections=40, max_keepalive_connections=10),
+    follow_redirects=False,
+    tls=HTTPTLSConfig(ca_bundle="/path/to/ca-bundle.pem"),
+)
+```
+
+`HTTPTLSConfig` also supports a client certificate and key for mutual TLS. Configure both together. Keep certificate verification enabled in production.
+
+## Add bounded retries
+
+Requests are not retried unless the client has a `RetryPolicy`. `max_attempts` includes the initial request.
+
+```python
+from nemoguardrails.http import RetryPolicy, create_http_client
+
+policy = RetryPolicy(
+    max_attempts=3,
+    initial_delay=0.25,
+    max_delay=2.0,
+)
+client = create_http_client(retry_policy=policy)
+```
+
+The default policy retries eligible connection and timeout failures and the status codes `408`, `409`, `429`, `500`, `502`, `503`, and `504`. It uses bounded exponential backoff with jitter and accepts an in-policy `Retry-After` value.
+
+The safe default method set excludes `POST`. Add `POST` only when the provider documents the operation as retry-safe or the request uses a supported idempotency mechanism:
+
+```python
+policy = RetryPolicy(
+    max_attempts=3,
+    retryable_methods=frozenset({"POST"}),
+)
+```
+
+Keep retry policy close to the integration that owns the provider semantics. Do not add a broad global POST retry policy.
+
+## Add privacy-safe instrumentation
+
+Wrap a shared client with `instrument_http_client` to enable tracing, metrics, or both:
+
+```python
+from opentelemetry import trace
+
+from nemoguardrails.http import (
+    RetryPolicy,
+    create_http_client,
+    instrument_http_client,
+)
+
+base_client = create_http_client(retry_policy=RetryPolicy())
+http_client = instrument_http_client(
+    base_client,
+    tracer=trace.get_tracer("guardrails-app"),
+    metrics_enabled=True,
+)
+```
+
+Wrap the retrying client, as shown above, to record one span and one duration observation for the logical request rather than one per retry attempt.
+
+Tracing emits a `CLIENT` span named `HTTP {METHOD}`. Metrics emit the `http.client.request.duration` histogram. Telemetry can include:
+
+- Method, URL scheme, server address, and port.
+- A sanitized URL without credentials, query parameters, or fragments.
+- Raw request-body size when `content` is used.
+- Response status and body size.
+- Retry count and error type.
+
+Instrumentation does not record header values, query values, JSON bodies, raw body content, credentials, response content, or exception messages. Telemetry failures do not change the request result.
+
+Instrumentation is explicit at this boundary. Creating an HTTP client without `instrument_http_client` does not enable HTTP spans or metrics automatically. The component that creates the instrumented client must also close it.
+
+See [Span Reference](/observability/tracing/span-reference#outbound-http-client-spans) and [Metric Reference](/observability/metrics/reference#http-client-metrics) for the emitted names and attributes.
+
+## Test without network access
+
+Use `RecordingHTTPClient` to queue responses and inspect the exact provider request:
+
+```python
+import pytest
+
+from nemoguardrails.http import HTTPResponse
+from nemoguardrails.testing import RecordingHTTPClient
+
+@pytest.mark.asyncio
+async def test_policy_request_contract():
+    client = RecordingHTTPClient(
+        [HTTPResponse(status_code=200, content=b'{"allowed": true}')]
+    )
+
+    result = await query_policy_service("hello", http_client=client)
+
+    assert result == {"allowed": True}
+    assert len(client.requests) == 1
+    request = client.requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://policy.example.com/v1/check"
+    assert request.json == {"text": "hello"}
+```
+
+Queue transport errors and non-success responses to verify retry, timeout, decoding, and fail-open or fail-closed behavior. Unit tests must not call a live provider.
+
+For configuration-level testing patterns, see [Testing Your Guardrails Configuration](/configure-guardrails/custom-initialization/testing-your-config).

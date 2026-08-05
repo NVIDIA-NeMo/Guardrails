@@ -3,13 +3,36 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Span Reference"
 sidebar-title: "Span Reference"
-description: "Every span and attribute the LLMRails and IORails engines emit when tracing is enabled, including the token-level GenAI attributes on the LLM span."
+description: "Reference the LLMRails, IORails, and canonical outbound HTTP spans and attributes emitted when tracing is enabled."
 content:
     type: "reference"
 ---
 
 The NeMo Guardrails library emits OpenTelemetry spans, allowing you to trace individual requests.
-This reference documents the spans and attributes each engine produces. It covers the default LLMRails engine first, then the opt-in IORails engine.
+This reference documents shared outbound HTTP client spans and the spans each engine produces.
+
+## Outbound HTTP Client Spans
+
+The canonical outbound HTTP boundary can emit a `CLIENT` span for each logical request. This instrumentation is engine-neutral and is enabled by wrapping a client with `instrument_http_client` and supplying a tracer. It is not enabled by `create_http_client` alone.
+
+The span is named `HTTP {METHOD}`, such as `HTTP GET` or `HTTP POST`. When a request runs under an active OpenTelemetry span, the HTTP span uses that span as its parent.
+
+| Attribute | Type | When set | Description |
+| --- | --- | --- | --- |
+| `http.request.method` | string | Always | Uppercase HTTP method. |
+| `url.full` | string | Always | URL with credentials, query parameters, and fragments removed. |
+| `url.scheme` | string | URL has a scheme | URL scheme, such as `https`. |
+| `server.address` | string | URL has a host | Destination host. |
+| `server.port` | int | URL contains an explicit port | Destination port. |
+| `http.request.body.size` | int | Raw `content` is supplied | Encoded raw request-body size. JSON bodies are not measured. |
+| `http.response.status_code` | int | Response received | HTTP response status code. |
+| `http.response.body.size` | int | Response received | Materialized response-body size. |
+| `http.request.resend_count` | int | Request retried | Number of completed retries. |
+| `error.type` | string | Error response or exception | Status code for an error response or exception class name for a raised error. |
+
+Raised errors add an `exception` event containing only `exception.type`. The instrumentation does not record header values, query values, JSON bodies, raw body content, credentials, response content, or exception messages.
+
+Wrap the retrying client rather than its underlying transport to produce one span for the logical request and include its retry count. See [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#add-privacy-safe-instrumentation) for configuration and lifecycle examples.
 
 ## LLMRails
 
@@ -285,7 +308,7 @@ When content capture is enabled, the LLM span also records the prompt and comple
 | ---------- | ------ | -------- | --------------------------------- |
 | `api.name` | string | Always   | The name of the API being called. |
 
-These endpoints are plain HTTP services rather than GenAI operations, so the span uses `api.name` instead of the `gen_ai.*` attributes. HTTP transport attributes can be added later without conflict.
+These endpoints are plain HTTP services rather than GenAI operations, so the span uses `api.name` instead of the `gen_ai.*` attributes. When the action uses an instrumented canonical HTTP client, the nested `HTTP {METHOD}` span carries the transport attributes described in [Outbound HTTP Client Spans](#outbound-http-client-spans).
 
 ## Token-Level Attributes
 
@@ -369,5 +392,7 @@ Pin your `opentelemetry-sdk` version and review release notes before upgrading.
 
 - [Quick Start](/observability/tracing/quick-start): Minimal tracing setup with the OpenTelemetry SDK.
 - [OpenTelemetry](/observability/tracing/opentelemetry-integration): Production exporters and ecosystem compatibility.
-- [Metric Reference](/observability/metrics/reference): The metrics IORails emits, including the `gen_ai.client.token.usage` histogram.
+- [Metric Reference](/observability/metrics/reference): IORails and canonical outbound HTTP metrics.
+- [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http): Canonical request, ownership, retry, and instrumentation patterns.
+- [OpenTelemetry HTTP spans specification](https://opentelemetry.io/docs/specs/semconv/http/http-spans/): Upstream HTTP client span conventions.
 - [OpenTelemetry GenAI spans specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): Upstream semantic conventions for span names and attributes.

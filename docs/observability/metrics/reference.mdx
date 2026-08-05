@@ -3,18 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 title: "Metric Reference"
 sidebar-title: "Metric Reference"
-description: "Reference every metric IORails emits, with instrument types, units, labels, and emission semantics."
+description: "Reference IORails and canonical outbound HTTP metrics, including instrument types, units, labels, and emission semantics."
 content:
   type: "reference"
 ---
 
-This page lists every metric the IORails engine emits when `metrics.enabled: true` and a `MeterProvider` is configured.
+This page lists the metrics emitted by the IORails engine and the instrumented canonical outbound HTTP client.
 
-Metrics fall into two families:
+Metrics fall into three families:
 
 - **Request-level metrics** (`guardrails.*`) describe IORails request flow: volume, errors, blocks, latency, and saturation of the streaming and non-streaming admission paths.
 - **LLM client-side metrics** (`gen_ai.client.*`) describe downstream LLM calls IORails issues.
   These follow the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) and use the bucket boundaries recommended by that spec.
+- **HTTP client-side metrics** (`http.client.*`) describe outbound requests sent through an explicitly instrumented canonical HTTP client.
+
+IORails request and LLM metrics require `metrics.enabled: true` and a configured `MeterProvider`. HTTP client metrics require a configured `MeterProvider` and `instrument_http_client(..., metrics_enabled=True)`.
 
 ## Request-Level Metrics
 
@@ -77,6 +80,28 @@ A `QueueFull` rejection on the non-streaming path increments **both**:
 
 This is intentional: dashboards built around either signal alone still reflect the rejection.
 
+## HTTP Client Metrics
+
+The canonical outbound HTTP instrumentation records one observation for each logical request, including all retry attempts performed by a wrapped retrying client.
+
+| Metric | Instrument | Unit | Labels | Description |
+| --- | --- | --- | --- | --- |
+| `http.client.request.duration` | Histogram | `s` | `http.request.method`, `server.address`, `server.port`, optionally `http.response.status_code` and `error.type` | Wall-clock duration of an outbound HTTP request. |
+
+The method is normalized to uppercase. The server port is the explicit URL port or the default port for `http` and `https`. A response contributes `http.response.status_code`; status codes of 400 or greater also contribute `error.type` as the status string. A raised exception contributes its class name as `error.type` and has no response-status label.
+
+The metric does not include URL paths, query parameters, headers, bodies, credentials, or exception messages. URLs without a host or a recognized port do not produce an observation.
+
+### Bucket Boundaries: `http.client.request.duration`
+
+The histogram uses the OpenTelemetry HTTP client recommendation in seconds:
+
+```text
+[0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
+```
+
+Use [`instrument_http_client`](/configure-guardrails/actions/outbound-http#add-privacy-safe-instrumentation) with `metrics_enabled=True` to enable this metric. `create_http_client` does not enable it automatically.
+
 ## LLM Client-Side Metrics
 
 These metrics are recorded once per downstream LLM call, not once per IORails request, and follow the OpenTelemetry GenAI semantic conventions.
@@ -127,21 +152,27 @@ When usage is absent, no observation is recorded; "no observation" is deliberate
 
 | Label | Used On | Values | Notes |
 | --- | --- | --- | --- |
-| `error.type` | `guardrails.requests.errors`, `gen_ai.client.operation.duration` (on error) | Exception class name | For example `QueueFull`, `TimeoutError`, `ValueError`. |
+| `error.type` | Request, LLM, and HTTP error metrics | Exception class name or HTTP error status | For example `QueueFull`, `TimeoutError`, `HTTPConnectionError`, or `503`. |
 | `rail.type` | `guardrails.requests.blocked` | `input`, `output` | Identifies whether an input or output rail blocked the request. |
 | `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OpenTelemetry GenAI operation name. |
 | `gen_ai.provider.name` | All `gen_ai.client.*` | For example `openai`, `anthropic` | OpenTelemetry GenAI provider name. |
 | `gen_ai.request.model` | All `gen_ai.client.*` | For example `gpt-4o-mini` | The model name passed in the request. |
 | `gen_ai.token.type` | `gen_ai.client.token.usage` | `input`, `output` | Required label per spec. |
+| `http.request.method` | `http.client.request.duration` | Uppercase HTTP method | For example `GET` or `POST`. |
+| `server.address` | `http.client.request.duration` | Destination host | Excludes credentials and port. |
+| `server.port` | `http.client.request.duration` | Destination port | Uses `80` or `443` when omitted from an HTTP or HTTPS URL. |
+| `http.response.status_code` | `http.client.request.duration` | HTTP status code | Present only when a response is received. |
 
 ## Public API Stability
 
 The metric names listed on this page are part of the library's public API, so dashboards and alerts can reference them.
 The library tests assert on the raw strings for this reason.
-Bucket boundaries follow the OpenTelemetry GenAI spec and can change if the spec changes.
+Bucket boundaries follow the relevant OpenTelemetry HTTP or GenAI specification and can change if those specifications change.
 
 ## Related Resources
 
 - [Enable Guardrails Metrics](/observability/metrics/enable-metrics) — Minimal SDK setup with console output.
 - [OpenTelemetry Metrics Integration](/observability/metrics/opentelemetry-integration) — Production exporters: OTLP, Prometheus.
+- [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http): Canonical client ownership, retries, instrumentation, and testing.
+- [OpenTelemetry HTTP metrics specification](https://opentelemetry.io/docs/specs/semconv/http/http-metrics/): Upstream HTTP client metric conventions.
 - [OpenTelemetry GenAI metrics specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) — Upstream semantic conventions.

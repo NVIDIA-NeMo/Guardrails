@@ -222,6 +222,9 @@ navigation:
           - page: Rail Outcomes
             path: configure-rails/actions/rail-outcomes.mdx
             slug: rail-outcomes
+          - page: Outbound HTTP
+            path: configure-rails/actions/outbound-http.mdx
+            slug: outbound-http
       - section: Custom Initialization
         path: configure-rails/custom-initialization/index.mdx
         slug: custom-initialization
