@@ -309,9 +309,21 @@ response = await http_call(
 
 ## Step 5: Vendor Python dependencies
 
-Rail dependencies are declared in the manifest, NOT in packaging. Do NOT add
-the vendor package to `pyproject.toml`; users install it themselves, guided by
-the manifest declaration and the docs page install line.
+Rail dependencies are declared in the manifest, NOT in the install path. Do
+NOT add the vendor package to `[project.dependencies]` or to a user-facing
+extra that installs by default; users install it themselves, guided by the
+manifest declaration and the docs page install line.
+
+That prohibition is about what USERS install, not about what CI installs.
+If your unit tests import the vendor package directly, add it to the
+`test_integration` dependency group in `pyproject.toml` and regenerate
+`uv.lock` in the same commit. `dev` includes that group, so CI gets the
+package and your tests are runnable. The precedent is `yara-python`, which
+sits in `test_integration` precisely because
+`tests/test_injection_detection.py` does a bare `import yara`. The
+alternative, guarding the test module with `pytest.importorskip`, is also
+acceptable and keeps packaging untouched, but then say so in the PR, because
+a skipped test suite is not a passing one.
 
 - Declare the distribution name in `rail.py` through
   `RailRequirements.optional_dependencies` (exemplar:
