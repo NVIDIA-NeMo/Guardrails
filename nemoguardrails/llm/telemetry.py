@@ -181,13 +181,18 @@ def set_llm_response_attributes(
 
 
 def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
-    """Record an exception and error status without changing call behavior."""
+    """Record error status and the exception type on a span.
+
+    The exception message and stack trace are deliberately omitted: a provider
+    error can embed request content, which must not reach telemetry unless
+    content capture is explicitly enabled. Only the low-cardinality error type
+    is recorded.
+    """
     if span is None:
         return
     with suppress(Exception):
         span.set_attribute("error.type", type(exc).__name__)
-        span.record_exception(exc)
-        span.set_status(StatusCode.ERROR, str(exc))
+        span.set_status(StatusCode.ERROR)
 
 
 @contextmanager

@@ -24,6 +24,7 @@ from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.guardrails import telemetry
@@ -136,6 +137,23 @@ async def test_generate_preserves_exception_identity(span_exporter):
     assert traceback.tb_frame.f_code is RecordingModel.generate_async.__code__
     attrs = dict(exporter.get_finished_spans()[0].attributes)
     assert attrs["error.type"] == "RuntimeError"
+
+
+@pytest.mark.asyncio
+async def test_error_span_excludes_exception_content(span_exporter):
+    tracer, exporter = span_exporter
+    secret = "secret-prompt-text-9f31"
+    model = InstrumentedLLMModel(RecordingModel(error=RuntimeError(f"boom {secret}")), tracer=tracer)
+
+    with pytest.raises(RuntimeError):
+        await model.generate_async("question")
+
+    span = exporter.get_finished_spans()[0]
+    assert span.attributes["error.type"] == "RuntimeError"
+    assert span.status.status_code == StatusCode.ERROR
+    assert all(secret not in str(value) for value in span.attributes.values())
+    assert all(secret not in str(event.attributes) for event in span.events)
+    assert secret not in (span.status.description or "")
 
 
 @pytest.mark.asyncio
