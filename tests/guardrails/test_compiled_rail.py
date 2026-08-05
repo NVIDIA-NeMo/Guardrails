@@ -13,29 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for CompiledRail, the manifest-driven rail unit that replaces RailAction.
+"""Unit tests for CompiledRail, the manifest-driven rail unit.
 
-A ``CompiledRail`` is built once per configured flow string: it reads the flow's
-``RailSurface`` from the manifest catalog, resolves the library action, freezes a binding
-plan, and thereafter turns a request into ``action(**kwargs)`` and passes the returned
-``RailOutcome`` back to the caller. Converting to ``RailResult`` is ``RailsManager``'s job.
-
-Two properties are load-bearing and are pinned here rather than left to review:
-
-*Compilation fails at construction, not at request time.* An unknown surface, a
-wrong-direction surface, or a missing required ``$param=`` must raise
-``RailCompilationError`` while the engine is being built, because ``unsupported_reason``
-decides whether IORails can serve a config by attempting exactly this compilation.
-
-*Rail model calls are captured from a sink, never by reading a contextvar afterwards.*
-``CompiledRail`` installs a fresh ``processing_log_var`` list around the action call.
-A rail that makes no model call contributes nothing to its own empty list, so it cannot
-inherit a previous rail's record — structurally, not by clearing anything. Do not
-"simplify" this into a post-hoc read of ``llm_call_info_var``: library actions open and
-close their own scope *inside* the action, so such a read yields the outer value.
-
-Deferred to later commits, deliberately not covered here: transform outcomes (PR 5),
-``model_caches`` (PR 6), and the ``RailsManager``/``unsupported_reason`` rewiring.
+Two properties are load-bearing and pinned here rather than left to review: compilation
+fails at construction rather than at request time, and rail model calls are captured from a
+sink rather than read from a contextvar afterwards.
 """
 
 import inspect
@@ -87,14 +69,10 @@ CONTENT_SAFETY_ACTION_REF = ActionRef(
 
 
 class StubCatalog(RailCatalog):
-    """A catalog holding one synthetic surface.
+    """A catalog holding one synthetic surface no shipped manifest would produce.
 
-    ``compile_rail`` takes the catalog as a parameter precisely so a test can hand it a
-    surface no shipped manifest produces — an unimportable action, a literal binding, a
-    binding the schema forbids. Without this seam those compilation paths are unreachable.
-
-    Subclasses the real catalog rather than duck-typing it: an empty record list constructs
-    fine, and inheriting keeps the parameter's declared type honest instead of casting.
+    Subclasses the real catalog rather than duck-typing it, so the declared parameter type
+    stays honest without a cast.
     """
 
     def __init__(self, surface: RailSurface, direction: RailDirection = RailDirection.INPUT):
@@ -116,9 +94,7 @@ def synthetic_surface(
 ) -> RailSurface:
     """Build a one-off input surface for a compilation path the real catalog cannot reach.
 
-    ``bypass_validation`` uses ``model_construct`` to skip Pydantic, which is the only way to
-    build a manifest the schema rejects. Reach for it only when the branch under test exists
-    to defend against exactly that.
+    ``bypass_validation`` skips Pydantic, the only way to build a manifest the schema rejects.
     """
     if bypass_validation:
         return RailSurface.model_construct(
@@ -140,12 +116,9 @@ def synthetic_surface(
 class RecordingAction:
     """Stand-in for a library action that records how it was called.
 
-    Copies *signature_of*'s parameters, so ``inspect.signature`` reports the same named
-    parameters the real action declares. That is load-bearing rather than cosmetic:
-    ``CompiledRail`` injects by parameter name and deliberately ignores ``**kwargs``, so a
-    double declaring only ``**kwargs`` accepts everything at runtime while advertising
-    nothing — it is handed its manifest bindings and no request dependencies at all. Pass
-    the action being replaced, so injection is driven by a real shipped signature.
+    Always pass *signature_of*. Injection is by parameter name and ignores ``**kwargs``, so a
+    double declaring only ``**kwargs`` advertises nothing and receives no dependencies at all
+    — every injection assertion then fails for a reason unrelated to the code under test.
     """
 
     def __init__(self, outcome: Any = None, *, signature_of: Optional[Callable[..., Any]] = None):
@@ -248,12 +221,11 @@ class TestCompilation:
         with pytest.raises(RailCompilationError, match="model_name"):
             compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
 
-    def test_context_binding_surfaces_do_not_compile_yet(self, deps):
+    def test_context_binding_surfaces_do_not_compile(self, deps):
         """A surface using a context binding is refused rather than silently misbehaving.
 
-        Context bindings map a conversation variable onto a named action parameter
-        (``user_message`` into ``text``), which request-time injection does not do. Refusing
-        to compile routes the config to LLMRails; PR 4 replaces this with real support.
+        Context bindings name a specific action parameter (``user_message`` into ``text``),
+        which request-time injection does not fill.
         """
         with pytest.raises(RailCompilationError, match="context binding"):
             compile_rail("detect pii on input", RailDirection.INPUT, deps)
@@ -277,11 +249,9 @@ class TestCompilation:
 class TestMalformedManifest:
     """Compilation refuses a manifest that is well-formed on paper but cannot be executed.
 
-    None of these arise from a shipped manifest, so each drives compilation through an
-    injected catalog. They are worth pinning anyway: the catalog is populated by rglobbing
-    ``library/**/rail.py``, so a third-party or in-progress manifest reaches this code, and
-    the failure has to name the flow rather than surface as an import error from deep inside
-    ``resolve_import_ref``.
+    None arise from a shipped manifest, so each drives compilation through an injected
+    catalog. Still worth pinning: the catalog rglobs ``library/**/rail.py``, so a third-party
+    manifest reaches this code and the failure has to name the flow.
     """
 
     def test_action_that_cannot_be_imported_raises(self, deps):
@@ -307,10 +277,8 @@ class TestMalformedManifest:
     def test_binding_with_no_source_key_raises(self, deps):
         """A non-literal binding carrying no source key fails compilation.
 
-        Requires bypassing Pydantic at both the ``Binding`` and ``RailSurface`` level, because
-        both reject it — so this guard is defence in depth against a manifest built through
-        ``model_construct`` rather than a state the schema permits. It is retained rather than
-        deleted because the alternative is a confusing ``$None=`` message further down.
+        Needs a Pydantic bypass at both the ``Binding`` and ``RailSurface`` level, since both
+        reject it: the guard is defence in depth, not a state the schema permits.
         """
         keyless = Binding.model_construct(
             kind="surface_param", action_param="model_name", key=None, value=None, required=True
@@ -321,13 +289,10 @@ class TestMalformedManifest:
             compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
 
     def test_binding_kind_the_binder_cannot_fill_raises(self, deps):
-        """A binding kind this function does not handle fails compilation rather than vanishing.
+        """A binding kind the binder does not handle fails compilation rather than vanishing.
 
-        Unreachable from a shipped manifest for the same reasons as the keyless case — the
-        schema constrains ``kind``, and ``context`` is rejected before the binder runs — so it
-        needs the same bypass at both levels. Worth the contrivance: the alternative is a
-        binding silently dropped from the plan, so the action is called without a parameter it
-        declares and the envelope reports the ``TypeError`` as a rail block.
+        Unreachable for the same reasons as the keyless case, so it needs the same bypass. The
+        alternative is a binding silently dropped, leaving the action short a parameter.
         """
         unhandled = Binding.model_construct(
             kind="conversation_state", action_param="model_name", key="model", value=None, required=True
@@ -341,11 +306,9 @@ class TestMalformedManifest:
 class TestManifestBindingContract:
     """Every manifest binding must name a parameter its action really declares.
 
-    ``compile_rail`` can only refuse a binding the action cannot be *passed*, and a
-    ``**kwargs`` catch-all can be passed anything — so a mistyped ``action_param`` would land
-    silently in ``**kwargs`` and the action would quietly use its default. That gap is closed
-    here instead: statically, across the whole catalog, where no monkeypatched double is
-    involved and every surface is covered whether or not IORails can execute it yet.
+    ``compile_rail`` only refuses what an action cannot be *passed*, and a ``**kwargs``
+    catch-all accepts anything — so a mistyped ``action_param`` lands there silently and the
+    action uses its default. Closed statically here, across every surface.
     """
 
     def test_every_manifest_binding_names_a_declared_parameter(self):

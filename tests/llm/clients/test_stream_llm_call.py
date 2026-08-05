@@ -32,9 +32,8 @@ def reset_context_vars():
     reasoning_token = reasoning_trace_var.set(None)
     tool_calls_token = tool_calls_var.set(None)
     metadata_token = llm_response_metadata_var.set(None)
-    # llm_call_info_var has no lifetime discipline in production — it is set ~28 times and
-    # reset nowhere — so a test that leaves a record behind would be inherited by the next
-    # one. Scope it here rather than relying on each test to clean up.
+    # Production sets llm_call_info_var and never resets it, so a record left behind here
+    # would be inherited by the next test.
     call_info_token = llm_call_info_var.set(None)
     yield
     reasoning_trace_var.reset(reasoning_token)
@@ -134,11 +133,8 @@ class TestStreamLlmCallAccumulation:
     async def test_request_id_is_recorded_on_the_call_info(self):
         """The provider id reaches ``LLMCallInfo``, not only the returned response.
 
-        ``llm_call`` returns early into this function when streaming, so the
-        ``_store_request_id`` call on the non-streaming path is skipped. Asserting on the
-        returned response cannot catch that — the response carried the id all along while
-        ``LLMCallInfo.request_id`` stayed None for every streamed call, taking the
-        GenerationLog-to-trace correlation with it.
+        Asserting on the returned response cannot catch this: it carries the id either way,
+        while ``LLMCallInfo.request_id`` is what a caller correlates a log entry against.
         """
         llm_call_info = LLMCallInfo(task="general")
         llm_call_info_var.set(llm_call_info)

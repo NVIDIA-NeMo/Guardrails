@@ -180,9 +180,7 @@ async def _stream_llm_call(
             usage=usage,
             provider_metadata=accumulated_provider_metadata or None,
         )
-        # The non-streaming path stores this after the call returns; streaming returns early
-        # from ``llm_call``, so it has to happen here or ``LLMCallInfo.request_id`` is never
-        # populated for a streamed call.
+        # Streaming returns early from llm_call, so this must happen here too.
         _store_request_id(response)
         return response
 

@@ -15,18 +15,13 @@
 
 """The engine's fail-closed error envelope, shared by every IORails rail.
 
-A rail that fails unexpectedly blocks: the failure is recorded on the action span and
-returned as ``RailResult(is_safe=False)`` with a redacted reason, so a rail bug or a
-malformed payload cannot silently let content through.
+A rail that fails blocks, with a redacted reason, so a rail bug cannot let content through.
+A failure carrying an upstream HTTP status propagates instead, so a provider outage reaches
+the client as the provider's status rather than as a guardrail decision — the two mean very
+different things to a caller, and only one is worth retrying.
 
-The one exception is a failure carrying an upstream HTTP status. That propagates, so a
-provider outage or rate limit reaches the client as the status the provider sent rather
-than as a guardrail block — the two mean very different things to a caller, and only one
-of them is worth retrying.
-
-This policy belongs to the engine rather than to any individual rail, which is why it
-lives here instead of in a rail base class. Both the manifest-driven rails and the
-hand-written tool rails call it from their own ``except`` handler.
+The policy is the engine's, not any individual rail's, which is why it lives here rather
+than in a base class. Every rail calls it from its own ``except`` handler.
 """
 
 from __future__ import annotations
@@ -47,11 +42,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# The exception types that can carry an upstream HTTP status on ``.status``.
-# A rail that reaches its model through ``llm_call`` only ever sees ``LLMCallException``,
-# which wraps everything ``generate_async`` raises; the two engine errors are what a rail
-# calling ``EngineRegistry`` directly sees. ``APIEngineError`` leaves this tuple in the
-# commit that deletes ``APIEngine``.
+# Exception types carrying an upstream HTTP status on ``.status``. A rail reaching its model
+# through ``llm_call`` sees only ``LLMCallException``, which wraps everything
+# ``generate_async`` raises; the engine errors are what a direct ``EngineRegistry`` caller sees.
 _STATUS_BEARING_ERRORS = (ModelEngineError, APIEngineError, LLMCallException)
 
 
@@ -65,19 +58,12 @@ def _upstream_http_status(exc: Exception) -> Optional[int]:
 def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Exception) -> str:
     """Record *exc* on *span* and return a redacted block reason, or re-raise on an HTTP status.
 
-    The exception text is redacted once, up front, and that redacted form is what reaches the
-    log on both paths. A provider error can carry a credential in its message — an API key in
-    a request URL, an echoed bearer token — and logging it raw would defeat the redaction
-    applied to the reason a few lines below (CWE-532).
+    The text is redacted once and that form is what reaches the log on both paths: a provider
+    error can carry a credential in its message (CWE-532). *exc* itself propagates unmodified,
+    so an operator still sees the real text in a traceback.
 
-    *exc* itself is propagated unmodified. The server maps the original exception to a
-    response and sanitises the client-facing payload separately, so rewriting its message here
-    would only cost an operator the real text in a traceback.
-
-    The span error is recorded only on the blocking path. Every caller runs inside
-    ``action_span``, which records and re-raises anything that escapes it, so recording here
-    as well would put two exception events and two ``error.type`` writes on one span. The
-    blocking path needs the explicit call precisely because nothing escapes there.
+    The span error is recorded only on the blocking path. Callers run inside ``action_span``,
+    which records anything escaping it, so recording here too would double up.
 
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.

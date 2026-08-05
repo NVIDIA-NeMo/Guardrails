@@ -15,20 +15,9 @@
 
 """Unit tests for the shared IORails rail error envelope.
 
-The envelope is the single home for the engine's fail-closed policy: a rail that raises
-produces a blocking verdict with a redacted reason, unless the exception carries an
-upstream HTTP status, in which case it propagates so the server can map it to the right
-response code.
-
-It has two entry points over one private helper, differing only in return shape —
-``rail_error_result`` for the hand-written tool rails and ``rail_error_outcome`` for
-``CompiledRail``. Both are tested directly here, because transitive execution from
-``test_compiled_rail.py`` is enough to mark the lines covered without asserting anything
-about them.
-
-The policy previously lived in ``RailAction.run`` and was duplicated in
-``ToolRailAction._guarded``; these tests pin it at the extracted helper and at both
-call sites, so the coverage survives the deletion of ``RailAction``.
+Two entry points over one private helper, differing only in return shape. Both are tested
+directly, since transitive execution from another module marks the lines covered without
+asserting anything about them.
 """
 
 import logging
@@ -65,8 +54,6 @@ def exception_events(exporter: InMemorySpanExporter) -> list:
     return [event for span in exporter.get_finished_spans() for event in span.events if event.name == "exception"]
 
 
-# APIEngineError belongs to this set only until the commit that deletes APIEngine; drop
-# its parameter there rather than leaving a case that constructs a deleted class.
 status_bearing_types = pytest.mark.parametrize(
     "make_exc",
     [
@@ -128,10 +115,8 @@ class TestPropagatesUpstreamStatus:
 class TestRailErrorOutcome:
     """The compiled-rail entry point applies the same policy in a different return shape.
 
-    ``CompiledRail`` returns ``RailOutcome`` so it never touches an IORails type; tool rails
-    return ``RailResult``. Both delegate to one private helper, and the property worth pinning
-    is that nothing else differs — a divergence here would mean two fail-closed policies again,
-    which is what extracting the envelope removed.
+    The property worth pinning is that nothing else differs: a divergence would mean two
+    fail-closed policies again, which is what extracting the envelope removed.
     """
 
     def test_unexpected_exception_returns_a_blocking_outcome(self):
@@ -184,10 +169,8 @@ class TestRailErrorOutcome:
 class TestLogsAreRedacted:
     """Credentials are kept out of the log on both paths, not just out of the reason.
 
-    The returned reason has always been redacted. The log lines were not, so the same
-    exception text was protected in one direction and written verbatim in the other —
-    and the propagating path logs without returning a reason at all, so it was the only
-    place that text appeared.
+    The propagating path logs without returning a reason, so the log line is the only place
+    that text appears.
     """
 
     SECRET = "nvapi-abc123secret"
@@ -267,10 +250,9 @@ class TestSpanErrorRecording:
 class TestSpanRecordsTheFailureExactlyOnce:
     """Composed with a real action span, a failure produces one exception event, not two.
 
-    This is the assertion that matters, because neither layer is wrong on its own: the
-    envelope records so a swallowed error is still visible, and ``action_span`` records so an
-    escaping one is. Only their composition reveals the duplicate, which is why the standalone
-    helper tests above could not catch it.
+    Neither layer is wrong alone — the envelope records so a swallowed error stays visible,
+    ``action_span`` records so an escaping one does — so only the composition shows the
+    duplicate, and no standalone test of either could catch it.
     """
 
     def test_blocking_path_records_once(self):

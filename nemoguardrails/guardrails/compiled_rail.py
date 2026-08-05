@@ -81,12 +81,7 @@ class RailDependencies:
 class RailExecution:
     """One rail run: its engine-neutral verdict, plus every model call the action made.
 
-    ``llm_calls`` comes from a sink installed around the action, so it holds exactly this
-    rail's calls — empty for a rail that reached no model.
-
-    The caller (``RailsManager._run_rail``) converts ``outcome`` to a ``RailResult`` and
-    attaches ``triggered_rail`` and ``records``. ``CompiledRail`` deliberately never does
-    that conversion; it knows nothing about IORails' result type.
+    The caller converts ``outcome`` into its own result type; ``CompiledRail`` never does.
     """
 
     outcome: RailOutcome
@@ -157,9 +152,8 @@ class CompiledRail:
     ) -> None:
         """Store the frozen execution plan. Build through :func:`compile_rail`.
 
-        *accepted* is computed and validated by ``compile_rail`` and passed in rather than
-        recomputed here, so the parameter set the bindings were checked against is by
-        construction the one request-time injection filters on.
+        *accepted* is passed in rather than recomputed, so the set the bindings were validated
+        against is by construction the one injection filters on.
         """
         self.flow = flow
         self.surface = surface
@@ -180,10 +174,9 @@ class CompiledRail:
     async def execute(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailExecution:
         """Execute the rail, returning its verdict and the model calls it made.
 
-        Model calls are collected by installing a fresh ``processing_log_var`` list for the
-        duration of the action. Every path that produces an ``LLMCallInfo`` appends to that
-        var — a live call through ``track_llm_call``, a cache hit, and jailbreak's NIM call
-        — so the sink sees them all, and it sees only this rail's.
+        A fresh ``processing_log_var`` sink is installed around the action, so ``llm_calls``
+        holds this rail's calls and only this rail's — live calls, cache hits and jailbreak's
+        NIM call all append there, and a rail that reaches no model appends nothing.
         """
         sink: list[dict[str, Any]] = []
         token = processing_log_var.set(sink)
@@ -210,11 +203,7 @@ class CompiledRail:
         return kwargs
 
     def _request_dependencies(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
-        """Every value injectable by parameter name for this request.
-
-        Filtered against the action's signature by the caller, so building an entry an
-        action does not declare costs nothing but a dict slot.
-        """
+        """Every value injectable by parameter name; the caller filters against the signature."""
         return {
             "llms": self._deps.llms,
             "llm": self._deps.llms.get("main"),
@@ -296,18 +285,12 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
 
 
 def _reject_unfillable_binding_kinds(surface: RailSurface, flow: str) -> None:
-    """Fail compilation for a binding kind request-time injection cannot fill yet.
+    """Fail compilation for a binding kind request-time injection cannot fill.
 
-    A ``context`` binding maps a conversation variable onto a *specific* action parameter —
-    ``user_message`` into ``text`` for most vendor rails. Injection does not do that: it
-    supplies the whole ``context`` dict under the name ``context`` and nothing else. So a
-    surface declaring one would call its action without a required argument on every
-    request, and the fail-closed envelope would report that ``TypeError`` as a block —
-    a config-level gap disguised as a rail verdict.
-
-    Refusing to compile routes the config to LLMRails, which can run it. None of the
-    surfaces reachable today declares one; this is the tripwire for when PR 4 widens the
-    tier to the vendor rails, which use them heavily.
+    A ``context`` binding maps one conversation variable onto a specific action parameter
+    (``user_message`` into ``text``), which injection does not do — it supplies the whole
+    ``context`` dict and nothing else. Compiling one would call the action short a required
+    argument on every request, and the fail-closed envelope would report that as a block.
     """
     unfillable = sorted({binding.action_param for binding in surface.bindings if binding.kind == "context"})
     if not unfillable:
@@ -333,21 +316,10 @@ def _reject_unaccepted_bindings(
 ) -> None:
     """Fail compilation when the manifest binds a parameter the action cannot be passed.
 
-    Bindings are applied by keyword, so one the action cannot take raises ``TypeError`` on
-    every request, which the fail-closed envelope turns into a silent block. Catching it
-    here makes a manifest/action mismatch a loud configuration error instead, and is what
-    lets ``unsupported_reason`` decide servability by attempting compilation.
-
-    Note the asymmetry with injection, which is deliberate and easy to get wrong. Injection
-    ignores ``**kwargs`` because "should this value be *offered*?" must be answered from
-    declared parameters — a catch-all would otherwise be handed every dependency. This asks
-    the narrower question "can this keyword be *passed*?", and a catch-all genuinely accepts
-    anything, so it is nothing to reject. Reusing the injection set here would refuse actions
-    that work.
-
-    Manifests binding a parameter that only lands in ``**kwargs`` is a separate concern —
-    a typo would be silently swallowed rather than raising — and is covered across the whole
-    catalog by ``test_every_manifest_binding_names_a_declared_parameter``.
+    Note the asymmetry with injection, which is easy to get wrong. Injection ignores
+    ``**kwargs`` because "should this be *offered*?" must come from declared parameters, or a
+    catch-all gets handed every dependency. This asks "can this be *passed*?", which a
+    catch-all always can — so reusing the injection set here refuses actions that work.
     """
     if _accepts_arbitrary_keywords(action):
         return
