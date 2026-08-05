@@ -241,11 +241,10 @@ class TestModelBackedRailsAgreeAcrossEngines:
         llmrails_content = await _llmrails_reply(config_dict, (case.model_type, case.rail_reply))
         iorails_content = await _iorails_reply(config_dict, case.rail_reply)
 
-        llmrails_blocked = llmrails_content != MAIN_OUTPUT
-        iorails_blocked = iorails_content != MAIN_OUTPUT
+        expected_content = REFUSAL_MESSAGE if case.expect_blocked else MAIN_OUTPUT
 
-        assert llmrails_blocked is case.expect_blocked
-        assert iorails_blocked is case.expect_blocked
+        assert llmrails_content == expected_content
+        assert iorails_content == expected_content
 
     @pytest.mark.asyncio
     async def test_refusal_text_matches_across_engines(self):
@@ -255,7 +254,9 @@ class TestModelBackedRailsAgreeAcrossEngines:
         ``REFUSAL_MESSAGE`` constant (``iorails.py:94``) and LLMRails renders the
         ``bot refuse to respond`` message defined per rail in ``flows.v1.co``. Nothing in
         the codebase binds those together — the literal is repeated by hand in roughly ten
-        files — so this is the only assertion that a user gets the same answer either way.
+        files — so it is asserted here by name, and again by every blocked case above.
+        Kept as its own test because it is the one place the invariant is stated rather
+        than implied, and it would survive the parametrised assertions being loosened.
         """
         case = next(c for c in MODEL_RAIL_CASES if c.case_id == "content_safety_input_blocks")
         config_dict = _model_rail_config(case)
@@ -286,7 +287,12 @@ class TestJailbreakAgreesAcrossEngines:
         ids=["jailbreak_model_allows", "jailbreak_model_blocks"],
     )
     async def test_engines_reach_the_same_decision(self, verdict, expect_blocked, httpx_mock):
-        """One NIM verdict drives both engines to the same allow-or-block outcome."""
+        """One NIM verdict drives both engines to the same response, exactly.
+
+        Equality matters more here than for the model-backed rails: the two engines do not
+        share a transport yet, so each mock could fail in its own way and still produce
+        "not the main output" on both sides.
+        """
         config_dict = _jailbreak_config()
 
         httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
@@ -298,8 +304,10 @@ class TestJailbreakAgreesAcrossEngines:
         ):
             iorails_content = await _iorails_reply(config_dict)
 
-        assert (llmrails_content != MAIN_OUTPUT) is expect_blocked
-        assert (iorails_content != MAIN_OUTPUT) is expect_blocked
+        expected_content = REFUSAL_MESSAGE if expect_blocked else MAIN_OUTPUT
+
+        assert llmrails_content == expected_content
+        assert iorails_content == expected_content
 
     @pytest.mark.asyncio
     async def test_iorails_fails_closed_when_the_endpoint_errors(self):
