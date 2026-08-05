@@ -17,8 +17,8 @@
 
 A ``CompiledRail`` is built once per configured flow string: it reads the flow's
 ``RailSurface`` from the manifest catalog, resolves the library action, freezes a binding
-plan, and thereafter turns a request into ``action(**kwargs)`` and the returned
-``RailOutcome`` into a ``RailResult``.
+plan, and thereafter turns a request into ``action(**kwargs)`` and passes the returned
+``RailOutcome`` back to the caller. Converting to ``RailResult`` is ``RailsManager``'s job.
 
 Two properties are load-bearing and are pinned here rather than left to review:
 
@@ -38,7 +38,8 @@ Deferred to later commits, deliberately not covered here: transform outcomes (PR
 ``model_caches`` (PR 6), and the ``RailsManager``/``unsupported_reason`` rewiring.
 """
 
-from typing import Any
+import inspect
+from typing import Any, Callable, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -51,10 +52,15 @@ from nemoguardrails.guardrails.compiled_rail import (
     compile_rail,
     messages_to_events,
 )
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.library.content_safety.actions import (
+    content_safety_check_input,
+    content_safety_check_output,
+)
+from nemoguardrails.library.jailbreak_detection.actions import jailbreak_detection_model
+from nemoguardrails.library.topic_safety.actions import topic_safety_check_input
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
-from nemoguardrails.manifests import RailDirection
+from nemoguardrails.manifests import RailDirection, default_rail_catalog, resolve_import_ref
 from nemoguardrails.testing.fake_model import FakeLLMModel
 
 CONTENT_SAFETY_INPUT = "content safety check input $model=content_safety"
@@ -67,11 +73,21 @@ USER_MESSAGES = [{"role": "user", "content": "hello there"}]
 
 
 class RecordingAction:
-    """Stand-in for a library action that records how it was called."""
+    """Stand-in for a library action that records how it was called.
 
-    def __init__(self, outcome: Any = None):
+    Copies *signature_of*'s parameters, so ``inspect.signature`` reports the same named
+    parameters the real action declares. That is load-bearing rather than cosmetic:
+    ``CompiledRail`` injects by parameter name and deliberately ignores ``**kwargs``, so a
+    double declaring only ``**kwargs`` accepts everything at runtime while advertising
+    nothing — it is handed its manifest bindings and no request dependencies at all. Pass
+    the action being replaced, so injection is driven by a real shipped signature.
+    """
+
+    def __init__(self, outcome: Any = None, *, signature_of: Optional[Callable[..., Any]] = None):
         self.outcome = outcome if outcome is not None else RailOutcome.allow()
         self.kwargs: dict = {}
+        if signature_of is not None:
+            self.__signature__ = inspect.signature(signature_of)
 
     async def __call__(self, **kwargs):
         self.kwargs = kwargs
@@ -142,6 +158,99 @@ class TestCompilation:
         with pytest.raises(RailCompilationError, match="model"):
             compile_rail("content safety check input", RailDirection.INPUT, deps)
 
+    def test_binding_a_parameter_the_action_rejects_raises_at_compile_time(self, deps, monkeypatch):
+        """A manifest binding the action cannot accept fails compilation, not every request.
+
+        Bindings are applied by keyword, so a mismatch would raise TypeError on each call and
+        the fail-closed envelope would report it as a block — a configuration error wearing a
+        rail verdict as a disguise.
+        """
+
+        async def action_without_model_name(llms, llm_task_manager, context):
+            return RailOutcome.allow()
+
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action_without_model_name)
+
+        with pytest.raises(RailCompilationError, match="model_name"):
+            compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
+
+    def test_context_binding_surfaces_do_not_compile_yet(self, deps):
+        """A surface using a context binding is refused rather than silently misbehaving.
+
+        Context bindings map a conversation variable onto a named action parameter
+        (``user_message`` into ``text``), which request-time injection does not do. Refusing
+        to compile routes the config to LLMRails; PR 4 replaces this with real support.
+        """
+        with pytest.raises(RailCompilationError, match="context binding"):
+            compile_rail("detect pii on input", RailDirection.INPUT, deps)
+
+    def test_an_action_with_a_kwargs_catch_all_accepts_any_binding(self, deps, monkeypatch):
+        """A ``**kwargs`` action is not refused, because it genuinely accepts the keyword.
+
+        Guards the asymmetry that made the first version of this check wrong: the injection
+        filter excludes ``**kwargs`` on purpose, and reusing that set to decide what can be
+        *passed* refuses actions that work.
+        """
+
+        async def catch_all_action(**kwargs):
+            return RailOutcome.allow()
+
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, catch_all_action)
+
+        assert compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps) is not None
+
+
+class TestManifestBindingContract:
+    """Every manifest binding must name a parameter its action really declares.
+
+    ``compile_rail`` can only refuse a binding the action cannot be *passed*, and a
+    ``**kwargs`` catch-all can be passed anything — so a mistyped ``action_param`` would land
+    silently in ``**kwargs`` and the action would quietly use its default. That gap is closed
+    here instead: statically, across the whole catalog, where no monkeypatched double is
+    involved and every surface is covered whether or not IORails can execute it yet.
+    """
+
+    def test_every_manifest_binding_names_a_declared_parameter(self):
+        """No surface binds a parameter its action does not declare by name."""
+        catalog = default_rail_catalog()
+        mismatches: list[str] = []
+        unimportable: list[str] = []
+        checked: set[str] = set()
+
+        for (direction, name), surface in catalog.surfaces().items():
+            try:
+                action = resolve_import_ref(surface.action)
+            except Exception as exc:
+                # An optional integration that is not installed in this environment.
+                unimportable.append(f"{name} ({type(exc).__name__})")
+                continue
+
+            declared = {
+                param
+                for param, spec in inspect.signature(action).parameters.items()
+                if spec.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+            }
+            checked.add(name)
+            for binding in surface.bindings:
+                if binding.action_param not in declared:
+                    mismatches.append(
+                        f"{direction.value} {name!r} binds {binding.action_param!r}, "
+                        f"but {surface.action.name!r} declares {sorted(declared)}"
+                    )
+
+        assert not mismatches, "manifest bindings naming undeclared parameters:\n" + "\n".join(mismatches)
+
+        # Guard against passing vacuously if a future environment cannot import anything:
+        # the four rails IORails executes have no optional dependencies, so they are always
+        # importable and must always have been checked.
+        always_importable = {
+            "content safety check input",
+            "content safety check output",
+            "topic safety check input",
+            "jailbreak detection model",
+        }
+        assert always_importable <= checked, f"expected these to be checked, skipped: {sorted(unimportable)}"
+
 
 class TestBindingResolution:
     """Each BindingKind fills its action parameter from the right source."""
@@ -149,7 +258,7 @@ class TestBindingResolution:
     @pytest.mark.asyncio
     async def test_surface_param_binding_supplies_the_configured_value(self, deps, monkeypatch):
         """$model=content_safety reaches the action as model_name."""
-        action = RecordingAction()
+        action = RecordingAction(signature_of=content_safety_check_input)
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
 
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
@@ -160,7 +269,7 @@ class TestBindingResolution:
     @pytest.mark.asyncio
     async def test_context_carries_the_request_messages(self, deps, monkeypatch):
         """The per-request context dict exposes user_message for context-bound actions."""
-        action = RecordingAction()
+        action = RecordingAction(signature_of=content_safety_check_input)
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
 
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
@@ -170,7 +279,7 @@ class TestBindingResolution:
     @pytest.mark.asyncio
     async def test_bot_response_reaches_an_output_rail_as_bot_message(self, deps, monkeypatch):
         """An output rail's context carries the generated response under bot_message."""
-        action = RecordingAction()
+        action = RecordingAction(signature_of=content_safety_check_output)
         monkeypatch.setattr("nemoguardrails.library.content_safety.actions.content_safety_check_output", action)
 
         rail = compile_rail("content safety check output $model=content_safety", RailDirection.OUTPUT, deps)
@@ -184,24 +293,30 @@ class TestDependencyInjection:
 
     @pytest.mark.asyncio
     async def test_action_receives_only_the_parameters_it_declares(self, deps, monkeypatch):
-        """An action taking just llm_task_manager is not handed llms, context, or events."""
+        """An action declaring only llm_task_manager and model_name gets nothing else.
+
+        That it is not handed llms, context or events is proved by the call succeeding:
+        an undeclared keyword would raise TypeError, which the envelope would turn into a
+        block. ``model_name`` is declared because the manifest binds it for this surface.
+        """
         captured = {}
 
-        async def narrow_action(llm_task_manager):
+        async def narrow_action(llm_task_manager, model_name):
             captured["llm_task_manager"] = llm_task_manager
+            captured["model_name"] = model_name
             return RailOutcome.allow()
 
         monkeypatch.setattr(TOPIC_SAFETY_ACTION, narrow_action)
 
-        result = await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.is_safe
-        assert captured == {"llm_task_manager": deps.llm_task_manager}
+        assert not outcome.is_blocked
+        assert captured == {"llm_task_manager": deps.llm_task_manager, "model_name": "topic_control"}
 
     @pytest.mark.asyncio
     async def test_events_are_supplied_to_actions_that_declare_them(self, deps, monkeypatch):
         """topic_safety_check_input declares events, so it receives synthesized ones."""
-        action = RecordingAction()
+        action = RecordingAction(signature_of=topic_safety_check_input)
         monkeypatch.setattr(TOPIC_SAFETY_ACTION, action)
 
         await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
@@ -211,7 +326,7 @@ class TestDependencyInjection:
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
         """jailbreak_detection_model declares http_client and receives the managed one."""
-        action = RecordingAction()
+        action = RecordingAction(signature_of=jailbreak_detection_model)
         monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
 
         await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
@@ -219,58 +334,64 @@ class TestDependencyInjection:
         assert action.kwargs["http_client"] is deps.http_client
 
 
-class TestOutcomeMapping:
-    """RailOutcome maps onto RailResult field for field, inventing nothing."""
+class TestOutcomePassthrough:
+    """The action's RailOutcome is returned unmodified; CompiledRail invents nothing."""
 
     @pytest.mark.asyncio
-    async def test_allow_becomes_a_safe_result(self, deps, monkeypatch):
-        """ALLOW yields is_safe=True and carries the metadata into return_value."""
-        monkeypatch.setattr(
-            CONTENT_SAFETY_ACTION, RecordingAction(RailOutcome.allow(metadata={"policy_violations": []}))
-        )
+    async def test_allow_outcome_passes_through(self, deps, monkeypatch):
+        """An ALLOW outcome is returned with its metadata intact."""
+        expected = RailOutcome.allow(metadata={"policy_violations": []})
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(expected, signature_of=content_safety_check_input))
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.is_safe is True
-        assert result.return_value == {"allowed": True, "policy_violations": []}
+        assert not outcome.is_blocked
+        assert outcome.metadata == {"policy_violations": []}
 
     @pytest.mark.asyncio
-    async def test_block_becomes_an_unsafe_result(self, deps, monkeypatch):
-        """BLOCK yields is_safe=False and carries the evidence into return_value."""
-        outcome = RailOutcome.block(metadata={"policy_violations": ["S1: Violence"]})
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(outcome))
+    async def test_block_outcome_passes_through(self, deps, monkeypatch):
+        """A BLOCK outcome is returned with its evidence intact."""
+        expected = RailOutcome.block(metadata={"policy_violations": ["S1: Violence"]})
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(expected, signature_of=content_safety_check_input))
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.is_safe is False
-        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+        assert outcome.is_blocked
+        assert outcome.metadata == {"policy_violations": ["S1: Violence"]}
 
     @pytest.mark.asyncio
     async def test_reason_is_passed_through_untouched(self, deps, monkeypatch):
         """A rail that supplies a reason keeps it verbatim; the engine never rewrites it."""
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(RailOutcome.block(reason="policy 4 tripped")))
+        monkeypatch.setattr(
+            CONTENT_SAFETY_ACTION,
+            RecordingAction(RailOutcome.block(reason="policy 4 tripped"), signature_of=content_safety_check_input),
+        )
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.reason == "policy 4 tripped"
+        assert outcome.reason == "policy 4 tripped"
 
     @pytest.mark.asyncio
     async def test_absent_reason_stays_absent(self, deps, monkeypatch):
         """A rail that supplies no reason yields reason=None rather than invented text."""
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(RailOutcome.block()))
+        monkeypatch.setattr(
+            CONTENT_SAFETY_ACTION, RecordingAction(RailOutcome.block(), signature_of=content_safety_check_input)
+        )
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.reason is None
+        assert outcome.reason is None
 
     @pytest.mark.asyncio
     async def test_non_outcome_return_is_rejected(self, deps, monkeypatch):
         """An action returning something other than RailOutcome fails closed, not silently."""
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(outcome="not an outcome"))
+        monkeypatch.setattr(
+            CONTENT_SAFETY_ACTION, RecordingAction(outcome="not an outcome", signature_of=content_safety_check_input)
+        )
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result.is_safe is False
+        assert outcome.is_blocked
 
 
 class TestMessagesToEvents:
@@ -329,7 +450,7 @@ class TestModelCallCapture:
     @pytest.mark.asyncio
     async def test_a_rail_that_makes_no_model_call_reports_none(self, deps, monkeypatch):
         """A vendor rail that never reaches a model produces no captured call."""
-        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction())
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, RecordingAction(signature_of=content_safety_check_input))
 
         execution = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).execute(USER_MESSAGES)
 
@@ -364,7 +485,7 @@ class TestModelCallCapture:
             return RailOutcome.allow()
 
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, calling_action)
-        monkeypatch.setattr(TOPIC_SAFETY_ACTION, RecordingAction())
+        monkeypatch.setattr(TOPIC_SAFETY_ACTION, RecordingAction(signature_of=topic_safety_check_input))
 
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).execute(USER_MESSAGES)
         second = await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).execute(USER_MESSAGES)
@@ -377,16 +498,16 @@ class TestFailsClosed:
 
     @pytest.mark.asyncio
     async def test_action_error_blocks(self, deps, monkeypatch):
-        """An exception inside the action becomes a blocking result with a redacted reason."""
+        """An exception inside the action becomes a blocking outcome with a redacted reason."""
 
         async def exploding_action(**kwargs):
             raise RuntimeError("parser blew up")
 
         monkeypatch.setattr(CONTENT_SAFETY_ACTION, exploding_action)
 
-        result = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert result == RailResult(is_safe=False, reason="content safety check input error: parser blew up")
+        assert outcome == RailOutcome.block(reason="content safety check input error: parser blew up")
 
     @pytest.mark.asyncio
     async def test_status_bearing_error_propagates(self, deps, monkeypatch):

@@ -34,6 +34,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Optional
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id
@@ -61,12 +62,8 @@ def _upstream_http_status(exc: Exception) -> Optional[int]:
     return None
 
 
-def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) -> RailResult:
-    """Map a failed rail to a blocking result, or re-raise *exc* when it carries an HTTP status.
-
-    Call this from the ``except`` handler of a rail's own ``try``. *exc* is recorded on
-    *span* on both paths, so a propagated failure is still visible in the trace rather
-    than only in the server's response.
+def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Exception) -> str:
+    """Record *exc* on *span* and return a redacted block reason, or re-raise on an HTTP status.
 
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.
@@ -80,4 +77,28 @@ def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) 
         raise exc
 
     log.error("[%s] %s failed: %s", request_id, action_name, exc)
-    return RailResult(is_safe=False, reason=_redact_secrets(f"{action_name} error: {exc}"))
+    return _redact_secrets(f"{action_name} error: {exc}")
+
+
+def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) -> RailResult:
+    """Map a failed tool rail to a blocking ``RailResult``, or re-raise on an HTTP status.
+
+    Call this from the ``except`` handler of a tool rail's own ``try``. *exc* is recorded
+    on *span* on both paths, so a propagated failure is still visible in the trace.
+
+    Raises:
+        Exception: *exc* itself, when it carries an upstream HTTP status.
+    """
+    return RailResult(is_safe=False, reason=_blocked_reason_or_reraise(span, action_name, exc))
+
+
+def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception) -> RailOutcome:
+    """Map a failed compiled rail to a blocking ``RailOutcome``, or re-raise on an HTTP status.
+
+    Call this from the ``except`` handler of a ``CompiledRail``'s own ``try``. *exc* is
+    recorded on *span* on both paths, so a propagated failure is still visible in the trace.
+
+    Raises:
+        Exception: *exc* itself, when it carries an upstream HTTP status.
+    """
+    return RailOutcome.block(reason=_blocked_reason_or_reraise(span, action_name, exc))

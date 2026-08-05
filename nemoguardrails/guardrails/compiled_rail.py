@@ -18,17 +18,16 @@
 A ``CompiledRail`` is the executable unit behind one configured flow string. It is built
 once, at engine construction: it resolves the flow's ``RailSurface`` from the manifest
 catalog, imports the library action the surface declares, and freezes a plan for filling
-that action's parameters. Thereafter each request is one ``await action(**kwargs)`` and a
-translation of the returned ``RailOutcome`` into IORails' ``RailResult``.
+that action's parameters. Thereafter each request is one ``await action(**kwargs)`` and
+the returned ``RailOutcome`` is passed back to the caller unchanged.
+
+``CompiledRail`` knows nothing about ``RailResult``; converting the engine-neutral outcome
+to the IORails-specific result is ``RailsManager._run_rail``'s job, where ``triggered_rail``
+and ``records`` are attached anyway.
 
 This replaces the hand-written ``RailAction`` hierarchy. The rail logic itself lives in
 ``nemoguardrails/library/``, shared with LLMRails, so there is one implementation of each
 rail rather than two.
-
-**No Colang runtime is involved.** Executing a rail needs the manifest, the action module,
-and a parameter binder. The Colang *vocabulary* appears in one place — ``messages_to_events``
-emits event shapes for actions that consume conversation history — but no dispatcher,
-runtime, flow, or event loop is required.
 """
 
 from __future__ import annotations
@@ -39,8 +38,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
-from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailResult
-from nemoguardrails.guardrails.rail_guard import rail_error_result
+from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
@@ -88,13 +87,17 @@ class RailDependencies:
 
 @dataclass(frozen=True)
 class RailExecution:
-    """One rail run: its verdict, plus every model call the action made.
+    """One rail run: its engine-neutral verdict, plus every model call the action made.
 
     ``llm_calls`` comes from a sink installed around the action, so it holds exactly this
     rail's calls — empty for a rail that reached no model.
+
+    The caller (``RailsManager._run_rail``) converts ``outcome`` to a ``RailResult`` and
+    attaches ``triggered_rail`` and ``records``. ``CompiledRail`` deliberately never does
+    that conversion; it knows nothing about IORails' result type.
     """
 
-    result: RailResult
+    outcome: RailOutcome
     llm_calls: tuple["LLMCallInfo", ...] = ()
 
 
@@ -148,23 +151,6 @@ def _llm_calls_from(sink: list[dict[str, Any]]) -> tuple["LLMCallInfo", ...]:
     return tuple(entry["data"] for entry in sink if entry.get("type") == "llm_call_info")
 
 
-def _outcome_to_result(outcome: RailOutcome) -> RailResult:
-    """Translate an engine-neutral verdict into IORails' rail result.
-
-    Field for field, inventing nothing: ``decision`` gates, ``reason`` passes through
-    verbatim (``None`` stays ``None`` — rendering a display string is the caller's job),
-    and ``metadata`` becomes the structured verdict the generation log records.
-    """
-    if outcome.is_transform:
-        raise RailCompilationError("transform outcomes are not supported yet; this surface should not have compiled")
-    allowed = not outcome.is_blocked
-    return RailResult(
-        is_safe=allowed,
-        reason=outcome.reason,
-        return_value={"allowed": allowed, **outcome.metadata},
-    )
-
-
 @dataclass(frozen=True)
 class _BoundParameter:
     """One action parameter and the value the manifest says fills it."""
@@ -184,23 +170,29 @@ class CompiledRail:
         action: Callable[..., Any],
         bound: tuple[_BoundParameter, ...],
         deps: RailDependencies,
+        accepted: frozenset[str],
     ) -> None:
-        """Store the frozen execution plan. Build through :func:`compile_rail`."""
+        """Store the frozen execution plan. Build through :func:`compile_rail`.
+
+        *accepted* is computed and validated by ``compile_rail`` and passed in rather than
+        recomputed here, so the parameter set the bindings were checked against is by
+        construction the one request-time injection filters on.
+        """
         self.flow = flow
         self.surface = surface
         self._action = action
         self._bound = bound
         self._deps = deps
-        self._accepted = _accepted_parameters(action)
+        self._accepted = accepted
 
     @property
     def surface_name(self) -> str:
         """The manifest surface name, without any ``$param=`` suffix."""
         return self.surface.name
 
-    async def run(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailResult:
-        """Execute the rail and return just its verdict."""
-        return (await self.execute(messages, bot_response)).result
+    async def run(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailOutcome:
+        """Execute the rail and return its engine-neutral verdict."""
+        return (await self.execute(messages, bot_response)).outcome
 
     async def execute(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailExecution:
         """Execute the rail, returning its verdict and the model calls it made.
@@ -221,13 +213,12 @@ class CompiledRail:
             with action_span(self._deps.tracer, self.surface_name) as span:
                 try:
                     outcome = require_rail_outcome(await self._action(**self._call_kwargs(messages, bot_response)))
-                    result = _outcome_to_result(outcome)
                 except Exception as exc:
-                    result = rail_error_result(span, self.surface_name, exc)
+                    outcome = rail_error_outcome(span, self.surface_name, exc)
         finally:
             processing_log_var.reset(token)
 
-        return RailExecution(result=result, llm_calls=_llm_calls_from(sink))
+        return RailExecution(outcome=outcome, llm_calls=_llm_calls_from(sink))
 
     def _call_kwargs(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
         """Assemble the action's arguments from its declared parameters and the manifest."""
@@ -316,9 +307,75 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
                 bound.append(_BoundParameter(binding.action_param, params[key]))
             elif binding.required:
                 raise RailCompilationError(f"{flow!r} is missing required parameter ${key}=")
-        # Context bindings name a conversation variable, which exists only per request, so
-        # they are filled from the request context rather than frozen here.
+        # Context bindings are rejected before this point by
+        # _reject_unfillable_binding_kinds, so there is nothing to freeze for them here.
     return tuple(bound)
+
+
+def _reject_unfillable_binding_kinds(surface: RailSurface, flow: str) -> None:
+    """Fail compilation for a binding kind request-time injection cannot fill yet.
+
+    A ``context`` binding maps a conversation variable onto a *specific* action parameter —
+    ``user_message`` into ``text`` for most vendor rails. Injection does not do that: it
+    supplies the whole ``context`` dict under the name ``context`` and nothing else. So a
+    surface declaring one would call its action without a required argument on every
+    request, and the fail-closed envelope would report that ``TypeError`` as a block —
+    a config-level gap disguised as a rail verdict.
+
+    Refusing to compile routes the config to LLMRails, which can run it. None of the
+    surfaces reachable today declares one; this is the tripwire for when PR 4 widens the
+    tier to the vendor rails, which use them heavily.
+    """
+    unfillable = sorted({binding.action_param for binding in surface.bindings if binding.kind == "context"})
+    if not unfillable:
+        return
+    raise RailCompilationError(
+        f"{flow!r} declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
+        f"which manifest-driven execution does not fill yet"
+    )
+
+
+def _accepts_arbitrary_keywords(action: Callable[..., Any]) -> bool:
+    """Whether *action* has a ``**kwargs`` catch-all, so any keyword can be passed to it."""
+    parameters = inspect.signature(action).parameters
+    return any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+
+
+def _reject_unaccepted_bindings(
+    surface: RailSurface,
+    action: Callable[..., Any],
+    bound: tuple[_BoundParameter, ...],
+    accepted: frozenset[str],
+    flow: str,
+) -> None:
+    """Fail compilation when the manifest binds a parameter the action cannot be passed.
+
+    Bindings are applied by keyword, so one the action cannot take raises ``TypeError`` on
+    every request, which the fail-closed envelope turns into a silent block. Catching it
+    here makes a manifest/action mismatch a loud configuration error instead, and is what
+    lets ``unsupported_reason`` decide servability by attempting compilation.
+
+    Note the asymmetry with injection, which is deliberate and easy to get wrong. Injection
+    ignores ``**kwargs`` because "should this value be *offered*?" must be answered from
+    declared parameters — a catch-all would otherwise be handed every dependency. This asks
+    the narrower question "can this keyword be *passed*?", and a catch-all genuinely accepts
+    anything, so it is nothing to reject. Reusing the injection set here would refuse actions
+    that work.
+
+    Manifests binding a parameter that only lands in ``**kwargs`` is a separate concern —
+    a typo would be silently swallowed rather than raising — and is covered across the whole
+    catalog by ``test_every_manifest_binding_names_a_declared_parameter``.
+    """
+    if _accepts_arbitrary_keywords(action):
+        return
+
+    unaccepted = sorted(param.action_param for param in bound if param.action_param not in accepted)
+    if not unaccepted:
+        return
+    raise RailCompilationError(
+        f"{flow!r} binds {', '.join(repr(p) for p in unaccepted)}, which action "
+        f"{surface.action.name!r} does not accept; it declares {sorted(accepted)}"
+    )
 
 
 def compile_rail(
@@ -328,18 +385,13 @@ def compile_rail(
     catalog: Optional["RailCatalog"] = None,
 ) -> CompiledRail:
     """Compile one configured flow string into an executable rail.
-
-    Every way a config can be unservable surfaces here as ``RailCompilationError``: an
-    unknown surface name, a surface declared for another direction, a missing required
-    ``$param=``, or an action that cannot be imported. ``IORails.unsupported_reason``
-    attempts this compilation to decide whether it can serve a config at all, so the same
-    code path decides both, and construction can never fail after the check has passed.
-
-    The action module is imported here, which is why an optional integration stays optional:
-    a config with no GLiNER rail never imports GLiNER.
+    Unservable rails raise a ``RailCompilationError``, validated ad compile-time.
     """
     catalog = catalog if catalog is not None else default_rail_catalog()
     surface, params = _resolve_surface(flow, direction, catalog)
+
+    # Don't import dependencies if an unsupported surface is compiled
+    _reject_unfillable_binding_kinds(surface, flow)
 
     try:
         action = resolve_import_ref(surface.action)
@@ -351,10 +403,15 @@ def compile_rail(
     if not callable(action):
         raise RailCompilationError(f"{flow!r} resolved action {surface.action.name!r} to a non-callable")
 
+    accepted = _accepted_parameters(action)
+    bound = _bind_parameters(surface, params, flow)
+    _reject_unaccepted_bindings(surface, action, bound, accepted, flow)
+
     return CompiledRail(
         flow=flow,
         surface=surface,
         action=action,
-        bound=_bind_parameters(surface, params, flow),
+        bound=bound,
         deps=deps,
+        accepted=accepted,
     )
