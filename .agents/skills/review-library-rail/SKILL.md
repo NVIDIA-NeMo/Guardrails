@@ -110,7 +110,10 @@ Each item names the check, where to look, and what "wrong" looks like.
    needs tests. Both dialects' block path must be exercised end to end in
    the UNIT suite (`colang_version: "2.x"` variant present?), and a per-rail
    Colang 2 RECORDED test is itself a finding, since the recorded suite is
-   dialect-single with a single shared v2 smoke pin. Every
+   dialect-single with a single shared v2 smoke pin. If any surface declares
+   a `transform_target`, the transform path also needs a Colang 2 behavior
+   test; the flow-gate harness is Colang 1 only, so a v2 transform can be
+   entirely unexecuted while the block-path tests pass. Every
    `enable_rails_exceptions` branch must be either tested or absent. Check
    `flows.co` and `flows.v1.co` against the four equivalence items in
    add-library-rail Step 3 (same flow names, same action and bindings per

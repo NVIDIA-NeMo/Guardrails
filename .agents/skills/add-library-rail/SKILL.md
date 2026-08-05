@@ -429,6 +429,13 @@ explicitly mandatory:
      plus the `enable_rails_exceptions` variant wherever the flow has that
      branch. The flow-files gate checks structure only; dialect behavior
      needs these tests.
+   - Transform surfaces need both-dialect behavior tests too. If the manifest
+     declares any surface with a `transform_target`, add a
+     `colang_version: "2.x"` test asserting the transformed context variable
+     reaches the downstream flow, not just the Colang 1 version. The
+     flow-gate equivalence harness builds Colang 1 configs only, so a
+     transform surface can otherwise ship with its Colang 2 path never
+     executed while still satisfying the block-path minimum above.
 3. **Recorded e2e suite** in `tests/recorded/rails/library/`: add a config
    dir under `configs/<name>/`, a constant in `configs.py`, and a
    `test_<rail>.py` covering the outcome triad (allow, block, and
