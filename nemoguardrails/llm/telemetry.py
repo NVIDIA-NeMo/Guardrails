@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import os
 from contextlib import contextmanager, suppress
@@ -204,8 +205,11 @@ def llm_call_span(
 ) -> Generator[Optional["Span"], None, None]:
     """Create a GenAI client span for one LLM call.
 
-    Yields ``None`` when no tracer is configured. Exceptions from the wrapped
-    call are recorded on the span and re-raised unchanged.
+    Yields ``None`` when no tracer is configured. Provider exceptions from the
+    wrapped call are recorded on the span and re-raised unchanged. Early stream
+    closure (``GeneratorExit``) and task cancellation (``CancelledError``) are
+    control flow, not provider failures, so they are re-raised without marking
+    the span as an error.
     """
     if tracer is None:
         yield None
@@ -222,6 +226,8 @@ def llm_call_span(
             span.set_attribute(GenAIAttributes.GEN_AI_PROVIDER_NAME, provider_name)
         try:
             yield span
+        except (GeneratorExit, asyncio.CancelledError):
+            raise
         except BaseException as exc:
             record_span_error(span, exc)
             raise

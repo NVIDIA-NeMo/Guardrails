@@ -235,8 +235,10 @@ async def test_stream_consumer_close_has_no_final_response_telemetry(span_export
     await stream.aclose()
 
     assert source.stream_closed
-    attrs = dict(exporter.get_finished_spans()[0].attributes)
-    assert attrs["error.type"] == "GeneratorExit"
+    span = exporter.get_finished_spans()[0]
+    attrs = dict(span.attributes)
+    assert "error.type" not in attrs
+    assert span.status.status_code != StatusCode.ERROR
     assert "gen_ai.response.model" not in attrs
     assert "gen_ai.usage.input_tokens" not in attrs
 
@@ -270,8 +272,10 @@ async def test_stream_task_cancellation_preserves_cancelled_error(span_exporter)
         await task
 
     assert source.stream_closed
-    attrs = dict(exporter.get_finished_spans()[0].attributes)
-    assert attrs["error.type"] == "CancelledError"
+    span = exporter.get_finished_spans()[0]
+    attrs = dict(span.attributes)
+    assert "error.type" not in attrs
+    assert span.status.status_code != StatusCode.ERROR
     assert "gen_ai.response.model" not in attrs
 
 
