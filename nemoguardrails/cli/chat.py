@@ -93,7 +93,7 @@ async def _run_chat_v1_0(
                             break
 
                         console.print("[green]" + f"{chunk}" + "[/]", end="")
-                        bot_message_list.append(cast(str, chunk))
+                        bot_message_list.append(chunk)
 
                     bot_message_text = "".join(bot_message_list)
                     bot_message = {"role": "assistant", "content": bot_message_text}

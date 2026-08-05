@@ -24,20 +24,11 @@ if not os.environ.get("TOKENIZERS_PARALLELISM"):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+import importlib
 import warnings
+from typing import TYPE_CHECKING
 
 import nemoguardrails.patch_asyncio
-
-# Import order matters: the `nemoguardrails.rails` package must be fully
-# initialized before `nemoguardrails.guardrails.guardrails`. The latter
-# pulls in `actions/llm/utils.py` -> `context.py` -> `rails.llm.options`,
-# which re-enters `rails/__init__.py` and would otherwise circularly import
-# names from a half-loaded `actions/llm/utils.py`.
-# isort: off
-from nemoguardrails.rails import RailsConfig
-from nemoguardrails.guardrails.guardrails import Guardrails
-
-# isort: on
 
 nemoguardrails.patch_asyncio.apply()
 
@@ -51,31 +42,74 @@ _use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").l
     "yes",
 )
 
-if _use_guardrails_wrapper:
-    # For backwards-compatibility, instantiate Guardrails instead of LLMRails.
-    LLMRails = Guardrails
-else:
-    # Use the original LLMRails class
-    from nemoguardrails.rails import LLMRails
+# Public names are resolved lazily on attribute access (PEP 562) so that a bare
+# `import nemoguardrails` does not eagerly boot the entire runtime (Colang
+# parsers, tracing/OpenTelemetry, aiohttp, jinja2, ...). Resolution is not cached
+# into module globals so that `importlib.reload(nemoguardrails)` re-reads the
+# NEMO_GUARDRAILS_IORAILS_ENGINE alias; after the first access the underlying
+# module is already in `sys.modules`, so repeated lookups are cheap.
+_LAZY_ATTRS = {
+    "RailsConfig": "nemoguardrails.rails.llm.config",
+    "LLMRails": "nemoguardrails.rails.llm.llmrails",
+    "Guardrails": "nemoguardrails.guardrails.guardrails",
+    "get_default_framework": "nemoguardrails.llm.frameworks",
+    "register_framework": "nemoguardrails.llm.frameworks",
+    "set_default_framework": "nemoguardrails.llm.frameworks",
+    "register_provider": "nemoguardrails.llm.providers",
+    "ChatMessage": "nemoguardrails.types",
+    "FinishReason": "nemoguardrails.types",
+    "LLMFramework": "nemoguardrails.types",
+    "LLMModel": "nemoguardrails.types",
+    "LLMResponse": "nemoguardrails.types",
+    "LLMResponseChunk": "nemoguardrails.types",
+    "Role": "nemoguardrails.types",
+    "ToolCall": "nemoguardrails.types",
+    "ToolCallFunction": "nemoguardrails.types",
+    "UsageInfo": "nemoguardrails.types",
+}
 
-from nemoguardrails.llm.frameworks import (  # noqa: E402
-    get_default_framework,
-    register_framework,
-    set_default_framework,
-)
-from nemoguardrails.llm.providers import register_provider  # noqa: E402
-from nemoguardrails.types import (  # noqa: E402
-    ChatMessage,
-    FinishReason,
-    LLMFramework,
-    LLMModel,
-    LLMResponse,
-    LLMResponseChunk,
-    Role,
-    ToolCall,
-    ToolCallFunction,
-    UsageInfo,
-)
+if TYPE_CHECKING:
+    # Give type checkers and IDEs the real symbols even though they are loaded
+    # lazily at runtime.
+    from nemoguardrails.guardrails.guardrails import Guardrails
+    from nemoguardrails.llm.frameworks import (
+        get_default_framework,
+        register_framework,
+        set_default_framework,
+    )
+    from nemoguardrails.llm.providers import register_provider
+    from nemoguardrails.rails import LLMRails, RailsConfig
+    from nemoguardrails.types import (
+        ChatMessage,
+        FinishReason,
+        LLMFramework,
+        LLMModel,
+        LLMResponse,
+        LLMResponseChunk,
+        Role,
+        ToolCall,
+        ToolCallFunction,
+        UsageInfo,
+    )
+
+
+def __getattr__(name: str):
+    # When NEMO_GUARDRAILS_IORAILS_ENGINE is set, LLMRails is an alias for
+    # Guardrails for backwards-compatibility.
+    if name == "LLMRails" and _use_guardrails_wrapper:
+        module_name, attr = "nemoguardrails.guardrails.guardrails", "Guardrails"
+    else:
+        module_name = _LAZY_ATTRS.get(name)
+        if module_name is None:
+            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+        attr = name
+    module = importlib.import_module(module_name)
+    return getattr(module, attr)
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
+
 
 __version__ = version("nemoguardrails")
 __all__ = [
