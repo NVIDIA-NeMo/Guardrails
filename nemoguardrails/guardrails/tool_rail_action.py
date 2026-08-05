@@ -54,11 +54,16 @@ class ToolRailAction:
         self._tracer = tracer
 
     def _guarded(self, check: Callable[[], RailResult]) -> RailResult:
-        """Run *check* inside an action span, converting any error into a block.
+        """Run *check* inside an action span, converting a failure into a block.
 
         Shares the engine's fail-closed contract with every other rail through
         :func:`~nemoguardrails.guardrails.rail_guard.rail_error_result`, so a malformed
         input or a rail bug fails closed rather than crashing the request.
+
+        HTTP Errors from downstream calls propagate to the client.
+
+        Raises:
+            Exception: whatever *check* raised, when it carries an upstream HTTP status.
         """
         with action_span(self._tracer, self.action_name) as span:
             try:
