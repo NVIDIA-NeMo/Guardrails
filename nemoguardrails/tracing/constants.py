@@ -14,9 +14,9 @@
 # limitations under the License.
 
 """OpenTelemetry constants, semantic conventions, and engine-agnostic
-GenAI client-side metric instruments for NeMo Guardrails.
+client-side metric instruments for NeMo Guardrails.
 
-The OTEL GenAI client-side metric helpers (``LLMInstruments``,
+The OTEL client-side metric helpers (``LLMInstruments``,
 ``record_token_usage``, ``llm_operation_duration``,
 ``record_time_to_first_chunk``, ``record_time_per_output_chunk``) live
 here next to the metric-name and attribute constants they emit.  They
@@ -161,6 +161,22 @@ class GenAIAttributes:
     GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 
 
+class HTTPAttributes:
+    """HTTP semantic convention attributes."""
+
+    REQUEST_METHOD = "http.request.method"
+    REQUEST_BODY_SIZE = "http.request.body.size"
+    REQUEST_RESEND_COUNT = "http.request.resend_count"
+    RESPONSE_STATUS_CODE = "http.response.status_code"
+    RESPONSE_BODY_SIZE = "http.response.body.size"
+    URL_FULL = "url.full"
+    URL_SCHEME = "url.scheme"
+    SERVER_ADDRESS = "server.address"
+    SERVER_PORT = "server.port"
+    ERROR_TYPE = "error.type"
+    EXCEPTION_TYPE = "exception.type"
+
+
 class CommonAttributes:
     """Common OpenTelemetry attributes used across spans."""
 
@@ -242,7 +258,7 @@ class SpanNames:
 
 
 class MetricNames:
-    """OTEL metric names emitted by the IORails engine.
+    """OTEL metric names emitted by NeMo Guardrails.
 
     These names are part of the library's public API — customers point
     dashboards and alerts at them.  Tests deliberately assert on the raw
@@ -273,6 +289,7 @@ class MetricNames:
     GEN_AI_CLIENT_OPERATION_DURATION = "gen_ai.client.operation.duration"
     GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
     GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK = "gen_ai.client.operation.time_per_output_chunk"
+    HTTP_CLIENT_REQUEST_DURATION = "http.client.request.duration"
 
 
 class TokenType:
@@ -356,6 +373,7 @@ class GuardrailsEventTypes:
 # first access is harmless because OTEL guarantees ``meter.create_*``
 # returns equivalent instances for the same instrumentation scope.
 _llm_instruments: Optional["LLMInstruments"] = None
+_http_instruments: Optional["HTTPInstruments"] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -386,6 +404,33 @@ class LLMInstruments:
     operation_duration: "Histogram"
     time_to_first_chunk: "Histogram"
     time_per_output_chunk: "Histogram"
+
+
+@dataclass(frozen=True, slots=True)
+class HTTPInstruments:
+    """HTTP-client OpenTelemetry instruments shared across callers."""
+
+    request_duration: "Histogram"
+
+
+# Matches the OpenTelemetry HTTP client request-duration recommendation:
+# https://opentelemetry.io/docs/specs/semconv/http/http-metrics/#metric-httpclientrequestduration
+_HTTP_DURATION_BUCKETS = [
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1,
+    2.5,
+    5,
+    7.5,
+    10,
+]
 
 
 # Bucket boundaries recommended in the OTEL GenAI semantic-conventions
@@ -472,6 +517,26 @@ def _ensure_llm_instruments() -> Optional[LLMInstruments]:
             ),
         )
     return _llm_instruments
+
+
+def _ensure_http_instruments() -> Optional[HTTPInstruments]:
+    """Lazily create HTTP instruments when an OpenTelemetry meter is available."""
+    from nemoguardrails.guardrails.telemetry import get_meter
+
+    global _http_instruments
+    meter = get_meter()
+    if meter is None:
+        return None
+    if _http_instruments is None:
+        _http_instruments = HTTPInstruments(
+            request_duration=meter.create_histogram(
+                MetricNames.HTTP_CLIENT_REQUEST_DURATION,
+                description="Duration of HTTP client requests",
+                unit="s",
+                explicit_bucket_boundaries_advisory=_HTTP_DURATION_BUCKETS,
+            )
+        )
+    return _http_instruments
 
 
 def _llm_call_attributes(
