@@ -35,7 +35,11 @@ from nemoguardrails.http import (
     RetryPolicy,
     instrument_http_client,
 )
-from nemoguardrails.http.telemetry import record_http_error
+from nemoguardrails.http.telemetry import (
+    http_request_duration,
+    record_http_error,
+    set_http_request_attributes,
+)
 from nemoguardrails.testing.http import RecordingHTTPClient
 from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
@@ -387,3 +391,51 @@ async def test_metric_failures_do_not_change_http_result():
         result = await client.request("GET", "https://example.com/check")
 
     assert result is response
+
+
+@pytest.mark.asyncio
+async def test_metric_initialization_failures_do_not_change_http_result():
+    response = HTTPResponse(status_code=200)
+    client = instrument_http_client(
+        RecordingHTTPClient([response]),
+        metrics_enabled=True,
+    )
+
+    with patch(
+        "nemoguardrails.http.telemetry._ensure_http_instruments",
+        side_effect=RuntimeError("meter unavailable"),
+    ):
+        result = await client.request("GET", "https://example.com/check")
+
+    assert result is response
+
+
+def test_http_metrics_skip_urls_without_host_or_port(metric_reader):
+    with http_request_duration("GET", "/relative"):
+        pass
+    with http_request_duration("GET", "custom://example.com/check"):
+        pass
+
+    assert "http.client.request.duration" not in collect_metric_points(metric_reader)
+
+
+@pytest.mark.parametrize(
+    ("content", "expected_size"),
+    [(b"payload", 7), ("café", 5)],
+)
+def test_http_request_attributes_record_encoded_body_size(content, expected_size):
+    span = MagicMock()
+
+    set_http_request_attributes(
+        span,
+        "POST",
+        "https://example.com/check",
+        content,
+    )
+
+    span.set_attribute.assert_any_call("http.request.body.size", expected_size)
+
+
+def test_http_attribute_helpers_accept_missing_span():
+    set_http_request_attributes(None, "GET", "https://example.com/check", None)
+    record_http_error(None, RuntimeError("ignored"))
