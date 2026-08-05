@@ -32,6 +32,7 @@ numbered check; do not stop at the first few findings.
 
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
+make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=<the PR's test files>
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
