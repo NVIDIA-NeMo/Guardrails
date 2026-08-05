@@ -320,6 +320,23 @@ class TestMalformedManifest:
         with pytest.raises(RailCompilationError, match="no source key"):
             compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
 
+    def test_binding_kind_the_binder_cannot_fill_raises(self, deps):
+        """A binding kind this function does not handle fails compilation rather than vanishing.
+
+        Unreachable from a shipped manifest for the same reasons as the keyless case — the
+        schema constrains ``kind``, and ``context`` is rejected before the binder runs — so it
+        needs the same bypass at both levels. Worth the contrivance: the alternative is a
+        binding silently dropped from the plan, so the action is called without a parameter it
+        declares and the envelope reports the ``TypeError`` as a rail block.
+        """
+        unhandled = Binding.model_construct(
+            kind="conversation_state", action_param="model_name", key="model", value=None, required=True
+        )
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (unhandled,), bypass_validation=True)
+
+        with pytest.raises(RailCompilationError, match="unsupported"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+
 
 class TestManifestBindingContract:
     """Every manifest binding must name a parameter its action really declares.

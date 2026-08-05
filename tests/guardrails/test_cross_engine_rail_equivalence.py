@@ -16,8 +16,8 @@
 """Cross-engine decision baseline for the four rails IORails ships today.
 
 Every case runs one config and one model payload through **both** engines and asserts
-they reach the same allow/block decision. LLMRails goes config -> Colang flow ->
-library action; IORails goes config -> RailsManager -> RailAction. Same input, same
+they produce the same response, content for content. LLMRails goes config -> Colang flow
+-> library action; IORails goes config -> RailsManager -> RailAction. Same input, same
 verdict, two entirely separate implementations.
 
 **Recorded against ``RailAction``, deliberately, before ``CompiledRail`` exists.**
@@ -32,14 +32,6 @@ duplicating it. That suite stubs the action and pins how a *flow* interprets a
 rail. These cases mock at the transport boundary instead, so the real action, the real
 prompt rendering, and the real parser all execute — which is what catches a rail whose
 meaning changed.
-
-Parity turned out to be stronger than expected: the engines also agree on the
-user-visible refusal text, despite reaching it by unrelated routes — IORails from the
-``REFUSAL_MESSAGE`` constant, LLMRails from the ``bot refuse to respond`` message in each
-rail's ``flows.v1.co``. That literal is duplicated by hand across roughly ten files with
-nothing binding them together, so ``test_refusal_text_matches_across_engines`` is the
-only thing holding them in agreement. Worth a follow-up issue to give the string one
-home; out of scope for this stack.
 """
 
 import copy
