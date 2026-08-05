@@ -16,7 +16,7 @@
 import asyncio
 import logging
 import warnings
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from opentelemetry.sdk.metrics import MeterProvider
@@ -211,6 +211,35 @@ async def test_instrumented_client_closes_wrapped_client_once():
     await asyncio.gather(client.close(), client.close())
 
     assert transport.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_close_waits_and_retries_after_failure():
+    close_started = asyncio.Event()
+    allow_close = asyncio.Event()
+    error = RuntimeError("close failed")
+
+    async def close() -> None:
+        close_started.set()
+        await allow_close.wait()
+        raise error
+
+    transport = RecordingHTTPClient()
+    transport.close = AsyncMock(side_effect=close)
+    client = InstrumentedHTTPClient(transport, None)
+
+    first = asyncio.create_task(client.close())
+    await close_started.wait()
+    second = asyncio.create_task(client.close())
+    await asyncio.sleep(0)
+
+    assert not second.done()
+
+    allow_close.set()
+    results = await asyncio.gather(first, second, return_exceptions=True)
+
+    assert results == [error, error]
+    assert transport.close.await_count == 2
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import warnings
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Mapping, overload
@@ -63,6 +64,7 @@ class InstrumentedHTTPClient:
         self._tracer = tracer
         self._metrics_enabled = metrics_enabled
         self._closed = False
+        self._close_lock = asyncio.Lock()
 
     @property
     def wrapped_client(self) -> HTTPClient:
@@ -120,15 +122,12 @@ class InstrumentedHTTPClient:
 
         Repeated calls are safe. A failed or cancelled close remains retryable.
         """
-        if self._closed:
-            return
-        self._closed = True
-        try:
+        async with self._close_lock:
+            if self._closed:
+                return
             if isinstance(self._client, ClosableHTTPClient):
                 await self._client.close()
-        except BaseException:
-            self._closed = False
-            raise
+            self._closed = True
 
 
 @overload
