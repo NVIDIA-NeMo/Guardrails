@@ -170,7 +170,7 @@ async def _stream_llm_call(
         # rather than via delta_reasoning. Pre-existing gap, not introduced here.
         reasoning_trace_var.set(reasoning_content)
 
-        return LLMResponse(
+        response = LLMResponse(
             content=handler.completion,
             reasoning=reasoning_content,
             tool_calls=tool_calls,
@@ -180,6 +180,11 @@ async def _stream_llm_call(
             usage=usage,
             provider_metadata=accumulated_provider_metadata or None,
         )
+        # The non-streaming path stores this after the call returns; streaming returns early
+        # from ``llm_call``, so it has to happen here or ``LLMCallInfo.request_id`` is never
+        # populated for a streamed call.
+        _store_request_id(response)
+        return response
 
     except Exception as e:
         _raise_llm_call_exception(e, model)

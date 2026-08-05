@@ -15,8 +15,14 @@
 
 import pytest
 
-from nemoguardrails.context import llm_response_metadata_var, reasoning_trace_var, tool_calls_var
+from nemoguardrails.context import (
+    llm_call_info_var,
+    llm_response_metadata_var,
+    reasoning_trace_var,
+    tool_calls_var,
+)
 from nemoguardrails.llm.call import _stream_llm_call
+from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 
@@ -26,10 +32,15 @@ def reset_context_vars():
     reasoning_token = reasoning_trace_var.set(None)
     tool_calls_token = tool_calls_var.set(None)
     metadata_token = llm_response_metadata_var.set(None)
+    # llm_call_info_var has no lifetime discipline in production — it is set ~28 times and
+    # reset nowhere — so a test that leaves a record behind would be inherited by the next
+    # one. Scope it here rather than relying on each test to clean up.
+    call_info_token = llm_call_info_var.set(None)
     yield
     reasoning_trace_var.reset(reasoning_token)
     tool_calls_var.reset(tool_calls_token)
     llm_response_metadata_var.reset(metadata_token)
+    llm_call_info_var.reset(call_info_token)
 
 
 def _make_chunk_model(chunks):
@@ -118,6 +129,57 @@ class TestStreamLlmCallAccumulation:
         result = await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
 
         assert result.request_id == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_request_id_is_recorded_on_the_call_info(self):
+        """The provider id reaches ``LLMCallInfo``, not only the returned response.
+
+        ``llm_call`` returns early into this function when streaming, so the
+        ``_store_request_id`` call on the non-streaming path is skipped. Asserting on the
+        returned response cannot catch that — the response carried the id all along while
+        ``LLMCallInfo.request_id`` stayed None for every streamed call, taking the
+        GenerationLog-to-trace correlation with it.
+        """
+        llm_call_info = LLMCallInfo(task="general")
+        llm_call_info_var.set(llm_call_info)
+        model = _make_chunk_model(
+            [
+                LLMResponseChunk(delta_content="hi", request_id="req-123", model="gpt-4o"),
+                LLMResponseChunk(finish_reason="stop"),
+            ]
+        )
+
+        await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+        assert llm_call_info.request_id == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_absent_request_id_leaves_the_call_info_unset(self):
+        """A provider that streams no id leaves request_id None rather than inventing one."""
+        llm_call_info = LLMCallInfo(task="general")
+        llm_call_info_var.set(llm_call_info)
+        model = _make_chunk_model([LLMResponseChunk(delta_content="hi", finish_reason="stop")])
+
+        await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+        assert llm_call_info.request_id is None
+
+    @pytest.mark.asyncio
+    async def test_client_side_id_is_left_alone(self):
+        """Recording the provider id does not disturb ``id``, which is generated client-side.
+
+        Same separation the non-streaming path keeps: only ``request_id`` can be quoted to a
+        provider or matched against ``gen_ai.response.id`` on the span.
+        """
+        llm_call_info = LLMCallInfo(task="general")
+        llm_call_info.id = "client-side-uuid"
+        llm_call_info_var.set(llm_call_info)
+        model = _make_chunk_model([LLMResponseChunk(delta_content="hi", request_id="req-123", finish_reason="stop")])
+
+        await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
+
+        assert llm_call_info.id == "client-side-uuid"
+        assert llm_call_info.request_id == "req-123"
 
     @pytest.mark.asyncio
     async def test_clears_tool_calls_var_when_none(self):
