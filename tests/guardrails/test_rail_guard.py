@@ -29,15 +29,34 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Tracer
 
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_guard import rail_error_result
+from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 
 ACTION_NAME = "content safety check input"
+
+
+def recording_tracer() -> tuple[Tracer, InMemorySpanExporter]:
+    """Return a tracer whose finished spans can be inspected, and its exporter."""
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider.get_tracer("test"), exporter
+
+
+def exception_events(exporter: InMemorySpanExporter) -> list:
+    """Every exception event recorded across the exporter's finished spans."""
+    return [event for span in exporter.get_finished_spans() for event in span.events if event.name == "exception"]
+
 
 # APIEngineError belongs to this set only until the commit that deletes APIEngine; drop
 # its parameter there rather than leaving a case that constructs a deleted class.
@@ -160,21 +179,76 @@ class TestSpanErrorRecording:
         span.record_exception.assert_called_once()
         span.set_attribute.assert_any_call("error.type", "RuntimeError")
 
-    def test_error_recorded_when_reraising(self):
-        """A propagated failure marks its span as errored before it leaves the rail."""
+    def test_reraising_leaves_the_recording_to_the_enclosing_span(self):
+        """The envelope does not record on the path where it re-raises.
+
+        ``action_span`` records any exception that escapes it, so recording here too would
+        double up. Pinned directly on the helper as well as through the composition below,
+        so that restoring the unconditional record cannot pass by only fixing one of them.
+        """
         span = MagicMock()
         exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
 
         with pytest.raises(ModelEngineError):
             rail_error_result(span, ACTION_NAME, exc)
 
-        span.record_exception.assert_called_once_with(exc)
+        span.record_exception.assert_not_called()
 
     def test_absent_span_is_accepted(self):
         """Tracing being disabled yields span=None, which the envelope tolerates."""
         result = rail_error_result(None, ACTION_NAME, RuntimeError("parser blew up"))
 
         assert result.is_safe is False
+
+
+class TestSpanRecordsTheFailureExactlyOnce:
+    """Composed with a real action span, a failure produces one exception event, not two.
+
+    This is the assertion that matters, because neither layer is wrong on its own: the
+    envelope records so a swallowed error is still visible, and ``action_span`` records so an
+    escaping one is. Only their composition reveals the duplicate, which is why the standalone
+    helper tests above could not catch it.
+    """
+
+    def test_blocking_path_records_once(self):
+        """A blocked rail records a single exception event on its action span."""
+        tracer, exporter = recording_tracer()
+
+        with action_span(tracer, ACTION_NAME) as span:
+            result = rail_error_result(span, ACTION_NAME, RuntimeError("parser blew up"))
+
+        assert result.is_safe is False
+        events = exception_events(exporter)
+        assert len(events) == 1
+        assert events[0].attributes["exception.type"] == "RuntimeError"
+
+    def test_propagating_path_records_once(self):
+        """A re-raised provider failure is recorded by the span alone, not twice."""
+        tracer, exporter = recording_tracer()
+        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+
+        with pytest.raises(ModelEngineError):
+            with action_span(tracer, ACTION_NAME) as span:
+                rail_error_result(span, ACTION_NAME, exc)
+
+        events = exception_events(exporter)
+        assert len(events) == 1
+        # OTEL qualifies non-builtin exception names, so match the suffix rather than
+        # coupling this assertion to the module ModelEngineError happens to live in.
+        assert events[0].attributes["exception.type"].endswith("ModelEngineError")
+
+    def test_propagating_path_still_marks_the_span_errored(self):
+        """Dropping the envelope's own record must not cost the error.type attribute."""
+        tracer, exporter = recording_tracer()
+        exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
+
+        with pytest.raises(ModelEngineError):
+            with action_span(tracer, ACTION_NAME) as span:
+                rail_error_result(span, ACTION_NAME, exc)
+
+        (finished,) = exporter.get_finished_spans()
+        assert finished.attributes is not None
+        assert finished.attributes["error.type"] == "ModelEngineError"
 
 
 class DummyToolRail(ToolRailAction):

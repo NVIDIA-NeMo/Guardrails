@@ -74,10 +74,14 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
     response and sanitises the client-facing payload separately, so rewriting its message here
     would only cost an operator the real text in a traceback.
 
+    The span error is recorded only on the blocking path. Every caller runs inside
+    ``action_span``, which records and re-raises anything that escapes it, so recording here
+    as well would put two exception events and two ``error.type`` writes on one span. The
+    blocking path needs the explicit call precisely because nothing escapes there.
+
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.
     """
-    record_span_error(span, exc)
     request_id = get_request_id()
     detail = _redact_secrets(str(exc))
 
@@ -86,6 +90,7 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
         log.error("[%s] %s failed (HTTP %d): %s", request_id, action_name, status, detail)
         raise exc
 
+    record_span_error(span, exc)
     log.error("[%s] %s failed: %s", request_id, action_name, detail)
     return f"{action_name} error: {detail}"
 
