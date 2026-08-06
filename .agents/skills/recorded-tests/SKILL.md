@@ -145,8 +145,14 @@ tooling will tell you it is in the wrong suite. A non-vcr suite test carries
 the module-level `pytestmark = [pytest.mark.recorded]` and no `vcr` mark,
 adding `pytest.mark.asyncio` only when the module's tests are async
 (exemplar: `tests/recorded/rails/library/test_regex.py` for the async form,
-`tests/recorded/test_fake_cassettes.py` for the synchronous one). Because
-nothing fails for you,
+`tests/recorded/test_fake_cassettes.py` for the synchronous one).
+
+That describes tests you add that exercise the library through this suite.
+The cassette meta-tests directly under `tests/recorded/` are infrastructure
+for the suite itself rather than replay tests, and they do not all follow
+it: `test_cassette_provenance.py` carries no `pytestmark` at all. Nothing
+rejects that either, so do not read those modules as a template for a new
+suite test. Because nothing fails for you,
 apply these criteria yourself. Add a non-vcr suite test only when all of
 these hold:
 

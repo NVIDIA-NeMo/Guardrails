@@ -467,7 +467,10 @@ explicitly mandatory:
    `tests/recorded/rails/library/test_regex.py`). The `asyncio` mark is
    there because these rail tests are async, not because the module is
    non-vcr; synchronous non-vcr modules elsewhere in the suite carry
-   `pytest.mark.recorded` alone. Recorded tests are
+   `pytest.mark.recorded` alone, and the suite-infrastructure test
+   `tests/recorded/test_cassette_provenance.py` carries no `pytestmark` at
+   all. Nothing enforces any of this, so follow the rail exemplar rather
+   than the nearest neighbour. Recorded tests are
    dialect-single: do not add a Colang 2 recorded test for YOUR rail (the
    wire traffic is identical; dialect behavior is unit-test territory). The
    suite is allowed exactly one v2 smoke pin across all library rails, and
