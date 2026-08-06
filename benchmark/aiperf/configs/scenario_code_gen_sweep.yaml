@@ -31,4 +31,4 @@ base_config:
   prompt_output_tokens_stddev: 10
 
 sweeps:
-  concurrency: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  concurrency: [4, 8, 16, 32, 64, 128, 256]
