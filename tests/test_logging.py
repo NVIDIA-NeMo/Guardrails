@@ -17,13 +17,13 @@ import asyncio
 
 import pytest
 
-from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
+from nemoguardrails.llm.call import _log_prompt, _update_token_stats
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.logging.processing_log import compute_generation_log, processing_log_var
 from nemoguardrails.logging.stats import LLMStats
-from nemoguardrails.types import LLMResponse, UsageInfo
+from nemoguardrails.types import ChatMessage, LLMResponse, UsageInfo
 
 
 def test_compute_generation_log_includes_tool_rails():
@@ -118,6 +118,133 @@ async def test_log_prompt_with_message_list():
     assert "You are a helpful assistant." in llm_call_info.prompt
     assert "Hello" in llm_call_info.prompt
     assert "Hi there" in llm_call_info.prompt
+
+
+class TestLLMCallInfoVarLifetime:
+    """Pin the lifetime contract of llm_call_info_var.
+
+    Unlike IORails' ``_rail_llm_call_var``, which is cleared on entry and drained with a
+    read-and-clear, ``llm_call_info_var`` is never reset by production code. Consumers must
+    therefore set a fresh ``LLMCallInfo`` before each call and read it immediately after,
+    in the same task. These tests document that contract so a consumer built on top of it
+    cannot silently attribute a stale call to a rail that made none.
+    """
+
+    @pytest.mark.asyncio
+    async def test_var_is_not_cleared_after_a_call_completes(self):
+        """A completed call leaves its LLMCallInfo in the context."""
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get() is not None
+
+    @pytest.mark.asyncio
+    async def test_consecutive_calls_reuse_the_same_info_object(self):
+        """Without a fresh set between calls, the second call mutates the first's record."""
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+        first = llm_call_info_var.get()
+
+        await mock_llm_call()
+        second = llm_call_info_var.get()
+
+        assert second is first
+
+    @pytest.mark.asyncio
+    async def test_a_stale_task_label_survives_into_an_unlabelled_call(self):
+        """An unlabelled call inherits the previous call's task, misattributing it."""
+        llm_call_info_var.set(LLMCallInfo(task="content_safety_check_input"))
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get().task == "content_safety_check_input"
+
+    @pytest.mark.asyncio
+    async def test_clearing_before_a_call_prevents_misattribution(self):
+        """Clearing on entry is what makes a per-call read trustworthy."""
+        llm_call_info_var.set(LLMCallInfo(task="content_safety_check_input"))
+
+        llm_call_info_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert llm_call_info_var.get().task is None
+
+
+@pytest.mark.asyncio
+async def test_log_prompt_with_chat_message_list():
+    """Test that ChatMessage prompts are logged with the same labels as dict prompts."""
+    llm_call_info = LLMCallInfo()
+    llm_call_info_var.set(llm_call_info)
+
+    messages = [
+        ChatMessage.from_dict({"role": "system", "content": "You are a helpful assistant."}),
+        ChatMessage.from_dict({"role": "user", "content": "Hello"}),
+        ChatMessage.from_dict({"role": "assistant", "content": "Hi there"}),
+    ]
+
+    _log_prompt(messages)
+
+    assert llm_call_info.prompt is not None
+    assert "[cyan]System[/]" in llm_call_info.prompt
+    assert "[cyan]User[/]" in llm_call_info.prompt
+    assert "[cyan]Bot[/]" in llm_call_info.prompt
+    assert "You are a helpful assistant." in llm_call_info.prompt
+    assert "Hello" in llm_call_info.prompt
+    assert "Hi there" in llm_call_info.prompt
+
+
+@pytest.mark.asyncio
+async def test_log_prompt_renders_chat_messages_identically_to_dicts():
+    """Test that the two accepted prompt shapes produce the same logged text."""
+    dict_messages = [
+        {"role": "system", "content": "Be brief."},
+        {"role": "user", "content": "Hello"},
+    ]
+
+    llm_call_info_var.set(LLMCallInfo())
+    _log_prompt(dict_messages)
+    from_dicts = llm_call_info_var.get().prompt
+
+    llm_call_info_var.set(LLMCallInfo())
+    _log_prompt([ChatMessage.from_dict(m) for m in dict_messages])
+    from_chat_messages = llm_call_info_var.get().prompt
+
+    assert from_chat_messages == from_dicts
+
+
+@pytest.mark.asyncio
+async def test_log_prompt_omits_non_textual_chat_message_content():
+    """Test that a multimodal ChatMessage contributes its label but no content text."""
+    llm_call_info = LLMCallInfo()
+    llm_call_info_var.set(llm_call_info)
+
+    message = ChatMessage.from_dict({"role": "user", "content": "placeholder"})
+    object.__setattr__(message, "content", [{"type": "text", "text": "ignored"}])
+
+    _log_prompt([message])
+
+    assert llm_call_info.prompt is not None
+    assert "[cyan]User[/]" in llm_call_info.prompt
+    assert "ignored" not in llm_call_info.prompt
 
 
 @pytest.mark.asyncio

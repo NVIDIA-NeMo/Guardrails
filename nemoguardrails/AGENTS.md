@@ -37,7 +37,7 @@ provider-integration specifics that matter when editing this package.
   bodies. Secrets belong in headers, environment variables, or local
   configuration paths.
 - Route LLM calls through existing framework/model abstractions and helpers such
-  as `nemoguardrails.actions.llm.utils.llm_call` unless the surrounding code
+  as `nemoguardrails.llm.call.llm_call` unless the surrounding code
   already establishes a more specific path. Avoid ad hoc provider calls that
   bypass shared parameter handling, tracing, metrics, or streaming behavior.
 - For OpenAI-compatible providers, prefer the built-in default framework and

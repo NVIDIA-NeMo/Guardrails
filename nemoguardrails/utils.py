@@ -497,3 +497,62 @@ def extract_error_json(error_message: str) -> dict:
         return error_dict
     else:
         return {"error": {"message": error_message}}
+
+
+# Flow-id string parsing. These live here rather than in colang/v1_0/runtime/flows.py
+# because they are pure string transformations with no runtime dependency, and keeping
+# them there forced every caller that merely parses a configured flow name to import the
+# Colang runtime. Re-exported from their original module for backward compatibility.
+def _normalize_flow_id(flow_id: str) -> str:
+    """Normalize the flow id by removing the arguments from the id.
+
+    Args:
+        flow_id(str): The flow id.
+
+    Example:
+
+        flow_id = "flow_id_v1(arg1, arg2)"
+        _normalize_flow_id(flow_id) -> "flow_id_v1"
+
+    """
+    flow_id = flow_id.strip()
+    if "(" in flow_id:
+        flow_id = flow_id.split("(")[0]
+
+    elif "$" in flow_id:
+        flow_id = flow_id.split("$")[0]
+
+    return flow_id.strip()
+
+
+def _get_flow_params(flow_id: str) -> dict:
+    """Return the arguments in a flow id as a dictionary.
+
+    Args:
+        flow_id: The flow id.
+
+    Returns:
+        A dictionary of arguments in the flow id.
+    """
+    flow_id = flow_id.strip()
+    params = {}
+
+    if "(" in flow_id and ")" in flow_id:
+        arg_string = flow_id.split("(")[1].split(")")[0]
+    elif "$" in flow_id:
+        arg_string = flow_id.split("$")[1]
+    else:
+        return params
+
+    for arg in arg_string.split(","):
+        arg = arg.strip()
+        if "=" in arg:
+            key, value = arg.split("=")
+            # Remove single or double quotes from the value
+            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+                value = value[1:-1]
+            params[key] = value
+        else:
+            params[arg] = None
+
+    return params

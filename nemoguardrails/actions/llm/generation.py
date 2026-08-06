@@ -36,11 +36,8 @@ from nemoguardrails.actions.llm.utils import (
     get_last_bot_intent_event,
     get_last_user_intent_event,
     get_last_user_utterance_event,
-    get_multiline_response,
     get_retrieved_relevant_chunks,
     get_top_k_nonempty_lines,
-    llm_call,
-    strip_quotes,
 )
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, Spec, SpecOp
@@ -53,6 +50,8 @@ from nemoguardrails.context import (
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task

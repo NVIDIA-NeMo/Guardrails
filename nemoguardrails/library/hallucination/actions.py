@@ -19,13 +19,10 @@ from typing import Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.actions.llm.utils import (
-    get_multiline_response,
-    llm_call,
-    strip_quotes,
-)
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.completion_parsing import get_multiline_response, strip_quotes
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
