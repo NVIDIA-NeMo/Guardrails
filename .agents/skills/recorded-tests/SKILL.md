@@ -85,7 +85,10 @@ Answer these in order. The first "no" that routes you to `tests/` is final.
 
    Red flags that mean the answer is "no":
    - The test passes `generator=` to `stream_async` AND no rail model or
-     vendor call is made. `generator=` bypasses the MAIN model only, so a
+     vendor call is made. With `config.rails.output.streaming.enabled`
+     false, `stream_async` returns the generator directly and NO rail runs;
+     when it is true only output rails run. `generator=` bypasses the MAIN
+     model, so a
      rail whose own model or HTTP call still crosses the wire remains
      recorded-suite material; the library suite's own `stream_with_fake_main`
      helper is built on it.
@@ -136,8 +139,9 @@ extend or imitate. One exception:
 ## The narrow non-vcr exception
 
 The suite intentionally hosts a small number of non-vcr, pure-runtime tests
-(for example `StreamingNotSupportedError` validation, `check()` contracts
-over `FakeLLMModel`) because `public_api` doubles as the public API surface
+(for example `StreamingNotSupportedError` validation, `generate_async`
+argument validation over `FakeLLMModel`, and the `check()` contracts over
+local-rail configs) because `public_api` doubles as the public API surface
 contract used for refactor equivalence proofs. This exception is a
 convention, not an enforcement: nothing in `tests/recorded/conftest.py`
 inspects markers, so a misplaced test collects and passes silently and no
@@ -162,8 +166,10 @@ these hold:
   express the same public contract),
 - it needs no new config directory of its own, EXCEPT for a rail under
   `tests/recorded/rails/library/`, where `nemoguardrails/library/README.md`
-  mandates recorded coverage and a per-rail config directory is the required
-  shape.
+  mandates recorded coverage and a per-rail config directory is the usual
+  shape. It is a convention, not a documented requirement, and the suite also
+  holds shared multi-rail directories (`configs/full_stack`,
+  `openai_input_stack`); reuse one before adding your own.
 
 When in doubt, put it in `tests/`. Do not park a test here just because it
 collects; nothing is checking, so the discipline is yours.
@@ -218,8 +224,8 @@ Follow `tests/recorded/README.md` exactly. The short version:
   it usually signals a test that belongs in `tests/`. Nothing enforces this,
   so read every test in the diff that has no `vcr` mark.
 - New config directory for a single deterministic test: the test is in the
-  wrong suite, unless it is the mandated per-rail config for a new
-  `nemoguardrails/library/` rail.
+  wrong suite, unless it is the per-rail config for a new
+  `nemoguardrails/library/` rail, which is the usual shape there.
 - Same behavior asserted in both `tests/` and `tests/recorded/` in one
   change: keep one, prefer the unit test unless the behavior is
   provider-shaped.

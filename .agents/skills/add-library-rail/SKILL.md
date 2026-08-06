@@ -102,9 +102,11 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
   `@action` decorator registers; enforced by
   `test_builtin_action_refs_match_decorated_names_and_bindings`.
 - `RailSpec.flows`: `RailFlows(flow_names=(...), files=(...), v1_files=(...))`
-  naming the flows the rail exposes and the two dialect files. Every shipped
-  manifest sets this; the flow-files gate reads it to find the files to
-  parse.
+  naming the flows the rail exposes and the two dialect files. Every rail
+  that ships `.co` files sets this, and the flow-files gate reads it to find
+  the files to parse. A config-only rail with no flow files omits it
+  (`nemoguardrails/library/factchecking/rail.py`), and the gate skips such
+  manifests rather than failing them.
 - `RailSpec.surfaces`: one `RailSurface` per flow entry point, with `name`,
   `direction` (input/output/retrieval), the action, and `bindings`
   (`Binding.context(...)` for `user_message`/`bot_message`/`relevant_chunks`,
@@ -313,8 +315,9 @@ response = await http_call(
 - Telemetry must stay content-free. This applies to EVERY rail, not only
   HTTP ones: never log the checked user or bot text, request or response
   bodies, exception messages containing payloads, URLs with query strings,
-  or credentials. Explicitly composed instrumentation sanitizes URLs; do not
-  undo that protection in rail-level logging. Self-check by reading every
+  or credentials. URL sanitization is unconditional in the transport and
+  error layers, so it already applies to your rail; do not undo it by
+  logging the raw URL yourself. Self-check by reading every
   `log.` call and every f-string in a raised error.
 - Wrap vendor failures in rail-specific error types rooted at your own base
   exception (the `errs.py` pattern; exemplar
@@ -557,8 +560,9 @@ conformance gate flags the drift. Update the mirrored artifacts together:
 | Dependency or service changes | Update manifest `optional_dependencies`, `extras`, env vars, services, models, and privacy declarations. |
 
 Then re-run the catalog gates from Step 6; they are the mechanical check that
-the mirrored copies still agree. This same matrix is the always-loaded
-tripwire in `nemoguardrails/library/AGENTS.md`.
+the mirrored copies still agree. `nemoguardrails/library/AGENTS.md` carries
+the same matrix as an always-loaded tripwire; its last row is scoped to
+services and models, while the row above covers dependencies as well.
 
 ## Final verification loop
 
