@@ -76,6 +76,11 @@ _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
 
 def _rail_result(outcome: RailOutcome) -> RailResult:
     """Map an engine-neutral rail verdict onto IORails' rail result."""
+    if outcome.is_transform:
+        # Unreachable: transform surfaces are refused at compile time until IORails can apply a
+        # rewrite. Raising keeps it that way, because the alternative -- reading TRANSFORM as
+        # "not blocked" -- allows the request and discards the rewrite with nothing to see.
+        raise NotImplementedError(f"rail returned {outcome.decision.value!r}, which IORails cannot apply")
     allowed = not outcome.is_blocked
     return RailResult(is_safe=allowed, reason=outcome.reason, return_value={"allowed": allowed, **outcome.metadata})
 

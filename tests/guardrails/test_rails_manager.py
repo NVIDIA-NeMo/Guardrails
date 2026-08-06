@@ -32,12 +32,12 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailExecution
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
+from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record, _rail_result
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -1019,6 +1019,33 @@ class TestTriggeredRail:
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
         assert result.triggered_rail is None
+
+
+class TestOutcomeToResult:
+    """`_rail_result` maps a rail's verdict onto IORails' result type."""
+
+    @pytest.mark.parametrize(
+        "outcome, is_safe",
+        [(RailOutcome.allow(), True), (RailOutcome.block(), False)],
+        ids=["allow", "block"],
+    )
+    def test_a_decision_becomes_a_verdict(self, outcome, is_safe):
+        """Allow and block map onto is_safe, with the decision echoed in the verdict payload."""
+        result = _rail_result(outcome)
+
+        assert result.is_safe is is_safe
+        assert result.return_value == {"allowed": is_safe}
+
+    def test_a_transform_raises_rather_than_reading_as_allowed(self):
+        """A rewrite IORails cannot apply fails loudly instead of allowing and discarding it.
+
+        Transform surfaces are refused at compile time, so this is a tripwire for the PR that
+        implements them rather than a path a config can reach.
+        """
+        outcome = RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")])
+
+        with pytest.raises(NotImplementedError, match="transform"):
+            _rail_result(outcome)
 
 
 class TestRailCallRecordNaming:
