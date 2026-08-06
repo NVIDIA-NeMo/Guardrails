@@ -7,10 +7,18 @@ license: "Apache-2.0"
 # Adding a Rail to the Library
 
 A library rail is a manifest-declared, lazily-loaded unit under
-`nemoguardrails/library/<name>/`. Every contract described here is enforced by
-a test; the workflow is: copy the closest exemplar, adapt, then loop until the
-enforcement tests listed at the end are green. Do not invent structure; the
-exemplars are the specification.
+`nemoguardrails/library/<name>/`.
+
+The STRUCTURAL contracts here are checked by the conformance gates in Step 6:
+manifest shape, action refs and bindings, flow-file validity, and the
+projected config schema. The BEHAVIORAL ones are not, and no gate will tell
+you when they are wrong: privacy honesty, retry semantics, fail-closed
+behavior, telemetry content-freeness, docs accuracy, and cassette provenance
+need the rail-specific tests you write plus a reviewer's judgment.
+
+The workflow is: copy the closest exemplar, adapt, run the gates until green,
+then write the behavioral and recorded end-to-end coverage the gates cannot
+stand in for. Do not invent structure; the exemplars are the specification.
 
 ## Step 1: Pick the archetype and exemplar
 
@@ -390,9 +398,9 @@ explicitly mandatory:
    - `tests/test_runtime_flow_gate_equivalence.py`: add one case per
      manifest surface, including transform surfaces.
 
-   Neither is in the focused loop below, so the loop can be green while
-   `make test` is red. Run the full suite once before you believe you are
-   done.
+   The verification loop at the end runs both. Until you register the rail
+   in them they fail while every catalog gate above stays green, so do not
+   read a green catalog-gate run as done.
 2. **Unit tests** in `tests/test_<rail>*.py`:
    - `TestChat` end-to-end for flow behavior, `FakeLLMModel` for
      deterministic main-model output.

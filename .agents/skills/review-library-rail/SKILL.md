@@ -30,7 +30,11 @@ numbered check; do not stop at the first few findings.
 
 ## Step 1: Run the mechanical gates (do not re-review what they check)
 
+Run pre-commit FIRST, per the repository Review Mode rule: it reformats, so
+running it later moves the lines your findings cite.
+
 ```bash
+uv run --locked pre-commit run --files <the PR's changed files>
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
 make test TEST=tests/http/test_library_boundary.py
