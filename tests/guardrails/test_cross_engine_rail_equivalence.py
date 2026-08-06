@@ -174,7 +174,9 @@ def _assistant_content(response: object) -> str:
     return response["content"]
 
 
-async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str]] = None) -> str:
+async def _llmrails_reply(
+    config_dict: dict, rail_model: Optional[tuple[str, str]] = None, messages: Optional[list[dict]] = None
+) -> str:
     """Run one turn through LLMRails and return the assistant content.
 
     *rail_model* is a ``(model_type, reply)`` pair, supplied through
@@ -187,11 +189,13 @@ async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str
         model_type, reply = rail_model
         chat.app.runtime.registered_action_params["llms"] = {model_type: FakeLLMModel(responses=[reply])}
 
-    response = await chat.app.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+    response = await chat.app.generate_async(messages=messages or [{"role": "user", "content": USER_INPUT}])
     return _assistant_content(response)
 
 
-async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) -> str:
+async def _iorails_reply(
+    config_dict: dict, rail_reply: Optional[str] = None, messages: Optional[list[dict]] = None
+) -> str:
     """Run one turn through IORails and return the assistant content."""
     # Mocks each engine's transport, so the whole RailsManager -> CompiledRail -> EngineRegistry
     # chain runs without a network call. Keyed by engine name, as EngineRegistry holds them.
@@ -207,7 +211,7 @@ async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) ->
             elif rail_reply is not None:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=rail_reply))
 
-        response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+        response = await iorails.generate_async(messages=messages or [{"role": "user", "content": USER_INPUT}])
         return _assistant_content(response)
 
 
@@ -244,6 +248,61 @@ class TestModelBackedRailsAgreeAcrossEngines:
 
         assert iorails_content == REFUSAL_MESSAGE
         assert llmrails_content == REFUSAL_MESSAGE
+
+
+CONVERSATION = [
+    {"role": "user", "content": "do you ship to France?"},
+    {"role": "assistant", "content": "Yes, we ship worldwide."},
+    {"role": "user", "content": USER_INPUT},
+]
+
+
+async def _topic_safety_prompt(run, config_dict: dict, messages: list[dict]) -> list[dict]:
+    """Capture the messages a run hands the topic-safety model, below the model call."""
+    captured: list[list[dict]] = []
+
+    async def spy(llm, sent, **kwargs):
+        captured.append(sent)
+        return LLMResponse(content=ON_TOPIC)
+
+    with patch("nemoguardrails.library.topic_safety.actions.llm_call", new=spy):
+        await run(config_dict, messages=messages)
+
+    assert len(captured) == 1, f"expected one topic-safety call, got {len(captured)}"
+    return captured[0]
+
+
+class TestTopicSafetyPromptMatchesAcrossEngines:
+    """Both engines hand the topic-safety model the same prompt, not merely the same verdict."""
+
+    # Decision parity cannot catch a malformed prompt: a duplicated user turn left both engines
+    # allowing, so the tests above stayed green while IORails sent the classifier a different
+    # conversation. This compares what each engine actually sends.
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "messages",
+        [[{"role": "user", "content": USER_INPUT}], CONVERSATION],
+        ids=["single-turn", "multi-turn"],
+    )
+    async def test_both_engines_send_the_same_messages(self, messages):
+        """Same conversation in, same message list to the topic-control model, turn for turn."""
+        case = next(c for c in MODEL_RAIL_CASES if c.case_id == "topic_safety_input_allows")
+        config_dict = _model_rail_config(case)
+
+        llmrails_prompt = await _topic_safety_prompt(_llmrails_reply, config_dict, messages)
+        iorails_prompt = await _topic_safety_prompt(_iorails_reply, config_dict, messages)
+
+        assert iorails_prompt == llmrails_prompt
+
+    @pytest.mark.asyncio
+    async def test_the_turn_being_checked_is_sent_once(self):
+        """The checked turn appears once: the action appends it, so history must withhold it."""
+        case = next(c for c in MODEL_RAIL_CASES if c.case_id == "topic_safety_input_allows")
+
+        prompt = await _topic_safety_prompt(_iorails_reply, _model_rail_config(case), CONVERSATION)
+
+        assert [message["content"] for message in prompt].count(USER_INPUT) == 1
 
 
 class TestJailbreakAgreesAcrossEngines:

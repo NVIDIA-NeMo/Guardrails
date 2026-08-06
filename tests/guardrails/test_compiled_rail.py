@@ -519,13 +519,21 @@ class TestDependencyInjection:
 
     @pytest.mark.asyncio
     async def test_events_are_supplied_to_actions_that_declare_them(self, deps, monkeypatch):
-        """topic_safety_check_input declares events, so it receives synthesized ones."""
+        """topic_safety_check_input declares events, so it receives the prior turns as history."""
         action = RecordingAction(signature_of=topic_safety_check_input)
         monkeypatch.setattr(TOPIC_SAFETY_ACTION, action)
+        messages = [
+            {"role": "user", "content": "an earlier question"},
+            {"role": "assistant", "content": "an earlier answer"},
+            *USER_MESSAGES,
+        ]
 
-        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(messages)
 
-        assert action.kwargs["events"] == [{"type": "UserMessage", "text": "hello there"}]
+        assert action.kwargs["events"] == [
+            {"type": "UserMessage", "text": "an earlier question"},
+            {"type": "StartUtteranceBotAction", "script": "an earlier answer"},
+        ]
 
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
@@ -583,6 +591,8 @@ class TestMessagesToEvents:
     history.
     """
 
+    CURRENT_TURN = {"role": "user", "content": "the turn being checked"}
+
     @pytest.mark.parametrize(
         ("role", "event"),
         [
@@ -593,13 +603,14 @@ class TestMessagesToEvents:
     )
     def test_each_role_maps_to_its_event_shape(self, role, event):
         """Each role maps to the event type and payload key ``to_chat_messages`` reads."""
-        assert messages_to_events([{"role": role, "content": "hi"}]) == [event]
+        assert messages_to_events([{"role": role, "content": "hi"}, self.CURRENT_TURN]) == [event]
 
     def test_contentless_turn_is_skipped(self):
         """An assistant tool-call turn has no content and is dropped rather than crashing."""
         messages = [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "tool_calls": [{"id": "1"}]},
+            self.CURRENT_TURN,
         ]
 
         assert messages_to_events(messages) == [{"type": "UserMessage", "text": "hi"}]
@@ -611,6 +622,8 @@ class TestMessagesToEvents:
             {"role": "user", "content": "u1"},
             {"role": "assistant", "content": "a1"},
             {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2"},
+            self.CURRENT_TURN,
         ]
 
         assert [event["type"] for event in messages_to_events(messages)] == [
@@ -618,7 +631,28 @@ class TestMessagesToEvents:
             "UserMessage",
             "StartUtteranceBotAction",
             "UserMessage",
+            "StartUtteranceBotAction",
         ]
+
+    def test_the_turn_being_checked_is_left_out(self):
+        """A lone user turn yields no history: the action appends it from the context itself."""
+        assert messages_to_events([self.CURRENT_TURN]) == []
+
+    def test_only_the_last_user_turn_is_left_out(self):
+        """Earlier user turns are history; only the current one is withheld.
+
+        Mirrors ``llmrails.py``, which emits ``UserMessage`` for every user turn except the
+        last. Emitting it here too gave the classifier the same turn twice.
+        """
+        messages = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            self.CURRENT_TURN,
+        ]
+
+        texts = [event.get("text") for event in messages_to_events(messages) if event["type"] == "UserMessage"]
+
+        assert texts == ["u1"]
 
 
 class TestModelCallCapture:

@@ -98,13 +98,19 @@ def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
     Used by actions which are tightly-coupled with colang event definitions for backwards-compatibility.
     """
     events: list[dict[str, Any]] = []
-    for message in messages:
+    last_user_index = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=None)
+    for index, message in enumerate(messages):
         content = message.get("content")
         if not content:
             continue
         role = message.get("role")
         if role == "user":
-            events.append({"type": _USER_MESSAGE_EVENT, "text": content})
+            # The current turn is deliberately absent from the history, mirroring
+            # ``llmrails.py``, which emits ``UserMessage`` only for a user turn that is not the
+            # last. Actions append it themselves from ``context["user_message"]``, so emitting
+            # it here too would hand the model the same turn twice.
+            if index != last_user_index:
+                events.append({"type": _USER_MESSAGE_EVENT, "text": content})
         elif role == "assistant":
             events.append({"type": _BOT_UTTERANCE_EVENT, "script": content})
         elif role == "system":
