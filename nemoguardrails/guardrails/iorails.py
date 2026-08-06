@@ -555,14 +555,58 @@ class IORails(BaseGuardrails):
     # Rail sections and flows that this engine can handle. Configs using anything
     # outside these sets fall back to LLMRails.
     SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
-    # The rails this engine runs today. Compilation decides whether a flow is *servable*;
-    # this decides whether it is in scope yet.
+    # The rails this engine runs. Compilation decides whether a flow is *servable*; this
+    # decides whether it is in scope. Listed rather than derived from the catalog on purpose:
+    # enabling a rail is a decision, and a surface added to the catalog later should not turn
+    # itself on. Every block-only input/output surface is here except the seven whose actions
+    # read retrieval evidence IORails has no source for; transform surfaces wait on rewrite
+    # support.
     _ENABLED_SURFACES = frozenset(
         {
+            # input rails (23)
+            (SurfaceDirection.INPUT, "activefence moderation on input"),
+            (SurfaceDirection.INPUT, "activefence moderation on input detailed"),
+            (SurfaceDirection.INPUT, "ai defense inspect prompt"),
+            (SurfaceDirection.INPUT, "clavata check input"),
             (SurfaceDirection.INPUT, "content safety check input"),
-            (SurfaceDirection.INPUT, "topic safety check input"),
+            (SurfaceDirection.INPUT, "detect pii on input"),
+            (SurfaceDirection.INPUT, "detect sensitive data on input"),
+            (SurfaceDirection.INPUT, "f5 guardrails scan input"),
+            (SurfaceDirection.INPUT, "fiddler user safety"),
+            (SurfaceDirection.INPUT, "gcpnlp moderation"),
+            (SurfaceDirection.INPUT, "gcpnlp moderation detailed"),
+            (SurfaceDirection.INPUT, "gliner detect pii on input"),
+            (SurfaceDirection.INPUT, "guardrailsai check input"),
+            (SurfaceDirection.INPUT, "hf classifier check input"),
+            (SurfaceDirection.INPUT, "jailbreak detection heuristics"),
             (SurfaceDirection.INPUT, "jailbreak detection model"),
+            (SurfaceDirection.INPUT, "llama guard check input"),
+            (SurfaceDirection.INPUT, "policyai moderation on input"),
+            (SurfaceDirection.INPUT, "polygraf detect pii on input"),
+            (SurfaceDirection.INPUT, "regex check input"),
+            (SurfaceDirection.INPUT, "self check input"),
+            (SurfaceDirection.INPUT, "topic safety check input"),
+            (SurfaceDirection.INPUT, "trend ai guard input"),
+            # output rails (19)
+            (SurfaceDirection.OUTPUT, "activefence moderation on output"),
+            (SurfaceDirection.OUTPUT, "ai defense inspect response"),
+            (SurfaceDirection.OUTPUT, "autoalign factcheck output"),
+            (SurfaceDirection.OUTPUT, "clavata check output"),
+            (SurfaceDirection.OUTPUT, "cleanlab trustworthiness"),
             (SurfaceDirection.OUTPUT, "content safety check output"),
+            (SurfaceDirection.OUTPUT, "detect pii on output"),
+            (SurfaceDirection.OUTPUT, "detect sensitive data on output"),
+            (SurfaceDirection.OUTPUT, "f5 guardrails scan output"),
+            (SurfaceDirection.OUTPUT, "fiddler bot safety"),
+            (SurfaceDirection.OUTPUT, "gliner detect pii on output"),
+            (SurfaceDirection.OUTPUT, "guardrailsai check output"),
+            (SurfaceDirection.OUTPUT, "hf classifier check output"),
+            (SurfaceDirection.OUTPUT, "llama guard check output"),
+            (SurfaceDirection.OUTPUT, "policyai moderation on output"),
+            (SurfaceDirection.OUTPUT, "polygraf detect pii on output"),
+            (SurfaceDirection.OUTPUT, "regex check output"),
+            (SurfaceDirection.OUTPUT, "self check output"),
+            (SurfaceDirection.OUTPUT, "trend ai guard output"),
         }
     )
     # Tool-rail flows are direction-specific: tool_output may only carry the

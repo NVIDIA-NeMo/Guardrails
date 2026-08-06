@@ -46,6 +46,16 @@ _IORAILS_BASE_RAILS = {
     "output": {"flows": ["content safety check output $model=content_safety"]},
 }
 
+# Rails LLMRails runs and IORails does not, for tests needing a config that must fall back.
+# They rewrite content, which IORails cannot apply, so they are refused at compile time.
+# Chosen over a rail that is merely outside the enabled tier: the tier now admits every
+# servable block-only surface, so an out-of-scope stand-in would go stale the next time it
+# widens -- which is exactly what happened to `self check input` and `self check output` here.
+_LLMRAILS_ONLY_INPUT_FLOW = "autoalign check input"
+_LLMRAILS_ONLY_INPUT_REASON = "'autoalign check input' transforms 'user_message'"
+_LLMRAILS_ONLY_OUTPUT_FLOW = "autoalign check output"
+_LLMRAILS_ONLY_OUTPUT_REASON = "'autoalign check output' transforms 'bot_message'"
+
 
 def _make_iorails_config(rails: dict, extra_prompts: list | None = None) -> RailsConfig:
     """Build a RailsConfig with the given rails section."""
@@ -219,14 +229,14 @@ class TestGuardrailsRouting:
         """Test if Guardrails is initialized with `use_iorails` == True but the RailsConfig
         requires LLMRails all calls still go to LLMRails.
 
-        We use a config with 'self check input' which is NOT supported by IORails.
+        We use a transform rail, which is NOT supported by IORails.
         We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
         classes. This lets the isinstance() checks in guardrails.py work correctly, while still
         giving us uninitialized instances whose methods we can replace with mocks.
         """
         unsupported_config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
@@ -363,16 +373,15 @@ class TestIORailsUnsupportedReason:
         assert reason == "config has rails outside the IORails-supported set: ['dialog']"
 
     def test_unsupported_input_flow_reports_offender(self):
-        """An input flow outside the IORails-supported set is named in the reason."""
+        """An input flow IORails cannot run is named in the reason."""
         config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
-            extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=None)
-        assert reason == "config has unsupported input flows: ['self check input']"
+        assert reason == _LLMRAILS_ONLY_INPUT_REASON
 
     def test_a_retrieval_dependent_flow_routes_to_llmrails(self):
         """A surface needing retrieval evidence is refused at selection; LLMRails can run it."""
@@ -393,34 +402,32 @@ class TestIORailsUnsupportedReason:
         assert "transform" in reason
 
     def test_unsupported_output_flow_reports_offender(self):
-        """An output flow outside the IORails-supported set is named in the reason."""
+        """An output flow IORails cannot run is named in the reason."""
         config = _make_iorails_config(
             rails={
                 "input": {"flows": ["content safety check input $model=content_safety"]},
-                "output": {"flows": ["self check output"]},
+                "output": {"flows": [_LLMRAILS_ONLY_OUTPUT_FLOW]},
             },
-            extra_prompts=[{"task": "self_check_output", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=None)
-        assert reason == "config has unsupported output flows: ['self check output']"
+        assert reason == _LLMRAILS_ONLY_OUTPUT_REASON
 
     @pytest.mark.parametrize(
         "flow",
         ["activefence moderation on input detailed", "gcpnlp moderation detailed"],
         ids=["activefence", "gcpnlp"],
     )
-    def test_detailed_flow_outside_the_enabled_tier_reports_offender(self, flow):
-        """A detailed flow variant falls back to LLMRails, named as out of scope.
+    def test_a_detailed_flow_variant_is_supported(self, flow):
+        """A detailed flow variant runs here rather than falling back.
 
-        The activefence case previously reported the context-binding refusal. That refusal is
-        gone — context bindings now resolve — so it is out of scope for the enabled tier
-        rather than unservable, and the two cases converge on one message.
+        Inverted deliberately. This test twice asserted a fallback: first for the
+        context-binding refusal, then for being outside the enabled tier. Both reasons are
+        gone, and the assertion follows rather than the test being deleted, because a detailed
+        variant reaching IORails is the thing worth pinning.
         """
         config = _make_iorails_config(rails={"input": {"flows": [flow]}})
 
-        reason = IORails.unsupported_reason(config, llm=None)
-
-        assert reason == f"config has unsupported input flows: [{flow!r}]"
+        assert IORails.unsupported_reason(config, llm=None) is None
 
     # A gate test for an unconfigured model belongs with the tier widening, not here. A
     # ``$model=`` naming an undeclared type is already rejected by ``RailsConfig``
@@ -433,7 +440,7 @@ class TestIORailsUnsupportedReason:
         """When both llm is provided and the config has unsupported flows, the llm
         reason is reported first so the user fixes one issue at a time."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=MagicMock())
@@ -560,10 +567,10 @@ class TestRequireIORails:
     def test_unsupported_input_flow_raises_value_error(self):
         """require_iorails=True + unsupported input flow => ValueError naming the offending flow."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
-        with pytest.raises(ValueError, match="self check input"):
+        with pytest.raises(ValueError, match=_LLMRAILS_ONLY_INPUT_FLOW):
             Guardrails(config=config, use_iorails=True, require_iorails=True)
 
     @patch("nemoguardrails.guardrails.guardrails.log")
@@ -587,14 +594,14 @@ class TestRequireIORails:
     def test_unsupported_config_no_require_warns(self, mock_llmrails_class, mock_log):
         """require_iorails=False + unsupported config => warn naming the bad flow, fall back to LLMRails."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         mock_llmrails_class.return_value = MagicMock()
         Guardrails(config=config, use_iorails=True, require_iorails=False)
         mock_log.warning.assert_called_once()
         warning_message = mock_log.warning.call_args[0][0]
-        assert "self check input" in warning_message
+        assert _LLMRAILS_ONLY_INPUT_FLOW in warning_message
 
     @patch("nemoguardrails.guardrails.guardrails.log")
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -1234,14 +1241,14 @@ class TestIORailsCanHandle:
         assert IORails.can_handle(config) is True
 
     def test_unsupported_self_check_output_rails(self):
-        """Adding an unsupported output flow (self check output) disqualifies the config."""
+        """Adding an unsupported output flow (a transform rail) disqualifies the config."""
         config = _make_iorails_config(
             rails={
                 "input": {"flows": ["content safety check input $model=content_safety"]},
                 "output": {
                     "flows": [
                         "content safety check output $model=content_safety",
-                        "self check output",
+                        _LLMRAILS_ONLY_OUTPUT_FLOW,
                     ]
                 },
             },
@@ -1674,7 +1681,7 @@ class TestGuardrailsPickle:
         the wrapper onto LLMRails (the fallback engine)."""
         llmrails_only_config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
@@ -1685,7 +1692,7 @@ class TestGuardrailsPickle:
 
         assert guardrails.config is llmrails_only_config
         assert guardrails.verbose is False
-        # 'self check input' is not in IORAILS_INPUT_FLOWS, so the wrapper falls back to LLMRails
+        # A transform rail cannot be compiled by IORails, so the wrapper falls back to LLMRails
         assert isinstance(guardrails.rails_engine, LLMRails)
         mock_llmrails_init.assert_called_once_with(llmrails_only_config, None, False)
 
