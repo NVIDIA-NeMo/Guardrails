@@ -1,11 +1,12 @@
-# Scenario: Code Generation
-# Moderate input (spec/prompt), long generated output (code).
-# Source: [WIP] IORails Tech Blog Plan (Tim Gasser)
+# Scenario: Code Generation — low-concurrency sweep (c=1, c=2)
+# Extended benchmark_duration (1200s) ensures ~200+ responses per run at these
+# concurrency levels given code_gen's long output length (2000 tokens).
+# High-concurrency sweep (c=4+) is in scenario_code_gen_sweep.yaml.
 #
-# Run (LLMRails): python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_code_gen_sweep.yaml
-# Run (IORails):  NEMO_GUARDRAILS_IORAILS_ENGINE=1 python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_code_gen_sweep.yaml
+# Run (LLMRails): python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_code_gen_lowc_sweep.yaml
+# Run (IORails):  NEMO_GUARDRAILS_IORAILS_ENGINE=1 python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_code_gen_lowc_sweep.yaml
 
-batch_name: scenario_code_gen
+batch_name: scenario_code_gen_lowc
 
 output_base_dir: aiperf_results
 
@@ -18,7 +19,7 @@ base_config:
   endpoint_type: chat
 
   warmup_request_count: 10
-  benchmark_duration: 300
+  benchmark_duration: 1200
   concurrency: 0          # Overridden by sweep
   request_rate_mode: "constant"
 
@@ -31,4 +32,4 @@ base_config:
   prompt_output_tokens_stddev: 10
 
 sweeps:
-  concurrency: [4, 8, 16, 32, 64, 128, 256]
+  concurrency: [1, 2]

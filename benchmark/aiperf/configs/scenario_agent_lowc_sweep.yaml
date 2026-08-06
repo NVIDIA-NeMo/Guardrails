@@ -1,11 +1,12 @@
-# Scenario: Agent
-# Very large context (tool outputs, history) and long generated response (plan/action).
-# Source: [WIP] IORails Tech Blog Plan (Tim Gasser)
+# Scenario: Agent — low-concurrency sweep (c=1, c=2)
+# Extended benchmark_duration (1200s) ensures ~200+ responses per run at these
+# concurrency levels given agent's long output length (4000 tokens).
+# High-concurrency sweep (c=4+) is in scenario_agent_sweep.yaml.
 #
-# Run (LLMRails): python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_agent_sweep.yaml
-# Run (IORails):  NEMO_GUARDRAILS_IORAILS_ENGINE=1 python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_agent_sweep.yaml
+# Run (LLMRails): python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_agent_lowc_sweep.yaml
+# Run (IORails):  NEMO_GUARDRAILS_IORAILS_ENGINE=1 python -m benchmark.aiperf --config-file benchmark/aiperf/configs/scenario_agent_lowc_sweep.yaml
 
-batch_name: scenario_agent
+batch_name: scenario_agent_lowc
 
 output_base_dir: aiperf_results
 
@@ -18,7 +19,7 @@ base_config:
   endpoint_type: chat
 
   warmup_request_count: 10
-  benchmark_duration: 300
+  benchmark_duration: 1200
   concurrency: 0          # Overridden by sweep
   request_rate_mode: "constant"
 
@@ -31,4 +32,4 @@ base_config:
   prompt_output_tokens_stddev: 100
 
 sweeps:
-  concurrency: [4, 8, 16, 32, 64, 128, 256]
+  concurrency: [1, 2]
