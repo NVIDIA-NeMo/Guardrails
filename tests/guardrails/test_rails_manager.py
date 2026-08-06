@@ -16,7 +16,7 @@
 """Unit tests for rails_manager module.
 
 Tests the RailsManager orchestration layer: init, sequential/parallel
-execution, and integration with RailAction subclasses via model mocks.
+execution, and integration with compiled rails via model mocks.
 Rail-specific logic (prompt rendering, parsing) is tested in the
 individual iorails_actions test files.
 """
@@ -40,7 +40,12 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
-from tests.guardrails.async_helpers import mock_jailbreak_nim, mock_jailbreak_nim_failure, mock_rail_model
+from tests.guardrails.async_helpers import (
+    mock_jailbreak_nim,
+    mock_jailbreak_nim_failure,
+    mock_rail_http_response,
+    mock_rail_model,
+)
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -73,7 +78,7 @@ MESSAGES = [{"role": "user", "content": "hello"}]
 def _make_rails_manager(config: RailsConfig, engine_registry: EngineRegistry | None = None) -> RailsManager:
     """Build a RailsManager from a RailsConfig, extracting the narrow params."""
     if engine_registry is None:
-        engine_registry = EngineRegistry(config.models, config.rails.config)
+        engine_registry = EngineRegistry(config.models)
     return RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -91,7 +96,7 @@ def content_safety_rails_config():
 
 @pytest.fixture
 def content_safety_engine_registry(content_safety_rails_config):
-    return EngineRegistry(content_safety_rails_config.models, content_safety_rails_config.rails.config)
+    return EngineRegistry(content_safety_rails_config.models)
 
 
 @pytest.fixture
@@ -106,7 +111,7 @@ def nemoguards_rails_config():
 
 @pytest.fixture
 def nemoguards_engine_registry(nemoguards_rails_config):
-    return EngineRegistry(nemoguards_rails_config.models, nemoguards_rails_config.rails.config)
+    return EngineRegistry(nemoguards_rails_config.models)
 
 
 @pytest.fixture
@@ -121,7 +126,7 @@ def topic_safety_rails_config():
 
 @pytest.fixture
 def topic_safety_engine_registry(topic_safety_rails_config):
-    return EngineRegistry(topic_safety_rails_config.models, topic_safety_rails_config.rails.config)
+    return EngineRegistry(topic_safety_rails_config.models)
 
 
 @pytest.fixture
@@ -562,7 +567,7 @@ def _tool_rails_manager(*, tool_call_flows=None, tool_result_flows=None) -> Rail
     """Build a RailsManager with only tool rails wired (no LLM input/output flows)."""
     config = RailsConfig.from_content(config={"models": []})
     return RailsManager(
-        engine_registry=EngineRegistry(config.models, config.rails.config),
+        engine_registry=EngineRegistry(config.models),
         task_manager=LLMTaskManager(config),
         input_flows=[],
         output_flows=[],
@@ -620,7 +625,7 @@ def _tool_rails_manager_with_main(*, tool_call_flows=None, tool_result_flows=Non
         config = RailsConfig.from_content(
             config={"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
         )
-        engine_registry = EngineRegistry(config.models, config.rails.config)
+        engine_registry = EngineRegistry(config.models)
     return RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -834,7 +839,7 @@ def _capture_tool_rails_manager():
         config = RailsConfig.from_content(
             config={"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
         )
-        engine_registry = EngineRegistry(config.models, config.rails.config)
+        engine_registry = EngineRegistry(config.models)
     manager = RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),
@@ -1151,3 +1156,67 @@ class TestLibraryActionContract:
         record = result.records[0]
         assert record.made_call is True
         assert record.task == "content_safety_check_input $model=content_safety"
+
+
+def _completion(content: str, **extra) -> dict:
+    """A provider chat-completion payload carrying *content*."""
+    message = {"role": "assistant", "content": content, **extra}
+    return {"id": "chatcmpl-1", "model": "m", "choices": [{"message": message, "finish_reason": "stop"}]}
+
+
+class TestRawResponseParsing:
+    """A rail's verdict survives the whole chain from a raw provider payload.
+
+    Mocks below ``_parse_chat_completion`` rather than at the transport, so the dict-to-
+    LLMResponse step runs for real on the way to the verdict.
+    """
+
+    @pytest.mark.asyncio
+    async def test_safe_input(self, content_safety_rails_manager):
+        """A safe classification parses through to an allow."""
+        call = mock_rail_http_response(content_safety_rails_manager.engine_registry, _completion(SAFE_INPUT_JSON))
+
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.is_safe
+        call.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unsafe_input_carries_its_categories(self, content_safety_rails_manager):
+        """An unsafe classification parses through to a block naming the violated policy."""
+        mock_rail_http_response(content_safety_rails_manager.engine_registry, _completion(UNSAFE_INPUT_JSON))
+
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert not result.is_safe
+        assert result.return_value["policy_violations"] == ["S1: Violence"]
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_carries_its_categories(self, content_safety_rails_manager):
+        """The output rail parses its own verdict field, not the input one."""
+        mock_rail_http_response(content_safety_rails_manager.engine_registry, _completion(UNSAFE_OUTPUT_JSON))
+
+        result = await content_safety_rails_manager.is_output_safe(MESSAGES, "bot response")
+
+        assert not result.is_safe
+        assert result.return_value["policy_violations"] == ["S17: Malware"]
+
+    @pytest.mark.asyncio
+    async def test_reasoning_content_does_not_affect_classification(self, content_safety_rails_manager):
+        """Only ``content`` is parsed; a reasoning field alongside it is ignored."""
+        payload = _completion(SAFE_INPUT_JSON, reasoning_content="the prompt looks fine to me")
+        mock_rail_http_response(content_safety_rails_manager.engine_registry, payload)
+
+        result = await content_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("reply, expected_safe", [("on-topic", True), ("off-topic", False)])
+    async def test_topic_safety_verdict(self, topic_safety_rails_manager, reply, expected_safe):
+        """The topic-control reply parses through to the matching verdict."""
+        mock_rail_http_response(topic_safety_rails_manager.engine_registry, _completion(reply))
+
+        result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
+
+        assert result.is_safe is expected_safe

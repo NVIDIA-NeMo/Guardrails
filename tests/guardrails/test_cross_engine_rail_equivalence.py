@@ -194,7 +194,7 @@ async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str
 async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) -> str:
     """Run one turn through IORails and return the assistant content.
 
-    Mocks each registered engine's transport so the whole RailsManager -> RailAction ->
+    Mocks each registered engine's transport so the whole RailsManager -> CompiledRail ->
     EngineRegistry chain executes without a network call. Rails are keyed by engine name
     rather than model type here, because that is how ``EngineRegistry`` holds them.
     """

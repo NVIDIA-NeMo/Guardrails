@@ -15,7 +15,7 @@
 
 """Base class for IORails tool-calling rails.
 
-Tool rails are local structural/schema validators. Unlike ``RailAction`` they make
+Tool rails are local structural/schema validators. Unlike a compiled rail they make
 no LLM or API call, render no prompt, and need no model: they take already-normalized
 tool data (a ``Toolset``, the model's ``ToolCall`` list, or incoming ``ToolResult``
 objects — all produced by the engine adapter) and return a ``RailResult``.

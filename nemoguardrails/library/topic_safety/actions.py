@@ -41,7 +41,6 @@ TOPIC_SAFETY_OUTPUT_RESTRICTION = (
     'You must respond with "on-topic" or "off-topic".'
 )
 TOPIC_SAFETY_TEMPERATURE = 0.01
-TOPIC_SAFETY_MAX_TOKENS = 10
 
 
 @action()

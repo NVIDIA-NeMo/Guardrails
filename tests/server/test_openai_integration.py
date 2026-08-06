@@ -32,8 +32,9 @@ from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.model import Model
 
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.http.errors import HTTPStatusError
+from nemoguardrails.http.types import HTTPResponse
 from nemoguardrails.llm.models.initializer import ModelInitializationError
 from nemoguardrails.server import api
 
@@ -445,7 +446,7 @@ class TestOpenAIClientErrorEnvelope:
             (LLMCallException("Unauthorized", status=401), AuthenticationError, 401, "authentication_error"),
             (LLMCallException("Forbidden", status=403), PermissionDeniedError, 403, "permission_error"),
             (ModelEngineError("Rate limited", "m", status=429), RateLimitError, 429, "rate_limit_error"),
-            (APIEngineError("Bad request", "/ep", status=400), BadRequestError, 400, "invalid_request_error"),
+            (HTTPStatusError(HTTPResponse(status_code=400)), BadRequestError, 400, "invalid_request_error"),
             (ModelEngineError("boom", "m", status=500), InternalServerError, 500, "server_error"),
             (RuntimeError("unexpected"), InternalServerError, 500, "server_error"),
         ],

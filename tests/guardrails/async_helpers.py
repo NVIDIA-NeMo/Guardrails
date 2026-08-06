@@ -24,7 +24,7 @@ tests that need to observe state transitions mid-flight.
 import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
@@ -125,6 +125,31 @@ def mock_jailbreak_nim(httpx_mock, *, jailbreak: bool, score: float = 0.5, times
         httpx_mock.add_response(url=JAILBREAK_NIM_URL, json={"jailbreak": jailbreak, "score": score})
 
 
+def always_allow_jailbreak_nim(httpx_mock) -> None:
+    """Answer every jailbreak NIM call with an allow verdict, whether or not the rail runs."""
+    # For modules whose subject is something other than jailbreak: the rail fails open on any
+    # transport error, so leaving it unmocked passes the test while calling the live endpoint.
+    httpx_mock.add_response(
+        url=JAILBREAK_NIM_URL,
+        json={"jailbreak": False, "score": 0.01},
+        is_reusable=True,
+        is_optional=True,
+    )
+
+
 def mock_jailbreak_nim_failure(httpx_mock, message: str = "connection refused") -> None:
     """Register a transport failure for the NIM endpoint; the library action allows on any error."""
     httpx_mock.add_exception(httpx.ConnectError(message), url=JAILBREAK_NIM_URL)
+
+
+def mock_rail_http_response(engine_registry, payload, model_type=None):
+    """Answer a rail's model call with a raw provider payload, below response parsing.
+
+    Sits one level under :func:`mock_rail_model` so ``_parse_chat_completion`` runs for real.
+    """
+    mock = AsyncMock(return_value=payload)
+    engines = engine_registry.llms
+    targets = [engines[model_type]] if model_type is not None else list(engines.values())
+    for engine in targets:
+        engine.call = mock
+    return mock

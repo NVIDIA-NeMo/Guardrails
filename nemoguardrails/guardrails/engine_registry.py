@@ -15,7 +15,7 @@
 
 """Engine registry for IORails engine.
 
-Manages a collection of ModelEngine and APIEngine instances, one per configured
+Manages a collection of ModelEngine instances, one per configured
 model type. Each engine owns its own RetryClient with per-model settings.
 """
 
@@ -23,15 +23,13 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.telemetry import api_call_span
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
 from nemoguardrails.http.client import ClosableHTTPClient
 from nemoguardrails.http.runtime import create_http_client
-from nemoguardrails.rails.llm.config import Model, RailsConfigData
+from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
@@ -43,7 +41,7 @@ _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
-    """Registry of ModelEngine and APIEngine instances for IORails.
+    """Registry of ModelEngine instances for IORails.
 
     Creates one engine per configured model or API service, keyed by name.
     Each engine owns its own HTTP client with per-model retry and timeout settings.
@@ -52,7 +50,6 @@ class EngineRegistry:
     def __init__(
         self,
         models: list[Model],
-        rails_config_data: RailsConfigData,
         tracer: Optional["Tracer"] = None,
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
@@ -100,21 +97,6 @@ class EngineRegistry:
                 model_config.type,
                 model_config.model,
                 engine.base_url,
-            )
-
-        jailbreak_config = rails_config_data.jailbreak_detection
-        if jailbreak_config and jailbreak_config.nim_base_url:
-            if "jailbreak_detection" in self._engines:
-                raise ValueError(
-                    "Engine name 'jailbreak_detection' is already registered as a model engine. "
-                    "Cannot register the jailbreak detection API engine with the same name."
-                )
-            api_engine = APIEngine.from_jailbreak_config(jailbreak_config)
-            self._engines["jailbreak_detection"] = api_engine
-            log.info(
-                "Registered API engine: name=%s, url=%s",
-                "jailbreak_detection",
-                api_engine.url,
             )
 
     @property
@@ -328,23 +310,6 @@ class EngineRegistry:
         """
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_tool_exchanges(messages)
-
-    async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-        """Route an API request to the named API engine.
-
-        Raises:
-            KeyError: If no engine is registered with the given name.
-            TypeError: If the named engine is not an APIEngine.
-        """
-        req_id = get_request_id()
-        log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
-
-        with api_call_span(self._tracer, api_name):
-            api_engine = self._get_engine(api_name, APIEngine)
-            response = await api_engine.call(message, **kwargs)
-
-        log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
-        return response
 
     async def __aenter__(self):
         """Async context manager entry: start all engine clients."""

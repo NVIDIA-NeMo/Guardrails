@@ -62,7 +62,7 @@ _SURFACE_DIRECTIONS = {
 
 # All known ToolRailAction subclasses, keyed by their action_name. Tool rails are
 # local structural/schema validators (model-free) and so are registered separately
-# from the LLM/API-call-shaped RailAction classes above.
+# from the manifest-driven rails compiled above.
 _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
     cls.action_name: cls
     for cls in [
@@ -134,7 +134,7 @@ class RailsManager:
     """Orchestrates input and output safety checks for IORails.
 
     Reads the rails configuration to determine which checks are enabled,
-    instantiates the corresponding RailAction for each flow, then runs
+    compiles the corresponding manifest-driven rail for each flow, then runs
     them sequentially or in parallel.
     """
 
@@ -152,7 +152,7 @@ class RailsManager:
         tracer: Optional["Tracer"] = None,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Build RailAction instances for each configured input and output flow.
+        """Compile a manifest-driven rail for each configured input and output flow.
 
         When *tracer* is provided, rail and action executions produce OTEL
         spans; when ``None`` the span helpers become no-ops.

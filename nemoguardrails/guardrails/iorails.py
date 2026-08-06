@@ -655,7 +655,6 @@ class IORails(BaseGuardrails):
 
         self.engine_registry = EngineRegistry(
             config.models,
-            config.rails.config,
             tracer=self._tracer,
             metrics_enabled=self._metrics_enabled,
             content_capture_enabled=self._content_capture_enabled,

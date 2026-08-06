@@ -1783,8 +1783,8 @@ UNSAFE_OUTPUT_JSON = json.dumps(
     {"User Safety": "safe", "Response Safety": "unsafe", "Safety Categories": "S17: Malware"}
 )
 
-# Focused config with only the jailbreak-detection input rail (uses the API engine,
-# not a model). No jailbreak-only config exists in test_data, so define one here.
+# Focused config with only the jailbreak-detection input rail (reaches its NIM over HTTP,
+# not through a model engine). No jailbreak-only config exists in test_data, so define one here.
 JAILBREAK_CONFIG = {
     "models": [
         {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
@@ -1813,7 +1813,7 @@ class TestGuardrailsCheckEndToEnd:
     """End-to-end Guardrails.check_async over the IORails engine.
 
     Only the model call is mocked; the full chain runs: Guardrails facade ->
-    IORails -> RailsManager -> content-safety RailAction -> nemoguard parser.
+    IORails -> RailsManager -> content-safety compiled rail -> nemoguard parser.
     The config has content-safety input and output rails only (no jailbreak or
     topic rails), so a single ``model_call`` mock covers every rail.
     """

@@ -16,12 +16,11 @@
 """HTTP error handling tests.
 
 Tests the full error propagation path: status extraction from provider
-exceptions → LLMCallException / ModelEngineError / APIEngineError →
-RailAction routing → API endpoint HTTP status codes.
+exceptions → LLMCallException / ModelEngineError / HTTPStatusError → API endpoint HTTP
+status codes.
 """
 
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -39,10 +38,9 @@ from nemoguardrails.exceptions import (
     LLMServerError,
     LLMTimeoutError,
 )
-from nemoguardrails.guardrails.api_engine import APIEngineError
-from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.http.errors import HTTPStatusError
+from nemoguardrails.http.types import HTTPResponse
 from nemoguardrails.llm.call import _extract_http_status, _raise_llm_call_exception
 from nemoguardrails.llm.clients._errors import build_streaming_error_payload
 from nemoguardrails.llm.models.initializer import ModelInitializationError
@@ -156,76 +154,6 @@ class TestLLMCallException:
 
 
 # ---------------------------------------------------------------------------
-# 4. RailAction exception routing
-# ---------------------------------------------------------------------------
-
-
-class _ErrorRailAction(RailAction):
-    action_name = "test rail"
-    requires_model = False
-    exception_to_raise: Optional[Exception] = None
-
-    def _extract_messages(self, messages, bot_response):
-        return {"user_input": "test"}
-
-    def _create_prompt(self, model_type, extracted):
-        return [{"role": "user", "content": "test"}]
-
-    async def _get_response(self, model_type, prompt):
-        if self.exception_to_raise is not None:
-            raise self.exception_to_raise
-        return "safe"
-
-    def _parse_response(self, response):
-        return RailResult(is_safe=True)
-
-
-_MESSAGES = [{"role": "user", "content": "hi"}]
-
-
-@pytest.fixture
-def rail_action():
-    return _ErrorRailAction(engine_registry=MagicMock(), task_manager=MagicMock())
-
-
-class TestRailActionExceptionRouting:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "exception,expected_status",
-        [
-            (ModelEngineError("HTTP 401", "model", status=401), 401),
-            (APIEngineError("HTTP 404", "/ep", status=404), 404),
-        ],
-        ids=["model-401", "api-404"],
-    )
-    async def test_engine_error_with_status_reraises(self, rail_action, exception, expected_status):
-        rail_action.exception_to_raise = exception
-        with pytest.raises(type(exception)) as exc_info:
-            await rail_action.run("test rail", _MESSAGES)
-        assert exc_info.value.status == expected_status
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "exception",
-        [
-            ModelEngineError("Connection refused", "model", status=None),
-            APIEngineError("DNS failed", "/ep", status=None),
-            RuntimeError("unexpected"),
-        ],
-        ids=["model-no-status", "api-no-status", "generic"],
-    )
-    async def test_error_without_status_fails_closed(self, rail_action, exception):
-        rail_action.exception_to_raise = exception
-        result = await rail_action.run("test rail", _MESSAGES)
-        assert not result.is_safe
-
-    @pytest.mark.asyncio
-    async def test_happy_path(self, rail_action):
-        result = await rail_action.run("test rail", _MESSAGES)
-        assert result.is_safe
-
-
-# ---------------------------------------------------------------------------
 # 5. API endpoint integration
 # ---------------------------------------------------------------------------
 
@@ -236,6 +164,11 @@ _REQUEST = {
     "messages": [{"role": "user", "content": "hello"}],
     "guardrails": {"config_id": "test-config"},
 }
+
+
+def _vendor_http_error(status: int) -> HTTPStatusError:
+    """A vendor HTTP failure in the shape the library's httpx path raises it."""
+    return HTTPStatusError(HTTPResponse(status_code=status))
 
 
 def _post(side_effect=None, return_value=None):
@@ -255,10 +188,10 @@ class TestAPIErrorPropagation:
             (LLMCallException("Unauthorized", status=401), 401),
             (LLMCallException("Forbidden", status=403), 403),
             (ModelEngineError("Not found", "m", status=404), 404),
-            (APIEngineError("Rate limited", "/ep", status=429), 429),
+            (_vendor_http_error(429), 429),
             (ModelEngineError("Internal server error", "m", status=500), 500),
             (ModelEngineError("Bad gateway", "m", status=502), 502),
-            (APIEngineError("Service unavailable", "/ep", status=503), 503),
+            (_vendor_http_error(503), 503),
         ],
         ids=[
             "401-unauthorized",

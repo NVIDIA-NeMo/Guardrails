@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for telemetry span helpers: rail_span, action_span, llm_call_span, api_call_span."""
+"""Unit tests for telemetry span helpers: rail_span, action_span, llm_call_span."""
 
 import asyncio
 
@@ -26,7 +26,6 @@ from opentelemetry.trace import SpanKind, StatusCode
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
     action_span,
-    api_call_span,
     llm_call_span,
     rail_span,
     set_llm_request_attributes,
@@ -41,6 +40,21 @@ def otel_provider():
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     return provider, exporter
+
+
+def _span_attrs(otel_provider, set_fn):
+    """Run ``set_fn(span)`` inside a finished CLIENT span and return its
+    attributes as a plain dict.
+
+    Mirrors how the helpers are used in production (called on a live span
+    inside the ``llm_call_span`` block) and reads the result back off the
+    exported span, the same way the span-helper tests above do.
+    """
+    provider, exporter = otel_provider
+    tracer = provider.get_tracer("test")
+    with tracer.start_as_current_span("chat test-model") as span:
+        set_fn(span)
+    return dict(exporter.get_finished_spans()[-1].attributes)
 
 
 class TestRailSpan:
@@ -263,93 +277,6 @@ class TestLlmCallSpan:
     def test_noop_when_tracer_none(self):
         with llm_call_span(None, "model", "nim") as span:
             assert span is None
-
-
-class TestApiCallSpan:
-    def test_creates_client_span(self, otel_provider):
-        provider, exporter = otel_provider
-        tracer = provider.get_tracer("test")
-
-        with api_call_span(tracer, "jailbreak_detection"):
-            pass
-
-        spans = exporter.get_finished_spans()
-        assert len(spans) == 1
-        assert spans[0].kind == SpanKind.CLIENT
-        assert spans[0].name == "api jailbreak_detection"
-
-    def test_sets_api_name(self, otel_provider):
-        provider, exporter = otel_provider
-        tracer = provider.get_tracer("test")
-
-        with api_call_span(tracer, "jailbreak_detection"):
-            pass
-
-        attrs = dict(exporter.get_finished_spans()[0].attributes)
-        assert attrs["api.name"] == "jailbreak_detection"
-        # Must NOT appear in the gen_ai.* namespace: this is a plain HTTP
-        # API call, not a GenAI operation.
-        assert "gen_ai.operation.name" not in attrs
-
-    def test_records_error_type(self, otel_provider):
-        provider, exporter = otel_provider
-        tracer = provider.get_tracer("test")
-
-        with pytest.raises(ValueError):
-            with api_call_span(tracer, "jailbreak_detection"):
-                raise ValueError("bad response")
-
-        span = exporter.get_finished_spans()[0]
-        assert span.status.status_code == StatusCode.ERROR
-        assert span.attributes["error.type"] == "ValueError"
-
-    def test_records_error_type_on_cancelled_error(self, otel_provider):
-        """A consumer cancel propagating through an api-call span
-        (e.g. an in-flight jailbreak-detection HTTP request) must mark
-        it ERROR with ``error.type=CancelledError``."""
-        provider, exporter = otel_provider
-        tracer = provider.get_tracer("test")
-
-        with pytest.raises(asyncio.CancelledError):
-            with api_call_span(tracer, "jailbreak_detection"):
-                raise asyncio.CancelledError()
-
-        span = exporter.get_finished_spans()[0]
-        assert span.status.status_code == StatusCode.ERROR
-        assert span.attributes["error.type"] == "CancelledError"
-
-    def test_records_error_type_on_generator_exit(self, otel_provider):
-        """``GeneratorExit`` propagating through an api-call span must
-        mark it ERROR with ``error.type=GeneratorExit``."""
-        provider, exporter = otel_provider
-        tracer = provider.get_tracer("test")
-
-        with pytest.raises(GeneratorExit):
-            with api_call_span(tracer, "jailbreak_detection"):
-                raise GeneratorExit()
-
-        span = exporter.get_finished_spans()[0]
-        assert span.status.status_code == StatusCode.ERROR
-        assert span.attributes["error.type"] == "GeneratorExit"
-
-    def test_noop_when_tracer_none(self):
-        with api_call_span(None, "jailbreak_detection") as span:
-            assert span is None
-
-
-def _span_attrs(otel_provider, set_fn):
-    """Run ``set_fn(span)`` inside a finished CLIENT span and return its
-    attributes as a plain dict.
-
-    Mirrors how the helpers are used in production (called on a live span
-    inside the ``llm_call_span`` block) and reads the result back off the
-    exported span, the same way the span-helper tests above do.
-    """
-    provider, exporter = otel_provider
-    tracer = provider.get_tracer("test")
-    with tracer.start_as_current_span("chat test-model") as span:
-        set_fn(span)
-    return dict(exporter.get_finished_spans()[-1].attributes)
 
 
 class TestSetLlmRequestAttributes:
