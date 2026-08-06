@@ -17,13 +17,14 @@
 
 Tests the RailsManager orchestration layer: init, sequential/parallel
 execution, and integration with compiled rails via model mocks.
-Rail-specific logic (prompt rendering, parsing) is tested in the
-individual iorails_actions test files.
+Rail-specific logic (prompt rendering, parsing) belongs to the library
+actions and is tested in their own suites.
 """
 
 import asyncio
 import copy
 import json
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -37,6 +38,7 @@ from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirec
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record
 from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
@@ -1014,6 +1016,45 @@ class TestRailCallRecordNaming:
         assert record.flow == flow
         assert record.action_name == action_name
         assert record.task == task
+
+
+class TestRailCallRecordMultipleCalls:
+    """A rail's sink is a list but `RailCallRecord` holds one call, so extras are reported, not dropped."""
+
+    @staticmethod
+    def _call(model: str, tokens: int) -> LLMCallInfo:
+        return LLMCallInfo(llm_model_name=model, prompt_tokens=tokens, completion_tokens=0, total_tokens=tokens)
+
+    def test_the_last_call_wins_and_the_rest_are_logged(self, caplog):
+        """No in-scope rail makes two model calls; if one ever does, that shows up as a warning."""
+        calls = [self._call("first-model", 10), self._call("second-model", 20)]
+
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.guardrails.rails_manager"):
+            record = _rail_call_record(
+                flow="content safety check input $model=content_safety",
+                rail_type="input",
+                result=RailResult(is_safe=True),
+                calls=calls,
+            )
+
+        assert record.made_call is True
+        assert record.llm_model_name == "second-model"
+        assert record.usage.total_tokens == 20
+        assert "made 2 model calls" in caplog.text
+
+    def test_one_call_records_it_without_a_warning(self, caplog):
+        """The single-call case is the expected one, so it passes through quietly."""
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.guardrails.rails_manager"):
+            record = _rail_call_record(
+                flow="content safety check input $model=content_safety",
+                rail_type="input",
+                result=RailResult(is_safe=True),
+                calls=[self._call("only-model", 7)],
+            )
+
+        assert record.made_call is True
+        assert record.llm_model_name == "only-model"
+        assert caplog.text == ""
 
 
 class TestSerializePrompt:
