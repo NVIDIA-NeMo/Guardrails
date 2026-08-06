@@ -123,11 +123,11 @@ Recorded tests are dialect-single: do not duplicate a recorded test across
 Colang 1 and Colang 2. For library rails the provider traffic is made by the
 action, so both dialects record identical wire bytes; what varies between
 dialects is deterministic flow routing, which unit tests own (both-dialect
-`TestChat` coverage) together with the flow-files gate. Two exceptions:
+`TestChat` coverage) together with the flow-files gate. As of this writing
+`tests/recorded/rails/library/` is Colang 1 throughout: no config there sets
+`colang_version`, so there is no v2 coverage in the library suite to
+extend or imitate. One exception:
 
-- One v2 smoke pin in `tests/recorded/rails/library/` (a single rail blocked
-  through the Colang 2 runtime) is worth its one cassette; a per-rail v2
-  matrix is not.
 - In `tests/recorded/rails/public_api/`, the v2 runtime is a different
   generation pipeline (different prompts and LLM calls for dialog and
   generation surfaces), so v2 coverage there records genuinely different
