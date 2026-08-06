@@ -13,28 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""End-to-end coverage for the OpenAI-compatible HTTP error envelope.
+"""End-to-end coverage for the OpenAI-compatible HTTP error envelope, through the ASGI app."""
 
-Unlike ``tests/test_http_error_handling.py``, which asserts handler-level
-mappings against injected exceptions, every test here drives a real request
-through the ASGI app against a real ``RailsConfig`` and lets the exception
-originate at the transport boundary. That is the only way to catch the chains
-that break in production: an upstream status flowing through the client layer
-into the exception, ``APIEngineError`` carrying a non-error status, and the SSE
-frames a streaming client actually receives.
-
-Two transports are mocked because the stack uses two:
-
-* the main model goes through the OpenAI-compatible client over **httpx**, so
-  those cases use ``httpx_mock`` (with ``testserver`` excluded so ``TestClient``
-  still reaches the app);
-* an IORails rail reaches its model through ``ModelEngine``, which uses
-  **aiohttp**, so those cases use ``aioresponses``.
-
-The matrix mirrors the manual smoke harness (``smoke_client.py`` +
-``fake_upstream.py``): upstream status passthrough, rail failures, protocol-level
-responses, and streaming frames.
-"""
+# Every case lets the exception originate at the transport boundary, which is what catches the
+# chains that break in production. Two transports are mocked because the stack uses two: the main
+# model goes through the OpenAI-compatible client over httpx (``httpx_mock``, with ``testserver``
+# excluded so ``TestClient`` still reaches the app), and an IORails rail reaches its model through
+# ``ModelEngine`` over aiohttp (``aioresponses``).
 
 import json
 
@@ -296,12 +281,9 @@ class TestRailEngineErrors:
     """Failures raised by an IORails rail, forwarded rather than reported as a verdict."""
 
     def test_rail_upstream_429_is_forwarded(self, serve_config):
-        """A provider rate limit hit by a rail reaches the client as a 429, not a block.
-
-        A rail that blocks and a provider that is rate-limiting mean very different things to
-        a caller, and only one is worth retrying. ``aioresponses`` rather than ``httpx_mock``
-        because the rail reaches its model through ``ModelEngine``, which talks aiohttp.
-        """
+        """A provider rate limit hit by a rail reaches the client as a 429, not a block."""
+        # A block and a rate limit mean very different things to a caller, and only one is
+        # worth retrying.
         serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
 
         with aioresponses() as mocked:

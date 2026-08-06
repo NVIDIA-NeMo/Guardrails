@@ -13,12 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""HTTP error handling tests.
-
-Tests the full error propagation path: status extraction from provider
-exceptions → LLMCallException / ModelEngineError / HTTPStatusError → API endpoint HTTP
-status codes.
-"""
+"""Provider exception → LLMCallException / ModelEngineError / HTTPStatusError → HTTP status."""
 
 from unittest.mock import AsyncMock, patch
 

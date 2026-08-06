@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Engine registry for IORails engine.
-
-Manages a collection of ModelEngine instances, one per configured
-model type. Each engine owns its own RetryClient with per-model settings.
-"""
+"""Engine registry for IORails: one ModelEngine per configured model type."""
 
 import logging
 from collections.abc import AsyncGenerator
@@ -41,11 +37,7 @@ _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
-    """Registry of ModelEngine instances for IORails.
-
-    Creates one engine per configured model, keyed by model type.
-    Each engine owns its own HTTP client with per-model retry and timeout settings.
-    """
+    """One engine per configured model, keyed by model type, each owning its own HTTP client."""
 
     def __init__(
         self,
@@ -54,29 +46,9 @@ class EngineRegistry:
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Build one engine per configured model.
-
-        When *tracer* is provided, LLM calls produce OTEL spans; when
-        ``None`` the span helpers become no-ops.
-
-        When *metrics_enabled* is True, LLM calls emit the OTEL GenAI
-        client-side metrics (``gen_ai.client.token.usage``,
-        ``gen_ai.client.operation.duration``, plus the streaming
-        chunk-timing metrics).  Defaults to False so callers that don't
-        opt in get no metric emissions even if a MeterProvider is
-        configured globally.
-
-        When *content_capture_enabled* is True, LLM call spans carry
-        input/output message content per the OTEL GenAI content-capture
-        contract.  Defaults to False; should only be True when
-        ``tracer`` is also set, since capture on a no-op span is wasted
-        work.
-
-        All three telemetry settings are handed to each ``ModelEngine``,
-        which owns the instrumentation so that rails reaching the model
-        through ``generate_async`` are instrumented identically to main
-        generation reaching it through ``model_call``.
-        """
+        """Build one engine per configured model, handing each the three telemetry settings."""
+        # ModelEngine owns the instrumentation, so a rail reaching the model through
+        # generate_async emits the same spans and metrics as main generation through model_call.
         self._engines: dict[str, BaseEngine] = {}
         self._llms: dict[str, LLMModel] = {}
         self._http_client: Optional[ClosableHTTPClient] = None

@@ -13,14 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for rails_manager module.
-
-Tests the RailsManager orchestration layer: init, sequential/parallel
-execution, and integration with compiled rails via model mocks.
-Rail-specific logic (prompt rendering, parsing) belongs to the library
-actions and is tested in their own suites.
-"""
-
 import asyncio
 import copy
 import json
@@ -209,11 +201,9 @@ class TestRailsManagerInit:
 
     @pytest.mark.asyncio
     async def test_a_rail_runs_the_compilation_for_its_own_direction(self, content_safety_rails_manager):
-        """Dispatch keys on direction too, so one flow name cannot resolve to the other direction.
-
-        No catalog surface is offered in both directions today, so the collision is not
-        reachable from a config; this pins the lookup that keeps it that way.
-        """
+        """Dispatch keys on direction, so one flow name cannot resolve to the other direction."""
+        # No catalog surface is offered in both directions today, so this pins the lookup
+        # rather than a reachable collision.
         flow = "content safety check input $model=content_safety"
         content_safety_rails_manager._rails[(RailDirection.INPUT, flow)] = _FixedRail(RailOutcome.allow())
         content_safety_rails_manager._rails[(RailDirection.OUTPUT, flow)] = _FixedRail(RailOutcome.block())
@@ -1037,11 +1027,9 @@ class TestOutcomeToResult:
         assert result.return_value == {"allowed": is_safe}
 
     def test_a_transform_raises_rather_than_reading_as_allowed(self):
-        """A rewrite IORails cannot apply fails loudly instead of allowing and discarding it.
-
-        Transform surfaces are refused at compile time, so this is a tripwire for the PR that
-        implements them rather than a path a config can reach.
-        """
+        """A rewrite IORails cannot apply fails loudly instead of allowing and discarding it."""
+        # Transform surfaces are refused at compile time, so this is a tripwire for the PR
+        # that implements them rather than a path a config can reach.
         outcome = RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")])
 
         with pytest.raises(NotImplementedError, match="transform"):
@@ -1265,11 +1253,7 @@ def _completion(content: str, **extra) -> dict:
 
 
 class TestRawResponseParsing:
-    """A rail's verdict survives the whole chain from a raw provider payload.
-
-    Mocks below ``_parse_chat_completion`` rather than at the transport, so the dict-to-
-    LLMResponse step runs for real on the way to the verdict.
-    """
+    """A rail's verdict survives the whole chain, mocked below ``_parse_chat_completion``."""
 
     @pytest.mark.asyncio
     async def test_safe_input(self, content_safety_rails_manager):

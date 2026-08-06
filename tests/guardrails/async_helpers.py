@@ -99,13 +99,9 @@ def saturate_stream_semaphore(iorails: IORails) -> None:
 
 
 def mock_rail_model(engine_registry, mock, model_type=None):
-    """Route rail model calls to *mock* and return it.
-
-    Compiled rails reach the model through ``ModelEngine.chat_completion`` rather than
-    ``EngineRegistry.model_call``, so the double belongs on the engine instances. Naming a
-    *model_type* leaves the other engines alone, which is what a test needs when main
-    generation and a rail must answer differently.
-    """
+    """Route rail model calls to *mock*, or only *model_type*'s, and return it."""
+    # The double belongs on the engine instances: compiled rails reach the model through
+    # ModelEngine.chat_completion rather than EngineRegistry.model_call.
     engines = engine_registry.llms
     targets = [engines[model_type]] if model_type is not None else list(engines.values())
     for engine in targets:
@@ -143,10 +139,7 @@ def mock_jailbreak_nim_failure(httpx_mock, message: str = "connection refused") 
 
 
 def mock_rail_http_response(engine_registry, payload, model_type=None):
-    """Answer a rail's model call with a raw provider payload, below response parsing.
-
-    Sits one level under :func:`mock_rail_model` so ``_parse_chat_completion`` runs for real.
-    """
+    """Answer a rail's model call with a raw payload, one level under :func:`mock_rail_model`."""
     mock = AsyncMock(return_value=payload)
     engines = engine_registry.llms
     targets = [engines[model_type]] if model_type is not None else list(engines.values())

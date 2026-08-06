@@ -13,14 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Real rail-call capture → GenerationLog for IORails (PR B, Phase 2b).
-
-Exercises the ACTUAL CompiledRail + RailsManager pipeline (not stubbed at the
-rails-manager level): a rail's model call is captured (usage/model/timing) and its
-verdict preserved onto the RailResult, then surfaced as per-rail RailCallRecords that
-IORails turns into GenerationLog entries. Only the engine's ``model_call`` is mocked,
-so the real content-safety actions parse the responses and produce real records.
-"""
+"""Rail-call capture through the real CompiledRail pipeline, surfaced as GenerationLog entries."""
 
 import json
 from unittest.mock import AsyncMock

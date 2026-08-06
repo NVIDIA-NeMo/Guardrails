@@ -192,10 +192,7 @@ def _has_evidence(value: Any) -> bool:
 
 
 def _verdict_evidence(return_value: Any, keys: Optional[frozenset[str]] = None) -> Optional[str]:
-    """Render a rail's structured verdict as text, or None when it carries no evidence.
-
-    Passing *keys* restricts the rendering to those verdict fields.
-    """
+    """Render a verdict as text, restricted to *keys* when given, or None when it has no evidence."""
     if not isinstance(return_value, Mapping):
         return None
     parts = [
@@ -214,16 +211,11 @@ def display_reason(result: RailResult) -> str:
 
 
 def client_reason(result: RailResult) -> str:
-    """Render a blocked rail's explanation for the error payload sent to the caller.
-
-    Verdict fields reach the caller only by name, because a rail's metadata is neutral
-    evidence for logs rather than a client contract: ``crowdstrike_aidr`` puts the user's
-    message and the bot's reply in it, and ``f5`` forwards the whole provider response,
-    so rendering it wholesale would echo request content back over the API. Unlisted keys
-    are dropped rather than redacted, so a newly enabled rail discloses nothing until its
-    evidence is added here deliberately. ``reason`` is exempt: unlike metadata, it is a
-    rail-authored explanation meant to be read.
-    """
+    """Render a blocked rail's explanation for the error payload sent to the caller."""
+    # Only listed verdict fields, because metadata is neutral evidence for logs rather than a
+    # client contract: crowdstrike_aidr puts the user and bot messages in it and f5 forwards the
+    # provider response, so rendering it wholesale would echo request content back over the API.
+    # ``reason`` is exempt: unlike metadata it is a rail-authored explanation meant to be read.
     if result.reason:
         return result.reason
     evidence = _verdict_evidence(result.return_value, keys=_CLIENT_EVIDENCE_KEYS)

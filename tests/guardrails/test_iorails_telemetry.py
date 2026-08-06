@@ -120,14 +120,7 @@ def _gated_generate(gate: asyncio.Event):
 
 @pytest_asyncio.fixture
 async def iorails_tracing(tracer_from_provider):
-    """IORails instance with tracing enabled, using a test tracer.
-
-    Patches the module-level ``_tracer`` before constructing IORails so that
-    ``IORails.__init__`` picks up the test tracer via ``get_tracer()`` and
-    threads it through EngineRegistry/RailsManager constructors.
-    The ``async with`` block starts and stops the IORails-owned worker
-    queue so no asyncio tasks leak past the test's event loop.
-    """
+    """IORails with tracing on, built around a test tracer patched in before construction."""
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_make_tracing_config())
@@ -387,14 +380,7 @@ UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S
 
 
 def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
-    """Mock at the engine level so the full RailsManager → CompiledRail → EngineRegistry
-    chain executes (including span creation), but actual HTTP calls are skipped.
-
-    Mocks ModelEngine.chat_completion on each registered engine.
-    The content_safety engine returns different JSON for input vs output checks —
-    we use SAFE_INPUT_JSON as default since the output rail's parser also accepts it
-    when Response Safety is absent (it just checks User Safety).
-    """
+    """Mock ModelEngine.chat_completion so the whole chain runs, spans and all, without HTTP."""
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
@@ -664,13 +650,7 @@ class TestSpanHierarchy:
 
     @pytest.mark.asyncio
     async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
-        """With tracing disabled, no spans at all are created.
-
-        Uses ``_stub_deep_pipeline`` so the full RailsManager → CompiledRail →
-        EngineRegistry chain executes.  This exercises the code paths that
-        would otherwise create orphaned child spans, not just the top-level
-        IORails entry point.
-        """
+        """With tracing disabled the whole chain runs and still creates no spans at all."""
         _stub_deep_pipeline(iorails_no_tracing)
 
         await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])

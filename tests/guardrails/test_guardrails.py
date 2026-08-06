@@ -343,11 +343,9 @@ class TestIORailsUnsupportedReason:
         assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
 
     def test_a_compilation_failure_becomes_a_fallback_reason(self, _content_safety_rails_config, monkeypatch):
-        """An enabled flow that fails to compile routes to LLMRails instead of escaping as an error.
-
-        No shipped surface can reach this today, since a config omitting a required ``$model=``
-        is rejected by ``RailsConfig`` first. It guards the moment the enabled tier widens.
-        """
+        """An enabled flow that fails to compile routes to LLMRails rather than escaping."""
+        # Unreachable today: a config omitting a required $model= is rejected by RailsConfig
+        # first. It guards the moment the enabled tier widens.
 
         def refuse(flow, direction, deps):
             raise RailCompilationError(f"{flow!r} cannot compile")
@@ -1827,13 +1825,7 @@ def _iorails_engine(guardrails: Guardrails) -> IORails:
 
 
 class TestGuardrailsCheckEndToEnd:
-    """End-to-end Guardrails.check_async over the IORails engine.
-
-    Only the model call is mocked; the full chain runs: Guardrails facade ->
-    IORails -> RailsManager -> content-safety compiled rail -> nemoguard parser.
-    The config has content-safety input and output rails only (no jailbreak or
-    topic rails), so a single ``model_call`` mock covers every rail.
-    """
+    """End-to-end Guardrails.check_async over IORails, with only the model call mocked."""
 
     @pytest.fixture(autouse=True)
     def _set_api_key(self, monkeypatch):

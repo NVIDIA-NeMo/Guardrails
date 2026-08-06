@@ -192,12 +192,9 @@ async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str
 
 
 async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) -> str:
-    """Run one turn through IORails and return the assistant content.
-
-    Mocks each registered engine's transport so the whole RailsManager -> CompiledRail ->
-    EngineRegistry chain executes without a network call. Rails are keyed by engine name
-    rather than model type here, because that is how ``EngineRegistry`` holds them.
-    """
+    """Run one turn through IORails and return the assistant content."""
+    # Mocks each engine's transport, so the whole RailsManager -> CompiledRail -> EngineRegistry
+    # chain runs without a network call. Keyed by engine name, as EngineRegistry holds them.
     with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
         iorails = IORails(RailsConfig.from_content(config=config_dict))
 
@@ -250,12 +247,7 @@ class TestModelBackedRailsAgreeAcrossEngines:
 
 
 class TestJailbreakAgreesAcrossEngines:
-    """Jailbreak detection reaches the same decision on both engines.
-
-    Both now call the NIM over httpx through the shared library action, so one mock at that
-    boundary serves each engine in turn and the comparison is of the decision, not the wire
-    path. Before the migration the engines used different transports and needed a mock each.
-    """
+    """Jailbreak detection reaches the same decision on both engines, now over one transport."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -267,12 +259,7 @@ class TestJailbreakAgreesAcrossEngines:
         ids=["jailbreak_model_allows", "jailbreak_model_blocks"],
     )
     async def test_engines_reach_the_same_decision(self, verdict, expect_blocked, httpx_mock):
-        """One NIM verdict drives both engines to the same response, exactly.
-
-        Equality matters more here than for the model-backed rails: the two engines do not
-        share a transport yet, so each mock could fail in its own way and still produce
-        "not the main output" on both sides.
-        """
+        """One NIM verdict drives both engines to the same response, exactly."""
         config_dict = _jailbreak_config()
 
         httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
@@ -288,13 +275,9 @@ class TestJailbreakAgreesAcrossEngines:
 
     @pytest.mark.asyncio
     async def test_both_engines_allow_when_the_endpoint_errors(self, httpx_mock):
-        """An unreachable NIM lets the request through on both engines.
-
-        This inverts the pre-migration expectation, which recorded IORails failing closed
-        while the library allowed. Sharing the library action is what closes that gap, and
-        the fail-open posture is a deliberate decision rather than an accident: a NIM outage
-        now stops blocking jailbreaks on both engines.
-        """
+        """An unreachable NIM lets the request through on both engines."""
+        # Inverts the pre-migration expectation of IORails failing closed. The fail-open posture
+        # is deliberate: a NIM outage now stops blocking jailbreaks on both engines.
         config_dict = _jailbreak_config()
 
         httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)

@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Rails manager for IORails engine.
-
-Orchestrates input/output safety checks by delegating to compiled, manifest-driven rails.
-Rails run sequentially by default; the first failing rail short-circuits.
-When parallel mode is enabled, all rails run concurrently and the first
-unsafe result cancels remaining rails immediately.
-"""
+"""Rails manager for IORails: runs input/output checks through compiled, manifest-driven rails."""
 
 import asyncio
 import logging
@@ -136,12 +130,7 @@ def _rail_call_record(
 
 
 class RailsManager:
-    """Orchestrates input and output safety checks for IORails.
-
-    Reads the rails configuration to determine which checks are enabled,
-    compiles the corresponding manifest-driven rail for each flow, then runs
-    them sequentially or in parallel.
-    """
+    """Compiles a manifest-driven rail per configured flow and runs them sequentially or in parallel."""
 
     def __init__(
         self,
@@ -157,17 +146,9 @@ class RailsManager:
         tracer: Optional["Tracer"] = None,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Compile a manifest-driven rail for each configured input and output flow.
-
-        When *tracer* is provided, rail and action executions produce OTEL
-        spans; when ``None`` the span helpers become no-ops.
-
-        When *content_capture_enabled* is True, rail spans carry the
-        rail's input messages (``guardrails.rail.input``) and the block
-        reason (``guardrails.rail.reason``) when the rail rejects the
-        request.  Defaults to False; only meaningful when ``tracer`` is
-        also set.
-        """
+        """Compile a manifest-driven rail for each configured input and output flow."""
+        # Both telemetry settings are no-ops without a tracer: the span helpers do nothing, and
+        # content capture writes the rail's input and block reason onto spans that do not exist.
         self.engine_registry = engine_registry
         self.task_manager = task_manager
         self._tracer = tracer
@@ -334,19 +315,10 @@ class RailsManager:
 
     @staticmethod
     def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:
-        """Resolve the per-request enable toggle into the configured flows to run.
-
-        ``True`` (the default) runs every configured flow; ``False`` runs none; a list
-        runs only the named flows that are configured, preserving configured order and
-        ignoring unknown names. The two booleans are spelled out as separate cases so a
-        non-empty list is never mistaken for ``True``.
-
-        List membership is compared on the normalized flow name (``_get_flow_name``),
-        the same way ``compile_rail``, ``_build_tool_actions`` and ``unsupported_reason``
-        do, so a request toggle carrying the canonical rail name matches a configured flow
-        that carries a ``$model=``/``(...)`` suffix instead of silently dropping it
-        (fail-open). Shared by the input, output, and tool rail families.
-        """
+        """Resolve the per-request toggle into the configured flows to run: True all, False none."""
+        # Membership is compared on the normalized flow name, as compile_rail and
+        # unsupported_reason do, so a toggle naming the canonical rail still matches a configured
+        # flow carrying a $model= suffix rather than silently dropping it (fail-open).
         if enabled is True:
             return list(configured)
         if enabled is False:

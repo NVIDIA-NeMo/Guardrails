@@ -43,13 +43,7 @@ def otel_provider():
 
 
 def _span_attrs(otel_provider, set_fn):
-    """Run ``set_fn(span)`` inside a finished CLIENT span and return its
-    attributes as a plain dict.
-
-    Mirrors how the helpers are used in production (called on a live span
-    inside the ``llm_call_span`` block) and reads the result back off the
-    exported span, the same way the span-helper tests above do.
-    """
+    """Run ``set_fn(span)`` on a live CLIENT span and read its attributes back once exported."""
     provider, exporter = otel_provider
     tracer = provider.get_tracer("test")
     with tracer.start_as_current_span("chat test-model") as span:
