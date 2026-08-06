@@ -142,9 +142,11 @@ contract used for refactor equivalence proofs. This exception is a
 convention, not an enforcement: nothing in `tests/recorded/conftest.py`
 inspects markers, so a misplaced test collects and passes silently and no
 tooling will tell you it is in the wrong suite. A non-vcr suite test carries
-only the module-level `pytestmark = [pytest.mark.recorded,
-pytest.mark.asyncio]` and no `vcr` mark (exemplar:
-`tests/recorded/rails/library/test_regex.py`). Because nothing fails for you,
+the module-level `pytestmark = [pytest.mark.recorded]` and no `vcr` mark,
+adding `pytest.mark.asyncio` only when the module's tests are async
+(exemplar: `tests/recorded/rails/library/test_regex.py` for the async form,
+`tests/recorded/test_fake_cassettes.py` for the synchronous one). Because
+nothing fails for you,
 apply these criteria yourself. Add a non-vcr suite test only when all of
 these hold:
 

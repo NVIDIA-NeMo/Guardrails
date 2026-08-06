@@ -461,10 +461,13 @@ explicitly mandatory:
    error branch here: a synthetic timeout or 5xx injected by test code
    belongs in the unit layer by the placement rule, and most error paths
    cannot be recorded against a live vendor anyway. Provider-backed rails use `pytest.mark.vcr` and record
-   cassettes with `make record-cassettes`; pure-Python rails carry only the
+   cassettes with `make record-cassettes`; pure-Python rails carry the
    module-level `pytestmark = [pytest.mark.recorded, pytest.mark.asyncio]`
    and no `vcr` mark (exemplar:
-   `tests/recorded/rails/library/test_regex.py`). Recorded tests are
+   `tests/recorded/rails/library/test_regex.py`). The `asyncio` mark is
+   there because these rail tests are async, not because the module is
+   non-vcr; synchronous non-vcr modules elsewhere in the suite carry
+   `pytest.mark.recorded` alone. Recorded tests are
    dialect-single: do not add a Colang 2 recorded test for YOUR rail (the
    wire traffic is identical; dialect behavior is unit-test territory). The
    suite is allowed exactly one v2 smoke pin across all library rails, and
