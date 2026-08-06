@@ -94,9 +94,12 @@ Copy the shape from `nemoguardrails/library/regex/rail.py`:
 - `RailMetadata`: `display_name` and `description` must be non-empty
   (enforced), plus `categories`, `capabilities`, `tags`, and `docs_url`
   pointing at the docs catalog page (Step 7).
-- `RailSpec.actions`: one `ActionRef(name=..., target="module:function")` per
-  action. The ref `name` MUST equal the name the `@action` decorator
-  registers; enforced by
+- `RailSpec.actions`: a `RailActions(refs=(...))` wrapping one
+  `ActionRef(name=..., target="module:function")` per action, as
+  `actions=RailActions(refs=(DETECT_REGEX_PATTERN,))` in
+  `nemoguardrails/library/regex/rail.py`. Passing a bare tuple of `ActionRef`
+  fails at manifest construction. The ref `name` MUST equal the name the
+  `@action` decorator registers; enforced by
   `test_builtin_action_refs_match_decorated_names_and_bindings`.
 - `RailSpec.flows`: `RailFlows(flow_names=(...), files=(...), v1_files=(...))`
   naming the flows the rail exposes and the two dialect files. Every shipped
@@ -160,10 +163,17 @@ example above, `source` is not injected, it is
 
 `config` is the whole `RailsConfig`, not your section. Read your own
 settings at `config.rails.config.<config_schema key>` and handle `None`
-(exemplar: `nemoguardrails/library/regex/actions.py`). `is_system_action=True`
-is not automatic: it defaults to `False` and only controls whether the
-action's start and finish events are omitted from rendered prompt history,
-and no gate checks it.
+(exemplar: `nemoguardrails/library/regex/actions.py`).
+
+`is_system_action=True` is not automatic and is not cosmetic. It defaults to
+`False`, and it does two things: it omits the action's start and finish
+events from rendered prompt history, and it keeps the action local. Both
+runtimes dispatch NON-system actions to `config.actions_server_url` when one
+is set (`nemoguardrails/colang/v1_0/runtime/runtime.py`,
+`nemoguardrails/colang/v2_x/runtime/runtime.py`), so a rail action left at
+the default is executed off-box in an actions-server deployment, carrying
+whatever text it was given. Set it on every rail action. No gate checks
+this.
 
 The seam here is **actions decide, flows present**: the action returns a
 neutral verdict (allow/block/transform plus evidence in `metadata`), and the
