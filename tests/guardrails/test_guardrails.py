@@ -405,27 +405,29 @@ class TestIORailsUnsupportedReason:
         assert reason == "config has unsupported output flows: ['self check output']"
 
     @pytest.mark.parametrize(
-        "flow, expected",
-        [
-            (
-                "activefence moderation on input detailed",
-                "'activefence moderation on input detailed' declares context binding(s) for 'text', "
-                "which manifest-driven execution does not fill yet",
-            ),
-            (
-                "gcpnlp moderation detailed",
-                "config has unsupported input flows: ['gcpnlp moderation detailed']",
-            ),
-        ],
-        ids=["unservable", "out-of-scope"],
+        "flow",
+        ["activefence moderation on input detailed", "gcpnlp moderation detailed"],
+        ids=["activefence", "gcpnlp"],
     )
-    def test_detailed_flow_without_iorails_adapter_reports_offender(self, flow, expected):
-        """Detailed flows fall back to LLMRails, named either as unservable or as out of scope."""
+    def test_detailed_flow_outside_the_enabled_tier_reports_offender(self, flow):
+        """A detailed flow variant falls back to LLMRails, named as out of scope.
+
+        The activefence case previously reported the context-binding refusal. That refusal is
+        gone — context bindings now resolve — so it is out of scope for the enabled tier
+        rather than unservable, and the two cases converge on one message.
+        """
         config = _make_iorails_config(rails={"input": {"flows": [flow]}})
 
         reason = IORails.unsupported_reason(config, llm=None)
 
-        assert reason == expected
+        assert reason == f"config has unsupported input flows: [{flow!r}]"
+
+    # A gate test for an unconfigured model belongs with the tier widening, not here. A
+    # ``$model=`` naming an undeclared type is already rejected by ``RailsConfig``
+    # (``check_model_exists_for_input_rails``), so that config cannot be built; and the rails
+    # whose model comes from a manifest *literal* -- llama guard, patronus lynx -- are out of
+    # scope at the current four-name tier, so ``unsupported_reason`` reports them as
+    # unsupported before it ever compiles them.
 
     def test_llm_takes_precedence_over_config_issues(self):
         """When both llm is provided and the config has unsupported flows, the llm

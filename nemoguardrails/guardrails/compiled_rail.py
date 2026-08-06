@@ -27,7 +27,7 @@ from __future__ import annotations
 import inspect
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
@@ -35,6 +35,7 @@ from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
+    Binding,
     RailDirection,
     RailSurface,
     default_rail_catalog,
@@ -66,6 +67,9 @@ class RailDependencies:
 
     Injection is by parameter *name*, matching how the Colang runtimes supply the same
     values to the same actions. An action receives only what its signature declares.
+
+    ``llms`` doubles as the set of configured model types compilation validates model
+    bindings against, so the gate and the engine cannot disagree about which models exist.
     """
 
     llms: Mapping[str, Any]
@@ -155,6 +159,28 @@ class _BoundParameter:
     value: Any
 
 
+@dataclass(frozen=True)
+class _ContextParameter:
+    """One action parameter and the conversation variable that fills it, per request.
+
+    Unlike a literal or a surface parameter this cannot be frozen at compile time: its value
+    is the request's own text, so freezing it would pin every later request to the first one.
+    """
+
+    action_param: str
+    key: str
+
+
+# The conversation variables a context binding may name. Also the keys of the ``context``
+# dict injected wholesale into actions that declare it, so the two cannot drift.
+_CONTEXT_KEYS = ("user_message", "bot_message")
+
+
+def _request_context(messages: LLMMessages, bot_response: Optional[str]) -> dict[str, str]:
+    """Build the conversation variables for one request."""
+    return {"user_message": _last_user_content(messages), "bot_message": bot_response or ""}
+
+
 class CompiledRail:
     """One configured flow, resolved to a library action and ready to run."""
 
@@ -165,6 +191,7 @@ class CompiledRail:
         surface: RailSurface,
         action: Callable[..., Any],
         bound: tuple[_BoundParameter, ...],
+        context_bound: tuple[_ContextParameter, ...],
         deps: RailDependencies,
         accepted: frozenset[str],
         http_client: Any = None,
@@ -178,6 +205,7 @@ class CompiledRail:
         self.surface = surface
         self._action = action
         self._bound = bound
+        self._context_bound = context_bound
         self._deps = deps
         self._accepted = accepted
         self._http_client = http_client
@@ -203,7 +231,7 @@ class CompiledRail:
         try:
             with action_span(self._deps.tracer, self.surface_name) as span:
                 try:
-                    outcome = require_rail_outcome(await self._action(**self._call_kwargs(messages, bot_response)))
+                    outcome = require_rail_outcome(await self._invoke(messages, bot_response))
                 except Exception as exc:
                     outcome = rail_error_outcome(span, self.surface_name, exc)
         finally:
@@ -211,18 +239,32 @@ class CompiledRail:
 
         return RailExecution(outcome=outcome, llm_calls=_llm_calls_from(sink))
 
+    async def _invoke(self, messages: LLMMessages, bot_response: Optional[str]) -> Any:
+        """Call the action, awaiting it only if it is asynchronous.
+
+        Two shipped library actions are plain ``def`` (the guardrails_ai validators), so an
+        unconditional await would raise TypeError on every request and the fail-closed
+        envelope would report a working rail as a block. ``ActionDispatcher`` has always made
+        the same allowance for LLMRails.
+        """
+        result = self._action(**self._call_kwargs(messages, bot_response))
+        return await result if inspect.isawaitable(result) else result
+
     def _call_kwargs(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
         """Assemble the action's arguments from its declared parameters and the manifest."""
+        context = _request_context(messages, bot_response)
         kwargs = {
             name: value
-            for name, value in self._request_dependencies(messages, bot_response).items()
+            for name, value in self._request_dependencies(messages, context).items()
             if name in self._accepted
         }
         for bound in self._bound:
             kwargs[bound.action_param] = bound.value
+        for context_bound in self._context_bound:
+            kwargs[context_bound.action_param] = context[context_bound.key]
         return kwargs
 
-    def _request_dependencies(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
+    def _request_dependencies(self, messages: LLMMessages, context: Mapping[str, str]) -> dict[str, Any]:
         """Every value injectable by parameter name; the caller filters against the signature."""
         return {
             "llms": self._deps.llms,
@@ -231,10 +273,7 @@ class CompiledRail:
             "config": self._deps.config,
             "http_client": self._http_client,
             "model_caches": self._deps.model_caches,
-            "context": {
-                "user_message": _last_user_content(messages),
-                "bot_message": bot_response or "",
-            },
+            "context": context,
             "events": messages_to_events(messages),
         }
 
@@ -284,20 +323,24 @@ def _resolve_surface(flow: str, direction: RailDirection, catalog: "RailCatalog"
     raise RailCompilationError(f"{flow!r} has no surface named {surface_name!r} in the rail catalog")
 
 
-def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str) -> tuple[_BoundParameter, ...]:
-    """Freeze the manifest's bindings into concrete values, failing now if one cannot be."""
+def _binding_source_key(binding: Binding, flow: str) -> str:
+    """Return a non-literal binding's source key, or fail compilation naming the parameter."""
+    if binding.key is None:
+        raise RailCompilationError(
+            f"{flow!r} declares a {binding.kind} binding for {binding.action_param!r} with no source key"
+        )
+    return binding.key
+
+
+def _frozen_parameters(surface: RailSurface, params: Mapping[str, str], flow: str) -> tuple[_BoundParameter, ...]:
+    """Freeze the bindings whose values are known at compile time: literals and $params."""
     bound: list[_BoundParameter] = []
     for binding in surface.bindings:
         if binding.kind == "literal":
             bound.append(_BoundParameter(binding.action_param, binding.value))
             continue
 
-        key = binding.key
-        if key is None:
-            raise RailCompilationError(
-                f"{flow!r} declares a {binding.kind} binding for {binding.action_param!r} with no source key"
-            )
-
+        key = _binding_source_key(binding, flow)
         if binding.kind == "surface_param":
             if key in params:
                 bound.append(_BoundParameter(binding.action_param, params[key]))
@@ -305,23 +348,34 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
                 raise RailCompilationError(f"{flow!r} is missing required parameter ${key}=")
             continue
 
-        # Context bindings are refused by _unfillable_bindings_reason before this
-        # point. Raise here for noisy visibility
-        raise RailCompilationError(
-            f"{flow!r} declares an unsupported {binding.kind!r} binding for {binding.action_param!r}"
-        )
+        if binding.kind != "context":
+            raise RailCompilationError(
+                f"{flow!r} declares an unsupported {binding.kind!r} binding for {binding.action_param!r}"
+            )
     return tuple(bound)
 
 
-def _unfillable_bindings_reason(surface: RailSurface) -> Optional[str]:
-    """Report a binding kind request-time injection cannot fill."""
-    unfillable = sorted({binding.action_param for binding in surface.bindings if binding.kind == "context"})
-    if not unfillable:
-        return None
-    return (
-        f"declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
-        f"which manifest-driven execution does not fill yet"
-    )
+def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParameter, ...]:
+    """Plan the bindings filled from the request's own conversation variables.
+
+    A context binding maps one variable onto a specific action parameter, which is not the
+    same as injecting the whole ``context`` dict: ``user_message`` reaches an action that
+    calls the parameter ``text`` or ``user_prompt``.
+    """
+    bound: list[_ContextParameter] = []
+    for binding in surface.bindings:
+        if binding.kind != "context":
+            continue
+        key = _binding_source_key(binding, flow)
+        if key not in _CONTEXT_KEYS:
+            # Refused rather than passed an empty value: the rail would otherwise return a
+            # verdict computed over evidence IORails never supplied.
+            raise RailCompilationError(
+                f"{flow!r} binds {binding.action_param!r} to context variable {key!r}, "
+                f"which IORails does not supply; it has {list(_CONTEXT_KEYS)}"
+            )
+        bound.append(_ContextParameter(binding.action_param, key))
+    return tuple(bound)
 
 
 def _transform_target_reason(surface: RailSurface) -> Optional[str]:
@@ -355,10 +409,10 @@ def _retrieval_context_reason(surface: RailSurface) -> Optional[str]:
 
 
 # Ordered so the cheapest, most structural check reports first. Each entry is removed by the
-# work that lifts its limitation: context bindings in PR 4, transforms in PR 5.
+# work that lifts its limitation: the context-binding refusal went when resolution was built,
+# and the transform refusal goes when IORails can apply a rewrite.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
     _transform_target_reason,
-    _unfillable_bindings_reason,
     _retrieval_context_reason,
 )
 
@@ -381,7 +435,7 @@ def _accepts_arbitrary_keywords(action: Callable[..., Any]) -> bool:
 def _reject_unaccepted_bindings(
     surface: RailSurface,
     action: Callable[..., Any],
-    bound: tuple[_BoundParameter, ...],
+    bound_params: Sequence[str],
     accepted: frozenset[str],
     flow: str,
 ) -> None:
@@ -395,12 +449,41 @@ def _reject_unaccepted_bindings(
     if _accepts_arbitrary_keywords(action):
         return
 
-    unaccepted = sorted(param.action_param for param in bound if param.action_param not in accepted)
+    unaccepted = sorted(param for param in bound_params if param not in accepted)
     if not unaccepted:
         return
     raise RailCompilationError(
         f"{flow!r} binds {', '.join(repr(p) for p in unaccepted)}, which action "
         f"{surface.action.name!r} does not accept; it declares {sorted(accepted)}"
+    )
+
+
+# The parameter library actions resolve against ``llms``, by convention: an action needing a
+# model declares ``model_name`` and indexes ``llms[model_name]``.
+_MODEL_NAME_PARAM = "model_name"
+
+
+def _reject_unconfigured_models(bound: tuple[_BoundParameter, ...], deps: RailDependencies, flow: str) -> None:
+    """Fail compilation when a rail names a model type the configuration does not declare.
+
+    The live gap is the *literal* binding. ``RailsConfig`` already rejects a ``$model=``
+    naming an undeclared type (``check_model_exists_for_input_rails``), but it finds the model
+    by parsing that suffix — so a rail whose model is baked into the manifest, such as
+    ``llama guard check input``, passes config validation and then fails per request, where
+    the fail-closed envelope reports the missing model as a rail block.
+    """
+    missing = sorted(
+        {
+            str(param.value)
+            for param in bound
+            if param.action_param == _MODEL_NAME_PARAM and param.value not in deps.llms
+        }
+    )
+    if not missing:
+        return
+    raise RailCompilationError(
+        f"{flow!r} needs model type(s) {', '.join(repr(m) for m in missing)}, "
+        f"which the configuration does not define; it declares {sorted(deps.llms)}"
     )
 
 
@@ -447,14 +530,23 @@ def compile_rail(
         raise RailCompilationError(f"{flow!r} resolved action {surface.action.name!r} to a non-callable")
 
     accepted = _accepted_parameters(action)
-    bound = _bind_parameters(surface, params, flow)
-    _reject_unaccepted_bindings(surface, action, bound, accepted, flow)
+    bound = _frozen_parameters(surface, params, flow)
+    context_bound = _context_parameters(surface, flow)
+    _reject_unaccepted_bindings(
+        surface,
+        action,
+        [param.action_param for param in bound] + [param.action_param for param in context_bound],
+        accepted,
+        flow,
+    )
+    _reject_unconfigured_models(bound, deps, flow)
 
     return CompiledRail(
         flow=flow,
         surface=surface,
         action=action,
         bound=bound,
+        context_bound=context_bound,
         deps=deps,
         accepted=accepted,
         http_client=http_client,

@@ -530,9 +530,23 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
-# Compilation validates the surface, its bindings and its action; it never reads the
-# dependencies, so a sentinel answers the same question the engine's real ones would.
-_COMPILE_ONLY_DEPS = RailDependencies(llms={}, llm_task_manager=None, config=None)
+def _compile_only_deps(config: RailsConfig) -> RailDependencies:
+    """Dependencies for the gate's trial compile: model types only, no live collaborators.
+
+    Compilation reads ``llms`` for its key names alone — to reject a rail naming a model type
+    the configuration does not declare — and never touches a model, so naming the types is
+    enough. They must be named, though: with an empty mapping the gate would refuse every
+    rail carrying a model binding while ``RailsManager`` accepted it, and a config would be
+    routed to LLMRails for a model it actually has.
+
+    The key sets match by construction, since ``EngineRegistry`` is built from these same
+    models and registers each one.
+    """
+    return RailDependencies(
+        llms={model.type: None for model in config.models},
+        llm_task_manager=None,
+        config=None,
+    )
 
 
 class IORails(BaseGuardrails):
@@ -578,8 +592,9 @@ class IORails(BaseGuardrails):
             ("input", config.rails.input.flows, SurfaceDirection.INPUT),
             ("output", config.rails.output.flows, SurfaceDirection.OUTPUT),
         )
+        deps = _compile_only_deps(config)
         for label, flows, direction in rail_checks:
-            reason = cls._unservable_rails_reason(flows, direction, label)
+            reason = cls._unservable_rails_reason(flows, direction, label, deps)
             if reason is not None:
                 return reason
 
@@ -607,7 +622,9 @@ class IORails(BaseGuardrails):
         return None
 
     @classmethod
-    def _unservable_rails_reason(cls, flows: list[str], direction: SurfaceDirection, label: str) -> Optional[str]:
+    def _unservable_rails_reason(
+        cls, flows: list[str], direction: SurfaceDirection, label: str, deps: RailDependencies
+    ) -> Optional[str]:
         """Return why a configured input/output flow cannot run here, or None when all can."""
         # Surface-level refusals come first because they need no action import, so a config
         # naming an optional integration is not made to pay for one just to be refused.
@@ -624,7 +641,7 @@ class IORails(BaseGuardrails):
         # Only now, for a flow this engine will actually run, is the action worth importing.
         for flow in flows:
             try:
-                compile_rail(flow, direction, _COMPILE_ONLY_DEPS)
+                compile_rail(flow, direction, deps)
             except RailCompilationError as exc:
                 return str(exc)
         return None
