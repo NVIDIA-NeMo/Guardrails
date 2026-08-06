@@ -93,24 +93,40 @@ _BOT_UTTERANCE_EVENT = "StartUtteranceBotAction"
 _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 
 
+def _current_turn_index(messages: LLMMessages) -> Optional[int]:
+    """Position of the turn being checked: the last user message that carries content."""
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if message.get("role") == "user" and message.get("content"):
+            return index
+    return None
+
+
+def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
+    """The turns preceding the one being checked.
+
+    Actions append the checked turn themselves, from ``context["user_message"]``, and always
+    at the end. So the history stops short of it: emitting it here would hand the model the
+    same turn twice, and emitting what follows it — an assistant reply in a ``check()``
+    transcript, say — would place a later turn ahead of it and reorder the conversation.
+    With no user turn to check, every message is history.
+    """
+    index = _current_turn_index(messages)
+    return messages if index is None else messages[:index]
+
+
 def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
     """Convert IORails messages into the event shapes conversation-history actions read.
     Used by actions which are tightly-coupled with colang event definitions for backwards-compatibility.
     """
     events: list[dict[str, Any]] = []
-    last_user_index = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=None)
-    for index, message in enumerate(messages):
+    for message in _history_before_current_turn(messages):
         content = message.get("content")
         if not content:
             continue
         role = message.get("role")
         if role == "user":
-            # The current turn is deliberately absent from the history, mirroring
-            # ``llmrails.py``, which emits ``UserMessage`` only for a user turn that is not the
-            # last. Actions append it themselves from ``context["user_message"]``, so emitting
-            # it here too would hand the model the same turn twice.
-            if index != last_user_index:
-                events.append({"type": _USER_MESSAGE_EVENT, "text": content})
+            events.append({"type": _USER_MESSAGE_EVENT, "text": content})
         elif role == "assistant":
             events.append({"type": _BOT_UTTERANCE_EVENT, "script": content})
         elif role == "system":
@@ -124,10 +140,8 @@ def _last_user_content(messages: LLMMessages) -> str:
     Empty rather than raising: the library actions read ``context.get(...)`` with a default
     and call the model with empty text, and IORails now matches that.
     """
-    for message in reversed(messages):
-        if message.get("role") == "user" and message.get("content"):
-            return message["content"]
-    return ""
+    index = _current_turn_index(messages)
+    return "" if index is None else messages[index]["content"]
 
 
 def _llm_calls_from(sink: list[dict[str, Any]]) -> tuple["LLMCallInfo", ...]:

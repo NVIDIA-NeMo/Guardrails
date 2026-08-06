@@ -536,6 +536,30 @@ class TestDependencyInjection:
         ]
 
     @pytest.mark.asyncio
+    async def test_events_stop_at_the_checked_turn_for_an_assistant_terminated_transcript(self, deps, monkeypatch):
+        """A check() transcript ending in an assistant turn leaves that turn out of the history.
+
+        The action appends the checked turn last, from context, so an assistant turn that
+        followed it in the transcript would otherwise be classified ahead of it.
+        """
+        action = RecordingAction(signature_of=topic_safety_check_input)
+        monkeypatch.setattr(TOPIC_SAFETY_ACTION, action)
+        messages = [
+            {"role": "user", "content": "an earlier question"},
+            {"role": "assistant", "content": "an earlier answer"},
+            *USER_MESSAGES,
+            {"role": "assistant", "content": "the reply being checked"},
+        ]
+
+        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(messages)
+
+        assert action.kwargs["events"] == [
+            {"type": "UserMessage", "text": "an earlier question"},
+            {"type": "StartUtteranceBotAction", "script": "an earlier answer"},
+        ]
+        assert action.kwargs["context"]["user_message"] == "hello there"
+
+    @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
         """jailbreak_detection_model declares http_client and receives the managed one."""
         action = RecordingAction(signature_of=jailbreak_detection_model)
@@ -639,11 +663,7 @@ class TestMessagesToEvents:
         assert messages_to_events([self.CURRENT_TURN]) == []
 
     def test_only_the_last_user_turn_is_left_out(self):
-        """Earlier user turns are history; only the current one is withheld.
-
-        Mirrors ``llmrails.py``, which emits ``UserMessage`` for every user turn except the
-        last. Emitting it here too gave the classifier the same turn twice.
-        """
+        """Earlier user turns are history; only the turn being checked is withheld."""
         messages = [
             {"role": "user", "content": "u1"},
             {"role": "assistant", "content": "a1"},
@@ -653,6 +673,32 @@ class TestMessagesToEvents:
         texts = [event.get("text") for event in messages_to_events(messages) if event["type"] == "UserMessage"]
 
         assert texts == ["u1"]
+
+    def test_turns_after_the_checked_turn_are_dropped(self):
+        """A transcript ending in an assistant turn yields only the history preceding the checked turn."""
+        messages = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            self.CURRENT_TURN,
+            {"role": "assistant", "content": "a2"},
+        ]
+
+        assert messages_to_events(messages) == [
+            {"type": "UserMessage", "text": "u1"},
+            {"type": "StartUtteranceBotAction", "script": "a1"},
+        ]
+
+    def test_a_transcript_with_no_user_turn_is_all_history(self):
+        """With no user turn to check, every turn is emitted as history."""
+        messages = [
+            {"role": "system", "content": "s"},
+            {"role": "assistant", "content": "a1"},
+        ]
+
+        assert messages_to_events(messages) == [
+            {"type": "SystemMessage", "content": "s"},
+            {"type": "StartUtteranceBotAction", "script": "a1"},
+        ]
 
 
 class TestModelCallCapture:
