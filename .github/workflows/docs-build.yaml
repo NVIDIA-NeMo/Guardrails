@@ -12,6 +12,11 @@ on:
       - "scripts/normalize-fern-sdk-reference.mjs"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
+      - "scripts/generate-fern-versioned-sdk-references.mjs"
+      - "scripts/materialize-fern-release-versions.mjs"
+      - "scripts/materialize-fern-release-versions.test.mjs"
+      - "package.json"
+      - "package-lock.json"
   push:
     branches: [develop]
     tags:
@@ -25,6 +30,11 @@ on:
       - "scripts/normalize-fern-sdk-reference.mjs"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
+      - "scripts/generate-fern-versioned-sdk-references.mjs"
+      - "scripts/materialize-fern-release-versions.mjs"
+      - "scripts/materialize-fern-release-versions.test.mjs"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 defaults:
@@ -53,6 +63,9 @@ jobs:
         with:
           node-version: "22"
           package-manager-cache: false
+
+      - name: Install documentation dependencies
+        run: npm ci
 
       - name: Check Fern docs
         env:
@@ -131,6 +144,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -139,7 +153,51 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Install documentation dependencies
+        run: npm ci
+
       - name: Publish Fern staging docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-publish-staging
+
+  publish-public:
+    name: Publish versioned Fern docs
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [build-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check documentation publish tag
+        id: publish-tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$TAG" =~ ^docs-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping documentation publication for prerelease or unsupported tag: $TAG"
+          fi
+
+      - name: Set up Node.js
+        if: steps.publish-tag.outputs.eligible == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install documentation dependencies
+        if: steps.publish-tag.outputs.eligible == 'true'
+        run: npm ci
+
+      - name: Publish versioned Fern docs
+        if: steps.publish-tag.outputs.eligible == 'true'
+        env:
+          FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
+        run: make docs-fern-publish-public

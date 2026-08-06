@@ -5,7 +5,10 @@
     "docs:deps": "node -p \"require('./fern/fern.config.json').version\" | xargs -I {} npx --yes fern-api@{} --version",
     "docs:preview:watch": "make docs-fern-preview-watch",
     "docs:strict": "make docs-fern-strict",
-    "docs:live": "make docs-fern-live"
+    "docs:live": "make docs-fern-live",
+    "docs:versions": "node scripts/materialize-fern-release-versions.mjs",
+    "docs:versions:clean": "node scripts/materialize-fern-release-versions.mjs --clean",
+    "docs:versions:test": "node --test scripts/materialize-fern-release-versions.test.mjs"
   },
   "dependencies": {
     "yaml": "^2.9.0"

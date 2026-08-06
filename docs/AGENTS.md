@@ -15,7 +15,12 @@ Treat `docs/` as the source of truth for published product documentation and pro
 - Read the full target page before editing it.
 - Map behavior changes to existing pages before proposing a new page.
 - Update `docs/index.yml` when navigation, slugs, or page placement changes.
-- Do not hand-edit generated Python SDK reference output.
+- Keep ordinary authoring in `docs/index.yml`. Publishing materializes frozen
+  `v0.24.0` and newer release navigation from stable Git tags; do not commit
+  generated files under `fern/generated/` or `fern/versions/v*.yml`.
+- Do not hand-edit generated Python SDK reference output. Release publishing
+  regenerates each frozen reference from the package source archived from its
+  tag and uses the OpenAPI definition archived from the same tag.
 - Do not run `build_notebook_docs.py` unless explicitly asked; it currently runs broad git staging and pre-commit commands.
 
 ## Writing Rules
@@ -46,5 +51,7 @@ Treat `docs/` as the source of truth for published product documentation and pro
 - Run `make docs-fern` when rendering, links, examples, or docs configuration may be affected.
 - Run `make docs-fern-live` only when an interactive local preview is useful.
 - Run `make docs-fern-strict` when link changes are broad or risky.
+- Run `make docs-fern-test-versions` when changing documentation versioning or
+  release publication behavior.
 - For docs-only changes, run `uv run --locked pre-commit run --files <changed files>` before handoff when practical.
 - Report any skipped validation clearly.

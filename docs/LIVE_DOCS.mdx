@@ -23,7 +23,13 @@ make docs-fern-preview-watch
 
 Fern is run through the pinned CLI version in `fern/fern.config.json`. The commands use `npx` to fetch that version.
 
-The Python SDK reference is generated automatically before the Fern checks and preview commands run.
+Install the documentation script dependencies once with `npm ci`. The Python
+SDK reference is generated automatically before the Fern checks and preview
+commands run.
+
+Generating Python SDK references for materialized release versions also
+requires a running Docker daemon because Fern parses local source paths in a
+container.
 
 ## Available Methods
 
@@ -33,8 +39,9 @@ The Python SDK reference is generated automatically before the Fern checks and p
 make docs-fern-live
 ```
 
-- Regenerates the Python SDK reference under `docs/_static/python-sdk-reference`.
+- Ensures the Python SDK reference exists under `docs/_static/python-sdk-reference`.
 - Normalizes the generated SDK tree to avoid duplicate sidebar entries.
+- Reuses valid current and materialized-release SDK output on later launches.
 - Starts the Fern local development server.
 
 ### Published Branch Preview
@@ -57,7 +64,14 @@ This regenerates the SDK reference, normalizes it, and runs `fern check`.
 
 The docs build workflow checks Fern docs on documentation pull requests and publishes a Fern preview for same-repository branches. When a documentation pull request merges into `develop`, the workflow publishes the Fern docs to the [staging instance](https://nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails).
 
-After staging verification, maintainers with NVIDIA Fern admin access can publish the staged docs to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails):
+Stable `v0.24.0` and newer release tags automatically materialize frozen
+documentation versions and publish them to the public instance. Each version's
+Python SDK reference is generated from that tag's package source, and its
+Guardrails API Server reference uses that tag's OpenAPI definition. `docs-v*`
+tags republish without creating a new version.
+
+After staging verification, maintainers with NVIDIA Fern admin access can also
+publish the versioned site to the [public instance](https://nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails):
 
 ```bash
 make docs-fern-publish-public
@@ -73,7 +87,7 @@ npx --yes fern-api@$(node -p "require('./fern.config.json').version") docs dev
 
 ## How It Works
 
-1. **SDK Reference Generation**: Fern generates Python library reference pages from the `nemoguardrails` package.
+1. **SDK Reference Generation**: Fern generates the latest Python library reference from the current `nemoguardrails` package and each materialized release reference from the package source archived from its tag. Later local-server launches reuse valid generated output; strict and publish builds always regenerate it.
 2. **Normalization**: `scripts/normalize-fern-sdk-reference.mjs` removes duplicate generated sidebar entries.
 3. **Fern Dev Server**: Fern starts a local documentation server.
 4. **Live Reload**: Your browser refreshes as Fern rebuilds changed pages.

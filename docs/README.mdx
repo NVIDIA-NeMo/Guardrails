@@ -12,6 +12,12 @@ Product documentation for the toolkit is available at
 
 1. Make sure Node.js 22 is installed.
 
+1. Install the documentation script dependencies:
+
+   ```console
+   npm ci
+   ```
+
 1. Build the documentation:
 
    ```console
@@ -29,6 +35,9 @@ For local development with automatic rebuilding on file changes, use one of the 
 ```bash
 make docs-fern-live
 ```
+
+The local server reuses existing generated Python SDK pages. Run
+`make docs-fern-generate-sdk` when you need to force reference regeneration.
 
 The Fern development server starts locally and updates as you edit docs files.
 
@@ -58,7 +67,39 @@ Press `Ctrl+C` to stop the server.
 
 ## Publishing the Documentation
 
-Tag the commit to publish with `docs-v<semver>`.
-Push the tag to GitHub.
+Stable library tags starting with `v0.24.0` create frozen documentation
+versions automatically. The publish workflow exports the tagged `docs/`
+content and embedded example files, generates a version-specific navigation
+file, and publishes the result with the current `Latest` documentation.
 
-To avoid publishing the documentation as the latest, ensure the commit has `/not-latest` on a single line, tag that commit, and push to GitHub.
+Use a `docs-v<semver>` tag to republish the site without adding a new version.
+Prerelease tags do not create documentation versions.
+
+Each release snapshot freezes the authored guides, assets, components, files
+embedded with `<Code src="...">`, Python package source, and OpenAPI
+definition from the same tag. Publishing regenerates that version's Python SDK
+reference from the archived package and routes its API reference to the
+archived OpenAPI definition.
+
+### Preview Versioning Locally
+
+Before the first automated tag exists, materialize the current checkout as a
+temporary `v0.24.0` snapshot:
+
+```console
+npm run docs:versions -- --preview-version v0.24.0
+make docs-fern-live
+```
+
+Generating a materialized version's Python SDK reference uses Fern's local
+source parser and requires a running Docker daemon.
+
+After you stop the server, remove the generated snapshot and restore the
+generated entries in `fern/docs.yml` and `fern/generators.yml`:
+
+```console
+npm run docs:versions:clean
+```
+
+The release snapshot and version navigation are ignored build artifacts. Do
+not commit `fern/generated/` or generated `fern/versions/v*.yml` files.

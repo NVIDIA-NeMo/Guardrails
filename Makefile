@@ -1,6 +1,6 @@
 .PHONY: help install
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
-.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
+.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-ensure-sdk docs-fern-fix-empty-links docs-fern-materialize-versions docs-fern-test-versions docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit pre-commit-install
 
 .DEFAULT_GOAL := help
@@ -85,16 +85,16 @@ warm-fastembed-cache:
 
 docs-fern: docs-fern-strict
 
-docs-fern-strict: docs-fern-generate-sdk
+docs-fern-strict: docs-fern-test-versions docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check
 
-docs-fern-live: docs-fern-generate-sdk
+docs-fern-live: docs-fern-ensure-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
 
-docs-fern-publish-staging: docs-fern-generate-sdk
+docs-fern-publish-staging: docs-fern-materialize-versions docs-fern-strict
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_STAGING_INSTANCE)"
 
-docs-fern-publish-public: docs-fern-generate-sdk
+docs-fern-publish-public: docs-fern-materialize-versions docs-fern-strict
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
 
 docs-fern-preview-watch: docs-fern-generate-sdk
@@ -103,9 +103,23 @@ docs-fern-preview-watch: docs-fern-generate-sdk
 docs-fern-generate-sdk:
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk
 	node scripts/normalize-fern-sdk-reference.mjs
+	node scripts/generate-fern-versioned-sdk-references.mjs
+
+docs-fern-ensure-sdk:
+	@if [ -f docs/_static/python-sdk-reference/guardrails-python-sdk/nemoguardrails/index.mdx ] && node scripts/generate-fern-versioned-sdk-references.mjs --check; then \
+		echo "Reusing generated Python SDK references."; \
+	else \
+		$(MAKE) docs-fern-generate-sdk; \
+	fi
 
 docs-fern-fix-empty-links:
 	node scripts/fix-empty-fern-links.mjs
+
+docs-fern-materialize-versions: docs-fern-test-versions
+	node scripts/materialize-fern-release-versions.mjs
+
+docs-fern-test-versions:
+	node --test scripts/materialize-fern-release-versions.test.mjs
 
 pre-commit:
 	uv run pre-commit run --all-files
@@ -149,10 +163,13 @@ help:
 		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-live        Serve Fern docs locally' \
+		'  docs-fern-ensure-sdk  Reuse valid generated SDK references or regenerate them' \
+		'  docs-fern-materialize-versions Generate release versions from stable v0.24.0+ tags' \
+		'  docs-fern-test-versions Test Fern release-version parsing and navigation rewriting' \
 		'  docs-fern-publish-staging Publish Fern docs to the staging instance' \
 		'  docs-fern-publish-public Publish Fern docs to the public instance' \
 		'  docs-fern-preview-watch Watch and publish Fern preview for the current branch' \
-		'  docs-fern-generate-sdk Regenerate Python SDK reference pages with Fern' \
+		'  docs-fern-generate-sdk Regenerate current and versioned Python SDK reference pages with Fern' \
 		'  docs-fern-fix-empty-links Replace empty Markdown links with titles from Fern navigation' \
 		'' \
 		'Maintenance:' \
