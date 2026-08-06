@@ -150,6 +150,14 @@ class TestDisplayReason:
             (
                 RailResult(
                     is_safe=False,
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": None},
+                ),
+                "content safety check input",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
                     triggered_rail="jailbreak detection model",
                     return_value={"allowed": False},
                 ),
@@ -157,7 +165,15 @@ class TestDisplayReason:
             ),
             (RailResult(is_safe=False), "unspecified"),
         ],
-        ids=["reason", "reason-beats-evidence", "evidence", "empty-evidence-skipped", "rail-name", "nothing-at-all"],
+        ids=[
+            "reason",
+            "reason-beats-evidence",
+            "evidence",
+            "empty-evidence-skipped",
+            "null-evidence-skipped",
+            "rail-name",
+            "nothing-at-all",
+        ],
     )
     def test_prefers_the_most_specific_source(self, result, expected):
         """A stated reason wins, then the verdict's non-empty evidence, then the rail's name."""

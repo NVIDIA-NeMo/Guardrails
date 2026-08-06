@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.compiled_rail import (
     RailDependencies,
     compile_rail,
     messages_to_events,
+    unservable_reason,
     unsupported_surface_reason,
 )
 from nemoguardrails.library.content_safety.actions import (
@@ -390,6 +391,21 @@ class TestUnrunnableSurfaces:
 
         with pytest.raises(RailCompilationError, match="retrieval"):
             compile_rail("self check facts", RailDirection.OUTPUT, deps)
+
+
+class TestUnservableReason:
+    """`unservable_reason` reports why a flow cannot run here so engine selection can fall back."""
+
+    def test_an_unknown_flow_reports_the_missing_surface(self):
+        """A flow with no catalog surface yields a reason, rather than raising during selection."""
+        reason = unservable_reason("not a real rail", RailDirection.INPUT)
+
+        assert reason is not None
+        assert "no surface" in reason
+
+    def test_a_shipped_surface_reports_no_reason(self):
+        """The control: a runnable flow yields None, so the reason above is not unconditional."""
+        assert unservable_reason(CONTENT_SAFETY_INPUT, RailDirection.INPUT) is None
 
 
 class TestManifestBindingContract:

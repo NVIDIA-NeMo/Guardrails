@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails import Guardrails
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     IORails,
@@ -340,6 +341,22 @@ class TestIORailsUnsupportedReason:
         """Passing an llm is reported even when the config is IORails-compatible."""
         reason = IORails.unsupported_reason(_content_safety_rails_config, llm=mock_llm)
         assert reason == "an `llm` argument was provided; IORails does not accept a custom LLM"
+
+    def test_a_compilation_failure_becomes_a_fallback_reason(self, _content_safety_rails_config, monkeypatch):
+        """An enabled flow that fails to compile routes to LLMRails instead of escaping as an error.
+
+        No shipped surface can reach this today, since a config omitting a required ``$model=``
+        is rejected by ``RailsConfig`` first. It guards the moment the enabled tier widens.
+        """
+
+        def refuse(flow, direction, deps):
+            raise RailCompilationError(f"{flow!r} cannot compile")
+
+        monkeypatch.setattr("nemoguardrails.guardrails.iorails.compile_rail", refuse)
+
+        reason = IORails.unsupported_reason(_content_safety_rails_config, llm=None)
+
+        assert reason == "'content safety check input $model=content_safety' cannot compile"
 
     def test_unsupported_rail_section_reports_offender(self):
         """A rail section outside {input, output, config} (e.g. ``dialog``) is named in the reason."""
