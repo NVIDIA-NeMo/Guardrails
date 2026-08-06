@@ -375,6 +375,18 @@ def _reject_unaccepted_bindings(
     )
 
 
+def unservable_reason(flow: str, direction: RailDirection, catalog: Optional["RailCatalog"] = None) -> Optional[str]:
+    """Why *flow* cannot run under manifest-driven execution, or None when it can."""
+    # Stops at the surface-level checks, so it never imports an action module.
+    catalog = catalog if catalog is not None else default_rail_catalog()
+    try:
+        surface, _ = _resolve_surface(flow, direction, catalog)
+    except RailCompilationError as exc:
+        return str(exc)
+    reason = unsupported_surface_reason(surface)
+    return f"{flow!r} {reason}" if reason is not None else None
+
+
 def compile_rail(
     flow: str,
     direction: RailDirection,

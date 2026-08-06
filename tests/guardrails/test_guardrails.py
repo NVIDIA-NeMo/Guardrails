@@ -359,6 +359,24 @@ class TestIORailsUnsupportedReason:
         reason = IORails.unsupported_reason(config, llm=None)
         assert reason == "config has unsupported input flows: ['self check input']"
 
+    def test_a_retrieval_dependent_flow_routes_to_llmrails(self):
+        """A surface needing retrieval evidence is refused at selection; LLMRails can run it."""
+        config = _make_iorails_config(rails={"output": {"flows": ["autoalign groundedness output"]}})
+
+        reason = IORails.unsupported_reason(config, llm=None)
+
+        assert reason is not None
+        assert "retrieval" in reason
+
+    def test_a_transform_flow_routes_to_llmrails(self):
+        """A rewrite-capable surface is refused at selection, not run as an allow."""
+        config = _make_iorails_config(rails={"input": {"flows": ["autoalign check input"]}})
+
+        reason = IORails.unsupported_reason(config, llm=None)
+
+        assert reason is not None
+        assert "transform" in reason
+
     def test_unsupported_output_flow_reports_offender(self):
         """An output flow outside the IORails-supported set is named in the reason."""
         config = _make_iorails_config(
@@ -372,16 +390,27 @@ class TestIORailsUnsupportedReason:
         assert reason == "config has unsupported output flows: ['self check output']"
 
     @pytest.mark.parametrize(
-        "flow",
-        ["activefence moderation on input detailed", "gcpnlp moderation detailed"],
+        "flow, expected",
+        [
+            (
+                "activefence moderation on input detailed",
+                "'activefence moderation on input detailed' declares context binding(s) for 'text', "
+                "which manifest-driven execution does not fill yet",
+            ),
+            (
+                "gcpnlp moderation detailed",
+                "config has unsupported input flows: ['gcpnlp moderation detailed']",
+            ),
+        ],
+        ids=["unservable", "out-of-scope"],
     )
-    def test_detailed_flow_without_iorails_adapter_reports_offender(self, flow):
-        """Detailed flows remain unsupported until IORails has an adapter for them."""
+    def test_detailed_flow_without_iorails_adapter_reports_offender(self, flow, expected):
+        """Detailed flows fall back to LLMRails, named either as unservable or as out of scope."""
         config = _make_iorails_config(rails={"input": {"flows": [flow]}})
 
         reason = IORails.unsupported_reason(config, llm=None)
 
-        assert reason == f"config has unsupported input flows: ['{flow}']"
+        assert reason == expected
 
     def test_llm_takes_precedence_over_config_issues(self):
         """When both llm is provided and the config has unsupported flows, the llm

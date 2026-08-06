@@ -32,6 +32,12 @@ from typing import TYPE_CHECKING, Optional, Union
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
+from nemoguardrails.guardrails.compiled_rail import (
+    RailCompilationError,
+    RailDependencies,
+    compile_rail,
+    unservable_reason,
+)
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
@@ -69,6 +75,7 @@ from nemoguardrails.llm.clients._errors import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
@@ -522,16 +529,27 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+# Compilation validates the surface, its bindings and its action; it never reads the
+# dependencies, so a sentinel answers the same question the engine's real ones would.
+_COMPILE_ONLY_DEPS = RailDependencies(llms={}, llm_task_manager=None, config=None)
+
+
 class IORails(BaseGuardrails):
     """Workflow engine for accelerated Input/Output rails inference."""
 
     # Rail sections and flows that this engine can handle. Configs using anything
     # outside these sets fall back to LLMRails.
     SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
-    SUPPORTED_INPUT_FLOWS = frozenset(
-        {"content safety check input", "topic safety check input", "jailbreak detection model"}
+    # The rails this engine runs today. Compilation decides whether a flow is *servable*;
+    # this decides whether it is in scope yet. PR 4 widens it.
+    _ENABLED_SURFACES = frozenset(
+        {
+            (SurfaceDirection.INPUT, "content safety check input"),
+            (SurfaceDirection.INPUT, "topic safety check input"),
+            (SurfaceDirection.INPUT, "jailbreak detection model"),
+            (SurfaceDirection.OUTPUT, "content safety check output"),
+        }
     )
-    SUPPORTED_OUTPUT_FLOWS = frozenset({"content safety check output"})
     # Tool-rail flows are direction-specific: tool_output may only carry the
     # tool-call validator and tool_input only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
@@ -555,13 +573,20 @@ class IORails(BaseGuardrails):
         # Each rail family accepts only its own direction-specific flows, so an unknown
         # or misdirected flow routes the config to LLMRails. The supported sets double
         # as the direction check (tool_output allows only the call validator, etc.).
-        flow_checks = (
-            ("input", config.rails.input.flows, cls.SUPPORTED_INPUT_FLOWS),
-            ("output", config.rails.output.flows, cls.SUPPORTED_OUTPUT_FLOWS),
+        rail_checks = (
+            ("input", config.rails.input.flows, SurfaceDirection.INPUT),
+            ("output", config.rails.output.flows, SurfaceDirection.OUTPUT),
+        )
+        for label, flows, direction in rail_checks:
+            reason = cls._unservable_rails_reason(flows, direction, label)
+            if reason is not None:
+                return reason
+
+        tool_checks = (
             ("tool output", config.rails.tool_output.flows, cls.SUPPORTED_TOOL_OUTPUT_FLOWS),
             ("tool input", config.rails.tool_input.flows, cls.SUPPORTED_TOOL_INPUT_FLOWS),
         )
-        for label, flows, supported in flow_checks:
+        for label, flows, supported in tool_checks:
             reason = _unsupported_flows_reason(flows, supported, label)
             if reason is not None:
                 return reason
@@ -578,6 +603,34 @@ class IORails(BaseGuardrails):
             if reason is not None:
                 return reason
 
+        return None
+
+    @classmethod
+    def _unservable_rails_reason(cls, flows: list[str], direction: SurfaceDirection, label: str) -> Optional[str]:
+        """Return why a configured input/output flow cannot run here, or None when all can."""
+        # Surface-level refusals come first because they need no action import, so a config
+        # naming an optional integration is not made to pay for one just to be refused.
+        for flow in flows:
+            reason = unservable_reason(flow, direction)
+            if reason is not None:
+                return reason
+
+        out_of_scope = sorted(
+            {
+                name
+                for flow in flows
+                if (name := _get_flow_name(flow) or flow) and (direction, name) not in cls._ENABLED_SURFACES
+            }
+        )
+        if out_of_scope:
+            return f"config has unsupported {label} flows: {out_of_scope}"
+
+        # Only now, for a flow this engine will actually run, is the action worth importing.
+        for flow in flows:
+            try:
+                compile_rail(flow, direction, _COMPILE_ONLY_DEPS)
+            except RailCompilationError as exc:
+                return str(exc)
         return None
 
     @classmethod
