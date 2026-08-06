@@ -32,7 +32,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailExecution
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
@@ -75,6 +76,16 @@ UNSAFE_OUTPUT_JSON = json.dumps(
     }
 )
 MESSAGES = [{"role": "user", "content": "hello"}]
+
+
+class _FixedRail:
+    """Stands in for a CompiledRail, answering with one outcome and making no model call."""
+
+    def __init__(self, outcome: RailOutcome) -> None:
+        self._outcome = outcome
+
+    async def execute(self, messages, bot_response=None) -> RailExecution:
+        return RailExecution(outcome=self._outcome)
 
 
 def _make_rails_manager(config: RailsConfig, engine_registry: EngineRegistry | None = None) -> RailsManager:
@@ -183,14 +194,35 @@ class TestRailsManagerInit:
             _make_rails_manager(config)
 
     def test_rails_compiled_for_flows(self, content_safety_rails_manager):
-        assert "content safety check input $model=content_safety" in content_safety_rails_manager._rails
-        assert "content safety check output $model=content_safety" in content_safety_rails_manager._rails
+        assert set(content_safety_rails_manager._rails) == {
+            (RailDirection.INPUT, "content safety check input $model=content_safety"),
+            (RailDirection.OUTPUT, "content safety check output $model=content_safety"),
+        }
 
     def test_nemoguards_rails_compiled(self, nemoguards_rails_manager):
-        assert "content safety check input $model=content_safety" in nemoguards_rails_manager._rails
-        assert "content safety check output $model=content_safety" in nemoguards_rails_manager._rails
-        assert "topic safety check input $model=topic_control" in nemoguards_rails_manager._rails
-        assert "jailbreak detection model" in nemoguards_rails_manager._rails
+        assert set(nemoguards_rails_manager._rails) == {
+            (RailDirection.INPUT, "content safety check input $model=content_safety"),
+            (RailDirection.INPUT, "topic safety check input $model=topic_control"),
+            (RailDirection.INPUT, "jailbreak detection model"),
+            (RailDirection.OUTPUT, "content safety check output $model=content_safety"),
+        }
+
+    @pytest.mark.asyncio
+    async def test_a_rail_runs_the_compilation_for_its_own_direction(self, content_safety_rails_manager):
+        """Dispatch keys on direction too, so one flow name cannot resolve to the other direction.
+
+        No catalog surface is offered in both directions today, so the collision is not
+        reachable from a config; this pins the lookup that keeps it that way.
+        """
+        flow = "content safety check input $model=content_safety"
+        content_safety_rails_manager._rails[(RailDirection.INPUT, flow)] = _FixedRail(RailOutcome.allow())
+        content_safety_rails_manager._rails[(RailDirection.OUTPUT, flow)] = _FixedRail(RailOutcome.block())
+
+        allowed = await content_safety_rails_manager._run_rail(flow, RailDirection.INPUT, MESSAGES)
+        blocked = await content_safety_rails_manager._run_rail(flow, RailDirection.OUTPUT, MESSAGES)
+
+        assert allowed.is_safe is True
+        assert blocked.is_safe is False
 
 
 # --- Sequential input/output tests ---

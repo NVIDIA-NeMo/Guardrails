@@ -1152,9 +1152,11 @@ class TestBlockReasonDisplay:
 
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}]))
 
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
-        message = json.loads(error_chunks[0])["error"]["message"]
-        assert message == "Blocked by input rails: policy_violations: S1: Violence"
+        _assert_error_chunk(
+            chunks,
+            code="content_blocked",
+            message_contains="Blocked by input rails: policy_violations: S1: Violence",
+        )
 
     @pytest.mark.asyncio
     async def test_output_block_payload_falls_back_to_the_rail_name(self, iorails_stream_first):

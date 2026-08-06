@@ -43,7 +43,7 @@ _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 class EngineRegistry:
     """Registry of ModelEngine instances for IORails.
 
-    Creates one engine per configured model or API service, keyed by name.
+    Creates one engine per configured model, keyed by model type.
     Each engine owns its own HTTP client with per-model retry and timeout settings.
     """
 
@@ -54,9 +54,9 @@ class EngineRegistry:
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Build one engine per configured model and API service.
+        """Build one engine per configured model.
 
-        When *tracer* is provided, LLM and API calls produce OTEL spans; when
+        When *tracer* is provided, LLM calls produce OTEL spans; when
         ``None`` the span helpers become no-ops.
 
         When *metrics_enabled* is True, LLM calls emit the OTEL GenAI

@@ -250,11 +250,11 @@ class TestModelBackedRailsAgreeAcrossEngines:
 
 
 class TestJailbreakAgreesAcrossEngines:
-    """Jailbreak detection reaches the same decision despite two different transports.
+    """Jailbreak detection reaches the same decision on both engines.
 
-    LLMRails calls the NIM over httpx, IORails over aiohttp. Each is mocked at its own
-    boundary with the same verdict, so the decision is compared even though the wire path
-    is not.
+    Both now call the NIM over httpx through the shared library action, so one mock at that
+    boundary serves each engine in turn and the comparison is of the decision, not the wire
+    path. Before the migration the engines used different transports and needed a mock each.
     """
 
     @pytest.mark.asyncio

@@ -276,7 +276,7 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
                 raise RailCompilationError(f"{flow!r} is missing required parameter ${key}=")
             continue
 
-        # Context bindings are rejected by _reject_unfillable_binding_kinds before this
+        # Context bindings are refused by _unfillable_bindings_reason before this
         # point. Raise here for noisy visibility
         raise RailCompilationError(
             f"{flow!r} declares an unsupported {binding.kind!r} binding for {binding.action_param!r}"

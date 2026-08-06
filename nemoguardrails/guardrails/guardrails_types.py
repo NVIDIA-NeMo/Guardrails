@@ -168,6 +168,11 @@ def serialize_prompt(messages: list[dict]) -> str:
 _VERDICT_DECISION_KEY = "allowed"
 _UNSPECIFIED_REASON = "unspecified"
 
+# Verdict fields a blocked caller may see. Covers what the enabled rails emit -- content
+# safety and llama guard both report ``policy_violations`` -- and PR 4 extends it per rail
+# as it widens the tier. Adding a key discloses it, so each addition is a decision.
+_CLIENT_EVIDENCE_KEYS = frozenset({"policy_violations"})
+
 
 def _rendered_evidence(value: Any) -> str:
     """Render one verdict value, flattening a sequence into a comma-separated list."""
@@ -186,20 +191,40 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
-def _verdict_evidence(return_value: Any) -> Optional[str]:
-    """Render a rail's structured verdict as text, or None when it carries no evidence."""
+def _verdict_evidence(return_value: Any, keys: Optional[frozenset[str]] = None) -> Optional[str]:
+    """Render a rail's structured verdict as text, or None when it carries no evidence.
+
+    Passing *keys* restricts the rendering to those verdict fields.
+    """
     if not isinstance(return_value, Mapping):
         return None
     parts = [
         f"{key}: {_rendered_evidence(value)}"
         for key, value in return_value.items()
-        if key != _VERDICT_DECISION_KEY and _has_evidence(value)
+        if key != _VERDICT_DECISION_KEY and _has_evidence(value) and (keys is None or key in keys)
     ]
     return "; ".join(parts) or None
 
 
 def display_reason(result: RailResult) -> str:
-    """Render a blocked rail's explanation for a log line, a span, or a client error payload."""
+    """Render a blocked rail's full explanation for a log line or a span."""
     if result.reason:
         return result.reason
     return _verdict_evidence(result.return_value) or result.triggered_rail or _UNSPECIFIED_REASON
+
+
+def client_reason(result: RailResult) -> str:
+    """Render a blocked rail's explanation for the error payload sent to the caller.
+
+    Verdict fields reach the caller only by name, because a rail's metadata is neutral
+    evidence for logs rather than a client contract: ``crowdstrike_aidr`` puts the user's
+    message and the bot's reply in it, and ``f5`` forwards the whole provider response,
+    so rendering it wholesale would echo request content back over the API. Unlisted keys
+    are dropped rather than redacted, so a newly enabled rail discloses nothing until its
+    evidence is added here deliberately. ``reason`` is exempt: unlike metadata, it is a
+    rail-authored explanation meant to be read.
+    """
+    if result.reason:
+        return result.reason
+    evidence = _verdict_evidence(result.return_value, keys=_CLIENT_EVIDENCE_KEYS)
+    return evidence or result.triggered_rail or _UNSPECIFIED_REASON

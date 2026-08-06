@@ -45,6 +45,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailDirection,
     TimedLLMResponse,
+    client_reason,
     display_reason,
     get_request_id,
     serialize_prompt,
@@ -615,13 +616,8 @@ class IORails(BaseGuardrails):
             if reason is not None:
                 return reason
 
-        out_of_scope = sorted(
-            {
-                name
-                for flow in flows
-                if (name := _get_flow_name(flow) or flow) and (direction, name) not in cls._ENABLED_SURFACES
-            }
-        )
+        configured = {_get_flow_name(flow) or flow for flow in flows}
+        out_of_scope = sorted(name for name in configured if (direction, name) not in cls._ENABLED_SURFACES)
         if out_of_scope:
             return f"config has unsupported {label} flows: {out_of_scope}"
 
@@ -1420,7 +1416,7 @@ class IORails(BaseGuardrails):
                         record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
-                            f"Blocked by tool input rails: {display_reason(tool_result)}", "tool_input_rails"
+                            f"Blocked by tool input rails: {client_reason(tool_result)}", "tool_input_rails"
                         )
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1435,7 +1431,7 @@ class IORails(BaseGuardrails):
                         record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(
                         self._guardrails_violation_payload(
-                            f"Blocked by input rails: {display_reason(input_result)}", "input_rails"
+                            f"Blocked by input rails: {client_reason(input_result)}", "input_rails"
                         )
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -1607,7 +1603,7 @@ class IORails(BaseGuardrails):
                                             if self._metrics_enabled:
                                                 record_request_blocked(RailDirection.OUTPUT)
                                             violation = self._guardrails_violation_payload(
-                                                f"Blocked by tool output rails: {display_reason(tool_call)}",
+                                                f"Blocked by tool output rails: {client_reason(tool_call)}",
                                                 "tool_output_rails",
                                             )
                                             if self._content_capture_enabled:
@@ -1700,7 +1696,7 @@ class IORails(BaseGuardrails):
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.OUTPUT)
                 violation = self._guardrails_violation_payload(
-                    f"Blocked by output rails: {display_reason(output_result)}", "output_rails"
+                    f"Blocked by output rails: {client_reason(output_result)}", "output_rails"
                 )
                 yield _frame_for_stream(violation, include_metadata)
                 return

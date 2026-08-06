@@ -178,8 +178,11 @@ class RailsManager:
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
 
         deps = self._rail_dependencies()
-        self._rails: dict[str, CompiledRail] = {
-            flow: compile_rail(flow, _SURFACE_DIRECTIONS[direction], deps)
+        # Keyed by direction as well as flow: compilation is direction-specific, so a surface
+        # the catalog offers in both directions and a config lists in both would otherwise
+        # collide on one key and run whichever compiled last.
+        self._rails: dict[tuple[RailDirection, str], CompiledRail] = {
+            (direction, flow): compile_rail(flow, _SURFACE_DIRECTIONS[direction], deps)
             for direction, flows in ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows))
             for flow in flows
         }
@@ -355,7 +358,7 @@ class RailsManager:
     ) -> RailResult:
         """Dispatch a single rail flow to its compiled rail and record what it did."""
         with rail_span(self._tracer, flow, direction) as span:
-            execution = await self._rails[flow].execute(messages, bot_response)
+            execution = await self._rails[(direction, flow)].execute(messages, bot_response)
             result = _rail_result(execution.outcome)
             if not result.is_safe:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)

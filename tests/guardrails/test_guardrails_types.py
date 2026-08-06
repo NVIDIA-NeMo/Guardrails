@@ -21,6 +21,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
     RailResult,
+    client_reason,
     display_reason,
     truncate,
 )
@@ -151,6 +152,14 @@ class TestDisplayReason:
                 RailResult(
                     is_safe=False,
                     triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": ["S1: Violence"], "score": 0.97},
+                ),
+                "policy_violations: S1: Violence; score: 0.97",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="content safety check input",
                     return_value={"allowed": False, "policy_violations": None},
                 ),
                 "content safety check input",
@@ -170,6 +179,7 @@ class TestDisplayReason:
             "reason-beats-evidence",
             "evidence",
             "empty-evidence-skipped",
+            "multiple-fields-joined",
             "null-evidence-skipped",
             "rail-name",
             "nothing-at-all",
@@ -178,6 +188,69 @@ class TestDisplayReason:
     def test_prefers_the_most_specific_source(self, result, expected):
         """A stated reason wins, then the verdict's non-empty evidence, then the rail's name."""
         assert display_reason(result) == expected
+
+
+class TestClientReason:
+    """What reaches the caller in a block payload, as opposed to what reaches the log."""
+
+    CROWDSTRIKE_VERDICT = {
+        "allowed": False,
+        "blocked": True,
+        "guard_output": "policy 7",
+        "user_message": "my private question",
+        "bot_message": "the draft reply",
+    }
+
+    @pytest.mark.parametrize(
+        "result, expected",
+        [
+            (RailResult(is_safe=False, reason="Safety categories: S1: Violence"), "Safety categories: S1: Violence"),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": ["S1: Violence"]},
+                ),
+                "policy_violations: S1: Violence",
+            ),
+            (
+                RailResult(
+                    is_safe=False,
+                    triggered_rail="content safety check input",
+                    return_value={"allowed": False, "policy_violations": ["S1: Violence"], "raw_response": "..."},
+                ),
+                "policy_violations: S1: Violence",
+            ),
+        ],
+        ids=["reason-passes-through", "listed-key", "unlisted-key-dropped-from-a-mix"],
+    )
+    def test_only_listed_verdict_fields_reach_the_caller(self, result, expected):
+        """A rail-authored reason passes through; verdict fields reach the caller only by name."""
+        assert client_reason(result) == expected
+
+    def test_an_entirely_unlisted_verdict_falls_back_to_the_rail_name(self):
+        """A rail whose evidence is all unlisted names itself rather than disclosing nothing useful."""
+        result = RailResult(
+            is_safe=False,
+            triggered_rail="crowdstrike aidr guard input",
+            return_value=self.CROWDSTRIKE_VERDICT,
+        )
+
+        assert client_reason(result) == "crowdstrike aidr guard input"
+
+    def test_the_log_still_carries_what_the_caller_does_not(self):
+        """The restriction is on the payload only; diagnosis keeps the full verdict."""
+        result = RailResult(
+            is_safe=False,
+            triggered_rail="crowdstrike aidr guard input",
+            return_value=self.CROWDSTRIKE_VERDICT,
+        )
+
+        rendered = display_reason(result)
+
+        assert "my private question" in rendered
+        assert "the draft reply" in rendered
+        assert "my private question" not in client_reason(result)
 
 
 class TestTypeAliases:
