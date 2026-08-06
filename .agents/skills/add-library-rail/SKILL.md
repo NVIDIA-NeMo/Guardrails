@@ -34,12 +34,16 @@ vendor client into `request.py` for a multi-endpoint API, while
 returns `RailOutcome` directly. F5 is the smallest complete vendor rail on the
 managed HTTP client, so copy it when the vendor is one endpoint.
 
-Copy clavata's `request.py` and `errs.py` layering only. Its test coverage
-is NOT exemplary: 8 tests, no Colang 2 coverage, no action-raise flow test,
-and no recorded suite entry, so it fails three of the five completeness
+Copy clavata's `request.py` and `errs.py` layering, and its response-model
+tests: `tests/test_clavata_models.py` is a solid example of validating a
+vendor payload shape. Its rail-behavior coverage is NOT exemplary. Of the 32
+tests collected across its two files, only the 8 in `tests/test_clavata.py`
+exercise the rail, and there is no Colang 2 coverage, no action-raise flow
+test, and no recorded suite entry, so it fails three of the five completeness
 items in the `review-library-rail` skill. Copy
 `tests/test_f5_guardrails.py` and
-`tests/recorded/rails/library/test_f5_guardrails.py` for the test shape.
+`tests/recorded/rails/library/test_f5_guardrails.py` for the behavior test
+shape.
 
 For a model-backed rail, the model call is not `http_call`. Use the shared
 generation surface, in this fixed order (exemplar:
@@ -198,9 +202,10 @@ strings and localization belong in the flow or in bot message definitions.
   import from.
 - Put neutral evidence in the single `metadata` mapping argument, meaning
   machine-shaped values only: identifiers, category names, scores, booleans,
-  and the vendor's own parsed response. `allow`, `block`, and `transform` are
-  keyword-only and take `reason` and `metadata` and nothing else, so evidence
-  goes inside the mapping, not as loose keyword arguments. Do NOT put refusal
+  and the vendor's own parsed response. `allow` and `block` are keyword-only
+  and take `reason` and `metadata` and nothing else; `transform` takes
+  `rewrites` positionally and then the same two keyword-only arguments. So
+  evidence goes inside the mapping, not as loose keyword arguments. Do NOT put refusal
   text, exception types, or presentation decisions in the outcome; engines own
   presentation.
 - Flows consume the outcome via `$response.is_blocked`,
