@@ -333,21 +333,42 @@ response = await http_call(
 
 ## Step 5: Vendor Python dependencies
 
-Rail dependencies are declared in the manifest, NOT in the install path. Do
-NOT add the vendor package to `[project.dependencies]` or to a user-facing
-extra that installs by default; users install it themselves, guided by the
-manifest declaration and the docs page install line.
+The one hard prohibition: never add the vendor package to
+`[project.dependencies]`. It is optional, and a normal install must not pull
+it in. Beyond that there are three separate questions, and they have
+different answers.
 
-That prohibition is about what USERS install, not about what CI installs.
-If your unit tests import the vendor package directly, add it to the
-`test_integration` dependency group in `pyproject.toml` and regenerate
-`uv.lock` in the same commit. `dev` includes that group, so CI gets the
-package and your tests are runnable. The precedent is `yara-python`, which
-sits in `test_integration` precisely because
-`tests/test_injection_detection.py` does a bare `import yara`. The
-alternative, guarding the test module with `pytest.importorskip`, is also
-acceptable and keeps packaging untouched, but then say so in the PR, because
-a skipped test suite is not a passing one.
+**What the manifest declares.** Always list the distributions in
+`RailRequirements.optional_dependencies`, whatever else you do. This is what
+users and tooling read.
+
+**Whether to add a named extra.** `pyproject.toml` defines rail-scoped
+extras (`sdd`, `gcp`, `jailbreak`, `multilingual`), so `pip install
+nemoguardrails[<extra>]` is an established install path and adding one for
+your rail is legitimate. If you add an extra: mirror it into the `all` extra
+in the same commit, since nothing tests that mirror; declare it as
+`extras=("<name>",)` alongside `optional_dependencies`; and use it as the
+docs install line. Note the tree is inconsistent here, so do not infer the
+rule from the nearest rail: only `sensitive_data_detection` declares
+`extras=`, while `injection_detection` and `gcp_moderate_text` declare
+`optional_dependencies` alone even though `jailbreak` and `gcp` exist for
+them.
+
+**Whether CI can run your tests.** Separate from both of the above. If your
+unit test module imports the vendor package at top level, add it to the
+`test_integration` dependency group and regenerate `uv.lock` in the same
+commit; `dev` includes that group, so CI installs it. That is why
+`yara-python` is in `test_integration`:
+`tests/test_injection_detection.py` does a bare `import yara`. If you would
+rather leave packaging untouched, use one of the patterns already in the
+tree rather than inventing one: `check_optional_dependency` from
+`nemoguardrails/imports.py`, a `setup_module` skip
+(`tests/test_sensitive_data_detection.py`), a try/except flag with
+`@pytest.mark.skipif` (`tests/test_gcp_text_moderation_input_rail.py`), or
+`mock.patch.dict("sys.modules", {"<pkg>": None})` to exercise the
+missing-package path with nothing installed
+(`tests/test_hf_classifier.py`). Whichever you pick, say so in the PR: a
+skipped test suite is not a passing one.
 
 - Declare the distribution name in `rail.py` through
   `RailRequirements.optional_dependencies` (exemplar:
@@ -362,10 +383,10 @@ requirements=RailRequirements(optional_dependencies=("yara-python",)),
   `RailRequirements` accepts only `extras`, `env_vars`, `services`, `models`,
   and `optional_dependencies`, and it is declared `extra="forbid"`, so any
   other key fails at manifest construction. Version bounds are not
-  expressible here; state them in the docs page `pip install` line. Use
-  `extras=("<extra>",)` only when the package already ships in a
-  nemoguardrails extra (exemplar:
-  `nemoguardrails/library/sensitive_data_detection/rail.py`).
+  expressible here; state them in the docs page `pip install` line. Set
+  `extras=("<extra>",)` alongside it when the rail has a named extra
+  (exemplar: `nemoguardrails/library/sensitive_data_detection/rail.py`,
+  which declares both).
 
 - Import the vendor package lazily in `actions.py` behind a module-level
   guard that leaves the name bound to `None` on ImportError, then check
