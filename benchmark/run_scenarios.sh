@@ -29,7 +29,7 @@ shift
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/benchmark/aiperf/configs"
 
-ALL_SCENARIOS=(dialog rag code_gen agent)
+ALL_SCENARIOS=(dialog rag code_gen_lowc code_gen agent_lowc agent)
 if [[ $# -gt 0 ]]; then
     SCENARIOS=("$@")
 else
