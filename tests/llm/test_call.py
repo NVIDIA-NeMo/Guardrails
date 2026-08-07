@@ -512,3 +512,40 @@ class TestWarnIfTruncated:
             result = warn_if_truncated(response, "self_check_input")
         assert result is False
         assert not caplog.records
+
+
+class RecordingModel:
+    model_name = "test-model"
+    provider_name = "test-provider"
+    provider_url = "https://example.test/v1"
+
+    def __init__(self):
+        self.calls = []
+
+    async def generate_async(self, prompt, *, stop=None, **kwargs):
+        self.calls.append((stop, kwargs))
+        return LLMResponse(content="ok")
+
+    async def stream_async(self, prompt, *, stop=None, **kwargs):
+        self.calls.append((stop, kwargs))
+        yield LLMResponseChunk(delta_content="ok", finish_reason="stop")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("request_stop", ["END", ["END"], None])
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_llm_params_stop_overrides_explicit_stop_without_mutation(request_stop, streaming):
+    model = RecordingModel()
+    llm_params = {"stop": request_stop, "temperature": 0.2}
+    handler = StreamingHandler() if streaming else None
+
+    await llm_call(
+        model,
+        "prompt",
+        stop=["PROMPT_END"],
+        llm_params=llm_params,
+        streaming_handler=handler,
+    )
+
+    assert model.calls == [(request_stop, {"temperature": 0.2})]
+    assert llm_params == {"stop": request_stop, "temperature": 0.2}
