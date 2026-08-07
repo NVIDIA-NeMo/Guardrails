@@ -88,6 +88,22 @@ POLICYAI_ENV = {
     "POLICYAI_TAG_NAME": "test-tag",
 }
 JAILBREAK_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://jailbreak.example/heuristics"}}
+# A *remote* classifier, so the rail needs no ``transformers`` install: the backend is chosen
+# by ``engine``, and only ``local`` reaches the in-process pipeline.
+HF_CLASSIFIER_CONFIG = {
+    "hf_classifier": {
+        "toxicity": {
+            "engine": "vllm",
+            "model": "test/toxicity",
+            "base_url": "http://hf.example",
+            "threshold": 0.5,
+            "blocked_labels": ["toxic"],
+        }
+    }
+}
+AUTOALIGN_CONFIG = {"autoalign": {"parameters": {"fact_check_endpoint": "http://autoalign.example/factcheck"}}}
+HF_ALLOW = {"data": [{"label": "toxic", "probs": [0.1]}]}
+HF_BLOCK = {"data": [{"label": "toxic", "probs": [0.9]}]}
 CLAVATA_POLICY_ID = "00000000-0000-0000-0000-000000000000"
 CLAVATA_CONFIG = {
     "clavata": {
@@ -345,6 +361,36 @@ VENDOR_RAILS = [
         block_payload=clavata_response(labels={"Violence": True}),
         rails_config=CLAVATA_CONFIG,
         env={"CLAVATA_API_KEY": "test-key"},
+    ),
+    VendorRail(
+        rail_id="hf_classifier_input",
+        flow="hf classifier check input $classifier=toxicity",
+        direction="input",
+        allow_payload=HF_ALLOW,
+        block_payload=HF_BLOCK,
+        rails_config=HF_CLASSIFIER_CONFIG,
+        env={},
+    ),
+    VendorRail(
+        rail_id="hf_classifier_output",
+        flow="hf classifier check output $classifier=toxicity",
+        direction="output",
+        allow_payload=HF_ALLOW,
+        block_payload=HF_BLOCK,
+        rails_config=HF_CLASSIFIER_CONFIG,
+        env={},
+    ),
+    # The threshold is a manifest literal of 0.5, and a *low* score is the failure, so these
+    # scores sit either side of it the opposite way round from the risk-scoring vendors.
+    VendorRail(
+        rail_id="autoalign_factcheck",
+        flow="autoalign factcheck output",
+        direction="output",
+        allow_payload={"all_overall_fact_scores": [0.9]},
+        block_payload={"all_overall_fact_scores": [0.1]},
+        rails_config=AUTOALIGN_CONFIG,
+        env={"AUTOALIGN_API_KEY": "test-key"},
+        llmrails_block_text=ANSWER_UNKNOWN,
     ),
 ]
 
