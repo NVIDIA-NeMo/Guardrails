@@ -168,10 +168,20 @@ def serialize_prompt(messages: list[dict]) -> str:
 _VERDICT_DECISION_KEY = "allowed"
 _UNSPECIFIED_REASON = "unspecified"
 
-# Verdict fields a blocked caller may see. Covers what the enabled rails emit -- content
-# safety and llama guard both report ``policy_violations`` -- and PR 4 extends it per rail
-# as it widens the tier. Adding a key discloses it, so each addition is a decision.
-_CLIENT_EVIDENCE_KEYS = frozenset({"policy_violations"})
+# Verdict fields a blocked caller may see.
+_CLIENT_EVIDENCE_KEYS = frozenset(
+    {
+        "policy_violations",  # content safety, llama guard
+        "triggered_violation",  # activefence, gcp text moderation
+        "max_risk_score",  # activefence, gcp text moderation
+        "trustworthiness_score",  # cleanlab
+        "assessment",  # policyai
+        "category",  # policyai
+        "severity",  # policyai
+        "score",  # autoalign
+        "threshold",  # autoalign
+    }
+)
 
 
 def _rendered_evidence(value: Any) -> str:

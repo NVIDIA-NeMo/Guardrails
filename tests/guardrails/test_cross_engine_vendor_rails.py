@@ -43,6 +43,10 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.testing import RecordingHTTPClient
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+
+# Clavata's verdict is a nested job/result/report document, so its own test factory builds it
+# rather than a hand-copied literal that would drift from the models it is parsed into.
+from tests.test_clavata import create_clavata_response as clavata_response
 from tests.utils import TestChat
 
 USER_INPUT = "hello there"
@@ -60,6 +64,36 @@ TREND_CONFIG = {
         "v1_url": "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails",
         "api_key_env_var": "V1_API_KEY",
         "application_name": "test-app",
+    }
+}
+AI_DEFENSE_CONFIG = {"ai_defense": {}}
+AI_DEFENSE_ENV = {
+    "AI_DEFENSE_API_ENDPOINT": "https://ai-defense.example/api/v1/inspect/chat",
+    "AI_DEFENSE_API_KEY": "test-key",
+}
+F5_ENV = {"F5_GUARDRAILS_API_KEY": "test-key", "F5_GUARDRAILS_API_URL": "https://f5.example"}
+FIDDLER_CONFIG = {"fiddler": {"fiddler_endpoint": "https://fiddler.example", "safety_threshold": 0.5}}
+FIDDLER_ENV = {"FIDDLER_API_KEY": "test-key", "FIDDLER_ENVIRON": "test"}
+GLINER_CONFIG = {"gliner": {"server_endpoint": "http://gliner.example/v1/extract"}}
+POLYGRAF_CONFIG = {
+    "polygraf": {
+        "server_endpoint": "http://polygraf.example/v1/pii/text-detect",
+        "input": {"entities": ["Email", "Person"]},
+        "output": {"entities": ["Email", "Person"]},
+    }
+}
+POLICYAI_ENV = {
+    "POLICYAI_API_KEY": "test-key",
+    "POLICYAI_BASE_URL": "https://policyai.example",
+    "POLICYAI_TAG_NAME": "test-tag",
+}
+JAILBREAK_CONFIG = {"jailbreak_detection": {"server_endpoint": "http://jailbreak.example/heuristics"}}
+CLAVATA_POLICY_ID = "00000000-0000-0000-0000-000000000000"
+CLAVATA_CONFIG = {
+    "clavata": {
+        "policies": {"Violence": CLAVATA_POLICY_ID},
+        "input": {"policy": "Violence"},
+        "output": {"policy": "Violence"},
     }
 }
 
@@ -154,6 +188,163 @@ VENDOR_RAILS = [
         block_payload={"action": "Block", "reason": "Policy violation"},
         rails_config=TREND_CONFIG,
         env={"V1_API_KEY": "test-key"},
+    ),
+    VendorRail(
+        rail_id="ai_defense_prompt",
+        flow="ai defense inspect prompt",
+        direction="input",
+        allow_payload={"is_safe": True, "rules": []},
+        block_payload={"is_safe": False, "rules": [{"rule_name": "Prompt Injection"}]},
+        rails_config=AI_DEFENSE_CONFIG,
+        env=AI_DEFENSE_ENV,
+    ),
+    VendorRail(
+        rail_id="ai_defense_response",
+        flow="ai defense inspect response",
+        direction="output",
+        allow_payload={"is_safe": True, "rules": []},
+        block_payload={"is_safe": False, "rules": [{"rule_name": "Harmful Content"}]},
+        rails_config=AI_DEFENSE_CONFIG,
+        env=AI_DEFENSE_ENV,
+    ),
+    VendorRail(
+        rail_id="f5_input",
+        flow="f5 guardrails scan input",
+        direction="input",
+        allow_payload={"result": {"outcome": "cleared"}},
+        block_payload={"result": {"outcome": "blocked"}},
+        env=F5_ENV,
+    ),
+    VendorRail(
+        rail_id="f5_output",
+        flow="f5 guardrails scan output",
+        direction="output",
+        allow_payload={"result": {"outcome": "cleared"}},
+        block_payload={"result": {"outcome": "blocked"}},
+        env=F5_ENV,
+    ),
+    # Fiddler decides on ``score >= safety_threshold``, so the payloads straddle the
+    # configured 0.5 rather than being flags.
+    VendorRail(
+        rail_id="fiddler_user_safety",
+        flow="fiddler user safety",
+        direction="input",
+        allow_payload={"fdl_harmful": 0.0},
+        block_payload={"fdl_harmful": 0.9},
+        rails_config=FIDDLER_CONFIG,
+        env=FIDDLER_ENV,
+    ),
+    VendorRail(
+        rail_id="fiddler_bot_safety",
+        flow="fiddler bot safety",
+        direction="output",
+        allow_payload={"fdl_harmful": 0.0},
+        block_payload={"fdl_harmful": 0.9},
+        rails_config=FIDDLER_CONFIG,
+        env=FIDDLER_ENV,
+    ),
+    VendorRail(
+        rail_id="gliner_detect_input",
+        flow="gliner detect pii on input",
+        direction="input",
+        allow_payload={"total_entities": 0},
+        block_payload={"total_entities": 2},
+        rails_config=GLINER_CONFIG,
+        env={},
+    ),
+    VendorRail(
+        rail_id="gliner_detect_output",
+        flow="gliner detect pii on output",
+        direction="output",
+        allow_payload={"total_entities": 0},
+        block_payload={"total_entities": 2},
+        rails_config=GLINER_CONFIG,
+        env={},
+    ),
+    VendorRail(
+        rail_id="polygraf_detect_input",
+        flow="polygraf detect pii on input",
+        direction="input",
+        allow_payload={"entities": []},
+        block_payload={"entities": [{"entity_type": "Email", "start": 0, "end": 5}]},
+        rails_config=POLYGRAF_CONFIG,
+        env={"POLYGRAF_API_KEY": "test-key"},
+        llmrails_block_text=ANSWER_UNKNOWN,
+    ),
+    VendorRail(
+        rail_id="polygraf_detect_output",
+        flow="polygraf detect pii on output",
+        direction="output",
+        allow_payload={"entities": []},
+        block_payload={"entities": [{"entity_type": "Email", "start": 0, "end": 5}]},
+        rails_config=POLYGRAF_CONFIG,
+        env={"POLYGRAF_API_KEY": "test-key"},
+        llmrails_block_text=ANSWER_UNKNOWN,
+    ),
+    VendorRail(
+        rail_id="policyai_input",
+        flow="policyai moderation on input",
+        direction="input",
+        allow_payload={"data": [{"status": "ok", "assessment": "SAFE"}]},
+        block_payload={
+            "data": [{"status": "ok", "assessment": "UNSAFE", "category": "pii", "severity": 3, "reason": "blocked"}]
+        },
+        env=POLICYAI_ENV,
+    ),
+    VendorRail(
+        rail_id="policyai_output",
+        flow="policyai moderation on output",
+        direction="output",
+        allow_payload={"data": [{"status": "ok", "assessment": "SAFE"}]},
+        block_payload={
+            "data": [{"status": "ok", "assessment": "UNSAFE", "category": "pii", "severity": 3, "reason": "blocked"}]
+        },
+        env=POLICYAI_ENV,
+    ),
+    # The detailed variant scores each violation against its own threshold rather than one
+    # shared cut-off, so the blocking score must clear the rule it names: harassment is 0.8.
+    VendorRail(
+        rail_id="activefence_input_detailed",
+        flow="activefence moderation on input detailed",
+        direction="input",
+        allow_payload={"violations": [], "errors": []},
+        block_payload={
+            "violations": [{"violation_type": "abusive_or_harmful.harassment_or_bullying", "risk_score": 0.95}],
+            "errors": [],
+        },
+        env={"ACTIVEFENCE_API_KEY": "test-key"},
+        volatile_body_keys=frozenset({"content_id"}),
+        # The detailed flow answers per violation category rather than with one refusal, so
+        # this text follows from the harassment payload above. It is the widest engine gap in
+        # the table: four possible messages on LLMRails against one on IORails.
+        llmrails_block_text="I will not engage in any abusive or harmful behavior.",
+    ),
+    VendorRail(
+        rail_id="jailbreak_heuristics",
+        flow="jailbreak detection heuristics",
+        direction="input",
+        allow_payload={"jailbreak": False},
+        block_payload={"jailbreak": True},
+        rails_config=JAILBREAK_CONFIG,
+        env={},
+    ),
+    VendorRail(
+        rail_id="clavata_input",
+        flow="clavata check input",
+        direction="input",
+        allow_payload=clavata_response(labels={}),
+        block_payload=clavata_response(labels={"Violence": True}),
+        rails_config=CLAVATA_CONFIG,
+        env={"CLAVATA_API_KEY": "test-key"},
+    ),
+    VendorRail(
+        rail_id="clavata_output",
+        flow="clavata check output",
+        direction="output",
+        allow_payload=clavata_response(labels={}),
+        block_payload=clavata_response(labels={"Violence": True}),
+        rails_config=CLAVATA_CONFIG,
+        env={"CLAVATA_API_KEY": "test-key"},
     ),
 ]
 
