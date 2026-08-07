@@ -16,6 +16,7 @@
 """Unit tests for engine_registry module."""
 
 import json
+import logging
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,15 +27,17 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from nemoguardrails.guardrails import engine_registry as engine_registry_module
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.tool_schema import Toolset
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -1137,7 +1140,13 @@ class TestEngineRegistryStreamModelCallMetrics:
         ``record_token_usage`` line after the ``with`` block doesn't
         run (GeneratorExit unwinds the with-stack but skips trailing
         code).  Duration still records via the ``finally`` in
-        ``llm_operation_duration``."""
+        ``llm_operation_duration``.
+
+        This also pins ``stream_model_call``'s ``finally: await stream.aclose()``.
+        The metric context lives one generator down, in
+        ``ModelEngine.stream_from_messages``; closing this generator only unwinds
+        this one, so without that explicit close the delegate stays suspended at
+        its yield and the duration is not recorded until garbage collection."""
         engine = manager_with_metrics._get_engine("main", ModelEngine)
         engine.stream_chat_completion = _mock_stream(
             LLMResponseChunk(delta_content="Hello"),
@@ -1582,3 +1591,411 @@ class TestEngineRegistryToolDelegation:
             mgr = EngineRegistry(config.models, config.rails.config)
         toolset = mgr.parse_tools("main", None)
         assert [t.key for t in toolset.tools] == ["get_weather"]
+
+
+class TestEngineRegistryLLMs:
+    """``llms`` exposes the model engines as the ``Dict[str, LLMModel]`` that library
+    rail actions index by model type."""
+
+    def test_maps_every_model_type(self, manager):
+        """One entry per configured model, keyed by Model.type."""
+        assert set(manager.llms) == {"main", "content_safety", "topic_control"}
+
+    def test_excludes_api_engines(self, manager):
+        """jailbreak_detection is an APIEngine, not an LLM, so it is not an entry."""
+        assert "jailbreak_detection" not in manager.llms
+
+    def test_values_are_the_registered_engines(self, manager):
+        """Entries are the registry's own engines, not copies, so they share lifecycle."""
+        assert manager.llms["main"] is manager._get_engine("main", ModelEngine)
+
+    def test_values_satisfy_the_llm_model_protocol(self, manager):
+        """Every entry is usable wherever a library action declares ``LLMModel``."""
+        assert all(isinstance(model, LLMModel) for model in manager.llms.values())
+
+
+class TestEngineRegistryMessagesEntryPoint:
+    """The registry always holds wire messages — every IORails entry point normalizes
+    through ``IORails._convert_to_messages`` — so it calls the messages-typed core
+    directly instead of routing back through the ``LLMModel`` prompt adapter."""
+
+    _MESSAGES = [{"role": "user", "content": "Hi"}]
+
+    @pytest.mark.asyncio
+    async def test_model_call_skips_the_prompt_adapter(self, manager):
+        """model_call reaches generate_from_messages with its messages and kwargs intact."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.generate_from_messages = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await manager.model_call("main", self._MESSAGES, temperature=0.5)
+
+        engine.generate_from_messages.assert_called_once_with(self._MESSAGES, temperature=0.5)
+
+    @pytest.mark.asyncio
+    async def test_stream_model_call_skips_the_prompt_adapter(self, manager):
+        """stream_model_call reaches stream_from_messages and yields its chunks."""
+        engine = manager._get_engine("main", ModelEngine)
+        captured = {}
+
+        async def _fake_stream(messages, **kwargs):
+            captured["messages"] = messages
+            captured["kwargs"] = kwargs
+            yield LLMResponseChunk(delta_content="ok")
+
+        engine.stream_from_messages = _fake_stream
+
+        chunks = [chunk async for chunk in manager.stream_model_call("main", self._MESSAGES, temperature=0.5)]
+
+        assert captured == {"messages": self._MESSAGES, "kwargs": {"temperature": 0.5}}
+        assert [chunk.delta_content for chunk in chunks] == ["ok"]
+
+
+class TestEngineRegistryProviderName:
+    """``provider_name`` reads the engine's own property rather than its model config."""
+
+    def test_returns_the_engine_provider_name(self, manager):
+        """The registry and the engine agree on the provider name."""
+        engine = manager._get_engine("main", ModelEngine)
+        assert manager.provider_name("main") == engine.provider_name == "nim"
+
+    def test_unknown_model_type_raises_key_error(self, manager):
+        """An unconfigured model type raises rather than reporting 'unknown'."""
+        with pytest.raises(KeyError):
+            manager.provider_name("nonexistent")
+
+
+class _FakeHTTPClient:
+    """Minimal ``ClosableHTTPClient`` stand-in that records ``close()`` calls."""
+
+    def __init__(self, close_error: Optional[Exception] = None) -> None:
+        self.close_count = 0
+        self.close_error = close_error
+
+    async def request(self, method, url, **kwargs):
+        raise NotImplementedError("the fake client does not send requests")
+
+    async def close(self) -> None:
+        self.close_count += 1
+        if self.close_error is not None:
+            raise self.close_error
+
+
+@pytest.fixture
+def fake_http_client(monkeypatch):
+    """Replace the managed HTTP client factory with a recording fake."""
+    client = _FakeHTTPClient()
+    monkeypatch.setattr(engine_registry_module, "create_http_client", lambda: client)
+    return client
+
+
+@pytest.fixture
+def mocked_engine_lifecycle(manager):
+    """Stub start/stop on every engine so lifecycle tests exercise only the registry."""
+    for engine in manager._engines.values():
+        engine.start = AsyncMock()
+        engine.stop = AsyncMock()
+    return manager
+
+
+class TestEngineRegistryHTTPClient:
+    """The registry owns one managed HTTP client for the whole process, started and
+    stopped with the engines, so vendor rail actions stop creating one per request."""
+
+    def test_client_is_unavailable_before_start(self, manager):
+        """Reaching for the client before start() fails loudly instead of handing back None."""
+        with pytest.raises(RuntimeError, match="has not been started"):
+            _ = manager.http_client
+
+    @pytest.mark.asyncio
+    async def test_client_is_created_on_start(self, mocked_engine_lifecycle, fake_http_client):
+        """start() builds the managed client through create_http_client()."""
+        await mocked_engine_lifecycle.start()
+        assert mocked_engine_lifecycle.http_client is fake_http_client
+
+    @pytest.mark.asyncio
+    async def test_same_client_across_accesses(self, mocked_engine_lifecycle, fake_http_client):
+        """Every access returns the one shared client, so connections are pooled."""
+        await mocked_engine_lifecycle.start()
+        assert mocked_engine_lifecycle.http_client is mocked_engine_lifecycle.http_client
+
+    @pytest.mark.asyncio
+    async def test_second_start_does_not_replace_the_client(self, mocked_engine_lifecycle, fake_http_client):
+        """start() is idempotent: a repeat call leaves the existing client in place."""
+        await mocked_engine_lifecycle.start()
+        first = mocked_engine_lifecycle.http_client
+
+        await mocked_engine_lifecycle.start()
+
+        assert mocked_engine_lifecycle.http_client is first
+
+    @pytest.mark.asyncio
+    async def test_stop_closes_the_client(self, mocked_engine_lifecycle, fake_http_client):
+        """stop() releases the client's connection pool."""
+        await mocked_engine_lifecycle.start()
+        await mocked_engine_lifecycle.stop()
+        assert fake_http_client.close_count == 1
+
+    @pytest.mark.asyncio
+    async def test_client_is_unavailable_after_stop(self, mocked_engine_lifecycle, fake_http_client):
+        """A closed client is not handed out again."""
+        await mocked_engine_lifecycle.start()
+        await mocked_engine_lifecycle.stop()
+
+        with pytest.raises(RuntimeError, match="has not been started"):
+            _ = mocked_engine_lifecycle.http_client
+
+    @pytest.mark.asyncio
+    async def test_second_stop_does_not_close_again(self, mocked_engine_lifecycle, fake_http_client):
+        """stop() is idempotent: the client is closed exactly once."""
+        await mocked_engine_lifecycle.start()
+        await mocked_engine_lifecycle.stop()
+        await mocked_engine_lifecycle.stop()
+        assert fake_http_client.close_count == 1
+
+    @pytest.mark.asyncio
+    async def test_engine_start_failure_closes_the_client(self, manager, fake_http_client):
+        """A failed start rolls the client back with the engines rather than leaking it."""
+        for name, engine in manager._engines.items():
+            engine.stop = AsyncMock()
+            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
+
+        with pytest.raises(RuntimeError, match="Failed to start engine"):
+            await manager.start()
+
+        assert fake_http_client.close_count == 1
+
+    @pytest.mark.asyncio
+    async def test_start_rollback_logs_a_failing_client_close(self, manager, monkeypatch, caplog):
+        """A close() failure during rollback is logged, not silently swallowed.
+
+        The engine-start error must still be what propagates — a cleanup failure
+        raised from the rollback would replace the reason the start failed — so the
+        log line is the only signal that the client leaked.
+        """
+        monkeypatch.setattr(
+            engine_registry_module,
+            "create_http_client",
+            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
+        )
+        for name, engine in manager._engines.items():
+            engine.stop = AsyncMock()
+            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="Failed to start engine"):
+                await manager.start()
+
+        assert "socket stuck" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_start_rollback_logs_a_failing_engine_stop(self, manager, fake_http_client, caplog):
+        """A stop() failure during rollback names the engine that failed to release.
+
+        Rollback continues past it (pinned by ``test_start_rollback_swallows_stop_errors``);
+        this pins that the failure is reported rather than lost.
+        """
+        for name, engine in manager._engines.items():
+            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
+            engine.stop = AsyncMock(side_effect=RuntimeError("close failed") if name == "main" else None)
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="Failed to start engine"):
+                await manager.start()
+
+        assert "Error stopping engine main during start rollback" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_stop_reports_a_failing_client_close(self, mocked_engine_lifecycle, monkeypatch):
+        """A close() failure is surfaced, not swallowed, and still clears running state."""
+        monkeypatch.setattr(
+            engine_registry_module,
+            "create_http_client",
+            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
+        )
+        await mocked_engine_lifecycle.start()
+
+        with pytest.raises(RuntimeError, match="socket stuck"):
+            await mocked_engine_lifecycle.stop()
+
+        assert not mocked_engine_lifecycle._running
+
+
+class TestRailCallTelemetryParity:
+    """A rail-shaped ``llm_call(engine, ...)`` produces the same telemetry as
+    ``EngineRegistry.model_call``.
+
+    Library rail actions reach the model through ``llm_call`` -> ``generate_async``,
+    not through ``model_call``. If the LLM span and the GenAI metrics stayed in the
+    registry wrapper, every migrated rail would silently stop emitting them — no
+    error, no failing test, just missing telemetry in production. These tests pin the
+    instrumentation to the engine so both entry points stay equivalent.
+    """
+
+    _MESSAGES = [{"role": "user", "content": "Is this safe?"}]
+
+    @staticmethod
+    def _response() -> LLMResponse:
+        return LLMResponse(
+            content="safe",
+            model="meta/llama-3.3-70b-instruct",
+            finish_reason="stop",
+            request_id="chatcmpl-1",
+            usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15),
+        )
+
+    @pytest.mark.asyncio
+    async def test_span_matches_model_call(self, manager_with_tracer, span_exporter, reset_llm_call_context):
+        """Both entry points emit one LLM CLIENT span with identical name, kind, and attributes."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=self._response())
+
+        await manager_with_tracer.model_call("main", self._MESSAGES, temperature=0.2, stop=["END"])
+        registry_span = exporter.get_finished_spans()[-1]
+        exporter.clear()
+
+        await llm_call(engine, self._MESSAGES, stop=["END"], llm_params={"temperature": 0.2})
+        rail_span = exporter.get_finished_spans()[-1]
+
+        assert rail_span.name == registry_span.name
+        assert rail_span.kind == registry_span.kind
+        assert dict(rail_span.attributes) == dict(registry_span.attributes)
+
+    @pytest.mark.asyncio
+    async def test_error_span_matches_model_call(self, manager_with_tracer, span_exporter, reset_llm_call_context):
+        """A provider failure marks the span the same way on both paths."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await manager_with_tracer.model_call("main", self._MESSAGES)
+        registry_span = exporter.get_finished_spans()[-1]
+        exporter.clear()
+
+        with pytest.raises(Exception, match="provider down"):
+            await llm_call(engine, self._MESSAGES)
+        rail_span = exporter.get_finished_spans()[-1]
+
+        assert rail_span.status.status_code == registry_span.status.status_code
+        assert dict(rail_span.attributes)["error.type"] == dict(registry_span.attributes)["error.type"]
+
+    @pytest.mark.asyncio
+    async def test_content_capture_matches_model_call(self, rails_config, span_exporter, reset_llm_call_context):
+        """With capture on, the rail path records the same message content."""
+        tracer, exporter = span_exporter
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            registry = EngineRegistry(
+                rails_config.models,
+                rails_config.rails.config,
+                tracer=tracer,
+                content_capture_enabled=True,
+            )
+        engine = registry._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=self._response())
+
+        await registry.model_call("main", self._MESSAGES)
+        registry_attrs = dict(exporter.get_finished_spans()[-1].attributes)
+        exporter.clear()
+
+        await llm_call(engine, self._MESSAGES)
+        rail_attrs = dict(exporter.get_finished_spans()[-1].attributes)
+
+        assert rail_attrs == registry_attrs
+
+    @pytest.mark.asyncio
+    async def test_rail_call_emits_token_usage_and_duration(
+        self, manager_with_metrics, metric_reader, reset_llm_call_context
+    ):
+        """The GenAI metrics fire on the rail path, labelled by model, provider, and operation."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=self._response())
+
+        await llm_call(engine, self._MESSAGES)
+
+        points = collect_metric_points(metric_reader)
+        assert {p.attributes["gen_ai.token.type"] for p in points["gen_ai.client.token.usage"]} == {"input", "output"}
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+        for point in points["gen_ai.client.token.usage"] + points["gen_ai.client.operation.duration"]:
+            assert point.attributes["gen_ai.operation.name"] == "chat"
+            assert point.attributes["gen_ai.provider.name"] == "nim"
+            assert point.attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
+
+    @pytest.mark.asyncio
+    async def test_rail_call_records_error_type_on_failure(
+        self, manager_with_metrics, metric_reader, reset_llm_call_context
+    ):
+        """A failed rail call still emits duration, labelled with the failure type."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with pytest.raises(Exception, match="provider down"):
+            await llm_call(engine, self._MESSAGES)
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_when_metrics_disabled(self, manager, metric_reader, reset_llm_call_context):
+        """Metrics stay gated on the config flag, not on meter availability."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=self._response())
+
+        await llm_call(engine, self._MESSAGES)
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert "gen_ai.client.operation.duration" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_duration_recorded_on_consumer_early_break(self, manager_with_metrics, metric_reader):
+        """Abandoning ``stream_async`` mid-stream must still record the duration.
+
+        The adapter and the instrumented core are separate generators, so closing
+        the adapter only unwinds the adapter — it has to close the core too, or
+        the metric's ``finally`` waits on garbage collection.
+        """
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="sa"),
+            LLMResponseChunk(delta_content="fe"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=5)),
+        )
+
+        stream = engine.stream_async(self._MESSAGES)
+        first = await anext(stream)
+        assert first.delta_content == "sa"
+        await stream.aclose()
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_stream_span_matches_stream_model_call(self, manager_with_tracer, span_exporter):
+        """The streaming rail path emits the same span as ``stream_model_call``."""
+        _, exporter = span_exporter
+        engine = manager_with_tracer._get_engine("main", ModelEngine)
+        chunks = (
+            LLMResponseChunk(delta_content="sa", model="meta/llama-3.3-70b-instruct", request_id="chatcmpl-1"),
+            LLMResponseChunk(
+                delta_content="fe",
+                finish_reason="stop",
+                usage=UsageInfo(input_tokens=10, output_tokens=5),
+            ),
+        )
+
+        engine.stream_chat_completion = _mock_stream(*chunks)
+        async for _ in manager_with_tracer.stream_model_call("main", self._MESSAGES, temperature=0.2):
+            pass
+        registry_span = exporter.get_finished_spans()[-1]
+        exporter.clear()
+
+        engine.stream_chat_completion = _mock_stream(*chunks)
+        async for _ in engine.stream_async(self._MESSAGES, temperature=0.2):
+            pass
+        rail_span = exporter.get_finished_spans()[-1]
+
+        assert rail_span.name == registry_span.name
+        assert dict(rail_span.attributes) == dict(registry_span.attributes)

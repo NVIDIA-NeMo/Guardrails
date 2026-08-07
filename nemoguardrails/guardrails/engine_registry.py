@@ -20,31 +20,19 @@ model type. Each engine owns its own RetryClient with per-model settings.
 """
 
 import logging
-import time
 from collections.abc import AsyncGenerator
-from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.telemetry import (
-    api_call_span,
-    llm_call_span,
-    set_llm_call_content,
-    set_llm_request_attributes,
-    set_llm_response_attributes,
-)
+from nemoguardrails.guardrails.telemetry import api_call_span
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
+from nemoguardrails.http.client import ClosableHTTPClient
+from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
-from nemoguardrails.tracing.constants import (
-    llm_operation_duration,
-    record_time_per_output_chunk,
-    record_time_to_first_chunk,
-    record_token_usage,
-)
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -86,16 +74,27 @@ class EngineRegistry:
         contract.  Defaults to False; should only be True when
         ``tracer`` is also set, since capture on a no-op span is wasted
         work.
+
+        All three telemetry settings are handed to each ``ModelEngine``,
+        which owns the instrumentation so that rails reaching the model
+        through ``generate_async`` are instrumented identically to main
+        generation reaching it through ``model_call``.
         """
         self._engines: dict[str, BaseEngine] = {}
+        self._llms: dict[str, LLMModel] = {}
+        self._http_client: Optional[ClosableHTTPClient] = None
         self._running = False
         self._tracer = tracer
-        self._metrics_enabled = metrics_enabled
-        self._content_capture_enabled = content_capture_enabled
 
         for model_config in models:
-            engine = ModelEngine(model_config)
+            engine = ModelEngine(
+                model_config,
+                tracer=tracer,
+                metrics_enabled=metrics_enabled,
+                content_capture_enabled=content_capture_enabled,
+            )
             self._engines[model_config.type] = engine
+            self._llms[model_config.type] = engine
             log.info(
                 "Registered model engine: type=%s, model=%s, base_url=%s",
                 model_config.type,
@@ -118,49 +117,104 @@ class EngineRegistry:
                 api_engine.url,
             )
 
+    @property
+    def llms(self) -> dict[str, LLMModel]:
+        """The configured model engines keyed by ``Model.type``.
+
+        This is the ``Dict[str, LLMModel]`` that library rail actions index by
+        model type (``llms["content_safety"]``).  API engines are not LLMs and
+        are excluded.
+        """
+        return self._llms
+
+    @property
+    def http_client(self) -> ClosableHTTPClient:
+        """The process-wide HTTP client shared by vendor rail actions.
+
+        One managed client replaces the per-request client each vendor action
+        would otherwise create and close, so connections are pooled across
+        requests.
+
+        Raises:
+            RuntimeError: If the registry has not been started.
+        """
+        if self._http_client is None:
+            raise RuntimeError("EngineRegistry has not been started. Call start() first.")
+        return self._http_client
+
+    async def _close_http_client(self) -> None:
+        """Close the managed HTTP client, if one is open.
+
+        The reference is cleared before the await so a failing ``close()``
+        still leaves the registry without a half-closed client.
+        """
+        client, self._http_client = self._http_client, None
+        if client is not None:
+            await client.close()
+
     async def start(self) -> None:
-        """Start all engine clients. Call this during service startup."""
+        """Start all engine clients and the managed HTTP client.
+
+        Call this during service startup.  A failure part-way through rolls
+        everything already started back, so a failed start leaks nothing.
+        """
         if self._running:
             return
 
-        started: list[BaseEngine] = []
+        started: list[tuple[str, BaseEngine]] = []
+        self._http_client = create_http_client()
 
         for name, engine in self._engines.items():
             try:
                 await engine.start()
-                started.append(engine)
+                started.append((name, engine))
             except Exception as e:
                 log.error("Error starting engine %s: %s", name, e)
-                for eng in started:
-                    try:
-                        await eng.stop()
-                    except Exception:
-                        pass
+                await self._rollback_start(started)
                 raise RuntimeError(f"Failed to start engine: Engine {name}: exception {e}") from e
 
         self._running = True
 
+    async def _rollback_start(self, started: list[tuple[str, BaseEngine]]) -> None:
+        """Release everything a partial ``start`` brought up."""
+        for name, engine in started:
+            try:
+                await engine.stop()
+            except Exception as stop_error:
+                log.warning("Error stopping engine %s during start rollback: %s", name, stop_error)
+        try:
+            await self._close_http_client()
+        except Exception as close_error:
+            log.warning("Error closing the managed HTTP client during start rollback: %s", close_error)
+
     async def stop(self) -> None:
-        """Stop all engine clients. Call this during service shutdown."""
+        """Stop all engine clients and the managed HTTP client.
+
+        Call this during service shutdown.  Every component is stopped even if
+        an earlier one fails; the failures are reported together afterwards.
+        """
         if not self._running:
             return
 
-        engine_errors: dict[str, Exception] = {}
+        errors: dict[str, Exception] = {}
         try:
             for name, engine in self._engines.items():
                 try:
                     await engine.stop()
                 except Exception as e:
-                    engine_errors[name] = e
+                    errors[f"Engine {name}"] = e
                     log.error("Error stopping engine %s: %s", name, e)
+            try:
+                await self._close_http_client()
+            except Exception as e:
+                errors["HTTP client"] = e
+                log.error("Error closing the managed HTTP client: %s", e)
         finally:
             self._running = False
 
-        if engine_errors:
-            engine_error_string = ", ".join(
-                f"Engine {name}: exception {exception}" for name, exception in engine_errors.items()
-            )
-            raise RuntimeError(f"Failed to stop engines: {engine_error_string}")
+        if errors:
+            error_string = ", ".join(f"{component}: exception {exception}" for component, exception in errors.items())
+            raise RuntimeError(f"Failed to stop engines: {error_string}")
 
     def _get_engine(self, name: str, expected_type: type[_EngineT]) -> _EngineT:
         """Look up an engine by name, verifying its type."""
@@ -174,7 +228,7 @@ class EngineRegistry:
 
     def provider_name(self, model_type: str) -> str:
         """Return the provider/engine name (e.g. 'nim', 'openai') for a model engine."""
-        return self._get_engine(model_type, ModelEngine).model_config.engine or "unknown"
+        return self._get_engine(model_type, ModelEngine).provider_name
 
     async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> LLMResponse:
         """Route a chat completion request to the named model engine.
@@ -183,10 +237,12 @@ class EngineRegistry:
         reasoning (when the provider exposes it), usage, finish reason.
         Callers that only want the assistant text should access ``.content``.
 
-        When metrics are enabled, emits ``gen_ai.client.operation.duration``
-        (with ``error.type`` on exception) and ``gen_ai.client.token.usage``
-        (one observation each for ``input`` and ``output`` token types,
-        only when ``LLMResponse.usage`` is populated).
+        Parameter merging and OTEL instrumentation live in
+        ``ModelEngine.generate_from_messages`` so that rails, which reach the
+        model through ``llm_call`` rather than through this method, emit the
+        same spans and metrics.  *messages* is already in wire form here — every
+        IORails entry point normalizes through ``IORails._convert_to_messages``
+        — so this skips the ``generate_async`` protocol adapter.
 
         Raises:
             KeyError: If no engine is registered with the given name.
@@ -196,46 +252,7 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        # TODO: Replace with LLMModel.provider_name after refactoring
-        provider_name = engine.model_config.engine or "unknown"
-        operation_name = "chat"
-
-        # Merge the model's config parameters with per-call kwargs (GenerationOptions.llm_params)
-        # Per-call kwargs have priority.
-        merged_params = {**engine.body_param_defaults, **kwargs}
-
-        # Compose: span (always created — no-op when tracer is None) and
-        # duration metric (only when metrics enabled).  Token usage is
-        # emitted after the call returns since it depends on
-        # ``result.usage`` — exception path skips it because control
-        # never reaches the line below.
-        duration_ctx = (
-            llm_operation_duration(engine.model_name, provider_name, operation_name)
-            if self._metrics_enabled
-            else nullcontext()
-        )
-        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
-            # Request params are known before the call, so set them first —
-            # they land on the span even if the call raises.
-            set_llm_request_attributes(span, merged_params)
-            with duration_ctx:
-                result = await engine.chat_completion(messages, **merged_params)
-            # Set response/usage and content attrs inside the span context so
-            # the helpers see the live LLM CLIENT span and the attributes land
-            # before it closes.  Both are skipped on exception, which never
-            # reaches here.
-            set_llm_response_attributes(
-                span,
-                model=result.model,
-                response_id=result.request_id,
-                finish_reason=result.finish_reason,
-                usage=result.usage,
-            )
-            if self._content_capture_enabled:
-                set_llm_call_content(span, messages, result.content)
-
-        if self._metrics_enabled:
-            record_token_usage(engine.model_name, provider_name, operation_name, result.usage)
+        result = await engine.generate_from_messages(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result
@@ -245,27 +262,11 @@ class EngineRegistry:
     ) -> AsyncGenerator[LLMResponseChunk, None]:
         """Stream chat completion chunks from the named model engine.
 
-        Yields ``LLMResponseChunk`` objects. The surrounding
-        ``llm_call_span`` wraps the full generator lifetime: it opens
-        before the first chunk and closes when the generator exhausts or
-        raises.
-
-        When metrics are enabled, emits ``gen_ai.client.operation.duration``
-        for the full stream lifetime (with ``error.type`` on exception)
-        and ``gen_ai.client.token.usage`` after stream completion using
-        the ``UsageInfo`` carried on the terminal SSE chunk (when the
-        provider returns one — controlled by ``include_usage_in_stream``,
-        defaults to True for OpenAI-compatible engines).  No token
-        observation is emitted on early consumer cancellation or on
-        provider error mid-stream.
-
-        The LLM CLIENT span receives ``gen_ai.request.*`` attributes
-        (including ``gen_ai.request.stream=True``) before the first chunk,
-        and ``gen_ai.response.*`` / ``gen_ai.usage.*`` attributes
-        accumulated across the chunks after natural exhaustion.  Like the
-        token metric, the response attrs are skipped on cancellation or a
-        mid-stream provider error.  These span attrs are independent of
-        whether metrics are enabled.
+        Yields ``LLMResponseChunk`` objects.  Parameter merging, the LLM
+        CLIENT span, and the metrics live in
+        ``ModelEngine.stream_from_messages`` — see that method for the span and
+        metric contract.  As in ``model_call``, *messages* is already in wire
+        form, so this skips the ``stream_async`` protocol adapter.
 
         Raises:
             KeyError: If no engine is registered with the given name.
@@ -275,105 +276,16 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        # TODO: Change to LLMModel.provider_name after refactor
-        provider_name = engine.model_config.engine or "unknown"
-        operation_name = "chat"
-
-        # Merge the model's configured parameter defaults with the per-call
-        # kwargs (per-call wins), above set_llm_request_attributes, so the span
-        # reflects the request body.  Excluding "stream"/"stream_options" from
-        # body_param_defaults also prevents a duplicate-keyword TypeError when
-        # stream_call() passes its own stream=True into _prepare_request().
-        merged_params = {**engine.body_param_defaults, **kwargs}
-
-        # Capture the latest non-None response fields from the stream so we
-        # can set the LLM span's response/usage attrs and emit the token
-        # metric after the stream completes.  Providers spread these across
-        # the SSE chunks — OpenAI-compatible engines only populate ``usage``
-        # on the terminal chunk (when ``stream_options.include_usage=true``)
-        # and finish_reason likewise arrives last — so each field keeps its
-        # latest non-None value.
-        captured_usage: Optional["UsageInfo"] = None
-        captured_model: Optional[str] = None
-        captured_response_id: Optional[str] = None
-        captured_finish_reason: Optional[str] = None
-        # Accumulate streamed delta_content here when content capture is on;
-        # joined and recorded onto the LLM span at stream end.  The list is
-        # allocated unconditionally (cost: one empty list per stream); the
-        # per-chunk appends are gated on the flag so the disabled path
-        # doesn't carry chunk strings in memory.
-        content_parts: list[str] = []
-        duration_ctx = (
-            llm_operation_duration(engine.model_name, provider_name, operation_name)
-            if self._metrics_enabled
-            else nullcontext()
-        )
-        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name) as span:
-            # Set request params + stream=True before the first chunk so they
-            # land on the span even if the stream errors mid-flight.
-            set_llm_request_attributes(span, merged_params, stream=True)
-            with duration_ctx:
-                # Gate timing-state setup on ``_metrics_enabled`` so the
-                # cold path skips ``time.monotonic()`` and the per-chunk
-                # bookkeeping entirely.  ``t0`` defaults to ``0.0`` in
-                # the disabled path so the type stays a plain ``float``
-                # — it's never read in that branch.
-                t0 = time.monotonic() if self._metrics_enabled else 0.0
-                last_chunk_time: Optional[float] = None
-                async for chunk in engine.stream_chat_completion(messages, **merged_params):
-                    if self._metrics_enabled:
-                        # Per OTEL semconv, "first chunk" / "output chunk"
-                        # mean content-bearing chunks — gate on
-                        # ``delta_content`` / ``delta_reasoning`` to skip
-                        # the terminal usage frame and any other cosmetic
-                        # SSE events that the parser leaves in place.
-                        if chunk.delta_content or chunk.delta_reasoning:
-                            now = time.monotonic()
-                            if last_chunk_time is None:
-                                record_time_to_first_chunk(engine.model_name, provider_name, operation_name, now - t0)
-                            else:
-                                record_time_per_output_chunk(
-                                    engine.model_name, provider_name, operation_name, now - last_chunk_time
-                                )
-                            last_chunk_time = now
-                    # Keep the latest non-None response field from each chunk.
-                    # Captured regardless of ``_metrics_enabled`` because they
-                    # feed the span's response/usage attrs (set after the loop)
-                    # as well as the token-usage metric.
-                    if chunk.model is not None:
-                        captured_model = chunk.model
-                    if chunk.request_id is not None:
-                        captured_response_id = chunk.request_id
-                    if chunk.finish_reason is not None:
-                        captured_finish_reason = chunk.finish_reason
-                    if chunk.usage is not None:
-                        captured_usage = chunk.usage
-                    if self._content_capture_enabled and chunk.delta_content:
-                        content_parts.append(chunk.delta_content)
-                    yield chunk
-            # Set response/usage attrs and (when enabled) content inside the
-            # span context so the helpers see the live LLM CLIENT span before
-            # it closes.  Reached only on natural exhaustion — consumer
-            # cancellation or provider error raises out of the ``with`` blocks
-            # above, so partial response data is intentionally not recorded.
-            set_llm_response_attributes(
-                span,
-                model=captured_model,
-                response_id=captured_response_id,
-                finish_reason=captured_finish_reason,
-                usage=captured_usage,
-            )
-            # Empty ``content_parts`` -> output_text=None so we don't claim
-            # an empty assistant response (matches iorails.py's request-span
-            # streaming path).
-            if self._content_capture_enabled:
-                output_text = "".join(content_parts) if content_parts else None
-                set_llm_call_content(span, messages, output_text)
-
-        # Reached only on natural exhaustion (not on consumer cancellation
-        # or provider error — those raise out of the ``with`` blocks above).
-        if self._metrics_enabled:
-            record_token_usage(engine.model_name, provider_name, operation_name, captured_usage)
+        stream = engine.stream_from_messages(messages, **kwargs)
+        try:
+            async for chunk in stream:
+                yield chunk
+        finally:
+            # Close the delegate explicitly.  A consumer that abandons this
+            # generator only unwinds *this* one; without the aclose the
+            # instrumented core stays suspended at its yield until garbage
+            # collection, so the duration metric's `finally` never runs.
+            await stream.aclose()
 
     def parse_tools(self, model_type: str, llm_params: Optional[dict]) -> Toolset:
         """Parse the tool block in ``llm_params`` for the named model engine.

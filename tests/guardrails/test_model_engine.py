@@ -23,6 +23,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
+from nemoguardrails.context import llm_call_info_var, llm_stats_var
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -37,8 +39,18 @@ from nemoguardrails.guardrails.model_engine import (
     _parse_chat_completion_chunk,
 )
 from nemoguardrails.guardrails.tool_schema import Toolset
+from nemoguardrails.llm.call import llm_call
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from nemoguardrails.types import (
+    ChatMessage,
+    LLMModel,
+    LLMResponse,
+    LLMResponseChunk,
+    Role,
+    ToolCall,
+    ToolCallFunction,
+    UsageInfo,
+)
 from tests.guardrails.tool_helpers import make_tool_conversation, multi_turn_reused_call_id_messages
 
 
@@ -88,6 +100,40 @@ def _mock_streaming_response(raw_lines, status=200, headers=None):
     return mock_response
 
 
+_OK_COMPLETION = {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+
+
+def _mock_chat_client(payload: dict | None = None, status: int = 200):
+    """Create a mock aiohttp client whose post() returns a chat-completion payload.
+
+    The returned mock records the outbound request, so tests read the body back
+    with ``_posted_body``.
+    """
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.json = AsyncMock(return_value=payload if payload is not None else _OK_COMPLETION)
+    mock_response.text = AsyncMock(return_value='{"error": "boom"}')
+
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    mock_client.closed = False
+    return mock_client
+
+
+def _started_engine(client, **model_kwargs) -> ModelEngine:
+    """Create a ModelEngine wired to ``client`` and marked as started."""
+    engine = ModelEngine(_make_model(**model_kwargs))
+    engine._client = client
+    engine._running = True
+    return engine
+
+
+def _posted_body(mock_client) -> dict:
+    """Return the JSON body of the single request made through ``mock_client``."""
+    return mock_client.post.call_args[1]["json"]
+
+
 class TestModelEngineError:
     """Test the ModelEngineError Exception type fields."""
 
@@ -107,6 +153,14 @@ class TestModelEngineError:
     def test_is_exception(self):
         """ModelEngineError is a subclass of Exception."""
         assert issubclass(ModelEngineError, Exception)
+
+    def test_status_code_mirrors_status(self):
+        """status_code is the spelling error-status extractors duck-type on."""
+        assert ModelEngineError("bad request", model_name="my-model", status=400).status_code == 400
+
+    def test_status_code_is_none_without_a_status(self):
+        """A failure with no HTTP response reports no status under either name."""
+        assert ModelEngineError("connection dropped", model_name="my-model").status_code is None
 
 
 class TestModelEngineBaseUrl:
@@ -2337,3 +2391,437 @@ class TestExtractToolExchanges:
     def test_unknown_engine_falls_back_to_openai_extractor(self):
         engine = ModelEngine(_make_model(engine="vllm", parameters={"base_url": "http://localhost:8000"}))
         assert self._ids(engine.extract_tool_exchanges(_TOOL_MESSAGES)) == [(["call_1"], ["call_1"])]
+
+
+class TestModelEngineLLMModelProtocol:
+    """ModelEngine implements LLMModel, the interface library rail actions call through."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_engine_is_an_llm_model(self):
+        """A ModelEngine instance satisfies the runtime-checkable LLMModel protocol."""
+        assert isinstance(ModelEngine(_make_model()), LLMModel)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_model_name_is_the_configured_model(self):
+        """model_name reports the configured model, the gen_ai.request.model label value."""
+        assert ModelEngine(_make_model(model="my-llm")).model_name == "my-llm"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_name_is_the_configured_engine(self):
+        """provider_name reports the engine type, the gen_ai.provider.name label value."""
+        assert ModelEngine(_make_model(engine="openai")).provider_name == "openai"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_url_is_the_openai_compatible_api_root(self):
+        """provider_url is the /v1 API root rather than the bare host."""
+        engine = ModelEngine(_make_model(engine="nim"))
+        assert engine.provider_url == _ENGINE_BASE_URLS["nim"] + "/v1"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_provider_url_is_not_doubled_when_base_url_already_ends_in_v1(self):
+        """A base_url configured with a trailing /v1 yields exactly one /v1."""
+        engine = ModelEngine(_make_model(parameters={"base_url": "http://localhost:8000/v1"}))
+        assert engine.provider_url == "http://localhost:8000/v1"
+
+
+class TestModelEngineGenerateAsync:
+    """generate_async adapts chat_completion to the LLMModel protocol signature."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_prompt_becomes_one_user_message(self):
+        """A plain string prompt is sent as a single user message."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async("Hello")
+
+        assert _posted_body(client)["messages"] == [{"role": "user", "content": "Hello"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_chat_messages_are_serialized_for_the_wire(self):
+        """ChatMessage input is converted to OpenAI dicts: provider_metadata is dropped
+        and tool-call arguments are JSON-encoded, so the body stays a valid request."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        prompt = [
+            ChatMessage(role=Role.SYSTEM, content="be safe", provider_metadata={"internal": True}),
+            ChatMessage(
+                role=Role.ASSISTANT,
+                tool_calls=[ToolCall(id="call-1", function=ToolCallFunction(name="lookup", arguments={"q": "x"}))],
+            ),
+        ]
+        await engine.generate_async(prompt)
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "system", "content": "be safe"},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {"id": "call-1", "type": "function", "function": {"name": "lookup", "arguments": '{"q": "x"}'}}
+                ],
+            },
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_dict_messages_pass_through_unchanged(self):
+        """Raw OpenAI-format dicts, which EngineRegistry.model_call forwards, are sent as-is."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        messages = [{"role": "user", "content": "Hi", "name": "caller"}]
+        await engine.generate_async(messages)
+
+        assert _posted_body(client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_empty_prompt_list_sends_an_empty_messages_array(self):
+        """An empty prompt list is forwarded as an empty messages array, not a string prompt."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async([])
+
+        assert _posted_body(client)["messages"] == []
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_is_forwarded_into_the_request_body(self):
+        """The keyword-only stop argument lands in the request body as `stop`."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await engine.generate_async("Hi", stop=["END"])
+
+        assert _posted_body(client)["stop"] == ["END"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_none_leaves_a_configured_default_in_place(self):
+        """stop=None means "unspecified", so a model-level stop default survives."""
+        client = _mock_chat_client()
+        engine = _started_engine(client, parameters={"stop": ["CONFIGURED"]})
+
+        await engine.generate_async("Hi")
+
+        assert _posted_body(client)["stop"] == ["CONFIGURED"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_defaults_merge_under_per_call_kwargs(self):
+        """Model parameters supply defaults; per-call kwargs win on collision."""
+        client = _mock_chat_client()
+        engine = _started_engine(client, parameters={"temperature": 0.1, "top_p": 0.9})
+
+        await engine.generate_async("Hi", temperature=0.9)
+
+        body = _posted_body(client)
+        assert body["temperature"] == 0.9
+        assert body["top_p"] == 0.9
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_the_parsed_llm_response(self):
+        """The provider payload is parsed into an LLMResponse with usage and finish reason."""
+        client = _mock_chat_client(
+            {
+                "id": "chatcmpl-1",
+                "model": "meta/llama-3.3-70b-instruct",
+                "choices": [{"message": {"role": "assistant", "content": "safe"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
+            }
+        )
+        engine = _started_engine(client)
+
+        response = await engine.generate_async("Hi")
+
+        assert response == LLMResponse(
+            content="safe",
+            model="meta/llama-3.3-70b-instruct",
+            finish_reason="stop",
+            request_id="chatcmpl-1",
+            usage=UsageInfo(input_tokens=7, output_tokens=2, total_tokens=9),
+        )
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_http_error_raises_model_engine_error(self):
+        """A provider error surfaces as ModelEngineError carrying the HTTP status."""
+        engine = _started_engine(_mock_chat_client(status=400))
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.generate_async("Hi")
+
+        assert exc_info.value.status == 400
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_raises_when_the_engine_has_not_been_started(self):
+        """generate_async enforces the same lifecycle guard as call()."""
+        engine = ModelEngine(_make_model())
+
+        with pytest.raises(ModelEngineError, match="has not been started"):
+            await engine.generate_async("Hi")
+
+
+class TestModelEngineStreamAsync:
+    """stream_async adapts stream_chat_completion to the LLMModel protocol signature."""
+
+    @staticmethod
+    def _sse_lines(*texts: str):
+        lines = [f"data: {json.dumps({'choices': [{'delta': {'content': text}}]})}\n\n".encode() for text in texts]
+        lines.append(b"data: [DONE]\n\n")
+        return lines
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_yields_chunks_from_the_stream(self):
+        """stream_async yields the same LLMResponseChunk sequence as stream_call."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hello", " world")))
+        engine = _started_engine(mock_client)
+
+        chunks = [chunk async for chunk in engine.stream_async("Hi")]
+
+        assert [chunk.delta_content for chunk in chunks] == ["Hello", " world"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_prompt_becomes_one_user_message(self):
+        """A plain string prompt is sent as a single user message, as in generate_async."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hi")))
+        engine = _started_engine(mock_client)
+
+        [chunk async for chunk in engine.stream_async("Hello")]
+
+        assert _posted_body(mock_client)["messages"] == [{"role": "user", "content": "Hello"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stop_and_config_defaults_reach_the_request_body(self):
+        """stop and model parameter defaults are merged into the streaming request body."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(self._sse_lines("Hi")))
+        engine = _started_engine(mock_client, parameters={"temperature": 0.1})
+
+        [chunk async for chunk in engine.stream_async("Hello", stop=["END"])]
+
+        body = _posted_body(mock_client)
+        assert body["stop"] == ["END"]
+        assert body["temperature"] == 0.1
+        assert body["stream"] is True
+
+
+class TestModelEngineMessagesEntryPoint:
+    """``generate_async`` / ``stream_async`` are protocol adapters over the
+    messages-typed core.  Callers that already hold wire messages — every IORails
+    entry point, which normalizes through ``IORails._convert_to_messages`` — go
+    straight to the core instead of back through prompt normalization."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_generate_from_messages_sends_messages_unchanged(self):
+        """The messages-typed core forwards its messages verbatim."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        messages = [{"role": "system", "content": "be safe"}, {"role": "user", "content": "hi"}]
+        await engine.generate_from_messages(messages)
+
+        assert _posted_body(client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_generate_async_normalizes_then_delegates(self):
+        """The adapter converts the prompt to wire messages and passes stop and
+        kwargs through untouched."""
+        engine = ModelEngine(_make_model())
+        engine.generate_from_messages = AsyncMock(return_value=LLMResponse(content="ok"))
+
+        await engine.generate_async("Hi", stop=["END"], temperature=0.5)
+
+        engine.generate_from_messages.assert_called_once_with(
+            [{"role": "user", "content": "Hi"}], stop=["END"], temperature=0.5
+        )
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_from_messages_sends_messages_unchanged(self):
+        """The streaming core forwards its messages verbatim."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(
+            return_value=_mock_streaming_response([b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n'])
+        )
+        engine = _started_engine(mock_client)
+
+        messages = [{"role": "user", "content": "hi"}]
+        [chunk async for chunk in engine.stream_from_messages(messages)]
+
+        assert _posted_body(mock_client)["messages"] == messages
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_async_normalizes_then_delegates(self):
+        """The streaming adapter mirrors generate_async: normalize, then delegate."""
+        engine = ModelEngine(_make_model())
+        captured: dict[str, Any] = {}
+
+        async def _fake_stream(messages, *, stop=None, **kwargs):
+            captured["messages"] = messages
+            captured["stop"] = stop
+            captured["kwargs"] = kwargs
+            yield LLMResponseChunk(delta_content="ok")
+
+        engine.stream_from_messages = _fake_stream
+
+        chunks = [chunk async for chunk in engine.stream_async("Hi", stop=["END"], temperature=0.5)]
+
+        assert captured == {
+            "messages": [{"role": "user", "content": "Hi"}],
+            "stop": ["END"],
+            "kwargs": {"temperature": 0.5},
+        }
+        assert [chunk.delta_content for chunk in chunks] == ["ok"]
+
+
+class TestModelEngineLLMCallRoundTrip:
+    """``llm_call`` drives a ModelEngine end to end — the path library rail actions take."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_the_model_response(self, reset_llm_call_context):
+        """llm_call returns the LLMResponse produced by the engine."""
+        client = _mock_chat_client({"choices": [{"message": {"role": "assistant", "content": "safe"}}]})
+        engine = _started_engine(client)
+
+        response = await llm_call(engine, [{"role": "user", "content": "Is this safe?"}])
+
+        assert response.content == "safe"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_dict_prompt_reaches_the_provider_unchanged(self, reset_llm_call_context):
+        """llm_call normalizes dicts to ChatMessage; the engine converts them back to
+        an equivalent wire payload rather than leaking ChatMessage internals."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, [{"role": "user", "content": "Is this safe?"}])
+
+        assert _posted_body(client)["messages"] == [{"role": "user", "content": "Is this safe?"}]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_task_manager_message_prompts_are_rekeyed_to_role(self, reset_llm_call_context):
+        """``LLMTaskManager.render_task_prompt`` renders a ``messages:``-style task
+        prompt with a ``type`` key, which the completions endpoint would reject.
+        Normalization rewrites it to ``role`` before the request goes out."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, [{"type": "system", "content": "be safe"}, {"type": "user", "content": "hi"}])
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "system", "content": "be safe"},
+            {"role": "user", "content": "hi"},
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_string_task_prompt_becomes_a_user_message(self, reset_llm_call_context):
+        """Every shipped rail task prompt is configured with ``content:``, so
+        ``render_task_prompt`` hands rail actions a string. It must reach the
+        provider as a single user message."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Task: Check if there is unsafe content...")
+
+        assert _posted_body(client)["messages"] == [
+            {"role": "user", "content": "Task: Check if there is unsafe content..."}
+        ]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_llm_params_are_forwarded_to_the_provider(self, reset_llm_call_context):
+        """llm_params reach the request body, so rail actions can set sampling params."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi", llm_params={"temperature": 0.0, "max_tokens": 10})
+
+        body = _posted_body(client)
+        assert body["temperature"] == 0.0
+        assert body["max_tokens"] == 10
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_populates_llm_call_info_from_the_engine(self, reset_llm_call_context):
+        """The engine's model and provider names land on LLMCallInfo, which is what
+        IORails synthesizes its GenerationLog from."""
+        client = _mock_chat_client()
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi")
+
+        call_info = llm_call_info_var.get()
+        assert call_info is not None
+        assert call_info.llm_model_name == "meta/llama-3.3-70b-instruct"
+        assert call_info.llm_provider_name == "nim"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_token_usage_reaches_llm_stats(self, reset_llm_call_context):
+        """Usage from the provider increments the shared LLMStats counters."""
+        client = _mock_chat_client(
+            {
+                "choices": [{"message": {"role": "assistant", "content": "safe"}}],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
+            }
+        )
+        engine = _started_engine(client)
+
+        await llm_call(engine, "Hi")
+
+        llm_stats = llm_stats_var.get()
+        assert llm_stats is not None
+        stats = llm_stats.get_stats()
+        assert stats["total_calls"] == 1
+        assert stats["total_prompt_tokens"] == 7
+        assert stats["total_completion_tokens"] == 2
+        assert stats["total_tokens"] == 9
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_provider_failure_is_wrapped_in_llm_call_exception(self, reset_llm_call_context):
+        """A ModelEngineError is wrapped in LLMCallException with the engine's identity
+        in the detail, and the original error preserved as the cause."""
+        engine = _started_engine(_mock_chat_client(status=500))
+
+        with pytest.raises(LLMCallException) as exc_info:
+            await llm_call(engine, "Hi")
+
+        assert isinstance(exc_info.value.__cause__, ModelEngineError)
+        assert "model=meta/llama-3.3-70b-instruct" in str(exc_info.value)
+        assert "provider=nim" in str(exc_info.value)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_upstream_http_status_survives_the_wrapping(self, reset_llm_call_context):
+        """The provider's status must reach ``LLMCallException.status``.
+
+        The server maps that field to the response status and falls back to 500 for
+        an unknown one, so losing it turns a retryable upstream 429 into a
+        non-retryable server error for the caller.
+        """
+        engine = _started_engine(_mock_chat_client(status=429))
+
+        with pytest.raises(LLMCallException) as exc_info:
+            await llm_call(engine, "Hi")
+
+        assert exc_info.value.status == 429
