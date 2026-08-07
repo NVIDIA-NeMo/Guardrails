@@ -549,3 +549,6 @@ async def test_llm_params_stop_overrides_explicit_stop_without_mutation(request_
 
     assert model.calls == [(request_stop, {"temperature": 0.2})]
     assert llm_params == {"stop": request_stop, "temperature": 0.2}
+    if streaming:
+        assert handler is not None
+        assert handler.stop == ([request_stop] if isinstance(request_stop, str) else request_stop or [])

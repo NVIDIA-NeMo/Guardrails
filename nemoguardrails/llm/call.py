@@ -114,7 +114,7 @@ async def _stream_llm_call(
     stop: Optional[List[str]],
     llm_params: Optional[dict] = None,
 ) -> LLMResponse:
-    handler.stop = stop or []
+    handler.stop = [stop] if isinstance(stop, str) else stop or []
     streaming_handler_metadata: Dict[str, Any] = {}
     accumulated_provider_metadata: Dict[str, Any] = {}
     accumulated_reasoning: List[str] = []
