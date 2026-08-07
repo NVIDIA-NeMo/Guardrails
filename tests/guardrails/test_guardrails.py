@@ -19,6 +19,7 @@ These tests mock the underlying LLMRails instantiation and verify that the Guard
 class correctly delegates method calls with properly formatted parameters.
 """
 
+import importlib.util
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -414,7 +415,16 @@ class TestIORailsUnsupportedReason:
 
     @pytest.mark.parametrize(
         "flow",
-        ["activefence moderation on input detailed", "gcpnlp moderation detailed"],
+        [
+            "activefence moderation on input detailed",
+            pytest.param(
+                "gcpnlp moderation detailed",
+                marks=pytest.mark.skipif(
+                    importlib.util.find_spec("google.cloud.language") is None,
+                    reason="gcpnlp is refused at compile time without google-cloud-language",
+                ),
+            ),
+        ],
         ids=["activefence", "gcpnlp"],
     )
     def test_a_detailed_flow_variant_is_supported(self, flow):

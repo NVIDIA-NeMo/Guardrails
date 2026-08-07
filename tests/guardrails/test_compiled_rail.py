@@ -20,6 +20,7 @@ fails at construction rather than at request time, and rail model calls are capt
 sink rather than read from a contextvar afterwards.
 """
 
+import importlib.util
 import inspect
 from dataclasses import replace
 from typing import Any, Callable, Optional
@@ -675,6 +676,43 @@ class TestModelDependencyValidation:
         deps_with_llama_guard = replace(deps, llms={**deps.llms, "llama_guard": FakeLLMModel(responses=["safe"])})
 
         assert compile_rail("llama guard check input", RailDirection.INPUT, deps_with_llama_guard) is not None
+
+
+class TestMissingOptionalDependencies:
+    """A rail whose declared distribution is absent is refused at compile time.
+
+    The alternative is worse than it sounds: library actions import their optional dependency
+    lazily, so the ImportError arrives per request and the fail-closed envelope renders it as
+    a guardrail block, with the real cause reaching the log only.
+    """
+
+    @pytest.mark.skipif(
+        importlib.util.find_spec("presidio_analyzer") is not None,
+        reason="asserts the refusal seen when the distribution is absent",
+    )
+    def test_a_rail_with_no_remote_transport_is_refused(self, deps):
+        """The message names the missing distributions and the extra that supplies them."""
+        with pytest.raises(RailCompilationError, match="presidio-analyzer"):
+            compile_rail("detect sensitive data on input", RailDirection.INPUT, deps)
+
+    @pytest.mark.parametrize(
+        "flow",
+        ["jailbreak detection model", "jailbreak detection heuristics"],
+    )
+    def test_a_rail_with_a_remote_transport_is_not_refused(self, deps, flow):
+        """Declaring ``http_client`` exempts a rail, because its package is for one backend only.
+
+        Jailbreak detection declares ``scikit-learn`` and ``torch`` for its in-process model
+        and calls a NIM over HTTP otherwise. Enforcing the declaration would refuse a rail
+        IORails has shipped since the tier was four names, on an install that never needed
+        either package -- so accepting ``http_client`` is what separates "needs this to run"
+        from "needs this for one of its backends".
+        """
+        assert compile_rail(flow, RailDirection.INPUT, deps) is not None
+
+    def test_a_rail_declaring_nothing_is_unaffected(self, deps):
+        """The control: a rail with no declared distribution compiles regardless of the environment."""
+        assert compile_rail("regex check input", RailDirection.INPUT, deps) is not None
 
 
 class TestDependencyInjection:

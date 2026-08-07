@@ -24,6 +24,7 @@ the returned ``RailOutcome`` is passed back to the caller unchanged.
 
 from __future__ import annotations
 
+import importlib.metadata
 import inspect
 import logging
 from dataclasses import dataclass
@@ -487,6 +488,61 @@ def _reject_unconfigured_models(bound: tuple[_BoundParameter, ...], deps: RailDe
     )
 
 
+def _owning_manifest(surface: RailSurface, catalog: "RailCatalog") -> Optional[Any]:
+    """Return the manifest declaring *surface*, or None if the catalog has no owner for it."""
+    for manifest in catalog.manifests.values():
+        if surface in manifest.surfaces:
+            return manifest
+    return None
+
+
+def _is_installed(distribution: str) -> bool:
+    """Whether *distribution* is installed, without importing it."""
+    try:
+        importlib.metadata.distribution(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    return True
+
+
+def _reject_missing_dependencies(
+    surface: RailSurface, action: Callable[..., Any], catalog: "RailCatalog", flow: str
+) -> None:
+    """Fail compilation when a rail's optional dependency is declared but not installed.
+
+    Library actions import their optional dependency lazily, inside the function, as
+    ``nemoguardrails/AGENTS.md`` requires. Nothing therefore fails until a request arrives, and
+    the fail-closed envelope turns the ImportError into a *block* -- so a config missing an
+    extra is indistinguishable, to the caller, from one whose rail genuinely tripped. Refusing
+    at compile time reports it once, as the configuration error it is.
+
+    **Only for rails with no remote transport.** An action declaring ``http_client`` has an
+    alternative backend and needs its package only for the in-process one: ``hf_classifier``
+    picks a remote backend whenever a client is injected and the engine is not ``local``, and
+    jailbreak detection calls a NIM whenever an endpoint is configured. Enforcing the
+    declaration for those would refuse rails that work, ``jailbreak detection model`` among
+    them. Accepting the parameter is the signal, and it separates the six declaring manifests
+    cleanly: four have no remote path, two do.
+
+    Checked by distribution rather than by import, so it costs no import and needs no mapping
+    from a package name to a module name -- ``guardrails-ai`` imports as ``guardrails``.
+    """
+    if "http_client" in _accepted_parameters(action):
+        return
+
+    manifest = _owning_manifest(surface, catalog)
+    if manifest is None:
+        return
+
+    missing = sorted(dep for dep in manifest.requirements.optional_dependencies if not _is_installed(dep))
+    if not missing:
+        return
+
+    extras = manifest.requirements.extras
+    hint = f"; install the {extras[0]!r} extra" if extras else ""
+    raise RailCompilationError(f"{flow!r} needs {', '.join(missing)}, which the environment does not have{hint}")
+
+
 def unservable_reason(flow: str, direction: RailDirection, catalog: Optional["RailCatalog"] = None) -> Optional[str]:
     """Why *flow* cannot run under manifest-driven execution, or None when it can."""
     # Stops at the surface-level checks, so it never imports an action module.
@@ -540,6 +596,7 @@ def compile_rail(
         flow,
     )
     _reject_unconfigured_models(bound, deps, flow)
+    _reject_missing_dependencies(surface, action, catalog, flow)
 
     return CompiledRail(
         flow=flow,
