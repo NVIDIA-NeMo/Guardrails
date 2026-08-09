@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import pytest
 from pydantic import ValidationError
 
@@ -681,6 +683,68 @@ async def test_regex_action_accepts_extra_kwargs():
     assert result.is_blocked is True
     assert result.metadata["is_match"] is True
     assert "\\bconfidential\\b" in result.metadata["detections"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_regex_action_bounds_catastrophic_backtracking():
+    """A pathological configured pattern must not pin the worker (ReDoS, #2203)."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "(a|aa)+$"
+        """,
+        colang_content="",
+    )
+
+    start = time.monotonic()
+    result = await detect_regex_pattern(
+        source="input",
+        text="a" * 40 + "b",
+        config=config,
+    )
+    elapsed = time.monotonic() - start
+
+    # The pattern would take effectively forever on this input under the plain
+    # `re` engine; with the timeout it must return promptly and fail closed.
+    assert elapsed < 2.0, f"regex matching took {elapsed:.2f}s"
+    assert result.is_blocked is True
+    assert result.metadata["is_match"] is True
+    assert "(a|aa)+$" in result.metadata["detections"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_regex_action_valid_pattern_still_matches_with_timeout():
+    """Ordinary valid patterns keep matching within the timeout budget."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                regex_detection:
+                  input:
+                    patterns:
+                      - "\\\\bpassword\\\\b"
+                    case_insensitive: true
+        """,
+        colang_content="",
+    )
+
+    result = await detect_regex_pattern(
+        source="input",
+        text="My PASSWORD is secret",
+        config=config,
+    )
+
+    assert result.is_blocked is True
+    assert result.metadata["is_match"] is True
+    assert "\\bpassword\\b" in result.metadata["detections"]
 
 
 @pytest.mark.unit

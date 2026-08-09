@@ -22,6 +22,12 @@ from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 
 log = logging.getLogger(__name__)
 
+# Per-pattern matching budget. Python's backtracking engine can spend unbounded
+# time on a pathological configured pattern; the third-party ``regex`` module
+# supports a matching timeout, so a crafted input can stall a worker for at most
+# this long per pattern (ReDoS hardening, #2203).
+REGEX_MATCH_TIMEOUT_SECONDS = 0.5
+
 
 class RegexDetectionResult(TypedDict):
     is_match: bool
@@ -85,7 +91,15 @@ async def detect_regex_pattern(
     # Match against pre-compiled patterns and collect all matches.
     matched: List[str] = []
     for compiled, raw_pattern in zip(compiled_patterns, options.patterns):
-        if compiled.search(text):
+        try:
+            is_match = compiled.search(text, timeout=REGEX_MATCH_TIMEOUT_SECONDS) is not None
+        except TimeoutError:
+            # Fail closed: if a configured pattern cannot be evaluated within
+            # the budget, treat the text as matching so forbidden content is
+            # not let through because the matcher was too slow.
+            log.warning("regex pattern %r timed out on %s text; blocking (fail-closed)", raw_pattern, source)
+            is_match = True
+        if is_match:
             log.info("Regex pattern matched: %s", raw_pattern)
             matched.append(raw_pattern)
 

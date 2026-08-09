@@ -16,6 +16,8 @@
 import re
 from typing import List, Optional
 
+import regex
+
 from nemoguardrails.manifests.config_schema import (
     Field,
     PrivateAttr,
@@ -38,23 +40,23 @@ class RegexDetectionOptions(RailConfigBaseModel):
         description="Whether to perform case-insensitive matching.",
     )
 
-    _compiled_patterns: List["re.Pattern[str]"] = PrivateAttr(default_factory=list)
+    _compiled_patterns: List["regex.Pattern[str]"] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def compile_patterns(self) -> "RegexDetectionOptions":
         """Pre-compile regex patterns at config load time."""
-        flags = re.IGNORECASE if self.case_insensitive else 0
+        flags = regex.IGNORECASE if self.case_insensitive else 0
         compiled = []
         for i, pattern in enumerate(self.patterns):
             try:
-                compiled.append(re.compile(pattern, flags))
-            except re.error as e:
+                compiled.append(regex.compile(pattern, flags))
+            except (re.error, regex.error) as e:
                 raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
         object.__setattr__(self, "_compiled_patterns", compiled)
         return self
 
     @property
-    def compiled_patterns(self) -> List["re.Pattern[str]"]:
+    def compiled_patterns(self) -> List["regex.Pattern[str]"]:
         """Return the pre-compiled regex patterns."""
         return self._compiled_patterns
 

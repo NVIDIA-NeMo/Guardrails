@@ -38,6 +38,7 @@ dependencies = [
   "protobuf (>=5.29.5)",
   "pydantic (>=2.5,<3.0)",
   "pyyaml (>=6.0)",
+  "regex (>=2026.6.28)",
   "rich (>=13.5.2)",
   "simpleeval (>=0.9.13)",
   "typer (>=0.8)",
