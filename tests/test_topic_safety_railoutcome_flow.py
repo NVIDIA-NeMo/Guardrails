@@ -23,6 +23,7 @@ an off-topic input renders the refusal, an on-topic input passes through.
 """
 
 import textwrap
+from unittest.mock import AsyncMock
 
 from nemoguardrails import RailsConfig
 from tests.utils import FakeLLMModel, TestChat
@@ -69,3 +70,24 @@ def test_on_topic_input_passes_through_railoutcome():
     chat = _chat_with_verdict("on-topic")
     response = chat.app.generate(messages=[{"role": "user", "content": "a relevant question"}])
     assert response["content"] == "Hello! How can I help you?"
+
+
+def test_multiturn_history_reaches_topic_safety_once_and_in_order():
+    chat = _chat_with_verdict("on-topic")
+    topic_model = chat.app.runtime.registered_action_params["llms"]["topic_control"]
+    topic_model.generate_async = AsyncMock(wraps=topic_model.generate_async)
+
+    chat.app.generate(
+        messages=[
+            {"role": "user", "content": "earlier question"},
+            {"role": "assistant", "content": "earlier answer"},
+            {"role": "user", "content": "current question"},
+        ]
+    )
+
+    prompt = topic_model.generate_async.await_args.args[0]
+    assert [(message.role, message.content) for message in prompt[1:]] == [
+        ("user", "earlier question"),
+        ("assistant", "earlier answer"),
+        ("user", "current question"),
+    ]

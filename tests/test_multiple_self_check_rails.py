@@ -887,10 +887,17 @@ def test_get_self_check_task_from_rail_resolves_custom_and_default_tasks():
     )
 
 
-def test_resolve_self_check_task_prefers_explicit_task():
+def test_resolve_self_check_task_prefers_explicit_task_over_legacy_context_and_events():
     task = _resolve_input_task(
         variant="check_harmful",
         context={"triggered_input_rail": "self check input $variant=check_off_topic"},
+        events=[
+            {
+                "type": "start_flow",
+                "flow_id": SELF_CHECK_INPUT_FLOW,
+                "params": {"variant": "check_legacy_event"},
+            }
+        ],
     )
 
     assert task == "check_harmful"
