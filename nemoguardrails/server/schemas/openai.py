@@ -180,8 +180,7 @@ class GuardrailCheckDataInput(GuardrailsDataInput):
 
     rail_types: Optional[List[RailType]] = Field(
         default=None,
-        description="Rail types to run. When omitted, auto-detected from message roles. "
-        "Valid values: 'input', 'output'.",
+        description="Rail types to run. When omitted, auto-detected from message roles.",
     )
 
 
