@@ -799,7 +799,7 @@ async def guardrail_check(body: GuardrailCheckRequest, request: Request):
     if body.guardrails.context:
         messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
-    result = await llm_rails.check_async(messages=messages)
+    result = await llm_rails.check_async(messages=messages, rail_types=body.guardrails.rail_types)
 
     return GuardrailCheckResponse(
         status=_map_rail_status(result.status),
