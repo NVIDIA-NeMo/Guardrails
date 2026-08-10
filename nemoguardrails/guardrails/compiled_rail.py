@@ -41,7 +41,6 @@ from nemoguardrails.manifests import (
     parse_configured_surface,
     resolve_import_ref,
 )
-from nemoguardrails.manifests.surface_reference import normalize_configured_surface_name
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -256,23 +255,22 @@ def _accepted_parameters(action: Callable[..., Any]) -> frozenset[str]:
 def _resolve_surface(flow: str, direction: RailDirection, catalog: "RailCatalog") -> tuple[RailSurface, dict[str, str]]:
     """Find the manifest surface for *flow*, or explain why there is not one."""
     try:
-        name, params = parse_configured_surface(flow)
+        surface_name, params = parse_configured_surface(flow)
     except ValueError as exc:
         raise RailCompilationError(f"{flow!r} is not a valid flow reference: {exc}") from exc
 
-    normalized = normalize_configured_surface_name(name)
     surfaces = catalog.surfaces()
-    surface = surfaces.get((direction, normalized))
+    surface = surfaces.get((direction, surface_name))
     if surface is not None:
         return surface, params
 
-    other_directions = sorted(key[0].value for key in surfaces if key[1] == normalized and key[0] is not direction)
+    other_directions = sorted(key[0].value for key in surfaces if key[1] == surface_name and key[0] is not direction)
     if other_directions:
         raise RailCompilationError(
-            f"{flow!r} declares direction {direction.value!r} but {normalized!r} "
+            f"{flow!r} declares direction {direction.value!r} but {surface_name!r} "
             f"is only available as {', '.join(other_directions)}"
         )
-    raise RailCompilationError(f"{flow!r} has no surface named {normalized!r} in the rail catalog")
+    raise RailCompilationError(f"{flow!r} has no surface named {surface_name!r} in the rail catalog")
 
 
 def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str) -> tuple[_BoundParameter, ...]:
