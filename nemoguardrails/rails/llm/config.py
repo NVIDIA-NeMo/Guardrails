@@ -360,8 +360,25 @@ class InputRails(BaseModel):
         default=False,
         description=(
             "If True, input rails run concurrently with LLM generation (speculative execution). "
-            "Only supported for non-streaming generate_async() calls; stream_async() warns and falls "
-            "back to sequential execution."
+            "Supported for both non-streaming generate_async() and streaming stream_async() calls. "
+            "Streaming speculation only supports check-first behavior: if stream_first is True it is "
+            "overridden to check-first for speculative requests (with a warning), since tokens cannot "
+            "reach the client before the input verdict is known."
+        ),
+    )
+
+    speculative_max_buffered_chunks: int = Field(
+        default=4096,
+        gt=0,
+        description=(
+            "Upper bound on the number of chunks held in the speculative awaiting-release buffer "
+            "during streaming speculation. When the bound is reached, the engine stops consuming "
+            "and waits for the input rails verdict before buffering more (release on pass, "
+            "refuse-and-teardown on reject). This caps the release buffer only: the main LLM keeps "
+            "generating into the internal stream buffer, so it does not cap total memory. The "
+            "buffer only grows while the input rails are still pending, so at the default it is "
+            "effectively unreachable — roughly 80 seconds of generation at 50 tokens/sec. Only "
+            "used when speculative_generation is True for streaming requests."
         ),
     )
 

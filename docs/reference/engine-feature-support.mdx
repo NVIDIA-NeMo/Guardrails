@@ -187,8 +187,9 @@ Both engines run multiple rails in the same direction concurrently when `rails.i
 For YAML examples, see [Parallel Execution of Input and Output Rails](/configure-guardrails/yaml-schema/guardrails-configuration#parallel-execution-of-input-and-output-rails).
 
 `IORails` adds two concurrency capabilities that `LLMRails` does not provide.
-Speculative generation (`rails.input.speculative_generation`) runs input rails concurrently with model generation and discards the generation if an input rail blocks, reducing latency on the safe path; it applies to non-streaming generation only.
-For a configuration example, see [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation).
+Speculative generation (`rails.input.speculative_generation`) runs input rails concurrently with model generation and discards the generation if an input rail blocks, reducing latency on the safe path; it applies to both non-streaming and streaming requests.
+For streaming requests, tokens are held in an in-memory buffer until the input rails pass, and only check-first output-rail behavior is supported.
+For a configuration example, see [Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#speculative-generation), and for the streaming specifics see [Streaming Speculative Generation](/configure-guardrails/yaml-schema/guardrails-configuration#streaming-speculative-generation).
 Admission control through an `AsyncWorkQueue` (and a separate semaphore for streaming) bounds the number of in-flight requests and rejects work when the queue is full.
 
 ### Reasoning-Model Support

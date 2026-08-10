@@ -17,7 +17,7 @@
 
 import asyncio
 import json
-import warnings
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -77,7 +77,17 @@ _INPUT_ONLY_SPECULATIVE_CONFIG = {
     },
 }
 
-_SPECULATIVE_STREAM_WARNING = "speculative_generation is not supported for streaming; falling back to sequential"
+_SPECULATIVE_STREAM_FIRST_LOG = "speculative_generation with stream_first=True is not supported for streaming"
+
+
+def _make_speculative_streaming_config(*, stream_first: bool = False) -> dict:
+    """NEMOGUARDS_CONFIG with output-rail streaming AND speculative_generation enabled."""
+    config = _make_streaming_config(stream_first=stream_first)
+    config["rails"] = {
+        **config["rails"],
+        "input": {**config["rails"]["input"], "speculative_generation": True},
+    }
+    return config
 
 
 async def _mock_stream(model_type, messages, **kwargs):
@@ -194,18 +204,44 @@ class TestStreamAsyncValidation:
         assert len(chunks) > 0
 
     @pytest.mark.asyncio
-    async def test_speculative_generation_streaming_warning_recorded_once(self):
-        """Default warning filtering records the speculative streaming warning once per call site."""
-        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-            iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_SPECULATIVE_CONFIG))
+    async def test_speculative_streaming_runs_for_input_only(self):
+        """Speculative streaming runs for streaming requests, with no check-first override.
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("default")
-            for _ in range(2):
-                iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
+        An input-only config has no output rails, so ``stream_first`` is moot and
+        the startup override must not engage.
+        """
+        async with started_iorails(_INPUT_ONLY_SPECULATIVE_CONFIG) as iorails:
+            _wire_mocks(iorails)
+            chunks = await _collect(iorails.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
-        matching_warnings = [warning for warning in caught if str(warning.message) == _SPECULATIVE_STREAM_WARNING]
-        assert len(matching_warnings) == 1
+        assert "".join(c for c in chunks if isinstance(c, str)) == "Hello from the streaming LLM! Have a nice day"
+        assert iorails._speculative_forces_check_first is False
+
+    def test_speculative_stream_first_logs_at_startup_and_forces_check_first(self, caplog):
+        """speculative_generation + stream_first=True logs once at construction.
+
+        Emitted via ``log.warning`` rather than ``warnings.warn``: the latter never
+        reaches the logger, so an operator tailing logs would never see it. Logging
+        at construction also surfaces the misconfiguration at startup instead of
+        only once traffic arrives.
+        """
+        iorails_logger = logging.getLogger("nemoguardrails.guardrails.iorails")
+        original_propagate = iorails_logger.propagate
+        iorails_logger.addHandler(caplog.handler)
+        iorails_logger.propagate = False
+        try:
+            with caplog.at_level(logging.WARNING):
+                with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                    iorails = IORails(
+                        RailsConfig.from_content(config=_make_speculative_streaming_config(stream_first=True))
+                    )
+        finally:
+            iorails_logger.removeHandler(caplog.handler)
+            iorails_logger.propagate = original_propagate
+
+        matching = [r for r in caplog.records if _SPECULATIVE_STREAM_FIRST_LOG in r.message]
+        assert len(matching) == 1
+        assert iorails._speculative_forces_check_first is True
 
     @pytest.mark.asyncio
     async def test_tools_in_llm_params_forwarded_on_stream_async(self, iorails_input_only):
@@ -983,6 +1019,9 @@ class TestIsStreamErrorChunk:
 
     def test_error_object_without_a_type_is_not_a_terminal_chunk(self):
         assert _is_stream_error_chunk('{"error": {"message": "something"}}') is False
+
+    def test_json_that_is_not_an_object_is_not_a_terminal_chunk(self):
+        assert _is_stream_error_chunk('["error"]') is False
 
 
 class TestStreamAsyncMetadata:

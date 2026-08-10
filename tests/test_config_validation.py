@@ -109,6 +109,33 @@ def test_passthrough_and_single_call_incompatibility():
     assert "The passthrough mode and the single call dialog" in str(exc_info.value)
 
 
+def test_speculative_max_buffered_chunks_must_be_positive():
+    with pytest.raises(ValueError) as exc_info:
+        RailsConfig.from_content(
+            yaml_content="""
+            rails:
+                input:
+                    speculative_generation: True
+                    speculative_max_buffered_chunks: 0
+            """,
+        )
+
+    assert "speculative_max_buffered_chunks" in str(exc_info.value)
+
+
+def test_speculative_max_buffered_chunks_accepts_positive():
+    config = RailsConfig.from_content(
+        yaml_content="""
+        rails:
+            input:
+                speculative_generation: True
+                speculative_max_buffered_chunks: 8
+        """,
+    )
+
+    assert config.rails.input.speculative_max_buffered_chunks == 8
+
+
 # def test_self_check_facts_prompt_exception():
 #     with pytest.raises(ValueError) as exc_info:
 #         config = RailsConfig.from_content(

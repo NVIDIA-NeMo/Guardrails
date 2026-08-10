@@ -229,6 +229,26 @@ class GuardrailsAttributes:
 
     SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS = "input_rails"
     SPECULATIVE_FIRST_COMPLETED_GENERATION = "generation"
+    SPECULATIVE_FIRST_COMPLETED_OUTPUT_RAILS = "output_rails"
+
+    # speculative generation timing/outcome attributes
+    SPECULATIVE_RAILS_DURATION_MS = "speculative_generation.rails_duration_ms"
+    SPECULATIVE_GENERATION_DURATION_MS = "speculative_generation.generation_duration_ms"
+    SPECULATIVE_OVERLAP_MS = "speculative_generation.overlap_ms"
+    SPECULATIVE_TIME_SAVED_MS = "speculative_generation.time_saved_ms"
+    SPECULATIVE_CANCELLATION_EVENT = "speculative_generation.cancellation_event"
+
+    SPECULATIVE_CANCELLATION_NONE = "none"
+    SPECULATIVE_CANCELLATION_GENERATION = "generation_cancelled"
+    SPECULATIVE_CANCELLATION_INPUT_RAILS = "input_rails_cancelled"
+    SPECULATIVE_CANCELLATION_OUTPUT_RAILS = "output_rails_cancelled"
+
+    # speculative generation streaming-only attributes
+    SPECULATIVE_OUTPUT_RAILS_EARLY_REJECT = "speculative_generation.output_rails_early_reject"
+    SPECULATIVE_OUTPUT_RAILS_SPECULATION_CHUNKS = "speculative_generation.output_rails_speculation_chunks"
+    SPECULATIVE_OUTPUT_RAILS_WASTED_CHUNKS = "speculative_generation.output_rails_wasted_chunks"
+    SPECULATIVE_RELEASE_QUEUE_DURATION_MS = "speculative_generation.release_queue_duration_ms"
+    SPECULATIVE_RELEASE_QUEUE_TOKEN_COUNT = "speculative_generation.release_queue_token_count"
 
 
 class SpanNames:

@@ -27,7 +27,8 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
-from typing import TYPE_CHECKING, Optional, Union
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
@@ -38,6 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailCallRecord,
     RailDirection,
+    RailResult,
     TimedLLMResponse,
     get_request_id,
     serialize_prompt,
@@ -129,6 +131,31 @@ def _is_stream_error_chunk(chunk: Union[str, dict]) -> bool:
         return False
     error_obj = parsed.get("error")
     return isinstance(error_obj, dict) and error_obj.get("type") in STREAM_ERROR_TYPES
+
+
+@dataclass(frozen=True, slots=True)
+class _RailFailure:
+    """A rail raised, as distinct from a rail rejecting.
+
+    Speculative streaming runs the input rails in their own task, so the gate
+    receives a verdict rather than an exception. This wrapper keeps an
+    infrastructure failure distinguishable from an ``is_safe=False`` policy
+    decision, so the two are reported as ``generation_error`` and
+    ``guardrails_violation`` respectively rather than collapsing into one.
+    """
+
+    exc: BaseException
+
+
+def _stream_error_field(chunk: Union[str, dict], field: str) -> Optional[str]:
+    """Return ``error.<field>`` from a chunk already accepted by ``_is_stream_error_chunk``.
+
+    That predicate guarantees a parseable ``{"error": {...}}`` payload, so the
+    only case left is a field the payload does not carry.  Keep the guard at the
+    call site: this raises on anything else.
+    """
+    text = chunk["text"] if isinstance(chunk, dict) else chunk
+    return json.loads(text)["error"].get(field)
 
 
 def _serialize_tool_calls(tool_calls: list[ToolCall]) -> list[dict]:
@@ -627,6 +654,22 @@ class IORails(BaseGuardrails):
             content_capture_enabled=self._content_capture_enabled,
         )
         self._speculative_generation = config.rails.input.speculative_generation or False
+        self._speculative_max_buffered_chunks = config.rails.input.speculative_max_buffered_chunks
+
+        # Streaming speculation supports check-first only: during the speculation
+        # window tokens cannot reach the client, so a configured stream_first is
+        # overridden.  Decided once here rather than per request so the warning is
+        # visible at startup instead of only once traffic arrives.
+        self._speculative_forces_check_first = (
+            self._speculative_generation
+            and self._has_streaming_output_rails
+            and config.rails.output.streaming.stream_first
+        )
+        if self._speculative_forces_check_first:
+            log.warning(
+                "speculative_generation with stream_first=True is not supported for streaming; "
+                "check-first behavior will be used for speculative streaming requests"
+            )
 
         # Non-streaming admission queue + worker pool (owned by IORails so
         # all request-path concurrency controls sit under one roof).  The
@@ -1114,7 +1157,9 @@ class IORails(BaseGuardrails):
 
             # Rails passed — wait for generation to finish
             timed = await gen_task
-            set_speculative_span_attrs(request_span, first_completed, "none")
+            set_speculative_span_attrs(
+                request_span, first_completed, GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+            )
         else:
             # Generation finished first — wait for rails verdict
             timed = gen_task.result()
@@ -1133,7 +1178,9 @@ class IORails(BaseGuardrails):
                 )
                 return None
 
-            set_speculative_span_attrs(request_span, first_completed, "none")
+            set_speculative_span_attrs(
+                request_span, first_completed, GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+            )
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(timed.response.content))
         _record_generation(timed)
@@ -1310,12 +1357,17 @@ class IORails(BaseGuardrails):
             asyncio.QueueFull: If the streaming concurrency limit is
                 reached (load shedding).
         """
-        if self._speculative_generation:
-            warnings.warn(
-                "speculative_generation is not supported for streaming; falling back to sequential",
-                stacklevel=2,
-            )
         self._validate_streaming_with_output_rails()
+
+        # Speculative streaming (SG2): input rails race the LLM instead of blocking
+        # before it.  Only check-first is supported — during the speculation window
+        # tokens cannot reach the client, so stream_first is overridden to
+        # check-first for speculative requests.  The operator-facing warning for
+        # that override is emitted once at construction (see __init__), not here:
+        # warnings.warn() never reaches the logger, so a per-request warning is
+        # invisible to anyone tailing logs.
+        use_speculative = self._speculative_generation
+        force_check_first = self._speculative_forces_check_first
 
         if include_metadata and self._has_streaming_output_rails:
             raise ValueError(
@@ -1341,7 +1393,7 @@ class IORails(BaseGuardrails):
         # (see ModelEngine.stream_call), so a plain rebind is sufficient.
         accumulated_tool_calls: list[ToolCall] = []
 
-        async def _generation_task(request_span):
+        async def _generation_task(request_span, *, run_input_rails: bool = True, spec_stats: Optional[dict] = None):
             """Background task: input rails → stream LLM chunks → push to handler.
 
             ``request_span`` is the IORails request span (or ``None`` when
@@ -1350,43 +1402,50 @@ class IORails(BaseGuardrails):
             ``trace.get_current_span()`` which could return the host app's
             ambient span and pollute unrelated traces.
 
+            When ``run_input_rails`` is False (speculative streaming), the
+            tool-result and input rails are skipped here — the caller runs them
+            in a concurrent task so LLM tokens start flowing immediately.  When
+            ``spec_stats`` is provided, the task records its wall-clock duration
+            into it (``generation_duration_ms``) for speculative telemetry.
+
             Inherits the request ID from the caller context via create_task().
             """
             nonlocal accumulated_tool_calls
             req_id = get_request_id()
             t0 = time.monotonic()
             try:
-                # Step 0: Tool-result rails. Client/agent harness executes tool calls and sends
-                # results of execution to Main LLM along with prior conversation history
-                # Symmetric with INPUT rails for dialog use-case
-                log.info("[%s] Running tool result rails", req_id)
-                tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
-                if not tool_result.is_safe:
-                    log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
-                    if self._metrics_enabled:
-                        record_request_blocked(RailDirection.INPUT)
-                    await streaming_handler.push_chunk(
-                        self._guardrails_violation_payload(
-                            f"Blocked by tool input rails: {tool_result.reason}", "tool_input_rails"
+                if run_input_rails:
+                    # Step 0: Tool-result rails. Client/agent harness executes tool calls and sends
+                    # results of execution to Main LLM along with prior conversation history
+                    # Symmetric with INPUT rails for dialog use-case
+                    log.info("[%s] Running tool result rails", req_id)
+                    tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+                    if not tool_result.is_safe:
+                        log.info("[%s] Tool result blocked: %s", req_id, tool_result.reason)
+                        if self._metrics_enabled:
+                            record_request_blocked(RailDirection.INPUT)
+                        await streaming_handler.push_chunk(
+                            self._guardrails_violation_payload(
+                                f"Blocked by tool input rails: {tool_result.reason}", "tool_input_rails"
+                            )
                         )
-                    )
-                    await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
-                    return
+                        await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
+                        return
 
-                # Step 1: Input rails (non-streaming)
-                log.info("[%s] Running input rails", req_id)
-                input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
-                if not input_result.is_safe:
-                    log.info("[%s] Input blocked: %s", req_id, input_result.reason)
-                    if self._metrics_enabled:
-                        record_request_blocked(RailDirection.INPUT)
-                    await streaming_handler.push_chunk(
-                        self._guardrails_violation_payload(
-                            f"Blocked by input rails: {input_result.reason}", "input_rails"
+                    # Step 1: Input rails (non-streaming)
+                    log.info("[%s] Running input rails", req_id)
+                    input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
+                    if not input_result.is_safe:
+                        log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                        if self._metrics_enabled:
+                            record_request_blocked(RailDirection.INPUT)
+                        await streaming_handler.push_chunk(
+                            self._guardrails_violation_payload(
+                                f"Blocked by input rails: {input_result.reason}", "input_rails"
+                            )
                         )
-                    )
-                    await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
-                    return
+                        await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
+                        return
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
@@ -1448,6 +1507,8 @@ class IORails(BaseGuardrails):
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
                 elapsed_ms = (time.monotonic() - t0) * 1000
+                if spec_stats is not None:
+                    spec_stats["generation_duration_ms"] = elapsed_ms
                 log.info("[%s] generation task completed time=%.1fms", req_id, elapsed_ms)
 
         async def _wrapped_iterator():
@@ -1502,22 +1563,67 @@ class IORails(BaseGuardrails):
                             # the consumer, so the terminal tool-call chunk is
                             # suppressed (never surface tool calls after a failure/block).
                             error_emitted = False
+                            # Speculative-streaming state, declared before the try so
+                            # the outer finally can always reference them (defined even
+                            # if the try body raises before assignment).
+                            spec_stats: Optional[dict[str, Any]] = None
+                            input_task: Optional[asyncio.Task] = None
                             try:
                                 log.info("[%s] stream_async called", req_id)
                                 log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
 
-                                task = asyncio.create_task(_generation_task(request_span))
+                                # Speculative streaming (SG2): run input rails in a
+                                # concurrent task so the LLM starts streaming right
+                                # away, and skip input rails inside the generation
+                                # task.  spec_stats collects telemetry filled by the
+                                # input task, the generation task, and the gate.
+                                if use_speculative:
+                                    spec_stats = {
+                                        "first_completed": None,
+                                        "first_rejector": GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE,
+                                        "safe": True,
+                                        "output_rails_early_reject": False,
+                                        "cancellation_event": GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE,
+                                    }
+                                    input_task = asyncio.create_task(
+                                        self._check_speculative_input_safety(
+                                            messages,
+                                            input_enabled=input_enabled,
+                                            tool_input_enabled=tool_input_enabled,
+                                            spec_stats=spec_stats,
+                                        )
+                                    )
+                                    task = asyncio.create_task(
+                                        _generation_task(request_span, run_input_rails=False, spec_stats=spec_stats)
+                                    )
+                                else:
+                                    task = asyncio.create_task(_generation_task(request_span))
                                 try:
-                                    # Determine base iterator: with or without output rails
+                                    # Determine the inner iterator: with or without output rails.
                                     if self._has_streaming_output_rails:
-                                        base_iterator = self._run_output_rails_in_streaming(
+                                        inner_iterator = self._run_output_rails_in_streaming(
                                             streaming_handler=streaming_handler,
                                             messages=messages,
                                             enabled=output_enabled,
                                             include_metadata=include_metadata,
+                                            force_check_first=force_check_first,
                                         )
                                     else:
-                                        base_iterator = streaming_handler
+                                        # SG2 buffer-and-release: with no output rails configured,
+                                        # speculation still runs.  Raw LLM tokens flow straight from
+                                        # the streaming handler; when speculating, the gate below holds
+                                        # them in the bounded release buffer until input rails pass,
+                                        # then flushes.
+                                        inner_iterator = streaming_handler
+
+                                    # Gate raw/validated chunks on the input rails verdict during the
+                                    # speculation window; pass through unchanged when not speculating.
+                                    if input_task is not None and spec_stats is not None:
+                                        base_iterator = self._gate_on_input(
+                                            inner_iterator, input_task, spec_stats, include_metadata=include_metadata
+                                        )
+                                    else:
+                                        base_iterator = inner_iterator
 
                                     async for chunk in base_iterator:
                                         if chunk is not None:
@@ -1572,6 +1678,22 @@ class IORails(BaseGuardrails):
                                         task.cancel()
                                     with suppress(asyncio.CancelledError):
                                         await task
+                                    # Defensive: the gate cancels+drains input_task in
+                                    # its own finally, but ensure it never leaks if the
+                                    # gate was never fully iterated (early break/error).
+                                    if input_task is not None:
+                                        if not input_task.done():
+                                            input_task.cancel()
+                                        try:
+                                            await input_task
+                                        except asyncio.CancelledError:
+                                            pass
+                                        except Exception:
+                                            log.warning(
+                                                "[%s] Speculative input-safety task raised during defensive cleanup",
+                                                req_id,
+                                                exc_info=True,
+                                            )
                             except Exception:
                                 elapsed_ms = (time.monotonic() - t0) * 1000
                                 log.error("[%s] stream_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
@@ -1588,10 +1710,314 @@ class IORails(BaseGuardrails):
                                 if self._content_capture_enabled:
                                     output_text = "".join(delivered) if delivered else None
                                     set_request_content(request_span, messages, output_text)
+                                # Stamp speculative-generation telemetry on the request
+                                # span.  Runs after teardown so both task durations are
+                                # recorded (the generation task's finally has run once it
+                                # was awaited above).  overlap ≈ min(both durations) since
+                                # both tasks start together; time_saved is the overlap for
+                                # safe requests and 0 for rejected ones.
+                                if use_speculative and spec_stats is not None:
+                                    # A rail raised inside the speculative input task.
+                                    # The gate converted it to an error chunk and
+                                    # returned normally, so request_metrics /
+                                    # traced_request never saw an exception — record
+                                    # the error here, mirroring _generation_task.
+                                    rail_error = spec_stats.get("rail_error")
+                                    if rail_error is not None:
+                                        record_span_error(request_span, rail_error)
+                                        if self._metrics_enabled:
+                                            record_request_error(rail_error)
+                                    rails_ms = spec_stats.get("rails_duration_ms")
+                                    gen_ms = spec_stats.get("generation_duration_ms")
+                                    overlap_ms = (
+                                        min(rails_ms, gen_ms) if rails_ms is not None and gen_ms is not None else None
+                                    )
+                                    time_saved_ms = (
+                                        None if overlap_ms is None else (overlap_ms if spec_stats.get("safe") else 0.0)
+                                    )
+                                    set_speculative_span_attrs(
+                                        request_span,
+                                        spec_stats.get("first_completed")
+                                        or GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_GENERATION,
+                                        spec_stats.get(
+                                            "first_rejector", GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+                                        ),
+                                        rails_duration_ms=rails_ms,
+                                        generation_duration_ms=gen_ms,
+                                        overlap_ms=overlap_ms,
+                                        time_saved_ms=time_saved_ms,
+                                        cancellation_event=spec_stats.get("cancellation_event"),
+                                        # Only meaningful when output rails are in the
+                                        # pipeline: with none configured, stamping False
+                                        # would assert they did not early-reject when
+                                        # there were none to reject.  Gate at the single
+                                        # read site — the writes are spread across the
+                                        # gate and are easy to miss one of.
+                                        output_rails_early_reject=(
+                                            spec_stats.get("output_rails_early_reject")
+                                            if self._has_streaming_output_rails
+                                            else None
+                                        ),
+                                        output_rails_speculation_chunks=spec_stats.get(
+                                            "output_rails_speculation_chunks"
+                                        ),
+                                        output_rails_wasted_chunks=spec_stats.get("output_rails_wasted_chunks"),
+                                        release_queue_duration_ms=spec_stats.get("release_queue_duration_ms"),
+                                        release_queue_token_count=spec_stats.get("release_queue_token_count"),
+                                    )
                 finally:
                     self._stream_semaphore.release()
 
         return _wrapped_iterator()
+
+    async def _check_speculative_input_safety(
+        self,
+        messages: LLMMessages,
+        *,
+        input_enabled: Union[bool, list[str]] = True,
+        tool_input_enabled: Union[bool, list[str]] = True,
+        spec_stats: Optional[dict] = None,
+    ) -> tuple[Union[RailResult, _RailFailure], str]:
+        """Concurrent input-safety check for speculative streaming (SG2).
+
+        Runs tool-result rails then input rails as its own task, returning
+        ``(verdict, param)`` for the first failing rail; ``param`` names the
+        rail family, matching the non-speculative path.
+
+        A rail that *raises* comes back as ``_RailFailure`` rather than an
+        unsafe ``RailResult``, so the gate can report an outage as a generation
+        error instead of a block.  It is not re-raised: ``stream_async`` has
+        already committed a ``200 OK``, so a raise would truncate the SSE
+        stream.  ``CancelledError`` stays uncaught so the gate can still cancel
+        this task on short-circuit.
+        """
+        req_id = get_request_id()
+        t0 = time.monotonic()
+        try:
+            try:
+                tool_result = await self.rails_manager.are_tool_results_safe(messages, enabled=tool_input_enabled)
+            except Exception as e:
+                log.error("[%s] Speculative tool-result rails failed: %s", req_id, e, exc_info=True)
+                return _RailFailure(e), "tool_input_rails"
+            if not tool_result.is_safe:
+                return tool_result, "tool_input_rails"
+            try:
+                input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
+            except Exception as e:
+                log.error("[%s] Speculative input rails failed: %s", req_id, e, exc_info=True)
+                return _RailFailure(e), "input_rails"
+            return input_result, "input_rails"
+        finally:
+            if spec_stats is not None:
+                spec_stats["rails_duration_ms"] = (time.monotonic() - t0) * 1000
+
+    async def _gate_on_input(
+        self,
+        base_iterator: AsyncIterator[Union[str, dict]],
+        input_task: "asyncio.Task",
+        spec_stats: dict,
+        *,
+        include_metadata: Optional[bool] = False,
+    ) -> AsyncGenerator[Union[str, dict], None]:
+        """Hold streamed chunks until the input rails verdict is known (SG2).
+
+        The LLM (and output rails, when configured) run concurrently with input
+        rails, so chunks arrive before anything may reach the caller.  They are
+        held in a bounded buffer: flushed on input PASS, discarded on a reject
+        or on an error chunk surfaced by the base iterator.  Teardown is split —
+        this gate cancels the input task on an output-rails early reject, while
+        the caller's ``finally`` tears down generation on input reject.
+
+        At ``speculative_max_buffered_chunks`` the gate stops consuming and
+        blocks on the verdict, forcing an early resolve.  This is backpressure
+        on the release buffer only — generation keeps producing into the stream
+        queue — so memory is bounded by input-rail latency and the model's
+        finite output, not by halting generation.  Aborting the request on
+        overflow was the considered alternative.
+        """
+        req_id = get_request_id()
+        input_rails = GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
+        generation = GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_GENERATION
+        output_rails = GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_OUTPUT_RAILS
+        none_value = GuardrailsAttributes.SPECULATIVE_CANCELLATION_NONE
+
+        released = False
+        held: list = []
+        hold_start: Optional[float] = None
+        spec_chunks = 0
+
+        # Human-readable labels for the violation message, keyed by the payload
+        # ``param``.  Keeps tool-result-rail rejections labeled as tool_input_rails
+        # (matching the non-speculative path) instead of collapsing to input_rails.
+        reject_labels = {"input_rails": "input rails", "tool_input_rails": "tool input rails"}
+
+        def _mark_reject_input(reason, first_completed, cancellation_event, param):
+            spec_stats["first_completed"] = first_completed
+            # ``first_rejector`` is pinned to input_rails, so a tool-result rejection
+            # reports as input_rails in the span while the payload says tool_input_rails.
+            # ``param`` could be assigned directly here: it is already exactly
+            # "input_rails" or "tool_input_rails", so existing rejections keep their
+            # current value and only tool rejections change.  Not done yet because
+            # ``first_rejector`` draws from the SPECULATIVE_FIRST_COMPLETED_* constants,
+            # which have no tool_input_rails member — adding one introduces a span
+            # attribute value that only the streaming path can ever emit (non-streaming
+            # runs tool rails before speculation), and that consumers grouping on
+            # ``first_rejector`` would see appear.
+            spec_stats["first_rejector"] = input_rails
+            spec_stats["cancellation_event"] = cancellation_event
+            spec_stats["output_rails_wasted_chunks"] = len(held)
+            spec_stats["safe"] = False
+            label = reject_labels.get(param, "input rails")
+            return _frame_for_stream(
+                self._guardrails_violation_payload(f"Blocked by {label}: {reason}", param),
+                include_metadata,
+            )
+
+        def _mark_rail_error(exc):
+            """A rail raised: report an infrastructure failure, not a refusal.
+
+            ``first_rejector`` stays ``none`` because nothing rejected the
+            request — matching the generation-error branch above.  The exception
+            is stashed for the caller's ``finally``, which owns ``request_span``
+            and records the error metric and span status there.
+
+            Uses the same envelope builder as ``_generation_task`` so a rail
+            outage and a generation outage are indistinguishable to the client.
+            """
+            spec_stats["rail_error"] = exc
+            spec_stats["first_completed"] = input_rails
+            spec_stats["first_rejector"] = none_value
+            spec_stats["cancellation_event"] = GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION
+            spec_stats["output_rails_wasted_chunks"] = len(held)
+            spec_stats["safe"] = False
+            return _frame_for_stream(build_streaming_error_payload(exc), include_metadata)
+
+        def _mark_release(first_completed):
+            spec_stats["first_completed"] = first_completed
+            spec_stats["safe"] = True
+            spec_stats["release_queue_token_count"] = len(held)
+            if hold_start is not None:
+                spec_stats["release_queue_duration_ms"] = (time.monotonic() - hold_start) * 1000
+
+        try:
+            async for chunk in base_iterator:
+                if released:
+                    yield chunk
+                    continue
+
+                # An error chunk during the speculation window is either an
+                # output-rails violation or a generation error surfaced by the
+                # base iterator.  Either way we short-circuit: cancel the still-
+                # running input rails task (output-reject early short-circuit) and
+                # forward the payload.  Held (validated-but-unreleased) chunks are
+                # discarded — the request is being refused.
+                if _is_stream_error_chunk(chunk):
+                    is_output_violation = _stream_error_field(chunk, "param") == "output_rails"
+                    if not input_task.done():
+                        input_task.cancel()
+                    if is_output_violation:
+                        spec_stats["first_completed"] = output_rails
+                        spec_stats["first_rejector"] = output_rails
+                        spec_stats["output_rails_early_reject"] = True
+                    else:
+                        # Generation error surfaced as a chunk — not a rail rejection.
+                        spec_stats["first_completed"] = generation
+                        spec_stats["first_rejector"] = none_value
+                    spec_stats["cancellation_event"] = GuardrailsAttributes.SPECULATIVE_CANCELLATION_INPUT_RAILS
+                    spec_stats["output_rails_wasted_chunks"] = len(held)
+                    spec_stats["safe"] = False
+                    held.clear()
+                    log.info("[%s] Speculative stream short-circuit (%s)", req_id, spec_stats["first_rejector"])
+                    yield chunk
+                    return
+
+                spec_chunks += 1
+                if hold_start is None:
+                    hold_start = time.monotonic()
+                held.append(chunk)
+
+                if input_task.done():
+                    input_result, input_param = input_task.result()
+                    first_completed = input_rails
+                elif len(held) >= self._speculative_max_buffered_chunks:
+                    # Release buffer full — stop consuming the base iterator and block
+                    # for the verdict (release on pass, teardown on reject).  This bounds
+                    # `held`, not the upstream stream queue: the generation task keeps
+                    # producing until the verdict resolves.  (To cap total memory instead,
+                    # switch this to abort the request on overflow — cancelling the
+                    # producer stops queue growth at the bound.)
+                    log.info("[%s] Speculative release buffer full (%d); awaiting input verdict", req_id, len(held))
+                    input_result, input_param = await input_task
+                    first_completed = generation
+                else:
+                    # Still speculating — keep holding.
+                    continue
+
+                if isinstance(input_result, _RailFailure):
+                    log.error("[%s] Input rails failed (speculative streaming)", req_id)
+                    error_chunk = _mark_rail_error(input_result.exc)
+                    held.clear()
+                    yield error_chunk
+                    return
+
+                if not input_result.is_safe:
+                    log.info("[%s] Input blocked (speculative streaming): %s", req_id, input_result.reason)
+                    if self._metrics_enabled:
+                        record_request_blocked(RailDirection.INPUT)
+                    refusal = _mark_reject_input(
+                        input_result.reason,
+                        first_completed,
+                        GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION,
+                        input_param,
+                    )
+                    held.clear()
+                    yield refusal
+                    return
+
+                _mark_release(first_completed)
+                released = True
+                for held_chunk in held:
+                    yield held_chunk
+                held.clear()
+
+            # Stream ended before the input verdict was applied (generation
+            # finished first, or an empty stream).  Await the verdict and either
+            # flush the held buffer or refuse.
+            if not released:
+                input_result, input_param = await input_task
+                if isinstance(input_result, _RailFailure):
+                    log.error("[%s] Input rails failed (speculative streaming, gen-first)", req_id)
+                    error_chunk = _mark_rail_error(input_result.exc)
+                    held.clear()
+                    yield error_chunk
+                    return
+                if not input_result.is_safe:
+                    log.info("[%s] Input blocked (speculative streaming, gen-first): %s", req_id, input_result.reason)
+                    if self._metrics_enabled:
+                        record_request_blocked(RailDirection.INPUT)
+                    # Generation already completed, so nothing is cancelled here.
+                    refusal = _mark_reject_input(input_result.reason, generation, none_value, input_param)
+                    held.clear()
+                    yield refusal
+                    return
+                _mark_release(generation)
+                for held_chunk in held:
+                    yield held_chunk
+                held.clear()
+        finally:
+            spec_stats["output_rails_speculation_chunks"] = spec_chunks
+            if not input_task.done():
+                input_task.cancel()
+            try:
+                await input_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                log.warning(
+                    "[%s] Speculative input-safety task raised during cleanup",
+                    req_id,
+                    exc_info=True,
+                )
 
     async def _run_output_rails_in_streaming(
         self,
@@ -1600,6 +2026,7 @@ class IORails(BaseGuardrails):
         *,
         enabled: Union[bool, list[str]] = True,
         include_metadata: Optional[bool] = False,
+        force_check_first: bool = False,
     ) -> AsyncGenerator[Union[str, dict], None]:
         """Buffer streamed chunks and run output rails on each batch.
 
@@ -1609,11 +2036,17 @@ class IORails(BaseGuardrails):
           rails.  If unsafe, inject an error and stop.
         - ``stream_first=False``: run output rails first, only yield chunks
           if safe.
+
+        ``force_check_first`` overrides the configured ``stream_first`` to
+        check-first behavior.  Speculative streaming (SG2) sets this so that
+        validated chunks are produced (never pre-yielded) — during the
+        speculation window tokens cannot reach the client before the input
+        rails verdict is known.
         """
 
         # Unpack streaming config and get the buffer strategy
         output_streaming_config = self.config.rails.output.streaming
-        stream_first = output_streaming_config.stream_first
+        stream_first = output_streaming_config.stream_first and not force_check_first
         buffer_strategy = get_buffer_strategy(output_streaming_config)
 
         async for chunk_batch in buffer_strategy(streaming_handler):

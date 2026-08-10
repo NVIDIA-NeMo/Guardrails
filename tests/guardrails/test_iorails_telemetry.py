@@ -2476,3 +2476,73 @@ class TestStreamingContentCaptureJsonFormat:
         span = _main_llm_span(exporter.get_finished_spans())
         outputs = json.loads(span.attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES])
         assert outputs[0]["parts"][0]["content"] == delivered
+
+
+def _make_speculative_streaming_tracing_config():
+    """Input-only streaming + tracing + metrics, with speculation enabled."""
+    cfg = copy.deepcopy(_INPUT_ONLY_STREAMING_TRACING_CONFIG)
+    cfg["rails"]["input"] = {**cfg["rails"]["input"], "speculative_generation": True}
+    return cfg
+
+
+@pytest_asyncio.fixture
+async def iorails_speculative_streaming_tracing(tracer_from_provider):
+    """Speculative streaming (input rails only) + tracing + metrics enabled."""
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_speculative_streaming_tracing_config())
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
+
+
+class TestSpeculativeStreamingRailErrorTelemetry:
+    """A rail that raises during speculation is an error, not a block.
+
+    Regression guard for the SG2 review finding: the speculative path
+    originally converted rail exceptions into ``is_safe=False`` verdicts, which
+    incremented ``guardrails.requests.blocked``, left ``requests.errors`` at
+    zero, and left the request span OK — making an outage indistinguishable
+    from a refusal on every dashboard.
+    """
+
+    @pytest.mark.asyncio
+    async def test_rail_exception_emits_errors_counter_not_blocked(
+        self, iorails_speculative_streaming_tracing, metric_reader
+    ):
+        iorails = iorails_speculative_streaming_tracing
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("rail down"))
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert any(json.loads(c)["error"]["type"] == "generation_error" for c in chunks if c.startswith('{"error"'))
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        # The finding itself: a rail outage must never be counted as a block.
+        assert "guardrails.requests.blocked" not in points
+
+    @pytest.mark.asyncio
+    async def test_rail_exception_marks_request_span_error(self, iorails_speculative_streaming_tracing, exporter):
+        iorails = iorails_speculative_streaming_tracing
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("rail down"))
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        span = _request_span(exporter.get_finished_spans())
+        assert span.status.status_code == StatusCode.ERROR
+
+    @pytest.mark.asyncio
+    async def test_rail_block_still_counts_as_blocked(self, iorails_speculative_streaming_tracing, metric_reader):
+        """The complement: a genuine refusal keeps the blocked counter."""
+        iorails = iorails_speculative_streaming_tracing
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert "guardrails.requests.errors" not in points

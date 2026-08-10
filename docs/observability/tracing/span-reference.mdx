@@ -219,11 +219,25 @@ Every span sets ERROR status and records the exception when one propagates throu
 
 When speculative generation is active, the request span also carries these attributes:
 
-| Attribute                                | Type    | When set                  | Description                                                     |
-| ---------------------------------------- | ------- | ------------------------- | --------------------------------------------------------------- |
-| `speculative_generation.mode_active`     | boolean | Speculative generation on | The value `true`.                                               |
-| `speculative_generation.first_completed` | string  | Speculative generation on | The branch that completed first: `input_rails` or `generation`. |
-| `speculative_generation.first_rejector`  | string  | Speculative generation on | The branch that rejected the request: `input_rails` or `none`.  |
+| Attribute                                              | Type    | When set                  | Description                                                                                                             |
+| ------------------------------------------------------ | ------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `speculative_generation.mode_active`                   | boolean | Speculative generation on | The value `true`.                                                                                                     |
+| `speculative_generation.first_completed`               | string  | Speculative generation on | The branch that completed first: `input_rails`, `generation`, or `output_rails`.                                      |
+| `speculative_generation.first_rejector`                | string  | Speculative generation on | The branch that rejected the request: `input_rails`, `output_rails`, or `none`. Covers rail *rejections* only — a rail or generation *error* leaves this `none` and marks the span status `ERROR`. |
+| `speculative_generation.rails_duration_ms`             | float   | Speculative generation on | Wall-clock time for the input rails.                                                                                  |
+| `speculative_generation.generation_duration_ms`        | float   | Speculative generation on | Wall-clock time for the main LLM generation.                                                                          |
+| `speculative_generation.overlap_ms`                    | float   | Speculative generation on | Time the input rails and generation ran concurrently.                                                                 |
+| `speculative_generation.time_saved_ms`                 | float   | Speculative generation on | Estimated saving versus sequential execution (the overlap for safe requests, `0` for rejected requests).             |
+| `speculative_generation.cancellation_event`            | string  | Speculative generation on | Which task was cancelled: `none`, `generation_cancelled`, `input_rails_cancelled`, or `output_rails_cancelled`. `input_rails_cancelled` covers the output-rails rejection short-circuit as well as error paths. |
+| `speculative_generation.output_rails_early_reject`     | boolean | Streaming speculation, output rails configured | Output rails rejected during the speculation window (short-circuit before the input verdict). Absent when no output rails are configured. |
+| `speculative_generation.output_rails_speculation_chunks` | int   | Streaming speculation     | Chunks held during the speculation window. With output rails configured these are output-rail-validated; with input rails only they are raw model chunks. |
+| `speculative_generation.output_rails_wasted_chunks`    | int     | Streaming speculation     | Held chunks discarded because the request was rejected.                                                               |
+| `speculative_generation.release_queue_duration_ms`     | float   | Streaming speculation     | Time chunks were held in the awaiting-release buffer.                                                                 |
+| `speculative_generation.release_queue_token_count`     | int     | Streaming speculation     | Number of chunks held awaiting the input-rail verdict.                                                                |
+
+<Note>
+    The attribute prefix is `speculative_generation.`, and the two `output_rails_*` chunk counters describe the release buffer rather than output-rail activity specifically — they are also emitted for input-rails-only configurations.
+</Note>
 
 **`guardrails.rail`** is one span per rail that runs, wrapping the rail's execution. Span kind `INTERNAL`.
 
