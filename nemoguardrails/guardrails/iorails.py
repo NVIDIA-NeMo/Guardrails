@@ -259,7 +259,7 @@ def _record_has_llm_call(record: RailCallRecord) -> bool:
 
 
 def _call_info(record: RailCallRecord) -> LLMCallInfo:
-    """Map a ``RailCallRecord`` to a ``LLMCallInfo`` for the log."""
+    """Map a ``RailCallRecord`` to a ``LLMCallInfo``"""
     usage = record.usage
     return LLMCallInfo(
         task=record.task,
@@ -269,7 +269,7 @@ def _call_info(record: RailCallRecord) -> LLMCallInfo:
         completion_tokens=usage.output_tokens if usage else None,
         started_at=record.started_at,
         finished_at=record.finished_at,
-        id=record.request_id,
+        request_id=record.request_id,
         prompt=record.prompt,
         completion=record.completion,
         llm_model_name=record.llm_model_name or "unknown",

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import contextvars
-from typing import List
+from typing import List, Optional
 
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
@@ -23,7 +23,9 @@ from nemoguardrails.rails.llm.options import (
 )
 
 # The processing log for the current async stack
-processing_log_var = contextvars.ContextVar("processing_log", default=None)
+processing_log_var: contextvars.ContextVar[Optional[List[dict]]] = contextvars.ContextVar(
+    "processing_log", default=None
+)
 
 
 def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
