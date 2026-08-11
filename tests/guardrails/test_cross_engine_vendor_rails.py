@@ -21,7 +21,7 @@ enabled tier is one line per rail; these cases are what makes each of those line
 Both engines are handed the **same** ``RecordingHTTPClient``, so the vendor's reply is fixed
 and the only variable left is the engine. LLMRails takes it through
 ``register_action_param``, which is how its Colang runtime injects action parameters by name;
-IORails takes it through the client its ``EngineRegistry`` manages. Everything below that
+IORails takes it through the client ``RailsManager`` compiles into the rail. Everything below that
 seam — the real action body, its config parsing, its response parser — executes on both
 sides, which is what distinguishes this from ``test_runtime_flow_gate_equivalence.py``,
 where the action is stubbed and a rewritten rail would stay green.
@@ -469,11 +469,12 @@ async def _iorails_reply(config_dict: dict, client: RecordingHTTPClient, monkeyp
     """Run one turn through IORails with *client* standing in for the vendor.
 
     Patching the factory rather than assigning the attribute keeps the real injection path
-    under test: ``start()`` installs the client, and a compiled rail reads it per request
-    through ``RailDependencies.http_client``.
+    under test: ``RailsManager`` calls it while compiling each API-backed rail, so *client*
+    arrives through the same route a production client would. One instance is returned for
+    every rail, which is what lets a single recorder observe whichever rail this case runs.
     """
     monkeypatch.setattr(
-        "nemoguardrails.guardrails.engine_registry.create_http_client",
+        "nemoguardrails.guardrails.rails_manager.create_http_client",
         lambda *args, **kwargs: client,
     )
     with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
