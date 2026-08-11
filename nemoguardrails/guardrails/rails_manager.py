@@ -36,7 +36,6 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
-from nemoguardrails.http.retry import RetryPolicy
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
@@ -70,10 +69,9 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
 
-# Vendor API surfaces whose actions declare an ``http_client`` parameter.
-# Each compiled rail in this set gets its own ``ClosableHTTPClient`` at startup so
-# connections are pooled for the engine's lifetime.
-# TODO: replace with a ``needs_http_client`` field on ``RailSurface``.
+# Integrations requiring API calls (rather than LLM inference). They should wrap
+# plain http_client with server-side retry, timeout, max_attempts requirements
+# TODO: Encode these in RailManifest
 _HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
     {
         # activefence
@@ -144,13 +142,6 @@ _HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
         "trend ai guard input",
         "trend ai guard output",
     }
-)
-
-# POST added to the default safe set: all vendor rail actions use POST, and the
-# idempotency assumption that normally excludes POST does not apply here because
-# a re-sent moderation call produces the same verdict on the same input.
-_DEFAULT_RAIL_RETRY_POLICY = RetryPolicy(
-    retryable_methods=frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "POST", "PUT", "TRACE"}),
 )
 
 
@@ -260,11 +251,7 @@ class RailsManager:
                     surface_name, _ = parse_configured_surface(flow)
                 except ValueError:
                     surface_name = flow
-                http_client = (
-                    create_http_client(retry_policy=_DEFAULT_RAIL_RETRY_POLICY)
-                    if surface_name in _HTTP_CLIENT_SURFACE_NAMES
-                    else None
-                )
+                http_client = create_http_client() if surface_name in _HTTP_CLIENT_SURFACE_NAMES else None
                 self._rails[(direction, flow)] = compile_rail(
                     flow, _SURFACE_DIRECTIONS[direction], deps, http_client=http_client
                 )

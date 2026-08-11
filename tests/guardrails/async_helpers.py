@@ -135,7 +135,7 @@ def always_allow_jailbreak_nim(httpx_mock) -> None:
 
 def mock_jailbreak_nim_failure(httpx_mock, message: str = "connection refused") -> None:
     """Register a transport failure for the NIM endpoint; the library action allows on any error."""
-    httpx_mock.add_exception(httpx.ConnectError(message), url=JAILBREAK_NIM_URL, is_reusable=True)
+    httpx_mock.add_exception(httpx.ConnectError(message), url=JAILBREAK_NIM_URL)
 
 
 def mock_rail_http_response(engine_registry, payload, model_type=None):

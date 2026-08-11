@@ -30,6 +30,7 @@ from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager, _rail_call_record, _rail_result
+from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -261,8 +262,17 @@ class TestRailsManagerStop:
         assert clients["jailbreak detection model"] is not None
         assert clients["content safety check input $model=content_safety"] is None
 
+    def test_the_injected_client_carries_no_retry_policy(self, nemoguards_rails_manager):
+        """The injected client pools connections only; retry stays the vendor action's to apply."""
+        # Vendor actions wrap whatever client they are handed -- clavata and f5 build a
+        # RetryingHTTPClient around it -- so a retrying client here would nest inside theirs
+        # and multiply attempts against an API that is already rate-limiting us.
+        client = nemoguards_rails_manager._rails[(RailDirection.INPUT, "jailbreak detection model")]._http_client
+
+        assert not isinstance(client, RetryingHTTPClient)
+
     def test_each_api_backed_rail_gets_its_own_client(self):
-        """Two API-backed flows do not share a client, so per-vendor retry stays independent."""
+        """Two API-backed flows get separate clients, so one vendor's pool cannot starve another."""
         config_dict = {
             **NEMOGUARDS_CONFIG,
             "rails": {
