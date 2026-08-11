@@ -36,8 +36,11 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
+from nemoguardrails.http.retry import RetryPolicy
+from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
+from nemoguardrails.manifests import parse_configured_surface
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import ToolCall, UsageInfo
 
@@ -66,6 +69,89 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 }
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
+
+# Vendor API surfaces whose actions declare an ``http_client`` parameter.
+# Each compiled rail in this set gets its own ``ClosableHTTPClient`` at startup so
+# connections are pooled for the engine's lifetime.
+# TODO: replace with a ``needs_http_client`` field on ``RailSurface``.
+_HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
+    {
+        # activefence
+        "activefence moderation on input",
+        "activefence moderation on input detailed",
+        "activefence moderation on output",
+        # ai_defense
+        "ai defense inspect prompt",
+        "ai defense inspect response",
+        # autoalign
+        "autoalign check input",
+        "autoalign check output",
+        "autoalign factcheck output",
+        "autoalign groundedness output",
+        # clavata
+        "clavata check input",
+        "clavata check output",
+        # crowdstrike_aidr
+        "crowdstrike aidr guard input",
+        "crowdstrike aidr guard output",
+        # f5
+        "f5 guardrails scan input",
+        "f5 guardrails scan output",
+        # fiddler
+        "fiddler bot faithfulness",
+        "fiddler bot safety",
+        "fiddler user safety",
+        # gliner
+        "gliner detect pii on input",
+        "gliner detect pii on output",
+        "gliner detect pii on retrieval",
+        "gliner mask pii on input",
+        "gliner mask pii on output",
+        "gliner mask pii on retrieval",
+        # hf_classifier
+        "hf classifier check input",
+        "hf classifier check output",
+        "hf classifier check retrieval",
+        # jailbreak_detection
+        "jailbreak detection heuristics",
+        "jailbreak detection model",
+        # pangea
+        "pangea ai guard input",
+        "pangea ai guard output",
+        # patronusai
+        "patronus api check output",
+        # policyai
+        "policyai moderation on input",
+        "policyai moderation on output",
+        # polygraf
+        "polygraf detect pii on input",
+        "polygraf detect pii on output",
+        "polygraf detect pii on retrieval",
+        "polygraf mask pii on input",
+        "polygraf mask pii on output",
+        "polygraf mask pii on retrieval",
+        # privateai
+        "detect pii on input",
+        "detect pii on output",
+        "detect pii on retrieval",
+        "mask pii on input",
+        "mask pii on output",
+        "mask pii on retrieval",
+        # prompt_security
+        "protect prompt",
+        "protect response",
+        # trend_micro
+        "trend ai guard input",
+        "trend ai guard output",
+    }
+)
+
+# POST added to the default safe set: all vendor rail actions use POST, and the
+# idempotency assumption that normally excludes POST does not apply here because
+# a re-sent moderation call produces the same verdict on the same input.
+_DEFAULT_RAIL_RETRY_POLICY = RetryPolicy(
+    retryable_methods=frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "POST", "PUT", "TRACE"}),
+)
 
 
 def _rail_result(outcome: RailOutcome) -> RailResult:
@@ -167,11 +253,21 @@ class RailsManager:
         # Keyed by direction as well as flow: compilation is direction-specific, so a surface
         # the catalog offers in both directions and a config lists in both would otherwise
         # collide on one key and run whichever compiled last.
-        self._rails: dict[tuple[RailDirection, str], CompiledRail] = {
-            (direction, flow): compile_rail(flow, _SURFACE_DIRECTIONS[direction], deps)
-            for direction, flows in ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows))
-            for flow in flows
-        }
+        self._rails: dict[tuple[RailDirection, str], CompiledRail] = {}
+        for direction, flows in ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows)):
+            for flow in flows:
+                try:
+                    surface_name, _ = parse_configured_surface(flow)
+                except ValueError:
+                    surface_name = flow
+                http_client = (
+                    create_http_client(retry_policy=_DEFAULT_RAIL_RETRY_POLICY)
+                    if surface_name in _HTTP_CLIENT_SURFACE_NAMES
+                    else None
+                )
+                self._rails[(direction, flow)] = compile_rail(
+                    flow, _SURFACE_DIRECTIONS[direction], deps, http_client=http_client
+                )
 
         # Tool Call Actions run on tool invocations from the main LLM response
         # Tool Result Actions run on the results of executing Tool Calls in the harness
@@ -197,6 +293,11 @@ class RailsManager:
             config=self.task_manager.config,
             tracer=self._tracer,
         )
+
+    async def stop(self) -> None:
+        """Close HTTP clients owned by compiled rails."""
+        for rail in self._rails.values():
+            await rail.close()
 
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.

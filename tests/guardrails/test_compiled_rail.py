@@ -22,7 +22,7 @@ sink rather than read from a contextvar afterwards.
 
 import inspect
 from typing import Any, Callable, Optional
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -180,7 +180,6 @@ def deps() -> RailDependencies:
         },
         llm_task_manager=MagicMock(),
         config=MagicMock(),
-        http_client=MagicMock(),
         model_caches=None,
         tracer=None,
     )
@@ -300,7 +299,7 @@ class TestMalformedManifest:
         surface = synthetic_surface(ActionRef(name="ghost", target="nemoguardrails.no_such_module:action"))
 
         with pytest.raises(RailCompilationError, match="cannot be imported"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_action_resolving_to_a_non_callable_raises(self, deps):
         """A manifest pointing at a module attribute that is not callable fails compilation.
@@ -313,7 +312,7 @@ class TestMalformedManifest:
         )
 
         with pytest.raises(RailCompilationError, match="non-callable"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_binding_with_no_source_key_raises(self, deps):
         """A non-literal binding carrying no source key fails compilation.
@@ -327,7 +326,7 @@ class TestMalformedManifest:
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (keyless,), bypass_validation=True)
 
         with pytest.raises(RailCompilationError, match="no source key"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_binding_kind_the_binder_cannot_fill_raises(self, deps):
         """A binding kind the binder does not handle fails compilation rather than vanishing.
@@ -341,7 +340,7 @@ class TestMalformedManifest:
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (unhandled,), bypass_validation=True)
 
         with pytest.raises(RailCompilationError, match="unsupported"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
 
 class TestUnrunnableSurfaces:
@@ -465,7 +464,7 @@ class TestBindingResolution:
         """
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("model_name", "baked_in"),))
 
-        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface)).run(USER_MESSAGES)
+        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)).run(USER_MESSAGES)
 
         assert content_safety_action.kwargs["model_name"] == "baked_in"
 
@@ -561,13 +560,31 @@ class TestDependencyInjection:
 
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
-        """jailbreak_detection_model declares http_client and receives the managed one."""
+        """jailbreak_detection_model declares http_client and receives the one compiled into the rail."""
         action = RecordingAction(signature_of=jailbreak_detection_model)
         monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
+        mock_client = MagicMock()
 
-        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client).run(USER_MESSAGES)
 
-        assert action.kwargs["http_client"] is deps.http_client
+        assert action.kwargs["http_client"] is mock_client
+
+    @pytest.mark.asyncio
+    async def test_close_calls_http_client_close(self, deps):
+        """close() forwards to the rail's HTTP client so the connection pool is released."""
+        mock_client = AsyncMock()
+        rail = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client)
+
+        await rail.close()
+
+        mock_client.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_is_a_no_op_when_no_http_client(self, deps):
+        """close() on a rail with no HTTP client (LLM-backed) does not raise."""
+        rail = compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
+
+        await rail.close()
 
 
 class TestOutcomePassthrough:

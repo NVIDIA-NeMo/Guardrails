@@ -759,7 +759,10 @@ class IORails(BaseGuardrails):
             try:
                 await self._generate_async_queue.stop()
             finally:
-                await self.engine_registry.stop()
+                try:
+                    await self.rails_manager.stop()
+                finally:
+                    await self.engine_registry.stop()
         finally:
             self._running = False
 

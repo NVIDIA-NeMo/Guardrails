@@ -342,7 +342,7 @@ class TestJailbreakAgreesAcrossEngines:
         httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
         llmrails_content = await _llmrails_reply(config_dict)
 
-        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
+        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL, is_reusable=True)
         iorails_content = await _iorails_reply(config_dict)
 
         assert llmrails_content == MAIN_OUTPUT

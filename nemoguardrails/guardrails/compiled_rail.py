@@ -71,7 +71,6 @@ class RailDependencies:
     llms: Mapping[str, Any]
     llm_task_manager: Any
     config: Any
-    http_client: Any = None
     model_caches: Optional[Mapping[str, Any]] = None
     tracer: Optional["Tracer"] = None
 
@@ -168,6 +167,7 @@ class CompiledRail:
         bound: tuple[_BoundParameter, ...],
         deps: RailDependencies,
         accepted: frozenset[str],
+        http_client: Any = None,
     ) -> None:
         """Store the frozen execution plan. Build through :func:`compile_rail`.
 
@@ -180,6 +180,7 @@ class CompiledRail:
         self._bound = bound
         self._deps = deps
         self._accepted = accepted
+        self._http_client = http_client
 
     @property
     def surface_name(self) -> str:
@@ -228,7 +229,7 @@ class CompiledRail:
             "llm": self._deps.llms.get("main"),
             "llm_task_manager": self._deps.llm_task_manager,
             "config": self._deps.config,
-            "http_client": self._deps.http_client,
+            "http_client": self._http_client,
             "model_caches": self._deps.model_caches,
             "context": {
                 "user_message": _last_user_content(messages),
@@ -236,6 +237,11 @@ class CompiledRail:
             },
             "events": messages_to_events(messages),
         }
+
+    async def close(self) -> None:
+        """Close the rail's HTTP client, if it owns one."""
+        if self._http_client is not None and hasattr(self._http_client, "close"):
+            await self._http_client.close()
 
 
 def _accepted_parameters(action: Callable[..., Any]) -> frozenset[str]:
@@ -409,6 +415,8 @@ def compile_rail(
     flow: str,
     direction: RailDirection,
     deps: RailDependencies,
+    *,
+    http_client: Any = None,
     catalog: Optional["RailCatalog"] = None,
 ) -> CompiledRail:
     """Compile one configured flow string into an executable rail.
@@ -444,4 +452,5 @@ def compile_rail(
         bound=bound,
         deps=deps,
         accepted=accepted,
+        http_client=http_client,
     )

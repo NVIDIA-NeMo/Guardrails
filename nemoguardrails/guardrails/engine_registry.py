@@ -23,8 +23,6 @@ from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
-from nemoguardrails.http.client import ClosableHTTPClient
-from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
@@ -37,7 +35,7 @@ _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
-    """One engine per configured model, keyed by model type, each owning its own HTTP client."""
+    """One ModelEngine per configured model, keyed by model type."""
 
     def __init__(
         self,
@@ -51,7 +49,6 @@ class EngineRegistry:
         # generate_async emits the same spans and metrics as main generation through model_call.
         self._engines: dict[str, BaseEngine] = {}
         self._llms: dict[str, LLMModel] = {}
-        self._http_client: Optional[ClosableHTTPClient] = None
         self._running = False
         self._tracer = tracer
 
@@ -81,33 +78,8 @@ class EngineRegistry:
         """
         return self._llms
 
-    @property
-    def http_client(self) -> ClosableHTTPClient:
-        """The process-wide HTTP client shared by vendor rail actions.
-
-        One managed client replaces the per-request client each vendor action
-        would otherwise create and close, so connections are pooled across
-        requests.
-
-        Raises:
-            RuntimeError: If the registry has not been started.
-        """
-        if self._http_client is None:
-            raise RuntimeError("EngineRegistry has not been started. Call start() first.")
-        return self._http_client
-
-    async def _close_http_client(self) -> None:
-        """Close the managed HTTP client, if one is open.
-
-        The reference is cleared before the await so a failing ``close()``
-        still leaves the registry without a half-closed client.
-        """
-        client, self._http_client = self._http_client, None
-        if client is not None:
-            await client.close()
-
     async def start(self) -> None:
-        """Start all engine clients and the managed HTTP client.
+        """Start all engine clients.
 
         Call this during service startup.  A failure part-way through rolls
         everything already started back, so a failed start leaks nothing.
@@ -116,8 +88,6 @@ class EngineRegistry:
             return
 
         started: list[tuple[str, BaseEngine]] = []
-        self._http_client = create_http_client()
-
         for name, engine in self._engines.items():
             try:
                 await engine.start()
@@ -136,13 +106,9 @@ class EngineRegistry:
                 await engine.stop()
             except Exception as stop_error:
                 log.warning("Error stopping engine %s during start rollback: %s", name, stop_error)
-        try:
-            await self._close_http_client()
-        except Exception as close_error:
-            log.warning("Error closing the managed HTTP client during start rollback: %s", close_error)
 
     async def stop(self) -> None:
-        """Stop all engine clients and the managed HTTP client.
+        """Stop all engine clients.
 
         Call this during service shutdown.  Every component is stopped even if
         an earlier one fails; the failures are reported together afterwards.
@@ -158,11 +124,6 @@ class EngineRegistry:
                 except Exception as e:
                     errors[f"Engine {name}"] = e
                     log.error("Error stopping engine %s: %s", name, e)
-            try:
-                await self._close_http_client()
-            except Exception as e:
-                errors["HTTP client"] = e
-                log.error("Error closing the managed HTTP client: %s", e)
         finally:
             self._running = False
 

@@ -16,7 +16,6 @@
 """Unit tests for engine_registry module."""
 
 import json
-import logging
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,7 +26,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.guardrails import engine_registry as engine_registry_module
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -1513,162 +1511,6 @@ class TestEngineRegistryProviderName:
         """An unconfigured model type raises rather than reporting 'unknown'."""
         with pytest.raises(KeyError):
             manager.provider_name("nonexistent")
-
-
-class _FakeHTTPClient:
-    """Minimal ``ClosableHTTPClient`` stand-in that records ``close()`` calls."""
-
-    def __init__(self, close_error: Optional[Exception] = None) -> None:
-        self.close_count = 0
-        self.close_error = close_error
-
-    async def request(self, method, url, **kwargs):
-        raise NotImplementedError("the fake client does not send requests")
-
-    async def close(self) -> None:
-        self.close_count += 1
-        if self.close_error is not None:
-            raise self.close_error
-
-
-@pytest.fixture
-def fake_http_client(monkeypatch):
-    """Replace the managed HTTP client factory with a recording fake."""
-    client = _FakeHTTPClient()
-    monkeypatch.setattr(engine_registry_module, "create_http_client", lambda: client)
-    return client
-
-
-@pytest.fixture
-def mocked_engine_lifecycle(manager):
-    """Stub start/stop on every engine so lifecycle tests exercise only the registry."""
-    for engine in manager._engines.values():
-        engine.start = AsyncMock()
-        engine.stop = AsyncMock()
-    return manager
-
-
-class TestEngineRegistryHTTPClient:
-    """The registry owns one managed HTTP client for the whole process, started and
-    stopped with the engines, so vendor rail actions stop creating one per request."""
-
-    def test_client_is_unavailable_before_start(self, manager):
-        """Reaching for the client before start() fails loudly instead of handing back None."""
-        with pytest.raises(RuntimeError, match="has not been started"):
-            _ = manager.http_client
-
-    @pytest.mark.asyncio
-    async def test_client_is_created_on_start(self, mocked_engine_lifecycle, fake_http_client):
-        """start() builds the managed client through create_http_client()."""
-        await mocked_engine_lifecycle.start()
-        assert mocked_engine_lifecycle.http_client is fake_http_client
-
-    @pytest.mark.asyncio
-    async def test_same_client_across_accesses(self, mocked_engine_lifecycle, fake_http_client):
-        """Every access returns the one shared client, so connections are pooled."""
-        await mocked_engine_lifecycle.start()
-        assert mocked_engine_lifecycle.http_client is mocked_engine_lifecycle.http_client
-
-    @pytest.mark.asyncio
-    async def test_second_start_does_not_replace_the_client(self, mocked_engine_lifecycle, fake_http_client):
-        """start() is idempotent: a repeat call leaves the existing client in place."""
-        await mocked_engine_lifecycle.start()
-        first = mocked_engine_lifecycle.http_client
-
-        await mocked_engine_lifecycle.start()
-
-        assert mocked_engine_lifecycle.http_client is first
-
-    @pytest.mark.asyncio
-    async def test_stop_closes_the_client(self, mocked_engine_lifecycle, fake_http_client):
-        """stop() releases the client's connection pool."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_client_is_unavailable_after_stop(self, mocked_engine_lifecycle, fake_http_client):
-        """A closed client is not handed out again."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-
-        with pytest.raises(RuntimeError, match="has not been started"):
-            _ = mocked_engine_lifecycle.http_client
-
-    @pytest.mark.asyncio
-    async def test_second_stop_does_not_close_again(self, mocked_engine_lifecycle, fake_http_client):
-        """stop() is idempotent: the client is closed exactly once."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-        await mocked_engine_lifecycle.stop()
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_engine_start_failure_closes_the_client(self, manager, fake_http_client):
-        """A failed start rolls the client back with the engines rather than leaking it."""
-        for name, engine in manager._engines.items():
-            engine.stop = AsyncMock()
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-
-        with pytest.raises(RuntimeError, match="Failed to start engine"):
-            await manager.start()
-
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_start_rollback_logs_a_failing_client_close(self, manager, monkeypatch, caplog):
-        """A close() failure during rollback is logged, not silently swallowed.
-
-        The engine-start error must still be what propagates — a cleanup failure
-        raised from the rollback would replace the reason the start failed — so the
-        log line is the only signal that the client leaked.
-        """
-        monkeypatch.setattr(
-            engine_registry_module,
-            "create_http_client",
-            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
-        )
-        for name, engine in manager._engines.items():
-            engine.stop = AsyncMock()
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(RuntimeError, match="Failed to start engine"):
-                await manager.start()
-
-        assert "socket stuck" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_start_rollback_logs_a_failing_engine_stop(self, manager, fake_http_client, caplog):
-        """A stop() failure during rollback names the engine that failed to release.
-
-        Rollback continues past it (pinned by ``test_start_rollback_swallows_stop_errors``);
-        this pins that the failure is reported rather than lost.
-        """
-        for name, engine in manager._engines.items():
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-            engine.stop = AsyncMock(side_effect=RuntimeError("close failed") if name == "main" else None)
-
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(RuntimeError, match="Failed to start engine"):
-                await manager.start()
-
-        assert "Error stopping engine main during start rollback" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_stop_reports_a_failing_client_close(self, mocked_engine_lifecycle, monkeypatch):
-        """A close() failure is surfaced, not swallowed, and still clears running state."""
-        monkeypatch.setattr(
-            engine_registry_module,
-            "create_http_client",
-            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
-        )
-        await mocked_engine_lifecycle.start()
-
-        with pytest.raises(RuntimeError, match="socket stuck"):
-            await mocked_engine_lifecycle.stop()
-
-        assert not mocked_engine_lifecycle._running
 
 
 class TestRailCallTelemetryParity:
