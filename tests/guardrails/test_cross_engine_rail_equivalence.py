@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
@@ -173,7 +174,9 @@ def _assistant_content(response: object) -> str:
     return response["content"]
 
 
-async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str]] = None) -> str:
+async def _llmrails_reply(
+    config_dict: dict, rail_model: Optional[tuple[str, str]] = None, messages: Optional[list[dict]] = None
+) -> str:
     """Run one turn through LLMRails and return the assistant content.
 
     *rail_model* is a ``(model_type, reply)`` pair, supplied through
@@ -186,17 +189,16 @@ async def _llmrails_reply(config_dict: dict, rail_model: Optional[tuple[str, str
         model_type, reply = rail_model
         chat.app.runtime.registered_action_params["llms"] = {model_type: FakeLLMModel(responses=[reply])}
 
-    response = await chat.app.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+    response = await chat.app.generate_async(messages=messages or [{"role": "user", "content": USER_INPUT}])
     return _assistant_content(response)
 
 
-async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) -> str:
-    """Run one turn through IORails and return the assistant content.
-
-    Mocks each registered engine's transport so the whole RailsManager -> RailAction ->
-    EngineRegistry chain executes without a network call. Rails are keyed by engine name
-    rather than model type here, because that is how ``EngineRegistry`` holds them.
-    """
+async def _iorails_reply(
+    config_dict: dict, rail_reply: Optional[str] = None, messages: Optional[list[dict]] = None
+) -> str:
+    """Run one turn through IORails and return the assistant content."""
+    # Mocks each engine's transport, so the whole RailsManager -> CompiledRail -> EngineRegistry
+    # chain runs without a network call. Keyed by engine name, as EngineRegistry holds them.
     with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
         iorails = IORails(RailsConfig.from_content(config=config_dict))
 
@@ -209,7 +211,7 @@ async def _iorails_reply(config_dict: dict, rail_reply: Optional[str] = None) ->
             elif rail_reply is not None:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=rail_reply))
 
-        response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+        response = await iorails.generate_async(messages=messages or [{"role": "user", "content": USER_INPUT}])
         return _assistant_content(response)
 
 
@@ -248,13 +250,63 @@ class TestModelBackedRailsAgreeAcrossEngines:
         assert llmrails_content == REFUSAL_MESSAGE
 
 
-class TestJailbreakAgreesAcrossEngines:
-    """Jailbreak detection reaches the same decision despite two different transports.
+CONVERSATION = [
+    {"role": "user", "content": "do you ship to France?"},
+    {"role": "assistant", "content": "Yes, we ship worldwide."},
+    {"role": "user", "content": USER_INPUT},
+]
 
-    LLMRails calls the NIM over httpx, IORails over aiohttp. Each is mocked at its own
-    boundary with the same verdict, so the decision is compared even though the wire path
-    is not.
-    """
+
+async def _topic_safety_prompt(run, config_dict: dict, messages: list[dict]) -> list[dict]:
+    """Capture the messages a run hands the topic-safety model, below the model call."""
+    captured: list[list[dict]] = []
+
+    async def spy(llm, sent, **kwargs):
+        captured.append(sent)
+        return LLMResponse(content=ON_TOPIC)
+
+    with patch("nemoguardrails.library.topic_safety.actions.llm_call", new=spy):
+        await run(config_dict, messages=messages)
+
+    assert len(captured) == 1, f"expected one topic-safety call, got {len(captured)}"
+    return captured[0]
+
+
+class TestTopicSafetyPromptMatchesAcrossEngines:
+    """Both engines hand the topic-safety model the same prompt, not merely the same verdict."""
+
+    # Decision parity cannot catch a malformed prompt: a duplicated user turn left both engines
+    # allowing, so the tests above stayed green while IORails sent the classifier a different
+    # conversation. This compares what each engine actually sends.
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "messages",
+        [[{"role": "user", "content": USER_INPUT}], CONVERSATION],
+        ids=["single-turn", "multi-turn"],
+    )
+    async def test_both_engines_send_the_same_messages(self, messages):
+        """Same conversation in, same message list to the topic-control model, turn for turn."""
+        case = next(c for c in MODEL_RAIL_CASES if c.case_id == "topic_safety_input_allows")
+        config_dict = _model_rail_config(case)
+
+        llmrails_prompt = await _topic_safety_prompt(_llmrails_reply, config_dict, messages)
+        iorails_prompt = await _topic_safety_prompt(_iorails_reply, config_dict, messages)
+
+        assert iorails_prompt == llmrails_prompt
+
+    @pytest.mark.asyncio
+    async def test_the_turn_being_checked_is_sent_once(self):
+        """The checked turn appears once: the action appends it, so history must withhold it."""
+        case = next(c for c in MODEL_RAIL_CASES if c.case_id == "topic_safety_input_allows")
+
+        prompt = await _topic_safety_prompt(_iorails_reply, _model_rail_config(case), CONVERSATION)
+
+        assert [message["content"] for message in prompt].count(USER_INPUT) == 1
+
+
+class TestJailbreakAgreesAcrossEngines:
+    """Jailbreak detection reaches the same decision on both engines, now over one transport."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -266,22 +318,14 @@ class TestJailbreakAgreesAcrossEngines:
         ids=["jailbreak_model_allows", "jailbreak_model_blocks"],
     )
     async def test_engines_reach_the_same_decision(self, verdict, expect_blocked, httpx_mock):
-        """One NIM verdict drives both engines to the same response, exactly.
-
-        Equality matters more here than for the model-backed rails: the two engines do not
-        share a transport yet, so each mock could fail in its own way and still produce
-        "not the main output" on both sides.
-        """
+        """One NIM verdict drives both engines to the same response, exactly."""
         config_dict = _jailbreak_config()
 
         httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
         llmrails_content = await _llmrails_reply(config_dict)
 
-        with patch(
-            "nemoguardrails.guardrails.engine_registry.EngineRegistry.api_call",
-            new=AsyncMock(return_value=verdict),
-        ):
-            iorails_content = await _iorails_reply(config_dict)
+        httpx_mock.add_response(url=JAILBREAK_URL, json=verdict)
+        iorails_content = await _iorails_reply(config_dict)
 
         expected_content = REFUSAL_MESSAGE if expect_blocked else MAIN_OUTPUT
 
@@ -289,16 +333,17 @@ class TestJailbreakAgreesAcrossEngines:
         assert iorails_content == expected_content
 
     @pytest.mark.asyncio
-    async def test_iorails_fails_closed_when_the_endpoint_errors(self):
-        """IORails blocks when the NIM call raises, where the library action allows.
+    async def test_both_engines_allow_when_the_endpoint_errors(self, httpx_mock):
+        """An unreachable NIM lets the request through on both engines."""
+        # Inverts the pre-migration expectation of IORails failing closed. The fail-open posture
+        # is deliberate: a NIM outage now stops blocking jailbreaks on both engines.
+        config_dict = _jailbreak_config()
 
-        The engines genuinely disagree here: the library swallows every exception and allows.
-        Recorded so that closing the gap reads as an intended change, not an unexplained diff.
-        """
-        with patch(
-            "nemoguardrails.guardrails.engine_registry.EngineRegistry.api_call",
-            new=AsyncMock(side_effect=RuntimeError("connection refused")),
-        ):
-            iorails_content = await _iorails_reply(_jailbreak_config())
+        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
+        llmrails_content = await _llmrails_reply(config_dict)
 
-        assert iorails_content == REFUSAL_MESSAGE
+        httpx_mock.add_exception(httpx.ConnectError("connection refused"), url=JAILBREAK_URL)
+        iorails_content = await _iorails_reply(config_dict)
+
+        assert llmrails_content == MAIN_OUTPUT
+        assert iorails_content == MAIN_OUTPUT

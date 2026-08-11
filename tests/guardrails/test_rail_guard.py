@@ -31,7 +31,6 @@ from opentelemetry.trace import Tracer
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome, rail_error_result
@@ -60,10 +59,6 @@ status_bearing_types = pytest.mark.parametrize(
         pytest.param(
             lambda status: ModelEngineError("upstream refused", model_name="guard-model", status=status),
             id="ModelEngineError",
-        ),
-        pytest.param(
-            lambda status: APIEngineError("upstream refused", endpoint="https://vendor/api", status=status),
-            id="APIEngineError",
         ),
         pytest.param(
             lambda status: LLMCallException("upstream refused", status=status),

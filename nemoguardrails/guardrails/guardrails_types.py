@@ -15,6 +15,7 @@
 
 
 import secrets
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from enum import Enum
@@ -162,3 +163,60 @@ def serialize_prompt(messages: list[dict]) -> str:
             line += f" [{', '.join(extras)}]"
         lines.append(line)
     return "\n\n".join(lines)
+
+
+_VERDICT_DECISION_KEY = "allowed"
+_UNSPECIFIED_REASON = "unspecified"
+
+# Verdict fields a blocked caller may see. Covers what the enabled rails emit -- content
+# safety and llama guard both report ``policy_violations`` -- and PR 4 extends it per rail
+# as it widens the tier. Adding a key discloses it, so each addition is a decision.
+_CLIENT_EVIDENCE_KEYS = frozenset({"policy_violations"})
+
+
+def _rendered_evidence(value: Any) -> str:
+    """Render one verdict value, flattening a sequence into a comma-separated list."""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def _has_evidence(value: Any) -> bool:
+    """Whether a verdict value carries anything worth showing."""
+    # Emptiness rather than falsiness, so a legitimate ``0`` or ``False`` still renders.
+    if value is None:
+        return False
+    if isinstance(value, (str, list, tuple, dict, set)):
+        return len(value) > 0
+    return True
+
+
+def _verdict_evidence(return_value: Any, keys: Optional[frozenset[str]] = None) -> Optional[str]:
+    """Render a verdict as text, restricted to *keys* when given, or None when it has no evidence."""
+    if not isinstance(return_value, Mapping):
+        return None
+    parts = [
+        f"{key}: {_rendered_evidence(value)}"
+        for key, value in return_value.items()
+        if key != _VERDICT_DECISION_KEY and _has_evidence(value) and (keys is None or key in keys)
+    ]
+    return "; ".join(parts) or None
+
+
+def display_reason(result: RailResult) -> str:
+    """Render a blocked rail's full explanation for a log line or a span."""
+    if result.reason:
+        return result.reason
+    return _verdict_evidence(result.return_value) or result.triggered_rail or _UNSPECIFIED_REASON
+
+
+def client_reason(result: RailResult) -> str:
+    """Render a blocked rail's explanation for the error payload sent to the caller."""
+    # Only listed verdict fields, because metadata is neutral evidence for logs rather than a
+    # client contract: crowdstrike_aidr puts the user and bot messages in it and f5 forwards the
+    # provider response, so rendering it wholesale would echo request content back over the API.
+    # ``reason`` is exempt: unlike metadata it is a rail-authored explanation meant to be read.
+    if result.reason:
+        return result.reason
+    evidence = _verdict_evidence(result.return_value, keys=_CLIENT_EVIDENCE_KEYS)
+    return evidence or result.triggered_rail or _UNSPECIFIED_REASON

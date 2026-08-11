@@ -42,7 +42,11 @@ from nemoguardrails.tracing.constants import (
     SystemConstants,
 )
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
-from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
+from tests.guardrails.async_helpers import (
+    always_allow_jailbreak_nim,
+    saturate_stream_semaphore,
+    wait_for_queue_state,
+)
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
@@ -83,6 +87,12 @@ def _stub_safe_pipeline(iorails, llm_response="Hello"):
     iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
 
+@pytest.fixture(autouse=True)
+def stub_jailbreak_nim(httpx_mock):
+    """Answer the jailbreak rail in ``NEMOGUARDS_CONFIG``, which every deep-pipeline test runs."""
+    always_allow_jailbreak_nim(httpx_mock)
+
+
 @pytest.fixture
 def exporter():
     return InMemorySpanExporter()
@@ -110,14 +120,7 @@ def _gated_generate(gate: asyncio.Event):
 
 @pytest_asyncio.fixture
 async def iorails_tracing(tracer_from_provider):
-    """IORails instance with tracing enabled, using a test tracer.
-
-    Patches the module-level ``_tracer`` before constructing IORails so that
-    ``IORails.__init__`` picks up the test tracer via ``get_tracer()`` and
-    threads it through EngineRegistry/RailsManager/RailAction constructors.
-    The ``async with`` block starts and stops the IORails-owned worker
-    queue so no asyncio tasks leak past the test's event loop.
-    """
+    """IORails with tracing on, built around a test tracer patched in before construction."""
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_make_tracing_config())
@@ -377,15 +380,7 @@ UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S
 
 
 def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
-    """Mock at the engine level so the full RailsManager → RailAction → EngineRegistry
-    chain executes (including span creation), but actual HTTP calls are skipped.
-
-    Mocks ModelEngine.chat_completion and APIEngine.call on each registered engine.
-    The content_safety engine returns different JSON for input vs output checks —
-    we use SAFE_INPUT_JSON as default since the output rail's parser also accepts it
-    when Response Safety is absent (it just checks User Safety).
-    """
-    from nemoguardrails.guardrails.api_engine import APIEngine
+    """Mock ModelEngine.chat_completion so the whole chain runs, spans and all, without HTTP."""
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
@@ -400,8 +395,6 @@ def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
                 )
             else:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 class TestSpanHierarchy:
@@ -432,9 +425,11 @@ class TestSpanHierarchy:
         action_spans = [s for s in spans if s.name == "guardrails.action"]
         assert len(action_spans) == 4
 
-        # LLM call spans (content_safety input, topic_safety input, content_safety output, main LLM)
+        # LLM call spans (content_safety input, topic_safety input, content_safety output, main LLM).
+        # An equality, not a floor: a floor cannot detect a *lost* span. Jailbreak contributes none
+        # -- its vendor-call span went with APIEngine (§5b), leaving 3 rail LLMs + 1 main.
         llm_spans = [s for s in spans if s.kind == SpanKind.CLIENT]
-        assert len(llm_spans) >= 4  # at least 3 rail LLMs + 1 API + 1 main
+        assert len(llm_spans) == 4
 
         # All rail spans are children of the request span
         for rail_span in rail_spans:
@@ -512,9 +507,8 @@ class TestSpanHierarchy:
         """When the engine raises, the action span must record it (not swallow it)."""
         from nemoguardrails.guardrails.model_engine import ModelEngine
 
-        # Make the content_safety engine fail — RailAction.run will catch and
-        # convert to RailResult(is_safe=False), but the action span must still
-        # reflect the error.
+        # CompiledRail catches and converts to a blocking outcome, but the action span
+        # must still reflect the error.
         for name, engine in iorails_tracing.engine_registry._engines.items():
             if isinstance(engine, ModelEngine) and name == "content_safety":
                 engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
@@ -530,11 +524,11 @@ class TestSpanHierarchy:
             s for s in action_spans if s.attributes["action.name"] == "content safety check input"
         )
 
-        # Span has ERROR status and an exception event recording the RuntimeError
+        # llm_call wraps every provider failure, so the recorded type is the wrapper.
         assert content_safety_action.status.status_code == StatusCode.ERROR
         exc_events = [e for e in content_safety_action.events if e.name == "exception"]
         assert len(exc_events) == 1
-        assert exc_events[0].attributes["exception.type"] == "RuntimeError"
+        assert exc_events[0].attributes["exception.type"] == "nemoguardrails.exceptions.LLMCallException"
         assert "LLM down" in exc_events[0].attributes["exception.message"]
 
     @pytest.mark.asyncio
@@ -614,10 +608,14 @@ class TestSpanHierarchy:
             else:
                 raise AssertionError(f"CLIENT span '{client.name}' has unexpected parent")
 
-        # Exactly one main LLM call, and one CLIENT span per action
+        # Exactly one main LLM call, and one CLIENT span per model-backed action. The four
+        # actions are the three model-backed rails plus jailbreak detection, which reaches its
+        # NIM over the library's HTTP path and so emits no CLIENT span -- the vendor-call span
+        # that went with APIEngine. Losing it brings IORails to parity with LLMRails.
         assert len(main_llm_spans) == 1
         assert main_llm_spans[0].attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
-        assert len(rail_call_spans) == len(action_spans)
+        assert len(action_spans) == 4
+        assert len(rail_call_spans) == 3
 
     @pytest.mark.asyncio
     async def test_action_span_attributes(self, iorails_tracing, exporter):
@@ -652,13 +650,7 @@ class TestSpanHierarchy:
 
     @pytest.mark.asyncio
     async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
-        """With tracing disabled, no spans at all are created.
-
-        Uses ``_stub_deep_pipeline`` so the full RailsManager → RailAction →
-        EngineRegistry chain executes.  This exercises the code paths that
-        would otherwise create orphaned child spans, not just the top-level
-        IORails entry point.
-        """
+        """With tracing disabled the whole chain runs and still creates no spans at all."""
         _stub_deep_pipeline(iorails_no_tracing)
 
         await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
@@ -753,7 +745,6 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
     the main engine uses ``stream_chat_completion`` so the LLM span in
     ``stream_model_call`` sees the real wrapper code.
     """
-    from nemoguardrails.guardrails.api_engine import APIEngine
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     if main_stream is None:
@@ -770,8 +761,6 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
                 )
             else:
                 engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 @pytest_asyncio.fixture
@@ -1892,7 +1881,6 @@ def _stub_deep_pipeline_with_usage(iorails):
     tests asserting "metric fired for this model" can also check the
     recorded sum is the expected value (catching a label-shuffle bug).
     """
-    from nemoguardrails.guardrails.api_engine import APIEngine
     from nemoguardrails.guardrails.model_engine import ModelEngine
 
     # (model_name → (input_tokens, output_tokens, response_content))
@@ -1915,8 +1903,6 @@ def _stub_deep_pipeline_with_usage(iorails):
                     ),
                 )
             )
-        elif isinstance(engine, APIEngine):
-            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
 class TestGenerateAsyncLLMMetrics:

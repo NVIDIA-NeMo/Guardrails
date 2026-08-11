@@ -28,8 +28,6 @@ def configure_logging(
 
     Attaches a handler if none exist, or updates existing handlers if they do.
     **If a handler is provided on repeat calls, it is ignored to avoid accumulating handlers.**
-    Sets level and formatter of all handlers so that all modules under this package
-    (model_engine, api_engine, rails_manager, etc.) inherit the same settings.
 
     """
     logger = logging.getLogger("nemoguardrails.guardrails")

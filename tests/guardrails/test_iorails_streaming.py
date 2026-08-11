@@ -1133,3 +1133,47 @@ class TestStreamAsyncMetadata:
         terminal = empty_frames[0]["metadata"]
         assert terminal["usage"] == {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
         assert "response_metadata" in terminal and "usage_metadata" in terminal
+
+
+class TestBlockReasonDisplay:
+    """The text a blocked rail contributes to the client-facing violation payload."""
+
+    @pytest.mark.asyncio
+    async def test_input_block_payload_renders_the_verdict(self, iorails_input_only):
+        """An input rail blocking with no reason sends its evidence to the client, never "None"."""
+        _wire_mocks(iorails_input_only)
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(
+                is_safe=False,
+                triggered_rail="content safety check input",
+                return_value={"allowed": False, "policy_violations": ["S1: Violence"]},
+            )
+        )
+
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}]))
+
+        _assert_error_chunk(
+            chunks,
+            code="content_blocked",
+            message_contains="Blocked by input rails: policy_violations: S1: Violence",
+        )
+
+    @pytest.mark.asyncio
+    async def test_output_block_payload_falls_back_to_the_rail_name(self, iorails_stream_first):
+        """An output rail blocking with neither reason nor evidence names itself to the client."""
+        _wire_mocks(iorails_stream_first)
+        iorails_stream_first.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(
+                is_safe=False,
+                triggered_rail="content safety check output",
+                return_value={"allowed": False},
+            )
+        )
+
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        _assert_error_chunk(
+            chunks,
+            code="content_blocked",
+            message_contains="Blocked by output rails: content safety check output",
+        )

@@ -16,7 +16,6 @@
 """Unit tests for engine_registry module."""
 
 import json
-import logging
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,9 +26,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from nemoguardrails.guardrails import engine_registry as engine_registry_module
 from nemoguardrails.guardrails import telemetry
-from nemoguardrails.guardrails.api_engine import APIEngine
+from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.tool_schema import Toolset
@@ -52,7 +50,7 @@ def rails_config():
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def manager(rails_config):
     """Create a EngineRegistry from test config."""
-    return EngineRegistry(rails_config.models, rails_config.rails.config)
+    return EngineRegistry(rails_config.models)
 
 
 @pytest.fixture(autouse=True)
@@ -91,7 +89,7 @@ def metric_reader():
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def manager_with_metrics(rails_config):
     """Create an EngineRegistry with metrics emission enabled."""
-    return EngineRegistry(rails_config.models, rails_config.rails.config, metrics_enabled=True)
+    return EngineRegistry(rails_config.models, metrics_enabled=True)
 
 
 @pytest.fixture
@@ -113,7 +111,7 @@ def manager_with_tracer(rails_config, span_exporter):
     """Create an EngineRegistry wired to the test tracer (metrics + content
     capture off) so LLM calls produce real spans we can read back."""
     tracer, _ = span_exporter
-    return EngineRegistry(rails_config.models, rails_config.rails.config, tracer=tracer)
+    return EngineRegistry(rails_config.models, tracer=tracer)
 
 
 def _mock_stream(*chunks: LLMResponseChunk, error: Optional[Exception] = None):
@@ -177,46 +175,27 @@ def _registry_with_main_params(parameters: dict, tracer):
             ]
         }
     )
-    return EngineRegistry(config.models, config.rails.config, tracer=tracer)
+    return EngineRegistry(config.models, tracer=tracer)
 
 
 class TestEngineRegistryInit:
     """Test EngineRegistry creates engines from config."""
 
     def test_create_engines_for_each_model_type(self, manager):
-        """Creates one engine per model type in config, plus API engines."""
+        """Creates one engine per model type in config."""
         engine_names = set(manager._engines.keys())
-        assert {"main", "content_safety", "topic_control", "jailbreak_detection"} == engine_names
+        assert {"main", "content_safety", "topic_control"} == engine_names
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     def test_empty_config_creates_no_engines(self):
         """Empty models list results in no engines."""
         config = RailsConfig.from_content(config={"models": []})
-        mgr = EngineRegistry(config.models, config.rails.config)
+        mgr = EngineRegistry(config.models)
         assert len(mgr._engines) == 0
 
-    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-    def test_model_type_collision_with_api_engine_raises(self):
-        """Raises ValueError when a model type collides with an API engine name."""
-        config = RailsConfig.from_content(
-            config={
-                "models": [
-                    {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
-                    {"type": "jailbreak_detection", "engine": "nim", "model": "some/model"},
-                ],
-                "rails": {
-                    "config": {
-                        "jailbreak_detection": {
-                            "nim_base_url": "https://ai.api.nvidia.com",
-                            "nim_server_endpoint": "/v1/security/nvidia/nemoguard-jailbreak-detect",
-                            "api_key_env_var": "NVIDIA_API_KEY",
-                        }
-                    }
-                },
-            }
-        )
-        with pytest.raises(ValueError, match="already registered"):
-            EngineRegistry(config.models, config.rails.config)
+    def test_jailbreak_detection_config_registers_no_engine(self, manager):
+        """The jailbreak rail reaches its NIM over HTTP, so the registry holds no engine for it."""
+        assert "jailbreak_detection" not in manager._engines
 
 
 class TestEngineRegistryGetModelEngine:
@@ -245,9 +224,12 @@ class TestEngineRegistryGetModelEngine:
         assert "main" in str(exc_info.value)
 
     def test_wrong_type_raises_type_error(self, manager):
-        """Raises TypeError when engine exists but is the wrong type."""
-        with pytest.raises(TypeError, match="Engine 'jailbreak_detection' is APIEngine, expected ModelEngine"):
-            manager._get_engine("jailbreak_detection", ModelEngine)
+        """Raises TypeError when the named engine is not the expected type."""
+        # Every engine the registry builds is a ModelEngine now that APIEngine is gone, so the
+        # type check is only reachable by planting one -- and it still guards model_call.
+        manager._engines["not_a_model"] = BaseEngine()
+        with pytest.raises(TypeError, match="Engine 'not_a_model' is BaseEngine, expected ModelEngine"):
+            manager._get_engine("not_a_model", ModelEngine)
 
 
 class TestEngineRegistryLifecycle:
@@ -723,7 +705,7 @@ class TestEngineRegistryStartErrors:
     @pytest.mark.asyncio
     async def test_start_rolls_back_on_engine_failure(self, manager):
         """When one engine fails to start, already-started engines are stopped."""
-        failing_engine = "jailbreak_detection"
+        failing_engine = "topic_control"
 
         for name, engine in manager._engines.items():
             if name == failing_engine:
@@ -762,7 +744,7 @@ class TestEngineRegistryStartErrors:
     @pytest.mark.asyncio
     async def test_start_rollback_swallows_stop_errors(self, manager):
         """Rollback continues even if stopping a started engine raises."""
-        failing_engine = "jailbreak_detection"
+        failing_engine = "topic_control"
         stop_error_engine = "main"
 
         for name, engine in manager._engines.items():
@@ -860,136 +842,6 @@ class TestEngineRegistryContextManager:
 
         for engine in manager._engines.values():
             engine.stop.assert_called_once()
-
-
-class TestEngineRegistryGetApiEngine:
-    """Test API engine lookup by name."""
-
-    def test_get_existing_api_engine(self, manager):
-        """Returns the jailbreak detection API engine."""
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        assert api_engine is not None
-        assert "jailbreak" in api_engine.url
-
-    def test_get_missing_api_engine_raises_key_error(self, manager):
-        """Raises KeyError for an unconfigured API engine name."""
-        with pytest.raises(KeyError, match="No engine configured with name 'nonexistent'"):
-            manager._get_engine("nonexistent", APIEngine)
-
-    def test_key_error_message_lists_available_engines(self, manager):
-        """KeyError message includes available API engine names."""
-        with pytest.raises(KeyError) as exc_info:
-            manager._get_engine("missing", APIEngine)
-        assert "jailbreak_detection" in str(exc_info.value)
-
-
-class TestEngineRegistryApiCall:
-    """Test api_call routes to the correct API engine."""
-
-    @pytest.mark.asyncio
-    async def test_calls_correct_api_engine(self, manager):
-        """api_call delegates to the named API engine and returns its response."""
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        mock_response = {"jailbreak": False, "score": -0.95}
-        api_engine.call = AsyncMock(return_value=mock_response)
-
-        result = await manager.api_call("jailbreak_detection", {"input": "hello"})
-
-        assert result == mock_response
-        api_engine.call.assert_called_once_with({"input": "hello"})
-
-    @pytest.mark.asyncio
-    async def test_passes_kwargs_to_api_engine(self, manager):
-        """Extra kwargs are forwarded to the API engine's call()."""
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        api_engine.call = AsyncMock(return_value={"jailbreak": False, "score": -0.80})
-
-        await manager.api_call("jailbreak_detection", {"input": "test"}, extra_param="value")
-
-        api_engine.call.assert_called_once_with({"input": "test"}, extra_param="value")
-
-    @pytest.mark.asyncio
-    async def test_raises_key_error_for_unknown_api_name(self, manager):
-        """Raises KeyError when the API engine name doesn't exist."""
-        with pytest.raises(KeyError):
-            await manager.api_call("nonexistent", {"input": "test"})
-
-
-class TestEngineRegistryApiEngineStartErrors:
-    """Test start() error handling for API engines."""
-
-    @pytest.mark.asyncio
-    async def test_start_rolls_back_on_api_engine_failure(self, manager):
-        """When an API engine fails to start, all started engines are rolled back."""
-        # Mock all engines to succeed
-        for engine in manager._engines.values():
-            engine.start = AsyncMock()
-            engine.stop = AsyncMock()
-
-        # Override jailbreak API engine to fail
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        api_engine.start = AsyncMock(side_effect=RuntimeError("API unreachable"))
-        api_engine.stop = AsyncMock()
-
-        with pytest.raises(RuntimeError, match="Failed to start engine"):
-            await manager.start()
-
-        # Engines that started successfully should have been rolled back
-        for name, engine in manager._engines.items():
-            if name != "jailbreak_detection":
-                engine.stop.assert_called_once()
-
-        assert not manager._running
-
-    @pytest.mark.asyncio
-    async def test_start_error_message_includes_api_engine_name(self, manager):
-        """Error message includes which API engine failed to start."""
-        for engine in manager._engines.values():
-            engine.start = AsyncMock()
-            engine.stop = AsyncMock()
-
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        api_engine.start = AsyncMock(side_effect=RuntimeError("timeout"))
-        api_engine.stop = AsyncMock()
-
-        with pytest.raises(RuntimeError, match="Engine jailbreak_detection"):
-            await manager.start()
-
-
-class TestEngineRegistryApiEngineStopErrors:
-    """Test stop() error handling for API engines."""
-
-    @pytest.mark.asyncio
-    async def test_stop_raises_on_api_engine_error(self, manager):
-        """stop() raises RuntimeError when an API engine fails to stop."""
-        for engine in manager._engines.values():
-            engine.start = AsyncMock()
-            engine.stop = AsyncMock()
-
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        api_engine.start = AsyncMock()
-        api_engine.stop = AsyncMock(side_effect=RuntimeError("close failed"))
-
-        await manager.start()
-
-        with pytest.raises(RuntimeError, match="Failed to stop engines"):
-            await manager.stop()
-
-    @pytest.mark.asyncio
-    async def test_stop_error_includes_api_engine_name(self, manager):
-        """Error message includes which API engine failed to stop."""
-        for engine in manager._engines.values():
-            engine.start = AsyncMock()
-            engine.stop = AsyncMock()
-
-        api_engine = manager._get_engine("jailbreak_detection", APIEngine)
-        api_engine.start = AsyncMock()
-        api_engine.stop = AsyncMock(side_effect=RuntimeError("timeout"))
-
-        await manager.start()
-
-        with pytest.raises(RuntimeError, match="Engine jailbreak_detection"):
-            await manager.stop()
 
 
 class TestEngineRegistryStreamModelCall:
@@ -1569,9 +1421,10 @@ class TestEngineRegistryToolDelegation:
             manager.extract_tool_exchanges("nonexistent", [])
 
     def test_parse_tools_non_model_engine_raises_typeerror(self, manager):
-        """jailbreak_detection is an APIEngine, not a ModelEngine."""
+        """Tool parsing needs a ModelEngine, and says so rather than failing on a missing method."""
+        manager._engines["not_a_model"] = BaseEngine()
         with pytest.raises(TypeError):
-            manager.parse_tools("jailbreak_detection", {"tools": self._TOOLS})
+            manager.parse_tools("not_a_model", {"tools": self._TOOLS})
 
     def test_parse_tools_includes_tools_from_model_parameters(self):
         """Tools declared in model parameters (body_param_defaults) are included even with no per-call llm_params."""
@@ -1588,7 +1441,7 @@ class TestEngineRegistryToolDelegation:
             }
         )
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-            mgr = EngineRegistry(config.models, config.rails.config)
+            mgr = EngineRegistry(config.models)
         toolset = mgr.parse_tools("main", None)
         assert [t.key for t in toolset.tools] == ["get_weather"]
 
@@ -1600,10 +1453,6 @@ class TestEngineRegistryLLMs:
     def test_maps_every_model_type(self, manager):
         """One entry per configured model, keyed by Model.type."""
         assert set(manager.llms) == {"main", "content_safety", "topic_control"}
-
-    def test_excludes_api_engines(self, manager):
-        """jailbreak_detection is an APIEngine, not an LLM, so it is not an entry."""
-        assert "jailbreak_detection" not in manager.llms
 
     def test_values_are_the_registered_engines(self, manager):
         """Entries are the registry's own engines, not copies, so they share lifecycle."""
@@ -1662,162 +1511,6 @@ class TestEngineRegistryProviderName:
         """An unconfigured model type raises rather than reporting 'unknown'."""
         with pytest.raises(KeyError):
             manager.provider_name("nonexistent")
-
-
-class _FakeHTTPClient:
-    """Minimal ``ClosableHTTPClient`` stand-in that records ``close()`` calls."""
-
-    def __init__(self, close_error: Optional[Exception] = None) -> None:
-        self.close_count = 0
-        self.close_error = close_error
-
-    async def request(self, method, url, **kwargs):
-        raise NotImplementedError("the fake client does not send requests")
-
-    async def close(self) -> None:
-        self.close_count += 1
-        if self.close_error is not None:
-            raise self.close_error
-
-
-@pytest.fixture
-def fake_http_client(monkeypatch):
-    """Replace the managed HTTP client factory with a recording fake."""
-    client = _FakeHTTPClient()
-    monkeypatch.setattr(engine_registry_module, "create_http_client", lambda: client)
-    return client
-
-
-@pytest.fixture
-def mocked_engine_lifecycle(manager):
-    """Stub start/stop on every engine so lifecycle tests exercise only the registry."""
-    for engine in manager._engines.values():
-        engine.start = AsyncMock()
-        engine.stop = AsyncMock()
-    return manager
-
-
-class TestEngineRegistryHTTPClient:
-    """The registry owns one managed HTTP client for the whole process, started and
-    stopped with the engines, so vendor rail actions stop creating one per request."""
-
-    def test_client_is_unavailable_before_start(self, manager):
-        """Reaching for the client before start() fails loudly instead of handing back None."""
-        with pytest.raises(RuntimeError, match="has not been started"):
-            _ = manager.http_client
-
-    @pytest.mark.asyncio
-    async def test_client_is_created_on_start(self, mocked_engine_lifecycle, fake_http_client):
-        """start() builds the managed client through create_http_client()."""
-        await mocked_engine_lifecycle.start()
-        assert mocked_engine_lifecycle.http_client is fake_http_client
-
-    @pytest.mark.asyncio
-    async def test_same_client_across_accesses(self, mocked_engine_lifecycle, fake_http_client):
-        """Every access returns the one shared client, so connections are pooled."""
-        await mocked_engine_lifecycle.start()
-        assert mocked_engine_lifecycle.http_client is mocked_engine_lifecycle.http_client
-
-    @pytest.mark.asyncio
-    async def test_second_start_does_not_replace_the_client(self, mocked_engine_lifecycle, fake_http_client):
-        """start() is idempotent: a repeat call leaves the existing client in place."""
-        await mocked_engine_lifecycle.start()
-        first = mocked_engine_lifecycle.http_client
-
-        await mocked_engine_lifecycle.start()
-
-        assert mocked_engine_lifecycle.http_client is first
-
-    @pytest.mark.asyncio
-    async def test_stop_closes_the_client(self, mocked_engine_lifecycle, fake_http_client):
-        """stop() releases the client's connection pool."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_client_is_unavailable_after_stop(self, mocked_engine_lifecycle, fake_http_client):
-        """A closed client is not handed out again."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-
-        with pytest.raises(RuntimeError, match="has not been started"):
-            _ = mocked_engine_lifecycle.http_client
-
-    @pytest.mark.asyncio
-    async def test_second_stop_does_not_close_again(self, mocked_engine_lifecycle, fake_http_client):
-        """stop() is idempotent: the client is closed exactly once."""
-        await mocked_engine_lifecycle.start()
-        await mocked_engine_lifecycle.stop()
-        await mocked_engine_lifecycle.stop()
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_engine_start_failure_closes_the_client(self, manager, fake_http_client):
-        """A failed start rolls the client back with the engines rather than leaking it."""
-        for name, engine in manager._engines.items():
-            engine.stop = AsyncMock()
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-
-        with pytest.raises(RuntimeError, match="Failed to start engine"):
-            await manager.start()
-
-        assert fake_http_client.close_count == 1
-
-    @pytest.mark.asyncio
-    async def test_start_rollback_logs_a_failing_client_close(self, manager, monkeypatch, caplog):
-        """A close() failure during rollback is logged, not silently swallowed.
-
-        The engine-start error must still be what propagates — a cleanup failure
-        raised from the rollback would replace the reason the start failed — so the
-        log line is the only signal that the client leaked.
-        """
-        monkeypatch.setattr(
-            engine_registry_module,
-            "create_http_client",
-            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
-        )
-        for name, engine in manager._engines.items():
-            engine.stop = AsyncMock()
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(RuntimeError, match="Failed to start engine"):
-                await manager.start()
-
-        assert "socket stuck" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_start_rollback_logs_a_failing_engine_stop(self, manager, fake_http_client, caplog):
-        """A stop() failure during rollback names the engine that failed to release.
-
-        Rollback continues past it (pinned by ``test_start_rollback_swallows_stop_errors``);
-        this pins that the failure is reported rather than lost.
-        """
-        for name, engine in manager._engines.items():
-            engine.start = AsyncMock(side_effect=RuntimeError("boom") if name == "topic_control" else None)
-            engine.stop = AsyncMock(side_effect=RuntimeError("close failed") if name == "main" else None)
-
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(RuntimeError, match="Failed to start engine"):
-                await manager.start()
-
-        assert "Error stopping engine main during start rollback" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_stop_reports_a_failing_client_close(self, mocked_engine_lifecycle, monkeypatch):
-        """A close() failure is surfaced, not swallowed, and still clears running state."""
-        monkeypatch.setattr(
-            engine_registry_module,
-            "create_http_client",
-            lambda: _FakeHTTPClient(close_error=RuntimeError("socket stuck")),
-        )
-        await mocked_engine_lifecycle.start()
-
-        with pytest.raises(RuntimeError, match="socket stuck"):
-            await mocked_engine_lifecycle.stop()
-
-        assert not mocked_engine_lifecycle._running
 
 
 class TestRailCallTelemetryParity:
@@ -1887,7 +1580,6 @@ class TestRailCallTelemetryParity:
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             registry = EngineRegistry(
                 rails_config.models,
-                rails_config.rails.config,
                 tracer=tracer,
                 content_capture_enabled=True,
             )

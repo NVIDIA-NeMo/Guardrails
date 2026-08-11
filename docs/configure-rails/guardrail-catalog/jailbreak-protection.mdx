@@ -105,6 +105,21 @@ To compute the perplexity of a string, the current implementation uses the `gpt2
 
 There is currently one available model-based detection, using a random forest-based detector trained on [`Snowflake/snowflake-arctic-embed-m-long`](https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long) embeddings.
 
+### Detector Availability
+
+<Warning>
+
+Jailbreak detection fails open.
+When a configured detector cannot be reached, the rail allows the request instead of blocking it.
+
+</Warning>
+
+A connection failure, a timeout, and an error response all produce the same outcome, for both the heuristics server and the jailbreak detection NIM.
+The rail logs the failure, allows the request, and returns no error to the caller, so a detector outage removes this protection without a visible signal.
+`LLMRails` and `IORails` behave identically here.
+
+Monitor the availability of your detector if you rely on this rail, and pair it with rails that do not call an external service.
+
 ### Setup
 
 The recommended way to use the jailbreak detection heuristics in production is to [deploy the jailbreak detection heuristics server](/more-deployment-options/using-docker#jailbreak-detection-heuristics) separately. For a hands-on configuration walkthrough, see [Use Jailbreak Detection Heuristics](/get-started/tutorials/jailbreak-detection-heuristics).

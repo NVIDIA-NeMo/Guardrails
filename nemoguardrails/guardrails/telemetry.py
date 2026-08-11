@@ -866,33 +866,6 @@ def llm_call_span(
             raise
 
 
-@contextmanager
-def api_call_span(tracer: Optional["Tracer"], api_name: str) -> Generator[Optional["Span"], None, None]:
-    """Create a CLIENT span for a non-LLM API call (e.g., jailbreak detection).
-
-    Uses the ``api.name`` attribute rather than ``gen_ai.operation.name``
-    because these APIs are plain HTTP endpoints, not GenAI operations.
-    ``http.*`` transport attributes can be added additively later without
-    conflict.  Yields the span (or ``None`` when *tracer* is ``None``).
-    """
-    if tracer is None:
-        yield None
-        return
-    span_name = f"api {api_name}"
-    with tracer.start_as_current_span(
-        span_name,
-        kind=SpanKind.CLIENT,
-        record_exception=False,
-        set_status_on_exception=False,
-    ) as span:
-        span.set_attribute(GuardrailsAttributes.API_NAME, api_name)
-        try:
-            yield span
-        except BaseException as exc:
-            record_span_error(span, exc)
-            raise
-
-
 def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
     """Return ``True`` when inline OTEL tracing should be active.
 

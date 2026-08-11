@@ -41,7 +41,6 @@ from nemoguardrails.manifests import (
     parse_configured_surface,
     resolve_import_ref,
 )
-from nemoguardrails.manifests.surface_reference import normalize_configured_surface_name
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -72,7 +71,6 @@ class RailDependencies:
     llms: Mapping[str, Any]
     llm_task_manager: Any
     config: Any
-    http_client: Any = None
     model_caches: Optional[Mapping[str, Any]] = None
     tracer: Optional["Tracer"] = None
 
@@ -93,12 +91,34 @@ _BOT_UTTERANCE_EVENT = "StartUtteranceBotAction"
 _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 
 
+def _current_turn_index(messages: LLMMessages) -> Optional[int]:
+    """Position of the turn being checked: the last user message that carries content."""
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if message.get("role") == "user" and message.get("content"):
+            return index
+    return None
+
+
+def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
+    """The turns preceding the one being checked.
+
+    Actions append the checked turn themselves, from ``context["user_message"]``, and always
+    at the end. So the history stops short of it: emitting it here would hand the model the
+    same turn twice, and emitting what follows it — an assistant reply in a ``check()``
+    transcript, say — would place a later turn ahead of it and reorder the conversation.
+    With no user turn to check, every message is history.
+    """
+    index = _current_turn_index(messages)
+    return messages if index is None else messages[:index]
+
+
 def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
     """Convert IORails messages into the event shapes conversation-history actions read.
     Used by actions which are tightly-coupled with colang event definitions for backwards-compatibility.
     """
     events: list[dict[str, Any]] = []
-    for message in messages:
+    for message in _history_before_current_turn(messages):
         content = message.get("content")
         if not content:
             continue
@@ -118,10 +138,8 @@ def _last_user_content(messages: LLMMessages) -> str:
     Empty rather than raising: the library actions read ``context.get(...)`` with a default
     and call the model with empty text, and IORails now matches that.
     """
-    for message in reversed(messages):
-        if message.get("role") == "user" and message.get("content"):
-            return message["content"]
-    return ""
+    index = _current_turn_index(messages)
+    return "" if index is None else messages[index]["content"]
 
 
 def _llm_calls_from(sink: list[dict[str, Any]]) -> tuple["LLMCallInfo", ...]:
@@ -149,6 +167,7 @@ class CompiledRail:
         bound: tuple[_BoundParameter, ...],
         deps: RailDependencies,
         accepted: frozenset[str],
+        http_client: Any = None,
     ) -> None:
         """Store the frozen execution plan. Build through :func:`compile_rail`.
 
@@ -161,6 +180,7 @@ class CompiledRail:
         self._bound = bound
         self._deps = deps
         self._accepted = accepted
+        self._http_client = http_client
 
     @property
     def surface_name(self) -> str:
@@ -209,7 +229,7 @@ class CompiledRail:
             "llm": self._deps.llms.get("main"),
             "llm_task_manager": self._deps.llm_task_manager,
             "config": self._deps.config,
-            "http_client": self._deps.http_client,
+            "http_client": self._http_client,
             "model_caches": self._deps.model_caches,
             "context": {
                 "user_message": _last_user_content(messages),
@@ -217,6 +237,16 @@ class CompiledRail:
             },
             "events": messages_to_events(messages),
         }
+
+    async def close(self) -> None:
+        """Close the rail's HTTP client, if it owns one.
+
+        Failures propagate: releasing one client is the whole job here, and the caller
+        closing a whole set of rails is the only layer that can decide a leak is
+        survivable. Repeat calls are safe, as a closed client's ``close()`` is a no-op.
+        """
+        if self._http_client is not None:
+            await self._http_client.close()
 
 
 def _accepted_parameters(action: Callable[..., Any]) -> frozenset[str]:
@@ -236,23 +266,22 @@ def _accepted_parameters(action: Callable[..., Any]) -> frozenset[str]:
 def _resolve_surface(flow: str, direction: RailDirection, catalog: "RailCatalog") -> tuple[RailSurface, dict[str, str]]:
     """Find the manifest surface for *flow*, or explain why there is not one."""
     try:
-        name, params = parse_configured_surface(flow)
+        surface_name, params = parse_configured_surface(flow)
     except ValueError as exc:
         raise RailCompilationError(f"{flow!r} is not a valid flow reference: {exc}") from exc
 
-    normalized = normalize_configured_surface_name(name)
     surfaces = catalog.surfaces()
-    surface = surfaces.get((direction, normalized))
+    surface = surfaces.get((direction, surface_name))
     if surface is not None:
         return surface, params
 
-    other_directions = sorted(key[0].value for key in surfaces if key[1] == normalized and key[0] is not direction)
+    other_directions = sorted(key[0].value for key in surfaces if key[1] == surface_name and key[0] is not direction)
     if other_directions:
         raise RailCompilationError(
-            f"{flow!r} declares direction {direction.value!r} but {normalized!r} "
+            f"{flow!r} declares direction {direction.value!r} but {surface_name!r} "
             f"is only available as {', '.join(other_directions)}"
         )
-    raise RailCompilationError(f"{flow!r} has no surface named {normalized!r} in the rail catalog")
+    raise RailCompilationError(f"{flow!r} has no surface named {surface_name!r} in the rail catalog")
 
 
 def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str) -> tuple[_BoundParameter, ...]:
@@ -276,7 +305,7 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
                 raise RailCompilationError(f"{flow!r} is missing required parameter ${key}=")
             continue
 
-        # Context bindings are rejected by _reject_unfillable_binding_kinds before this
+        # Context bindings are refused by _unfillable_bindings_reason before this
         # point. Raise here for noisy visibility
         raise RailCompilationError(
             f"{flow!r} declares an unsupported {binding.kind!r} binding for {binding.action_param!r}"
@@ -284,21 +313,63 @@ def _bind_parameters(surface: RailSurface, params: Mapping[str, str], flow: str)
     return tuple(bound)
 
 
-def _reject_unfillable_binding_kinds(surface: RailSurface, flow: str) -> None:
-    """Fail compilation for a binding kind request-time injection cannot fill.
-
-    A ``context`` binding maps one conversation variable onto a specific action parameter
-    (``user_message`` into ``text``), which injection does not do — it supplies the whole
-    ``context`` dict and nothing else. Compiling one would call the action short a required
-    argument on every request, and the fail-closed envelope would report that as a block.
-    """
+def _unfillable_bindings_reason(surface: RailSurface) -> Optional[str]:
+    """Report a binding kind request-time injection cannot fill."""
     unfillable = sorted({binding.action_param for binding in surface.bindings if binding.kind == "context"})
     if not unfillable:
-        return
-    raise RailCompilationError(
-        f"{flow!r} declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
+        return None
+    return (
+        f"declares context binding(s) for {', '.join(repr(p) for p in unfillable)}, "
         f"which manifest-driven execution does not fill yet"
     )
+
+
+def _transform_target_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface that rewrites content, which IORails cannot apply yet."""
+    if surface.transform_target is None:
+        return None
+    return f"transforms {surface.transform_target.value!r}"
+
+
+# Surfaces whose actions read retrieval evidence out of the request context: ``relevant_chunks``,
+# ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``. Keyed by direction as well
+# as name, because one rail can surface in both directions.
+_RETRIEVAL_CONTEXT_SURFACES: frozenset[tuple[RailDirection, str]] = frozenset(
+    {
+        (RailDirection.OUTPUT, "alignscore check facts"),
+        (RailDirection.OUTPUT, "autoalign groundedness output"),
+        (RailDirection.OUTPUT, "fiddler bot faithfulness"),
+        (RailDirection.OUTPUT, "patronus api check output"),
+        (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
+        (RailDirection.OUTPUT, "self check facts"),
+        (RailDirection.OUTPUT, "self check hallucination"),
+    }
+)
+
+
+def _retrieval_context_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface needing retrieval evidence IORails has no source for."""
+    if (surface.direction, surface.name) not in _RETRIEVAL_CONTEXT_SURFACES:
+        return None
+    return "needs retrieval evidence, which manifest-driven execution does not supply yet"
+
+
+# Ordered so the cheapest, most structural check reports first. Each entry is removed by the
+# work that lifts its limitation: context bindings in PR 4, transforms in PR 5.
+_SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
+    _transform_target_reason,
+    _unfillable_bindings_reason,
+    _retrieval_context_reason,
+)
+
+
+def unsupported_surface_reason(surface: RailSurface) -> Optional[str]:
+    """Why manifest-driven execution cannot run *surface*, or None when it can."""
+    for check in _SURFACE_SUPPORT_CHECKS:
+        reason = check(surface)
+        if reason is not None:
+            return reason
+    return None
 
 
 def _accepts_arbitrary_keywords(action: Callable[..., Any]) -> bool:
@@ -333,10 +404,24 @@ def _reject_unaccepted_bindings(
     )
 
 
+def unservable_reason(flow: str, direction: RailDirection, catalog: Optional["RailCatalog"] = None) -> Optional[str]:
+    """Why *flow* cannot run under manifest-driven execution, or None when it can."""
+    # Stops at the surface-level checks, so it never imports an action module.
+    catalog = catalog if catalog is not None else default_rail_catalog()
+    try:
+        surface, _ = _resolve_surface(flow, direction, catalog)
+    except RailCompilationError as exc:
+        return str(exc)
+    reason = unsupported_surface_reason(surface)
+    return f"{flow!r} {reason}" if reason is not None else None
+
+
 def compile_rail(
     flow: str,
     direction: RailDirection,
     deps: RailDependencies,
+    *,
+    http_client: Any = None,
     catalog: Optional["RailCatalog"] = None,
 ) -> CompiledRail:
     """Compile one configured flow string into an executable rail.
@@ -346,8 +431,10 @@ def compile_rail(
     catalog = catalog if catalog is not None else default_rail_catalog()
     surface, params = _resolve_surface(flow, direction, catalog)
 
-    # Don't import dependencies if an unsupported surface is compiled
-    _reject_unfillable_binding_kinds(surface, flow)
+    # Ahead of resolve_import_ref, so a refused surface never pulls in an optional dependency.
+    unsupported = unsupported_surface_reason(surface)
+    if unsupported is not None:
+        raise RailCompilationError(f"{flow!r} {unsupported}")
 
     try:
         action = resolve_import_ref(surface.action)
@@ -370,4 +457,5 @@ def compile_rail(
         bound=bound,
         deps=deps,
         accepted=accepted,
+        http_client=http_client,
     )

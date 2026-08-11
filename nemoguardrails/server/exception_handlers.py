@@ -28,8 +28,8 @@ from nemoguardrails.exceptions import (
     LLMRateLimitError,
     StreamingNotSupportedError,
 )
-from nemoguardrails.guardrails.api_engine import APIEngineError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.http.errors import HTTPClientError, HTTPStatusError
 from nemoguardrails.llm.clients._errors import (
     as_client_error,
     build_error_payload,
@@ -76,12 +76,22 @@ def _client_error_details(exc: BaseException) -> tuple[str, Union[str, int, None
     return client_facing_message(exc), client_error.error_code, client_error.param, headers
 
 
+def _upstream_status(exc: BaseException) -> Optional[int]:
+    """Read the upstream HTTP status off an exception, wherever that exception keeps it."""
+    # HTTPStatusError carries the status on its response rather than as ``.status``, so without
+    # this branch a vendor HTTP failure would still reach the caller as a generic 500 -- the
+    # gap registering ``HTTPClientError`` in ``_EXCEPTION_HANDLERS`` exists to close.
+    if isinstance(exc, HTTPStatusError):
+        return exc.response.status_code
+    return getattr(exc, "status", None)
+
+
 async def llm_call_exception_handler(
-    request: Request, exc: Union[LLMCallException, ModelEngineError, APIEngineError]
+    request: Request, exc: Union[LLMCallException, ModelEngineError, HTTPClientError]
 ) -> Response:
     """Map LLM and engine call failures to their upstream HTTP status."""
     log.exception(exc)
-    status = normalize_error_status(getattr(exc, "status", None))
+    status = normalize_error_status(_upstream_status(exc))
     message, code, param, headers = _client_error_details(exc)
     return _error_response(status, message, code=code, param=param, headers=headers or None)
 

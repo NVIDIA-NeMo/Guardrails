@@ -13,25 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Engine registry for IORails engine.
-
-Manages a collection of ModelEngine and APIEngine instances, one per configured
-model type. Each engine owns its own RetryClient with per-model settings.
-"""
+"""Engine registry for IORails: one ModelEngine per configured model type."""
 
 import logging
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.telemetry import api_call_span
 from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
-from nemoguardrails.http.client import ClosableHTTPClient
-from nemoguardrails.http.runtime import create_http_client
-from nemoguardrails.rails.llm.config import Model, RailsConfigData
+from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
@@ -43,46 +35,20 @@ _EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
-    """Registry of ModelEngine and APIEngine instances for IORails.
-
-    Creates one engine per configured model or API service, keyed by name.
-    Each engine owns its own HTTP client with per-model retry and timeout settings.
-    """
+    """One ModelEngine per configured model, keyed by model type."""
 
     def __init__(
         self,
         models: list[Model],
-        rails_config_data: RailsConfigData,
         tracer: Optional["Tracer"] = None,
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Build one engine per configured model and API service.
-
-        When *tracer* is provided, LLM and API calls produce OTEL spans; when
-        ``None`` the span helpers become no-ops.
-
-        When *metrics_enabled* is True, LLM calls emit the OTEL GenAI
-        client-side metrics (``gen_ai.client.token.usage``,
-        ``gen_ai.client.operation.duration``, plus the streaming
-        chunk-timing metrics).  Defaults to False so callers that don't
-        opt in get no metric emissions even if a MeterProvider is
-        configured globally.
-
-        When *content_capture_enabled* is True, LLM call spans carry
-        input/output message content per the OTEL GenAI content-capture
-        contract.  Defaults to False; should only be True when
-        ``tracer`` is also set, since capture on a no-op span is wasted
-        work.
-
-        All three telemetry settings are handed to each ``ModelEngine``,
-        which owns the instrumentation so that rails reaching the model
-        through ``generate_async`` are instrumented identically to main
-        generation reaching it through ``model_call``.
-        """
+        """Build one engine per configured model, handing each the three telemetry settings."""
+        # ModelEngine owns the instrumentation, so a rail reaching the model through
+        # generate_async emits the same spans and metrics as main generation through model_call.
         self._engines: dict[str, BaseEngine] = {}
         self._llms: dict[str, LLMModel] = {}
-        self._http_client: Optional[ClosableHTTPClient] = None
         self._running = False
         self._tracer = tracer
 
@@ -102,21 +68,6 @@ class EngineRegistry:
                 engine.base_url,
             )
 
-        jailbreak_config = rails_config_data.jailbreak_detection
-        if jailbreak_config and jailbreak_config.nim_base_url:
-            if "jailbreak_detection" in self._engines:
-                raise ValueError(
-                    "Engine name 'jailbreak_detection' is already registered as a model engine. "
-                    "Cannot register the jailbreak detection API engine with the same name."
-                )
-            api_engine = APIEngine.from_jailbreak_config(jailbreak_config)
-            self._engines["jailbreak_detection"] = api_engine
-            log.info(
-                "Registered API engine: name=%s, url=%s",
-                "jailbreak_detection",
-                api_engine.url,
-            )
-
     @property
     def llms(self) -> dict[str, LLMModel]:
         """The configured model engines keyed by ``Model.type``.
@@ -127,33 +78,8 @@ class EngineRegistry:
         """
         return self._llms
 
-    @property
-    def http_client(self) -> ClosableHTTPClient:
-        """The process-wide HTTP client shared by vendor rail actions.
-
-        One managed client replaces the per-request client each vendor action
-        would otherwise create and close, so connections are pooled across
-        requests.
-
-        Raises:
-            RuntimeError: If the registry has not been started.
-        """
-        if self._http_client is None:
-            raise RuntimeError("EngineRegistry has not been started. Call start() first.")
-        return self._http_client
-
-    async def _close_http_client(self) -> None:
-        """Close the managed HTTP client, if one is open.
-
-        The reference is cleared before the await so a failing ``close()``
-        still leaves the registry without a half-closed client.
-        """
-        client, self._http_client = self._http_client, None
-        if client is not None:
-            await client.close()
-
     async def start(self) -> None:
-        """Start all engine clients and the managed HTTP client.
+        """Start all engine clients.
 
         Call this during service startup.  A failure part-way through rolls
         everything already started back, so a failed start leaks nothing.
@@ -162,8 +88,6 @@ class EngineRegistry:
             return
 
         started: list[tuple[str, BaseEngine]] = []
-        self._http_client = create_http_client()
-
         for name, engine in self._engines.items():
             try:
                 await engine.start()
@@ -182,13 +106,9 @@ class EngineRegistry:
                 await engine.stop()
             except Exception as stop_error:
                 log.warning("Error stopping engine %s during start rollback: %s", name, stop_error)
-        try:
-            await self._close_http_client()
-        except Exception as close_error:
-            log.warning("Error closing the managed HTTP client during start rollback: %s", close_error)
 
     async def stop(self) -> None:
-        """Stop all engine clients and the managed HTTP client.
+        """Stop all engine clients.
 
         Call this during service shutdown.  Every component is stopped even if
         an earlier one fails; the failures are reported together afterwards.
@@ -204,11 +124,6 @@ class EngineRegistry:
                 except Exception as e:
                     errors[f"Engine {name}"] = e
                     log.error("Error stopping engine %s: %s", name, e)
-            try:
-                await self._close_http_client()
-            except Exception as e:
-                errors["HTTP client"] = e
-                log.error("Error closing the managed HTTP client: %s", e)
         finally:
             self._running = False
 
@@ -328,23 +243,6 @@ class EngineRegistry:
         """
         engine = self._get_engine(model_type, ModelEngine)
         return engine.extract_tool_exchanges(messages)
-
-    async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-        """Route an API request to the named API engine.
-
-        Raises:
-            KeyError: If no engine is registered with the given name.
-            TypeError: If the named engine is not an APIEngine.
-        """
-        req_id = get_request_id()
-        log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
-
-        with api_call_span(self._tracer, api_name):
-            api_engine = self._get_engine(api_name, APIEngine)
-            response = await api_engine.call(message, **kwargs)
-
-        log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
-        return response
 
     async def __aenter__(self):
         """Async context manager entry: start all engine clients."""

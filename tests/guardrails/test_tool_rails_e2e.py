@@ -55,7 +55,7 @@ MESSAGES = [{"role": "user", "content": "What's the weather in Paris?"}]
 def _build_stack() -> tuple[EngineRegistry, RailsManager]:
     """Build an EngineRegistry + RailsManager with both tool rails enabled."""
     config = RailsConfig.from_content(config=STACK_CONFIG)
-    engine_registry = EngineRegistry(config.models, config.rails.config)
+    engine_registry = EngineRegistry(config.models)
     rails_manager = RailsManager(
         engine_registry=engine_registry,
         task_manager=LLMTaskManager(config),

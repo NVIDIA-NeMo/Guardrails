@@ -22,17 +22,20 @@ sink rather than read from a contextvar afterwards.
 
 import inspect
 from typing import Any, Callable, Optional
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.compiled_rail import (
+    _RETRIEVAL_CONTEXT_SURFACES,
     CompiledRail,
     RailCompilationError,
     RailDependencies,
     compile_rail,
     messages_to_events,
+    unservable_reason,
+    unsupported_surface_reason,
 )
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
@@ -72,6 +75,20 @@ EXECUTABLE_SURFACES = {
     "content safety check output",
     "topic safety check input",
     "jailbreak detection model",
+}
+
+# Surfaces whose actions read retrieval evidence from the request context —
+# ``relevant_chunks``, ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``.
+# Keyed by direction as well as name, because one rail can surface in both directions.
+# Held here independently of the production deny-list so the two cross-check each other.
+RETRIEVAL_DEPENDENT_SURFACES = {
+    (RailDirection.OUTPUT, "alignscore check facts"),
+    (RailDirection.OUTPUT, "autoalign groundedness output"),
+    (RailDirection.OUTPUT, "fiddler bot faithfulness"),
+    (RailDirection.OUTPUT, "patronus api check output"),
+    (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
+    (RailDirection.OUTPUT, "self check facts"),
+    (RailDirection.OUTPUT, "self check hallucination"),
 }
 
 
@@ -163,7 +180,6 @@ def deps() -> RailDependencies:
         },
         llm_task_manager=MagicMock(),
         config=MagicMock(),
-        http_client=MagicMock(),
         model_caches=None,
         tracer=None,
     )
@@ -283,7 +299,7 @@ class TestMalformedManifest:
         surface = synthetic_surface(ActionRef(name="ghost", target="nemoguardrails.no_such_module:action"))
 
         with pytest.raises(RailCompilationError, match="cannot be imported"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_action_resolving_to_a_non_callable_raises(self, deps):
         """A manifest pointing at a module attribute that is not callable fails compilation.
@@ -296,7 +312,7 @@ class TestMalformedManifest:
         )
 
         with pytest.raises(RailCompilationError, match="non-callable"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_binding_with_no_source_key_raises(self, deps):
         """A non-literal binding carrying no source key fails compilation.
@@ -310,7 +326,7 @@ class TestMalformedManifest:
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (keyless,), bypass_validation=True)
 
         with pytest.raises(RailCompilationError, match="no source key"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
     def test_binding_kind_the_binder_cannot_fill_raises(self, deps):
         """A binding kind the binder does not handle fails compilation rather than vanishing.
@@ -324,7 +340,71 @@ class TestMalformedManifest:
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (unhandled,), bypass_validation=True)
 
         with pytest.raises(RailCompilationError, match="unsupported"):
-            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface))
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
+
+
+class TestUnrunnableSurfaces:
+    """A surface the catalog can compile but IORails cannot execute is refused, not run."""
+
+    @pytest.mark.parametrize("name", sorted(EXECUTABLE_SURFACES))
+    def test_an_executable_surface_reports_no_reason(self, name):
+        """Each shipped rail passes every support check, so compilation proceeds to the action."""
+        surfaces = default_rail_catalog().surfaces()
+        surface = next(s for (_, surface_name), s in surfaces.items() if surface_name == name)
+
+        assert unsupported_surface_reason(surface) is None
+
+    def test_transform_surfaces_do_not_compile(self, deps):
+        """A surface that rewrites content is refused until IORails can apply the rewrite."""
+        with pytest.raises(RailCompilationError, match="transform"):
+            compile_rail("autoalign check input", RailDirection.INPUT, deps)
+
+    @pytest.mark.parametrize(
+        "direction, flow",
+        sorted(RETRIEVAL_DEPENDENT_SURFACES, key=lambda surface: surface[1]),
+        ids=lambda value: value if isinstance(value, str) else value.value,
+    )
+    def test_retrieval_dependent_surfaces_do_not_compile(self, deps, direction, flow):
+        """A surface reading retrieval evidence is refused; IORails supplies none."""
+        with pytest.raises(RailCompilationError, match="retrieval"):
+            compile_rail(flow, direction, deps)
+
+    def test_the_deny_list_names_only_real_surfaces(self):
+        """Every refused surface exists in the catalog, so no entry can rot into a no-op."""
+        surfaces = default_rail_catalog().surfaces()
+        missing = sorted(
+            f"{direction.value} {name!r}"
+            for direction, name in _RETRIEVAL_CONTEXT_SURFACES
+            if (direction, name) not in surfaces
+        )
+
+        assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
+
+    def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
+        """An unrunnable surface is refused before its action module is imported."""
+
+        def unreachable(ref):
+            raise AssertionError(f"resolve_import_ref ran for a refused surface: {ref}")
+
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail.resolve_import_ref", unreachable)
+
+        with pytest.raises(RailCompilationError, match="retrieval"):
+            compile_rail("self check facts", RailDirection.OUTPUT, deps)
+
+
+class TestUnservableReason:
+    """`unservable_reason` reports why a flow cannot run here so engine selection can fall back."""
+
+    def test_an_unknown_flow_reports_the_missing_surface(self):
+        """A flow with no catalog surface yields a reason, rather than raising during selection."""
+        reason = unservable_reason("not a real rail", RailDirection.INPUT)
+
+        assert reason is not None
+        assert "no surface" in reason
+
+    def test_a_shipped_surface_reports_no_reason(self):
+        """The control: a runnable flow yields None, so the reason above is not unconditional."""
+        assert unservable_reason(CONTENT_SAFETY_INPUT, RailDirection.INPUT) is None
 
 
 class TestManifestBindingContract:
@@ -384,7 +464,7 @@ class TestBindingResolution:
         """
         surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("model_name", "baked_in"),))
 
-        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, StubCatalog(surface)).run(USER_MESSAGES)
+        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)).run(USER_MESSAGES)
 
         assert content_safety_action.kwargs["model_name"] == "baked_in"
 
@@ -438,23 +518,73 @@ class TestDependencyInjection:
 
     @pytest.mark.asyncio
     async def test_events_are_supplied_to_actions_that_declare_them(self, deps, monkeypatch):
-        """topic_safety_check_input declares events, so it receives synthesized ones."""
+        """topic_safety_check_input declares events, so it receives the prior turns as history."""
         action = RecordingAction(signature_of=topic_safety_check_input)
         monkeypatch.setattr(TOPIC_SAFETY_ACTION, action)
+        messages = [
+            {"role": "user", "content": "an earlier question"},
+            {"role": "assistant", "content": "an earlier answer"},
+            *USER_MESSAGES,
+        ]
 
-        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(messages)
 
-        assert action.kwargs["events"] == [{"type": "UserMessage", "text": "hello there"}]
+        assert action.kwargs["events"] == [
+            {"type": "UserMessage", "text": "an earlier question"},
+            {"type": "StartUtteranceBotAction", "script": "an earlier answer"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_events_stop_at_the_checked_turn_for_an_assistant_terminated_transcript(self, deps, monkeypatch):
+        """A check() transcript ending in an assistant turn leaves that turn out of the history.
+
+        The action appends the checked turn last, from context, so an assistant turn that
+        followed it in the transcript would otherwise be classified ahead of it.
+        """
+        action = RecordingAction(signature_of=topic_safety_check_input)
+        monkeypatch.setattr(TOPIC_SAFETY_ACTION, action)
+        messages = [
+            {"role": "user", "content": "an earlier question"},
+            {"role": "assistant", "content": "an earlier answer"},
+            *USER_MESSAGES,
+            {"role": "assistant", "content": "the reply being checked"},
+        ]
+
+        await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(messages)
+
+        assert action.kwargs["events"] == [
+            {"type": "UserMessage", "text": "an earlier question"},
+            {"type": "StartUtteranceBotAction", "script": "an earlier answer"},
+        ]
+        assert action.kwargs["context"]["user_message"] == "hello there"
 
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
-        """jailbreak_detection_model declares http_client and receives the managed one."""
+        """jailbreak_detection_model declares http_client and receives the one compiled into the rail."""
         action = RecordingAction(signature_of=jailbreak_detection_model)
         monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
+        mock_client = MagicMock()
 
-        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client).run(USER_MESSAGES)
 
-        assert action.kwargs["http_client"] is deps.http_client
+        assert action.kwargs["http_client"] is mock_client
+
+    @pytest.mark.asyncio
+    async def test_close_calls_http_client_close(self, deps):
+        """close() forwards to the rail's HTTP client so the connection pool is released."""
+        mock_client = AsyncMock()
+        rail = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client)
+
+        await rail.close()
+
+        mock_client.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_is_a_no_op_when_no_http_client(self, deps):
+        """close() on a rail with no HTTP client (LLM-backed) does not raise."""
+        rail = compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
+
+        await rail.close()
 
 
 class TestOutcomePassthrough:
@@ -502,6 +632,8 @@ class TestMessagesToEvents:
     history.
     """
 
+    CURRENT_TURN = {"role": "user", "content": "the turn being checked"}
+
     @pytest.mark.parametrize(
         ("role", "event"),
         [
@@ -512,13 +644,14 @@ class TestMessagesToEvents:
     )
     def test_each_role_maps_to_its_event_shape(self, role, event):
         """Each role maps to the event type and payload key ``to_chat_messages`` reads."""
-        assert messages_to_events([{"role": role, "content": "hi"}]) == [event]
+        assert messages_to_events([{"role": role, "content": "hi"}, self.CURRENT_TURN]) == [event]
 
     def test_contentless_turn_is_skipped(self):
         """An assistant tool-call turn has no content and is dropped rather than crashing."""
         messages = [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "tool_calls": [{"id": "1"}]},
+            self.CURRENT_TURN,
         ]
 
         assert messages_to_events(messages) == [{"type": "UserMessage", "text": "hi"}]
@@ -530,6 +663,8 @@ class TestMessagesToEvents:
             {"role": "user", "content": "u1"},
             {"role": "assistant", "content": "a1"},
             {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2"},
+            self.CURRENT_TURN,
         ]
 
         assert [event["type"] for event in messages_to_events(messages)] == [
@@ -537,6 +672,49 @@ class TestMessagesToEvents:
             "UserMessage",
             "StartUtteranceBotAction",
             "UserMessage",
+            "StartUtteranceBotAction",
+        ]
+
+    def test_the_turn_being_checked_is_left_out(self):
+        """A lone user turn yields no history: the action appends it from the context itself."""
+        assert messages_to_events([self.CURRENT_TURN]) == []
+
+    def test_only_the_last_user_turn_is_left_out(self):
+        """Earlier user turns are history; only the turn being checked is withheld."""
+        messages = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            self.CURRENT_TURN,
+        ]
+
+        texts = [event.get("text") for event in messages_to_events(messages) if event["type"] == "UserMessage"]
+
+        assert texts == ["u1"]
+
+    def test_turns_after_the_checked_turn_are_dropped(self):
+        """A transcript ending in an assistant turn yields only the history preceding the checked turn."""
+        messages = [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+            self.CURRENT_TURN,
+            {"role": "assistant", "content": "a2"},
+        ]
+
+        assert messages_to_events(messages) == [
+            {"type": "UserMessage", "text": "u1"},
+            {"type": "StartUtteranceBotAction", "script": "a1"},
+        ]
+
+    def test_a_transcript_with_no_user_turn_is_all_history(self):
+        """With no user turn to check, every turn is emitted as history."""
+        messages = [
+            {"role": "system", "content": "s"},
+            {"role": "assistant", "content": "a1"},
+        ]
+
+        assert messages_to_events(messages) == [
+            {"type": "SystemMessage", "content": "s"},
+            {"type": "StartUtteranceBotAction", "script": "a1"},
         ]
 
 

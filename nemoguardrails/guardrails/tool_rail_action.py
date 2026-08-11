@@ -13,20 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Base class for IORails tool-calling rails.
+"""Base class for IORails tool-calling rails: local structural validators, no model call."""
 
-Tool rails are local structural/schema validators. Unlike ``RailAction`` they make
-no LLM or API call, render no prompt, and need no model: they take already-normalized
-tool data (a ``Toolset``, the model's ``ToolCall`` list, or incoming ``ToolResult``
-objects — all produced by the engine adapter) and return a ``RailResult``.
-``requires_model`` is therefore ``False`` and the only collaborator is an optional
-tracer for spans.
-
-Subclasses set :attr:`ToolRailAction.action_name` and implement an async ``run`` with
-their own typed inputs (the inputs differ per rail), performing the check through
-:meth:`ToolRailAction._guarded` so every rail gets a consistent action span and turns
-an unexpected error into a blocking result rather than letting it propagate.
-"""
+# Subclasses set ``action_name`` and implement an async ``run`` over their own typed inputs,
+# checking through ``_guarded`` so each gets an action span and turns an unexpected error into
+# a blocking result rather than letting it propagate.
 
 from __future__ import annotations
 
