@@ -642,6 +642,18 @@ class TestChatCompletionsStreaming:
         # ID should have correct prefix
         assert list(ids)[0].startswith("chatcmpl-")
 
+    def test_chat_completions_streaming_tool_call_delta(self, client):
+        """Test that streaming tool call delta is returned."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+            "tools": [{"type": "function", "function": {"name": "get_weather", "arguments": "{}"}}],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+        assert "tool_calls" in content
+
 
 class TestCompletionsStreaming:
     """Test the /v1/completions endpoint with streaming."""
