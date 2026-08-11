@@ -27,6 +27,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
+from nemoguardrails.exceptions import UnsatisfiableRailTypeError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
@@ -37,7 +38,7 @@ from nemoguardrails.guardrails.iorails import (
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
-from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.test_data import NEMOGUARDS_CONFIG, TOPIC_SAFETY_CONFIG
 
 SAFE = RailResult.allow()
 
@@ -671,3 +672,39 @@ class TestCheckWithRewritingRails:
         assert result.status == RailStatus.BLOCKED
         assert result.content == REFUSAL_MESSAGE
         assert result.rail == "content safety check output"
+
+
+class TestUnsatisfiableRailTypes:
+    """Requesting a rail type with no configured flows raises UnsatisfiableRailTypeError."""
+
+    @pytest.fixture
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def input_only_config(self):
+        return RailsConfig.from_content(config=TOPIC_SAFETY_CONFIG)
+
+    @pytest_asyncio.fixture
+    async def input_only_engine(self, input_only_config):
+        engine = IORails(input_only_config)
+        try:
+            yield engine
+        finally:
+            await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_unsatisfiable_output_raises(self, input_only_engine):
+        with pytest.raises(UnsatisfiableRailTypeError, match="output"):
+            await input_only_engine.check_async([{"role": "user", "content": "hi"}], rail_types=[RailType.OUTPUT])
+
+    @pytest.mark.asyncio
+    async def test_satisfiable_input_succeeds(self, input_only_engine):
+        _mock_rails(input_only_engine)
+        result = await input_only_engine.check_async([{"role": "user", "content": "hi"}], rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_auto_detect_skips_validation(self, input_only_engine):
+        _mock_rails(input_only_engine)
+        result = await input_only_engine.check_async(
+            [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+        )
+        assert result.status == RailStatus.PASSED

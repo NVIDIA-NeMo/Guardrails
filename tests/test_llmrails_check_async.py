@@ -18,6 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.exceptions import UnsatisfiableRailTypeError
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
@@ -535,6 +536,47 @@ class TestCheckAsyncExplicitRails:
         ]
         result = mock_rails.check(messages, rail_types=None)
         assert result.status == RailStatus.BLOCKED
+
+
+class TestUnsatisfiableRailTypes:
+    @pytest.fixture
+    def input_only_rails(self):
+        config = RailsConfig.from_content(
+            """
+            define flow input rail
+              if $user_message == "block"
+                bot refuse to respond
+                stop
+            """,
+            """
+            rails:
+                input:
+                    flows:
+                        - input rail
+            """,
+        )
+        return LLMRails(config)
+
+    @pytest.mark.asyncio
+    async def test_unsatisfiable_output_raises(self, input_only_rails):
+        messages = [{"role": "user", "content": "hello"}]
+        with pytest.raises(UnsatisfiableRailTypeError, match="output"):
+            await input_only_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+
+    @pytest.mark.asyncio
+    async def test_satisfiable_input_succeeds(self, input_only_rails):
+        messages = [{"role": "user", "content": "hello"}]
+        result = await input_only_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_auto_detect_skips_validation(self, input_only_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi"},
+        ]
+        result = await input_only_rails.check_async(messages)
+        assert result.status == RailStatus.PASSED
 
 
 @pytest.fixture

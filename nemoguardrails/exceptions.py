@@ -31,6 +31,7 @@ __all__ = [
     "LLMConnectionError",
     "LLMResponseValidationError",
     "StreamingNotSupportedError",
+    "UnsatisfiableRailTypeError",
 ]
 
 
@@ -63,6 +64,12 @@ class InvalidRailsConfigurationError(ConfigurationError):
 
 class StreamingNotSupportedError(InvalidRailsConfigurationError):
     """Raised when streaming is requested but not supported by the configuration."""
+
+    pass
+
+
+class UnsatisfiableRailTypeError(InvalidRailsConfigurationError):
+    """Raised when an explicitly requested rail type has no configured flows."""
 
     pass
 
