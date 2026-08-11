@@ -542,7 +542,7 @@ class IORails(BaseGuardrails):
     # outside these sets fall back to LLMRails.
     SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
     # The rails this engine runs today. Compilation decides whether a flow is *servable*;
-    # this decides whether it is in scope yet. PR 4 widens it.
+    # this decides whether it is in scope yet.
     _ENABLED_SURFACES = frozenset(
         {
             (SurfaceDirection.INPUT, "content safety check input"),

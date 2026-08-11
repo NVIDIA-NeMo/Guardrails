@@ -450,11 +450,11 @@ class RailsManager:
     ) -> RailResult:
         """Dispatch a single rail flow to its compiled rail and record what it did."""
         with rail_span(self._tracer, flow, direction) as span:
-            execution = await self._rails[(direction, flow)].execute(messages, bot_response)
-            result = _rail_result(execution.outcome)
+            rail_execution = await self._rails[(direction, flow)].execute(messages, bot_response)
+            result = _rail_result(rail_execution.outcome)
             if not result.is_safe:
                 result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
-            records = (_rail_call_record(flow, direction.value.lower(), result, execution.llm_calls),)
+            records = (_rail_call_record(flow, direction.value.lower(), result, rail_execution.llm_calls),)
             result = replace(result, records=records)
             mark_rail_stop(span, result.is_safe)
             # CompiledRail converts an action error into a blocking outcome, so this branch is

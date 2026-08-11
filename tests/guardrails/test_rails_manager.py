@@ -185,6 +185,18 @@ class TestRailsManagerInit:
             config = RailsConfig.from_content(config=config_with_unknown)
             _make_rails_manager(config)
 
+    def test_unparseable_flow_raises(self, content_safety_rails_config, content_safety_engine_registry):
+        """A flow the surface parser rejects fails compilation instead of raising a raw ValueError."""
+        # The HTTP-client lookup parses each flow before compiling it, so an unparseable flow
+        # must fall through to compile_rail rather than escaping as the parser's ValueError.
+        with pytest.raises(RailCompilationError, match="not a valid flow reference"):
+            RailsManager(
+                engine_registry=content_safety_engine_registry,
+                task_manager=LLMTaskManager(content_safety_rails_config),
+                input_flows=["$model=content_safety"],
+                output_flows=[],
+            )
+
     def test_rails_compiled_for_flows(self, content_safety_rails_manager):
         assert set(content_safety_rails_manager._rails) == {
             (RailDirection.INPUT, "content safety check input $model=content_safety"),
