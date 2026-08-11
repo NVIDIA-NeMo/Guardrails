@@ -245,7 +245,7 @@ class StreamingHandler(AsyncIterator):
                 # not ones directly pushed by the user
                 if chunk is not None:
                     if self.include_metadata:
-                        chunk_dict: Dict[str, Any] = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
+                        chunk_dict: Dict[str, Any] = {"text": (chunk if chunk is not END_OF_STREAM else END_OF_STREAM)}
                         if chunk is END_OF_STREAM:
                             metadata = self.current_metadata.copy() if self.current_metadata else {}
                             metadata.setdefault("response_metadata", None)
