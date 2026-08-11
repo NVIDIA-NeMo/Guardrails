@@ -239,8 +239,13 @@ class CompiledRail:
         }
 
     async def close(self) -> None:
-        """Close the rail's HTTP client, if it owns one."""
-        if self._http_client is not None and hasattr(self._http_client, "close"):
+        """Close the rail's HTTP client, if it owns one.
+
+        Failures propagate: releasing one client is the whole job here, and the caller
+        closing a whole set of rails is the only layer that can decide a leak is
+        survivable. Repeat calls are safe, as a closed client's ``close()`` is a no-op.
+        """
+        if self._http_client is not None:
             await self._http_client.close()
 
 

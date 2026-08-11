@@ -215,6 +215,96 @@ class TestRailsManagerInit:
         assert blocked.is_safe is False
 
 
+class _RecordingClient:
+    """Minimal ``ClosableHTTPClient`` stand-in that records ``close()`` calls."""
+
+    def __init__(self, close_error: Exception | None = None) -> None:
+        self.close_count = 0
+        self.close_error = close_error
+
+    async def request(self, method, url, **kwargs):
+        raise NotImplementedError("the recording client does not send requests")
+
+    async def close(self) -> None:
+        self.close_count += 1
+        if self.close_error is not None:
+            raise self.close_error
+
+
+def _give_every_rail_a_client(manager: RailsManager) -> list[_RecordingClient]:
+    """Swap in a recording client for every compiled rail, returned in dispatch order."""
+    clients = [_RecordingClient() for _ in manager._rails]
+    for rail, client in zip(manager._rails.values(), clients):
+        rail._http_client = client
+    return clients
+
+
+class TestRailsManagerStop:
+    """Only API-backed rails own an HTTP client, and stop() releases every one of them."""
+
+    def test_only_api_backed_rails_are_given_a_client(self, nemoguards_rails_manager):
+        """A vendor API surface compiles with its own client; an LLM-backed surface gets none."""
+        clients = {flow: rail._http_client for (_, flow), rail in nemoguards_rails_manager._rails.items()}
+
+        assert clients["jailbreak detection model"] is not None
+        assert clients["content safety check input $model=content_safety"] is None
+
+    def test_each_api_backed_rail_gets_its_own_client(self):
+        """Two API-backed flows do not share a client, so per-vendor retry stays independent."""
+        config_dict = {
+            **NEMOGUARDS_CONFIG,
+            "rails": {
+                **NEMOGUARDS_CONFIG["rails"],
+                "input": {"flows": ["jailbreak detection model", "jailbreak detection heuristics"]},
+                "output": {"flows": []},
+            },
+        }
+        manager = _make_rails_manager(RailsConfig.from_content(config=config_dict))
+
+        clients = [rail._http_client for rail in manager._rails.values()]
+
+        assert len(clients) == 2
+        assert clients[0] is not clients[1]
+
+    @pytest.mark.asyncio
+    async def test_stop_closes_every_client(self, nemoguards_rails_manager):
+        """Shutdown releases each rail's connection pool."""
+        clients = _give_every_rail_a_client(nemoguards_rails_manager)
+
+        await nemoguards_rails_manager.stop()
+
+        assert [client.close_count for client in clients] == [1] * len(clients)
+
+    @pytest.mark.asyncio
+    async def test_a_failing_close_still_releases_the_remaining_clients(self, nemoguards_rails_manager):
+        """One client raising does not leak the pools behind it in the dispatch order."""
+        clients = _give_every_rail_a_client(nemoguards_rails_manager)
+        clients[0].close_error = RuntimeError("Event loop is closed")
+
+        with pytest.raises(RuntimeError, match="Failed to close rail HTTP clients"):
+            await nemoguards_rails_manager.stop()
+
+        assert [client.close_count for client in clients] == [1] * len(clients)
+
+    @pytest.mark.asyncio
+    async def test_stop_names_the_rail_whose_client_failed(self, nemoguards_rails_manager):
+        """The combined error names the flow, so a leaked pool is attributable."""
+        clients = _give_every_rail_a_client(nemoguards_rails_manager)
+        clients[0].close_error = RuntimeError("socket stuck")
+
+        with pytest.raises(RuntimeError, match="socket stuck") as excinfo:
+            await nemoguards_rails_manager.stop()
+
+        failed_flow = list(nemoguards_rails_manager._rails)[0][1]
+        assert failed_flow in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_second_stop_is_safe(self, nemoguards_rails_manager):
+        """stop() is idempotent, because a closed client's close() is a no-op."""
+        await nemoguards_rails_manager.stop()
+        await nemoguards_rails_manager.stop()
+
+
 # --- Sequential input/output tests ---
 
 

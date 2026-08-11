@@ -295,9 +295,23 @@ class RailsManager:
         )
 
     async def stop(self) -> None:
-        """Close HTTP clients owned by compiled rails."""
-        for rail in self._rails.values():
-            await rail.close()
+        """Close the HTTP clients owned by compiled rails.
+
+        Every rail is closed even if an earlier one fails, so one stuck client cannot
+        leak the pools behind it; the failures are reported together afterwards.
+        Repeat calls are safe, because a closed client's ``close()`` is a no-op.
+        """
+        errors: dict[str, Exception] = {}
+        for (direction, flow), rail in self._rails.items():
+            try:
+                await rail.close()
+            except Exception as e:
+                errors[f"{direction.value} rail '{flow}'"] = e
+                log.error("Error closing the HTTP client for %s rail '%s': %s", direction.value, flow, e)
+
+        if errors:
+            error_string = ", ".join(f"{component}: exception {exception}" for component, exception in errors.items())
+            raise RuntimeError(f"Failed to close rail HTTP clients: {error_string}")
 
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
