@@ -13,17 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import copy
+import inspect
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.manifests import all_rail_manifests, normalize_configured_surface_name
+from nemoguardrails.guardrails.compiled_rail import _is_installed, _owning_manifest
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.manifests import (
+    RailDirection,
+    all_rail_manifests,
+    default_rail_catalog,
+    normalize_configured_surface_name,
+    resolve_import_ref,
+)
 from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.types import LLMResponse
 from tests.llama_guard_fixtures import (
     LLAMA_GUARD_SAFE_POLICY_VIOLATIONS,
     LLAMA_GUARD_UNPARSEABLE_POLICY_VIOLATIONS,
@@ -2785,3 +2800,161 @@ def test_colang_2_injection_detection_preserves_blocked_verdict(action, expected
 
     chat >> USER_INPUT
     chat << expected
+
+
+_SURFACE_DIRECTIONS = {
+    "input": RailDirection.INPUT,
+    "output": RailDirection.OUTPUT,
+    "retrieval": RailDirection.RETRIEVAL,
+}
+
+# IORails always has a main model, and compiles a rail whose manifest names a model type only
+# when the config declares it. Supplying the four types the enabled tier binds keeps this table
+# about the flow gate; _reject_unconfigured_models is covered in test_compiled_rail.py.
+_IORAILS_MODELS = [
+    {"type": model_type, "engine": "openai", "model": "placeholder"}
+    for model_type in ("main", "content_safety", "topic_control", "llama_guard")
+]
+
+
+def _surface_for(spec: RailSpec):
+    """The manifest surface a rail spec names, keyed as the catalog keys it."""
+    key = (_SURFACE_DIRECTIONS[spec.direction], normalize_configured_surface_name(spec.flow))
+    return default_rail_catalog().surfaces()[key]
+
+
+def _uninstalled_dependencies(spec: RailSpec) -> list[str]:
+    """The optional distributions this rail needs that the environment lacks.
+
+    Mirrors ``_reject_missing_dependencies`` rather than matching on its message, including the
+    rule that an action declaring ``http_client`` has a remote backend and needs no package.
+    """
+    surface = _surface_for(spec)
+    if "http_client" in inspect.signature(resolve_import_ref(surface.action)).parameters:
+        return []
+    manifest = _owning_manifest(surface, default_rail_catalog())
+    if manifest is None:
+        return []
+    return sorted(dep for dep in manifest.requirements.optional_dependencies if not _is_installed(dep))
+
+
+def _is_iorails_enabled(spec: RailSpec) -> bool:
+    """Whether IORails runs this rail at the current tier, rather than deferring to LLMRails."""
+    key = (_SURFACE_DIRECTIONS[spec.direction], normalize_configured_surface_name(spec.flow))
+    return key in IORails._ENABLED_SURFACES
+
+
+def _iorails_case_param(case: FlowEquivalenceCase):
+    """Wrap a case for parametrization, skipping it when its optional extra is absent."""
+    missing = _uninstalled_dependencies(case.spec)
+    marks = pytest.mark.skipif(True, reason=f"{case.spec.flow!r} needs {', '.join(missing)}") if missing else ()
+    return pytest.param(case, id=case.case_id, marks=marks)
+
+
+IORAILS_FIXTURES = [case for case in FIXTURES if _is_iorails_enabled(case.spec)]
+LLMRAILS_ONLY_FIXTURES = [case for case in FIXTURES if not _is_iorails_enabled(case.spec)]
+
+
+class _StubAction:
+    """Returns a canned value under the real action's signature.
+
+    The signature is carried rather than left as a bare ``**kwargs``: injection is by parameter
+    name, so a double advertising nothing would hide the ``http_client`` parameter that exempts
+    a rail from the dependency check, and rails that work would refuse to compile.
+    """
+
+    def __init__(self, raw_return: Any, signature_of: Callable[..., Any]):
+        self._raw_return = raw_return
+        self.__signature__ = inspect.signature(signature_of)
+
+    async def __call__(self, **kwargs):
+        return self._raw_return
+
+
+async def _run_flow_iorails(case: FlowEquivalenceCase) -> dict[str, Any]:
+    """Drive one case through IORails, stubbing the rail's action at its manifest target.
+
+    IORails resolves actions through ``resolve_import_ref`` at compile time, which
+    ``register_action`` does not intercept, so the module attribute is patched instead — and
+    before construction, because the rail freezes its action there.
+    """
+    surface = _surface_for(case.spec)
+    module, attribute = surface.action.target.split(":")
+    stub_action = _StubAction(case.raw_return, resolve_import_ref(surface.action))
+
+    config = copy.deepcopy(_build_config(case.spec, enable_rails_exceptions=case.enable_rails_exceptions))
+    config["models"] = _IORAILS_MODELS
+
+    with (
+        patch(f"{module}.{attribute}", stub_action),
+        patch.dict(os.environ, {"OPENAI_API_KEY": "placeholder", "NVIDIA_API_KEY": "placeholder"}),
+    ):
+        iorails = IORails(RailsConfig.from_content(config=config))
+        async with iorails:
+            for engine in iorails.engine_registry._engines.values():
+                if isinstance(engine, ModelEngine):
+                    engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
+            response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
+
+    if not isinstance(response, dict):
+        raise AssertionError(f"Unexpected IORails response type: {response!r}")
+    return response
+
+
+def _iorails_decision(response: dict[str, Any]) -> FlowDecision:
+    """Classify an IORails reply, which renders every block as one refusal string."""
+    content = response.get("content")
+    if content == NORMAL_OUTPUT:
+        return FlowDecision.ALLOW
+    if content == REFUSAL_MESSAGE:
+        return FlowDecision.BLOCK
+    return FlowDecision.TRANSFORM
+
+
+def test_every_enabled_surface_has_an_iorails_case():
+    """The enabled tier and the surfaces this table drives through IORails match exactly."""
+    enabled = {(direction.value, name) for direction, name in IORails._ENABLED_SURFACES}
+    covered = {(case.spec.direction, normalize_configured_surface_name(case.spec.flow)) for case in IORAILS_FIXTURES}
+
+    assert enabled == covered, (
+        f"enabled surfaces without an IORails case: {sorted(enabled - covered)}; "
+        f"IORails cases without an enabled surface: {sorted(covered - enabled)}"
+    )
+
+
+def test_llmrails_only_fixtures_are_refused_by_the_routing_gate():
+    """Every case outside the tier names a surface IORails declines, so the split cannot drift."""
+    wrongly_enabled = sorted({case.spec.flow for case in LLMRAILS_ONLY_FIXTURES if _is_iorails_enabled(case.spec)})
+
+    assert not wrongly_enabled
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", [_iorails_case_param(case) for case in IORAILS_FIXTURES])
+async def test_iorails_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
+    """IORails reaches the same allow-or-block decision as the rail's RailOutcome."""
+    response = await _run_flow_iorails(case)
+
+    assert _iorails_decision(response) is case.expected_decision
+    assert _outcome_decision(case.raw_return, case.spec) is case.expected_decision
+
+
+def test_enable_rails_exceptions_is_honoured_only_by_llmrails():
+    """A blocked rail raises an exception turn on LLMRails and returns the refusal on IORails."""
+    # The flag is implemented entirely in each rail's Colang flow, which branches on
+    # $config.enable_rails_exceptions to `create event <Rail>Exception`. IORails runs no Colang
+    # runtime, so it has nothing to raise and no per-rail event name to raise it under; 29 of
+    # the 42 enabled rails diverge this way. The decision agrees on both engines -- only the
+    # shape of the block differs -- so this is pinned here rather than left to the table above,
+    # where a decision-level assertion would pass without recording it.
+    case = next(case for case in IORAILS_FIXTURES if case.case_id == "self_check_input_blocks_outcome_block_exception")
+
+    # asyncio.run rather than an async test: _run_flow drives LLMRails through the sync
+    # generate(), which refuses to run inside an already-running loop.
+    llmrails_response, _ = _run_flow(case)
+    iorails_response = asyncio.run(_run_flow_iorails(case))
+
+    assert llmrails_response["role"] == "exception"
+    assert iorails_response == {"role": "assistant", "content": REFUSAL_MESSAGE}
+    assert _decision_from_observable(case.expected_observable) is FlowDecision.BLOCK
+    assert _iorails_decision(iorails_response) is FlowDecision.BLOCK

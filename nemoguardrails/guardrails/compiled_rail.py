@@ -68,9 +68,6 @@ class RailDependencies:
 
     Injection is by parameter *name*, matching how the Colang runtimes supply the same
     values to the same actions. An action receives only what its signature declares.
-
-    ``llms`` doubles as the set of configured model types compilation validates model
-    bindings against, so the gate and the engine cannot disagree about which models exist.
     """
 
     llms: Mapping[str, Any]
