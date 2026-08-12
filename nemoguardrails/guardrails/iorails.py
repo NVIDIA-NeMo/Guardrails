@@ -531,7 +531,7 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
 
 
 def _compile_only_deps(config: RailsConfig) -> RailDependencies:
-    """Dependencies for the gate's trial compile: model types only, no live collaborators.
+    """Dependencies for the gate's trial compile: declared types and config, no live collaborators.
 
     Compilation reads ``llms`` for its key names alone — to reject a rail naming a model type
     the configuration does not declare — and never touches a model, so naming the types is
@@ -539,13 +539,17 @@ def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     rail carrying a model binding while ``RailsManager`` accepted it, and a config would be
     routed to LLMRails for a model it actually has.
 
+    ``config`` is carried for the same reason. The dependency check reads it to tell an
+    in-process backend from a remote one, so withholding it would make the gate refuse a rail
+    over its NIM that ``RailsManager`` then compiles happily.
+
     The key sets match by construction, since ``EngineRegistry`` is built from these same
     models and registers each one.
     """
     return RailDependencies(
         llms={model.type: None for model in config.models},
         llm_task_manager=None,
-        config=None,
+        config=config,
     )
 
 

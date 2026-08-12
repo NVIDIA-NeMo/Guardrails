@@ -19,7 +19,7 @@ import inspect
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -27,7 +27,11 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.compiled_rail import _is_installed, _owning_manifest, unservable_reason
+from nemoguardrails.guardrails.compiled_rail import (
+    RailCompilationError,
+    _reject_missing_dependencies,
+    unservable_reason,
+)
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.manifests import (
@@ -35,6 +39,7 @@ from nemoguardrails.manifests import (
     all_rail_manifests,
     default_rail_catalog,
     normalize_configured_surface_name,
+    parse_configured_surface,
     resolve_import_ref,
 )
 from nemoguardrails.rails.llm.options import GenerationResponse
@@ -2817,25 +2822,34 @@ _IORAILS_MODELS = [
 ]
 
 
+def _iorails_config(spec: RailSpec, *, enable_rails_exceptions: bool) -> dict[str, Any]:
+    """The flow-gate config with the model types IORails needs, shared by both callers."""
+    config = copy.deepcopy(_build_config(spec, enable_rails_exceptions=enable_rails_exceptions))
+    config["models"] = _IORAILS_MODELS
+    return config
+
+
 def _surface_for(spec: RailSpec):
     """The manifest surface a rail spec names, keyed as the catalog keys it."""
     key = (_SURFACE_DIRECTIONS[spec.direction], normalize_configured_surface_name(spec.flow))
     return default_rail_catalog().surfaces()[key]
 
 
-def _uninstalled_dependencies(spec: RailSpec) -> list[str]:
-    """The optional distributions this rail needs that the environment lacks.
+def _missing_dependency_reason(spec: RailSpec) -> Optional[str]:
+    """Why this rail's optional dependency blocks it here, or None when it can run.
 
-    Mirrors ``_reject_missing_dependencies`` rather than matching on its message, including the
-    rule that an action declaring ``http_client`` has a remote backend and needs no package.
+    Delegates to the production check rather than restating its rule. An earlier version
+    mirrored it, and went stale the moment the rule stopped being "the action accepts
+    ``http_client``" and started being "the configuration selects the in-process backend".
     """
     surface = _surface_for(spec)
-    if "http_client" in inspect.signature(resolve_import_ref(surface.action)).parameters:
-        return []
-    manifest = _owning_manifest(surface, default_rail_catalog())
-    if manifest is None:
-        return []
-    return sorted(dep for dep in manifest.requirements.optional_dependencies if not _is_installed(dep))
+    _, params = parse_configured_surface(spec.flow)
+    config = RailsConfig.from_content(config=_iorails_config(spec, enable_rails_exceptions=False))
+    try:
+        _reject_missing_dependencies(surface, default_rail_catalog(), spec.flow, config, params)
+    except RailCompilationError as exc:
+        return str(exc)
+    return None
 
 
 def _is_iorails_enabled(spec: RailSpec) -> bool:
@@ -2848,8 +2862,8 @@ def _is_iorails_enabled(spec: RailSpec) -> bool:
 
 def _iorails_case_param(case: FlowEquivalenceCase):
     """Wrap a case for parametrization, skipping it when its optional extra is absent."""
-    missing = _uninstalled_dependencies(case.spec)
-    marks = pytest.mark.skipif(True, reason=f"{case.spec.flow!r} needs {', '.join(missing)}") if missing else ()
+    reason = _missing_dependency_reason(case.spec)
+    marks = pytest.mark.skipif(True, reason=reason) if reason else ()
     return pytest.param(case, id=case.case_id, marks=marks)
 
 
@@ -2884,8 +2898,7 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> dict[str, Any]:
     module, attribute = surface.action.target.split(":")
     stub_action = _StubAction(case.raw_return, resolve_import_ref(surface.action))
 
-    config = copy.deepcopy(_build_config(case.spec, enable_rails_exceptions=case.enable_rails_exceptions))
-    config["models"] = _IORAILS_MODELS
+    config = _iorails_config(case.spec, enable_rails_exceptions=case.enable_rails_exceptions)
 
     with (
         patch(f"{module}.{attribute}", stub_action),

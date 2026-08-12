@@ -20,7 +20,6 @@ fails at construction rather than at request time, and rail model calls are capt
 sink rather than read from a contextvar afterwards.
 """
 
-import importlib.util
 import inspect
 from dataclasses import replace
 from typing import Any, Callable, Optional
@@ -56,6 +55,7 @@ from nemoguardrails.manifests import (
     default_rail_catalog,
     resolve_import_ref,
 )
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.testing.fake_model import FakeLLMModel
 
 CONTENT_SAFETY_INPUT = "content safety check input $model=content_safety"
@@ -180,6 +180,36 @@ class RecordingAction:
     async def __call__(self, **kwargs):
         self.kwargs = kwargs
         return self.outcome
+
+
+_HF_FLOW = 'hf classifier check input $classifier="toxicity"'
+_HF_LOCAL_CONFIG = {"hf_classifier": {"toxicity": {"engine": "local", "model": "m", "blocked_labels": ["toxic"]}}}
+_HF_OTHER_CLASSIFIER_CONFIG = {
+    "hf_classifier": {
+        "profanity": {"engine": "vllm", "model": "m", "base_url": "http://vllm:8000", "blocked_labels": ["p"]}
+    }
+}
+_REGEX_CONFIG = {"regex": {"input": {"patterns": [{"name": "secret", "pattern": "SECRET-[0-9]+"}]}}}
+_HF_REMOTE_CONFIG = {
+    "hf_classifier": {
+        "toxicity": {"engine": "vllm", "model": "m", "base_url": "http://vllm:8000", "blocked_labels": ["toxic"]}
+    }
+}
+
+
+def _deps_with_rails_config(rails_config: dict) -> RailDependencies:
+    """Dependencies carrying a real RailsConfig, which the dependency check reads.
+
+    A MagicMock config would answer every backend question truthily and exempt every rail,
+    so these cases need the real model.
+    """
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "placeholder"}],
+            "rails": {"config": rails_config},
+        }
+    )
+    return RailDependencies(llms={"main": None, "content_safety": None}, llm_task_manager=MagicMock(), config=config)
 
 
 @pytest.fixture
@@ -684,35 +714,138 @@ class TestMissingOptionalDependencies:
     The alternative is worse than it sounds: library actions import their optional dependency
     lazily, so the ImportError arrives per request and the fail-closed envelope renders it as
     a guardrail block, with the real cause reaching the log only.
+
+    Installed-ness is injected rather than read from the environment. These cases have to
+    assert both halves -- refused when absent, compiled when present -- and only one half is
+    observable in any given venv, so reading the real one would leave the other untested and
+    make the suite's meaning depend on which extras a developer happens to have.
     """
 
-    @pytest.mark.skipif(
-        importlib.util.find_spec("presidio_analyzer") is not None,
-        reason="asserts the refusal seen when the distribution is absent",
-    )
-    def test_a_rail_with_no_remote_transport_is_refused(self, deps):
-        """The message names the missing distributions and the extra that supplies them."""
-        with pytest.raises(RailCompilationError, match="presidio-analyzer"):
-            compile_rail("detect sensitive data on input", RailDirection.INPUT, deps)
+    @pytest.fixture
+    def absent(self, monkeypatch):
+        """Every declared distribution is missing."""
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail._is_installed", lambda _: False)
 
-    @pytest.mark.parametrize(
-        "flow",
-        ["jailbreak detection model", "jailbreak detection heuristics"],
-    )
-    def test_a_rail_with_a_remote_transport_is_not_refused(self, deps, flow):
-        """Declaring ``http_client`` exempts a rail, because its package is for one backend only.
+    @pytest.fixture
+    def installed(self, monkeypatch):
+        """Every declared distribution is present."""
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail._is_installed", lambda _: True)
 
-        Jailbreak detection declares ``scikit-learn`` and ``torch`` for its in-process model
-        and calls a NIM over HTTP otherwise. Enforcing the declaration would refuse a rail
-        IORails has shipped since the tier was four names, on an install that never needed
-        either package -- so accepting ``http_client`` is what separates "needs this to run"
-        from "needs this for one of its backends".
+    # (rails_config, flow, direction, refused-when-absent). Refused-when-installed is always
+    # False, asserted for every row by test_nothing_is_refused_when_the_distribution_is_present.
+    CASES = [
+        # No remote backend: the declaration is the whole story.
+        ({}, "detect sensitive data on input", RailDirection.INPUT, True),
+        ({}, "cleanlab trustworthiness", RailDirection.OUTPUT, True),
+        # hf_classifier chooses its backend per classifier, through `engine`.
+        (_HF_LOCAL_CONFIG, _HF_FLOW, RailDirection.INPUT, True),
+        (_HF_REMOTE_CONFIG, _HF_FLOW, RailDirection.INPUT, False),
+        ({"hf_classifier": {}}, _HF_FLOW, RailDirection.INPUT, True),
+        (_HF_OTHER_CLASSIFIER_CONFIG, _HF_FLOW, RailDirection.INPUT, True),
+        ({}, _HF_FLOW, RailDirection.INPUT, True),
+        # jailbreak_detection is remote when either endpoint is set, local otherwise.
+        ({"jailbreak_detection": {}}, "jailbreak detection model", RailDirection.INPUT, True),
+        ({}, "jailbreak detection model", RailDirection.INPUT, True),
+        (
+            {"jailbreak_detection": {"nim_base_url": "http://nim:8000"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"server_endpoint": "http://jb:1337"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"nim_url": "nim", "nim_port": 8000}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"nim_server_endpoint": "classify"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            True,
+        ),
+        (
+            {"jailbreak_detection": {"server_endpoint": "http://jb:1337"}},
+            "jailbreak detection heuristics",
+            RailDirection.INPUT,
+            False,
+        ),
+        ({"jailbreak_detection": {}}, "jailbreak detection heuristics", RailDirection.INPUT, True),
+        # Declares no optional dependency at all.
+        (_REGEX_CONFIG, "regex check input", RailDirection.INPUT, False),
+        ({}, "content safety check input $model=content_safety", RailDirection.INPUT, False),
+    ]
+    IDS = [
+        "sdd_no_remote_backend",
+        "cleanlab_no_remote_backend",
+        "hf_engine_local",
+        "hf_engine_vllm",
+        "hf_section_empty",
+        "hf_classifier_not_configured",
+        "hf_section_absent",
+        "jailbreak_no_endpoint",
+        "jailbreak_section_absent",
+        "jailbreak_nim_base_url",
+        "jailbreak_server_endpoint",
+        "jailbreak_deprecated_nim_url",
+        "jailbreak_only_classification_path",
+        "heuristics_endpoint",
+        "heuristics_no_endpoint",
+        "regex_declares_nothing",
+        "content_safety_declares_nothing",
+    ]
+
+    @pytest.mark.parametrize(("rails_config", "flow", "direction", "refused"), CASES, ids=IDS)
+    def test_the_configured_backend_decides_when_the_distribution_is_absent(
+        self, absent, rails_config, flow, direction, refused
+    ):
+        """A rail is refused only when the configuration selects a backend needing the package.
+
+        Whether the action accepts ``http_client`` says what the function can receive, not
+        which backend will run: an hf_classifier on ``engine: local`` accepts a client,
+        ignores it, and still needs ``transformers``.
         """
-        assert compile_rail(flow, RailDirection.INPUT, deps) is not None
+        deps = _deps_with_rails_config(rails_config)
 
-    def test_a_rail_declaring_nothing_is_unaffected(self, deps):
-        """The control: a rail with no declared distribution compiles regardless of the environment."""
-        assert compile_rail("regex check input", RailDirection.INPUT, deps) is not None
+        if refused:
+            with pytest.raises(RailCompilationError, match="which the environment does not have"):
+                compile_rail(flow, direction, deps)
+        else:
+            assert compile_rail(flow, direction, deps) is not None
+
+    @pytest.mark.parametrize(("rails_config", "flow", "direction", "refused"), CASES, ids=IDS)
+    def test_nothing_is_refused_when_the_distribution_is_present(
+        self, installed, rails_config, flow, direction, refused
+    ):
+        """With the package installed every configuration compiles, local backends included."""
+        assert compile_rail(flow, direction, _deps_with_rails_config(rails_config)) is not None
+
+    def test_the_message_names_the_distributions_and_the_extra(self, absent):
+        """The refusal is actionable: which distributions are missing, and what installs them."""
+        with pytest.raises(RailCompilationError) as excinfo:
+            compile_rail("detect sensitive data on input", RailDirection.INPUT, _deps_with_rails_config({}))
+
+        message = str(excinfo.value)
+        assert "presidio-analyzer, presidio-anonymizer, spacy" in message
+        assert "install the 'sdd' extra" in message
+
+    def test_only_the_missing_distributions_are_named(self, monkeypatch):
+        """A partially installed manifest reports the gap, not everything it declares."""
+        monkeypatch.setattr(
+            "nemoguardrails.guardrails.compiled_rail._is_installed",
+            lambda distribution: distribution != "torch",
+        )
+
+        with pytest.raises(RailCompilationError, match=r"needs torch, which") as excinfo:
+            compile_rail("jailbreak detection model", RailDirection.INPUT, _deps_with_rails_config({}))
+
+        assert "scikit-learn" not in str(excinfo.value)
 
 
 class TestDependencyInjection:

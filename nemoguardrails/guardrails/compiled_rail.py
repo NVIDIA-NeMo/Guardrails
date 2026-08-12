@@ -503,8 +503,53 @@ def _is_installed(distribution: str) -> bool:
     return True
 
 
+def _rail_config_section(config: Any, name: str) -> Any:
+    """Return ``rails.config.<name>`` from a RailsConfig, or None when it is not configured."""
+    rails = getattr(config, "rails", None)
+    section = getattr(rails, "config", None) if rails is not None else None
+    return getattr(section, name, None)
+
+
+def _hf_classifier_runs_locally(config: Any, params: Mapping[str, str]) -> bool:
+    """Whether the selected classifier runs in-process, per ``backends.get_backend``."""
+    classifiers = _rail_config_section(config, "hf_classifier")
+    if not classifiers:
+        return True
+    selected = classifiers.get(params.get("classifier", ""))
+    if selected is None:
+        return True
+    return getattr(selected, "engine", "local") == "local"
+
+
+def _jailbreak_detection_runs_locally(config: Any, params: Mapping[str, str]) -> bool:
+    """Whether jailbreak detection runs in-process, which it does with no endpoint configured.
+
+    Mirrors the branch in ``jailbreak_detection_model``: ``server_endpoint`` or ``nim_base_url``.
+    Not ``nim_server_endpoint``, which is the classification *path* and defaults to ``classify``,
+    so it is always set and would exempt every configuration.
+    """
+    section = _rail_config_section(config, "jailbreak_detection")
+    if section is None:
+        return True
+    return not (getattr(section, "server_endpoint", None) or getattr(section, "nim_base_url", None))
+
+
+# Manifests whose action has both an in-process and a remote backend, keyed to the check that
+# reads which one the configuration selected.
+# TODO: replace with a backend selector declared in the manifest (#2279), which would remove
+# the per-rail knowledge this table holds.
+_LOCAL_BACKEND_CHECKS: dict[str, Callable[[Any, Mapping[str, str]], bool]] = {
+    "hf_classifier": _hf_classifier_runs_locally,
+    "jailbreak_detection": _jailbreak_detection_runs_locally,
+}
+
+
 def _reject_missing_dependencies(
-    surface: RailSurface, action: Callable[..., Any], catalog: "RailCatalog", flow: str
+    surface: RailSurface,
+    catalog: "RailCatalog",
+    flow: str,
+    config: Any,
+    params: Mapping[str, str],
 ) -> None:
     """Fail compilation when a rail's optional dependency is declared but not installed.
 
@@ -514,22 +559,18 @@ def _reject_missing_dependencies(
     extra is indistinguishable, to the caller, from one whose rail genuinely tripped. Refusing
     at compile time reports it once, as the configuration error it is.
 
-    **Only for rails with no remote transport.** An action declaring ``http_client`` has an
-    alternative backend and needs its package only for the in-process one: ``hf_classifier``
-    picks a remote backend whenever a client is injected and the engine is not ``local``, and
-    jailbreak detection calls a NIM whenever an endpoint is configured. Enforcing the
-    declaration for those would refuse rails that work, ``jailbreak detection model`` among
-    them. Accepting the parameter is the signal, and it separates the six declaring manifests
-    cleanly: four have no remote path, two do.
+    A manifest offering both an in-process and a remote backend is enforced only when the
+    configuration selects the in-process one; see ``_LOCAL_BACKEND_CHECKS``.
 
     Checked by distribution rather than by import, so it costs no import and needs no mapping
     from a package name to a module name -- ``guardrails-ai`` imports as ``guardrails``.
     """
-    if "http_client" in _accepted_parameters(action):
-        return
-
     manifest = _owning_manifest(surface, catalog)
     if manifest is None:
+        return
+
+    runs_locally = _LOCAL_BACKEND_CHECKS.get(manifest.name)
+    if runs_locally is not None and not runs_locally(config, params):
         return
 
     missing = sorted(dep for dep in manifest.requirements.optional_dependencies if not _is_installed(dep))
@@ -594,7 +635,7 @@ def compile_rail(
         flow,
     )
     _reject_unconfigured_models(bound, deps, flow)
-    _reject_missing_dependencies(surface, action, catalog, flow)
+    _reject_missing_dependencies(surface, catalog, flow, deps.config, params)
 
     return CompiledRail(
         flow=flow,
