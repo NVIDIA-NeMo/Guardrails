@@ -109,7 +109,7 @@ RAIL = RailManifest(
             ),
             services=(ServiceRequirement(name="NVIDIA NIM", required=False),),
             # `transformers` required by both in-process paths
-            optional_dependencies=("scikit-learn", "torch", "transformers"),
+            optional_dependencies=("torch", "transformers"),
         ),
         privacy=RailPrivacy(sends_user_text=True, remote_services=("NVIDIA NIM",)),
     ),
