@@ -33,6 +33,9 @@ from nemoguardrails.guardrails.compiled_rail import (
     CompiledRail,
     RailCompilationError,
     RailDependencies,
+    _hf_classifier_runs_locally,
+    _is_installed,
+    _jailbreak_detection_runs_locally,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -825,6 +828,21 @@ class TestMissingOptionalDependencies:
     ):
         """With the package installed every configuration compiles, local backends included."""
         assert compile_rail(flow, direction, _deps_with_rails_config(rails_config)) is not None
+
+    def test_a_present_distribution_is_reported_installed(self):
+        """The check answers both ways; every other case here injects the answer instead."""
+        assert _is_installed("pydantic") is True
+        assert _is_installed("no-such-distribution-anywhere") is False
+
+    def test_a_rail_with_no_config_at_all_is_treated_as_local(self):
+        """With nothing to read, the backend check assumes in-process and enforces the deps.
+
+        Reachable because ``config`` is typed ``Any`` and a caller may hold none; a real
+        RailsConfig always materialises ``rails.config.jailbreak_detection``, so this guard
+        cannot be provoked through one.
+        """
+        assert _jailbreak_detection_runs_locally(None, {}) is True
+        assert _hf_classifier_runs_locally(None, {}) is True
 
     def test_the_message_names_the_distributions_and_the_extra(self, absent):
         """The refusal is actionable: which distributions are missing, and what installs them."""
