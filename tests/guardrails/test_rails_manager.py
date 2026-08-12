@@ -285,7 +285,9 @@ class TestRailsManagerStop:
             **NEMOGUARDS_CONFIG,
             "rails": {
                 **NEMOGUARDS_CONFIG["rails"],
-                "input": {"flows": ["jailbreak detection model", "jailbreak detection heuristics"]},
+                # Two API-backed input rails. Not the two jailbreak flows: heuristics shares a
+                # config section with the model rail and is refused at compile time for it.
+                "input": {"flows": ["jailbreak detection model", "activefence moderation on input"]},
                 "output": {"flows": []},
             },
         }

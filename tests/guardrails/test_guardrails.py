@@ -2096,7 +2096,6 @@ class TestScopeGateCharacterization:
             ("input", "gliner detect pii on input"),
             ("input", "guardrailsai check input"),
             ("input", "hf classifier check input"),
-            ("input", "jailbreak detection heuristics"),
             ("input", "jailbreak detection model"),
             ("input", "llama guard check input"),
             ("input", "policyai moderation on input"),

@@ -407,12 +407,26 @@ def _retrieval_context_reason(surface: RailSurface) -> Optional[str]:
     return "needs retrieval evidence, which manifest-driven execution does not supply yet"
 
 
+def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
+    """Manually edited blocklist of unsupported rails with reasons why"""
+
+    blocked = {
+        # TODO: Github Issue https://github.com/NVIDIA-NeMo/Guardrails/issues/2285
+        (RailDirection.INPUT, "jailbreak detection heuristics"): (
+            "Conflates dependencies with 'jailbreak detection model', so IORails "
+            "cannot tell whether it needs 'torch' and 'transformers' installed"
+        ),
+    }
+    return blocked.get((surface.direction, surface.name))
+
+
 # Ordered so the cheapest, most structural check reports first. Each entry is removed by the
 # work that lifts its limitation: the context-binding refusal went when resolution was built,
 # and the transform refusal goes when IORails can apply a rewrite.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
     _transform_target_reason,
     _retrieval_context_reason,
+    _unsupported_rail_reason,
 )
 
 
@@ -522,20 +536,13 @@ def _hf_classifier_runs_locally(config: Any, params: Mapping[str, str]) -> bool:
 
 
 def _jailbreak_detection_runs_locally(config: Any, params: Mapping[str, str]) -> bool:
-    """Whether jailbreak detection runs in-process, which it does with no endpoint configured.
-
-    Mirrors the branch in ``jailbreak_detection_model``: ``server_endpoint`` or ``nim_base_url``.
-    Not ``nim_server_endpoint``, which is the classification *path* and defaults to ``classify``,
-    so it is always set and would exempt every configuration.
-    """
+    """Whether jailbreak detection runs in-process, which it does with no endpoint configured."""
     section = _rail_config_section(config, "jailbreak_detection")
     if section is None:
         return True
     return not (getattr(section, "server_endpoint", None) or getattr(section, "nim_base_url", None))
 
 
-# Manifests whose action has both an in-process and a remote backend, keyed to the check that
-# reads which one the configuration selected.
 # TODO: replace with a backend selector declared in the manifest (#2279), which would remove
 # the per-rail knowledge this table holds.
 _LOCAL_BACKEND_CHECKS: dict[str, Callable[[Any, Mapping[str, str]], bool]] = {

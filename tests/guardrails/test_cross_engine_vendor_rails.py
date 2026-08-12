@@ -336,15 +336,6 @@ VENDOR_RAILS = [
         llmrails_block_text="I will not engage in any abusive or harmful behavior.",
     ),
     VendorRail(
-        rail_id="jailbreak_heuristics",
-        flow="jailbreak detection heuristics",
-        direction="input",
-        allow_payload={"jailbreak": False},
-        block_payload={"jailbreak": True},
-        rails_config=JAILBREAK_CONFIG,
-        env={},
-    ),
-    VendorRail(
         rail_id="clavata_input",
         flow="clavata check input",
         direction="input",

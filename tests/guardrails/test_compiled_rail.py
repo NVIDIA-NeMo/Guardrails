@@ -35,7 +35,6 @@ from nemoguardrails.guardrails.compiled_rail import (
     RailDependencies,
     _hf_classifier_runs_locally,
     _is_installed,
-    _jailbreak_detection_runs_locally,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -86,6 +85,10 @@ EXECUTABLE_SURFACES = {
 # ``relevant_chunks``, ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``.
 # Keyed by direction as well as name, because one rail can surface in both directions.
 # Held here independently of the production deny-list so the two cross-check each other.
+# Blocked by decision rather than by anything the manifest declares. Held here independently
+# of the production blocklist so the two cross-check each other.
+UNSUPPORTED_RAIL_SURFACES = {(RailDirection.INPUT, "jailbreak detection heuristics")}
+
 RETRIEVAL_DEPENDENT_SURFACES = {
     (RailDirection.OUTPUT, "alignscore check facts"),
     (RailDirection.OUTPUT, "autoalign groundedness output"),
@@ -431,12 +434,13 @@ class TestUnrunnableSurfaces:
 
         assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
 
-    def test_the_block_only_tier_splits_into_servable_and_retrieval_refused(self):
-        """Every block-only input/output surface is servable except the seven retrieval ones.
+    def test_the_block_only_tier_splits_into_servable_and_refused(self):
+        """Every block-only input/output surface is servable but for the eight refused ones.
 
-        Measured: 42 servable, 7 refused. Pinning the split rather than a predicate means a
-        newly added manifest surface, or an action that grows a binding IORails cannot fill,
-        fails here rather than in a user's config.
+        Measured: 41 servable, 8 refused -- the seven retrieval-evidence surfaces plus
+        jailbreak heuristics, whose backend cannot be told apart from its manifest sibling's.
+        Pinning the split rather than a predicate means a newly added manifest surface, or an
+        action that grows a binding IORails cannot fill, fails here rather than in a config.
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
@@ -445,8 +449,8 @@ class TestUnrunnableSurfaces:
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))
 
-        assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES)
-        assert len(servable) == 42
+        assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
+        assert len(servable) == 41
 
     def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
         """An unrunnable surface is refused before its action module is imported."""
@@ -773,13 +777,6 @@ class TestMissingOptionalDependencies:
             RailDirection.INPUT,
             True,
         ),
-        (
-            {"jailbreak_detection": {"server_endpoint": "http://jb:1337"}},
-            "jailbreak detection heuristics",
-            RailDirection.INPUT,
-            False,
-        ),
-        ({"jailbreak_detection": {}}, "jailbreak detection heuristics", RailDirection.INPUT, True),
         # Declares no optional dependency at all.
         (_REGEX_CONFIG, "regex check input", RailDirection.INPUT, False),
         ({}, "content safety check input $model=content_safety", RailDirection.INPUT, False),
@@ -798,8 +795,6 @@ class TestMissingOptionalDependencies:
         "jailbreak_server_endpoint",
         "jailbreak_deprecated_nim_url",
         "jailbreak_only_classification_path",
-        "heuristics_endpoint",
-        "heuristics_no_endpoint",
         "regex_declares_nothing",
         "content_safety_declares_nothing",
     ]
@@ -837,11 +832,8 @@ class TestMissingOptionalDependencies:
     def test_a_rail_with_no_config_at_all_is_treated_as_local(self):
         """With nothing to read, the backend check assumes in-process and enforces the deps.
 
-        Reachable because ``config`` is typed ``Any`` and a caller may hold none; a real
-        RailsConfig always materialises ``rails.config.jailbreak_detection``, so this guard
-        cannot be provoked through one.
+        Reachable because ``config`` is typed ``Any`` and a caller may hold none.
         """
-        assert _jailbreak_detection_runs_locally(None, {}) is True
         assert _hf_classifier_runs_locally(None, {}) is True
 
     def test_the_message_names_the_distributions_and_the_extra(self, absent):
