@@ -35,6 +35,7 @@ from nemoguardrails.guardrails.compiled_rail import (
     RailDependencies,
     _hf_classifier_runs_locally,
     _is_installed,
+    _jailbreak_detection_runs_locally,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -830,11 +831,9 @@ class TestMissingOptionalDependencies:
         assert _is_installed("no-such-distribution-anywhere") is False
 
     def test_a_rail_with_no_config_at_all_is_treated_as_local(self):
-        """With nothing to read, the backend check assumes in-process and enforces the deps.
-
-        Reachable because ``config`` is typed ``Any`` and a caller may hold none.
-        """
+        """With nothing to read, the backend check assumes in-process and enforces the deps."""
         assert _hf_classifier_runs_locally(None, {}) is True
+        assert _jailbreak_detection_runs_locally(None, {}) is True
 
     def test_the_message_names_the_distributions_and_the_extra(self, absent):
         """The refusal is actionable: which distributions are missing, and what installs them."""
