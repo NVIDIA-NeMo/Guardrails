@@ -105,15 +105,29 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
         yield
         # get_records("call") rather than .records: during teardown the latter reports the
         # teardown phase, which is empty, and the check would pass no matter what the rail did.
-        errors = [record.getMessage() for record in caplog.get_records("call") if record.levelno >= logging.ERROR]
+        # Restricted to this package's loggers because the question is whether a *rail* failed,
+        # which rail_guard reports. Anything at ERROR would also catch aiohttp's unclosed-session
+        # message, which the asyncio exception handler emits from __del__ whenever the collector
+        # happens to run -- so an unrelated leak elsewhere in the suite would fail this test.
+        errors = [
+            record.getMessage()
+            for record in caplog.get_records("call")
+            if record.levelno >= logging.ERROR and record.name.startswith("nemoguardrails")
+        ]
         assert not errors, f"a rail errored, so the cassette did not replay: {errors}"
 
 
 async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):
-    """Run rails through Guardrails, asserting IORails is the engine that served them."""
-    guardrails = Guardrails(load_config(config))
-    assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, so this test proves nothing"
-    return await guardrails.check_async(messages, rail_types=list(rail_types))
+    """Run rails through Guardrails, asserting IORails is the engine that served them.
+
+    Entered as a context manager so shutdown closes the engine's aiohttp session. Left open,
+    the session is closed by ``__del__`` instead, which logs an error through the asyncio
+    exception handler at whatever moment the collector runs -- landing in an unrelated test's
+    log capture and failing it.
+    """
+    async with Guardrails(load_config(config)) as guardrails:
+        assert guardrails.use_iorails_engine, f"{config.name!r} routed to LLMRails, so this test proves nothing"
+        return await guardrails.check_async(messages, rail_types=list(rail_types))
 
 
 async def test_content_safety_input_allows_safe_user_message(nvidia_api_key, rail_ran_cleanly):
