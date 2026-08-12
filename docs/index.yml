@@ -449,6 +449,9 @@ navigation:
           - page: Chat Completions
             path: run-rails/using-fastapi-server/chat-with-guardrailed-model.mdx
             slug: chat-with-guardrailed-model
+          - page: Anthropic Messages
+            path: run-rails/using-fastapi-server/chat-with-anthropic-model.mdx
+            slug: chat-with-anthropic-model
           - page: List Configurations
             path: run-rails/using-fastapi-server/list-guardrail-configs.mdx
             slug: list-guardrail-configs
@@ -592,6 +595,13 @@ navigation:
               - endpoint: POST /v1/chat/completions
                 title: Create Chat Completion
                 slug: chat-completions
+          - messages:
+              - endpoint: POST /v1/messages
+                title: Create Anthropic Message
+                slug: create-message
+              - endpoint: POST /v1/messages/checks
+                title: Check Anthropic Messages
+                slug: check-messages
           - models:
               - endpoint: GET /v1/models
                 title: List Models

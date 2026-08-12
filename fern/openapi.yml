@@ -16,6 +16,8 @@ servers:
 tags:
   - name: Chat Completions
     description: Generate guarded chat completions.
+  - name: Messages
+    description: Generate guarded responses in Anthropic Messages API format.
   - name: Models
     description: List upstream models exposed through the configured provider.
   - name: Configurations
@@ -128,6 +130,165 @@ paths:
                   value:
                     error:
                       message: Stateful continuation over HTTP is not supported for Colang 2.0.
+                      type: invalid_request_error
+                      param: null
+                      code: null
+  /v1/messages:
+    post:
+      operationId: createGuardrailsMessage
+      tags:
+        - Messages
+      summary: Create an Anthropic message
+      description: |
+        Generate a response with guardrails applied, using the Anthropic
+        Messages API request and response format.
+
+        The request shape is compatible with the Anthropic Messages API and
+        accepts Guardrails-specific options in the `guardrails` object. This
+        endpoint is available only when the optional `anthropic` package is
+        installed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardrailsMessagesRequest"
+            examples:
+              basic:
+                summary: Basic guarded message
+                value:
+                  model: claude-3-5-sonnet-20241022
+                  max_tokens: 1024
+                  messages:
+                    - role: user
+                      content: What is the capital of France?
+                  guardrails:
+                    config_id: content_safety
+              streaming:
+                summary: Streaming guarded message
+                value:
+                  model: claude-3-5-sonnet-20241022
+                  max_tokens: 1024
+                  messages:
+                    - role: user
+                      content: Tell me a short story.
+                  stream: true
+                  guardrails:
+                    config_id: content_safety
+      responses:
+        "200":
+          description: Anthropic message response or server-sent event stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuardrailsMessage"
+              examples:
+                success:
+                  summary: Basic guarded message
+                  value:
+                    id: msg_abc123
+                    type: message
+                    role: assistant
+                    model: claude-3-5-sonnet-20241022
+                    content:
+                      - type: text
+                        text: Paris is the capital of France.
+                    stop_reason: end_turn
+                    stop_sequence: null
+                    usage:
+                      input_tokens: 0
+                      output_tokens: 0
+                    guardrails:
+                      config_id: content_safety
+                      log: null
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Anthropic-format server-sent events. The event sequence is
+                  `message_start`, `content_block_start`, `content_block_delta`,
+                  `content_block_stop`, `message_delta`, and `message_stop`. Tool
+                  calls are streamed as additional content blocks with an
+                  `input_json_delta`.
+              examples:
+                completion:
+                  value: |
+                    event: message_start
+                    data: {"type":"message_start","message":{"id":"msg_abc123","type":"message","role":"assistant","content":[],"model":"claude-3-5-sonnet-20241022","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Paris"}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+        "422":
+          description: Invalid request or missing configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingConfig:
+                  value:
+                    error:
+                      message: No guardrails config_id provided and server has no default configuration
+                      type: invalid_request_error
+                      param: null
+                      code: null
+  /v1/messages/checks:
+    post:
+      operationId: checkGuardrailsMessages
+      tags:
+        - Messages
+      summary: Check Anthropic messages against guardrails
+      description: |
+        Run guardrails against Anthropic-format messages without generating a
+        model response. Accepts the same request shape as `POST /v1/messages`
+        and returns the rail check result.
+
+        Supports Colang 1.0 configurations only. This endpoint is available only
+        when the optional `anthropic` package is installed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardrailsMessagesRequest"
+            examples:
+              basic:
+                summary: Check a user message
+                value:
+                  model: claude-3-5-sonnet-20241022
+                  max_tokens: 1024
+                  messages:
+                    - role: user
+                      content: You are stupid.
+                  guardrails:
+                    config_id: content_safety
+      responses:
+        "200":
+          description: Rail check result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuardrailCheckResponse"
+              examples:
+                blocked:
+                  value:
+                    status: blocked
+                    content: I'm sorry, I can't respond to that.
+                    rail: self check input
+        "422":
+          description: Invalid request, empty messages, or unsupported Colang version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                unsupportedColang:
+                  value:
+                    error:
+                      message: check_async does not support Colang 2.0 configurations.
                       type: invalid_request_error
                       param: null
                       code: null
@@ -501,6 +662,160 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+    GuardrailsMessagesRequest:
+      type: object
+      required:
+        - model
+        - max_tokens
+        - messages
+      properties:
+        model:
+          type: string
+          description: Anthropic model to use for the response.
+          example: claude-3-5-sonnet-20241022
+        max_tokens:
+          type: integer
+          description: Maximum number of tokens to generate.
+          example: 1024
+        messages:
+          type: array
+          description: Input messages. Each message has a role and content.
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        system:
+          description: System prompt, as a string or an array of content blocks.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+        stream:
+          type: boolean
+          default: false
+          description: Return the response as Anthropic-format server-sent events.
+        temperature:
+          type: number
+          format: float
+          description: Sampling temperature.
+        top_p:
+          type: number
+          format: float
+          description: Nucleus sampling parameter.
+        top_k:
+          type: integer
+          description: Top-k sampling parameter.
+        stop_sequences:
+          type: array
+          description: Custom text sequences that cause the model to stop generating.
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Request metadata, such as a user identifier for abuse detection.
+        tools:
+          type: array
+          description: Tool definitions available to the model.
+          items:
+            type: object
+            additionalProperties: true
+        tool_choice:
+          type: object
+          additionalProperties: true
+          description: How the model should use the provided tools.
+        thinking:
+          type: object
+          additionalProperties: true
+          description: Extended thinking configuration.
+        guardrails:
+          $ref: "#/components/schemas/GuardrailsRequestOptions"
+    GuardrailsMessage:
+      type: object
+      description: |
+        Anthropic Messages API response with a Guardrails output extension.
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          example: message
+        role:
+          type: string
+          example: assistant
+        model:
+          type: string
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicContentBlock"
+        stop_reason:
+          type: string
+          nullable: true
+          example: end_turn
+        stop_sequence:
+          type: string
+          nullable: true
+        usage:
+          type: object
+          properties:
+            input_tokens:
+              type: integer
+            output_tokens:
+              type: integer
+        guardrails:
+          $ref: "#/components/schemas/GuardrailsResponseData"
+    AnthropicContentBlock:
+      type: object
+      description: |
+        A response content block. `text` blocks carry generated text, `tool_use`
+        blocks carry a tool call, and `thinking` blocks carry extended-thinking
+        output.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - text
+            - tool_use
+            - thinking
+        text:
+          type: string
+          description: Text content, present when `type` is `text`.
+        id:
+          type: string
+          description: Tool call ID, present when `type` is `tool_use`.
+        name:
+          type: string
+          description: Tool name, present when `type` is `tool_use`.
+        input:
+          type: object
+          additionalProperties: true
+          description: Tool arguments, present when `type` is `tool_use`.
+        thinking:
+          type: string
+          description: Reasoning content, present when `type` is `thinking`.
+    GuardrailCheckResponse:
+      type: object
+      required:
+        - status
+        - content
+      properties:
+        status:
+          type: string
+          description: Overall check result.
+          enum:
+            - passed
+            - modified
+            - blocked
+        content:
+          type: string
+          description: Content after rails processing.
+        rail:
+          type: string
+          nullable: true
+          description: Name of the blocking rail, if any.
     OpenAIModelsList:
       type: object
       required:

@@ -399,8 +399,12 @@ def _inject_model(config: RailsConfig, model_name: str) -> RailsConfig:
     """Inject the request's model into a RailsConfig using env-based engine/base_url."""
     engine = os.environ.get("MAIN_MODEL_ENGINE")
     if not engine:
-        engine = "openai"
-        log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
+        existing_main = next((m for m in config.models if m.type == "main"), None)
+        if existing_main:
+            engine = existing_main.engine
+        else:
+            engine = "openai"
+            log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
     parameters = {}
     base_url = os.environ.get("MAIN_MODEL_BASE_URL")
     if base_url:
@@ -926,6 +930,13 @@ class GuardrailsConfigurationError(Exception):
 #
 # register_exception(app)
 
+
+try:
+    from nemoguardrails.server.messages import router as messages_router
+
+    app.include_router(messages_router)
+except ImportError:
+    log.debug("Anthropic Messages API endpoints not available (anthropic package not installed)")
 
 if not app.disable_chat_ui and mount_chainlit is not None:
     chainlit_app_path = os.path.join(os.path.dirname(__file__), "app.py")

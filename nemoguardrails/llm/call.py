@@ -29,6 +29,7 @@ Neighbouring modules: text helpers for interpreting a completion live in
 helpers in :mod:`nemoguardrails.actions.llm.utils`.
 """
 
+import json
 import logging
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, cast
@@ -148,6 +149,14 @@ async def _stream_llm_call(
             await handler.push_chunk(content, chunk_metadata)
 
         llm_response_metadata_var.set(accumulated_provider_metadata or None)
+
+        # Push tool calls to the streaming consumer before finish().
+        # finish() sends END_OF_STREAM which terminates the consumer, so
+        # tool calls must be injected first. The SSE formatter in
+        # messages.py detects this JSON payload and emits tool_use blocks.
+        if tool_calls:
+            payload = json.dumps({"tool_calls": [tc.to_dict() for tc in tool_calls]})
+            await handler.push_chunk(payload)
 
         await handler.finish()
 

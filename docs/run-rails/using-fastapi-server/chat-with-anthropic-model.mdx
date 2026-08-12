@@ -1,0 +1,376 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+title: "Chat with an Anthropic Model"
+sidebar-title: "Anthropic Messages"
+description: "Send Anthropic Messages API requests through the guardrails server, use streaming and tool calls, and check messages without generating."
+keywords: ["anthropic messages", "guardrails API", "claude", "streaming responses", "tool calls", "config_id"]
+content:
+  type: "tutorial"
+---
+
+Use the `/v1/messages` endpoint to send requests in [Anthropic Messages API](https://docs.anthropic.com/en/api/messages) format and receive guarded responses from the server.
+This is the Anthropic-native counterpart to the OpenAI-compatible [`/v1/chat/completions`](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model) endpoint.
+As with that endpoint, guardrails-specific fields are nested under a `guardrails` object.
+
+<Note>
+
+This endpoint is available only when the optional `anthropic` package is installed (`pip install "nemoguardrails[server]"`). If the package is absent, the server starts without the `/v1/messages` routes.
+
+</Note>
+
+## Basic Request
+
+Send a POST request to the messages endpoint.
+The `model` and `max_tokens` fields are required, matching the Anthropic Messages API.
+Guardrails-specific fields such as `config_id` are nested under the `guardrails` object.
+
+```bash
+curl -X POST http://localhost:8000/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Hello! What can you do for me?"}
+    ],
+    "guardrails": {
+      "config_id": "content_safety"
+    }
+  }'
+```
+
+### Response
+
+The response follows the standard Anthropic `Message` format, with an additional `guardrails` object containing guardrails-specific output data.
+
+```json
+{
+  "id": "msg_abc123",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-3-5-sonnet-20241022",
+  "content": [
+    {"type": "text", "text": "I can help you with your questions. What would you like to know?"}
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {"input_tokens": 0, "output_tokens": 0},
+  "guardrails": {
+    "config_id": "content_safety",
+    "log": null
+  }
+}
+```
+
+The `guardrails` response object is populated according to your request options — for example, `log` is present when `guardrails.options.log` is configured.
+
+## Using the Anthropic Python SDK
+
+Because the endpoint speaks the Anthropic Messages API, you can point the [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) at the guardrails server.
+Pass guardrails-specific fields using the `extra_body` parameter.
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="http://localhost:8000",
+    api_key="not-used",  # Required by the SDK but not used by the guardrails server
+)
+
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello! What can you do for me?"}
+    ],
+    extra_body={
+        "guardrails": {
+            "config_id": "content_safety"
+        }
+    },
+)
+
+print(message.content[0].text)
+```
+
+## Using Python Requests
+
+```python
+import requests
+
+base_url = "http://localhost:8000"
+
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello! What can you do for me?"}
+    ],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+
+print(response.json())
+```
+
+## System Prompt
+
+Provide a system prompt with the top-level `system` field, as a string or an array of content blocks.
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "system": "You are a helpful and concise assistant.",
+    "messages": [
+        {"role": "user", "content": "Summarize the water cycle in one sentence."}
+    ],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+```
+
+## Combine Multiple Configurations
+
+You can combine multiple guardrails configurations in a single request using `config_ids` inside the `guardrails` object.
+Use either `config_id` or `config_ids`, but not both — they are mutually exclusive.
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello!"}
+    ],
+    "guardrails": {
+        "config_ids": ["main", "input_checking", "output_checking"]
+    }
+})
+```
+
+The configurations combine in the order specified.
+If there are conflicts, the last configuration takes precedence.
+
+<Note>
+
+All configurations must use the same model type and engine.
+
+</Note>
+
+## Use the Default Configuration
+
+If the server was started with `--default-config-id`, you can omit the `guardrails` object:
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello!"}
+    ]
+})
+```
+
+If no `config_id` is provided and the server has no default configuration, the request fails with HTTP 422.
+
+## Streaming Responses
+
+Set `stream` to `true` to receive the response as Anthropic-format server-sent events (SSE).
+The server emits the standard Anthropic streaming event sequence: `message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, and `message_stop`.
+
+### Using curl
+
+```bash
+curl -X POST http://localhost:8000/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Tell me a story"}],
+    "stream": true,
+    "guardrails": {
+      "config_id": "content_safety"
+    }
+  }'
+```
+
+The server sends events in Anthropic SSE format:
+
+```text
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_abc123","type":"message","role":"assistant","content":[],"model":"claude-3-5-sonnet-20241022","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Once"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":42}}
+
+event: message_stop
+data: {"type":"message_stop"}
+```
+
+### Using the Anthropic Python SDK
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="http://localhost:8000",
+    api_key="not-used",
+)
+
+with client.messages.stream(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    extra_body={
+        "guardrails": {
+            "config_id": "content_safety"
+        }
+    },
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="")
+```
+
+## Tool Calls
+
+Pass Anthropic-format `tools` and, optionally, `tool_choice`.
+When the model calls a tool, the response includes a `tool_use` content block; in streaming mode, the tool call is emitted as a `content_block_start`/`content_block_delta`/`content_block_stop` sequence with an `input_json_delta`.
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "What is the weather in San Francisco?"}],
+    "tools": [
+        {
+            "name": "get_weather",
+            "description": "Get the current weather for a location.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"location": {"type": "string"}},
+                "required": ["location"]
+            }
+        }
+    ],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+```
+
+## Add Context
+
+Include additional context data using the `context` field inside the `guardrails` object:
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "What is my account balance?"}],
+    "guardrails": {
+        "config_id": "content_safety",
+        "context": {
+            "user_id": "12345",
+            "account_type": "premium"
+        }
+    }
+})
+```
+
+## Control Generation Options
+
+Use the `options` field inside the `guardrails` object to control which rails are applied and what information is returned:
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}],
+    "guardrails": {
+        "config_id": "content_safety",
+        "options": {
+            "rails": {
+                "input": True,
+                "output": True,
+                "dialog": False
+            },
+            "log": {
+                "activated_rails": True
+            }
+        }
+    }
+})
+```
+
+### Anthropic Parameters
+
+Standard Anthropic parameters such as `temperature`, `top_p`, `top_k`, `stop_sequences`, `metadata`, and `thinking` are accepted at the top level and forwarded to the model.
+
+```python
+response = requests.post(f"{base_url}/v1/messages", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}],
+    "temperature": 0.7,
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+```
+
+For complete details, see [Create Anthropic Message](api:POST/v1/messages).
+
+## Check Messages Without Generating
+
+Use `/v1/messages/checks` to run guardrails against Anthropic-format messages without generating a model response.
+This is the Anthropic-format counterpart to `/v1/checks`.
+It accepts the same request shape as `/v1/messages` and returns a `GuardrailCheckResponse`.
+
+```python
+response = requests.post(f"{base_url}/v1/messages/checks", json={
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "You are stupid."}],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+print(response.json())
+```
+
+The response reports the overall status, the content after rails processing, and the blocking rail, if any:
+
+```json
+{
+  "status": "blocked",
+  "content": "I'm sorry, I can't respond to that.",
+  "rail": "self check input"
+}
+```
+
+The `status` field is one of `passed`, `modified`, or `blocked`.
+
+<Note>
+
+The checks endpoint supports Colang 1.0 configurations only. A Colang 2.0 configuration returns HTTP 422.
+
+</Note>
+
+## Related Topics
+
+- [Chat with Guardrailed Model](/run-guardrailed-inference/using-fastapi-server/chat-with-guardrailed-model)
+- [Run the Guardrails Server](/run-guardrailed-inference/using-fastapi-server/run-guardrails-server)
+- [List Guardrail Configurations](/run-guardrailed-inference/using-fastapi-server/list-guardrail-configs)
+- [Create Anthropic Message](api:POST/v1/messages)
