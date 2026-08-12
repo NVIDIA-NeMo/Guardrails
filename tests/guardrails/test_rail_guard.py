@@ -31,9 +31,8 @@ from opentelemetry.trace import Tracer
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_engine import ModelEngineError
-from nemoguardrails.guardrails.rail_guard import rail_error_outcome, rail_error_result
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 
@@ -68,56 +67,36 @@ status_bearing_types = pytest.mark.parametrize(
 )
 
 
-entry_points = pytest.mark.parametrize(
-    "call", [rail_error_result, rail_error_outcome], ids=["rail_error_result", "rail_error_outcome"]
-)
-
-
-def verdict_of(returned) -> tuple[bool, str | None]:
-    """Flatten either return shape to ``(blocked, reason)``.
-
-    Lets one test cover both entry points, which pins that they agree by construction rather
-    than by a separate parity assertion someone could forget to update.
-    """
-    if isinstance(returned, RailResult):
-        return not returned.is_safe, returned.reason
-    return returned.is_blocked, returned.reason
-
-
 class TestFailsClosed:
-    """A rail that raises without an HTTP status blocks, identically at both entry points."""
+    """A rail that raises without an HTTP status blocks."""
 
-    @entry_points
-    def test_unexpected_exception_blocks_with_a_reason(self, call):
+    def test_unexpected_exception_blocks_with_a_reason(self):
         """An arbitrary exception becomes a blocking verdict naming the action."""
-        blocked, reason = verdict_of(call(None, ACTION_NAME, RuntimeError("parser blew up")))
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
-        assert blocked
-        assert reason == "content safety check input error: parser blew up"
+        assert outcome.is_blocked
+        assert outcome.reason == "content safety check input error: parser blew up"
 
-    @entry_points
     @status_bearing_types
-    def test_status_bearing_exception_without_a_status_blocks(self, call, make_exc):
+    def test_status_bearing_exception_without_a_status_blocks(self, make_exc):
         """A connection-level failure carries status=None, so it fails closed rather than propagating."""
-        blocked, reason = verdict_of(call(None, ACTION_NAME, make_exc(None)))
+        outcome = rail_error_outcome(None, ACTION_NAME, make_exc(None))
 
-        assert blocked
-        assert reason is not None
-        assert "upstream refused" in reason
+        assert outcome.is_blocked
+        assert outcome.reason is not None
+        assert "upstream refused" in outcome.reason
 
-    @entry_points
-    def test_reason_redacts_secrets(self, call):
+    def test_reason_redacts_secrets(self):
         """Credentials in an exception message are redacted before reaching the reason."""
-        _, reason = verdict_of(call(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret")))
+        outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
 
-        assert reason == "content safety check input error: auth rejected token nvapi-***"
+        assert outcome.reason == "content safety check input error: auth rejected token nvapi-***"
 
-    @entry_points
-    def test_blocking_verdict_records_the_span_error(self, call):
+    def test_blocking_verdict_records_the_span_error(self):
         """A blocked rail marks its span, so the failure is visible in the trace."""
         span = MagicMock()
 
-        call(span, ACTION_NAME, RuntimeError("parser blew up"))
+        rail_error_outcome(span, ACTION_NAME, RuntimeError("parser blew up"))
 
         span.record_exception.assert_called_once()
         span.set_attribute.assert_any_call("error.type", "RuntimeError")
@@ -126,28 +105,21 @@ class TestFailsClosed:
 class TestPropagatesUpstreamStatus:
     """An exception carrying an HTTP status propagates so the server can map it."""
 
-    @entry_points
     @status_bearing_types
-    def test_exception_with_a_status_is_reraised(self, call, make_exc):
+    def test_exception_with_a_status_is_reraised(self, make_exc):
         """A 503 from the upstream provider propagates rather than becoming a block."""
         exc = make_exc(503)
 
         with pytest.raises(type(exc)) as excinfo:
-            call(None, ACTION_NAME, exc)
+            rail_error_outcome(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
 
 
-class TestReturnShapes:
-    """The entry points differ only in the type they return, asserted whole."""
+class TestReturnShape:
+    """Every rail, compiled or tool, gets the same blocking RailOutcome."""
 
-    def test_tool_rail_entry_point_returns_a_rail_result(self):
-        """``rail_error_result`` yields a blocking RailResult."""
-        returned = rail_error_result(None, ACTION_NAME, RuntimeError("parser blew up"))
-
-        assert returned == RailResult(is_safe=False, reason="content safety check input error: parser blew up")
-
-    def test_compiled_rail_entry_point_returns_a_rail_outcome(self):
+    def test_entry_point_returns_a_rail_outcome(self):
         """``rail_error_outcome`` yields a blocking RailOutcome with no metadata or transforms."""
         returned = rail_error_outcome(None, ACTION_NAME, RuntimeError("parser blew up"))
 
@@ -168,7 +140,7 @@ class TestLogsAreRedacted:
     def test_blocking_path_logs_the_redacted_message(self, caplog):
         """A blocked rail logs the redacted text rather than the raw credential."""
         with caplog.at_level(logging.ERROR, logger=self.LOGGER):
-            rail_error_result(None, ACTION_NAME, RuntimeError(f"auth rejected {self.SECRET}"))
+            rail_error_outcome(None, ACTION_NAME, RuntimeError(f"auth rejected {self.SECRET}"))
 
         assert self.SECRET not in caplog.text
         assert self.REDACTED in caplog.text
@@ -179,7 +151,7 @@ class TestLogsAreRedacted:
 
         with caplog.at_level(logging.ERROR, logger=self.LOGGER):
             with pytest.raises(ModelEngineError):
-                rail_error_result(None, ACTION_NAME, exc)
+                rail_error_outcome(None, ACTION_NAME, exc)
 
         assert self.SECRET not in caplog.text
         assert self.REDACTED in caplog.text
@@ -195,7 +167,7 @@ class TestLogsAreRedacted:
 
         with caplog.at_level(logging.ERROR, logger=self.LOGGER):
             with pytest.raises(ModelEngineError) as excinfo:
-                rail_error_result(None, ACTION_NAME, exc)
+                rail_error_outcome(None, ACTION_NAME, exc)
 
         assert excinfo.value is exc
         assert self.SECRET in str(excinfo.value)
@@ -219,7 +191,7 @@ class TestSpanErrorRecording:
         exc = ModelEngineError("upstream refused", model_name="guard-model", status=503)
 
         with pytest.raises(ModelEngineError):
-            rail_error_result(span, ACTION_NAME, exc)
+            rail_error_outcome(span, ACTION_NAME, exc)
 
         span.record_exception.assert_not_called()
 
@@ -228,9 +200,9 @@ class TestSpanErrorRecording:
         tracer, exporter = recording_tracer()
 
         with action_span(tracer, ACTION_NAME) as span:
-            result = rail_error_result(span, ACTION_NAME, RuntimeError("parser blew up"))
+            result = rail_error_outcome(span, ACTION_NAME, RuntimeError("parser blew up"))
 
-        assert result.is_safe is False
+        assert result.is_blocked
         events = exception_events(exporter)
         assert len(events) == 1
         assert events[0].attributes["exception.type"] == "RuntimeError"
@@ -242,7 +214,7 @@ class TestSpanErrorRecording:
 
         with pytest.raises(ModelEngineError):
             with action_span(tracer, ACTION_NAME) as span:
-                rail_error_result(span, ACTION_NAME, exc)
+                rail_error_outcome(span, ACTION_NAME, exc)
 
         events = exception_events(exporter)
         assert len(events) == 1
@@ -257,7 +229,7 @@ class TestSpanErrorRecording:
 
         with pytest.raises(ModelEngineError):
             with action_span(tracer, ACTION_NAME) as span:
-                rail_error_result(span, ACTION_NAME, exc)
+                rail_error_outcome(span, ACTION_NAME, exc)
 
         (finished,) = exporter.get_finished_spans()
         assert finished.attributes is not None
@@ -273,13 +245,13 @@ class DummyToolRail(ToolRailAction):
         super().__init__()
         self._error = error
 
-    def check(self) -> RailResult:
+    def check(self) -> RailOutcome:
         """Run the guarded check, raising the configured error when there is one."""
 
-        def _check() -> RailResult:
+        def _check() -> RailOutcome:
             if self._error is not None:
                 raise self._error
-            return RailResult(is_safe=True)
+            return RailOutcome.allow()
 
         return self._guarded(_check)
 
@@ -289,13 +261,13 @@ class TestToolRailsShareTheEnvelope:
 
     def test_successful_check_is_returned_unchanged(self):
         """A check that returns normally is passed through untouched."""
-        assert DummyToolRail().check() == RailResult(is_safe=True)
+        assert DummyToolRail().check() == RailOutcome.allow()
 
     def test_exception_becomes_a_blocking_result_with_secrets_redacted(self):
         """A malformed payload fails closed, named after the rail and with credentials removed."""
         result = DummyToolRail(ValueError("bad header sk-abc123secret")).check()
 
-        assert result == RailResult(is_safe=False, reason="tool call validation error: bad header sk-***")
+        assert result == RailOutcome.block(reason="tool call validation error: bad header sk-***")
 
     def test_status_bearing_exception_is_reraised(self):
         """A tool rail is held to the same propagation policy, though no shipped one can raise this."""

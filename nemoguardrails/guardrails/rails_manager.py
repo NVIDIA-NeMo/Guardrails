@@ -152,8 +152,7 @@ def _rail_result(outcome: RailOutcome) -> RailResult:
         # rewrite. Raising keeps it that way, because the alternative -- reading TRANSFORM as
         # "not blocked" -- allows the request and discards the rewrite with nothing to see.
         raise NotImplementedError(f"rail returned {outcome.decision.value!r}, which IORails cannot apply")
-    allowed = not outcome.is_blocked
-    return RailResult(is_safe=allowed, reason=outcome.reason, return_value={"allowed": allowed, **outcome.metadata})
+    return RailResult(outcome)
 
 
 def _model_free_record(flow: str, rail_type: str, result: RailResult) -> RailCallRecord:
@@ -167,7 +166,7 @@ def _model_free_record(flow: str, rail_type: str, result: RailResult) -> RailCal
         is_safe=result.is_safe,
         made_call=False,
         action_name=action_name,
-        return_value=result.return_value if result.return_value is not None else {"allowed": result.is_safe},
+        return_value=result.return_value,
         task=f"{action_name} $model={model}" if model else action_name,
     )
 
@@ -334,7 +333,7 @@ class RailsManager:
         """
         active = self._enabled_flows(self.input_flows, enabled)
         if not active:
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in active}
         if self.input_parallel:
@@ -353,7 +352,7 @@ class RailsManager:
         """
         active = self._enabled_flows(self.output_flows, enabled)
         if not active:
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         rails = {flow: self._run_rail(flow, RailDirection.OUTPUT, messages, bot_response=response) for flow in active}
         if self.output_parallel:
@@ -376,12 +375,12 @@ class RailsManager:
         """
         active = self._enabled_flows(list(self._tool_call_actions), enabled)
         if not active or not tool_calls:
-            return RailResult(is_safe=True)
+            return RailResult.allow()
         try:
             toolset = self.engine_registry.parse_tools(model_type, llm_params)
         except Exception as e:
             log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"tool parsing failed: {e}")
+            return RailResult.block(reason=f"tool parsing failed: {e}")
 
         rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
@@ -403,14 +402,14 @@ class RailsManager:
         """
         active = self._enabled_flows(list(self._tool_result_actions), enabled)
         if not active:
-            return RailResult(is_safe=True)
+            return RailResult.allow()
         try:
             exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
         except Exception as e:
             log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
+            return RailResult.block(reason=f"tool exchange extraction failed: {e}")
         if not any(exchange.results for exchange in exchanges):
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
@@ -457,7 +456,7 @@ class RailsManager:
     async def _run_tool_call_rail(self, flow: str, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
-            result = await self._tool_call_actions[flow].run(toolset, tool_calls)
+            result = _rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls))
             result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -476,11 +475,12 @@ class RailsManager:
         """
         action = self._tool_result_actions[flow]
         with rail_span(self._tracer, flow, RailDirection.INPUT) as span:
-            result = RailResult(is_safe=True)
+            outcome = RailOutcome.allow()
             for exchange in exchanges:
-                result = await action.run(exchange.results, exchange.calls)
-                if not result.is_safe:
+                outcome = await action.run(exchange.results, exchange.calls)
+                if outcome.is_blocked:
                     break
+            result = _rail_result(outcome)
             result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -513,7 +513,7 @@ class RailsManager:
                 if not result.is_safe:
                     log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
                     return replace(result, records=tuple(collected))
-            return RailResult(is_safe=True, records=tuple(collected))
+            return RailResult.allow(records=tuple(collected))
         finally:
             for _, coro in remaining:
                 coro.close()
@@ -552,7 +552,7 @@ class RailsManager:
                             t.cancel()
                         await asyncio.wait(pending_tasks)
                     return replace(first_unsafe, records=tuple(collected))
-            return RailResult(is_safe=True, records=tuple(collected))
+            return RailResult.allow(records=tuple(collected))
         except BaseException:
             for t in tasks:
                 if not t.done():

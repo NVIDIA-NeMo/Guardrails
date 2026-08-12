@@ -20,6 +20,7 @@ import pytest
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
+    RailCallRecord,
     RailResult,
     client_reason,
     display_reason,
@@ -32,63 +33,96 @@ class TestRailResult:
 
     def test_safe_result_defaults(self):
         """Test creating a safe result with default reason=None."""
-        result = RailResult(is_safe=True)
+        result = RailResult.allow()
         assert result.is_safe is True
         assert result.reason is None
 
     def test_safe_result_explicit_none(self):
         """Test creating a safe result with explicit reason=None."""
-        result = RailResult(is_safe=True, reason=None)
+        result = RailResult.allow(reason=None)
         assert result.is_safe is True
         assert result.reason is None
 
     def test_unsafe_result_with_reason(self):
         """Test creating an unsafe result with a reason string."""
-        result = RailResult(is_safe=False, reason="Content safety violation")
+        result = RailResult.block(reason="Content safety violation")
         assert result.is_safe is False
         assert result.reason == "Content safety violation"
 
     def test_unsafe_result_without_reason(self):
         """Test creating an unsafe result without a reason."""
-        result = RailResult(is_safe=False)
+        result = RailResult.block()
         assert result.is_safe is False
         assert result.reason is None
 
     def test_equality_same_values(self):
         """Test that two RailResults with the same values are equal."""
-        a = RailResult(is_safe=True)
-        b = RailResult(is_safe=True)
+        a = RailResult.allow()
+        b = RailResult.allow()
         assert a == b
 
     def test_equality_with_reason(self):
         """Test equality when both have the same reason."""
-        a = RailResult(is_safe=False, reason="blocked")
-        b = RailResult(is_safe=False, reason="blocked")
+        a = RailResult.block(reason="blocked")
+        b = RailResult.block(reason="blocked")
         assert a == b
 
     def test_inequality_different_is_safe(self):
         """Test inequality when is_safe differs."""
-        a = RailResult(is_safe=True)
-        b = RailResult(is_safe=False)
+        a = RailResult.allow()
+        b = RailResult.block()
         assert a != b
 
     def test_inequality_different_reason(self):
         """Test inequality when reason differs."""
-        a = RailResult(is_safe=False, reason="reason1")
-        b = RailResult(is_safe=False, reason="reason2")
+        a = RailResult.block(reason="reason1")
+        b = RailResult.block(reason="reason2")
         assert a != b
 
     def test_repr(self):
-        """Test the string representation."""
-        result = RailResult(is_safe=False, reason="jailbreak")
-        assert "is_safe=False" in repr(result)
+        """Test that the representation shows the wrapped outcome, which carries the verdict."""
+        result = RailResult.block(reason="jailbreak")
+        assert "RailDecision.BLOCK" in repr(result)
         assert "reason='jailbreak'" in repr(result)
 
     def test_reason_with_empty_string(self):
         """Test that empty string reason is distinct from None."""
-        result = RailResult(is_safe=False, reason="")
+        result = RailResult.block(reason="")
         assert result.reason == ""
-        assert result != RailResult(is_safe=False, reason=None)
+        assert result != RailResult.block(reason=None)
+
+    def test_return_value_derives_from_the_outcome(self):
+        """The structured verdict is the decision plus the outcome's metadata, not a stored copy."""
+        result = RailResult.block(metadata={"policy_violations": ["S1: Violence"]})
+
+        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
+
+    def test_return_value_of_a_bare_allow_states_only_the_decision(self):
+        """A rail with no metadata still yields a verdict the GenerationLog can record."""
+        assert RailResult.allow().return_value == {"allowed": True}
+
+    def test_metadata_participates_in_equality(self):
+        """Two blocks differing only in evidence are no longer equal.
+
+        The verdict now lives in a single ``RailOutcome``, so metadata is compared with the
+        rest of it. Previously ``return_value`` was excluded from equality and these compared
+        equal; this is the one behavioural change in the wrapper.
+        """
+        a = RailResult.block(reason="blocked", metadata={"score": 0.9})
+        b = RailResult.block(reason="blocked", metadata={"score": 0.1})
+
+        assert a != b
+
+    def test_records_stay_out_of_equality(self):
+        """Captured log data is not part of the verdict, so it does not affect comparison."""
+        record = RailCallRecord(flow="content safety check input", rail_type="input", is_safe=False)
+
+        assert RailResult.block(reason="blocked", records=(record,)) == RailResult.block(reason="blocked")
+
+    def test_is_unhashable_and_says_so(self):
+        """The wrapped outcome is unhashable, and the error names this type rather than leaking from inside."""
+        with pytest.raises(TypeError, match="unhashable type: 'RailResult'"):
+            hash(RailResult.allow())
 
 
 class TestTruncate:
@@ -122,57 +156,44 @@ class TestDisplayReason:
     @pytest.mark.parametrize(
         "result, expected",
         [
-            (RailResult(is_safe=False, reason="Safety categories: S1: Violence"), "Safety categories: S1: Violence"),
+            (RailResult.block(reason="Safety categories: S1: Violence"), "Safety categories: S1: Violence"),
             (
-                RailResult(
-                    is_safe=False,
+                RailResult.block(
                     reason="Safety categories: S1: Violence",
+                    metadata={"policy_violations": ["S2: Sexual"]},
                     triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": ["S2: Sexual"]},
                 ),
                 "Safety categories: S1: Violence",
             ),
             (
-                RailResult(
-                    is_safe=False,
+                RailResult.block(
+                    metadata={"policy_violations": ["S1: Violence", "S2: Sexual"]},
                     triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": ["S1: Violence", "S2: Sexual"]},
                 ),
                 "policy_violations: S1: Violence, S2: Sexual",
             ),
             (
-                RailResult(
-                    is_safe=False,
-                    triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": [], "score": 0},
+                RailResult.block(
+                    metadata={"policy_violations": [], "score": 0}, triggered_rail="content safety check input"
                 ),
                 "score: 0",
             ),
             (
-                RailResult(
-                    is_safe=False,
+                RailResult.block(
+                    metadata={"policy_violations": ["S1: Violence"], "score": 0.97},
                     triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": ["S1: Violence"], "score": 0.97},
                 ),
                 "policy_violations: S1: Violence; score: 0.97",
             ),
             (
-                RailResult(
-                    is_safe=False,
-                    triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": None},
-                ),
+                RailResult.block(metadata={"policy_violations": None}, triggered_rail="content safety check input"),
                 "content safety check input",
             ),
             (
-                RailResult(
-                    is_safe=False,
-                    triggered_rail="jailbreak detection model",
-                    return_value={"allowed": False},
-                ),
+                RailResult.block(triggered_rail="jailbreak detection model"),
                 "jailbreak detection model",
             ),
-            (RailResult(is_safe=False), "unspecified"),
+            (RailResult.block(), "unspecified"),
         ],
         ids=[
             "reason",
@@ -191,60 +212,68 @@ class TestDisplayReason:
 
 
 class TestClientReason:
-    """What reaches the caller in a block payload, as opposed to what reaches the log."""
+    """What reaches the caller in a block payload, as opposed to what reaches the log.
+
+    The caller is told the rail's own ``reason`` and nothing else. Metadata is neutral
+    evidence for diagnosis, not a client contract: crowdstrike_aidr puts the user and bot
+    messages in it, regex puts the matched text in it, and f5 forwards the provider
+    response. A rail that wants the caller to know why it blocked says so in ``reason``,
+    which it authors for exactly that purpose.
+    """
 
     CROWDSTRIKE_VERDICT = {
-        "allowed": False,
         "blocked": True,
         "guard_output": "policy 7",
         "user_message": "my private question",
         "bot_message": "the draft reply",
     }
 
+    # ``_regex_outcome`` builds metadata from its whole ``RegexDetectionResult``, so the
+    # text being checked and the substrings that matched are both in there.
+    REGEX_VERDICT = {
+        "is_match": True,
+        "text": "my card is 4111 1111 1111 1111",
+        "detections": ["4111 1111 1111 1111"],
+        "source": "input",
+    }
+
+    def test_a_rail_authored_reason_is_what_the_caller_sees(self):
+        """A rail that explains itself has that explanation forwarded verbatim."""
+        result = RailResult.block(reason="Safety categories: S1: Violence")
+
+        assert client_reason(result) == "Safety categories: S1: Violence"
+
+    def test_the_reason_wins_over_the_rail_name(self):
+        """Naming the rail is the fallback, not a prefix or a suffix."""
+        result = RailResult.block(reason="Cisco AI Defense flagged the content as unsafe.", triggered_rail="a rail")
+
+        assert client_reason(result) == "Cisco AI Defense flagged the content as unsafe."
+
     @pytest.mark.parametrize(
-        "result, expected",
+        ("metadata", "withheld"),
         [
-            (RailResult(is_safe=False, reason="Safety categories: S1: Violence"), "Safety categories: S1: Violence"),
-            (
-                RailResult(
-                    is_safe=False,
-                    triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": ["S1: Violence"]},
-                ),
-                "policy_violations: S1: Violence",
-            ),
-            (
-                RailResult(
-                    is_safe=False,
-                    triggered_rail="content safety check input",
-                    return_value={"allowed": False, "policy_violations": ["S1: Violence"], "raw_response": "..."},
-                ),
-                "policy_violations: S1: Violence",
-            ),
+            (CROWDSTRIKE_VERDICT, "my private question"),
+            (REGEX_VERDICT, "4111 1111 1111 1111"),
+            ({"policy_violations": ["S1: Violence"]}, "S1: Violence"),
+            ({"trustworthiness_score": 0.12}, "0.12"),
+            ({"score": 0.4, "threshold": 0.75}, "0.4"),
         ],
-        ids=["reason-passes-through", "listed-key", "unlisted-key-dropped-from-a-mix"],
+        ids=["crowdstrike", "regex", "content-safety", "cleanlab", "autoalign"],
     )
-    def test_only_listed_verdict_fields_reach_the_caller(self, result, expected):
-        """A rail-authored reason passes through; verdict fields reach the caller only by name."""
-        assert client_reason(result) == expected
+    def test_no_verdict_metadata_reaches_the_caller(self, metadata, withheld):
+        """Metadata stays out of the payload whether or not it happens to look safe to disclose.
 
-    def test_an_entirely_unlisted_verdict_falls_back_to_the_rail_name(self):
-        """A rail whose evidence is all unlisted names itself rather than disclosing nothing useful."""
-        result = RailResult(
-            is_safe=False,
-            triggered_rail="crowdstrike aidr guard input",
-            return_value=self.CROWDSTRIKE_VERDICT,
-        )
+        Pinned across payloads that differ in how sensitive they look, because the previous
+        design turned on that judgement per field and this one deliberately does not.
+        """
+        result = RailResult.block(metadata=metadata, triggered_rail="a rail")
 
-        assert client_reason(result) == "crowdstrike aidr guard input"
+        assert withheld not in client_reason(result)
+        assert client_reason(result) == "a rail"
 
     def test_the_log_still_carries_what_the_caller_does_not(self):
         """The restriction is on the payload only; diagnosis keeps the full verdict."""
-        result = RailResult(
-            is_safe=False,
-            triggered_rail="crowdstrike aidr guard input",
-            return_value=self.CROWDSTRIKE_VERDICT,
-        )
+        result = RailResult.block(metadata=self.CROWDSTRIKE_VERDICT, triggered_rail="crowdstrike aidr guard input")
 
         rendered = display_reason(result)
 
@@ -252,70 +281,9 @@ class TestClientReason:
         assert "the draft reply" in rendered
         assert "my private question" not in client_reason(result)
 
-    # The verdicts below come from rails IORails now runs, so these are live payloads rather
-    # than anticipated ones.
-
-    REGEX_VERDICT = {
-        "allowed": False,
-        "is_match": True,
-        "text": "my card is 4111 1111 1111 1111",
-        "detections": ["4111 1111 1111 1111"],
-        "source": "input",
-    }
-
-    def test_a_regex_verdict_does_not_echo_the_checked_text(self):
-        """``regex check input`` puts the message and the matched excerpts in its verdict.
-
-        ``_regex_outcome`` builds metadata from its whole ``RegexDetectionResult``, so the
-        text being checked and the substrings that matched are both in there. Neither may
-        reach the caller: echoing a card number back over the API to say it was blocked for
-        containing a card number is the failure this allowlist exists to prevent.
-        """
-        result = RailResult(is_safe=False, triggered_rail="regex check input", return_value=self.REGEX_VERDICT)
-
-        rendered = client_reason(result)
-
-        assert "4111 1111 1111 1111" not in rendered
-        assert rendered == "regex check input"
-
-    @pytest.mark.parametrize(
-        "return_value, expected",
-        [
-            (
-                {"allowed": False, "triggered_violation": "hate_speech", "max_risk_score": 0.95},
-                "triggered_violation: hate_speech; max_risk_score: 0.95",
-            ),
-            (
-                {"allowed": False, "assessment": "UNSAFE", "category": "pii", "severity": "high"},
-                "assessment: UNSAFE; category: pii; severity: high",
-            ),
-            ({"allowed": False, "trustworthiness_score": 0.12}, "trustworthiness_score: 0.12"),
-            ({"allowed": False, "score": 0.4, "threshold": 0.75}, "score: 0.4; threshold: 0.75"),
-        ],
-        ids=["activefence", "policyai", "cleanlab", "autoalign"],
-    )
-    def test_classification_and_score_evidence_reaches_the_caller(self, return_value, expected):
-        """A rail that classified or scored the content says so; that is why it was blocked."""
-        result = RailResult(is_safe=False, triggered_rail="a rail", return_value=return_value)
-
-        assert client_reason(result) == expected
-
-    @pytest.mark.parametrize(
-        "key, value",
-        [("has_pii", True), ("blocked", True), ("is_blocked", True), ("valid", False), ("action", "Block")],
-    )
-    def test_a_verdict_that_only_restates_the_block_names_the_rail_instead(self, key, value):
-        """A boolean echoing the decision is not evidence, so the rail name is the better answer.
-
-        Kept off the allowlist deliberately rather than by oversight: a caller holding a block
-        learns nothing from ``blocked: True``, and listing it would cost a disclosure decision
-        for no gain.
-        """
-        result = RailResult(
-            is_safe=False, triggered_rail="detect pii on input", return_value={"allowed": False, key: value}
-        )
-
-        assert client_reason(result) == "detect pii on input"
+    def test_a_block_with_nothing_to_say_is_unspecified(self):
+        """A rail that supplies neither a reason nor a name still yields a printable string."""
+        assert client_reason(RailResult.block()) == "unspecified"
 
 
 class TestTypeAliases:

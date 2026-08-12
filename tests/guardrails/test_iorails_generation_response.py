@@ -55,9 +55,16 @@ def iorails_sync():
 
 def _stub_safe_rails(iorails: IORails) -> None:
     """Default-safe input, output, and tool-call rails so tests focus on the LLM response."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
-    iorails.rails_manager.are_tool_calls_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+    iorails.rails_manager.are_tool_calls_safe = AsyncMock(return_value=RailResult.allow())
+
+
+def _blocked_unless(safe: bool) -> RailResult:
+    """An allow when *safe*, otherwise a block naming the standard test reason."""
+    if safe:
+        return RailResult.allow()
+    return RailResult.block(reason="unsafe")
 
 
 def _stub_model(iorails: IORails, response: LLMResponse) -> None:
@@ -272,12 +279,8 @@ class TestBlockedStructuredResponse:
     )
     async def test_block_returns_refusal_response(self, iorails, input_safe, output_safe):
         """A block at either the input or output rail yields a GenerationResponse whose response is the refusal and whose other fields are empty."""
-        iorails.rails_manager.is_input_safe = AsyncMock(
-            return_value=RailResult(is_safe=input_safe, reason=None if input_safe else "unsafe")
-        )
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=output_safe, reason=None if output_safe else "unsafe")
-        )
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=_blocked_unless(input_safe))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=_blocked_unless(output_safe))
         _stub_model(iorails, LLMResponse(content="bad answer"))
 
         result = await iorails.generate_async(messages=_USER, options={})
@@ -308,8 +311,8 @@ class TestSyncGenerateStructured:
 
     def test_sync_generate_with_options_returns_generation_response(self, iorails_sync):
         """``generate(options=...)`` returns a GenerationResponse from the ephemeral engine."""
-        iorails_sync.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails_sync.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_sync.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails_sync.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
         iorails_sync.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="Hello"))
 
         with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails_sync):

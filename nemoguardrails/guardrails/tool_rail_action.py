@@ -24,8 +24,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Callable, Optional
 
-from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.rail_guard import rail_error_result
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 
 if TYPE_CHECKING:
@@ -44,11 +44,11 @@ class ToolRailAction:
         """Store the optional tracer used to emit the action span."""
         self._tracer = tracer
 
-    def _guarded(self, check: Callable[[], RailResult]) -> RailResult:
+    def _guarded(self, check: Callable[[], RailOutcome]) -> RailOutcome:
         """Run *check* inside an action span, converting a failure into a block.
 
         Shares the engine's fail-closed contract with every other rail through
-        :func:`~nemoguardrails.guardrails.rail_guard.rail_error_result`, so a malformed
+        :func:`~nemoguardrails.guardrails.rail_guard.rail_error_outcome`, so a malformed
         input or a rail bug fails closed rather than crashing the request.
 
         HTTP Errors from downstream calls propagate to the client.
@@ -60,4 +60,4 @@ class ToolRailAction:
             try:
                 return check()
             except Exception as e:
-                return rail_error_result(span, self.action_name, e)
+                return rail_error_outcome(span, self.action_name, e)

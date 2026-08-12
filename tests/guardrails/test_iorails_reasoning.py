@@ -98,13 +98,13 @@ def caplog_iorails(caplog):
 
 def _stub_safe_rails(iorails: IORails) -> None:
     """Default-safe input + output rails so each test focuses on the LLM call."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
 
 def _stub_safe_input(iorails: IORails) -> None:
     """Stub only the input rail (streaming tests on input-only config)."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
 
 def _make_stream(*chunks: LLMResponseChunk):
@@ -218,8 +218,8 @@ class TestReasoningContent:
     async def test_output_rail_block_with_native_reasoning(self, iorails):
         """When output rails block, reasoning is dropped — refusal carries no <think> prefix."""
         messages = [{"role": "user", "content": "hi"}]
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content="bad answer", reasoning="reasoning step")
         )
@@ -232,8 +232,8 @@ class TestReasoningContent:
     async def test_output_rail_block_with_inline_tags(self, iorails):
         """Block path strips inline <think> tags from output-rail input even though the rail blocks."""
         messages = [{"role": "user", "content": "hi"}]
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content="<think>thinking</think>bad answer")
         )

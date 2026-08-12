@@ -38,12 +38,12 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
-SAFE = RailResult(is_safe=True)
+SAFE = RailResult.allow()
 
 
 def _unsafe(rail: str) -> RailResult:
     """Build an unsafe RailResult carrying the given triggered-rail name."""
-    return RailResult(is_safe=False, reason="unsafe", triggered_rail=rail)
+    return RailResult.block(reason="unsafe", triggered_rail=rail)
 
 
 @pytest.fixture
@@ -457,7 +457,7 @@ class TestCheckAsyncBlockedResult:
     @pytest.mark.asyncio
     async def test_blocked_without_triggered_rail_has_none(self, iorails):
         """A block whose RailResult carries no triggered_rail surfaces rail=None rather than crashing."""
-        _mock_rails(iorails, input_result=RailResult(is_safe=False, reason="unsafe"))
+        _mock_rails(iorails, input_result=RailResult.block(reason="unsafe"))
 
         result = await iorails.check_async([{"role": "user", "content": "bad"}])
 

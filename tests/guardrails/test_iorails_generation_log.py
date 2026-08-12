@@ -85,19 +85,17 @@ def _output_record() -> RailCallRecord:
     )
 
 
+def _input_rail_result(safe: bool, records: tuple) -> RailResult:
+    """An allow carrying *records*, or a block naming the content-safety input flow."""
+    if safe:
+        return RailResult.allow(records=records)
+    return RailResult.block(reason="unsafe", triggered_rail=_CS_INPUT_FLOW, records=records)
+
+
 def _stub_pipeline(iorails: IORails, *, input_records=(), output_records=(), input_safe=True) -> None:
     """Stub input/output rails to return given records, and a main call with usage."""
-    iorails.rails_manager.is_input_safe = AsyncMock(
-        return_value=RailResult(
-            is_safe=input_safe,
-            reason=None if input_safe else "unsafe",
-            triggered_rail=None if input_safe else _CS_INPUT_FLOW,
-            records=tuple(input_records),
-        )
-    )
-    iorails.rails_manager.is_output_safe = AsyncMock(
-        return_value=RailResult(is_safe=True, records=tuple(output_records))
-    )
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=_input_rail_result(input_safe, tuple(input_records)))
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow(records=tuple(output_records)))
     iorails.engine_registry.model_call = AsyncMock(
         return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=99, output_tokens=50, total_tokens=149))
     )
@@ -194,8 +192,8 @@ class TestUsageRemovedFromLlmMetadata:
     @pytest.mark.asyncio
     async def test_llm_metadata_has_no_usage_key(self, iorails):
         """provider_metadata is surfaced verbatim; no `usage` sub-key is added."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(
                 content="Hi",
@@ -211,8 +209,8 @@ class TestUsageRemovedFromLlmMetadata:
     @pytest.mark.asyncio
     async def test_llm_metadata_none_when_only_usage(self, iorails):
         """With usage but no provider_metadata, llm_metadata is None (usage no longer graft-in)."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.model_call = AsyncMock(
             return_value=LLMResponse(content="Hi", usage=UsageInfo(input_tokens=10, output_tokens=5, total_tokens=15))
         )
