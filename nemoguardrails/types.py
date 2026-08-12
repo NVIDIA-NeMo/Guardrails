@@ -87,7 +87,7 @@ class UsageInfo:
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "error", "other"]
 
 
-_STANDARD_MESSAGE_KEYS = {"role", "content", "tool_calls", "tool_call_id", "name", "provider_metadata"}
+_STANDARD_MESSAGE_KEYS = {"role", "content", "tool_calls", "tool_call_id", "name", "reasoning", "provider_metadata"}
 
 _ROLE_ALIASES = {
     "bot": Role.ASSISTANT,
@@ -107,6 +107,7 @@ class ChatMessage:
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
     name: Optional[str] = None
+    reasoning: Optional[Union[str, List[Dict[str, Any]]]] = None
     provider_metadata: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -139,6 +140,9 @@ class ChatMessage:
 
         if self.name is not None:
             payload["name"] = self.name
+
+        if self.reasoning is not None:
+            payload["reasoning"] = self.reasoning
 
         if self.provider_metadata:
             payload["provider_metadata"] = self.provider_metadata
@@ -212,6 +216,7 @@ class ChatMessage:
             tool_calls=tool_calls,
             tool_call_id=d.get("tool_call_id"),
             name=d.get("name"),
+            reasoning=d.get("reasoning"),
             provider_metadata=provider_metadata,
         )
 

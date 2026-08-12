@@ -1177,7 +1177,6 @@ class LLMRails(BaseGuardrails):
         # If there is a streaming handler, we make sure we close it now
         streaming_handler = streaming_handler_var.get()
         if streaming_handler:
-            # print("Closing the stream handler explicitly")
             await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs

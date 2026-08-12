@@ -747,9 +747,9 @@ class TestDefaultFramework:
         fw = DefaultFramework()
         try:
             with pytest.raises(ValueError) as excinfo:
-                fw.create_model("claude-3-5-sonnet-latest", "anthropic", {})
+                fw.create_model("some-model", "unknown_provider_xyz", {})
             message = str(excinfo.value)
-            assert "anthropic" in message
+            assert "unknown_provider_xyz" in message
             assert "parameters.base_url" in message
             assert "NEMOGUARDRAILS_LLM_FRAMEWORK=langchain" in message
             assert "langchain-<provider>" in message

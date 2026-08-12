@@ -162,10 +162,11 @@ def get_colang_history(
                 history += f"# The result was {return_value}\n"
             elif event["type"] == "mask_prev_user_message":
                 utterance_to_replace = get_last_user_utterance(events[:idx])
-                # We replace the last user utterance that led to jailbreak rail trigger with a placeholder text
-                split_history = history.rsplit(utterance_to_replace, 1)
-                placeholder_text = "<<<This text is hidden because the assistant should not talk about this.>>>"
-                history = placeholder_text.join(split_history)
+                if utterance_to_replace:
+                    # We replace the last user utterance that led to jailbreak rail trigger with a placeholder text
+                    split_history = history.rsplit(utterance_to_replace, 1)
+                    placeholder_text = "<<<This text is hidden because the assistant should not talk about this.>>>"
+                    history = placeholder_text.join(split_history)
 
     elif colang_version == "2.x":
         new_history: List[str] = []

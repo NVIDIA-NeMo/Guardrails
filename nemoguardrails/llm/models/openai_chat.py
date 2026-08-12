@@ -219,7 +219,7 @@ class OpenAIChatModel:
         choice = data["choices"][0]
 
         content = message.get("content") or ""
-        reasoning = message.get("reasoning_content")
+        reasoning = message.get("reasoning_content") or message.get("reasoning")
 
         tool_calls = None
         raw_tool_calls = message.get("tool_calls")
@@ -287,7 +287,7 @@ class OpenAIChatModel:
         delta = choice.get("delta", {})
 
         content = delta.get("content")
-        reasoning = delta.get("reasoning_content")
+        reasoning = delta.get("reasoning_content") or delta.get("reasoning")
         raw_finish = choice.get("finish_reason")
         finish_reason = _FINISH_REASON_MAP.get(raw_finish, "other") if raw_finish else None
 
