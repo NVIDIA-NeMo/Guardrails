@@ -26,14 +26,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, unservable_reason
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     IORails,
+    _compile_only_deps,
     _duplicate_flows_reason,
     _unsupported_flows_reason,
 )
 from nemoguardrails.logging.explain import ExplainInfo
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
+from nemoguardrails.manifests import default_rail_catalog
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, RailStatus, RailType
@@ -2063,3 +2066,138 @@ class TestOptionsForwarding:
 
             assert guardrails.rails_engine.generate.call_args.kwargs["options"] is options
             assert guardrails.rails_engine.generate_async.call_args.kwargs["options"] is options
+
+
+class TestScopeGateCharacterization:
+    """The set of surfaces IORails admits, pinned independently of how the gate computes it.
+
+    Written ahead of removing the engine's hand-maintained enabled-surface list, whose 42
+    names were the same set the surface-level refusals already produce. The names are
+    repeated here rather than derived, so these fail if the scope moves for any reason.
+
+    Scope is asked of ``unservable_reason``, which resolves the surface and stops: it needs no
+    config, imports no action, and so answers "is this rail in scope" without conflating it
+    with "is this particular config able to run it". The full gate is used only where that
+    wider question is the point.
+    """
+
+    ADMITTED_SURFACES = frozenset(
+        {
+            ("input", "activefence moderation on input"),
+            ("input", "activefence moderation on input detailed"),
+            ("input", "ai defense inspect prompt"),
+            ("input", "clavata check input"),
+            ("input", "content safety check input"),
+            ("input", "detect pii on input"),
+            ("input", "detect sensitive data on input"),
+            ("input", "f5 guardrails scan input"),
+            ("input", "fiddler user safety"),
+            ("input", "gcpnlp moderation"),
+            ("input", "gcpnlp moderation detailed"),
+            ("input", "gliner detect pii on input"),
+            ("input", "guardrailsai check input"),
+            ("input", "hf classifier check input"),
+            ("input", "jailbreak detection heuristics"),
+            ("input", "jailbreak detection model"),
+            ("input", "llama guard check input"),
+            ("input", "policyai moderation on input"),
+            ("input", "polygraf detect pii on input"),
+            ("input", "regex check input"),
+            ("input", "self check input"),
+            ("input", "topic safety check input"),
+            ("input", "trend ai guard input"),
+            ("output", "activefence moderation on output"),
+            ("output", "ai defense inspect response"),
+            ("output", "autoalign factcheck output"),
+            ("output", "clavata check output"),
+            ("output", "cleanlab trustworthiness"),
+            ("output", "content safety check output"),
+            ("output", "detect pii on output"),
+            ("output", "detect sensitive data on output"),
+            ("output", "f5 guardrails scan output"),
+            ("output", "fiddler bot safety"),
+            ("output", "gliner detect pii on output"),
+            ("output", "guardrailsai check output"),
+            ("output", "hf classifier check output"),
+            ("output", "llama guard check output"),
+            ("output", "policyai moderation on output"),
+            ("output", "polygraf detect pii on output"),
+            ("output", "regex check output"),
+            ("output", "self check output"),
+            ("output", "trend ai guard output"),
+        }
+    )
+
+    @staticmethod
+    def _surface_reason(flow: str, direction: SurfaceDirection):
+        """Why the surface itself is out of scope, or None -- no config, no compilation."""
+        return unservable_reason(flow, direction)
+
+    @staticmethod
+    def _gate_reason(flow: str, direction: SurfaceDirection):
+        """Why the whole selection gate rejects a flow, compilation included."""
+        deps = _compile_only_deps(_make_iorails_config(rails=_IORAILS_BASE_RAILS))
+        return IORails._unservable_rails_reason([flow], direction, deps)
+
+    def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
+        """Every catalog surface in scope is one of the 42 named here, and vice versa."""
+        admitted = {
+            (direction.value, name)
+            for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
+            for (surface_direction, name) in default_rail_catalog().surfaces()
+            if surface_direction is direction and self._surface_reason(name, direction) is None
+        }
+
+        assert admitted == self.ADMITTED_SURFACES
+
+    def test_no_surface_is_refused_for_being_out_of_scope(self):
+        """No catalog surface reaches the out-of-scope branch of the gate.
+
+        This is what makes removing the enabled-surface list behaviour-preserving: every
+        rejection is already attributed to a specific limitation -- a transform target,
+        retrieval evidence, an absent extra, an undeclared model, a missing parameter --
+        rather than to membership of a hand-maintained list. Run through the full gate,
+        including flows too incomplete to compile, because those are the ones that would
+        otherwise fall through to the membership test.
+        """
+        refused_as_out_of_scope = [
+            (direction.value, name, reason)
+            for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
+            for (surface_direction, name) in default_rail_catalog().surfaces()
+            if surface_direction is direction
+            and (reason := self._gate_reason(name, direction)) is not None
+            and "config has unsupported" in reason
+        ]
+
+        assert not refused_as_out_of_scope
+
+    @pytest.mark.parametrize(
+        ("flow", "direction", "expected"),
+        [
+            (
+                "autoalign check input",
+                SurfaceDirection.INPUT,
+                "'autoalign check input' transforms 'user_message'",
+            ),
+            (
+                "self check facts",
+                SurfaceDirection.OUTPUT,
+                "'self check facts' needs retrieval evidence, which manifest-driven execution does not supply yet",
+            ),
+            (
+                "content safety check output",
+                SurfaceDirection.INPUT,
+                "'content safety check output' has no surface named 'content safety check output' "
+                "with direction INPUT in the rail catalog; it is available with direction OUTPUT",
+            ),
+            (
+                "no such rail",
+                SurfaceDirection.INPUT,
+                "'no such rail' has no surface named 'no such rail' with direction INPUT in the rail catalog",
+            ),
+        ],
+        ids=["transform", "retrieval_evidence", "misdirected", "unknown"],
+    )
+    def test_the_refusal_reason_names_the_limitation(self, flow, direction, expected):
+        """Each class of refusal reports why, in wording a config author can act on."""
+        assert self._surface_reason(flow, direction) == expected

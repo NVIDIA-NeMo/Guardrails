@@ -312,13 +312,14 @@ def _resolve_surface(flow: str, direction: RailDirection, catalog: "RailCatalog"
     if surface is not None:
         return surface, params
 
-    other_directions = sorted(key[0].value for key in surfaces if key[1] == surface_name and key[0] is not direction)
-    if other_directions:
-        raise RailCompilationError(
-            f"{flow!r} declares direction {direction.value!r} but {surface_name!r} "
-            f"is only available as {', '.join(other_directions)}"
-        )
-    raise RailCompilationError(f"{flow!r} has no surface named {surface_name!r} in the rail catalog")
+    # A surface configured in the wrong section is a likelier mistake than a misspelled name,
+    # and the two are indistinguishable from the message alone, so name the sections it does
+    # have. Appended rather than raised separately: one refusal, one place to change it.
+    available = sorted({key[0].name for key in surfaces if key[1] == surface_name})
+    hint = f"; it is available with direction {', '.join(available)}" if available else ""
+    raise RailCompilationError(
+        f"{flow!r} has no surface named {surface_name!r} with direction {direction.name} in the rail catalog{hint}"
+    )
 
 
 def _binding_source_key(binding: Binding, flow: str) -> str:

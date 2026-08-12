@@ -555,60 +555,6 @@ class IORails(BaseGuardrails):
     # Rail sections and flows that this engine can handle. Configs using anything
     # outside these sets fall back to LLMRails.
     SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
-    # The rails this engine runs. Compilation decides whether a flow is *servable*; this
-    # decides whether it is in scope. Listed rather than derived from the catalog on purpose:
-    # enabling a rail is a decision, and a surface added to the catalog later should not turn
-    # itself on. Every block-only input/output surface is here except the seven whose actions
-    # read retrieval evidence IORails has no source for; transform surfaces wait on rewrite
-    # support.
-    _ENABLED_SURFACES = frozenset(
-        {
-            # input rails (23)
-            (SurfaceDirection.INPUT, "activefence moderation on input"),
-            (SurfaceDirection.INPUT, "activefence moderation on input detailed"),
-            (SurfaceDirection.INPUT, "ai defense inspect prompt"),
-            (SurfaceDirection.INPUT, "clavata check input"),
-            (SurfaceDirection.INPUT, "content safety check input"),
-            (SurfaceDirection.INPUT, "detect pii on input"),
-            (SurfaceDirection.INPUT, "detect sensitive data on input"),
-            (SurfaceDirection.INPUT, "f5 guardrails scan input"),
-            (SurfaceDirection.INPUT, "fiddler user safety"),
-            (SurfaceDirection.INPUT, "gcpnlp moderation"),
-            (SurfaceDirection.INPUT, "gcpnlp moderation detailed"),
-            (SurfaceDirection.INPUT, "gliner detect pii on input"),
-            (SurfaceDirection.INPUT, "guardrailsai check input"),
-            (SurfaceDirection.INPUT, "hf classifier check input"),
-            (SurfaceDirection.INPUT, "jailbreak detection heuristics"),
-            (SurfaceDirection.INPUT, "jailbreak detection model"),
-            (SurfaceDirection.INPUT, "llama guard check input"),
-            (SurfaceDirection.INPUT, "policyai moderation on input"),
-            (SurfaceDirection.INPUT, "polygraf detect pii on input"),
-            (SurfaceDirection.INPUT, "regex check input"),
-            (SurfaceDirection.INPUT, "self check input"),
-            (SurfaceDirection.INPUT, "topic safety check input"),
-            (SurfaceDirection.INPUT, "trend ai guard input"),
-            # output rails (19)
-            (SurfaceDirection.OUTPUT, "activefence moderation on output"),
-            (SurfaceDirection.OUTPUT, "ai defense inspect response"),
-            (SurfaceDirection.OUTPUT, "autoalign factcheck output"),
-            (SurfaceDirection.OUTPUT, "clavata check output"),
-            (SurfaceDirection.OUTPUT, "cleanlab trustworthiness"),
-            (SurfaceDirection.OUTPUT, "content safety check output"),
-            (SurfaceDirection.OUTPUT, "detect pii on output"),
-            (SurfaceDirection.OUTPUT, "detect sensitive data on output"),
-            (SurfaceDirection.OUTPUT, "f5 guardrails scan output"),
-            (SurfaceDirection.OUTPUT, "fiddler bot safety"),
-            (SurfaceDirection.OUTPUT, "gliner detect pii on output"),
-            (SurfaceDirection.OUTPUT, "guardrailsai check output"),
-            (SurfaceDirection.OUTPUT, "hf classifier check output"),
-            (SurfaceDirection.OUTPUT, "llama guard check output"),
-            (SurfaceDirection.OUTPUT, "policyai moderation on output"),
-            (SurfaceDirection.OUTPUT, "polygraf detect pii on output"),
-            (SurfaceDirection.OUTPUT, "regex check output"),
-            (SurfaceDirection.OUTPUT, "self check output"),
-            (SurfaceDirection.OUTPUT, "trend ai guard output"),
-        }
-    )
     # Tool-rail flows are direction-specific: tool_output may only carry the
     # tool-call validator and tool_input only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
@@ -633,12 +579,12 @@ class IORails(BaseGuardrails):
         # or misdirected flow routes the config to LLMRails. The supported sets double
         # as the direction check (tool_output allows only the call validator, etc.).
         rail_checks = (
-            ("input", config.rails.input.flows, SurfaceDirection.INPUT),
-            ("output", config.rails.output.flows, SurfaceDirection.OUTPUT),
+            (config.rails.input.flows, SurfaceDirection.INPUT),
+            (config.rails.output.flows, SurfaceDirection.OUTPUT),
         )
         deps = _compile_only_deps(config)
-        for label, flows, direction in rail_checks:
-            reason = cls._unservable_rails_reason(flows, direction, label, deps)
+        for flows, direction in rail_checks:
+            reason = cls._unservable_rails_reason(flows, direction, deps)
             if reason is not None:
                 return reason
 
@@ -667,20 +613,21 @@ class IORails(BaseGuardrails):
 
     @classmethod
     def _unservable_rails_reason(
-        cls, flows: list[str], direction: SurfaceDirection, label: str, deps: RailDependencies
+        cls, flows: list[str], direction: SurfaceDirection, deps: RailDependencies
     ) -> Optional[str]:
-        """Return why a configured input/output flow cannot run here, or None when all can."""
+        """Return why a configured input/output flow cannot run here, or None when all can.
+
+        Scope is decided by the manifest rather than by a list held here: a surface this engine
+        cannot run is one whose declared contract it cannot satisfy, which is what
+        ``unservable_reason`` reports. Nothing enumerates the runnable rails, so adding one to
+        the catalog needs no change in this engine.
+        """
         # Surface-level refusals come first because they need no action import, so a config
         # naming an optional integration is not made to pay for one just to be refused.
         for flow in flows:
             reason = unservable_reason(flow, direction)
             if reason is not None:
                 return reason
-
-        configured = {_get_flow_name(flow) or flow for flow in flows}
-        out_of_scope = sorted(name for name in configured if (direction, name) not in cls._ENABLED_SURFACES)
-        if out_of_scope:
-            return f"config has unsupported {label} flows: {out_of_scope}"
 
         # Only now, for a flow this engine will actually run, is the action worth importing.
         for flow in flows:

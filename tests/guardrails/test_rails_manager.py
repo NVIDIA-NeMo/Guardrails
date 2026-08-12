@@ -26,10 +26,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailExecution
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailExecution, unservable_reason
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
-from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import (
     _HTTP_CLIENT_SURFACE_NAMES,
@@ -40,6 +39,7 @@ from nemoguardrails.guardrails.rails_manager import (
 from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.manifests import default_rail_catalog, resolve_import_ref
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
@@ -338,8 +338,8 @@ class TestRailsManagerStop:
 class TestPooledClientCoverage:
     """Every rail IORails enables that speaks HTTP is named in the pooling list."""
 
-    # _HTTP_CLIENT_SURFACE_NAMES and IORails._ENABLED_SURFACES are two hand-maintained lists
-    # over one catalog, and nothing else holds them in agreement. Enabling a vendor rail
+    # _HTTP_CLIENT_SURFACE_NAMES is hand-maintained while the set of rails IORails runs is
+    # derived from the catalog, so nothing holds the two in agreement. Enabling a vendor rail
     # without adding it here regresses silently rather than loudly: http_call builds an owned
     # client per request when it receives None, so the rail still returns the right verdict
     # and only the connection pooling is lost. The pooling list may name surfaces IORails has
@@ -347,11 +347,12 @@ class TestPooledClientCoverage:
 
     def test_every_enabled_http_surface_is_pooled(self):
         """A rail in the enabled tier whose action declares http_client is compiled with one."""
-        enabled = {name for _, name in IORails._ENABLED_SURFACES}
         declares_http_client = {
             name
-            for (_, name), surface in default_rail_catalog().surfaces().items()
-            if name in enabled and "http_client" in inspect.signature(resolve_import_ref(surface.action)).parameters
+            for (direction, name), surface in default_rail_catalog().surfaces().items()
+            if direction is not SurfaceDirection.RETRIEVAL
+            and unservable_reason(name, direction) is None
+            and "http_client" in inspect.signature(resolve_import_ref(surface.action)).parameters
         }
 
         unpooled = sorted(declares_http_client - _HTTP_CLIENT_SURFACE_NAMES)

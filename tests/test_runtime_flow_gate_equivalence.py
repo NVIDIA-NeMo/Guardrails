@@ -27,7 +27,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.compiled_rail import _is_installed, _owning_manifest
+from nemoguardrails.guardrails.compiled_rail import _is_installed, _owning_manifest, unservable_reason
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.manifests import (
@@ -2839,9 +2839,11 @@ def _uninstalled_dependencies(spec: RailSpec) -> list[str]:
 
 
 def _is_iorails_enabled(spec: RailSpec) -> bool:
-    """Whether IORails runs this rail at the current tier, rather than deferring to LLMRails."""
-    key = (_SURFACE_DIRECTIONS[spec.direction], normalize_configured_surface_name(spec.flow))
-    return key in IORails._ENABLED_SURFACES
+    """Whether IORails runs this rail, asked of the same check its selection gate uses."""
+    direction = _SURFACE_DIRECTIONS[spec.direction]
+    if direction is RailDirection.RETRIEVAL:
+        return False
+    return unservable_reason(spec.flow, direction) is None
 
 
 def _iorails_case_param(case: FlowEquivalenceCase):
@@ -2913,7 +2915,11 @@ def _iorails_decision(response: dict[str, Any]) -> FlowDecision:
 
 def test_every_enabled_surface_has_an_iorails_case():
     """The enabled tier and the surfaces this table drives through IORails match exactly."""
-    enabled = {(direction.value, name) for direction, name in IORails._ENABLED_SURFACES}
+    enabled = {
+        (direction.value, name)
+        for (direction, name) in default_rail_catalog().surfaces()
+        if direction is not RailDirection.RETRIEVAL and unservable_reason(name, direction) is None
+    }
     covered = {(case.spec.direction, normalize_configured_surface_name(case.spec.flow)) for case in IORAILS_FIXTURES}
 
     assert enabled == covered, (
