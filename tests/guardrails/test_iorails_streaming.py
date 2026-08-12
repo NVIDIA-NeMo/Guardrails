@@ -968,6 +968,14 @@ class TestIsStreamErrorChunk:
     def test_non_string_text(self):
         assert _is_stream_error_chunk({"text": None}) is False
 
+    def test_json_array_with_error_substring(self):
+        """Valid JSON that is not an object is not an error frame.
+
+        The substring guard admits it and json.loads succeeds, so only the dict check
+        stops a model emitting a list of strings from truncating the stream.
+        """
+        assert _is_stream_error_chunk('["error", "not an object"]') is False
+
     def test_downstream_error_from_upstream_status(self):
         assert _is_stream_error_chunk('{"error": {"type": "downstream_error", "code": 503}}') is True
 

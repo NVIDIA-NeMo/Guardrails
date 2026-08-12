@@ -530,9 +530,27 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
-# Compilation validates the surface, its bindings and its action; it never reads the
-# dependencies, so a sentinel answers the same question the engine's real ones would.
-_COMPILE_ONLY_DEPS = RailDependencies(llms={}, llm_task_manager=None, config=None)
+def _compile_only_deps(config: RailsConfig) -> RailDependencies:
+    """Dependencies for the gate's trial compile: declared types and config, no live collaborators.
+
+    Compilation reads ``llms`` for its key names alone — to reject a rail naming a model type
+    the configuration does not declare — and never touches a model, so naming the types is
+    enough. They must be named, though: with an empty mapping the gate would refuse every
+    rail carrying a model binding while ``RailsManager`` accepted it, and a config would be
+    routed to LLMRails for a model it actually has.
+
+    ``config`` is carried for the same reason. The dependency check reads it to tell an
+    in-process backend from a remote one, so withholding it would make the gate refuse a rail
+    over its NIM that ``RailsManager`` then compiles happily.
+
+    The key sets match by construction, since ``EngineRegistry`` is built from these same
+    models and registers each one.
+    """
+    return RailDependencies(
+        llms={model.type: None for model in config.models},
+        llm_task_manager=None,
+        config=config,
+    )
 
 
 class IORails(BaseGuardrails):
@@ -541,16 +559,6 @@ class IORails(BaseGuardrails):
     # Rail sections and flows that this engine can handle. Configs using anything
     # outside these sets fall back to LLMRails.
     SUPPORTED_RAILS = frozenset({"input", "output", "config", "tool_input", "tool_output"})
-    # The rails this engine runs today. Compilation decides whether a flow is *servable*;
-    # this decides whether it is in scope yet.
-    _ENABLED_SURFACES = frozenset(
-        {
-            (SurfaceDirection.INPUT, "content safety check input"),
-            (SurfaceDirection.INPUT, "topic safety check input"),
-            (SurfaceDirection.INPUT, "jailbreak detection model"),
-            (SurfaceDirection.OUTPUT, "content safety check output"),
-        }
-    )
     # Tool-rail flows are direction-specific: tool_output may only carry the
     # tool-call validator and tool_input only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
@@ -575,11 +583,12 @@ class IORails(BaseGuardrails):
         # or misdirected flow routes the config to LLMRails. The supported sets double
         # as the direction check (tool_output allows only the call validator, etc.).
         rail_checks = (
-            ("input", config.rails.input.flows, SurfaceDirection.INPUT),
-            ("output", config.rails.output.flows, SurfaceDirection.OUTPUT),
+            (config.rails.input.flows, SurfaceDirection.INPUT),
+            (config.rails.output.flows, SurfaceDirection.OUTPUT),
         )
-        for label, flows, direction in rail_checks:
-            reason = cls._unservable_rails_reason(flows, direction, label)
+        deps = _compile_only_deps(config)
+        for flows, direction in rail_checks:
+            reason = cls._unservable_rails_reason(flows, direction, deps)
             if reason is not None:
                 return reason
 
@@ -607,8 +616,16 @@ class IORails(BaseGuardrails):
         return None
 
     @classmethod
-    def _unservable_rails_reason(cls, flows: list[str], direction: SurfaceDirection, label: str) -> Optional[str]:
-        """Return why a configured input/output flow cannot run here, or None when all can."""
+    def _unservable_rails_reason(
+        cls, flows: list[str], direction: SurfaceDirection, deps: RailDependencies
+    ) -> Optional[str]:
+        """Return why a configured input/output flow cannot run here, or None when all can.
+
+        Scope is decided by the manifest rather than by a list held here: a surface this engine
+        cannot run is one whose declared contract it cannot satisfy, which is what
+        ``unservable_reason`` reports. Nothing enumerates the runnable rails, so adding one to
+        the catalog needs no change in this engine.
+        """
         # Surface-level refusals come first because they need no action import, so a config
         # naming an optional integration is not made to pay for one just to be refused.
         for flow in flows:
@@ -616,15 +633,10 @@ class IORails(BaseGuardrails):
             if reason is not None:
                 return reason
 
-        configured = {_get_flow_name(flow) or flow for flow in flows}
-        out_of_scope = sorted(name for name in configured if (direction, name) not in cls._ENABLED_SURFACES)
-        if out_of_scope:
-            return f"config has unsupported {label} flows: {out_of_scope}"
-
         # Only now, for a flow this engine will actually run, is the action worth importing.
         for flow in flows:
             try:
-                compile_rail(flow, direction, _COMPILE_ONLY_DEPS)
+                compile_rail(flow, direction, deps)
             except RailCompilationError as exc:
                 return str(exc)
         return None

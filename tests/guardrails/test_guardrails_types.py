@@ -252,6 +252,71 @@ class TestClientReason:
         assert "the draft reply" in rendered
         assert "my private question" not in client_reason(result)
 
+    # The verdicts below come from rails IORails now runs, so these are live payloads rather
+    # than anticipated ones.
+
+    REGEX_VERDICT = {
+        "allowed": False,
+        "is_match": True,
+        "text": "my card is 4111 1111 1111 1111",
+        "detections": ["4111 1111 1111 1111"],
+        "source": "input",
+    }
+
+    def test_a_regex_verdict_does_not_echo_the_checked_text(self):
+        """``regex check input`` puts the message and the matched excerpts in its verdict.
+
+        ``_regex_outcome`` builds metadata from its whole ``RegexDetectionResult``, so the
+        text being checked and the substrings that matched are both in there. Neither may
+        reach the caller: echoing a card number back over the API to say it was blocked for
+        containing a card number is the failure this allowlist exists to prevent.
+        """
+        result = RailResult(is_safe=False, triggered_rail="regex check input", return_value=self.REGEX_VERDICT)
+
+        rendered = client_reason(result)
+
+        assert "4111 1111 1111 1111" not in rendered
+        assert rendered == "regex check input"
+
+    @pytest.mark.parametrize(
+        "return_value, expected",
+        [
+            (
+                {"allowed": False, "triggered_violation": "hate_speech", "max_risk_score": 0.95},
+                "triggered_violation: hate_speech; max_risk_score: 0.95",
+            ),
+            (
+                {"allowed": False, "assessment": "UNSAFE", "category": "pii", "severity": "high"},
+                "assessment: UNSAFE; category: pii; severity: high",
+            ),
+            ({"allowed": False, "trustworthiness_score": 0.12}, "trustworthiness_score: 0.12"),
+            ({"allowed": False, "score": 0.4, "threshold": 0.75}, "score: 0.4; threshold: 0.75"),
+        ],
+        ids=["activefence", "policyai", "cleanlab", "autoalign"],
+    )
+    def test_classification_and_score_evidence_reaches_the_caller(self, return_value, expected):
+        """A rail that classified or scored the content says so; that is why it was blocked."""
+        result = RailResult(is_safe=False, triggered_rail="a rail", return_value=return_value)
+
+        assert client_reason(result) == expected
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [("has_pii", True), ("blocked", True), ("is_blocked", True), ("valid", False), ("action", "Block")],
+    )
+    def test_a_verdict_that_only_restates_the_block_names_the_rail_instead(self, key, value):
+        """A boolean echoing the decision is not evidence, so the rail name is the better answer.
+
+        Kept off the allowlist deliberately rather than by oversight: a caller holding a block
+        learns nothing from ``blocked: True``, and listing it would cost a disclosure decision
+        for no gain.
+        """
+        result = RailResult(
+            is_safe=False, triggered_rail="detect pii on input", return_value={"allowed": False, key: value}
+        )
+
+        assert client_reason(result) == "detect pii on input"
+
 
 class TestTypeAliases:
     """Tests for the LLMMessage and LLMMessages type aliases."""

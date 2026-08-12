@@ -21,6 +21,7 @@ sink rather than read from a contextvar afterwards.
 """
 
 import inspect
+from dataclasses import replace
 from typing import Any, Callable, Optional
 from unittest.mock import AsyncMock, MagicMock
 
@@ -32,6 +33,9 @@ from nemoguardrails.guardrails.compiled_rail import (
     CompiledRail,
     RailCompilationError,
     RailDependencies,
+    _hf_classifier_runs_locally,
+    _is_installed,
+    _jailbreak_detection_runs_locally,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -54,6 +58,7 @@ from nemoguardrails.manifests import (
     default_rail_catalog,
     resolve_import_ref,
 )
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.testing.fake_model import FakeLLMModel
 
 CONTENT_SAFETY_INPUT = "content safety check input $model=content_safety"
@@ -81,6 +86,10 @@ EXECUTABLE_SURFACES = {
 # ``relevant_chunks``, ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``.
 # Keyed by direction as well as name, because one rail can surface in both directions.
 # Held here independently of the production deny-list so the two cross-check each other.
+# Blocked by decision rather than by anything the manifest declares. Held here independently
+# of the production blocklist so the two cross-check each other.
+UNSUPPORTED_RAIL_SURFACES = {(RailDirection.INPUT, "jailbreak detection heuristics")}
+
 RETRIEVAL_DEPENDENT_SURFACES = {
     (RailDirection.OUTPUT, "alignscore check facts"),
     (RailDirection.OUTPUT, "autoalign groundedness output"),
@@ -124,26 +133,41 @@ def synthetic_surface(
     bindings: tuple[Binding, ...] = (),
     *,
     bypass_validation: bool = False,
+    direction: RailDirection = RailDirection.INPUT,
 ) -> RailSurface:
-    """Build a one-off input surface for a compilation path the real catalog cannot reach.
+    """Build a one-off surface for a compilation path the real catalog cannot reach.
 
     ``bypass_validation`` skips Pydantic, the only way to build a manifest the schema rejects.
     """
     if bypass_validation:
         return RailSurface.model_construct(
             name=SYNTHETIC_FLOW,
-            direction=RailDirection.INPUT,
+            direction=direction,
             action=action,
             bindings=bindings,
             transform_target=None,
         )
     return RailSurface(
         name=SYNTHETIC_FLOW,
-        direction=RailDirection.INPUT,
+        direction=direction,
         action=action,
         bindings=bindings,
         transform_target=None,
     )
+
+
+async def takes_text(text, config, **kwargs):
+    """Signature reference: a vendor action receiving its content under ``text``.
+
+    Thirteen shipped surfaces bind ``user_message`` onto a parameter named something other
+    than ``user_message``; this is the shape they share.
+    """
+    return RailOutcome.allow()
+
+
+async def takes_only_text(text):
+    """Signature reference with no catch-all, so an unbindable parameter is refused."""
+    return RailOutcome.allow()
 
 
 class RecordingAction:
@@ -165,12 +189,43 @@ class RecordingAction:
         return self.outcome
 
 
+_HF_FLOW = 'hf classifier check input $classifier="toxicity"'
+_HF_LOCAL_CONFIG = {"hf_classifier": {"toxicity": {"engine": "local", "model": "m", "blocked_labels": ["toxic"]}}}
+_HF_OTHER_CLASSIFIER_CONFIG = {
+    "hf_classifier": {
+        "profanity": {"engine": "vllm", "model": "m", "base_url": "http://vllm:8000", "blocked_labels": ["p"]}
+    }
+}
+_REGEX_CONFIG = {"regex": {"input": {"patterns": [{"name": "secret", "pattern": "SECRET-[0-9]+"}]}}}
+_HF_REMOTE_CONFIG = {
+    "hf_classifier": {
+        "toxicity": {"engine": "vllm", "model": "m", "base_url": "http://vllm:8000", "blocked_labels": ["toxic"]}
+    }
+}
+
+
+def _deps_with_rails_config(rails_config: dict) -> RailDependencies:
+    """Dependencies carrying a real RailsConfig, which the dependency check reads.
+
+    A MagicMock config would answer every backend question truthily and exempt every rail,
+    so these cases need the real model.
+    """
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "placeholder"}],
+            "rails": {"config": rails_config},
+        }
+    )
+    return RailDependencies(llms={"main": None, "content_safety": None}, llm_task_manager=MagicMock(), config=config)
+
+
 @pytest.fixture
 def deps() -> RailDependencies:
     """The dependency bundle CompiledRail injects, with inert stand-ins for live engines.
 
     The models are real ``FakeLLMModel`` instances rather than mocks so an action that
     genuinely calls one behaves as it would in production; nothing here reaches a network.
+    ``llms`` also names the model types compilation validates model bindings against.
     """
     return RailDependencies(
         llms={
@@ -261,14 +316,14 @@ class TestCompilation:
         with pytest.raises(RailCompilationError, match="model_name"):
             compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
 
-    def test_context_binding_surfaces_do_not_compile(self, deps):
-        """A surface using a context binding is refused rather than silently misbehaving.
+    def test_a_context_binding_surface_compiles(self, deps):
+        """A surface using a context binding compiles, where it was refused before PR 4.
 
-        Context bindings name a specific action parameter (``user_message`` into ``text``),
-        which request-time injection does not fill.
+        Inverts the 3a tripwire deliberately: ``_unfillable_bindings_reason`` existed to keep
+        these surfaces off IORails until request-time resolution was built, and this is the
+        assertion that says it now is.
         """
-        with pytest.raises(RailCompilationError, match="context binding"):
-            compile_rail("detect pii on input", RailDirection.INPUT, deps)
+        assert compile_rail("detect pii on input", RailDirection.INPUT, deps) is not None
 
     def test_an_action_with_a_kwargs_catch_all_accepts_any_binding(self, deps, monkeypatch):
         """A ``**kwargs`` action is not refused, because it genuinely accepts the keyword.
@@ -380,6 +435,24 @@ class TestUnrunnableSurfaces:
 
         assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
 
+    def test_the_block_only_tier_splits_into_servable_and_refused(self):
+        """Every block-only input/output surface is servable but for the eight refused ones.
+
+        Measured: 41 servable, 8 refused -- the seven retrieval-evidence surfaces plus
+        jailbreak heuristics, whose backend cannot be told apart from its manifest sibling's.
+        Pinning the split rather than a predicate means a newly added manifest surface, or an
+        action that grows a binding IORails cannot fill, fails here rather than in a config.
+        """
+        servable, refused = [], []
+        for (direction, name), surface in default_rail_catalog().surfaces().items():
+            if direction is RailDirection.RETRIEVAL or surface.transform_target is not None:
+                continue
+            bucket = refused if unsupported_surface_reason(surface) is not None else servable
+            bucket.append((direction, name))
+
+        assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
+        assert len(servable) == 41
+
     def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
         """An unrunnable surface is refused before its action module is imported."""
 
@@ -461,12 +534,14 @@ class TestBindingResolution:
 
         Uses a synthetic surface because every shipped surface with a literal binding belongs
         to an optional integration, and a unit test must not depend on installed extras.
+        ``threshold_mode`` mirrors what activefence and gcpnlp really bake in; binding
+        ``model_name`` here instead would drag in model validation, which is not the subject.
         """
-        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("model_name", "baked_in"),))
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.literal("threshold_mode", "detailed"),))
 
         await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)).run(USER_MESSAGES)
 
-        assert content_safety_action.kwargs["model_name"] == "baked_in"
+        assert content_safety_action.kwargs["threshold_mode"] == "detailed"
 
     @pytest.mark.asyncio
     async def test_user_message_is_empty_when_the_request_has_no_user_turn(self, deps, content_safety_action):
@@ -489,6 +564,297 @@ class TestBindingResolution:
         await rail.run(USER_MESSAGES, bot_response="the reply")
 
         assert action.kwargs["context"]["bot_message"] == "the reply"
+
+
+class TestContextBindingResolution:
+    """A context binding maps one conversation variable onto a differently named parameter.
+
+    This is the kind 3a refused and PR 4 implements. It is not "pass the context dict" — the
+    dict is already injected under ``context`` for actions that declare it. A context binding
+    names *one* variable and *one* action parameter, and 25 block-only surfaces need it.
+    """
+
+    @pytest.fixture
+    def text_action(self, monkeypatch) -> RecordingAction:
+        """A recording double shaped like a vendor action that takes its content as ``text``."""
+        action = RecordingAction(signature_of=takes_text)
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
+        return action
+
+    @pytest.mark.asyncio
+    async def test_user_message_fills_a_differently_named_parameter(self, deps, text_action):
+        """``user_message`` reaches an action that calls the parameter ``text``."""
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.context("text", "user_message"),))
+
+        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)).run(USER_MESSAGES)
+
+        assert text_action.kwargs["text"] == "hello there"
+
+    @pytest.mark.asyncio
+    async def test_bot_message_fills_the_bound_parameter_on_an_output_rail(self, deps, text_action):
+        """``bot_message`` reaches the bound parameter, which is how the 12 output surfaces read."""
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.context("text", "bot_message"),),
+            direction=RailDirection.OUTPUT,
+        )
+        catalog = StubCatalog(surface, RailDirection.OUTPUT)
+
+        rail = compile_rail(SYNTHETIC_FLOW, RailDirection.OUTPUT, deps, catalog=catalog)
+        await rail.run(USER_MESSAGES, bot_response="the reply")
+
+        assert text_action.kwargs["text"] == "the reply"
+
+    @pytest.mark.asyncio
+    async def test_the_value_is_resolved_per_request(self, deps, text_action):
+        """Two requests through one compiled rail bind two different values.
+
+        A context binding cannot be frozen the way ``literal`` and ``surface_param`` are, and
+        freezing it would pin every later request to the first request's message.
+        """
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.context("text", "user_message"),))
+        rail = compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
+
+        await rail.run([{"role": "user", "content": "first"}])
+        first = text_action.kwargs["text"]
+        await rail.run([{"role": "user", "content": "second"}])
+
+        assert (first, text_action.kwargs["text"]) == ("first", "second")
+
+    def test_a_context_key_iorails_cannot_supply_is_refused_at_compile_time(self, deps):
+        """A binding naming a variable outside the request context fails compilation.
+
+        The request context holds ``user_message`` and ``bot_message`` and nothing else, so a
+        binding on ``relevant_chunks`` would otherwise pass the action an empty value and the
+        rail would return a verdict computed over no evidence.
+        """
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.context("text", "relevant_chunks"),))
+
+        with pytest.raises(RailCompilationError, match="relevant_chunks"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
+
+    def test_a_context_binding_the_action_does_not_declare_is_refused(self, deps, monkeypatch):
+        """A context binding is checked against the signature like every other kind.
+
+        Without this the keyword lands on an action that cannot take it, raising TypeError per
+        request, which the fail-closed envelope reports as a rail block.
+        """
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, takes_only_text)
+        surface = synthetic_surface(CONTENT_SAFETY_ACTION_REF, (Binding.context("user_prompt", "user_message"),))
+
+        with pytest.raises(RailCompilationError, match="user_prompt"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
+
+
+class TestSynchronousActions:
+    """A synchronous library action runs; ``CompiledRail`` does not assume every action awaits."""
+
+    @pytest.mark.asyncio
+    async def test_a_synchronous_action_runs(self, deps, monkeypatch):
+        """A plain ``def`` action's outcome is returned rather than awaited as a coroutine.
+
+        ``validate_guardrails_ai_input`` and ``validate_guardrails_ai_output`` are synchronous,
+        so awaiting unconditionally raises TypeError on every request and the envelope reports
+        a working rail as a block. ``ActionDispatcher`` has always handled this for LLMRails.
+        """
+        expected = RailOutcome.block(reason="validator tripped")
+
+        def synchronous_action(**kwargs):
+            return expected
+
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, synchronous_action)
+
+        outcome = await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
+
+        assert outcome == expected
+
+
+class TestModelDependencyValidation:
+    """A rail naming a model the config does not declare fails to compile.
+
+    Without this ``llms[model_name]`` fails at request time and the fail-closed envelope
+    reports a configuration error as a rail block.
+
+    **The literal case is the one that matters.** ``RailsConfig`` already rejects a ``$model=``
+    naming an undeclared type (``check_model_exists_for_input_rails``, ``config.py:988``), so
+    that half is defence in depth and unreachable from a real config. It reads the ``$model=``
+    suffix, though, which a manifest *literal* binding does not have — so a rail whose model
+    is baked into the manifest passes config validation and fails per request. Measured:
+    ``llama guard check input`` with only a ``main`` model is accepted by ``RailsConfig``.
+    """
+
+    def test_a_configured_surface_param_model_compiles(self, deps):
+        """The control: $model= naming a configured model is accepted."""
+        assert compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps) is not None
+
+    def test_an_unconfigured_surface_param_model_is_refused(self, deps):
+        """$model= naming an undeclared model fails at compile time.
+
+        Defence in depth: ``RailsConfig`` rejects such a config first, so this fires only for
+        a caller reaching ``compile_rail`` directly.
+        """
+        with pytest.raises(RailCompilationError, match="absent_model"):
+            compile_rail("content safety check input $model=absent_model", RailDirection.INPUT, deps)
+
+    def test_an_unconfigured_literal_model_is_refused(self, deps):
+        """A manifest-baked model name is validated, and nothing else validates it.
+
+        ``llama guard check input`` binds ``model_name="llama_guard"`` as a literal, so the
+        flow string names no model and ``RailsConfig``'s check skips the flow entirely. This
+        is the real gap the compile-time check closes.
+        """
+        with pytest.raises(RailCompilationError, match="llama_guard"):
+            compile_rail("llama guard check input", RailDirection.INPUT, deps)
+
+    def test_a_configured_literal_model_compiles(self, deps):
+        """The same rail compiles once the model is declared, so the refusal is about the model.
+
+        Without this pair, a refusal for any other reason would read as a passing test.
+        """
+        deps_with_llama_guard = replace(deps, llms={**deps.llms, "llama_guard": FakeLLMModel(responses=["safe"])})
+
+        assert compile_rail("llama guard check input", RailDirection.INPUT, deps_with_llama_guard) is not None
+
+
+class TestMissingOptionalDependencies:
+    """A rail whose declared distribution is absent is refused at compile time.
+
+    The alternative is worse than it sounds: library actions import their optional dependency
+    lazily, so the ImportError arrives per request and the fail-closed envelope renders it as
+    a guardrail block, with the real cause reaching the log only.
+
+    Installed-ness is injected rather than read from the environment. These cases have to
+    assert both halves -- refused when absent, compiled when present -- and only one half is
+    observable in any given venv, so reading the real one would leave the other untested and
+    make the suite's meaning depend on which extras a developer happens to have.
+    """
+
+    @pytest.fixture
+    def absent(self, monkeypatch):
+        """Every declared distribution is missing."""
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail._is_installed", lambda _: False)
+
+    @pytest.fixture
+    def installed(self, monkeypatch):
+        """Every declared distribution is present."""
+        monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail._is_installed", lambda _: True)
+
+    # (rails_config, flow, direction, refused-when-absent). Refused-when-installed is always
+    # False, asserted for every row by test_nothing_is_refused_when_the_distribution_is_present.
+    CASES = [
+        # No remote backend: the declaration is the whole story.
+        ({}, "detect sensitive data on input", RailDirection.INPUT, True),
+        ({}, "cleanlab trustworthiness", RailDirection.OUTPUT, True),
+        # hf_classifier chooses its backend per classifier, through `engine`.
+        (_HF_LOCAL_CONFIG, _HF_FLOW, RailDirection.INPUT, True),
+        (_HF_REMOTE_CONFIG, _HF_FLOW, RailDirection.INPUT, False),
+        ({"hf_classifier": {}}, _HF_FLOW, RailDirection.INPUT, True),
+        (_HF_OTHER_CLASSIFIER_CONFIG, _HF_FLOW, RailDirection.INPUT, True),
+        ({}, _HF_FLOW, RailDirection.INPUT, True),
+        # jailbreak_detection is remote when either endpoint is set, local otherwise.
+        ({"jailbreak_detection": {}}, "jailbreak detection model", RailDirection.INPUT, True),
+        ({}, "jailbreak detection model", RailDirection.INPUT, True),
+        (
+            {"jailbreak_detection": {"nim_base_url": "http://nim:8000"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"server_endpoint": "http://jb:1337"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"nim_url": "nim", "nim_port": 8000}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            False,
+        ),
+        (
+            {"jailbreak_detection": {"nim_server_endpoint": "classify"}},
+            "jailbreak detection model",
+            RailDirection.INPUT,
+            True,
+        ),
+        # Declares no optional dependency at all.
+        (_REGEX_CONFIG, "regex check input", RailDirection.INPUT, False),
+        ({}, "content safety check input $model=content_safety", RailDirection.INPUT, False),
+    ]
+    IDS = [
+        "sdd_no_remote_backend",
+        "cleanlab_no_remote_backend",
+        "hf_engine_local",
+        "hf_engine_vllm",
+        "hf_section_empty",
+        "hf_classifier_not_configured",
+        "hf_section_absent",
+        "jailbreak_no_endpoint",
+        "jailbreak_section_absent",
+        "jailbreak_nim_base_url",
+        "jailbreak_server_endpoint",
+        "jailbreak_deprecated_nim_url",
+        "jailbreak_only_classification_path",
+        "regex_declares_nothing",
+        "content_safety_declares_nothing",
+    ]
+
+    @pytest.mark.parametrize(("rails_config", "flow", "direction", "refused"), CASES, ids=IDS)
+    def test_the_configured_backend_decides_when_the_distribution_is_absent(
+        self, absent, rails_config, flow, direction, refused
+    ):
+        """A rail is refused only when the configuration selects a backend needing the package.
+
+        Whether the action accepts ``http_client`` says what the function can receive, not
+        which backend will run: an hf_classifier on ``engine: local`` accepts a client,
+        ignores it, and still needs ``transformers``.
+        """
+        deps = _deps_with_rails_config(rails_config)
+
+        if refused:
+            with pytest.raises(RailCompilationError, match="which the environment does not have"):
+                compile_rail(flow, direction, deps)
+        else:
+            assert compile_rail(flow, direction, deps) is not None
+
+    @pytest.mark.parametrize(("rails_config", "flow", "direction", "refused"), CASES, ids=IDS)
+    def test_nothing_is_refused_when_the_distribution_is_present(
+        self, installed, rails_config, flow, direction, refused
+    ):
+        """With the package installed every configuration compiles, local backends included."""
+        assert compile_rail(flow, direction, _deps_with_rails_config(rails_config)) is not None
+
+    def test_a_present_distribution_is_reported_installed(self):
+        """The check answers both ways; every other case here injects the answer instead."""
+        assert _is_installed("pydantic") is True
+        assert _is_installed("no-such-distribution-anywhere") is False
+
+    def test_a_rail_with_no_config_at_all_is_treated_as_local(self):
+        """With nothing to read, the backend check assumes in-process and enforces the deps."""
+        assert _hf_classifier_runs_locally(None, {}) is True
+        assert _jailbreak_detection_runs_locally(None, {}) is True
+
+    def test_the_message_names_the_distributions_and_the_extra(self, absent):
+        """The refusal is actionable: which distributions are missing, and what installs them."""
+        with pytest.raises(RailCompilationError) as excinfo:
+            compile_rail("detect sensitive data on input", RailDirection.INPUT, _deps_with_rails_config({}))
+
+        message = str(excinfo.value)
+        assert "presidio-analyzer, presidio-anonymizer, spacy" in message
+        assert "install the 'sdd' extra" in message
+
+    def test_only_the_missing_distributions_are_named(self, monkeypatch):
+        """A partially installed manifest reports the gap, not everything it declares."""
+        monkeypatch.setattr(
+            "nemoguardrails.guardrails.compiled_rail._is_installed",
+            lambda distribution: distribution != "torch",
+        )
+
+        with pytest.raises(RailCompilationError, match=r"needs torch, which") as excinfo:
+            compile_rail("jailbreak detection model", RailDirection.INPUT, _deps_with_rails_config({}))
+
+        assert "scikit-learn" not in str(excinfo.value)
 
 
 class TestDependencyInjection:

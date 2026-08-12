@@ -25,14 +25,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, _is_installed, unservable_reason
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     IORails,
+    _compile_only_deps,
     _duplicate_flows_reason,
     _unsupported_flows_reason,
 )
 from nemoguardrails.logging.explain import ExplainInfo
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
+from nemoguardrails.manifests import default_rail_catalog
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions, RailsResult, RailStatus, RailType
@@ -45,6 +48,16 @@ _IORAILS_BASE_RAILS = {
     "input": {"flows": ["content safety check input $model=content_safety"]},
     "output": {"flows": ["content safety check output $model=content_safety"]},
 }
+
+# Rails LLMRails runs and IORails does not, for tests needing a config that must fall back.
+# They rewrite content, which IORails cannot apply, so they are refused at compile time.
+# Chosen over a rail that is merely outside the enabled tier: the tier now admits every
+# servable block-only surface, so an out-of-scope stand-in would go stale the next time it
+# widens -- which is exactly what happened to `self check input` and `self check output` here.
+_LLMRAILS_ONLY_INPUT_FLOW = "autoalign check input"
+_LLMRAILS_ONLY_INPUT_REASON = "'autoalign check input' transforms 'user_message'"
+_LLMRAILS_ONLY_OUTPUT_FLOW = "autoalign check output"
+_LLMRAILS_ONLY_OUTPUT_REASON = "'autoalign check output' transforms 'bot_message'"
 
 
 def _make_iorails_config(rails: dict, extra_prompts: list | None = None) -> RailsConfig:
@@ -219,14 +232,14 @@ class TestGuardrailsRouting:
         """Test if Guardrails is initialized with `use_iorails` == True but the RailsConfig
         requires LLMRails all calls still go to LLMRails.
 
-        We use a config with 'self check input' which is NOT supported by IORails.
+        We use a transform rail, which is NOT supported by IORails.
         We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
         classes. This lets the isinstance() checks in guardrails.py work correctly, while still
         giving us uninitialized instances whose methods we can replace with mocks.
         """
         unsupported_config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
@@ -363,16 +376,15 @@ class TestIORailsUnsupportedReason:
         assert reason == "config has rails outside the IORails-supported set: ['dialog']"
 
     def test_unsupported_input_flow_reports_offender(self):
-        """An input flow outside the IORails-supported set is named in the reason."""
+        """An input flow IORails cannot run is named in the reason."""
         config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
-            extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=None)
-        assert reason == "config has unsupported input flows: ['self check input']"
+        assert reason == _LLMRAILS_ONLY_INPUT_REASON
 
     def test_a_retrieval_dependent_flow_routes_to_llmrails(self):
         """A surface needing retrieval evidence is refused at selection; LLMRails can run it."""
@@ -393,45 +405,54 @@ class TestIORailsUnsupportedReason:
         assert "transform" in reason
 
     def test_unsupported_output_flow_reports_offender(self):
-        """An output flow outside the IORails-supported set is named in the reason."""
+        """An output flow IORails cannot run is named in the reason."""
         config = _make_iorails_config(
             rails={
                 "input": {"flows": ["content safety check input $model=content_safety"]},
-                "output": {"flows": ["self check output"]},
+                "output": {"flows": [_LLMRAILS_ONLY_OUTPUT_FLOW]},
             },
-            extra_prompts=[{"task": "self_check_output", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=None)
-        assert reason == "config has unsupported output flows: ['self check output']"
+        assert reason == _LLMRAILS_ONLY_OUTPUT_REASON
 
     @pytest.mark.parametrize(
-        "flow, expected",
+        "flow",
         [
-            (
-                "activefence moderation on input detailed",
-                "'activefence moderation on input detailed' declares context binding(s) for 'text', "
-                "which manifest-driven execution does not fill yet",
-            ),
-            (
+            "activefence moderation on input detailed",
+            pytest.param(
                 "gcpnlp moderation detailed",
-                "config has unsupported input flows: ['gcpnlp moderation detailed']",
+                marks=pytest.mark.skipif(
+                    not _is_installed("google-cloud-language"),
+                    reason="gcpnlp is refused at compile time without google-cloud-language",
+                ),
             ),
         ],
-        ids=["unservable", "out-of-scope"],
+        ids=["activefence", "gcpnlp"],
     )
-    def test_detailed_flow_without_iorails_adapter_reports_offender(self, flow, expected):
-        """Detailed flows fall back to LLMRails, named either as unservable or as out of scope."""
+    def test_a_detailed_flow_variant_is_supported(self, flow):
+        """A detailed flow variant runs here rather than falling back.
+
+        Inverted deliberately. This test twice asserted a fallback: first for the
+        context-binding refusal, then for being outside the enabled tier. Both reasons are
+        gone, and the assertion follows rather than the test being deleted, because a detailed
+        variant reaching IORails is the thing worth pinning.
+        """
         config = _make_iorails_config(rails={"input": {"flows": [flow]}})
 
-        reason = IORails.unsupported_reason(config, llm=None)
+        assert IORails.unsupported_reason(config, llm=None) is None
 
-        assert reason == expected
+    # A gate test for an unconfigured model belongs with the tier widening, not here. A
+    # ``$model=`` naming an undeclared type is already rejected by ``RailsConfig``
+    # (``check_model_exists_for_input_rails``), so that config cannot be built; and the rails
+    # whose model comes from a manifest *literal* -- llama guard, patronus lynx -- are out of
+    # scope at the current four-name tier, so ``unsupported_reason`` reports them as
+    # unsupported before it ever compiles them.
 
     def test_llm_takes_precedence_over_config_issues(self):
         """When both llm is provided and the config has unsupported flows, the llm
         reason is reported first so the user fixes one issue at a time."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         reason = IORails.unsupported_reason(config, llm=MagicMock())
@@ -558,10 +579,10 @@ class TestRequireIORails:
     def test_unsupported_input_flow_raises_value_error(self):
         """require_iorails=True + unsupported input flow => ValueError naming the offending flow."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
-        with pytest.raises(ValueError, match="self check input"):
+        with pytest.raises(ValueError, match=_LLMRAILS_ONLY_INPUT_FLOW):
             Guardrails(config=config, use_iorails=True, require_iorails=True)
 
     @patch("nemoguardrails.guardrails.guardrails.log")
@@ -585,14 +606,14 @@ class TestRequireIORails:
     def test_unsupported_config_no_require_warns(self, mock_llmrails_class, mock_log):
         """require_iorails=False + unsupported config => warn naming the bad flow, fall back to LLMRails."""
         config = _make_iorails_config(
-            rails={"input": {"flows": ["self check input"]}},
+            rails={"input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]}},
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
         )
         mock_llmrails_class.return_value = MagicMock()
         Guardrails(config=config, use_iorails=True, require_iorails=False)
         mock_log.warning.assert_called_once()
         warning_message = mock_log.warning.call_args[0][0]
-        assert "self check input" in warning_message
+        assert _LLMRAILS_ONLY_INPUT_FLOW in warning_message
 
     @patch("nemoguardrails.guardrails.guardrails.log")
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -1232,14 +1253,14 @@ class TestIORailsCanHandle:
         assert IORails.can_handle(config) is True
 
     def test_unsupported_self_check_output_rails(self):
-        """Adding an unsupported output flow (self check output) disqualifies the config."""
+        """Adding an unsupported output flow (a transform rail) disqualifies the config."""
         config = _make_iorails_config(
             rails={
                 "input": {"flows": ["content safety check input $model=content_safety"]},
                 "output": {
                     "flows": [
                         "content safety check output $model=content_safety",
-                        "self check output",
+                        _LLMRAILS_ONLY_OUTPUT_FLOW,
                     ]
                 },
             },
@@ -1672,7 +1693,7 @@ class TestGuardrailsPickle:
         the wrapper onto LLMRails (the fallback engine)."""
         llmrails_only_config = _make_iorails_config(
             rails={
-                "input": {"flows": ["self check input"]},
+                "input": {"flows": [_LLMRAILS_ONLY_INPUT_FLOW]},
                 "output": {"flows": ["content safety check output $model=content_safety"]},
             },
             extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
@@ -1683,7 +1704,7 @@ class TestGuardrailsPickle:
 
         assert guardrails.config is llmrails_only_config
         assert guardrails.verbose is False
-        # 'self check input' is not in IORAILS_INPUT_FLOWS, so the wrapper falls back to LLMRails
+        # A transform rail cannot be compiled by IORails, so the wrapper falls back to LLMRails
         assert isinstance(guardrails.rails_engine, LLMRails)
         mock_llmrails_init.assert_called_once_with(llmrails_only_config, None, False)
 
@@ -2044,3 +2065,137 @@ class TestOptionsForwarding:
 
             assert guardrails.rails_engine.generate.call_args.kwargs["options"] is options
             assert guardrails.rails_engine.generate_async.call_args.kwargs["options"] is options
+
+
+class TestScopeGateCharacterization:
+    """The set of surfaces IORails admits, pinned independently of how the gate computes it.
+
+    Written ahead of removing the engine's hand-maintained enabled-surface list, whose 42
+    names were the same set the surface-level refusals already produce. The names are
+    repeated here rather than derived, so these fail if the scope moves for any reason.
+
+    Scope is asked of ``unservable_reason``, which resolves the surface and stops: it needs no
+    config, imports no action, and so answers "is this rail in scope" without conflating it
+    with "is this particular config able to run it". The full gate is used only where that
+    wider question is the point.
+    """
+
+    ADMITTED_SURFACES = frozenset(
+        {
+            ("input", "activefence moderation on input"),
+            ("input", "activefence moderation on input detailed"),
+            ("input", "ai defense inspect prompt"),
+            ("input", "clavata check input"),
+            ("input", "content safety check input"),
+            ("input", "detect pii on input"),
+            ("input", "detect sensitive data on input"),
+            ("input", "f5 guardrails scan input"),
+            ("input", "fiddler user safety"),
+            ("input", "gcpnlp moderation"),
+            ("input", "gcpnlp moderation detailed"),
+            ("input", "gliner detect pii on input"),
+            ("input", "guardrailsai check input"),
+            ("input", "hf classifier check input"),
+            ("input", "jailbreak detection model"),
+            ("input", "llama guard check input"),
+            ("input", "policyai moderation on input"),
+            ("input", "polygraf detect pii on input"),
+            ("input", "regex check input"),
+            ("input", "self check input"),
+            ("input", "topic safety check input"),
+            ("input", "trend ai guard input"),
+            ("output", "activefence moderation on output"),
+            ("output", "ai defense inspect response"),
+            ("output", "autoalign factcheck output"),
+            ("output", "clavata check output"),
+            ("output", "cleanlab trustworthiness"),
+            ("output", "content safety check output"),
+            ("output", "detect pii on output"),
+            ("output", "detect sensitive data on output"),
+            ("output", "f5 guardrails scan output"),
+            ("output", "fiddler bot safety"),
+            ("output", "gliner detect pii on output"),
+            ("output", "guardrailsai check output"),
+            ("output", "hf classifier check output"),
+            ("output", "llama guard check output"),
+            ("output", "policyai moderation on output"),
+            ("output", "polygraf detect pii on output"),
+            ("output", "regex check output"),
+            ("output", "self check output"),
+            ("output", "trend ai guard output"),
+        }
+    )
+
+    @staticmethod
+    def _surface_reason(flow: str, direction: SurfaceDirection):
+        """Why the surface itself is out of scope, or None -- no config, no compilation."""
+        return unservable_reason(flow, direction)
+
+    @staticmethod
+    def _gate_reason(flow: str, direction: SurfaceDirection):
+        """Why the whole selection gate rejects a flow, compilation included."""
+        deps = _compile_only_deps(_make_iorails_config(rails=_IORAILS_BASE_RAILS))
+        return IORails._unservable_rails_reason([flow], direction, deps)
+
+    def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
+        """Every catalog surface in scope is one of the 42 named here, and vice versa."""
+        admitted = {
+            (direction.value, name)
+            for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
+            for (surface_direction, name) in default_rail_catalog().surfaces()
+            if surface_direction is direction and self._surface_reason(name, direction) is None
+        }
+
+        assert admitted == self.ADMITTED_SURFACES
+
+    def test_no_surface_is_refused_for_being_out_of_scope(self):
+        """No catalog surface reaches the out-of-scope branch of the gate.
+
+        This is what makes removing the enabled-surface list behaviour-preserving: every
+        rejection is already attributed to a specific limitation -- a transform target,
+        retrieval evidence, an absent extra, an undeclared model, a missing parameter --
+        rather than to membership of a hand-maintained list. Run through the full gate,
+        including flows too incomplete to compile, because those are the ones that would
+        otherwise fall through to the membership test.
+        """
+        refused_as_out_of_scope = [
+            (direction.value, name, reason)
+            for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
+            for (surface_direction, name) in default_rail_catalog().surfaces()
+            if surface_direction is direction
+            and (reason := self._gate_reason(name, direction)) is not None
+            and "config has unsupported" in reason
+        ]
+
+        assert not refused_as_out_of_scope
+
+    @pytest.mark.parametrize(
+        ("flow", "direction", "expected"),
+        [
+            (
+                "autoalign check input",
+                SurfaceDirection.INPUT,
+                "'autoalign check input' transforms 'user_message'",
+            ),
+            (
+                "self check facts",
+                SurfaceDirection.OUTPUT,
+                "'self check facts' needs retrieval evidence, which manifest-driven execution does not supply yet",
+            ),
+            (
+                "content safety check output",
+                SurfaceDirection.INPUT,
+                "'content safety check output' has no surface named 'content safety check output' "
+                "with direction INPUT in the rail catalog; it is available with direction OUTPUT",
+            ),
+            (
+                "no such rail",
+                SurfaceDirection.INPUT,
+                "'no such rail' has no surface named 'no such rail' with direction INPUT in the rail catalog",
+            ),
+        ],
+        ids=["transform", "retrieval_evidence", "misdirected", "unknown"],
+    )
+    def test_the_refusal_reason_names_the_limitation(self, flow, direction, expected):
+        """Each class of refusal reports why, in wording a config author can act on."""
+        assert self._surface_reason(flow, direction) == expected
