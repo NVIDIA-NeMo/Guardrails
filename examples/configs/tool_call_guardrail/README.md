@@ -244,6 +244,42 @@ full-text document. References and appendices — which rarely carry a groundabl
 technique — fall off the end, keeping each document within a reasonable LLM
 context window. Only relevant when `--arxiv-full-text` is set.
 
+### Alternative: AIQ deep research
+
+For broad, synthesis-first threat surveys — especially where NVIDIA-internal
+enterprise sources (Confluence, SharePoint) are relevant alongside public sources
+— the NVIDIA AIQ Blueprint is a third acquisition path that complements
+`acquire.py`.
+
+AIQ does not replace `acquire.py`: it is better for *discovering what you do not
+know to search for* (cross-source synthesis, taxonomy generation, citation
+aggregation), while `acquire.py` is better for *targeted fetching of known
+relevant papers* and building a reproducible corpus from specific arXiv queries.
+In practice, an AIQ deep-research run makes a good starting point for a new
+domain; its output is then refined into advisory documents that `scan.py` can
+process, and `acquire.py` is used for follow-up targeted fetching.
+
+```bash
+# 1. Authenticate (browser SSO — one-time)
+python3 ~/.claude/skills/aiq-research/scripts/aiq.py login
+
+# 2. Submit a deep-research job
+python3 ~/.claude/skills/aiq-research/scripts/aiq.py chat \
+  "Survey of MCP attack classes for AI agents: prompt injection via tool \
+results, unauthorized tool invocation, tool result poisoning, tool surface \
+enumeration. Map each to OWASP LLM Top 10. Include CVEs and mitigations."
+
+# 3. Poll until complete (async — typically 5–15 minutes)
+python3 ~/.claude/skills/aiq-research/scripts/aiq.py research_poll <job_id>
+
+# 4. Save the report as an advisory document and feed it into the scanner
+python3 scanner/scan.py --extractor llm --docs path/to/aiq_report/ --out findings.json
+```
+
+Requires the `aiq-research` Claude Code skill and a valid NVIDIA SSO login. The
+AIQ skill is available at `~/.claude/skills/aiq-research/` on machines where it
+has been installed.
+
 ### Tests
 
 The offline pipeline (scanner, synthesis, acquisition) has a unit suite that needs
