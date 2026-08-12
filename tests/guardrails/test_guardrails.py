@@ -19,14 +19,13 @@ These tests mock the underlying LLMRails instantiation and verify that the Guard
 class correctly delegates method calls with properly formatted parameters.
 """
 
-import importlib.util
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from nemoguardrails import Guardrails
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError, unservable_reason
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, _is_installed, unservable_reason
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
     IORails,
@@ -423,7 +422,7 @@ class TestIORailsUnsupportedReason:
             pytest.param(
                 "gcpnlp moderation detailed",
                 marks=pytest.mark.skipif(
-                    importlib.util.find_spec("google.cloud.language") is None,
+                    not _is_installed("google-cloud-language"),
                     reason="gcpnlp is refused at compile time without google-cloud-language",
                 ),
             ),
