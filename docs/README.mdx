@@ -62,3 +62,28 @@ Tag the commit to publish with `docs-v<semver>`.
 Push the tag to GitHub.
 
 To avoid publishing the documentation as the latest, ensure the commit has `/not-latest` on a single line, tag that commit, and push to GitHub.
+
+### Publishing a Version from a Git Ref
+
+Historical versions are declared in `fern/docs.yml` with a Git `ref` that points to an immutable release tag or commit SHA. When you publish, Fern builds the version's pages, navigation, assets, and API references from that ref while applying the current theme and version selector.
+
+The referenced commit must contain the `fern/` directory at the same repository path. Add the version after you identify the frozen snapshot:
+
+```yaml
+versions:
+  - display-name: Latest
+    path: ../docs/index.yml
+    slug: latest
+  - display-name: v0.23.0
+    ref: v0.23.0
+    slug: v0.23.0
+    availability: stable
+  - display-name: v0.22.0
+    ref: fb73f41b0fa2ef6c50c90d76f8b20533e4c9a51e
+    slug: v0.22.0
+    availability: deprecated
+```
+
+Use an immutable tag when the release tag contains the exact documentation snapshot. Use a commit SHA when a curated historical snapshot does not align with a release tag. Avoid release branches for frozen versions because republishing from a branch can change historical content.
+
+The local Fern development server renders only versions backed by a working-tree `path`; use a published Fern preview to verify a `ref`-backed version.

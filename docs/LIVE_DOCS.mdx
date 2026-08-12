@@ -36,6 +36,7 @@ make docs-fern-live
 - Regenerates the Python SDK reference under `docs/_static/python-sdk-reference`.
 - Normalizes the generated SDK tree to avoid duplicate sidebar entries.
 - Starts the Fern local development server.
+- Renders working-tree versions only. Versions backed by a Git `ref` are included when the site is published.
 
 ### Published Branch Preview
 
@@ -43,7 +44,7 @@ make docs-fern-live
 make docs-fern-preview-watch
 ```
 
-This watches local docs and `fern/` configuration changes and publishes a Fern preview for the current Git branch.
+This watches local docs and `fern/` configuration changes and publishes a Fern preview for the current Git branch. Use the published preview to verify versions backed by a Git `ref`.
 
 ### Check Only
 
