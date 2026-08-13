@@ -29,6 +29,39 @@ LLMMessage: TypeAlias = dict[str, Any]
 LLMMessages: TypeAlias = list[LLMMessage]
 
 
+def current_user_turn_index(messages: LLMMessages) -> Optional[int]:
+    """Position of the turn being checked: the last user message that carries content."""
+    for index, message in reversed(list(enumerate(messages))):
+        if message.get("role") == "user" and message.get("content"):
+            return index
+    return None
+
+
+def last_user_content(messages: LLMMessages) -> str:
+    """Return the content of the turn being checked, or "" when there is none.
+
+    Empty rather than raising: the library actions read ``context.get(...)`` with a default
+    and call the model with empty text, and IORails matches that.
+    """
+    index = current_user_turn_index(messages)
+    return "" if index is None else messages[index]["content"]
+
+
+def rewrite_user_message(messages: LLMMessages, text: str) -> LLMMessages:
+    """Return *messages* with the turn under check rewritten to *text*.
+
+    The same turn ``last_user_content`` reads, so a rail's rewrite lands on the text that
+    rail was given. Copied at both levels rather than mutated, because the caller's own list
+    reaches the engine by identity: ``IORails._convert_to_messages`` hands it straight back.
+    """
+    index = current_user_turn_index(messages)
+    if index is None:
+        raise ValueError("no user turn carries content, so there is nothing to rewrite")
+    rewritten = list(messages)
+    rewritten[index] = {**messages[index], "content": text}
+    return rewritten
+
+
 class RailDirection(Enum):
     """Direction of a rail check, used for logging."""
 

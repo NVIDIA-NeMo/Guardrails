@@ -30,8 +30,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
-from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
-from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget, require_rail_outcome
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, current_user_turn_index, last_user_content
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.logging.processing_log import processing_log_var
@@ -93,15 +93,6 @@ _BOT_UTTERANCE_EVENT = "StartUtteranceBotAction"
 _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 
 
-def _current_turn_index(messages: LLMMessages) -> Optional[int]:
-    """Position of the turn being checked: the last user message that carries content."""
-    for index in range(len(messages) - 1, -1, -1):
-        message = messages[index]
-        if message.get("role") == "user" and message.get("content"):
-            return index
-    return None
-
-
 def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
     """The turns preceding the one being checked.
 
@@ -111,7 +102,7 @@ def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
     transcript, say — would place a later turn ahead of it and reorder the conversation.
     With no user turn to check, every message is history.
     """
-    index = _current_turn_index(messages)
+    index = current_user_turn_index(messages)
     return messages if index is None else messages[:index]
 
 
@@ -132,16 +123,6 @@ def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
         elif role == "system":
             events.append({"type": _SYSTEM_MESSAGE_EVENT, "content": content})
     return events
-
-
-def _last_user_content(messages: LLMMessages) -> str:
-    """Return the most recent user message's content, or "" when there is none.
-
-    Empty rather than raising: the library actions read ``context.get(...)`` with a default
-    and call the model with empty text, and IORails now matches that.
-    """
-    index = _current_turn_index(messages)
-    return "" if index is None else messages[index]["content"]
 
 
 def _llm_calls_from(sink: list[dict[str, Any]]) -> tuple["LLMCallInfo", ...]:
@@ -176,7 +157,7 @@ _CONTEXT_KEYS = ("user_message", "bot_message")
 
 def _request_context(messages: LLMMessages, bot_response: Optional[str]) -> dict[str, str]:
     """Build the conversation variables for one request."""
-    return {"user_message": _last_user_content(messages), "bot_message": bot_response or ""}
+    return {"user_message": last_user_content(messages), "bot_message": bot_response or ""}
 
 
 class CompiledRail:
@@ -212,6 +193,15 @@ class CompiledRail:
     def surface_name(self) -> str:
         """The manifest surface name, without any ``$param=`` suffix."""
         return self.surface.name
+
+    @property
+    def transform_target(self) -> Optional[TransformTarget]:
+        """The conversation variable this rail may rewrite, or None when it only allows or blocks.
+
+        What the manifest *declares*, not what a request produced: a rail free to rewrite mostly
+        does not, so this answers how to schedule the rail rather than what it decided.
+        """
+        return self.surface.transform_target
 
     async def run(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailOutcome:
         """Execute the rail and return its engine-neutral verdict."""

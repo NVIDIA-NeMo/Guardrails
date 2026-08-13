@@ -29,10 +29,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.manifests import RailDirection as SurfaceDirection
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMResponse, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.rail_stubs import declared_rewriter, rails_compiled_as
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
 MESSAGES = [{"role": "user", "content": "hi"}]
@@ -528,3 +530,52 @@ class TestSpeculativeGenerationTiming:
         gen_calls = [c for c in (result.log.llm_calls or []) if c.task == "general"]
         assert len(gen_calls) == 1
         assert gen_calls[0].duration is not None
+
+
+class TestSpeculativeGenerationAndRewritingRails:
+    """An input rail that may rewrite rules out racing generation against the input rails."""
+
+    def _engine(self, config_dict: dict, rails: dict) -> IORails:
+        with rails_compiled_as(rails):
+            return IORails(RailsConfig.from_content(config=config_dict), _report_usage=False)
+
+    def test_the_race_is_dropped_when_an_input_rail_may_rewrite(self):
+        """The model would otherwise read text the rails then replace, describing a call never made."""
+        with pytest.warns(UserWarning, match="speculative_generation is not honored"):
+            engine = self._engine(
+                NEMOGUARDS_SPECULATIVE_CONFIG,
+                {"jailbreak detection model": declared_rewriter(SurfaceDirection.INPUT)},
+            )
+
+        assert engine._speculative_generation is False
+
+    def test_the_warning_names_the_rail_that_forced_it(self):
+        """A performance setting dropped without asking has to say which rail dropped it."""
+        with pytest.warns(UserWarning, match="jailbreak detection model"):
+            self._engine(
+                NEMOGUARDS_SPECULATIVE_CONFIG,
+                {"jailbreak detection model": declared_rewriter(SurfaceDirection.INPUT)},
+            )
+
+    def test_the_race_survives_a_rewriting_rail_on_the_output_side(self, recwarn):
+        """Output rails run after generation, so a rewrite there cannot be read too late."""
+        engine = self._engine(
+            NEMOGUARDS_SPECULATIVE_CONFIG,
+            {"content safety check output $model=content_safety": declared_rewriter(SurfaceDirection.OUTPUT)},
+        )
+
+        assert engine._speculative_generation is True
+        assert [warning for warning in recwarn if "speculative_generation" in str(warning.message)] == []
+
+    def test_the_race_is_untouched_when_no_rail_rewrites(self, recwarn):
+        """The configs that shipped before rewrites existed keep the setting they asked for."""
+        engine = self._engine(NEMOGUARDS_SPECULATIVE_CONFIG, {})
+
+        assert engine._speculative_generation is True
+        assert [warning for warning in recwarn if "speculative_generation" in str(warning.message)] == []
+
+    def test_a_config_that_never_asked_for_the_race_still_does_not_get_it(self):
+        """The downgrade only ever turns the setting off, never on."""
+        engine = self._engine(NEMOGUARDS_CONFIG, {})
+
+        assert engine._speculative_generation is False

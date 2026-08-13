@@ -17,11 +17,12 @@
 
 import asyncio
 import logging
+import warnings
 from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.compiled_rail import CompiledRail, RailDependencies, compile_rail
@@ -32,6 +33,8 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailResult,
     display_reason,
     get_request_id,
+    last_user_content,
+    rewrite_user_message,
 )
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
@@ -145,14 +148,98 @@ _HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
 )
 
 
+# The conversation variable each direction's rails may rewrite. A rewrite naming anything else
+# has nowhere to land here, so it is refused rather than dropped.
+_REWRITABLE_TARGET = {
+    RailDirection.INPUT: TransformTarget.USER_MESSAGE,
+    RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
+}
+
+
+def _rewriting_flows(
+    rails: Mapping[tuple[RailDirection, str], CompiledRail],
+    direction: RailDirection,
+    flows: Sequence[str],
+) -> tuple[str, ...]:
+    """The configured flows whose surface declares they may rewrite the text they check."""
+    return tuple(flow for flow in flows if rails[(direction, flow)].transform_target is not None)
+
+
+def _transforms_first(rewriting: Sequence[str], flows: Sequence[str]) -> list[str]:
+    """Order a direction's flows so rails that may rewrite run ahead of rails that only judge.
+
+    A rewrite is only of use to the rails behind it: masking ahead of a safety check means the
+    check reads masked text. Configured order is kept within each group, so a direction with no
+    rewriting rail runs exactly as it was written.
+    """
+    ordered = list(rewriting)
+    already_ordered = set(rewriting)
+    ordered.extend(flow for flow in flows if flow not in already_ordered)
+    return ordered
+
+
 def _rail_result(outcome: RailOutcome) -> RailResult:
     """Map an engine-neutral rail verdict onto IORails' rail result."""
-    if outcome.is_transform:
-        # Unreachable: transform surfaces are refused at compile time until IORails can apply a
-        # rewrite. Raising keeps it that way, because the alternative -- reading TRANSFORM as
-        # "not blocked" -- allows the request and discards the rewrite with nothing to see.
-        raise NotImplementedError(f"rail returned {outcome.decision.value!r}, which IORails cannot apply")
     return RailResult(outcome)
+
+
+def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
+    """Map a tool rail's verdict, refusing a rewrite it has nowhere to apply."""
+    if outcome.is_transform:
+        # Tool rails validate structure and declare no transform target, so there is no
+        # conversation variable to write. Unreachable, and loud so it stays that way: reading
+        # a rewrite as "not blocked" would allow the request and discard it with nothing to see.
+        raise NotImplementedError(f"tool rail {flow!r} returned a rewrite, which IORails cannot apply")
+    return RailResult(outcome)
+
+
+def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -> str:
+    """Return what a transform rail rewrote its direction's conversation variable to."""
+    target = _REWRITABLE_TARGET[direction]
+    rewrites = outcome.transform_text
+    if set(rewrites) != {target.value}:
+        # A surface declares which variable it rewrites, and compilation checks that declaration
+        # against the direction; an action returning something else contradicts its own manifest.
+        raise NotImplementedError(
+            f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value.lower()} rail cannot apply; "
+            f"it may rewrite {target.value!r}"
+        )
+    return rewrites[target.value]
+
+
+def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
+    """Refuse a rewrite produced by a rail running concurrently with its peers.
+
+    Rails in parallel mode all read the text as it arrived, so two rewrites cannot compose and
+    applying either would report a verdict computed over text the other never saw. A configured
+    transform rail therefore forces sequential execution, and this keeps that the only way in.
+    """
+    if result.outcome.is_transform:
+        raise NotImplementedError(f"{flow!r} returned a rewrite while running in parallel, which cannot be applied")
+
+
+def _checked_text(direction: RailDirection, messages: list[dict], bot_response: Optional[str]) -> str:
+    """Return the text this direction's rails check, which is the text a rewrite replaces."""
+    if direction is RailDirection.INPUT:
+        return last_user_content(messages)
+    return bot_response or ""
+
+
+def _result_after_rewrites(
+    direction: RailDirection,
+    original_text: str,
+    final_text: str,
+    records: tuple[RailCallRecord, ...],
+) -> RailResult:
+    """Return the verdict for a direction no rail blocked: its rewrite, or a plain allow.
+
+    Only the text that survived every rail is reported, rather than each rail's rewrite in turn,
+    so rails that rewrite and then restore the original say nothing happened -- which is what
+    lets ``check`` tell PASSED from MODIFIED the way LLMRails does, by comparing content.
+    """
+    if final_text == original_text:
+        return RailResult.allow(records=records)
+    return RailResult(RailOutcome.transform([(_REWRITABLE_TARGET[direction], final_text)]), records=records)
 
 
 def _model_free_record(flow: str, rail_type: str, result: RailResult) -> RailCallRecord:
@@ -244,7 +331,8 @@ class RailsManager:
         # the catalog offers in both directions and a config lists in both would otherwise
         # collide on one key and run whichever compiled last.
         self._rails: dict[tuple[RailDirection, str], CompiledRail] = {}
-        for direction, flows in ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows)):
+        configured = ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows))
+        for direction, flows in configured:
             for flow in flows:
                 try:
                     surface_name, _ = parse_configured_surface(flow)
@@ -254,6 +342,15 @@ class RailsManager:
                 self._rails[(direction, flow)] = compile_rail(
                     flow, _SURFACE_DIRECTIONS[direction], deps, http_client=http_client
                 )
+
+        # Which rails may rewrite decides whether this config can run its rails concurrently at
+        # all, which is settled once, here. The order they run in is not: it follows from the
+        # configured flows, which stay the single source of truth for what runs.
+        self.transform_flows: dict[RailDirection, tuple[str, ...]] = {
+            direction: _rewriting_flows(self._rails, direction, flows) for direction, flows in configured
+        }
+        if any(self.transform_flows.values()):
+            self._run_rails_sequentially()
 
         # Tool Call Actions run on tool invocations from the main LLM response
         # Tool Result Actions run on the results of executing Tool Calls in the harness
@@ -270,6 +367,26 @@ class RailsManager:
             self.input_parallel,
             self.output_parallel,
         )
+
+    def _run_rails_sequentially(self) -> None:
+        """Turn off parallel rails, which cannot carry a rewrite from one rail to the next.
+
+        Concurrent rails all read the text as it arrived, so two rewrites cannot compose and
+        applying either would report a verdict computed over text the other never saw. Both
+        directions are turned off together: a config should not run its rails one way in one
+        section and another way in the other.
+        """
+        if not (self.input_parallel or self.output_parallel):
+            return
+        rewriting = sorted(flow for flows in self.transform_flows.values() for flow in flows)
+        warnings.warn(
+            f"rails.input.parallel / rails.output.parallel are not honored alongside a rail that rewrites "
+            f"content ({', '.join(rewriting)}); input and output rails run sequentially so each rewrite "
+            f"reaches the rails behind it.",
+            stacklevel=3,
+        )
+        self.input_parallel = False
+        self.output_parallel = False
 
     def _rail_dependencies(self) -> RailDependencies:
         """Bundle the collaborators a compiled rail's action may declare as parameters."""
@@ -331,14 +448,14 @@ class RailsManager:
         named flows (matched on the normalized flow name). When parallel mode is enabled,
         all selected rails run concurrently and the first unsafe result cancels the rest.
         """
-        active = self._enabled_flows(self.input_flows, enabled)
+        active = self._flows_to_run(RailDirection.INPUT, self.input_flows, enabled)
         if not active:
             return RailResult.allow()
 
-        rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in active}
         if self.input_parallel:
+            rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in active}
             return await self._run_rails_parallel(rails, RailDirection.INPUT)
-        return await self._run_rails_sequential(rails, RailDirection.INPUT)
+        return await self._run_rails_sequential(active, RailDirection.INPUT, messages)
 
     async def is_output_safe(
         self, messages: list[dict], response: str, *, enabled: Union[bool, list[str]] = True
@@ -350,14 +467,14 @@ class RailsManager:
         named flows (matched on the normalized flow name). When parallel mode is enabled,
         all selected rails run concurrently and the first unsafe result cancels the rest.
         """
-        active = self._enabled_flows(self.output_flows, enabled)
+        active = self._flows_to_run(RailDirection.OUTPUT, self.output_flows, enabled)
         if not active:
             return RailResult.allow()
 
-        rails = {flow: self._run_rail(flow, RailDirection.OUTPUT, messages, bot_response=response) for flow in active}
         if self.output_parallel:
+            rails = {flow: self._run_rail(flow, RailDirection.OUTPUT, messages, response) for flow in active}
             return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
-        return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
+        return await self._run_rails_sequential(active, RailDirection.OUTPUT, messages, response)
 
     async def are_tool_calls_safe(
         self,
@@ -383,7 +500,7 @@ class RailsManager:
             return RailResult.block(reason=f"tool parsing failed: {e}")
 
         rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
-        return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
+        return await self._run_tool_rails_sequential(rails, RailDirection.OUTPUT)
 
     async def are_tool_results_safe(
         self,
@@ -412,7 +529,14 @@ class RailsManager:
             return RailResult.allow()
 
         rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
-        return await self._run_rails_sequential(rails, RailDirection.INPUT)
+        return await self._run_tool_rails_sequential(rails, RailDirection.INPUT)
+
+    def _flows_to_run(
+        self, direction: RailDirection, configured: list[str], enabled: Union[bool, list[str]]
+    ) -> list[str]:
+        """The flows this request runs, in the order it runs them: rewriting rails first."""
+        active = self._enabled_flows(configured, enabled)
+        return _transforms_first(_rewriting_flows(self._rails, direction, active), active)
 
     @staticmethod
     def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:
@@ -456,7 +580,7 @@ class RailsManager:
     async def _run_tool_call_rail(self, flow: str, tool_calls: list[ToolCall], toolset: Toolset) -> RailResult:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
-            result = _rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls))
+            result = _tool_rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls), flow)
             result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -480,7 +604,7 @@ class RailsManager:
                 outcome = await action.run(exchange.results, exchange.calls)
                 if outcome.is_blocked:
                     break
-            result = _rail_result(outcome)
+            result = _tool_rail_result(outcome, flow)
             result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
@@ -498,10 +622,48 @@ class RailsManager:
 
     async def _run_rails_sequential(
         self,
+        flows: Sequence[str],
+        direction: RailDirection,
+        messages: list[dict],
+        bot_response: Optional[str] = None,
+    ) -> RailResult:
+        """Run one direction's input/output rails in turn, short-circuiting on the first unsafe result.
+
+        Each rail is dispatched only when its turn comes, so a rail that rewrites the text hands
+        the rewrite to the rails behind it: a masking rail ahead of a safety check means the check
+        reads masked text, which is what the rewrite is for.
+        """
+        req_id = get_request_id()
+        collected: list[RailCallRecord] = []
+        original_text = _checked_text(direction, messages, bot_response)
+        final_text = original_text
+        for flow in flows:
+            result = await self._run_rail(flow, direction, messages, bot_response)
+            collected.extend(result.records)
+            log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
+            if not result.is_safe:
+                log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
+                return replace(result, records=tuple(collected))
+            if result.outcome.is_transform:
+                final_text = _rewritten_text(result.outcome, direction, flow)
+                log.info("[%s] %s flow %s rewrote the text it checked", req_id, direction.value, flow)
+                if direction is RailDirection.INPUT:
+                    messages = rewrite_user_message(messages, final_text)
+                else:
+                    bot_response = final_text
+        return _result_after_rewrites(direction, original_text, final_text, tuple(collected))
+
+    async def _run_tool_rails_sequential(
+        self,
         rails: Mapping[str, Coroutine[Any, Any, RailResult]],
         direction: RailDirection,
     ) -> RailResult:
-        """Run rail coroutines sequentially, short-circuiting on first unsafe result."""
+        """Run tool rail coroutines sequentially, short-circuiting on first unsafe result.
+
+        Separate from the input/output loop because tool rails carry no text between them:
+        they validate structure, so there is nothing one could hand the next and their
+        coroutines are built up front. Unreached ones are closed rather than left pending.
+        """
         req_id = get_request_id()
         remaining = iter(rails.items())
         collected: list[RailCallRecord] = []
@@ -539,8 +701,9 @@ class RailsManager:
                 first_unsafe: Optional[RailResult] = None
                 for task in sorted(done, key=lambda t: task_order[t]):
                     result = task.result()
-                    collected.extend(result.records)
                     flow = task_to_flow[task]
+                    _refuse_concurrent_rewrite(result, flow)
+                    collected.extend(result.records)
                     log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
                     if not result.is_safe and first_unsafe is None:
                         first_unsafe = result

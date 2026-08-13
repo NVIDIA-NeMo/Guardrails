@@ -15,9 +15,11 @@
 
 import asyncio
 import copy
+import gc
 import inspect
 import json
 import logging
+import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -26,15 +28,22 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError, RailExecution, unservable_reason
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError, unservable_reason
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import (
     _HTTP_CLIENT_SURFACE_NAMES,
     RailsManager,
+    _checked_text,
     _rail_call_record,
     _rail_result,
+    _refuse_concurrent_rewrite,
+    _result_after_rewrites,
+    _rewriting_flows,
+    _rewritten_text,
+    _tool_rail_result,
+    _transforms_first,
 )
 from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -50,6 +59,7 @@ from tests.guardrails.async_helpers import (
     mock_rail_http_response,
     mock_rail_model,
 )
+from tests.guardrails.rail_stubs import StubRail, declared_rewriter, rails_compiled_as, rewriting_stub
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
     NEMOGUARDS_CONFIG,
@@ -66,6 +76,16 @@ from tests.guardrails.tool_helpers import (
     multi_turn_reused_call_id_messages,
 )
 
+
+def _coroutine_returning(result: RailResult):
+    """A coroutine handing back *result*, standing in for one rail's pending run."""
+
+    async def run() -> RailResult:
+        return result
+
+    return run()
+
+
 SAFE_INPUT_JSON = json.dumps({"User Safety": "safe"})
 UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S1: Violence"})
 SAFE_OUTPUT_JSON = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
@@ -77,16 +97,6 @@ UNSAFE_OUTPUT_JSON = json.dumps(
     }
 )
 MESSAGES = [{"role": "user", "content": "hello"}]
-
-
-class _FixedRail:
-    """Stands in for a CompiledRail, answering with one outcome and making no model call."""
-
-    def __init__(self, outcome: RailOutcome) -> None:
-        self._outcome = outcome
-
-    async def execute(self, messages, bot_response=None) -> RailExecution:
-        return RailExecution(outcome=self._outcome)
 
 
 def _make_rails_manager(config: RailsConfig, engine_registry: EngineRegistry | None = None) -> RailsManager:
@@ -226,8 +236,8 @@ class TestRailsManagerInit:
         # No catalog surface is offered in both directions today, so this pins the lookup
         # rather than a reachable collision.
         flow = "content safety check input $model=content_safety"
-        content_safety_rails_manager._rails[(RailDirection.INPUT, flow)] = _FixedRail(RailOutcome.allow())
-        content_safety_rails_manager._rails[(RailDirection.OUTPUT, flow)] = _FixedRail(RailOutcome.block())
+        content_safety_rails_manager._rails[(RailDirection.INPUT, flow)] = StubRail(RailOutcome.allow())
+        content_safety_rails_manager._rails[(RailDirection.OUTPUT, flow)] = StubRail(RailOutcome.block())
 
         allowed = await content_safety_rails_manager._run_rail(flow, RailDirection.INPUT, MESSAGES)
         blocked = await content_safety_rails_manager._run_rail(flow, RailDirection.OUTPUT, MESSAGES)
@@ -845,6 +855,22 @@ class TestRailsManagerToolCalls:
         assert result.is_safe is True
 
     @pytest.mark.asyncio
+    async def test_a_short_circuit_leaves_no_unawaited_coroutine(self):
+        """Tool rails are built up front, so the ones a block skips are closed rather than abandoned."""
+        mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
+        rails = {
+            "blocks": _coroutine_returning(RailResult.block(reason="unsafe")),
+            "never reached": _coroutine_returning(RailResult.allow()),
+        }
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = await mgr._run_tool_rails_sequential(rails, RailDirection.OUTPUT)
+            gc.collect()
+
+        assert result.is_safe is False
+
+    @pytest.mark.asyncio
     async def test_fails_closed_on_duplicate_tool_definitions(self):
         # parse_tools raises ValueError on a duplicate tool name; the method must
         # convert that into a block, not propagate.
@@ -1174,14 +1200,438 @@ class TestOutcomeToResult:
         assert result.is_safe is is_safe
         assert result.return_value == {"allowed": is_safe}
 
-    def test_a_transform_raises_rather_than_reading_as_allowed(self):
-        """A rewrite IORails cannot apply fails loudly instead of allowing and discarding it."""
-        # Transform surfaces are refused at compile time, so this is a tripwire for the PR
-        # that implements them rather than a path a config can reach.
+    def test_a_transform_becomes_a_safe_verdict_carrying_its_rewrite(self):
+        """A rewrite does not block, and the text it produced survives on the outcome."""
         outcome = RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")])
 
-        with pytest.raises(NotImplementedError, match="transform"):
-            _rail_result(outcome)
+        result = _rail_result(outcome)
+
+        assert result.is_safe is True
+        assert result.outcome.transform_text == {"user_message": "masked"}
+
+    def test_a_tool_rail_returning_a_rewrite_raises(self):
+        """Tool rails declare no variable to rewrite, so one arriving fails loudly instead of vanishing."""
+        outcome = RailOutcome.transform([(TransformTarget.USER_MESSAGE, "masked")])
+
+        with pytest.raises(NotImplementedError, match="tool call validation"):
+            _tool_rail_result(outcome, "tool call validation")
+
+    @pytest.mark.parametrize(
+        "outcome, is_safe",
+        [(RailOutcome.allow(), True), (RailOutcome.block(), False)],
+        ids=["allow", "block"],
+    )
+    def test_a_tool_rail_decision_becomes_a_verdict(self, outcome, is_safe):
+        """The decisions a tool rail can reach pass through unchanged."""
+        assert _tool_rail_result(outcome, "tool call validation").is_safe is is_safe
+
+
+CONTENT_SAFETY_INPUT_FLOW = "content safety check input $model=content_safety"
+TOPIC_SAFETY_INPUT_FLOW = "topic safety check input $model=topic_control"
+CONTENT_SAFETY_OUTPUT_FLOW = "content safety check output $model=content_safety"
+# Names without their $model= suffix, which is the form the per-request toggle matches on.
+INPUT_PAIR = ["content safety check input", "topic safety check input"]
+
+SSN_MESSAGES = [{"role": "system", "content": "be helpful"}, {"role": "user", "content": "my ssn is 123-45-6789"}]
+MASKED = "my ssn is <SSN>"
+
+
+def _mask_user_message(text: str) -> RailOutcome:
+    return RailOutcome.transform([(TransformTarget.USER_MESSAGE, text)])
+
+
+def _mask_bot_message(text: str) -> RailOutcome:
+    return RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)])
+
+
+@pytest.mark.asyncio
+class TestRailsThatRewrite:
+    """A rail's rewrite reaches the rails behind it and is reported as the direction's verdict."""
+
+    def _install(self, manager, direction, rails: dict) -> None:
+        for flow, rail in rails.items():
+            manager._rails[(direction, flow)] = rail
+
+    async def test_a_rewrite_reaches_the_next_rail(self, nemoguards_rails_manager):
+        """The rail behind a masking rail checks the masked text, which is the point of rewriting."""
+        recorder = StubRail(RailOutcome.allow())
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)), TOPIC_SAFETY_INPUT_FLOW: recorder},
+        )
+
+        await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert recorder.seen_messages == [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": MASKED},
+        ]
+
+    async def test_the_verdict_carries_the_text_the_last_rail_left(self, nemoguards_rails_manager):
+        """Two rewrites compose, and the surviving text is what the caller is told to use."""
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {
+                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
+                TOPIC_SAFETY_INPUT_FLOW: StubRail(_mask_user_message("my ssn is [redacted]")),
+            },
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.is_safe is True
+        assert result.outcome.transform_text == {"user_message": "my ssn is [redacted]"}
+
+    async def test_a_rewrite_back_to_the_original_reports_nothing_happened(self, nemoguards_rails_manager):
+        """Only a net change counts, so ``check`` can tell PASSED from MODIFIED by comparing content."""
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {
+                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
+                TOPIC_SAFETY_INPUT_FLOW: StubRail(_mask_user_message("my ssn is 123-45-6789")),
+            },
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.outcome.is_transform is False
+        assert result.is_safe is True
+
+    async def test_a_block_behind_a_rewrite_returns_the_block(self, nemoguards_rails_manager):
+        """A later block wins: the request is refused, so the rewrite has nothing left to apply to."""
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {
+                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
+                TOPIC_SAFETY_INPUT_FLOW: StubRail(RailOutcome.block(reason="off topic")),
+            },
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.is_safe is False
+        assert result.outcome.is_transform is False
+        assert result.triggered_rail == "topic safety check input"
+        assert len(result.records) == 2
+
+    async def test_a_rewrite_leaves_the_callers_messages_untouched(self, nemoguards_rails_manager):
+        """The caller's list arrives by identity, so masking must not edit the conversation it owns."""
+        messages = [{"role": "user", "content": "my ssn is 123-45-6789"}]
+        original_turn = messages[0]
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED))},
+        )
+
+        await nemoguards_rails_manager.is_input_safe(messages, enabled=["content safety check input"])
+
+        assert messages == [{"role": "user", "content": "my ssn is 123-45-6789"}]
+        assert messages[0] is original_turn
+
+    async def test_an_output_rewrite_reaches_the_next_rail_and_the_verdict(self, nemoguards_rails_manager):
+        """The output direction rewrites the response under check rather than the messages."""
+        recorder = StubRail(RailOutcome.allow())
+        second_flow = "mask pii on output"
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.OUTPUT,
+            {CONTENT_SAFETY_OUTPUT_FLOW: StubRail(_mask_bot_message("call me on <PHONE>")), second_flow: recorder},
+        )
+
+        result = await nemoguards_rails_manager._run_rails_sequential(
+            [CONTENT_SAFETY_OUTPUT_FLOW, second_flow], RailDirection.OUTPUT, SSN_MESSAGES, "call me on 555-0100"
+        )
+
+        assert recorder.seen_bot_response == "call me on <PHONE>"
+        assert recorder.seen_messages == SSN_MESSAGES
+        assert result.outcome.transform_text == {"bot_message": "call me on <PHONE>"}
+
+    async def test_a_rail_rewriting_the_other_directions_variable_raises(self, nemoguards_rails_manager):
+        """An action contradicting its surface's declared target fails loudly rather than being dropped."""
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_bot_message("masked"))},
+        )
+
+        with pytest.raises(NotImplementedError, match="cannot apply"):
+            await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=["content safety check input"])
+
+    async def test_a_rewrite_from_a_rail_running_in_parallel_raises(self, parallel_input_rails_manager):
+        """Concurrent rails all read the arriving text, so a rewrite there cannot be applied to anything."""
+        self._install(
+            parallel_input_rails_manager,
+            RailDirection.INPUT,
+            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED))},
+        )
+
+        with pytest.raises(NotImplementedError, match="in parallel"):
+            await parallel_input_rails_manager.is_input_safe(SSN_MESSAGES, enabled=["content safety check input"])
+
+    async def test_a_rail_behind_a_block_is_never_dispatched(self, nemoguards_rails_manager):
+        """Rails are built when their turn comes, so a short-circuited one does no work at all."""
+        recorder = StubRail(RailOutcome.allow())
+        self._install(
+            nemoguards_rails_manager,
+            RailDirection.INPUT,
+            {
+                CONTENT_SAFETY_INPUT_FLOW: StubRail(RailOutcome.block(reason="unsafe")),
+                TOPIC_SAFETY_INPUT_FLOW: recorder,
+            },
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert result.is_safe is False
+        assert recorder.seen_messages == []
+
+
+class TestRewritingFlows:
+    """`_rewriting_flows` reports which of a direction's configured flows may rewrite."""
+
+    def test_only_rails_declaring_a_target_are_named(self):
+        """What the surface declares decides scheduling, not what a given request produced."""
+        rails = {
+            (RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW): StubRail(),
+            (RailDirection.INPUT, TOPIC_SAFETY_INPUT_FLOW): declared_rewriter(SurfaceDirection.INPUT),
+        }
+
+        rewriting = _rewriting_flows(rails, RailDirection.INPUT, [CONTENT_SAFETY_INPUT_FLOW, TOPIC_SAFETY_INPUT_FLOW])
+
+        assert rewriting == (TOPIC_SAFETY_INPUT_FLOW,)
+
+    def test_a_direction_with_no_rewriting_rail_names_nothing(self):
+        """The common config, which must keep running exactly as it did."""
+        rails = {(RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW): StubRail()}
+
+        assert _rewriting_flows(rails, RailDirection.INPUT, [CONTENT_SAFETY_INPUT_FLOW]) == ()
+
+
+class TestTransformsFirst:
+    """`_transforms_first` puts rails that may rewrite ahead of rails that only judge."""
+
+    def test_a_rewriting_rail_moves_ahead_of_the_rails_that_judge(self):
+        """A rewrite is only of use to the rails behind it, so it has to run before them."""
+        ordered = _transforms_first([TOPIC_SAFETY_INPUT_FLOW], [CONTENT_SAFETY_INPUT_FLOW, TOPIC_SAFETY_INPUT_FLOW])
+
+        assert ordered == [TOPIC_SAFETY_INPUT_FLOW, CONTENT_SAFETY_INPUT_FLOW]
+
+    def test_configured_order_survives_within_each_group(self):
+        """Reordering is between the two groups only; inside each, the config decides."""
+        flows = ["a", "b", "c", "d"]
+
+        assert _transforms_first(["b", "d"], flows) == ["b", "d", "a", "c"]
+
+    def test_nothing_moves_when_no_rail_rewrites(self):
+        """A config with no rewriting rail runs exactly as it was written."""
+        flows = ["a", "b", "c"]
+
+        assert _transforms_first([], flows) == flows
+
+
+class TestSchedulingRailsThatRewrite:
+    """A configured rewriting rail decides run order and rules out concurrent execution."""
+
+    def test_the_rewriting_rails_are_named_per_direction(self):
+        """Each direction is asked separately, because the two are scheduled for different reasons."""
+        with rails_compiled_as({TOPIC_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)}):
+            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+
+        assert manager.transform_flows[RailDirection.INPUT] == (TOPIC_SAFETY_INPUT_FLOW,)
+        assert manager.transform_flows[RailDirection.OUTPUT] == ()
+
+    @pytest.mark.asyncio
+    async def test_a_rewriting_rail_runs_before_a_rail_configured_ahead_of_it(self):
+        """Ordering is observable: the judging rail reads text the rewriting rail produced."""
+        judge = StubRail()
+        with rails_compiled_as(
+            {
+                CONTENT_SAFETY_INPUT_FLOW: judge,
+                TOPIC_SAFETY_INPUT_FLOW: rewriting_stub(MASKED, SurfaceDirection.INPUT),
+            }
+        ):
+            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+
+        await manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
+
+        assert judge.seen_messages[-1]["content"] == MASKED
+
+    def test_the_configured_order_is_kept_when_nothing_rewrites(self):
+        """Nothing about scheduling changes for the configs that shipped before rewrites existed."""
+        with rails_compiled_as({}):
+            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+
+        assert manager._flows_to_run(RailDirection.INPUT, manager.input_flows, True) == manager.input_flows
+
+    def test_emptying_the_configured_flows_leaves_nothing_to_run(self):
+        """The configured list stays the single source of truth for what runs, ordering aside."""
+        with rails_compiled_as({CONTENT_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)}):
+            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        manager.input_flows = []
+
+        assert manager._flows_to_run(RailDirection.INPUT, manager.input_flows, True) == []
+
+    def test_parallel_rails_are_turned_off_in_both_directions(self):
+        """One rewriting rail settles how the whole config runs, rather than per section."""
+        with rails_compiled_as({CONTENT_SAFETY_OUTPUT_FLOW: declared_rewriter(SurfaceDirection.OUTPUT)}):
+            with pytest.warns(UserWarning, match="parallel"):
+                manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG))
+
+        assert manager.input_parallel is False
+        assert manager.output_parallel is False
+
+    def test_the_warning_names_the_rail_that_forced_it(self):
+        """A downgrade a user did not ask for has to say which rail caused it."""
+        with rails_compiled_as({CONTENT_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)}):
+            with pytest.warns(UserWarning, match=CONTENT_SAFETY_INPUT_FLOW.replace("$", r"\$")):
+                _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_INPUT_CONFIG))
+
+    def test_parallel_rails_are_left_alone_when_nothing_rewrites(self, recwarn):
+        """The downgrade is silent and absent for every config that does not need it."""
+        with rails_compiled_as({}):
+            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG))
+
+        assert manager.input_parallel is True
+        assert manager.output_parallel is True
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
+    @pytest.mark.asyncio
+    async def test_the_output_direction_is_scheduled_the_same_way(self):
+        """Output rails order by the same rule, against the response rather than the messages."""
+        judge = StubRail()
+        second_flow = "mask pii on output"
+        config = RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
+        config.rails.output.flows.append(second_flow)
+        with rails_compiled_as(
+            {
+                CONTENT_SAFETY_OUTPUT_FLOW: judge,
+                second_flow: rewriting_stub("call me on <PHONE>", SurfaceDirection.OUTPUT),
+            }
+        ):
+            manager = _make_rails_manager(config)
+
+        await manager.is_output_safe(SSN_MESSAGES, "call me on 555-0100")
+
+        assert manager.transform_flows[RailDirection.OUTPUT] == (second_flow,)
+        assert judge.seen_bot_response == "call me on <PHONE>"
+
+
+class TestCheckedText:
+    """`_checked_text` names the text a direction's rails read, which is the text a rewrite replaces."""
+
+    def test_input_rails_check_the_current_user_turn(self):
+        """Input rails judge the turn being handled, not the whole conversation."""
+        assert _checked_text(RailDirection.INPUT, SSN_MESSAGES, None) == "my ssn is 123-45-6789"
+
+    def test_input_rails_ignore_a_response(self):
+        """A response only exists for the output direction, so it cannot be what an input rail read."""
+        assert _checked_text(RailDirection.INPUT, SSN_MESSAGES, "a reply") == "my ssn is 123-45-6789"
+
+    def test_output_rails_check_the_response(self):
+        """Output rails judge the generated response, which is not yet part of the messages."""
+        assert _checked_text(RailDirection.OUTPUT, SSN_MESSAGES, "a reply") == "a reply"
+
+    def test_output_rails_with_no_response_check_nothing(self):
+        """A turn that produced no text compares equal to itself, so it reports no rewrite."""
+        assert _checked_text(RailDirection.OUTPUT, SSN_MESSAGES, None) == ""
+
+
+class TestRewrittenText:
+    """`_rewritten_text` reads the rewrite a direction can apply, and refuses every other one."""
+
+    def test_an_input_rail_rewrites_the_user_message(self):
+        """The variable an input rail is allowed to rewrite."""
+        assert _rewritten_text(_mask_user_message(MASKED), RailDirection.INPUT, "mask pii on input") == MASKED
+
+    def test_an_output_rail_rewrites_the_bot_message(self):
+        """The variable an output rail is allowed to rewrite."""
+        assert _rewritten_text(_mask_bot_message("redacted"), RailDirection.OUTPUT, "mask pii on output") == "redacted"
+
+    def test_the_other_directions_variable_is_refused(self):
+        """An action contradicting its surface's declared target is a bug, not a verdict to apply."""
+        with pytest.raises(NotImplementedError, match="may rewrite 'user_message'"):
+            _rewritten_text(_mask_bot_message("redacted"), RailDirection.INPUT, "mask pii on input")
+
+    def test_rewriting_more_than_one_variable_is_refused(self):
+        """Applying half of a two-variable rewrite would report a verdict over text no rail produced."""
+        outcome = RailOutcome.transform(
+            [(TransformTarget.USER_MESSAGE, MASKED), (TransformTarget.BOT_MESSAGE, "redacted")]
+        )
+
+        with pytest.raises(NotImplementedError, match="cannot apply"):
+            _rewritten_text(outcome, RailDirection.INPUT, "pangea ai guard input")
+
+    def test_a_retrieval_rewrite_is_refused(self):
+        """``relevant_chunks`` has no home in an input/output request, so there is nowhere to put it."""
+        outcome = RailOutcome.transform([(TransformTarget.RELEVANT_CHUNKS, "chunk text")])
+
+        with pytest.raises(NotImplementedError, match="cannot apply"):
+            _rewritten_text(outcome, RailDirection.INPUT, "mask pii on retrieval")
+
+
+class TestResultAfterRewrites:
+    """`_result_after_rewrites` reports a direction's net rewrite, or that nothing changed."""
+
+    RECORDS = (RailCallRecord(flow="mask pii on input", rail_type="input", is_safe=True),)
+
+    def test_unchanged_text_is_a_plain_allow(self):
+        """Rails that rewrote nothing, or rewrote and restored, leave the request as it arrived."""
+        result = _result_after_rewrites(RailDirection.INPUT, "hello", "hello", self.RECORDS)
+
+        assert result.outcome.is_transform is False
+        assert result.is_safe is True
+        assert result.records == self.RECORDS
+
+    def test_an_input_rewrite_names_the_user_message(self):
+        """The caller learns which variable to replace, not just that something changed."""
+        result = _result_after_rewrites(RailDirection.INPUT, "my ssn is 123-45-6789", MASKED, self.RECORDS)
+
+        assert result.outcome.transform_text == {"user_message": MASKED}
+        assert result.is_safe is True
+        assert result.records == self.RECORDS
+
+    def test_an_output_rewrite_names_the_bot_message(self):
+        """The output direction reports against the variable its rails checked."""
+        result = _result_after_rewrites(RailDirection.OUTPUT, "call me on 555-0100", "call me on <PHONE>", ())
+
+        assert result.outcome.transform_text == {"bot_message": "call me on <PHONE>"}
+
+    def test_a_rewrite_to_empty_text_is_still_a_rewrite(self):
+        """Redacting a response to nothing is a change, and must not read as leaving it alone."""
+        result = _result_after_rewrites(RailDirection.OUTPUT, "my ssn is 123-45-6789", "", ())
+
+        assert result.outcome.transform_text == {"bot_message": ""}
+
+    def test_a_rewrite_keeps_every_rail_that_ran(self):
+        """The log covers the whole direction, not only the rail that rewrote."""
+        result = _result_after_rewrites(RailDirection.INPUT, "before", "after", self.RECORDS)
+
+        assert result.records == self.RECORDS
+
+
+class TestRefuseConcurrentRewrite:
+    """`_refuse_concurrent_rewrite` keeps rewrites out of the path that cannot compose them."""
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [RailOutcome.allow(), RailOutcome.block(reason="unsafe")],
+        ids=["allow", "block"],
+    )
+    def test_a_decision_passes_through(self, outcome):
+        """Parallel mode is unaffected for the verdicts its rails can actually reach."""
+        assert _refuse_concurrent_rewrite(RailResult(outcome), "content safety check input") is None
+
+    def test_a_rewrite_raises(self):
+        """Concurrent rails all read the arriving text, so no rewrite among them can be applied."""
+        result = RailResult(_mask_user_message(MASKED))
+
+        with pytest.raises(NotImplementedError, match="in parallel"):
+            _refuse_concurrent_rewrite(result, "mask pii on input")
 
 
 class TestRailCallRecordNaming:

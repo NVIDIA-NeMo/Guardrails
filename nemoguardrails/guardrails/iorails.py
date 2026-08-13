@@ -687,7 +687,7 @@ class IORails(BaseGuardrails):
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
-        self._speculative_generation = config.rails.input.speculative_generation or False
+        self._speculative_generation = self._speculative_generation_allowed(config)
 
         # Non-streaming admission queue + worker pool (owned by IORails so
         # all request-path concurrency controls sit under one roof).  The
@@ -711,6 +711,26 @@ class IORails(BaseGuardrails):
             from nemoguardrails.telemetry import RailsEngineEnum, report_usage
 
             report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
+
+    def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
+        """Whether input rails may race the main call, which an input rail that rewrites rules out.
+
+        Speculative generation starts the model before the input rails finish, so a rewrite lands
+        after the model has already read the original text. Applying it would describe a call that
+        never happened, and ignoring it would send unmasked text to the model, so the race goes.
+        """
+        if not config.rails.input.speculative_generation:
+            return False
+        rewriting = self.rails_manager.transform_flows[RailDirection.INPUT]
+        if not rewriting:
+            return True
+        warnings.warn(
+            f"rails.input.speculative_generation is not honored alongside an input rail that rewrites the "
+            f"user message ({', '.join(rewriting)}); generation waits for the input rails so the model reads "
+            f"the rewritten text.",
+            stacklevel=3,
+        )
+        return False
 
     @property
     def _has_streaming_output_rails(self) -> bool:

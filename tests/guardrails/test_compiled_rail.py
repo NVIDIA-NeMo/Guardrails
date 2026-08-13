@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import (
     _RETRIEVAL_CONTEXT_SURFACES,
     CompiledRail,
@@ -70,6 +70,7 @@ JAILBREAK_INPUT = "jailbreak detection model"
 USER_MESSAGES = [{"role": "user", "content": "hello there"}]
 
 SYNTHETIC_FLOW = "synthetic rail"
+TAKES_TEXT_TARGET = "tests.guardrails.test_compiled_rail:takes_text"
 CONTENT_SAFETY_ACTION_REF = ActionRef(
     name="content_safety_check_input",
     target="nemoguardrails.library.content_safety.actions:content_safety_check_input",
@@ -134,6 +135,7 @@ def synthetic_surface(
     *,
     bypass_validation: bool = False,
     direction: RailDirection = RailDirection.INPUT,
+    transform_target: Optional[TransformTarget] = None,
 ) -> RailSurface:
     """Build a one-off surface for a compilation path the real catalog cannot reach.
 
@@ -145,14 +147,31 @@ def synthetic_surface(
             direction=direction,
             action=action,
             bindings=bindings,
-            transform_target=None,
+            transform_target=transform_target,
         )
     return RailSurface(
         name=SYNTHETIC_FLOW,
         direction=direction,
         action=action,
         bindings=bindings,
-        transform_target=None,
+        transform_target=transform_target,
+    )
+
+
+def uncompiled_rail(surface: RailSurface, deps: RailDependencies) -> CompiledRail:
+    """Build a ``CompiledRail`` around *surface* without going through compilation.
+
+    The only way to hold a rail for a surface compilation still refuses, which is what a
+    rewriting surface is until IORails can apply the rewrite.
+    """
+    return CompiledRail(
+        flow=surface.name,
+        surface=surface,
+        action=takes_text,
+        bound=(),
+        context_bound=(),
+        deps=deps,
+        accepted=frozenset(),
     )
 
 
@@ -413,6 +432,32 @@ class TestUnrunnableSurfaces:
         """A surface that rewrites content is refused until IORails can apply the rewrite."""
         with pytest.raises(RailCompilationError, match="transform"):
             compile_rail("autoalign check input", RailDirection.INPUT, deps)
+
+
+class TestDeclaredTransformTarget:
+    """A rail reports the variable its surface says it may rewrite, which is how it is scheduled."""
+
+    def test_a_block_only_rail_declares_no_rewrite(self, deps):
+        """The shipped rails all judge without rewriting, so nothing about their scheduling changes."""
+        assert compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).transform_target is None
+
+    def test_a_rewriting_rail_reports_the_variable_it_may_rewrite(self, deps):
+        """Scheduling reads the manifest's declaration, not a verdict some request happened to produce."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), transform_target=TransformTarget.USER_MESSAGE
+        )
+
+        assert uncompiled_rail(surface, deps).transform_target is TransformTarget.USER_MESSAGE
+
+    def test_the_declaration_is_independent_of_what_a_rail_answers(self, deps):
+        """Most requests to a rewriting rail come back as a plain allow; it is still scheduled first."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), transform_target=TransformTarget.USER_MESSAGE
+        )
+        rail = uncompiled_rail(surface, deps)
+
+        assert rail.transform_target is TransformTarget.USER_MESSAGE
+        assert rail.surface.transform_target is TransformTarget.USER_MESSAGE
 
     @pytest.mark.parametrize(
         "direction, flow",
