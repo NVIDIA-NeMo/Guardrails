@@ -559,9 +559,8 @@ navigation:
       - page: Use Case Diagrams
         path: reference/use-case-diagrams.mdx
         slug: use-case-diagrams
-      - folder: _static/python-sdk-reference/guardrails-python-sdk
+      - library: guardrails-python-sdk
         title: Python SDK Reference
-        collapsed: true
       - page: CLI
         path: reference/cli/index.mdx
         slug: cli
