@@ -1249,10 +1249,9 @@ class TestStreamAsyncWithRewritingRails:
 
     @pytest.mark.asyncio
     async def test_a_rewrite_that_arrives_too_late_stops_the_stream(self, iorails_stream_first, caplog):
-        """Unreachable through a loaded config, and the one case where more text must not be sent.
+        """A rewrite arriving after its batch shipped stops the stream rather than sending more.
 
-        ``RailsConfig`` refuses ``stream_first`` alongside a rewriting output rail, so reaching
-        here means a rail the catalog does not describe rewrote after its batch had gone out.
+        No config reaches it: what is left is a manifest declaring no target whose action rewrites.
         """
         iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("<REDACTED>"))

@@ -304,12 +304,7 @@ class TestClientReason:
         ids=["user-message", "bot-message", "regex-text", "injection-text"],
     )
     def test_a_rail_echoing_the_request_does_not_put_it_in_the_log(self, metadata, withheld):
-        """A block writes a log line unconditionally, so content in it would be an opt-out-free leak.
-
-        These rails return the text they judged as evidence: rendering it would put the
-        conversation into an operator's log on every block, which is the thing content capture
-        exists to make a deliberate choice.
-        """
+        """A block writes a log line unconditionally, so content in it would be an opt-out-free leak."""
         result = RailResult.block(metadata=metadata, triggered_rail="a rail")
 
         assert withheld not in display_reason(result)

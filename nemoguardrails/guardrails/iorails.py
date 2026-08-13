@@ -546,12 +546,9 @@ def _rewritten_bot_message(result: RailResult) -> Optional[str]:
 
 @dataclass(slots=True)
 class _TurnConversation:
-    """The messages a turn is running against, shared by the parts that read them after the rails.
+    """The messages a turn is running against, mutable so a rewrite reaches what was built first.
 
-    Mutable, and deliberately so. Streaming needs it because the output-rail wrapper is built
-    before the generation task starts, so a rewrite the input rails produce later has no other
-    way to reach it. Both paths need it for content capture, which happens at the request-span
-    boundary and must record the text the model actually read rather than what arrived.
+    The output-rail wrapper and the request span are both built before the input rails run.
     """
 
     messages: LLMMessages
@@ -559,12 +556,7 @@ class _TurnConversation:
 
 @dataclass(frozen=True, slots=True)
 class _GeneratedTurn:
-    """The main model's response, and the messages it was generated from.
-
-    The messages travel back with the response because input rails may have rewritten them, and
-    what the model actually read is what the output rails and the generation log must see.
-    ``response`` is None when the input rails blocked, so no generation happened.
-    """
+    """The main model's response and the messages it read, or no response when the rails blocked."""
 
     response: Optional[LLMResponse]
     messages: LLMMessages
@@ -753,11 +745,9 @@ class IORails(BaseGuardrails):
             report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
 
     def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
-        """Whether input rails may race the main call, which an input rail that rewrites rules out.
+        """Whether input rails may race the main call, which a rewriting input rail rules out.
 
-        Speculative generation starts the model before the input rails finish, so a rewrite lands
-        after the model has already read the original text. Applying it would describe a call that
-        never happened, and ignoring it would send unmasked text to the model, so the race goes.
+        The model reads the text before the rails finish with it, so a rewrite arrives too late.
         """
         if not config.rails.input.speculative_generation:
             return False
@@ -958,10 +948,9 @@ class IORails(BaseGuardrails):
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
-            # Capture content once here at the traced_request boundary so any
-            # future early-return added to _do_generate is covered automatically. The messages
-            # recorded are the ones the model read: an input rail may have masked them, and a
-            # span carrying the text a mask removed would defeat the mask.
+            # Captured at the traced_request boundary, so a future early-return in _do_generate
+            # is covered. The messages are the ones the model read: a span carrying the text a
+            # mask removed would defeat the mask.
             if self._content_capture_enabled:
                 set_request_content(request_span, conversation.messages, _response_content_for_capture(result))
             elapsed_ms = (time.monotonic() - t0) * 1000
@@ -1049,8 +1038,7 @@ class IORails(BaseGuardrails):
         if turn.response is None:
             return _blocked_return()
 
-        # What the model read, which is what the output rails must check: an input rail may have
-        # rewritten the user message, and checking the text it replaced would judge the wrong turn.
+        # What the model read: judging the text an input rail replaced would judge the wrong turn.
         response = turn.response
         messages = turn.messages
         if conversation is not None:
@@ -1170,11 +1158,7 @@ class IORails(BaseGuardrails):
         input_enabled: Union[bool, list[str]] = True,
         records_out: Optional[list[RailCallRecord]] = None,
     ) -> _GeneratedTurn:
-        """Speculative path: input rails and LLM generation race concurrently.
-
-        The messages come back unchanged: the race is refused for a config whose input rails may
-        rewrite, because the model reads the text before the rails have finished with it.
-        """
+        """Speculative path: input rails and LLM generation race, so no rewrite can arrive."""
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
 
         rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages, enabled=input_enabled))
@@ -1561,11 +1545,8 @@ class IORails(BaseGuardrails):
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
 
-                # Input rails finish before the first token is requested, so a rewrite reaches the
-                # model here exactly as it does when not streaming. It reaches the output rails
-                # too: they are handed ``conversation``, which is rebound here rather than passed
-                # by value when the stream was set up, so they judge the turn the model answered
-                # rather than the text an input rail replaced.
+                # Input rails finish before the first token, so the rewrite reaches the model
+                # here, and the output rails through ``conversation`` rather than a stale capture.
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
@@ -1794,11 +1775,9 @@ class IORails(BaseGuardrails):
         - ``stream_first=False``: run output rails first, only yield chunks
           if safe.
 
-        A rail that rewrites the batch is applied rather than declined: the rewritten text is
-        what ships, and the rails that only judge have already read it, because a direction runs
-        its rewriting rails first. That holds only where the rewrite can be mapped onto what is
-        still to be sent, which is why ``RailsConfig`` refuses ``stream_first`` and a non-zero
-        ``context_size`` alongside a rewriting output rail.
+        A rewrite is applied rather than declined, which holds only where it maps onto what is
+        still to be sent -- hence the ``RailsConfig`` refusal of ``stream_first`` and a context
+        window alongside a rewriting rail.
         """
 
         # Unpack streaming config and get the buffer strategy
@@ -1846,10 +1825,10 @@ class IORails(BaseGuardrails):
 
             rewritten = _rewritten_bot_message(output_result)
             if rewritten is not None and stream_first:
-                # Unreachable through a loaded config: ``RailsConfig`` refuses this combination,
-                # because the batch has already been sent and there is nothing left to redact.
-                # Reachable only from a rail the catalog does not describe, and delivering more
-                # text after failing to mask is the one outcome worth refusing outright.
+                # No config reaches here: ``RailsConfig`` refuses ``stream_first`` alongside a
+                # rail that declares a rewrite, and one the catalog cannot describe never runs on
+                # this engine. What is left is a manifest declaring no target whose action rewrites
+                # anyway -- and the batch has gone, so stopping is all that remains.
                 log.error("[%s] Output rewrite arrived after the batch was streamed", req_id)
                 violation = self._guardrails_violation_payload(
                     "Blocked by output rails: a rewrite could not be applied to the stream", "output_rails"
@@ -1862,8 +1841,6 @@ class IORails(BaseGuardrails):
                     for chunk in user_output_chunks:
                         yield chunk
                 else:
-                    # The batch is replaced by what the rails made of it, in one frame: with
-                    # ``context_size`` at zero the judged window is exactly this batch, so the
-                    # rewritten text stands in for it whole rather than chunk by chunk.
+                    # One frame: with ``context_size`` at zero the judged window is this batch.
                     log.info("[%s] Output rails rewrote the streamed batch", req_id)
                     yield _frame_for_stream(rewritten, include_metadata)

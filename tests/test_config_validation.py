@@ -215,8 +215,7 @@ def test_a_judging_rail_keeps_stream_first():
 def test_streaming_ignores_a_flow_the_surface_parser_rejects():
     """A flow this validator cannot parse is left to the validators that own flow names.
 
-    Reached directly rather than through a config, because a config carrying such a flow is
-    refused by an earlier check and would never arrive here.
+    Called directly, because an earlier check refuses such a config before this one runs.
     """
     values = {
         "rails": {

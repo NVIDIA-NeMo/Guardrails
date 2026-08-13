@@ -160,12 +160,7 @@ def synthetic_surface(
 
 
 def uncompiled_rail(surface: RailSurface, deps: RailDependencies) -> CompiledRail:
-    """Build a ``CompiledRail`` around *surface* without going through compilation.
-
-    Synthetic surfaces name an action the catalog cannot resolve, so ``compile_rail`` has no way
-    to reach one. Constructing the rail directly is what lets a test hold a surface the manifests
-    do not ship -- a rewrite crossed over to the wrong direction, say.
-    """
+    """Build a ``CompiledRail`` around a synthetic *surface*, whose action the catalog cannot resolve."""
     return CompiledRail(
         flow=surface.name,
         surface=surface,
@@ -550,13 +545,9 @@ class TestSurfacesOutsideTheTier:
         assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
 
     def test_the_input_output_tier_splits_into_servable_and_refused(self):
-        """Every input/output surface is servable but for the eight refused ones.
+        """59 servable -- 41 judging and 18 rewriting -- against the 8 refused, pinned by name.
 
-        Measured: 59 servable -- 41 that only judge and the 18 that may rewrite -- against 8
-        refused: the seven retrieval-evidence surfaces plus jailbreak heuristics, whose backend
-        cannot be told apart from its manifest sibling's. Pinning the split rather than a
-        predicate means a newly added manifest surface, or an action that grows a binding
-        IORails cannot fill, fails here rather than in a config.
+        A predicate would follow the code it is checking; a new manifest surface fails here.
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
@@ -569,11 +560,7 @@ class TestSurfacesOutsideTheTier:
         assert len(servable) == 59
 
     def test_the_rewriting_surfaces_are_all_servable(self):
-        """The eighteen this work exists for: nine each way, every one of them runnable.
-
-        Counted rather than named, because the names are the manifests' business; what this
-        pins is that no direction is left half-enabled.
-        """
+        """The eighteen this work exists for, nine each way, with no direction half-enabled."""
         rewriting = [
             (direction, name)
             for (direction, name), surface in default_rail_catalog().surfaces().items()

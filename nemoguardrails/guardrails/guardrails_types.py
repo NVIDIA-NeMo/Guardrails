@@ -38,21 +38,15 @@ def current_user_turn_index(messages: LLMMessages) -> Optional[int]:
 
 
 def last_user_content(messages: LLMMessages) -> str:
-    """Return the content of the turn being checked, or "" when there is none.
-
-    Empty rather than raising: the library actions read ``context.get(...)`` with a default
-    and call the model with empty text, and IORails matches that.
-    """
+    """Return the content of the turn being checked, or "" as the library actions expect."""
     index = current_user_turn_index(messages)
     return "" if index is None else messages[index]["content"]
 
 
 def rewrite_user_message(messages: LLMMessages, text: str) -> LLMMessages:
-    """Return *messages* with the turn under check rewritten to *text*.
+    """Return *messages* with the turn ``last_user_content`` reads rewritten to *text*.
 
-    The same turn ``last_user_content`` reads, so a rail's rewrite lands on the text that
-    rail was given. Copied at both levels rather than mutated, because the caller's own list
-    reaches the engine by identity: ``IORails._convert_to_messages`` hands it straight back.
+    Copied at both levels, because the caller's own list reaches the engine by identity.
     """
     index = current_user_turn_index(messages)
     if index is None:
@@ -270,11 +264,8 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
-# Verdict fields that repeat the request rather than describe it. A rail is free to echo the
-# text it judged -- ``injection_detection`` returns the whole bot message under ``text``, and the
-# rails that guard both sides of a turn return both variables -- but rendering that here would
-# put the conversation into an operator's log on every block, with no opt-in. Content reaches a
-# span only through content capture, which is configured, and reaches the caller not at all.
+# Verdict fields that repeat the request rather than describe it: a block writes a log line
+# unconditionally, and content belongs in a span only through configured content capture.
 _CONTENT_EVIDENCE_KEYS = frozenset({"text", "user_message", "bot_message"})
 
 

@@ -2921,10 +2921,7 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
 class _IORailsRun:
     """What one IORails run showed: the reply, and the user text the main model was given.
 
-    Two signals rather than one because a rewrite surfaces at a different end depending on the
-    direction: an output rail's shows up in the reply, an input rail's only in what the model
-    was asked. LLMRails proves the latter through ``output_data``, which IORails does not
-    produce -- so it is observed where IORails does apply it.
+    Two signals, because an input rewrite shows up only in what the model was asked.
     """
 
     response: dict[str, Any]
@@ -2993,9 +2990,8 @@ def test_enable_rails_exceptions_is_honoured_only_by_llmrails():
     # the enabled cases carry the flag and diverge this way. The decision agrees on both engines
     # -- only the shape of the block differs -- so this is pinned here rather than left to the
     # table above, where a decision-level assertion would pass without recording it.
-    # A rail that rewrites is the one place the decision itself could diverge, because some flows
-    # branch on the flag to block instead: no fixture pairs the two, and the gap is recorded as a
-    # known cross-engine delta rather than closed here.
+    # A rewriting rail is the one place the decision could diverge, since some flows branch on
+    # the flag to block instead; no fixture pairs the two, and that gap is a known delta.
     case = next(case for case in IORAILS_FIXTURES if case.case_id == "self_check_input_blocks_outcome_block_exception")
 
     # asyncio.run rather than an async test: _run_flow drives LLMRails through the sync

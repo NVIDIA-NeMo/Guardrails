@@ -327,11 +327,7 @@ async def test_the_rail_name_drops_its_surface_parameter_on_iorails(nvidia_api_k
 
 
 async def test_injection_detection_omits_sql_output(rail_ran_cleanly):
-    """The sanitized output the LLMRails snapshot records is what IORails produces, byte for byte.
-
-    No cassette is replayed: injection detection decides in-process, so this is the one parity
-    case where both engines can be compared without a recorded provider reply at all.
-    """
+    """The sanitized output the LLMRails snapshot records is what IORails produces, byte for byte."""
     result = await check_iorails(
         INJECTION_OMIT_CONFIG,
         [

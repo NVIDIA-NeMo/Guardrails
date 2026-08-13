@@ -148,8 +148,7 @@ _HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
 )
 
 
-# The conversation variable each direction's rails may rewrite. A rewrite naming anything else
-# has nowhere to land here, so it is refused rather than dropped.
+# The conversation variable each direction's rails may rewrite; anything else is refused.
 _REWRITABLE_TARGET = {
     RailDirection.INPUT: TransformTarget.USER_MESSAGE,
     RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
@@ -166,12 +165,7 @@ def _rewriting_flows(
 
 
 def _transforms_first(rewriting: Sequence[str], flows: Sequence[str]) -> list[str]:
-    """Order a direction's flows so rails that may rewrite run ahead of rails that only judge.
-
-    A rewrite is only of use to the rails behind it: masking ahead of a safety check means the
-    check reads masked text. Configured order is kept within each group, so a direction with no
-    rewriting rail runs exactly as it was written.
-    """
+    """Order rails that may rewrite ahead of rails that only judge, so a mask reaches the check."""
     ordered = list(rewriting)
     already_ordered = set(rewriting)
     ordered.extend(flow for flow in flows if flow not in already_ordered)
@@ -186,26 +180,21 @@ def _rail_result(outcome: RailOutcome) -> RailResult:
 def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
     """Map a tool rail's verdict, refusing a rewrite it has nowhere to apply."""
     if outcome.is_transform:
-        # Tool rails validate structure and declare no transform target, so there is no
-        # conversation variable to write. Unreachable, and loud so it stays that way: reading
-        # a rewrite as "not blocked" would allow the request and discard it with nothing to see.
+        # Reading it as "not blocked" would allow the request and drop the rewrite unseen.
         raise NotImplementedError(f"tool rail {flow!r} returned a rewrite, which IORails cannot apply")
     return RailResult(outcome)
 
 
 def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -> str:
-    """Return what a transform rail rewrote this direction's conversation variable to.
+    """Return what a rail rewrote this direction's variable to, ignoring any it also named.
 
-    A rail that guards both sides of a turn may name both variables in one verdict, and each
-    direction takes its own -- which is what the Colang flows do with the same outcome, each
-    indexing the one key it owns. Writing the other direction's text here would put a response
-    where the request goes.
+    A rail guarding both sides of a turn names both, and each direction takes its own, as the
+    Colang flows do with the same verdict.
     """
     target = _REWRITABLE_TARGET[direction]
     rewrites = outcome.transform_text
     if target.value not in rewrites:
-        # A surface declares which variable it rewrites, and compilation checks that declaration
-        # against the direction; an action naming none of it contradicts its own manifest.
+        # An action naming none of its direction's variable contradicts its own manifest.
         raise NotImplementedError(
             f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value.lower()} rail cannot apply; "
             f"it may rewrite {target.value!r}"
@@ -214,12 +203,7 @@ def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -
 
 
 def _refuse_concurrent_rewrite(result: RailResult, flow: str) -> None:
-    """Refuse a rewrite produced by a rail running concurrently with its peers.
-
-    Rails in parallel mode all read the text as it arrived, so two rewrites cannot compose and
-    applying either would report a verdict computed over text the other never saw. A configured
-    transform rail therefore forces sequential execution, and this keeps that the only way in.
-    """
+    """Refuse a rewrite from a concurrent rail: peers read the arriving text, so it cannot compose."""
     if result.outcome.is_transform:
         raise NotImplementedError(f"{flow!r} returned a rewrite while running in parallel, which cannot be applied")
 
@@ -237,12 +221,7 @@ def _result_after_rewrites(
     final_text: str,
     records: tuple[RailCallRecord, ...],
 ) -> RailResult:
-    """Return the verdict for a direction no rail blocked: its rewrite, or a plain allow.
-
-    Only the text that survived every rail is reported, rather than each rail's rewrite in turn,
-    so rails that rewrite and then restore the original say nothing happened -- which is what
-    lets ``check`` tell PASSED from MODIFIED the way LLMRails does, by comparing content.
-    """
+    """Report the text that survived every rail, so a rewrite undone by a later rail is no rewrite."""
     if final_text == original_text:
         return RailResult.allow(records=records)
     return RailResult(RailOutcome.transform([(_REWRITABLE_TARGET[direction], final_text)]), records=records)
@@ -375,13 +354,7 @@ class RailsManager:
         )
 
     def _disable_parallel_execution(self) -> None:
-        """Turn off parallel rails, which cannot carry a rewrite from one rail to the next.
-
-        Concurrent rails all read the text as it arrived, so two rewrites cannot compose and
-        applying either would report a verdict computed over text the other never saw. Both
-        directions are turned off together: a config should not run its rails one way in one
-        section and another way in the other.
-        """
+        """Turn both directions sequential, because concurrent rails cannot carry a rewrite."""
         if not (self.input_parallel or self.output_parallel):
             return
         rewriting = sorted(flow for flows in self.transform_flows.values() for flow in flows)
@@ -633,12 +606,7 @@ class RailsManager:
         messages: list[dict],
         bot_response: Optional[str] = None,
     ) -> RailResult:
-        """Run one direction's input/output rails in turn, short-circuiting on the first unsafe result.
-
-        Each rail is dispatched only when its turn comes, so a rail that rewrites the text hands
-        the rewrite to the rails behind it: a masking rail ahead of a safety check means the check
-        reads masked text, which is what the rewrite is for.
-        """
+        """Run a direction's rails in turn, threading each rewrite into the rails behind it."""
         req_id = get_request_id()
         collected: list[RailCallRecord] = []
         original_text = _checked_text(direction, messages, bot_response)
@@ -657,9 +625,8 @@ class RailsManager:
                     try:
                         messages = rewrite_user_message(messages, final_text)
                     except ValueError:
-                        # The rail was handed no text and answered with some: there is no turn to
-                        # write it to. Blocking keeps a misbehaving rail inside the fail-closed
-                        # envelope built for it, rather than failing the request as a server error.
+                        # Blocking keeps a misbehaving rail inside the fail-closed envelope,
+                        # rather than failing the request as a server error.
                         log.error(
                             "[%s] %s flow %s rewrote a turn this request does not have", req_id, direction.value, flow
                         )
@@ -677,11 +644,10 @@ class RailsManager:
         rails: Mapping[str, Coroutine[Any, Any, RailResult]],
         direction: RailDirection,
     ) -> RailResult:
-        """Run tool rail coroutines sequentially, short-circuiting on first unsafe result.
+        """Run tool rail coroutines in turn, short-circuiting on the first unsafe result.
 
-        Separate from the input/output loop because tool rails carry no text between them:
-        they validate structure, so there is nothing one could hand the next and their
-        coroutines are built up front. Unreached ones are closed rather than left pending.
+        Separate from the input/output loop because tool rails carry no text between them, so
+        their coroutines are built up front and the unreached ones need closing.
         """
         req_id = get_request_id()
         remaining = iter(rails.items())

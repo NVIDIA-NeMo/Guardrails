@@ -50,11 +50,8 @@ _IORAILS_BASE_RAILS = {
 }
 
 # Rails LLMRails runs and IORails does not, for tests needing a config that must fall back.
-# Each is refused for a reason that is a decision rather than a limitation waiting to be lifted:
-# the heuristics rail cannot be told from its manifest sibling, and fact-checking reads retrieval
-# evidence this engine has no stage to produce. Their predecessors here were rewriting rails,
-# which stopped falling back once IORails could apply a rewrite -- and before that, rails merely
-# outside the enabled tier, which stopped falling back when the tier widened.
+# Each is refused by a decision rather than a limitation, so neither goes stale as the tier widens
+# -- as the rewriting rails that used to sit here did.
 _LLMRAILS_ONLY_INPUT_FLOW = "jailbreak detection heuristics"
 _LLMRAILS_ONLY_INPUT_REASON = (
     "'jailbreak detection heuristics' Conflates dependencies with 'jailbreak detection model', "

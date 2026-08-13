@@ -13,13 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Stand-ins for compiled rails, for tests that need a rail to behave a certain way.
+"""Stand-ins for compiled rails, so a test about scheduling needs no paid vendor or NIM behind it.
 
-Rewriting surfaces compile now, so a stub is no longer the only way to hold one. What it still
-buys is a rail with no backend: the shipped rewriting rails reach a paid vendor or a NIM, and a
-test about *scheduling* -- which rail runs first, what the one behind it reads -- should not
-depend on either. ``rails_compiled_as`` patches compilation rather than the compiled rails, so
-``RailsManager`` reads these while deciding how to order and downgrade.
+``rails_compiled_as`` patches compilation rather than the compiled rails, so ``RailsManager``
+reads these while deciding how to order and downgrade.
 """
 
 from collections.abc import Mapping
@@ -36,8 +33,7 @@ from nemoguardrails.manifests import RailDirection as SurfaceDirection
 class StubRail:
     """Answers with one outcome, makes no model call, and keeps what it was handed.
 
-    ``transform_target`` mirrors what a surface declares rather than what the outcome does, so a
-    rail can be scheduled as a rewriting one while still answering with an allow.
+    ``transform_target`` mirrors what a surface declares, not what the outcome does.
     """
 
     def __init__(self, outcome: Optional[RailOutcome] = None, transform_target: Optional[TransformTarget] = None):
@@ -81,11 +77,7 @@ def bot_message_rewrite(text: str) -> RailResult:
 
 @contextmanager
 def rails_compiled_as(rails: Mapping[str, StubRail]) -> Iterator[None]:
-    """Compile the named flows to their stubs, and every other configured flow to a plain allow.
-
-    Patches compilation rather than the compiled rails, so ``RailsManager`` reads the stubs while
-    deciding how to schedule its rails -- which is the part under test.
-    """
+    """Compile the named flows to their stubs, and every other configured flow to a plain allow."""
 
     def _compile(flow: str, direction: SurfaceDirection, deps: Any, **kwargs: Any) -> StubRail:
         return rails.get(flow, StubRail())

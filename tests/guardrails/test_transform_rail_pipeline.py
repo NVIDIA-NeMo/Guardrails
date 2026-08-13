@@ -15,22 +15,9 @@
 
 """A masking rail among judging rails, driven end to end through IORails.
 
-The single-rail tests prove a rewrite is applied. These prove the pipeline around it, in both
-directions and under both concurrency settings:
-
-- **input** — four rails, the masking one written *last*: it still runs first, every rail behind
-  it waits and reads the masked text, and so does the main model;
-- **output** — three rails, same shape: the masking one runs first and the caller reads the
-  masked response;
-- **parallel** — the same two configs asking for concurrent rails, which is refused with a
-  warning and run in order instead, because concurrent rails would each read the text as it
-  arrived and the mask would reach none of them;
-- **streaming** — masking applied to the batch that ships, judged after masking, and an input
-  rewrite reaching the output rails, which is where a stale conversation would leak it.
-
-Nothing is stubbed at the rail boundary -- the shipped actions run, against canned model and
-HTTP replies -- so a rail that stopped reading its conversation variable, or an ordering rule
-that stopped reordering, fails here rather than in a config.
+Covers both directions, both concurrency settings and streaming. Nothing is stubbed at the rail
+boundary -- the shipped actions run against canned model and HTTP replies -- so a rail that
+stopped reading its conversation variable fails here rather than in a config.
 """
 
 import copy
@@ -89,10 +76,7 @@ def _pipeline_config() -> dict:
 
 
 def _gliner_entities(text: str) -> list[dict]:
-    """The detection GLiNER returns for *text*, positioned where the name actually is.
-
-    Nothing when the name is absent, which is what a streamed batch carrying none of it gets.
-    """
+    """The detection GLiNER returns for *text*, or nothing when the name is absent."""
     start = text.find(PERSON)
     if start == -1:
         return []
@@ -107,11 +91,7 @@ def _gliner_entities(text: str) -> list[dict]:
 
 
 class RailCallLog:
-    """An ordered record of which rail called out, and with what text.
-
-    One log across both seams -- the model engines and the HTTP endpoints -- because the
-    question is what order the *rails* ran in, which neither seam can answer alone.
-    """
+    """An ordered record of which rail called out, and with what text, across both seams."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
@@ -132,12 +112,10 @@ class RailCallLog:
 
 
 def _model_double(log: RailCallLog, model_type: str, verdict: str) -> AsyncMock:
-    """Answer one model-backed rail with *verdict*, recording the prompt it was sent.
+    """Answer one model-backed rail with *verdict*, recording the whole prompt it was sent.
 
-    One double per model type rather than one shared double told apart by prompt text: each
-    rail reaches its own engine, so the engine already knows which rail is calling. The whole
-    prompt is recorded, not its first message, because the rails place the text under check at
-    different positions and which text a rail reads is what is under test.
+    The rails place the text under check at different positions, so the first message is not
+    enough.
     """
 
     async def _chat_completion(messages, **kwargs):
@@ -148,11 +126,7 @@ def _model_double(log: RailCallLog, model_type: str, verdict: str) -> AsyncMock:
 
 
 def _register_http_doubles(httpx_mock, log: RailCallLog, *, gliner_runs: bool = True) -> None:
-    """Answer the two HTTP-backed rails, recording the text each was sent.
-
-    *gliner_runs* is False for a config with no masking rail, where the callback would otherwise
-    be registered and never requested.
-    """
+    """Answer the two HTTP-backed rails, recording the text each was sent."""
 
     def _gliner(request):
         # The entities are positioned against the text this call actually carried, so a rail
@@ -234,11 +208,7 @@ class TestMaskingRailAheadOfJudgingRails:
     async def test_every_rail_behind_it_waits_and_reads_the_masked_text(
         self, pipeline_iorails, call_log, httpx_mock, rail
     ):
-        """None of the three could hold masked text unless it ran after the mask was applied.
-
-        This is the sequencing assertion as well as the threading one: a rail that started
-        alongside the masking rail would have been handed the text as it arrived.
-        """
+        """None of the three could hold masked text unless it ran after the mask was applied."""
         _wire(pipeline_iorails, call_log, httpx_mock, ALL_ALLOW)
 
         await pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
@@ -388,9 +358,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
     ):
         """Neither could hold the masked answer unless it ran after the mask was applied.
 
-        The *response* is what an output mask rewrites; the user's own turn is untouched, and
-        both these rails are handed it as conversation context. So the assertion is that the
-        unmasked answer is gone, not that the name is gone from the prompt entirely.
+        Only the response is rewritten; the user's own turn reaches them untouched.
         """
         _wire_answering(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
 
@@ -422,11 +390,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
 
 @pytest.mark.asyncio
 class TestParallelIsRefusedWhenARailRewrites:
-    """A config asking for concurrent rails gets sequential ones, because a rewrite cannot compose.
-
-    Concurrent rails all read the text as it arrived, so the masking rail's work would reach
-    none of them. The engine says so at construction and runs them in order instead.
-    """
+    """A config asking for concurrent rails gets sequential ones, because a rewrite cannot compose."""
 
     @pytest.mark.parametrize(
         "config_dict, direction, flows",

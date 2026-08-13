@@ -196,11 +196,7 @@ class CompiledRail:
 
     @property
     def transform_target(self) -> Optional[TransformTarget]:
-        """The conversation variable this rail may rewrite, or None when it only allows or blocks.
-
-        What the manifest *declares*, not what a request produced: a rail free to rewrite mostly
-        does not, so this answers how to schedule the rail rather than what it decided.
-        """
+        """The variable the manifest says this rail may rewrite, which is how it is scheduled."""
         return self.surface.transform_target
 
     async def run(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailOutcome:
@@ -367,8 +363,7 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     return tuple(bound)
 
 
-# The conversation variable a rail may rewrite in each direction. A retrieval rewrite has no
-# home in an input/output request, and IORails runs no retrieval stage to give it one.
+# The conversation variable a rail may rewrite in each direction; retrieval has no home here.
 _REWRITABLE_TARGET: dict[RailDirection, TransformTarget] = {
     RailDirection.INPUT: TransformTarget.USER_MESSAGE,
     RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
@@ -378,11 +373,8 @@ _REWRITABLE_TARGET: dict[RailDirection, TransformTarget] = {
 def _unapplicable_transform_reason(surface: RailSurface) -> Optional[str]:
     """Report a surface declaring a rewrite IORails has nowhere to put.
 
-    Every shipped surface rewrites its own direction's variable, so this refuses nothing today.
-    It is kept because nothing in the manifest schema requires that agreement -- ``RailSurface``
-    validates only that no parameter is bound twice -- so a manifest could declare an input rail
-    that rewrites the bot message, and applying that to the user message would be worse than
-    refusing to run it.
+    Refuses nothing today: every shipped surface agrees with its direction, and no schema rule
+    makes it.
     """
     if surface.transform_target is None:
         return None
@@ -427,10 +419,8 @@ def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
     return blocked.get((surface.direction, surface.name))
 
 
-# Ordered so the cheapest, most structural check reports first. Each entry is removed by the
-# work that lifts its limitation: the context-binding refusal went when resolution was built,
-# and the blanket transform refusal went when IORails learned to apply a rewrite -- what is left
-# of it refuses only a rewrite this engine has no variable for.
+# Ordered so the cheapest, most structural check reports first. Each entry goes when the work
+# lifting its limitation lands, as the blanket transform refusal did.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
     _unapplicable_transform_reason,
     _retrieval_context_reason,
