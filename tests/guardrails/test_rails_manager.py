@@ -60,7 +60,7 @@ from tests.guardrails.test_data import (
 )
 from tests.guardrails.tool_helpers import (
     WEATHER_SCHEMA,
-    assert_blocked,
+    assert_result_blocked,
     make_tool_conversation,
     malformed_prior_tool_call_messages,
     multi_turn_reused_call_id_messages,
@@ -836,7 +836,7 @@ class TestRailsManagerToolCalls:
     async def test_blocks_undeclared_call(self):
         mgr = _tool_rails_manager_with_main(tool_call_flows=["tool call validation"])
         result = await mgr.are_tool_calls_safe([_call("rm_rf", {})], {"tools": [WEATHER_TOOL]})
-        assert_blocked(result, "rm_rf")
+        assert_result_blocked(result, "rm_rf")
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_returns_safe(self):
@@ -852,7 +852,7 @@ class TestRailsManagerToolCalls:
         result = await mgr.are_tool_calls_safe(
             [_call("get_weather", {"city": "Paris"})], {"tools": [WEATHER_TOOL, WEATHER_TOOL]}
         )
-        assert_blocked(result, "tool parsing failed")
+        assert_result_blocked(result, "tool parsing failed")
 
     @pytest.mark.asyncio
     async def test_disabled_toggle_skips_validation(self):
@@ -866,7 +866,7 @@ class TestRailsManagerToolCalls:
         result = await mgr.are_tool_calls_safe(
             [_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=["tool call validation"]
         )
-        assert_blocked(result, "rm_rf")
+        assert_result_blocked(result, "rm_rf")
 
 
 class TestRailsManagerToolResults:
@@ -894,7 +894,7 @@ class TestRailsManagerToolResults:
     async def test_blocks_unlinked_result(self):
         mgr = _tool_rails_manager_with_main(tool_result_flows=["tool result validation"])
         result = await mgr.are_tool_results_safe(make_tool_conversation(result_call_id="call_999"))
-        assert_blocked(result, "call_999")
+        assert_result_blocked(result, "call_999")
 
     @pytest.mark.asyncio
     async def test_recycled_call_ids_across_turns_are_safe(self):
@@ -933,7 +933,7 @@ class TestRailsManagerToolResults:
 
         mgr.engine_registry.extract_tool_exchanges = _boom
         result = await mgr.are_tool_results_safe(make_tool_conversation())
-        assert_blocked(result, "tool exchange extraction failed")
+        assert_result_blocked(result, "tool exchange extraction failed")
 
 
 class TestRailsManagerToolToggleNormalization:
@@ -966,7 +966,7 @@ class TestRailsManagerToolToggleNormalization:
         result = await mgr.are_tool_calls_safe(
             [_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=["tool call validation"]
         )
-        assert_blocked(result, "rm_rf")
+        assert_result_blocked(result, "rm_rf")
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("configured_flow", SUFFIXED_RESULT_FLOWS)
@@ -977,7 +977,7 @@ class TestRailsManagerToolToggleNormalization:
         result = await mgr.are_tool_results_safe(
             make_tool_conversation(result_call_id="call_999"), enabled=["tool result validation"]
         )
-        assert_blocked(result, "call_999")
+        assert_result_blocked(result, "call_999")
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("configured_flow", SUFFIXED_CALL_FLOWS)
@@ -988,7 +988,7 @@ class TestRailsManagerToolToggleNormalization:
         result = await mgr.are_tool_calls_safe(
             [_call("rm_rf", {})], {"tools": [WEATHER_TOOL]}, enabled=[configured_flow]
         )
-        assert_blocked(result, "rm_rf")
+        assert_result_blocked(result, "rm_rf")
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("configured_flow", SUFFIXED_RESULT_FLOWS)
@@ -997,7 +997,7 @@ class TestRailsManagerToolToggleNormalization:
         result = await mgr.are_tool_results_safe(
             make_tool_conversation(result_call_id="call_999"), enabled=[configured_flow]
         )
-        assert_blocked(result, "call_999")
+        assert_result_blocked(result, "call_999")
 
 
 def _capture_tool_rails_manager():
@@ -1087,18 +1087,18 @@ class TestRunRailsParallel:
         async def slow_safe():
             try:
                 await asyncio.sleep(5)
-                return RailResult(is_safe=True)
+                return RailResult.allow()
             except asyncio.CancelledError:
                 cancelled.set()
                 raise
 
         async def fast_unsafe():
-            return RailResult(is_safe=False, reason="blocked fast")
+            return RailResult.block(reason="blocked fast")
 
         rails = {"slow": slow_safe(), "fast": fast_unsafe()}
         result = await mgr._run_rails_parallel(rails, RailDirection.INPUT)
 
-        assert_blocked(result, "blocked fast")
+        assert_result_blocked(result, "blocked fast")
         assert cancelled.is_set(), "the still-pending rail should have been cancelled"
 
     @pytest.mark.asyncio
@@ -1109,7 +1109,7 @@ class TestRunRailsParallel:
         async def slow_safe():
             try:
                 await asyncio.sleep(5)
-                return RailResult(is_safe=True)
+                return RailResult.allow()
             except asyncio.CancelledError:
                 cancelled.set()
                 raise
@@ -1206,7 +1206,7 @@ class TestRailCallRecordNaming:
     )
     def test_underscore_task_and_action_name(self, flow, action_name, task):
         """action_name/task use the underscore prompt-template key; ``flow`` keeps its space form."""
-        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult(is_safe=True))
+        record = _rail_call_record(flow=flow, rail_type="input", result=RailResult.allow())
 
         assert record.flow == flow
         assert record.action_name == action_name
@@ -1228,7 +1228,7 @@ class TestRailCallRecordMultipleCalls:
             record = _rail_call_record(
                 flow="content safety check input $model=content_safety",
                 rail_type="input",
-                result=RailResult(is_safe=True),
+                result=RailResult.allow(),
                 calls=calls,
             )
 
@@ -1243,7 +1243,7 @@ class TestRailCallRecordMultipleCalls:
             record = _rail_call_record(
                 flow="content safety check input $model=content_safety",
                 rail_type="input",
-                result=RailResult(is_safe=True),
+                result=RailResult.allow(),
                 calls=[self._call("only-model", 7)],
             )
 
@@ -1309,10 +1309,10 @@ class TestParallelBatchDrainsRecords:
         safe_record = RailCallRecord(flow="content safety check input", rail_type="input", is_safe=True)
 
         async def _unsafe():
-            return RailResult(is_safe=False, reason="blocked", records=(unsafe_record,))
+            return RailResult.block(reason="blocked", records=(unsafe_record,))
 
         async def _safe():
-            return RailResult(is_safe=True, records=(safe_record,))
+            return RailResult.allow(records=(safe_record,))
 
         # Insertion order sets task_order, so the unsafe rail sorts first in the done batch.
         rails = {"unsafe": _unsafe(), "safe": _safe()}

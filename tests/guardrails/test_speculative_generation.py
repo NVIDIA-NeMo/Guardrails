@@ -48,12 +48,12 @@ def _hi_model() -> AsyncMock:
 async def _slow_reject(messages, *, enabled=True):
     """Input rails that reject after a short delay (so generation finishes first)."""
     await asyncio.sleep(0.05)
-    return RailResult(is_safe=False, reason="unsafe")
+    return RailResult.block(reason="unsafe")
 
 
 async def _immediate_reject(messages, *, enabled=True):
     """Input rails that reject immediately (so rails and generation finish in the same tick)."""
-    return RailResult(is_safe=False, reason="unsafe")
+    return RailResult.block(reason="unsafe")
 
 
 @pytest_asyncio.fixture
@@ -98,7 +98,7 @@ class TestSpeculativeGeneration:
         """Rails finish first and pass — generation is awaited, output rails run."""
 
         async def fast_rails(messages, *, enabled=True):
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.05)
@@ -106,7 +106,7 @@ class TestSpeculativeGeneration:
 
         iorails.rails_manager.is_input_safe = fast_rails
         iorails.engine_registry.model_call = slow_llm
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
         result = await iorails.generate_async(messages=MESSAGES)
 
@@ -119,7 +119,7 @@ class TestSpeculativeGeneration:
         llm_completed = False
 
         async def fast_reject(messages, *, enabled=True):
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def slow_llm(model_type, messages):
             nonlocal llm_started, llm_completed
@@ -148,14 +148,14 @@ class TestSpeculativeGeneration:
 
         async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.05)
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def fast_llm(model_type, messages):
             return LLMResponse(content="Fast LLM response")
 
         iorails.rails_manager.is_input_safe = slow_rails
         iorails.engine_registry.model_call = fast_llm
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
         result = await iorails.generate_async(messages=MESSAGES)
 
@@ -167,7 +167,7 @@ class TestSpeculativeGeneration:
 
         async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def fast_llm(model_type, messages):
             return LLMResponse(content="Should be discarded")
@@ -187,7 +187,7 @@ class TestSpeculativeGeneration:
 
         async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.5)
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails.rails_manager.is_input_safe = slow_rails
         iorails.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM crashed"))
@@ -214,7 +214,7 @@ class TestSpeculativeGeneration:
         """Rails reject + LLM raises in the same scheduling window — refusal returned, exception drained."""
 
         async def fast_reject(messages, *, enabled=True):
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def slow_raises(model_type, messages):
             # Yield once so rails wins the race, then raise — the cleanup path
@@ -261,7 +261,7 @@ class TestSpeculativeGeneration:
         cfg["metrics"] = {"enabled": True}
 
         async def fast_reject(messages, *, enabled=True):
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.5)
@@ -287,7 +287,7 @@ class TestSpeculativeGeneration:
 
         async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def fast_llm(model_type, messages):
             return LLMResponse(content="Should be discarded")
@@ -311,7 +311,7 @@ class TestSpeculativeGeneration:
 
         async def mock_input(messages, *, enabled=True):
             call_order.append("input")
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def mock_generate(model_type, messages):
             call_order.append("generate")
@@ -319,7 +319,7 @@ class TestSpeculativeGeneration:
 
         async def mock_output(messages, response, *, enabled=True):
             call_order.append("output")
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails_sequential.rails_manager.is_input_safe = mock_input
         iorails_sequential.engine_registry.model_call = mock_generate
@@ -369,7 +369,7 @@ class TestSpeculativeGenerationTelemetry:
         """Rails finish first and pass — first_completed=input_rails, first_rejector=none."""
 
         async def fast_rails(messages, *, enabled=True):
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.05)
@@ -377,7 +377,7 @@ class TestSpeculativeGenerationTelemetry:
 
         iorails_speculative_tracing.rails_manager.is_input_safe = fast_rails
         iorails_speculative_tracing.engine_registry.model_call = slow_llm
-        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
         result = await iorails_speculative_tracing.generate_async(messages=MESSAGES)
 
@@ -395,7 +395,7 @@ class TestSpeculativeGenerationTelemetry:
         """Rails finish first and reject — first_completed=input_rails, first_rejector=input_rails."""
 
         async def fast_reject(messages, *, enabled=True):
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.5)
@@ -422,14 +422,14 @@ class TestSpeculativeGenerationTelemetry:
 
         async def slow_rails(messages, *, enabled=True):
             await asyncio.sleep(0.05)
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def fast_llm(model_type, messages):
             return LLMResponse(content="Fast LLM response")
 
         iorails_speculative_tracing.rails_manager.is_input_safe = slow_rails
         iorails_speculative_tracing.engine_registry.model_call = fast_llm
-        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
         result = await iorails_speculative_tracing.generate_async(messages=MESSAGES)
 
@@ -448,7 +448,7 @@ class TestSpeculativeGenerationTelemetry:
 
         async def slow_reject(messages, *, enabled=True):
             await asyncio.sleep(0.05)
-            return RailResult(is_safe=False, reason="unsafe")
+            return RailResult.block(reason="unsafe")
 
         async def fast_llm(model_type, messages):
             return LLMResponse(content="Should be discarded")
@@ -477,9 +477,9 @@ class TestSpeculativeGenerationTelemetry:
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=cfg))
             async with iorails:
-                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
                 iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="response"))
-                iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
                 await iorails.generate_async(messages=MESSAGES)
 
@@ -498,8 +498,8 @@ class TestSpeculativeGenerationTiming:
     @pytest.mark.asyncio
     async def test_main_call_record_carries_timing(self, iorails):
         """On the speculative path, the generation call in the log has real timestamps and a duration."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.model_call = _hi_model()
 
         result = await iorails.generate_async(messages=MESSAGES, options={"log": {"llm_calls": True}})

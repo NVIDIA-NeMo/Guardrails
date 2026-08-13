@@ -28,12 +28,28 @@ WEATHER_SCHEMA = {
 }
 
 
-def assert_blocked(result, *substrings: str) -> None:
-    """Assert *result* blocked the request and its reason contains each substring."""
-    assert result.is_safe is False, f"expected blocked, got {result!r}"
-    assert result.reason is not None, f"expected a block reason, got {result!r}"
+def _assert_reason_contains(reason, substrings, subject) -> None:
+    """Assert *subject* stated a reason and that it contains every substring."""
+    assert reason is not None, f"expected a block reason, got {subject!r}"
     for substring in substrings:
-        assert substring in result.reason, f"{substring!r} not in reason {result.reason!r}"
+        assert substring in reason, f"{substring!r} not in reason {reason!r}"
+
+
+def assert_outcome_blocked(outcome, *substrings: str) -> None:
+    """Assert a rail action's ``RailOutcome`` blocked, with a reason containing each substring."""
+    assert outcome.is_blocked, f"expected blocked, got {outcome!r}"
+    _assert_reason_contains(outcome.reason, substrings, outcome)
+
+
+def assert_result_blocked(result, *substrings: str) -> None:
+    """Assert a manager-level ``RailResult`` blocked, with a reason containing each substring.
+
+    Separate from :func:`assert_outcome_blocked` because the two layers speak different
+    types: a rail action returns a ``RailOutcome``, and ``RailsManager`` wraps it in a
+    ``RailResult`` that adds the triggering rail and the captured records.
+    """
+    assert result.is_safe is False, f"expected blocked, got {result!r}"
+    _assert_reason_contains(result.reason, substrings, result)
 
 
 def make_tool_conversation(result_call_id: str = "call_1") -> list:

@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Optional
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id
+from nemoguardrails.guardrails.guardrails_types import get_request_id
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.telemetry import record_span_error
 from nemoguardrails.llm.clients._errors import _redact_secrets
@@ -80,21 +80,11 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
     return f"{action_name} error: {detail}"
 
 
-def rail_error_result(span: Optional["Span"], action_name: str, exc: Exception) -> RailResult:
-    """Map a failed tool rail to a blocking ``RailResult``, or re-raise on an HTTP status.
-
-    Call this from the ``except`` handler of a tool rail's own ``try``.
-
-    Raises:
-        Exception: *exc* itself, when it carries an upstream HTTP status.
-    """
-    return RailResult(is_safe=False, reason=_blocked_reason_or_reraise(span, action_name, exc))
-
-
 def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception) -> RailOutcome:
-    """Map a failed compiled rail to a blocking ``RailOutcome``, or re-raise on an HTTP status.
+    """Map a failed rail to a blocking ``RailOutcome``, or re-raise on an HTTP status.
 
-    Call this from the ``except`` handler of a ``CompiledRail``'s own ``try``.
+    Call this from the ``except`` handler of a rail's own ``try`` -- a ``CompiledRail``'s
+    or a tool rail's; both speak ``RailOutcome``, so both fail closed the same way.
 
     Raises:
         Exception: *exc* itself, when it carries an upstream HTTP status.

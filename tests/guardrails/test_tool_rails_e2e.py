@@ -36,7 +36,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_blocked, make_tool_conversation
+from tests.guardrails.tool_helpers import WEATHER_SCHEMA, assert_result_blocked, make_tool_conversation
 
 STACK_CONFIG = {"models": [{"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"}]}
 
@@ -224,7 +224,7 @@ class TestToolCallRailEndToEndNonStreaming:
         if blocked is None:
             assert result.is_safe is True
         else:
-            assert_blocked(result, blocked)
+            assert_result_blocked(result, blocked)
 
 
 class TestToolResultRailEndToEnd:
@@ -239,7 +239,7 @@ class TestToolResultRailEndToEnd:
         if blocked is None:
             assert result.is_safe is True
         else:
-            assert_blocked(result, blocked)
+            assert_result_blocked(result, blocked)
 
 
 class TestToolCallRailEndToEndStreaming:
@@ -257,4 +257,4 @@ class TestToolCallRailEndToEndStreaming:
         if blocked is None:
             assert result.is_safe is True
         else:
-            assert_blocked(result, blocked)
+            assert_result_blocked(result, blocked)

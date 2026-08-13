@@ -15,7 +15,7 @@
 
 """Unit tests for the ToolRailAction base (span wrapper + fail-closed error handling)."""
 
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 
 
@@ -28,19 +28,19 @@ class TestToolRailActionGuarded:
         assert _ProbeRail().requires_model is False
 
     def test_returns_safe_check_result(self):
-        assert _ProbeRail()._guarded(lambda: RailResult(is_safe=True)) == RailResult(is_safe=True)
+        assert _ProbeRail()._guarded(lambda: RailOutcome.allow()) == RailOutcome.allow()
 
     def test_returns_unsafe_check_result(self):
-        result = _ProbeRail()._guarded(lambda: RailResult(is_safe=False, reason="bad call"))
-        assert result.is_safe is False
+        result = _ProbeRail()._guarded(lambda: RailOutcome.block(reason="bad call"))
+        assert result.is_blocked
         assert result.reason == "bad call"
 
     def test_exception_fails_closed(self):
-        def boom() -> RailResult:
+        def boom() -> RailOutcome:
             raise ValueError("kaboom")
 
         result = _ProbeRail()._guarded(boom)
-        assert result.is_safe is False
+        assert result.is_blocked
         assert result.reason is not None
         assert "probe tool rail" in result.reason
         assert "kaboom" in result.reason

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List
 
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
 from nemoguardrails.guardrails.tool_schema import validate_arguments
 
@@ -40,11 +40,11 @@ class ToolCallRailAction(ToolRailAction):
 
     action_name = "tool call validation"
 
-    async def run(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailResult:
+    async def run(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
         """Block unless every tool call names an allowed tool with schema-valid arguments."""
         return self._guarded(lambda: self._validate(toolset, tool_calls))
 
-    def _validate(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailResult:
+    def _validate(self, toolset: "Toolset", tool_calls: List["ToolCall"]) -> RailOutcome:
         """Allowlist each call by name, then validate its arguments against the tool schema."""
         for call in tool_calls:
             # Hosted/server tools (e.g. web_search) have no function name; fall back to
@@ -52,8 +52,8 @@ class ToolCallRailAction(ToolRailAction):
             name = call.function.name or call.type
             tool = toolset.get(name)
             if tool is None:
-                return RailResult(is_safe=False, reason=f"tool call '{name}' is not an allowed tool")
+                return RailOutcome.block(reason=f"tool call '{name}' is not an allowed tool")
             block_reason = validate_arguments(tool, call.function.arguments)
             if block_reason is not None:
-                return RailResult(is_safe=False, reason=block_reason)
-        return RailResult(is_safe=True)
+                return RailOutcome.block(reason=block_reason)
+        return RailOutcome.allow()

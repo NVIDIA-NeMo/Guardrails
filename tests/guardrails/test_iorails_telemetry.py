@@ -82,9 +82,9 @@ def _make_tracing_only_config():
 
 def _stub_safe_pipeline(iorails, llm_response="Hello"):
     """Mock input/output rails as safe and the LLM to return *llm_response*."""
-    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
     iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
-    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+    iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
 
 
 @pytest.fixture(autouse=True)
@@ -171,7 +171,7 @@ class TestGenerateAsyncWithTracing:
         async def capture_req_id(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_input_safe = capture_req_id
@@ -199,7 +199,7 @@ class TestGenerateAsyncWithTracing:
     @pytest.mark.asyncio
     async def test_span_created_on_input_block(self, iorails_tracing, exporter):
         """A span is still created and completed even when input rails block."""
-        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
         result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
@@ -227,7 +227,7 @@ class TestGenerateAsyncWithoutTracing:
         async def capture_req_id(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_no_tracing)
         iorails_no_tracing.rails_manager.is_input_safe = capture_req_id
@@ -250,7 +250,7 @@ class TestEndToEndTracing:
         async def capturing_input_check(messages, *, enabled=True):
             captured["input_req_id"] = get_request_id()
             captured["input_messages"] = messages
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         async def capturing_model_call(model_name, messages, **kwargs):
             captured["llm_req_id"] = get_request_id()
@@ -260,7 +260,7 @@ class TestEndToEndTracing:
         async def capturing_output_check(messages, response, *, enabled=True):
             captured["output_req_id"] = get_request_id()
             captured["output_response"] = response
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails_tracing.rails_manager.is_input_safe = capturing_input_check
         iorails_tracing.engine_registry.model_call = capturing_model_call
@@ -313,7 +313,7 @@ class TestEndToEndTracing:
 
         async def record_req_id(messages, *, enabled=True):
             req_ids_seen.append(get_request_id())
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_input_safe = record_req_id
@@ -344,7 +344,7 @@ class TestEndToEndTracing:
         async def capture_then_pass(messages, *, enabled=True):
             nonlocal captured_req_id
             captured_req_id = get_request_id()
-            return RailResult(is_safe=True)
+            return RailResult.allow()
 
         iorails_tracing.rails_manager.is_input_safe = capture_then_pass
         iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("connection refused"))
@@ -800,7 +800,7 @@ class TestStreamAsyncSpanHierarchy:
     @pytest.mark.asyncio
     async def test_creates_request_span(self, iorails_streaming_input_only_tracing, exporter):
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -883,7 +883,7 @@ class TestStreamAsyncSpanHierarchy:
     async def test_input_block_leaves_llm_span_absent(self, iorails_streaming_input_only_tracing, exporter):
         """When input rails block, no main LLM span is created."""
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="blocked"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
         assert len(chunks) == 1
@@ -924,7 +924,7 @@ class TestStreamAsyncSpanHierarchy:
     async def test_no_spans_when_tracing_disabled(self, iorails_streaming_no_tracing, exporter):
         """With tracing off, streaming produces zero spans but still works."""
         iorails = iorails_streaming_no_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -1097,7 +1097,7 @@ class TestGenerateAsyncRequestMetrics:
     @pytest.mark.asyncio
     async def test_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
         _stub_safe_pipeline(iorails_tracing)
-        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
         result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
@@ -1113,7 +1113,7 @@ class TestGenerateAsyncRequestMetrics:
     async def test_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
         _stub_safe_pipeline(iorails_tracing)
         iorails_tracing.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
+            return_value=RailResult.block(reason="unsafe response")
         )
 
         result = await iorails_tracing.generate_async(messages=[{"role": "user", "content": "hi"}])
@@ -1128,9 +1128,7 @@ class TestGenerateAsyncRequestMetrics:
         """With metrics disabled, a blocked-by-input-rail request emits no
         ``requests.blocked`` data point."""
         _stub_safe_pipeline(iorails_no_tracing)
-        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe")
-        )
+        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
         result = await iorails_no_tracing.generate_async(messages=[{"role": "user", "content": "bad"}])
 
@@ -1252,7 +1250,7 @@ class TestCheckAsyncRequestMetrics:
     async def test_check_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
         """An input-rail block during check_async emits the blocked counter with rail.type=Input."""
         iorails_tracing.rails_manager.is_input_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe", triggered_rail="content safety check input")
+            return_value=RailResult.block(reason="unsafe", triggered_rail="content safety check input")
         )
 
         result = await iorails_tracing.check_async([{"role": "user", "content": "bad"}])
@@ -1267,9 +1265,7 @@ class TestCheckAsyncRequestMetrics:
     async def test_check_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
         """An output-rail block during check_async emits the blocked counter with rail.type=Output."""
         iorails_tracing.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(
-                is_safe=False, reason="unsafe response", triggered_rail="content safety check output"
-            )
+            return_value=RailResult.block(reason="unsafe response", triggered_rail="content safety check output")
         )
 
         result = await iorails_tracing.check_async([{"role": "assistant", "content": "bad answer"}])
@@ -1301,7 +1297,7 @@ class TestStreamAsyncRequestMetrics:
         """Happy-path stream_async → counter +1, duration recorded once,
         no errors, stream.active back to 0, no rejections."""
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
@@ -1325,7 +1321,7 @@ class TestStreamAsyncRequestMetrics:
         counter increments.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
@@ -1349,7 +1345,7 @@ class TestStreamAsyncRequestMetrics:
         (``requests.errors{error.type=QueueFull}``)
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
@@ -1370,7 +1366,7 @@ class TestStreamAsyncRequestMetrics:
         reads 1; after the iterator is consumed, it reads 0.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
@@ -1420,7 +1416,7 @@ class TestStreamAsyncRequestMetrics:
         ``stream.rejections`` don't emit, even on rejection path.
         """
         iorails = iorails_streaming_no_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         saturate_stream_semaphore(iorails)
@@ -1456,7 +1452,7 @@ class TestStreamAsyncRequestMetrics:
         self, iorails_streaming_input_only_tracing, metric_reader
     ):
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
         assert len(chunks) == 1
@@ -1477,9 +1473,7 @@ class TestStreamAsyncRequestMetrics:
         """
         iorails = iorails_streaming_output_tracing
         _stub_deep_streaming_pipeline(iorails)
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
-        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         # Output block terminates the stream with a JSON error payload chunk.
@@ -1509,9 +1503,7 @@ class TestStreamAsyncRequestMetrics:
             iorails = IORails(RailsConfig.from_content(config=cfg))
         async with iorails:
             _stub_deep_streaming_pipeline(iorails)
-            iorails.rails_manager.is_output_safe = AsyncMock(
-                return_value=RailResult(is_safe=False, reason="unsafe response")
-            )
+            iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
             chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
             # Block still works — customer-visible behavior unchanged.
@@ -1792,7 +1784,7 @@ class TestRequestsActiveAggregate:
         iterator drains, it nets to 0.
         """
         iorails = iorails_streaming_input_only_tracing
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
         iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
@@ -1834,7 +1826,7 @@ class TestRequestsActiveAggregate:
                 iorails = IORails(RailsConfig.from_content(config=invariant_config))
             async with iorails:
                 iorails._do_generate = _gated_generate(nonstream_gate)
-                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
                 iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
                 # Launch one executing + one queued non-streaming request.
@@ -2050,7 +2042,7 @@ class TestCheckContentCapture:
     @pytest.mark.asyncio
     async def test_check_captures_request_content(self, iorails_content_capture, exporter):
         """check_async records the request input/output on the request span when content capture is on."""
-        iorails_content_capture.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_content_capture.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
 
         await iorails_content_capture.check_async([{"role": "user", "content": "hello"}])
 
@@ -2139,11 +2131,9 @@ class TestContentCaptureLegacyFormat:
         this is the semantic distinction that motivated the separate attr names.
         """
         iorails = iorails_content_capture
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="bad response"))
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
-        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
         result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
         assert result["content"] == REFUSAL_MESSAGE
@@ -2163,15 +2153,13 @@ class TestContentCaptureLegacyFormat:
         is forced to block.
         """
         iorails = iorails_content_capture
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
         # Mock at the engine level (not engine_registry.model_call) so the real
         # model_call wrapper runs, creating the LLM CLIENT span + capturing content.
         iorails.engine_registry._engines["main"].chat_completion = AsyncMock(
             return_value=LLMResponse(content="raw model answer")
         )
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
-        )
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.block(reason="unsafe response"))
 
         result = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
         assert result["content"] == REFUSAL_MESSAGE

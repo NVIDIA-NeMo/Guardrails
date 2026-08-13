@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional, TypeAlias
 
+from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.types import LLMResponse, UsageInfo
 
 # LLMMessage can contain role/content, plus optional tool_calls / tool_call_id / name; content may be None
@@ -66,25 +67,75 @@ class RailCallRecord:
 
 @dataclass(frozen=True, slots=True)
 class RailResult:
-    """Result of a rail safety check.
+    """Wrapper-class around `RailOutcome` object with IORails-specific metadata
+
+    The verdict itself lives entirely in ``outcome``, which is the single source of
+    truth: ``is_safe``, ``reason`` and ``return_value`` are derived views of it rather
+    than a second copy that could drift. What this type adds is the aggregation
+    ``RailOutcome`` has no concept of, because it belongs to running *many* rails:
+    which one blocked (``triggered_rail``) and what every rail did (``records``).
 
     ``records`` carries the per-rail execution records for every rail that ran in this
     check (not just the blocking one), so IORails can synthesize a ``GenerationLog``.
-    It is empty unless log collection is active. ``return_value`` is the rail's
-    structured verdict (e.g. ``{"allowed": ..., "policy_violations": [...]}``) when the
-    action supplies one, used as the log's ``ExecutedAction.return_value``.
+    It is empty unless log collection is active, and it is log-capture data rather than
+    part of the verdict, so it is excluded from equality (``compare=False``).
 
-    ``records`` and ``return_value`` are log-capture metadata, not part of the safety
-    verdict, so they are excluded from equality and hashing (``compare=False``) — two
-    results with the same ``is_safe``/``reason``/``triggered_rail`` compare equal
-    regardless of captured log data.
+    ``__hash__`` is spelled out as None because ``RailOutcome`` is deliberately
+    unhashable: without this a frozen dataclass would generate a ``__hash__`` that
+    raises from *inside* ``hash()`` instead of reporting this type as unhashable.
     """
 
-    is_safe: bool
-    reason: str | None = None
+    outcome: RailOutcome
     triggered_rail: str | None = None
     records: tuple[RailCallRecord, ...] = field(default=(), compare=False)
-    return_value: Any = field(default=None, compare=False)
+    __hash__ = None
+
+    @property
+    def is_safe(self) -> bool:
+        """Whether the checked content may proceed."""
+        return not self.outcome.is_blocked
+
+    @property
+    def reason(self) -> str | None:
+        """The rail's own explanation, when it authored one."""
+        return self.outcome.reason
+
+    @property
+    def return_value(self) -> dict[str, Any]:
+        """The rail's structured verdict, as the log's ``ExecutedAction.return_value``.
+
+        The decision is applied last so it wins: ``metadata`` is free-form evidence and a
+        custom action may put an ``allowed`` key in it, which must not be able to record a
+        blocked rail as having allowed the content.
+        """
+        return {**self.outcome.metadata, _VERDICT_DECISION_KEY: self.is_safe}
+
+    @classmethod
+    def allow(
+        cls,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        records: tuple[RailCallRecord, ...] = (),
+    ) -> "RailResult":
+        """A result that lets the content through."""
+        return cls(RailOutcome.allow(reason=reason, metadata=metadata), records=records)
+
+    @classmethod
+    def block(
+        cls,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        triggered_rail: str | None = None,
+        records: tuple[RailCallRecord, ...] = (),
+    ) -> "RailResult":
+        """A result that stops the content. Only a block names a triggering rail."""
+        return cls(
+            RailOutcome.block(reason=reason, metadata=metadata),
+            triggered_rail=triggered_rail,
+            records=records,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,21 +219,6 @@ def serialize_prompt(messages: list[dict]) -> str:
 _VERDICT_DECISION_KEY = "allowed"
 _UNSPECIFIED_REASON = "unspecified"
 
-# Verdict fields a blocked caller may see.
-_CLIENT_EVIDENCE_KEYS = frozenset(
-    {
-        "policy_violations",  # content safety, llama guard
-        "triggered_violation",  # activefence, gcp text moderation
-        "max_risk_score",  # activefence, gcp text moderation
-        "trustworthiness_score",  # cleanlab
-        "assessment",  # policyai
-        "category",  # policyai
-        "severity",  # policyai
-        "score",  # autoalign
-        "threshold",  # autoalign
-    }
-)
-
 
 def _rendered_evidence(value: Any) -> str:
     """Render one verdict value, flattening a sequence into a comma-separated list."""
@@ -201,15 +237,11 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
-def _verdict_evidence(return_value: Any, keys: Optional[frozenset[str]] = None) -> Optional[str]:
-    """Render a verdict as text, restricted to *keys* when given, or None when it has no evidence."""
-    if not isinstance(return_value, Mapping):
+def _metadata_evidence(metadata: Any) -> Optional[str]:
+    """Render a rail's metadata as text, or None when it carries no evidence."""
+    if not isinstance(metadata, Mapping):
         return None
-    parts = [
-        f"{key}: {_rendered_evidence(value)}"
-        for key, value in return_value.items()
-        if key != _VERDICT_DECISION_KEY and _has_evidence(value) and (keys is None or key in keys)
-    ]
+    parts = [f"{key}: {_rendered_evidence(value)}" for key, value in metadata.items() if _has_evidence(value)]
     return "; ".join(parts) or None
 
 
@@ -217,16 +249,9 @@ def display_reason(result: RailResult) -> str:
     """Render a blocked rail's full explanation for a log line or a span."""
     if result.reason:
         return result.reason
-    return _verdict_evidence(result.return_value) or result.triggered_rail or _UNSPECIFIED_REASON
+    return _metadata_evidence(result.outcome.metadata) or result.triggered_rail or _UNSPECIFIED_REASON
 
 
 def client_reason(result: RailResult) -> str:
     """Render a blocked rail's explanation for the error payload sent to the caller."""
-    # Only listed verdict fields, because metadata is neutral evidence for logs rather than a
-    # client contract: crowdstrike_aidr puts the user and bot messages in it and f5 forwards the
-    # provider response, so rendering it wholesale would echo request content back over the API.
-    # ``reason`` is exempt: unlike metadata it is a rail-authored explanation meant to be read.
-    if result.reason:
-        return result.reason
-    evidence = _verdict_evidence(result.return_value, keys=_CLIENT_EVIDENCE_KEYS)
-    return evidence or result.triggered_rail or _UNSPECIFIED_REASON
+    return result.reason or result.triggered_rail or _UNSPECIFIED_REASON
