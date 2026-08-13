@@ -210,3 +210,35 @@ def test_a_judging_rail_keeps_stream_first():
 
     assert config.rails.output.streaming.stream_first is True
     assert config.rails.output.streaming.context_size == 50
+
+
+def test_streaming_ignores_a_flow_the_surface_parser_rejects():
+    """A flow this validator cannot parse is left to the validators that own flow names.
+
+    Reached directly rather than through a config, because a config carrying such a flow is
+    refused by an earlier check and would never arrive here.
+    """
+    values = {
+        "rails": {
+            "output": {
+                "flows": ["$model=orphaned"],
+                "streaming": {"enabled": True, "stream_first": True},
+            }
+        }
+    }
+
+    assert RailsConfig.check_streaming_can_apply_output_rewrites(values) is values
+
+
+def test_streaming_ignores_a_flow_the_catalog_does_not_describe():
+    """A custom or Colang-defined output rail declares no transform target, so nothing is refused."""
+    values = {
+        "rails": {
+            "output": {
+                "flows": ["my custom output rail"],
+                "streaming": {"enabled": True, "stream_first": True},
+            }
+        }
+    }
+
+    assert RailsConfig.check_streaming_can_apply_output_rewrites(values) is values
