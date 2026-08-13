@@ -43,6 +43,7 @@ from tests.recorded.rails.library.configs import (
     CONTENT_SAFETY_INVALID_MODEL_CONFIG,
     F5_GUARDRAILS_CONFIG,
     F5_GUARDRAILS_INVALID_KEY_CONFIG,
+    INJECTION_OMIT_CONFIG,
     JAILBREAK_PROMPT,
     NIM_CONTENT_SAFETY_CONFIG,
     NIM_JAILBREAK_CONFIG,
@@ -68,6 +69,7 @@ F5_OUTPUT_BLOCK_ASSISTANT_MESSAGE = (
 # LLMRails counterpart because pytest-recording derives the cassette filename from the test
 # name; this maps the name back to the directory that holds it.
 CASSETTE_SOURCE = {
+    "test_injection_detection_omits_sql_output": "test_injection",
     "test_content_safety_input_allows_safe_user_message": "test_content_safety",
     "test_content_safety_input_blocks_unsafe_user_message": "test_content_safety",
     "test_content_safety_output_blocks_unsafe_assistant_message": "test_content_safety",
@@ -315,3 +317,23 @@ async def test_the_rail_name_drops_its_surface_parameter_on_iorails(nvidia_api_k
     assert result.content == REFUSAL
     assert result.rail == "content safety check input"
     assert "$model=" not in result.rail
+
+
+async def test_injection_detection_omits_sql_output(rail_ran_cleanly):
+    """The sanitized output the LLMRails snapshot records is what IORails produces, byte for byte.
+
+    No cassette is replayed: injection detection decides in-process, so this is the one parity
+    case where both engines can be compared without a recorded provider reply at all.
+    """
+    result = await check_iorails(
+        INJECTION_OMIT_CONFIG,
+        [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "This is a SELECT * FROM users; -- malicious comment in text"},
+        ],
+        (RailType.OUTPUT,),
+    )
+
+    assert result.status is RailStatus.MODIFIED
+    assert result.rail is None
+    assert result.content == "This is a  * FROM usersmalicious comment in text"

@@ -270,11 +270,23 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
+# Verdict fields that repeat the request rather than describe it. A rail is free to echo the
+# text it judged -- ``injection_detection`` returns the whole bot message under ``text``, and the
+# rails that guard both sides of a turn return both variables -- but rendering that here would
+# put the conversation into an operator's log on every block, with no opt-in. Content reaches a
+# span only through content capture, which is configured, and reaches the caller not at all.
+_CONTENT_EVIDENCE_KEYS = frozenset({"text", "user_message", "bot_message"})
+
+
 def _metadata_evidence(metadata: Any) -> Optional[str]:
     """Render a rail's metadata as text, or None when it carries no evidence."""
     if not isinstance(metadata, Mapping):
         return None
-    parts = [f"{key}: {_rendered_evidence(value)}" for key, value in metadata.items() if _has_evidence(value)]
+    parts = [
+        f"{key}: {_rendered_evidence(value)}"
+        for key, value in metadata.items()
+        if key not in _CONTENT_EVIDENCE_KEYS and _has_evidence(value)
+    ]
     return "; ".join(parts) or None
 
 

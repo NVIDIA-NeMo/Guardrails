@@ -284,15 +284,51 @@ class TestClientReason:
         assert withheld not in client_reason(result)
         assert client_reason(result) == "a rail"
 
-    def test_the_log_still_carries_what_the_caller_does_not(self):
-        """The restriction is on the payload only; diagnosis keeps the full verdict."""
+    def test_the_log_carries_the_evidence_the_caller_does_not(self):
+        """The restriction is on the payload; diagnosis keeps every field that describes the verdict."""
         result = RailResult.block(metadata=self.CROWDSTRIKE_VERDICT, triggered_rail="crowdstrike aidr guard input")
 
         rendered = display_reason(result)
 
-        assert "my private question" in rendered
-        assert "the draft reply" in rendered
-        assert "my private question" not in client_reason(result)
+        assert "guard_output: policy 7" in rendered
+        assert "guard_output" not in client_reason(result)
+
+    @pytest.mark.parametrize(
+        ("metadata", "withheld"),
+        [
+            (CROWDSTRIKE_VERDICT, "my private question"),
+            (CROWDSTRIKE_VERDICT, "the draft reply"),
+            (REGEX_VERDICT, "my account is ACCT-0000-1111-2222"),
+            ({"text": "the whole bot response", "detections": ["markdown_xss"]}, "the whole bot response"),
+        ],
+        ids=["user-message", "bot-message", "regex-text", "injection-text"],
+    )
+    def test_a_rail_echoing_the_request_does_not_put_it_in_the_log(self, metadata, withheld):
+        """A block writes a log line unconditionally, so content in it would be an opt-out-free leak.
+
+        These rails return the text they judged as evidence: rendering it would put the
+        conversation into an operator's log on every block, which is the thing content capture
+        exists to make a deliberate choice.
+        """
+        result = RailResult.block(metadata=metadata, triggered_rail="a rail")
+
+        assert withheld not in display_reason(result)
+
+    def test_dropping_the_content_leaves_the_rest_of_the_verdict(self):
+        """Withholding the text must not cost the fields that say why the rail objected to it."""
+        result = RailResult.block(metadata=self.REGEX_VERDICT, triggered_rail="regex check input")
+
+        rendered = display_reason(result)
+
+        assert "detections: ACCT-0000-1111-2222" in rendered
+        assert "is_match: True" in rendered
+        assert "source: input" in rendered
+
+    def test_a_verdict_of_nothing_but_content_falls_back_to_the_rail_name(self):
+        """With every field withheld there is no evidence left, and the rail name is what remains."""
+        result = RailResult.block(metadata={"text": "the whole bot response"}, triggered_rail="injection detection")
+
+        assert display_reason(result) == "injection detection"
 
     def test_a_block_with_nothing_to_say_is_unspecified(self):
         """A rail that supplies neither a reason nor a name still yields a printable string."""
