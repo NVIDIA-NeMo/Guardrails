@@ -15,6 +15,8 @@
 
 """Unit tests for guardrails_types module."""
 
+from typing import Any, ClassVar
+
 import pytest
 
 from nemoguardrails.guardrails.guardrails_types import (
@@ -100,6 +102,12 @@ class TestRailResult:
     def test_return_value_of_a_bare_allow_states_only_the_decision(self):
         """A rail with no metadata still yields a verdict the GenerationLog can record."""
         assert RailResult.allow().return_value == {"allowed": True}
+
+    def test_metadata_cannot_overwrite_the_decision(self):
+        """A custom action putting ``allowed`` in metadata cannot log a block as an allow."""
+        result = RailResult.block(metadata={"allowed": True, "policy_violations": ["S1: Violence"]})
+
+        assert result.return_value == {"allowed": False, "policy_violations": ["S1: Violence"]}
 
     def test_metadata_participates_in_equality(self):
         """Two blocks differing only in evidence are no longer equal.
@@ -221,7 +229,7 @@ class TestClientReason:
     which it authors for exactly that purpose.
     """
 
-    CROWDSTRIKE_VERDICT = {
+    CROWDSTRIKE_VERDICT: ClassVar[dict[str, Any]] = {
         "blocked": True,
         "guard_output": "policy 7",
         "user_message": "my private question",
@@ -229,11 +237,13 @@ class TestClientReason:
     }
 
     # ``_regex_outcome`` builds metadata from its whole ``RegexDetectionResult``, so the
-    # text being checked and the substrings that matched are both in there.
-    REGEX_VERDICT = {
+    # text being checked and the substrings that matched are both in there. The account
+    # number is a deliberately non-card-shaped sentinel: the test needs a string that
+    # *looks* sensitive, and a real card format trips PII scanners on every run.
+    REGEX_VERDICT: ClassVar[dict[str, Any]] = {
         "is_match": True,
-        "text": "my card is 4111 1111 1111 1111",
-        "detections": ["4111 1111 1111 1111"],
+        "text": "my account is ACCT-0000-1111-2222",
+        "detections": ["ACCT-0000-1111-2222"],
         "source": "input",
     }
 
@@ -253,7 +263,7 @@ class TestClientReason:
         ("metadata", "withheld"),
         [
             (CROWDSTRIKE_VERDICT, "my private question"),
-            (REGEX_VERDICT, "4111 1111 1111 1111"),
+            (REGEX_VERDICT, "ACCT-0000-1111-2222"),
             ({"policy_violations": ["S1: Violence"]}, "S1: Violence"),
             ({"trustworthiness_score": 0.12}, "0.12"),
             ({"score": 0.4, "threshold": 0.75}, "0.4"),

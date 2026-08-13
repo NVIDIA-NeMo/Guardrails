@@ -102,8 +102,13 @@ class RailResult:
 
     @property
     def return_value(self) -> dict[str, Any]:
-        """The rail's structured verdict, as the log's ``ExecutedAction.return_value``."""
-        return {_VERDICT_DECISION_KEY: self.is_safe, **self.outcome.metadata}
+        """The rail's structured verdict, as the log's ``ExecutedAction.return_value``.
+
+        The decision is applied last so it wins: ``metadata`` is free-form evidence and a
+        custom action may put an ``allowed`` key in it, which must not be able to record a
+        blocked rail as having allowed the content.
+        """
+        return {**self.outcome.metadata, _VERDICT_DECISION_KEY: self.is_safe}
 
     @classmethod
     def allow(
