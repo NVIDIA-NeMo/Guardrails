@@ -29,7 +29,7 @@ css:
 
 experimental:
   mdx-components:
-    - ../docs/_components
+    - ./components
 
 navbar-links:
   - type: github
