@@ -232,38 +232,21 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
-def _verdict_evidence(return_value: Any) -> Optional[str]:
-    """Render a verdict as text, or None when it carries no evidence."""
-    if not isinstance(return_value, Mapping):
+def _metadata_evidence(metadata: Any) -> Optional[str]:
+    """Render a rail's metadata as text, or None when it carries no evidence."""
+    if not isinstance(metadata, Mapping):
         return None
-    parts = [
-        f"{key}: {_rendered_evidence(value)}"
-        for key, value in return_value.items()
-        if key != _VERDICT_DECISION_KEY and _has_evidence(value)
-    ]
+    parts = [f"{key}: {_rendered_evidence(value)}" for key, value in metadata.items() if _has_evidence(value)]
     return "; ".join(parts) or None
 
 
 def display_reason(result: RailResult) -> str:
-    """Render a blocked rail's full explanation for a log line or a span.
-
-    Unfiltered, matching what LLMRails exposes for the same rail: its ``GenerationLog``
-    records the whole ``RailOutcome`` as ``ExecutedAction.return_value``, metadata
-    included. Both surfaces are opt-in (log collection there, content capture here), so
-    the disclosure decision is the operator's on either engine.
-    """
+    """Render a blocked rail's full explanation for a log line or a span."""
     if result.reason:
         return result.reason
-    return _verdict_evidence(result.return_value) or result.triggered_rail or _UNSPECIFIED_REASON
+    return _metadata_evidence(result.outcome.metadata) or result.triggered_rail or _UNSPECIFIED_REASON
 
 
 def client_reason(result: RailResult) -> str:
-    """Render a blocked rail's explanation for the error payload sent to the caller.
-
-    Only the rail's own ``reason``, never its metadata. Metadata is neutral evidence
-    for logs rather than a client contract: crowdstrike_aidr puts the user and bot
-    messages in it and f5 forwards the provider response, so rendering any of it would
-    risk echoing request content back over the API. A blocking rail that wants the
-    caller to know why states it in ``reason``, which it authors for that purpose.
-    """
+    """Render a blocked rail's explanation for the error payload sent to the caller."""
     return result.reason or result.triggered_rail or _UNSPECIFIED_REASON
