@@ -69,36 +69,10 @@ jobs:
       - name: Install documentation dependencies
         run: npm ci
 
-      - name: Restore historical SDK references
-        id: fern-sdk-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
-          restore-keys: |
-            fern-ref-sdk-${{ runner.os }}-
-
       - name: Check Fern docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-strict
-
-      - name: Save historical SDK references
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && steps.fern-sdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
-
-      - name: Share historical SDK references with preview
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: fern-ref-sdk-${{ github.run_id }}
-          path: .fern-cache/fern-ref-sdk
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
 
   preview-docs:
     name: Publish Fern preview
@@ -112,6 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -130,12 +105,6 @@ jobs:
           key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
           restore-keys: |
             fern-ref-sdk-${{ runner.os }}-
-
-      - name: Download generated historical SDK references
-        uses: actions/download-artifact@v7
-        with:
-          name: fern-ref-sdk-${{ github.run_id }}
-          path: .fern-cache/fern-ref-sdk
 
       - name: Generate Python SDK reference
         env:
@@ -186,6 +155,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -198,6 +168,7 @@ jobs:
         run: npm ci
 
       - name: Restore historical SDK references
+        id: fern-sdk-cache
         uses: actions/cache/restore@v5
         with:
           path: .fern-cache/fern-ref-sdk
@@ -209,3 +180,10 @@ jobs:
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-publish-staging
+
+      - name: Save historical SDK references
+        if: steps.fern-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
