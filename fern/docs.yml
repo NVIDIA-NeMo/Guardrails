@@ -19,7 +19,7 @@ theme:
   footer-nav: minimal
 
 logo:
-  href: /nemo/guardrails/latest
+  href: /nemo/guardrails/latest/home
   right-text: NeMo Guardrails
 
 favicon: ./assets/NVIDIA_symbol.svg
