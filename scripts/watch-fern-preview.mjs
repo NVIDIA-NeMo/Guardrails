@@ -6,6 +6,8 @@ import { existsSync, readdirSync, readFileSync, statSync, watch } from "node:fs"
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createFernRefSdkEnvironment } from "./fern-ref-sdk-environment.mjs";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fernRoot = path.join(repoRoot, "fern");
 const watchRoots = ["docs", "fern"];
@@ -16,6 +18,7 @@ const fernDocsInstance = "nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/gua
 const branchName = currentBranchName();
 let running = false;
 let pending = false;
+let sdkReferenceReady = false;
 let debounceTimer;
 let currentChild;
 const watchers = new Map();
@@ -140,9 +143,6 @@ function shouldIgnorePath(candidatePath) {
 
 function shouldTriggerRun(candidatePath) {
   const relativePath = path.relative(repoRoot, candidatePath).split(path.sep).join("/");
-  if (relativePath === "docs/index.yml") {
-    return false;
-  }
   if (relativePath.startsWith("docs/_static/python-sdk-reference/")) {
     return false;
   }
@@ -188,17 +188,21 @@ function runFernGenerate(reason) {
   ];
 
   console.log(`\n[${new Date().toLocaleTimeString()}] Running Fern (${reason})`);
-  if (!generateSdkReference()) {
-    running = false;
-    if (pending) {
-      runFernGenerate("queued file change");
+  if (!sdkReferenceReady) {
+    if (!generateSdkReference()) {
+      running = false;
+      if (pending) {
+        runFernGenerate("queued file change");
+      }
+      return;
     }
-    return;
+    sdkReferenceReady = true;
   }
   console.log(`cd fern && npx ${args.join(" ")}`);
 
   const child = spawn("npx", args, {
     cwd: fernRoot,
+    env: createFernRefSdkEnvironment(repoRoot),
     stdio: "inherit",
   });
   currentChild = child;

@@ -48,14 +48,16 @@ versions:
   - display-name: Latest
     path: ../docs/index.yml
     slug: latest
+  # Snapshot commits replace the generated SDK folder with a library marker and
+  # pin its release tag. The build hook injects cached SDK output into each ref.
   - display-name: v0.23.0
-    ref: v0.23.0
+    ref: 839b65717f542f6661d3324c42a3b50192b5a5ee
     slug: v0.23.0
     availability: stable
   # The v0.22.0 tag predates the Fern migration. Build from the curated
   # post-migration snapshot instead of a mutable backfill branch.
   - display-name: v0.22.0
-    ref: fb73f41b0fa2ef6c50c90d76f8b20533e4c9a51e
+    ref: 478cfa03c744e0b5eb1f04c5fb05944709de4666
     slug: v0.22.0
     availability: deprecated
 

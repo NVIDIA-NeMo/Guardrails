@@ -86,18 +86,18 @@ warm-fastembed-cache:
 docs-fern: docs-fern-strict
 
 docs-fern-strict: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check
+	node scripts/run-fern-with-ref-sdk.mjs check
 
 docs-fern-live: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
 
 docs-fern-publish-staging: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_STAGING_INSTANCE)"
+	node scripts/run-fern-with-ref-sdk.mjs generate --docs --instance "$(FERN_STAGING_INSTANCE)"
 
 docs-fern-publish-public: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
+	node scripts/run-fern-with-ref-sdk.mjs generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
 
-docs-fern-preview-watch: docs-fern-generate-sdk
+docs-fern-preview-watch:
 	node scripts/watch-fern-preview.mjs
 
 docs-fern-generate-sdk:

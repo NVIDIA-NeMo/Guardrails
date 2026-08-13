@@ -6,7 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sdkRoot = path.join(repoRoot, "docs", "_static", "python-sdk-reference", "guardrails-python-sdk");
+const sdkRoot = process.env.FERN_SDK_REFERENCE_ROOT
+  ? path.resolve(process.env.FERN_SDK_REFERENCE_ROOT)
+  : path.join(repoRoot, "docs", "_static", "python-sdk-reference", "guardrails-python-sdk");
 
 if (!fs.existsSync(sdkRoot)) {
   throw new Error(`Generated SDK reference folder not found: ${path.relative(repoRoot, sdkRoot)}`);
