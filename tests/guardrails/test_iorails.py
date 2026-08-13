@@ -1194,3 +1194,32 @@ class TestGeneratedTurn:
         assert turn.response is None
         assert turn.messages is REWRITE_MESSAGES
         iorails.engine_registry.model_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+class TestContentCaptureRecordsWhatTheModelRead:
+    """Capture records the masked text, so a span cannot carry what a mask removed."""
+
+    async def test_the_request_span_carries_the_masked_input(self, iorails):
+        """A trace is a downstream system, and masking exists to keep the raw text out of them."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1][-1]["content"] == REWRITE_MASKED_USER
+
+    async def test_an_unmasked_turn_is_captured_as_it_arrived(self, iorails):
+        """The ordinary request is unchanged: what the caller sent is what the span records."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1] == REWRITE_MESSAGES

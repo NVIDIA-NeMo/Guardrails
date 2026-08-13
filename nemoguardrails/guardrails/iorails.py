@@ -545,11 +545,13 @@ def _rewritten_bot_message(result: RailResult) -> Optional[str]:
 
 
 @dataclass(slots=True)
-class _StreamedConversation:
-    """The messages a streamed turn is running against, shared by the parts that read them.
+class _TurnConversation:
+    """The messages a turn is running against, shared by the parts that read them after the rails.
 
-    Mutable, and deliberately so: the output-rail wrapper is constructed before the generation
-    task starts, so a rewrite the input rails produce later has no other way to reach it.
+    Mutable, and deliberately so. Streaming needs it because the output-rail wrapper is built
+    before the generation task starts, so a rewrite the input rails produce later has no other
+    way to reach it. Both paths need it for content capture, which happens at the request-span
+    boundary and must record the text the model actually read rather than what arrived.
     """
 
     messages: LLMMessages
@@ -945,18 +947,23 @@ class IORails(BaseGuardrails):
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
+        conversation = _TurnConversation(messages=messages)
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_generate(messages, req_id, request_span, options=options, **kwargs)
+                result = await self._do_generate(
+                    messages, req_id, request_span, conversation=conversation, options=options, **kwargs
+                )
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
             # Capture content once here at the traced_request boundary so any
-            # future early-return added to _do_generate is covered automatically.
+            # future early-return added to _do_generate is covered automatically. The messages
+            # recorded are the ones the model read: an input rail may have masked them, and a
+            # span carrying the text a mask removed would defeat the mask.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, _response_content_for_capture(result))
+                set_request_content(request_span, conversation.messages, _response_content_for_capture(result))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -987,6 +994,7 @@ class IORails(BaseGuardrails):
         req_id: str,
         request_span: Optional["Span"] = None,
         *,
+        conversation: Optional["_TurnConversation"] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
@@ -1045,6 +1053,8 @@ class IORails(BaseGuardrails):
         # rewritten the user message, and checking the text it replaced would judge the wrong turn.
         response = turn.response
         messages = turn.messages
+        if conversation is not None:
+            conversation.messages = messages
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -1497,7 +1507,7 @@ class IORails(BaseGuardrails):
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
         # The output-rail wrapper is built before the generation task runs, so it cannot be handed
         # the messages by value: an input rail may rewrite them after that point.
-        conversation = _StreamedConversation(messages=messages)
+        conversation = _TurnConversation(messages=messages)
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
         # after the content stream drains. The engine emits the complete list once
@@ -1770,7 +1780,7 @@ class IORails(BaseGuardrails):
     async def _run_output_rails_in_streaming(
         self,
         streaming_handler: AsyncIterator[Union[str, dict]],
-        conversation: "_StreamedConversation",
+        conversation: "_TurnConversation",
         *,
         enabled: Union[bool, list[str]] = True,
         include_metadata: Optional[bool] = False,

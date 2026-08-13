@@ -15,10 +15,11 @@
 
 """Stand-ins for compiled rails, for tests that need a rail to behave a certain way.
 
-A rail that rewrites cannot be configured yet -- transform surfaces are refused at compile time
-until IORails can apply a rewrite -- so a test needing one stands in for compilation rather than
-naming a real rewriting rail in a config. Once those surfaces compile, these stubs stay useful
-for the rails whose backend is a paid vendor call.
+Rewriting surfaces compile now, so a stub is no longer the only way to hold one. What it still
+buys is a rail with no backend: the shipped rewriting rails reach a paid vendor or a NIM, and a
+test about *scheduling* -- which rail runs first, what the one behind it reads -- should not
+depend on either. ``rails_compiled_as`` patches compilation rather than the compiled rails, so
+``RailsManager`` reads these while deciding how to order and downgrade.
 """
 
 from collections.abc import Mapping

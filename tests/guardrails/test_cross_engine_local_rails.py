@@ -295,7 +295,7 @@ class TestRewritingRailsAgreeAcrossEngines:
     @pytest.mark.asyncio
     async def test_an_output_rewrite_reaches_the_caller_on_both_engines(self):
         """Through ``generate``, the sanitized response is what the caller reads on either engine."""
-        rail = REWRITING_RAILS[0]
+        rail = next(candidate for candidate in REWRITING_RAILS if candidate.direction == "output")
         config_dict = _rewriting_config(rail)
 
         llmrails_content = await _llmrails_reply(config_dict, BENIGN_INPUT, rail.original)

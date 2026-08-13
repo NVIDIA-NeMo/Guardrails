@@ -162,8 +162,9 @@ def synthetic_surface(
 def uncompiled_rail(surface: RailSurface, deps: RailDependencies) -> CompiledRail:
     """Build a ``CompiledRail`` around *surface* without going through compilation.
 
-    The only way to hold a rail for a surface compilation still refuses, which is what a
-    rewriting surface is until IORails can apply the rewrite.
+    Synthetic surfaces name an action the catalog cannot resolve, so ``compile_rail`` has no way
+    to reach one. Constructing the rail directly is what lets a test hold a surface the manifests
+    do not ship -- a rewrite crossed over to the wrong direction, say.
     """
     return CompiledRail(
         flow=surface.name,

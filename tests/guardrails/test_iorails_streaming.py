@@ -31,7 +31,7 @@ from nemoguardrails.guardrails.iorails import (
     STREAM_MAX_CONCURRENCY,
     IORails,
     _is_stream_error_chunk,
-    _StreamedConversation,
+    _TurnConversation,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -907,7 +907,7 @@ class TestStreamAsyncToolCalling:
             chunk
             async for chunk in iorails_stream_check_first._run_output_rails_in_streaming(
                 streaming_handler=_empty_content_handler(),
-                conversation=_StreamedConversation(messages=[{"role": "user", "content": "hi"}]),
+                conversation=_TurnConversation(messages=[{"role": "user", "content": "hi"}]),
             )
         ]
 
@@ -1263,3 +1263,21 @@ class TestStreamAsyncWithRewritingRails:
 
         assert "could not be applied to the stream" in "".join(str(chunk) for chunk in chunks)
         assert "arrived after the batch was streamed" in caplog.text
+
+
+class TestStreamingContentCapture:
+    """The streamed path records the same masked input the non-streaming one does."""
+
+    @pytest.mark.asyncio
+    async def test_the_request_span_carries_the_masked_input(self, iorails_input_only):
+        """Both paths agree on what request content means, which is what the model read."""
+        iorails_input_only._content_capture_enabled = True
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("my ssn is <SSN>"))
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[1][-1]["content"] == "my ssn is <SSN>"

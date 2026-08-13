@@ -652,7 +652,7 @@ class TestRewritingVendorRailsAgreeAcrossEngines:
     @pytest.mark.asyncio
     async def test_an_output_rewrite_reaches_the_caller_on_both_engines(self, monkeypatch):
         """Through ``generate``, the masked response is what the caller reads on either engine."""
-        rail = REWRITING_VENDOR_RAILS[1]
+        rail = next(candidate for candidate in REWRITING_VENDOR_RAILS if candidate.direction == "output")
         for name, value in rail.env.items():
             monkeypatch.setenv(name, value)
         config_dict = _rewriting_vendor_config(rail)

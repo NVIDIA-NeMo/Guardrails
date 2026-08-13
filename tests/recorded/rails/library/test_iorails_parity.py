@@ -69,7 +69,6 @@ F5_OUTPUT_BLOCK_ASSISTANT_MESSAGE = (
 # LLMRails counterpart because pytest-recording derives the cassette filename from the test
 # name; this maps the name back to the directory that holds it.
 CASSETTE_SOURCE = {
-    "test_injection_detection_omits_sql_output": "test_injection",
     "test_content_safety_input_allows_safe_user_message": "test_content_safety",
     "test_content_safety_input_blocks_unsafe_user_message": "test_content_safety",
     "test_content_safety_output_blocks_unsafe_assistant_message": "test_content_safety",
@@ -84,10 +83,18 @@ CASSETTE_SOURCE = {
     "test_the_rail_name_drops_its_surface_parameter_on_iorails": "test_content_safety",
 }
 
+# Tests whose rail decides in-process, so no provider reply is replayed and no cassette exists.
+# Named rather than left out of ``CASSETTE_SOURCE``, so a missing entry stays an error.
+NO_CASSETTE = {"test_injection_detection_omits_sql_output"}
+
 
 @pytest.fixture
 def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
     """Point at the sibling module's cassette directory rather than this module's own."""
+    if request.node.name in NO_CASSETTE:
+        # An empty directory of its own: VCR opens nothing, and pointing at a sibling's
+        # cassettes would suggest a recording this test neither needs nor replays.
+        return str(Path(__file__).parent / "cassettes" / "no_cassette")
     source = CASSETTE_SOURCE.get(request.node.name)
     if source is None:
         raise AssertionError(f"{request.node.name!r} has no CASSETTE_SOURCE entry")

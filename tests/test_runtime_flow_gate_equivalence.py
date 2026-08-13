@@ -2887,7 +2887,7 @@ class _StubAction:
         return self._raw_return
 
 
-async def _run_flow_iorails(case: FlowEquivalenceCase) -> dict[str, Any]:
+async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
     """Drive one case through IORails, stubbing the rail's action at its manifest target.
 
     IORails resolves actions through ``resolve_import_ref`` at compile time, which

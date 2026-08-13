@@ -356,7 +356,7 @@ class RailsManager:
             direction: _rewriting_flows(self._rails, direction, flows) for direction, flows in configured
         }
         if any(self.transform_flows.values()):
-            self._run_rails_sequentially()
+            self._disable_parallel_execution()
 
         # Tool Call Actions run on tool invocations from the main LLM response
         # Tool Result Actions run on the results of executing Tool Calls in the harness
@@ -374,7 +374,7 @@ class RailsManager:
             self.output_parallel,
         )
 
-    def _run_rails_sequentially(self) -> None:
+    def _disable_parallel_execution(self) -> None:
         """Turn off parallel rails, which cannot carry a rewrite from one rail to the next.
 
         Concurrent rails all read the text as it arrived, so two rewrites cannot compose and
@@ -654,7 +654,20 @@ class RailsManager:
                 final_text = _rewritten_text(result.outcome, direction, flow)
                 log.info("[%s] %s flow %s rewrote the text it checked", req_id, direction.value, flow)
                 if direction is RailDirection.INPUT:
-                    messages = rewrite_user_message(messages, final_text)
+                    try:
+                        messages = rewrite_user_message(messages, final_text)
+                    except ValueError:
+                        # The rail was handed no text and answered with some: there is no turn to
+                        # write it to. Blocking keeps a misbehaving rail inside the fail-closed
+                        # envelope built for it, rather than failing the request as a server error.
+                        log.error(
+                            "[%s] %s flow %s rewrote a turn this request does not have", req_id, direction.value, flow
+                        )
+                        return RailResult.block(
+                            reason="a rail rewrote a message this request does not have",
+                            triggered_rail=_get_flow_name(flow) or flow,
+                            records=tuple(collected),
+                        )
                 else:
                     bot_response = final_text
         return _result_after_rewrites(direction, original_text, final_text, tuple(collected))

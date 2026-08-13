@@ -1889,3 +1889,37 @@ class TestRawResponseParsing:
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
 
         assert result.is_safe is expected_safe
+
+
+@pytest.mark.asyncio
+class TestARewriteWithNoTurnToLandOn:
+    """A rail rewriting a turn the request does not have is blocked, not raised."""
+
+    async def test_the_request_is_blocked(self, nemoguards_rails_manager):
+        """A rail handed no text and answering with some is misbehaving, and the envelope owns that.
+
+        Raising would surface a rail's fault as a server error; blocking keeps it where every
+        other rail failure already lands.
+        """
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message(MASKED)
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(
+            [{"role": "assistant", "content": "hello"}], enabled=["content safety check input"]
+        )
+
+        assert result.is_safe is False
+        assert result.triggered_rail == "content safety check input"
+
+    async def test_the_rails_that_ran_are_still_recorded(self, nemoguards_rails_manager):
+        """The generation log covers the whole check, including the rail that misbehaved."""
+        nemoguards_rails_manager._rails[(RailDirection.INPUT, CONTENT_SAFETY_INPUT_FLOW)] = StubRail(
+            _mask_user_message(MASKED)
+        )
+
+        result = await nemoguards_rails_manager.is_input_safe(
+            [{"role": "assistant", "content": "hello"}], enabled=["content safety check input"]
+        )
+
+        assert len(result.records) == 1

@@ -2197,12 +2197,7 @@ class TestScopeGateCharacterization:
     @pytest.mark.parametrize(
         ("flow", "direction", "expected"),
         [
-            (
-                "jailbreak detection heuristics",
-                SurfaceDirection.INPUT,
-                "'jailbreak detection heuristics' Conflates dependencies with 'jailbreak detection model', "
-                "so IORails cannot tell whether it needs 'torch' and 'transformers' installed",
-            ),
+            (_LLMRAILS_ONLY_INPUT_FLOW, SurfaceDirection.INPUT, _LLMRAILS_ONLY_INPUT_REASON),
             (
                 "self check facts",
                 SurfaceDirection.OUTPUT,

@@ -447,7 +447,8 @@ class TestParallelIsRefusedWhenARailRewrites:
     async def test_the_input_rails_still_run_masking_first(self, call_log, httpx_mock):
         """The downgraded config behaves exactly as the sequential one, rather than merely warning."""
         with pytest.warns(UserWarning, match="not honored"):
-            engine = IORails(RailsConfig.from_content(config=_input_pipeline_config(parallel=True)))
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                engine = IORails(RailsConfig.from_content(config=_input_pipeline_config(parallel=True)))
 
         async with engine:
             _wire(engine, call_log, httpx_mock, ALL_ALLOW)
@@ -459,7 +460,8 @@ class TestParallelIsRefusedWhenARailRewrites:
     async def test_the_output_rails_still_run_masking_first(self, call_log, httpx_mock):
         """Same for the output direction, where the rewrite is the response the caller receives."""
         with pytest.warns(UserWarning, match="not honored"):
-            engine = IORails(RailsConfig.from_content(config=_output_pipeline_config(parallel=True)))
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                engine = IORails(RailsConfig.from_content(config=_output_pipeline_config(parallel=True)))
 
         async with engine:
             _wire_answering(engine, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
