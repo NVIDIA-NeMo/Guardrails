@@ -51,7 +51,7 @@ versions:
   # Snapshot commits replace the generated SDK folder with a library marker and
   # pin its release tag. The build hook injects cached SDK output into each ref.
   - display-name: v0.23.0
-    ref: 468f4172b4ef4fc9e764c51e08067991ddb935d8
+    ref: 6622828c9f3e00549f43f9f3f72a5c8d9b41ea5a
     slug: v0.23.0
   # The v0.22.0 tag predates the Fern migration. Build from the curated
   # post-migration snapshot instead of a mutable backfill branch.
