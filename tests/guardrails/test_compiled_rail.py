@@ -428,10 +428,30 @@ class TestUnrunnableSurfaces:
 
         assert unsupported_surface_reason(surface) is None
 
-    def test_transform_surfaces_do_not_compile(self, deps):
-        """A surface that rewrites content is refused until IORails can apply the rewrite."""
-        with pytest.raises(RailCompilationError, match="transform"):
-            compile_rail("autoalign check input", RailDirection.INPUT, deps)
+    def test_a_rewriting_surface_compiles(self, deps):
+        """A rail that rewrites its own direction's variable is runnable, which is the point of it."""
+        assert compile_rail("autoalign check input", RailDirection.INPUT, deps) is not None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
+        ],
+        ids=["input-rewrites-bot", "output-rewrites-user", "input-rewrites-chunks"],
+    )
+    def test_a_surface_rewriting_the_wrong_variable_does_not_compile(self, deps, direction, target):
+        """A rewrite this engine has no variable for is refused rather than applied to the wrong one.
+
+        Nothing in the manifest schema forbids the mismatch, so the refusal is what keeps it out.
+        """
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), direction=direction, transform_target=target
+        )
+
+        with pytest.raises(RailCompilationError, match="cannot apply"):
+            compile_rail(SYNTHETIC_FLOW, direction, deps, catalog=StubCatalog(surface, direction))
 
 
 class TestDeclaredTransformTarget:
@@ -480,23 +500,41 @@ class TestDeclaredTransformTarget:
 
         assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
 
-    def test_the_block_only_tier_splits_into_servable_and_refused(self):
-        """Every block-only input/output surface is servable but for the eight refused ones.
+    def test_the_input_output_tier_splits_into_servable_and_refused(self):
+        """Every input/output surface is servable but for the eight refused ones.
 
-        Measured: 41 servable, 8 refused -- the seven retrieval-evidence surfaces plus
-        jailbreak heuristics, whose backend cannot be told apart from its manifest sibling's.
-        Pinning the split rather than a predicate means a newly added manifest surface, or an
-        action that grows a binding IORails cannot fill, fails here rather than in a config.
+        Measured: 59 servable -- 41 that only judge and the 18 that may rewrite -- against 8
+        refused: the seven retrieval-evidence surfaces plus jailbreak heuristics, whose backend
+        cannot be told apart from its manifest sibling's. Pinning the split rather than a
+        predicate means a newly added manifest surface, or an action that grows a binding
+        IORails cannot fill, fails here rather than in a config.
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
-            if direction is RailDirection.RETRIEVAL or surface.transform_target is not None:
+            if direction is RailDirection.RETRIEVAL:
                 continue
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))
 
         assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
-        assert len(servable) == 41
+        assert len(servable) == 59
+
+    def test_the_rewriting_surfaces_are_all_servable(self):
+        """The eighteen this work exists for: nine each way, every one of them runnable.
+
+        Counted rather than named, because the names are the manifests' business; what this
+        pins is that no direction is left half-enabled.
+        """
+        rewriting = [
+            (direction, name)
+            for (direction, name), surface in default_rail_catalog().surfaces().items()
+            if direction is not RailDirection.RETRIEVAL and surface.transform_target is not None
+        ]
+
+        assert len(rewriting) == 18
+        assert [key for key in rewriting if key[0] is RailDirection.INPUT] != []
+        assert [key for key in rewriting if key[0] is RailDirection.OUTPUT] != []
+        assert all(unsupported_surface_reason(default_rail_catalog().surfaces()[key]) is None for key in rewriting)
 
     def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
         """An unrunnable surface is refused before its action module is imported."""

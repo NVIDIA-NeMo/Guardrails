@@ -1557,14 +1557,17 @@ class TestRewrittenText:
         with pytest.raises(NotImplementedError, match="may rewrite 'user_message'"):
             _rewritten_text(_mask_bot_message("redacted"), RailDirection.INPUT, "mask pii on input")
 
-    def test_rewriting_more_than_one_variable_is_refused(self):
-        """Applying half of a two-variable rewrite would report a verdict over text no rail produced."""
+    def test_a_rail_naming_both_variables_gives_each_direction_its_own(self):
+        """A rail guarding both sides of a turn may rewrite both, and each direction takes one.
+
+        The Colang flows do the same with the same verdict, each indexing the key it owns.
+        """
         outcome = RailOutcome.transform(
             [(TransformTarget.USER_MESSAGE, MASKED), (TransformTarget.BOT_MESSAGE, "redacted")]
         )
 
-        with pytest.raises(NotImplementedError, match="cannot apply"):
-            _rewritten_text(outcome, RailDirection.INPUT, "pangea ai guard input")
+        assert _rewritten_text(outcome, RailDirection.INPUT, "pangea ai guard input") == MASKED
+        assert _rewritten_text(outcome, RailDirection.OUTPUT, "pangea ai guard output") == "redacted"
 
     def test_a_retrieval_rewrite_is_refused(self):
         """``relevant_chunks`` has no home in an input/output request, so there is nowhere to put it."""

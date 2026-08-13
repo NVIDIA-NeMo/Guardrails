@@ -367,11 +367,28 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     return tuple(bound)
 
 
-def _transform_target_reason(surface: RailSurface) -> Optional[str]:
-    """Report a surface that rewrites content, which IORails cannot apply yet."""
+# The conversation variable a rail may rewrite in each direction. A retrieval rewrite has no
+# home in an input/output request, and IORails runs no retrieval stage to give it one.
+_REWRITABLE_TARGET: dict[RailDirection, TransformTarget] = {
+    RailDirection.INPUT: TransformTarget.USER_MESSAGE,
+    RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
+}
+
+
+def _unapplicable_transform_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface declaring a rewrite IORails has nowhere to put.
+
+    Every shipped surface rewrites its own direction's variable, so this refuses nothing today.
+    It is kept because nothing in the manifest schema requires that agreement -- ``RailSurface``
+    validates only that no parameter is bound twice -- so a manifest could declare an input rail
+    that rewrites the bot message, and applying that to the user message would be worse than
+    refusing to run it.
+    """
     if surface.transform_target is None:
         return None
-    return f"transforms {surface.transform_target.value!r}"
+    if surface.transform_target is _REWRITABLE_TARGET.get(surface.direction):
+        return None
+    return f"rewrites {surface.transform_target.value!r}, which a {surface.direction.value} rail cannot apply here"
 
 
 # Surfaces whose actions read retrieval evidence out of the request context: ``relevant_chunks``,
@@ -412,9 +429,10 @@ def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
 
 # Ordered so the cheapest, most structural check reports first. Each entry is removed by the
 # work that lifts its limitation: the context-binding refusal went when resolution was built,
-# and the transform refusal goes when IORails can apply a rewrite.
+# and the blanket transform refusal went when IORails learned to apply a rewrite -- what is left
+# of it refuses only a rewrite this engine has no variable for.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
-    _transform_target_reason,
+    _unapplicable_transform_reason,
     _retrieval_context_reason,
     _unsupported_rail_reason,
 )

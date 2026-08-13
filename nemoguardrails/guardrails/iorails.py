@@ -27,8 +27,10 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
 
+from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -44,10 +46,12 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailCallRecord,
     RailDirection,
+    RailResult,
     TimedLLMResponse,
     client_reason,
     display_reason,
     get_request_id,
+    rewrite_user_message,
     serialize_prompt,
     truncate,
 )
@@ -530,6 +534,29 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+def _rewritten_user_message(result: RailResult) -> Optional[str]:
+    """What the input rails rewrote the user message to, or None when they left it as it came."""
+    return result.outcome.transform_text.get(TransformTarget.USER_MESSAGE.value)
+
+
+def _rewritten_bot_message(result: RailResult) -> Optional[str]:
+    """What the output rails rewrote the response to, or None when they left it as generated."""
+    return result.outcome.transform_text.get(TransformTarget.BOT_MESSAGE.value)
+
+
+@dataclass(frozen=True, slots=True)
+class _GeneratedTurn:
+    """The main model's response, and the messages it was generated from.
+
+    The messages travel back with the response because input rails may have rewritten them, and
+    what the model actually read is what the output rails and the generation log must see.
+    ``response`` is None when the input rails blocked, so no generation happened.
+    """
+
+    response: Optional[LLMResponse]
+    messages: LLMMessages
+
+
 def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     """Dependencies for the gate's trial compile: declared types and config, no live collaborators.
 
@@ -992,16 +1019,21 @@ class IORails(BaseGuardrails):
             return _blocked_return()
 
         if self._speculative_generation:
-            response = await self._do_generate_speculative(
+            turn = await self._do_generate_speculative(
                 messages, req_id, llm_kwargs, request_span, input_enabled=input_enabled, records_out=records
             )
         else:
-            response = await self._do_generate_sequential(
+            turn = await self._do_generate_sequential(
                 messages, req_id, llm_kwargs, input_enabled=input_enabled, records_out=records
             )
 
-        if response is None:
+        if turn.response is None:
             return _blocked_return()
+
+        # What the model read, which is what the output rails must check: an input rail may have
+        # rewritten the user message, and checking the text it replaced would judge the wrong turn.
+        response = turn.response
+        messages = turn.messages
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -1041,6 +1073,11 @@ class IORails(BaseGuardrails):
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return()
 
+            rewritten = _rewritten_bot_message(output_result)
+            if rewritten is not None:
+                log.info("[%s] Output rails rewrote the response", req_id)
+                response_text = rewritten
+
         if has_generation_options:
             log_obj = _build_generation_log(records, options, time.monotonic() - t_start)
             return _build_generation_response(response_text, reasoning_content, response, log_obj)
@@ -1077,8 +1114,8 @@ class IORails(BaseGuardrails):
         *,
         input_enabled: Union[bool, list[str]] = True,
         records_out: Optional[list[RailCallRecord]] = None,
-    ) -> Optional[LLMResponse]:
-        """Sequential path: input rails block before LLM generation starts."""
+    ) -> _GeneratedTurn:
+        """Sequential path: input rails block, or rewrite, before LLM generation starts."""
         log.info("[%s] Running input rails", req_id)
         input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
         if records_out is not None:
@@ -1087,7 +1124,12 @@ class IORails(BaseGuardrails):
             log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return None
+            return _GeneratedTurn(response=None, messages=messages)
+
+        rewritten = _rewritten_user_message(input_result)
+        if rewritten is not None:
+            log.info("[%s] Input rails rewrote the user message", req_id)
+            messages = rewrite_user_message(messages, rewritten)
 
         log.info("[%s] Calling main LLM", req_id)
         timed_llm_response = await self._timed_main_call(messages, llm_kwargs)
@@ -1095,7 +1137,7 @@ class IORails(BaseGuardrails):
             provider = self.engine_registry.provider_name("main")
             prompt = serialize_prompt(messages)
             records_out.append(_make_generation_record(timed_llm_response, provider, prompt))
-        return timed_llm_response.response
+        return _GeneratedTurn(response=timed_llm_response.response, messages=messages)
 
     async def _do_generate_speculative(
         self,
@@ -1106,8 +1148,12 @@ class IORails(BaseGuardrails):
         *,
         input_enabled: Union[bool, list[str]] = True,
         records_out: Optional[list[RailCallRecord]] = None,
-    ) -> Optional[LLMResponse]:
-        """Speculative path: input rails and LLM generation race concurrently."""
+    ) -> _GeneratedTurn:
+        """Speculative path: input rails and LLM generation race concurrently.
+
+        The messages come back unchanged: the race is refused for a config whose input rails may
+        rewrite, because the model reads the text before the rails have finished with it.
+        """
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
 
         rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages, enabled=input_enabled))
@@ -1145,7 +1191,7 @@ class IORails(BaseGuardrails):
                     )
             raise
 
-        return response
+        return _GeneratedTurn(response=response, messages=messages)
 
     async def _parallel_input_rail_and_response_generation(
         self,
@@ -1311,10 +1357,15 @@ class IORails(BaseGuardrails):
                 return RailsResult(status=RailStatus.PASSED, content=last if isinstance(last, str) else "")
             rails_to_run = determined["rails"]
 
-        if "output" in rails_to_run:
+        # Which direction's text the caller gets back, and so which rewrites it can observe: with
+        # output rails in play the answer is the response, and an input rewrite is internal to the
+        # check. Matches how LLMRails decides what ``check`` reports.
+        reports_output = "output" in rails_to_run
+        if reports_output:
             pass_content = _get_last_content_by_role(messages, "assistant")
         else:
             pass_content = _get_last_content_by_role(messages, "user")
+        original_content = pass_content
 
         if "input" in rails_to_run:
             user_content = _get_last_content_by_role(messages, "user")
@@ -1330,10 +1381,16 @@ class IORails(BaseGuardrails):
                     return RailsResult(
                         status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=input_result.triggered_rail
                     )
+                rewritten = _rewritten_user_message(input_result)
+                if rewritten is not None:
+                    log.info("[%s] Input rails rewrote the user message", req_id)
+                    messages = rewrite_user_message(messages, rewritten)
+                    if not reports_output:
+                        pass_content = rewritten
             else:
                 log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
-        if "output" in rails_to_run:
+        if reports_output:
             bot_response = _get_last_content_by_role(messages, "assistant")
             # Skip when there is no assistant content: the content-safety action requires
             # bot_response and would otherwise raise, surfacing a false BLOCK.
@@ -1347,9 +1404,17 @@ class IORails(BaseGuardrails):
                     return RailsResult(
                         status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=output_result.triggered_rail
                     )
+                rewritten = _rewritten_bot_message(output_result)
+                if rewritten is not None:
+                    log.info("[%s] Output rails rewrote the response", req_id)
+                    pass_content = rewritten
             else:
                 log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 
+        # MODIFIED is decided by comparing content, as LLMRails does, and names no rail: a rewrite
+        # is not a rail "triggering", and several rails may have contributed to the final text.
+        if pass_content != original_content:
+            return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
 
     def _validate_streaming_with_output_rails(self) -> None:
@@ -1436,7 +1501,7 @@ class IORails(BaseGuardrails):
 
             Inherits the request ID from the caller context via create_task().
             """
-            nonlocal accumulated_tool_calls
+            nonlocal accumulated_tool_calls, messages
             req_id = get_request_id()
             t0 = time.monotonic()
             try:
@@ -1471,6 +1536,15 @@ class IORails(BaseGuardrails):
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
+
+                # Input rails finish before the first token is requested, so a rewrite reaches the
+                # model here exactly as it does when not streaming. The output-rail wrapper was
+                # handed the original messages when the stream was set up, and keeps them: LLMRails
+                # builds its streaming output-rail context from the raw messages too.
+                rewritten = _rewritten_user_message(input_result)
+                if rewritten is not None:
+                    log.info("[%s] Input rails rewrote the user message", req_id)
+                    messages = rewrite_user_message(messages, rewritten)
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
@@ -1699,6 +1773,9 @@ class IORails(BaseGuardrails):
         output_streaming_config = self.config.rails.output.streaming
         stream_first = output_streaming_config.stream_first
         buffer_strategy = get_buffer_strategy(output_streaming_config)
+        # A rewrite arrives per buffered batch; saying so once is enough to explain a stream whose
+        # masking rail appears to have done nothing.
+        rewrite_reported = False
 
         async for chunk_batch in buffer_strategy(streaming_handler):
             user_output_chunks = chunk_batch.user_output_chunks
@@ -1735,6 +1812,17 @@ class IORails(BaseGuardrails):
                 )
                 yield _frame_for_stream(violation, include_metadata)
                 return
+
+            # A rewrite cannot be applied to a stream: with stream_first the chunk has already
+            # reached the caller, and without it the rewrite covers one buffered batch rather than
+            # the response. So the check counts only as non-blocking, which is what LLMRails does.
+            if output_result.outcome.is_transform and not rewrite_reported:
+                rewrite_reported = True
+                log.info(
+                    "[%s] Output rails rewrote the response, which streaming cannot apply; rails %s",
+                    req_id,
+                    list(self.rails_manager.transform_flows[RailDirection.OUTPUT]),
+                )
 
             if not stream_first:
                 for chunk in user_output_chunks:

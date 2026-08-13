@@ -28,6 +28,7 @@ from unittest.mock import patch
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import RailExecution
+from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
 
 
@@ -65,6 +66,16 @@ def declared_rewriter(direction: SurfaceDirection) -> StubRail:
     """A rail free to rewrite that does not, which is what most requests to one look like."""
     target = TransformTarget.USER_MESSAGE if direction is SurfaceDirection.INPUT else TransformTarget.BOT_MESSAGE
     return StubRail(transform_target=target)
+
+
+def user_message_rewrite(text: str) -> RailResult:
+    """The verdict input rails return when they rewrote the user message to *text*."""
+    return RailResult(RailOutcome.transform([(TransformTarget.USER_MESSAGE, text)]))
+
+
+def bot_message_rewrite(text: str) -> RailResult:
+    """The verdict output rails return when they rewrote the response to *text*."""
+    return RailResult(RailOutcome.transform([(TransformTarget.BOT_MESSAGE, text)]))
 
 
 @contextmanager

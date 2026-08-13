@@ -50,14 +50,22 @@ _IORAILS_BASE_RAILS = {
 }
 
 # Rails LLMRails runs and IORails does not, for tests needing a config that must fall back.
-# They rewrite content, which IORails cannot apply, so they are refused at compile time.
-# Chosen over a rail that is merely outside the enabled tier: the tier now admits every
-# servable block-only surface, so an out-of-scope stand-in would go stale the next time it
-# widens -- which is exactly what happened to `self check input` and `self check output` here.
-_LLMRAILS_ONLY_INPUT_FLOW = "autoalign check input"
-_LLMRAILS_ONLY_INPUT_REASON = "'autoalign check input' transforms 'user_message'"
-_LLMRAILS_ONLY_OUTPUT_FLOW = "autoalign check output"
-_LLMRAILS_ONLY_OUTPUT_REASON = "'autoalign check output' transforms 'bot_message'"
+# Each is refused for a reason that is a decision rather than a limitation waiting to be lifted:
+# the heuristics rail cannot be told from its manifest sibling, and fact-checking reads retrieval
+# evidence this engine has no stage to produce. Their predecessors here were rewriting rails,
+# which stopped falling back once IORails could apply a rewrite -- and before that, rails merely
+# outside the enabled tier, which stopped falling back when the tier widened.
+_LLMRAILS_ONLY_INPUT_FLOW = "jailbreak detection heuristics"
+_LLMRAILS_ONLY_INPUT_REASON = (
+    "'jailbreak detection heuristics' Conflates dependencies with 'jailbreak detection model', "
+    "so IORails cannot tell whether it needs 'torch' and 'transformers' installed"
+)
+# Chosen from the retrieval-evidence group for needing no prompt template of its own, so a
+# config built for a routing test does not have to carry one.
+_LLMRAILS_ONLY_OUTPUT_FLOW = "alignscore check facts"
+_LLMRAILS_ONLY_OUTPUT_REASON = (
+    "'alignscore check facts' needs retrieval evidence, which manifest-driven execution does not supply yet"
+)
 
 
 def _make_iorails_config(rails: dict, extra_prompts: list | None = None) -> RailsConfig:
@@ -395,14 +403,12 @@ class TestIORailsUnsupportedReason:
         assert reason is not None
         assert "retrieval" in reason
 
-    def test_a_transform_flow_routes_to_llmrails(self):
-        """A rewrite-capable surface is refused at selection, not run as an allow."""
+    def test_a_transform_flow_is_admitted(self):
+        """A rewrite-capable surface runs here, having been refused at selection until IORails
+        could apply the rewrite rather than allow the request and discard it."""
         config = _make_iorails_config(rails={"input": {"flows": ["autoalign check input"]}})
 
-        reason = IORails.unsupported_reason(config, llm=None)
-
-        assert reason is not None
-        assert "transform" in reason
+        assert IORails.unsupported_reason(config, llm=None) is None
 
     def test_unsupported_output_flow_reports_offender(self):
         """An output flow IORails cannot run is named in the reason."""
@@ -1252,8 +1258,8 @@ class TestIORailsCanHandle:
         )
         assert IORails.can_handle(config) is True
 
-    def test_unsupported_self_check_output_rails(self):
-        """Adding an unsupported output flow (a transform rail) disqualifies the config."""
+    def test_one_unsupported_output_flow_disqualifies_the_config(self):
+        """A config is served whole or not at all, so one refused flow routes all of them away."""
         config = _make_iorails_config(
             rails={
                 "input": {"flows": ["content safety check input $model=content_safety"]},
@@ -2070,9 +2076,10 @@ class TestOptionsForwarding:
 class TestScopeGateCharacterization:
     """The set of surfaces IORails admits, pinned independently of how the gate computes it.
 
-    Written ahead of removing the engine's hand-maintained enabled-surface list, whose 42
-    names were the same set the surface-level refusals already produce. The names are
-    repeated here rather than derived, so these fail if the scope moves for any reason.
+    Written ahead of removing the engine's hand-maintained enabled-surface list, whose names
+    were the same set the surface-level refusals already produce. The names are repeated here
+    rather than derived, so these fail if the scope moves for any reason -- as they did when the
+    18 rewriting surfaces joined the 41 that only judge.
 
     Scope is asked of ``unservable_reason``, which resolves the surface and stops: it needs no
     config, imports no action, and so answers "is this rail in scope" without conflating it
@@ -2085,8 +2092,11 @@ class TestScopeGateCharacterization:
             ("input", "activefence moderation on input"),
             ("input", "activefence moderation on input detailed"),
             ("input", "ai defense inspect prompt"),
+            ("input", "autoalign check input"),
             ("input", "clavata check input"),
             ("input", "content safety check input"),
+            ("input", "context bloat detection on input"),
+            ("input", "crowdstrike aidr guard input"),
             ("input", "detect pii on input"),
             ("input", "detect sensitive data on input"),
             ("input", "f5 guardrails scan input"),
@@ -2094,32 +2104,47 @@ class TestScopeGateCharacterization:
             ("input", "gcpnlp moderation"),
             ("input", "gcpnlp moderation detailed"),
             ("input", "gliner detect pii on input"),
+            ("input", "gliner mask pii on input"),
             ("input", "guardrailsai check input"),
             ("input", "hf classifier check input"),
             ("input", "jailbreak detection model"),
             ("input", "llama guard check input"),
+            ("input", "mask pii on input"),
+            ("input", "mask sensitive data on input"),
+            ("input", "pangea ai guard input"),
             ("input", "policyai moderation on input"),
             ("input", "polygraf detect pii on input"),
+            ("input", "polygraf mask pii on input"),
+            ("input", "protect prompt"),
             ("input", "regex check input"),
             ("input", "self check input"),
             ("input", "topic safety check input"),
             ("input", "trend ai guard input"),
             ("output", "activefence moderation on output"),
             ("output", "ai defense inspect response"),
+            ("output", "autoalign check output"),
             ("output", "autoalign factcheck output"),
             ("output", "clavata check output"),
             ("output", "cleanlab trustworthiness"),
             ("output", "content safety check output"),
+            ("output", "crowdstrike aidr guard output"),
             ("output", "detect pii on output"),
             ("output", "detect sensitive data on output"),
             ("output", "f5 guardrails scan output"),
             ("output", "fiddler bot safety"),
             ("output", "gliner detect pii on output"),
+            ("output", "gliner mask pii on output"),
             ("output", "guardrailsai check output"),
             ("output", "hf classifier check output"),
+            ("output", "injection detection"),
             ("output", "llama guard check output"),
+            ("output", "mask pii on output"),
+            ("output", "mask sensitive data on output"),
+            ("output", "pangea ai guard output"),
             ("output", "policyai moderation on output"),
             ("output", "polygraf detect pii on output"),
+            ("output", "polygraf mask pii on output"),
+            ("output", "protect response"),
             ("output", "regex check output"),
             ("output", "self check output"),
             ("output", "trend ai guard output"),
@@ -2138,7 +2163,7 @@ class TestScopeGateCharacterization:
         return IORails._unservable_rails_reason([flow], direction, deps)
 
     def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
-        """Every catalog surface in scope is one of the 42 named here, and vice versa."""
+        """Every catalog surface in scope is one of the 59 named here, and vice versa."""
         admitted = {
             (direction.value, name)
             for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)
@@ -2152,7 +2177,7 @@ class TestScopeGateCharacterization:
         """No catalog surface reaches the out-of-scope branch of the gate.
 
         This is what makes removing the enabled-surface list behaviour-preserving: every
-        rejection is already attributed to a specific limitation -- a transform target,
+        rejection is already attributed to a specific limitation -- an unapplicable rewrite,
         retrieval evidence, an absent extra, an undeclared model, a missing parameter --
         rather than to membership of a hand-maintained list. Run through the full gate,
         including flows too incomplete to compile, because those are the ones that would
@@ -2173,9 +2198,10 @@ class TestScopeGateCharacterization:
         ("flow", "direction", "expected"),
         [
             (
-                "autoalign check input",
+                "jailbreak detection heuristics",
                 SurfaceDirection.INPUT,
-                "'autoalign check input' transforms 'user_message'",
+                "'jailbreak detection heuristics' Conflates dependencies with 'jailbreak detection model', "
+                "so IORails cannot tell whether it needs 'torch' and 'transformers' installed",
             ),
             (
                 "self check facts",
@@ -2194,7 +2220,7 @@ class TestScopeGateCharacterization:
                 "'no such rail' has no surface named 'no such rail' with direction INPUT in the rail catalog",
             ),
         ],
-        ids=["transform", "retrieval_evidence", "misdirected", "unknown"],
+        ids=["conflated_backend", "retrieval_evidence", "misdirected", "unknown"],
     )
     def test_the_refusal_reason_names_the_limitation(self, flow, direction, expected):
         """Each class of refusal reports why, in wording a config author can act on."""

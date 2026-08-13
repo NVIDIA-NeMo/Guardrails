@@ -194,12 +194,18 @@ def _tool_rail_result(outcome: RailOutcome, flow: str) -> RailResult:
 
 
 def _rewritten_text(outcome: RailOutcome, direction: RailDirection, flow: str) -> str:
-    """Return what a transform rail rewrote its direction's conversation variable to."""
+    """Return what a transform rail rewrote this direction's conversation variable to.
+
+    A rail that guards both sides of a turn may name both variables in one verdict, and each
+    direction takes its own -- which is what the Colang flows do with the same outcome, each
+    indexing the one key it owns. Writing the other direction's text here would put a response
+    where the request goes.
+    """
     target = _REWRITABLE_TARGET[direction]
     rewrites = outcome.transform_text
-    if set(rewrites) != {target.value}:
+    if target.value not in rewrites:
         # A surface declares which variable it rewrites, and compilation checks that declaration
-        # against the direction; an action returning something else contradicts its own manifest.
+        # against the direction; an action naming none of it contradicts its own manifest.
         raise NotImplementedError(
             f"{flow!r} rewrote {sorted(rewrites)}, which a {direction.value.lower()} rail cannot apply; "
             f"it may rewrite {target.value!r}"
