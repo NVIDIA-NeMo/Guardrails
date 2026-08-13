@@ -27,10 +27,6 @@ favicon: ./assets/NVIDIA_symbol.svg
 css:
   - ./main.css
 
-experimental:
-  mdx-components:
-    - ../docs/_components
-
 navbar-links:
   - type: github
     value: https://github.com/NVIDIA-NeMo/Guardrails
@@ -51,7 +47,7 @@ versions:
   # Snapshot commits replace the generated SDK folder with a library marker and
   # pin its release tag. The build hook injects cached SDK output into each ref.
   - display-name: v0.23.0
-    ref: 8516ca12050df36bd6aa12573211ae358dc9013a
+    ref: 1cbc0e7b9ec3e63a630b9429b2727f1809d88da4
     slug: v0.23.0
   # The v0.22.0 tag predates the Fern migration. Build from the curated
   # post-migration snapshot instead of a mutable backfill branch.
