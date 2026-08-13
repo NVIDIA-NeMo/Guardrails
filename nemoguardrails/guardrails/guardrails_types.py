@@ -29,6 +29,33 @@ LLMMessage: TypeAlias = dict[str, Any]
 LLMMessages: TypeAlias = list[LLMMessage]
 
 
+def current_user_turn_index(messages: LLMMessages) -> Optional[int]:
+    """Position of the turn being checked: the last user message that carries content."""
+    for index, message in reversed(list(enumerate(messages))):
+        if message.get("role") == "user" and message.get("content"):
+            return index
+    return None
+
+
+def last_user_content(messages: LLMMessages) -> str:
+    """Return the content of the turn being checked, or "" as the library actions expect."""
+    index = current_user_turn_index(messages)
+    return "" if index is None else messages[index]["content"]
+
+
+def rewrite_user_message(messages: LLMMessages, text: str) -> LLMMessages:
+    """Return *messages* with the turn ``last_user_content`` reads rewritten to *text*.
+
+    Copied at both levels, because the caller's own list reaches the engine by identity.
+    """
+    index = current_user_turn_index(messages)
+    if index is None:
+        raise ValueError("no user turn carries content, so there is nothing to rewrite")
+    rewritten = list(messages)
+    rewritten[index] = {**messages[index], "content": text}
+    return rewritten
+
+
 class RailDirection(Enum):
     """Direction of a rail check, used for logging."""
 
@@ -237,11 +264,20 @@ def _has_evidence(value: Any) -> bool:
     return True
 
 
+# Verdict fields that repeat the request rather than describe it: a block writes a log line
+# unconditionally, and content belongs in a span only through configured content capture.
+_CONTENT_EVIDENCE_KEYS = frozenset({"text", "user_message", "bot_message"})
+
+
 def _metadata_evidence(metadata: Any) -> Optional[str]:
     """Render a rail's metadata as text, or None when it carries no evidence."""
     if not isinstance(metadata, Mapping):
         return None
-    parts = [f"{key}: {_rendered_evidence(value)}" for key, value in metadata.items() if _has_evidence(value)]
+    parts = [
+        f"{key}: {_rendered_evidence(value)}"
+        for key, value in metadata.items()
+        if key not in _CONTENT_EVIDENCE_KEYS and _has_evidence(value)
+    ]
     return "; ".join(parts) or None
 
 

@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import (
     _RETRIEVAL_CONTEXT_SURFACES,
     CompiledRail,
@@ -36,6 +36,7 @@ from nemoguardrails.guardrails.compiled_rail import (
     _hf_classifier_runs_locally,
     _is_installed,
     _jailbreak_detection_runs_locally,
+    _unapplicable_transform_reason,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -70,6 +71,7 @@ JAILBREAK_INPUT = "jailbreak detection model"
 USER_MESSAGES = [{"role": "user", "content": "hello there"}]
 
 SYNTHETIC_FLOW = "synthetic rail"
+TAKES_TEXT_TARGET = "tests.guardrails.test_compiled_rail:takes_text"
 CONTENT_SAFETY_ACTION_REF = ActionRef(
     name="content_safety_check_input",
     target="nemoguardrails.library.content_safety.actions:content_safety_check_input",
@@ -134,6 +136,7 @@ def synthetic_surface(
     *,
     bypass_validation: bool = False,
     direction: RailDirection = RailDirection.INPUT,
+    transform_target: Optional[TransformTarget] = None,
 ) -> RailSurface:
     """Build a one-off surface for a compilation path the real catalog cannot reach.
 
@@ -145,14 +148,27 @@ def synthetic_surface(
             direction=direction,
             action=action,
             bindings=bindings,
-            transform_target=None,
+            transform_target=transform_target,
         )
     return RailSurface(
         name=SYNTHETIC_FLOW,
         direction=direction,
         action=action,
         bindings=bindings,
-        transform_target=None,
+        transform_target=transform_target,
+    )
+
+
+def uncompiled_rail(surface: RailSurface, deps: RailDependencies) -> CompiledRail:
+    """Build a ``CompiledRail`` around a synthetic *surface*, whose action the catalog cannot resolve."""
+    return CompiledRail(
+        flow=surface.name,
+        surface=surface,
+        action=takes_text,
+        bound=(),
+        context_bound=(),
+        deps=deps,
+        accepted=frozenset(),
     )
 
 
@@ -409,10 +425,103 @@ class TestUnrunnableSurfaces:
 
         assert unsupported_surface_reason(surface) is None
 
-    def test_transform_surfaces_do_not_compile(self, deps):
-        """A surface that rewrites content is refused until IORails can apply the rewrite."""
-        with pytest.raises(RailCompilationError, match="transform"):
-            compile_rail("autoalign check input", RailDirection.INPUT, deps)
+    def test_a_rewriting_surface_compiles(self, deps):
+        """A rail that rewrites its own direction's variable is runnable, which is the point of it."""
+        assert compile_rail("autoalign check input", RailDirection.INPUT, deps) is not None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
+        ],
+        ids=["input-rewrites-bot", "output-rewrites-user", "input-rewrites-chunks"],
+    )
+    def test_a_surface_rewriting_the_wrong_variable_does_not_compile(self, deps, direction, target):
+        """A rewrite this engine has no variable for is refused rather than applied to the wrong one.
+
+        Nothing in the manifest schema forbids the mismatch, so the refusal is what keeps it out.
+        """
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), direction=direction, transform_target=target
+        )
+
+        with pytest.raises(RailCompilationError, match="cannot apply"):
+            compile_rail(SYNTHETIC_FLOW, direction, deps, catalog=StubCatalog(surface, direction))
+
+
+class TestUnapplicableTransformReason:
+    """`_unapplicable_transform_reason` refuses a declared rewrite this engine cannot place."""
+
+    def _surface(self, direction: RailDirection, target) -> RailSurface:
+        return synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), direction=direction, transform_target=target
+        )
+
+    def test_a_rail_that_only_judges_has_nothing_to_refuse(self):
+        """The common surface, which declares no rewrite at all."""
+        assert _unapplicable_transform_reason(self._surface(RailDirection.INPUT, None)) is None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.BOT_MESSAGE),
+        ],
+        ids=["input-user", "output-bot"],
+    )
+    def test_a_direction_rewriting_its_own_variable_is_servable(self, direction, target):
+        """The agreement every shipped surface has, and the reason this check refuses nothing today."""
+        assert _unapplicable_transform_reason(self._surface(direction, target)) is None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
+            (RailDirection.RETRIEVAL, TransformTarget.RELEVANT_CHUNKS),
+        ],
+        ids=["input-bot", "output-user", "input-chunks", "retrieval"],
+    )
+    def test_a_rewrite_with_nowhere_to_land_reports_why(self, direction, target):
+        """Nothing in the manifest schema forbids the mismatch, so the refusal is what keeps it out."""
+        reason = _unapplicable_transform_reason(self._surface(direction, target))
+
+        assert reason is not None
+        assert target.value in reason
+        assert "cannot apply" in reason
+
+
+class TestDeclaredTransformTarget:
+    """A rail reports the variable its surface says it may rewrite, which is how it is scheduled."""
+
+    def test_a_block_only_rail_declares_no_rewrite(self, deps):
+        """The shipped rails all judge without rewriting, so nothing about their scheduling changes."""
+        assert compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).transform_target is None
+
+    def test_a_rewriting_rail_reports_the_variable_it_may_rewrite(self, deps):
+        """Scheduling reads the manifest's declaration, not a verdict some request happened to produce."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), transform_target=TransformTarget.USER_MESSAGE
+        )
+
+        assert uncompiled_rail(surface, deps).transform_target is TransformTarget.USER_MESSAGE
+
+    def test_the_declaration_is_independent_of_what_a_rail_answers(self, deps):
+        """Most requests to a rewriting rail come back as a plain allow; it is still scheduled first."""
+        surface = synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), transform_target=TransformTarget.USER_MESSAGE
+        )
+        rail = uncompiled_rail(surface, deps)
+
+        assert rail.transform_target is TransformTarget.USER_MESSAGE
+        assert rail.surface.transform_target is TransformTarget.USER_MESSAGE
+
+
+class TestSurfacesOutsideTheTier:
+    """Which catalog surfaces this engine refuses, and that the refusal is cheap."""
 
     @pytest.mark.parametrize(
         "direction, flow",
@@ -435,23 +544,33 @@ class TestUnrunnableSurfaces:
 
         assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
 
-    def test_the_block_only_tier_splits_into_servable_and_refused(self):
-        """Every block-only input/output surface is servable but for the eight refused ones.
+    def test_the_input_output_tier_splits_into_servable_and_refused(self):
+        """59 servable -- 41 judging and 18 rewriting -- against the 8 refused, pinned by name.
 
-        Measured: 41 servable, 8 refused -- the seven retrieval-evidence surfaces plus
-        jailbreak heuristics, whose backend cannot be told apart from its manifest sibling's.
-        Pinning the split rather than a predicate means a newly added manifest surface, or an
-        action that grows a binding IORails cannot fill, fails here rather than in a config.
+        A predicate would follow the code it is checking; a new manifest surface fails here.
         """
         servable, refused = [], []
         for (direction, name), surface in default_rail_catalog().surfaces().items():
-            if direction is RailDirection.RETRIEVAL or surface.transform_target is not None:
+            if direction is RailDirection.RETRIEVAL:
                 continue
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))
 
         assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
-        assert len(servable) == 41
+        assert len(servable) == 59
+
+    def test_the_rewriting_surfaces_are_all_servable(self):
+        """The eighteen this work exists for, nine each way, with no direction half-enabled."""
+        rewriting = [
+            (direction, name)
+            for (direction, name), surface in default_rail_catalog().surfaces().items()
+            if direction is not RailDirection.RETRIEVAL and surface.transform_target is not None
+        ]
+
+        assert len(rewriting) == 18
+        assert [key for key in rewriting if key[0] is RailDirection.INPUT] != []
+        assert [key for key in rewriting if key[0] is RailDirection.OUTPUT] != []
+        assert all(unsupported_surface_reason(default_rail_catalog().surfaces()[key]) is None for key in rewriting)
 
     def test_refusal_precedes_the_action_import(self, deps, monkeypatch):
         """An unrunnable surface is refused before its action module is imported."""

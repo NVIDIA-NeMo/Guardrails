@@ -40,6 +40,7 @@ from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.http import HTTPResponse
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import RailStatus, RailType
 from nemoguardrails.testing import RecordingHTTPClient
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -547,5 +548,126 @@ class TestVendorRailsAreReachable:
         for name, value in rail.env.items():
             monkeypatch.setenv(name, value)
         config = RailsConfig.from_content(config=_vendor_config(rail))
+
+        assert IORails.unsupported_reason(config, llm=None) is None
+
+
+MASKED_INPUT = "hello [NAME_1]"
+MASKED_OUTPUT = "Hello [NAME_1]! How can I help?"
+
+
+@dataclass(frozen=True)
+class RewritingVendorRail:
+    """One HTTP-backed rail that rewrites, with the vendor reply that makes it do so."""
+
+    rail_id: str
+    flow: str
+    direction: str
+    payload: Any
+    rewritten: str
+    rails_config: dict
+    env: dict
+
+
+REWRITING_VENDOR_RAILS = [
+    RewritingVendorRail(
+        rail_id="privateai_mask_input",
+        flow="mask pii on input",
+        direction="input",
+        payload=[{"processed_text": MASKED_INPUT, "entities_present": ["NAME"]}],
+        rewritten=MASKED_INPUT,
+        rails_config=PRIVATEAI_CONFIG,
+        env={"PAI_API_KEY": "test-key"},
+    ),
+    RewritingVendorRail(
+        rail_id="privateai_mask_output",
+        flow="mask pii on output",
+        direction="output",
+        payload=[{"processed_text": MASKED_OUTPUT, "entities_present": ["NAME"]}],
+        rewritten=MASKED_OUTPUT,
+        rails_config=PRIVATEAI_CONFIG,
+        env={"PAI_API_KEY": "test-key"},
+    ),
+]
+
+
+def _rewriting_vendor_config(rail: RewritingVendorRail) -> dict:
+    """Build the single-rail config both engines are given."""
+    return {
+        "models": [copy.deepcopy(NEMOGUARDS_CONFIG["models"][0])],
+        "rails": {rail.direction: {"flows": [rail.flow]}, "config": copy.deepcopy(rail.rails_config)},
+    }
+
+
+def _vendor_checked_messages(rail: RewritingVendorRail) -> list[dict]:
+    """The conversation each direction's rails are asked about."""
+    if rail.direction == "input":
+        return [{"role": "user", "content": USER_INPUT}]
+    return [{"role": "user", "content": USER_INPUT}, {"role": "assistant", "content": MAIN_OUTPUT}]
+
+
+async def _llmrails_check(config_dict: dict, rail: RewritingVendorRail, client: RecordingHTTPClient):
+    """Run ``check_async`` through LLMRails with *client* standing in for the vendor."""
+    config = RailsConfig.from_content(config=config_dict)
+    chat = TestChat(config, llm_completions=[MAIN_OUTPUT])
+    chat.app.register_action_param("http_client", client)
+
+    return await chat.app.check_async(_vendor_checked_messages(rail), rail_types=[RailType(rail.direction)])
+
+
+async def _iorails_check(config_dict: dict, rail: RewritingVendorRail, client: RecordingHTTPClient, monkeypatch):
+    """Run ``check_async`` through IORails with *client* standing in for the vendor."""
+    monkeypatch.setattr(
+        "nemoguardrails.guardrails.rails_manager.create_http_client",
+        lambda *args, **kwargs: client,
+    )
+    with patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=config_dict))
+
+    async with iorails:
+        return await iorails.check_async(_vendor_checked_messages(rail), rail_types=[RailType(rail.direction)])
+
+
+class TestRewritingVendorRailsAgreeAcrossEngines:
+    """A vendor rail that rewrites produces the same text on both engines, for the same reply."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rail", REWRITING_VENDOR_RAILS, ids=[rail.rail_id for rail in REWRITING_VENDOR_RAILS])
+    async def test_both_engines_report_the_same_rewrite(self, rail: RewritingVendorRail, monkeypatch):
+        """``check`` compares the two directly: one canned vendor reply, same status and text."""
+        for name, value in rail.env.items():
+            monkeypatch.setenv(name, value)
+        config_dict = _rewriting_vendor_config(rail)
+
+        llmrails_result = await _llmrails_check(config_dict, rail, RecordingHTTPClient([_http_response(rail.payload)]))
+        iorails_result = await _iorails_check(
+            config_dict, rail, RecordingHTTPClient([_http_response(rail.payload)]), monkeypatch
+        )
+
+        assert llmrails_result.status == RailStatus.MODIFIED
+        assert iorails_result.status == RailStatus.MODIFIED
+        assert llmrails_result.content == rail.rewritten
+        assert iorails_result.content == rail.rewritten
+
+    @pytest.mark.asyncio
+    async def test_an_output_rewrite_reaches_the_caller_on_both_engines(self, monkeypatch):
+        """Through ``generate``, the masked response is what the caller reads on either engine."""
+        rail = next(candidate for candidate in REWRITING_VENDOR_RAILS if candidate.direction == "output")
+        for name, value in rail.env.items():
+            monkeypatch.setenv(name, value)
+        config_dict = _rewriting_vendor_config(rail)
+
+        llmrails_content = await _llmrails_reply(config_dict, RecordingHTTPClient([_http_response(rail.payload)]))
+        iorails_content = await _iorails_reply(
+            config_dict, RecordingHTTPClient([_http_response(rail.payload)]), monkeypatch
+        )
+
+        assert llmrails_content == rail.rewritten
+        assert iorails_content == rail.rewritten
+
+    @pytest.mark.parametrize("rail", REWRITING_VENDOR_RAILS, ids=[rail.rail_id for rail in REWRITING_VENDOR_RAILS])
+    def test_iorails_accepts_a_config_using_the_rail(self, rail: RewritingVendorRail):
+        """``can_handle`` admits the rail, so a real config routes here rather than to LLMRails."""
+        config = RailsConfig.from_content(config=_rewriting_vendor_config(rail))
 
         assert IORails.unsupported_reason(config, llm=None) is None

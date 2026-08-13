@@ -17,6 +17,7 @@
 
 import asyncio
 import json
+import logging
 import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,12 +31,14 @@ from nemoguardrails.guardrails.iorails import (
     STREAM_MAX_CONCURRENCY,
     IORails,
     _is_stream_error_chunk,
+    _TurnConversation,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponseChunk, ToolCall, ToolCallFunction, UsageInfo
 from tests.guardrails.async_helpers import started_iorails
+from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -904,7 +907,7 @@ class TestStreamAsyncToolCalling:
             chunk
             async for chunk in iorails_stream_check_first._run_output_rails_in_streaming(
                 streaming_handler=_empty_content_handler(),
-                messages=[{"role": "user", "content": "hi"}],
+                conversation=_TurnConversation(messages=[{"role": "user", "content": "hi"}]),
             )
         ]
 
@@ -1203,3 +1206,77 @@ class TestBlockReasonDisplay:
             code="content_blocked",
             message_contains="Blocked by output rails: content safety check output",
         )
+
+
+STREAM_MASKED_USER = "my ssn is <SSN>"
+
+
+class TestStreamAsyncWithRewritingRails:
+    """Input rewrites reach the streamed model call; output rewrites cannot be applied to a stream."""
+
+    @pytest.mark.asyncio
+    async def test_an_input_rewrite_is_what_the_streamed_model_reads(self, iorails_input_only):
+        """Input rails finish before the first token, so a rewrite lands exactly as it does unstreamed."""
+        sent_messages = []
+
+        async def _capturing_stream(model_type, messages, **kwargs):
+            sent_messages.append(messages)
+            yield LLMResponseChunk(delta_content="ok")
+
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(
+            return_value=user_message_rewrite(STREAM_MASKED_USER)
+        )
+        iorails_input_only.engine_registry.stream_model_call = _capturing_stream
+
+        await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}]))
+
+        assert sent_messages[0][-1]["content"] == STREAM_MASKED_USER
+
+    @pytest.mark.asyncio
+    async def test_an_output_rewrite_replaces_the_batch(self, iorails_stream_check_first):
+        """The masked text is what ships, which is the whole point of a masking rail."""
+        iorails_stream_check_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(
+            return_value=bot_message_rewrite("<REDACTED>")
+        )
+        iorails_stream_check_first.engine_registry.stream_model_call = _mock_stream
+
+        chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        streamed = "".join(str(chunk) for chunk in chunks)
+
+        assert "<REDACTED>" in streamed
+        assert "Hello from the streaming LLM!" not in streamed
+
+    @pytest.mark.asyncio
+    async def test_a_rewrite_that_arrives_too_late_stops_the_stream(self, iorails_stream_first, caplog):
+        """A rewrite arriving after its batch shipped stops the stream rather than sending more.
+
+        No config reaches it: what is left is a manifest declaring no target whose action rewrites.
+        """
+        iorails_stream_first.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails_stream_first.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("<REDACTED>"))
+        iorails_stream_first.engine_registry.stream_model_call = _mock_stream
+
+        with caplog.at_level(logging.ERROR, logger="nemoguardrails.guardrails.iorails"):
+            chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert "could not be applied to the stream" in "".join(str(chunk) for chunk in chunks)
+        assert "arrived after the batch was streamed" in caplog.text
+
+
+class TestStreamingContentCapture:
+    """The streamed path records the same masked input the non-streaming one does."""
+
+    @pytest.mark.asyncio
+    async def test_the_request_span_carries_the_masked_input(self, iorails_input_only):
+        """Both paths agree on what request content means, which is what the model read."""
+        iorails_input_only._content_capture_enabled = True
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite("my ssn is <SSN>"))
+        iorails_input_only.engine_registry.stream_model_call = _mock_stream
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await _collect(
+                iorails_input_only.stream_async(messages=[{"role": "user", "content": "my ssn is 123-45-6789"}])
+            )
+
+        assert capture.call_args.args[1][-1]["content"] == "my ssn is <SSN>"

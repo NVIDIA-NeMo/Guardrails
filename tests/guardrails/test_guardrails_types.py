@@ -25,7 +25,10 @@ from nemoguardrails.guardrails.guardrails_types import (
     RailCallRecord,
     RailResult,
     client_reason,
+    current_user_turn_index,
     display_reason,
+    last_user_content,
+    rewrite_user_message,
     truncate,
 )
 
@@ -281,19 +284,102 @@ class TestClientReason:
         assert withheld not in client_reason(result)
         assert client_reason(result) == "a rail"
 
-    def test_the_log_still_carries_what_the_caller_does_not(self):
-        """The restriction is on the payload only; diagnosis keeps the full verdict."""
+    def test_the_log_carries_the_evidence_the_caller_does_not(self):
+        """The restriction is on the payload; diagnosis keeps every field that describes the verdict."""
         result = RailResult.block(metadata=self.CROWDSTRIKE_VERDICT, triggered_rail="crowdstrike aidr guard input")
 
         rendered = display_reason(result)
 
-        assert "my private question" in rendered
-        assert "the draft reply" in rendered
-        assert "my private question" not in client_reason(result)
+        assert "guard_output: policy 7" in rendered
+        assert "guard_output" not in client_reason(result)
+
+    @pytest.mark.parametrize(
+        ("metadata", "withheld"),
+        [
+            (CROWDSTRIKE_VERDICT, "my private question"),
+            (CROWDSTRIKE_VERDICT, "the draft reply"),
+            (REGEX_VERDICT, "my account is ACCT-0000-1111-2222"),
+            ({"text": "the whole bot response", "detections": ["markdown_xss"]}, "the whole bot response"),
+        ],
+        ids=["user-message", "bot-message", "regex-text", "injection-text"],
+    )
+    def test_a_rail_echoing_the_request_does_not_put_it_in_the_log(self, metadata, withheld):
+        """A block writes a log line unconditionally, so content in it would be an opt-out-free leak."""
+        result = RailResult.block(metadata=metadata, triggered_rail="a rail")
+
+        assert withheld not in display_reason(result)
+
+    def test_dropping_the_content_leaves_the_rest_of_the_verdict(self):
+        """Withholding the text must not cost the fields that say why the rail objected to it."""
+        result = RailResult.block(metadata=self.REGEX_VERDICT, triggered_rail="regex check input")
+
+        rendered = display_reason(result)
+
+        assert "detections: ACCT-0000-1111-2222" in rendered
+        assert "is_match: True" in rendered
+        assert "source: input" in rendered
+
+    def test_a_verdict_of_nothing_but_content_falls_back_to_the_rail_name(self):
+        """With every field withheld there is no evidence left, and the rail name is what remains."""
+        result = RailResult.block(metadata={"text": "the whole bot response"}, triggered_rail="injection detection")
+
+        assert display_reason(result) == "injection detection"
 
     def test_a_block_with_nothing_to_say_is_unspecified(self):
         """A rail that supplies neither a reason nor a name still yields a printable string."""
         assert client_reason(RailResult.block()) == "unspecified"
+
+
+class TestMessageRewriting:
+    """Tests for the helpers that locate and rewrite the turn a rail checks."""
+
+    MESSAGES: ClassVar[LLMMessages] = [
+        {"role": "system", "content": "be helpful"},
+        {"role": "user", "content": "my ssn is 123-45-6789"},
+        {"role": "assistant", "content": "I cannot help with that"},
+    ]
+
+    def test_the_checked_turn_is_the_last_user_message_carrying_content(self):
+        """The one turn a rail reads, so also the one a rewrite must replace."""
+        assert current_user_turn_index(self.MESSAGES) == 1
+        assert last_user_content(self.MESSAGES) == "my ssn is 123-45-6789"
+
+    def test_an_empty_trailing_user_turn_is_not_the_checked_turn(self):
+        """A blank turn is not what the rail was given, so it must not attract the rewrite."""
+        messages: LLMMessages = [{"role": "user", "content": "my ssn is 123-45-6789"}, {"role": "user", "content": ""}]
+
+        assert current_user_turn_index(messages) == 0
+        assert rewrite_user_message(messages, "my ssn is <SSN>")[0]["content"] == "my ssn is <SSN>"
+
+    def test_a_conversation_with_no_user_turn_has_nothing_to_check(self):
+        """Rails read an empty string rather than raising, matching what the library actions expect."""
+        assert current_user_turn_index([{"role": "assistant", "content": "hello"}]) is None
+        assert last_user_content([{"role": "assistant", "content": "hello"}]) == ""
+        assert last_user_content([]) == ""
+
+    def test_rewriting_replaces_only_the_checked_turn(self):
+        """Surrounding turns are the conversation's history and are left as they were."""
+        rewritten = rewrite_user_message(self.MESSAGES, "my ssn is <SSN>")
+
+        assert rewritten[1]["content"] == "my ssn is <SSN>"
+        assert rewritten[0] == self.MESSAGES[0]
+        assert rewritten[2] == self.MESSAGES[2]
+
+    def test_rewriting_leaves_the_callers_list_and_turns_untouched(self):
+        """The caller's list reaches the engine by identity, so neither it nor its dicts may be mutated."""
+        messages: LLMMessages = [{"role": "user", "content": "my ssn is 123-45-6789"}]
+        original_turn = messages[0]
+
+        rewritten = rewrite_user_message(messages, "my ssn is <SSN>")
+
+        assert messages == [{"role": "user", "content": "my ssn is 123-45-6789"}]
+        assert messages[0] is original_turn
+        assert rewritten[0] is not original_turn
+
+    def test_rewriting_with_no_user_turn_raises(self):
+        """A rewrite with nowhere to land fails loudly rather than being dropped."""
+        with pytest.raises(ValueError, match="nothing to rewrite"):
+            rewrite_user_message([{"role": "assistant", "content": "hello"}], "masked")
 
 
 class TestTypeAliases:

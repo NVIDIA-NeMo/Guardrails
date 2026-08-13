@@ -25,11 +25,17 @@ from aiohttp.test_utils import TestServer
 
 from nemoguardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailDirection, RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import (
+    REFUSAL_MESSAGE,
+    IORails,
+    _rewritten_bot_message,
+    _rewritten_user_message,
+)
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, ToolCall, ToolCallFunction
+from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
@@ -1069,3 +1075,151 @@ class TestGuardrailsConfigToCallURLs:
             url = call_args[0][0]
             assert url == "https://safety.example.com/v1/chat/completions"
             assert "/v1/v1/" not in url
+
+
+REWRITE_USER_TEXT = "my ssn is 123-45-6789"
+REWRITE_MASKED_USER = "my ssn is <SSN>"
+REWRITE_MESSAGES = [{"role": "user", "content": REWRITE_USER_TEXT}]
+
+
+@pytest.mark.asyncio
+class TestGenerateWithRewritingRails:
+    """A rail's rewrite reaches the model and the caller, rather than being computed and dropped."""
+
+    async def test_an_input_rewrite_is_what_the_model_reads(self, iorails):
+        """Masking that never reaches the model would leave the model reading the raw text."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        sent_messages = iorails.engine_registry.model_call.call_args.args[1]
+        assert sent_messages[-1]["content"] == REWRITE_MASKED_USER
+
+    async def test_an_input_rewrite_leaves_the_callers_messages_untouched(self, iorails):
+        """The caller's conversation is theirs; masking it as a side effect would be a surprise."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+        messages = [{"role": "user", "content": REWRITE_USER_TEXT}]
+
+        await iorails.generate_async(messages=messages)
+
+        assert messages == [{"role": "user", "content": REWRITE_USER_TEXT}]
+
+    async def test_an_output_rewrite_is_what_the_caller_receives(self, iorails):
+        """The whole point of an output rewrite: the caller reads the sanitized response."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("call me on <PHONE>"))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="call me on 555-0100"))
+
+        result = await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert result == {"role": "assistant", "content": "call me on <PHONE>"}
+
+    async def test_an_output_rewrite_reaches_the_structured_response(self, iorails):
+        """The options path returns the same text as the bare one, not the pre-rewrite response."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite("call me on <PHONE>"))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="call me on 555-0100"))
+
+        result = await iorails.generate_async(messages=REWRITE_MESSAGES, options={"log": {"activated_rails": True}})
+
+        assert isinstance(result, GenerationResponse)
+        assert result.response == [{"role": "assistant", "content": "call me on <PHONE>"}]
+
+
+class TestRewriteReaders:
+    """The two readers that turn a rail verdict into the text a direction should use."""
+
+    def test_a_user_rewrite_is_read_by_the_input_reader(self):
+        """The text an input rail produced, which the model and the later rails must read."""
+        assert _rewritten_user_message(user_message_rewrite(REWRITE_MASKED_USER)) == REWRITE_MASKED_USER
+
+    def test_a_bot_rewrite_is_read_by_the_output_reader(self):
+        """The text an output rail produced, which is what the caller receives."""
+        assert _rewritten_bot_message(bot_message_rewrite("call me on <PHONE>")) == "call me on <PHONE>"
+
+    @pytest.mark.parametrize(
+        "result",
+        [RailResult.allow(), RailResult.block(reason="unsafe")],
+        ids=["allow", "block"],
+    )
+    def test_a_verdict_without_a_rewrite_reads_as_nothing_to_apply(self, result):
+        """Most requests to a rewriting rail come back as a plain verdict, and must change nothing."""
+        assert _rewritten_user_message(result) is None
+        assert _rewritten_bot_message(result) is None
+
+    def test_each_reader_ignores_the_other_directions_rewrite(self):
+        """The readers are target-specific, so a rewrite cannot be applied to the wrong variable."""
+        assert _rewritten_user_message(bot_message_rewrite("call me on <PHONE>")) is None
+        assert _rewritten_bot_message(user_message_rewrite(REWRITE_MASKED_USER)) is None
+
+    def test_a_rewrite_to_empty_text_is_still_a_rewrite(self):
+        """Redacting to nothing must not read as "no rewrite" the way an empty string would."""
+        assert _rewritten_bot_message(bot_message_rewrite("")) == ""
+
+
+@pytest.mark.asyncio
+class TestGeneratedTurn:
+    """``_do_generate_sequential`` reports the response together with the messages behind it."""
+
+    async def test_a_rewritten_turn_carries_the_messages_the_model_read(self, iorails):
+        """The caller of this helper runs the output rails, and must not re-read the stale list."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        turn = await iorails._do_generate_sequential(REWRITE_MESSAGES, "req-1", {})
+
+        assert turn.messages[-1]["content"] == REWRITE_MASKED_USER
+        assert turn.response is not None
+
+    async def test_an_unrewritten_turn_carries_the_messages_as_they_arrived(self, iorails):
+        """Nothing is copied or rebuilt for the ordinary case where no rail rewrites."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        turn = await iorails._do_generate_sequential(REWRITE_MESSAGES, "req-1", {})
+
+        assert turn.messages is REWRITE_MESSAGES
+
+    async def test_a_blocked_turn_reports_no_response(self, iorails):
+        """The block is signalled by the absent response, which is what the caller branches on."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.block(reason="unsafe"))
+        iorails.engine_registry.model_call = AsyncMock()
+
+        turn = await iorails._do_generate_sequential(REWRITE_MESSAGES, "req-1", {})
+
+        assert turn.response is None
+        assert turn.messages is REWRITE_MESSAGES
+        iorails.engine_registry.model_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+class TestContentCaptureRecordsWhatTheModelRead:
+    """Capture records the masked text, so a span cannot carry what a mask removed."""
+
+    async def test_the_request_span_carries_the_masked_input(self, iorails):
+        """A trace is a downstream system, and masking exists to keep the raw text out of them."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1][-1]["content"] == REWRITE_MASKED_USER
+
+    async def test_an_unmasked_turn_is_captured_as_it_arrived(self, iorails):
+        """The ordinary request is unchanged: what the caller sent is what the span records."""
+        iorails._content_capture_enabled = True
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
+
+        with patch("nemoguardrails.guardrails.iorails.set_request_content") as capture:
+            await iorails.generate_async(messages=REWRITE_MESSAGES)
+
+        assert capture.call_args.args[1] == REWRITE_MESSAGES

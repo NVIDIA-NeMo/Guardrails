@@ -27,8 +27,10 @@ import time
 import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
 
+from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -44,10 +46,12 @@ from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailCallRecord,
     RailDirection,
+    RailResult,
     TimedLLMResponse,
     client_reason,
     display_reason,
     get_request_id,
+    rewrite_user_message,
     serialize_prompt,
     truncate,
 )
@@ -530,6 +534,34 @@ def _get_last_content_by_role(messages: list[dict], role: str) -> str:
     return ""
 
 
+def _rewritten_user_message(result: RailResult) -> Optional[str]:
+    """What the input rails rewrote the user message to, or None when they left it as it came."""
+    return result.outcome.transform_text.get(TransformTarget.USER_MESSAGE.value)
+
+
+def _rewritten_bot_message(result: RailResult) -> Optional[str]:
+    """What the output rails rewrote the response to, or None when they left it as generated."""
+    return result.outcome.transform_text.get(TransformTarget.BOT_MESSAGE.value)
+
+
+@dataclass(slots=True)
+class _TurnConversation:
+    """The messages a turn is running against, mutable so a rewrite reaches what was built first.
+
+    The output-rail wrapper and the request span are both built before the input rails run.
+    """
+
+    messages: LLMMessages
+
+
+@dataclass(frozen=True, slots=True)
+class _GeneratedTurn:
+    """The main model's response and the messages it read, or no response when the rails blocked."""
+
+    response: Optional[LLMResponse]
+    messages: LLMMessages
+
+
 def _compile_only_deps(config: RailsConfig) -> RailDependencies:
     """Dependencies for the gate's trial compile: declared types and config, no live collaborators.
 
@@ -687,7 +719,7 @@ class IORails(BaseGuardrails):
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
-        self._speculative_generation = config.rails.input.speculative_generation or False
+        self._speculative_generation = self._speculative_generation_allowed(config)
 
         # Non-streaming admission queue + worker pool (owned by IORails so
         # all request-path concurrency controls sit under one roof).  The
@@ -711,6 +743,24 @@ class IORails(BaseGuardrails):
             from nemoguardrails.telemetry import RailsEngineEnum, report_usage
 
             report_usage(config, deployment_type="library", rails_engine=RailsEngineEnum.IORAILS.value)
+
+    def _speculative_generation_allowed(self, config: RailsConfig) -> bool:
+        """Whether input rails may race the main call, which a rewriting input rail rules out.
+
+        The model reads the text before the rails finish with it, so a rewrite arrives too late.
+        """
+        if not config.rails.input.speculative_generation:
+            return False
+        rewriting = self.rails_manager.transform_flows[RailDirection.INPUT]
+        if not rewriting:
+            return True
+        warnings.warn(
+            f"rails.input.speculative_generation is not honored alongside an input rail that rewrites the "
+            f"user message ({', '.join(rewriting)}); generation waits for the input rails so the model reads "
+            f"the rewritten text.",
+            stacklevel=3,
+        )
+        return False
 
     @property
     def _has_streaming_output_rails(self) -> bool:
@@ -887,18 +937,22 @@ class IORails(BaseGuardrails):
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
+        conversation = _TurnConversation(messages=messages)
         with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
-                result = await self._do_generate(messages, req_id, request_span, options=options, **kwargs)
+                result = await self._do_generate(
+                    messages, req_id, request_span, conversation=conversation, options=options, **kwargs
+                )
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
-            # Capture content once here at the traced_request boundary so any
-            # future early-return added to _do_generate is covered automatically.
+            # Captured at the traced_request boundary, so a future early-return in _do_generate
+            # is covered. The messages are the ones the model read: a span carrying the text a
+            # mask removed would defeat the mask.
             if self._content_capture_enabled:
-                set_request_content(request_span, messages, _response_content_for_capture(result))
+                set_request_content(request_span, conversation.messages, _response_content_for_capture(result))
             elapsed_ms = (time.monotonic() - t0) * 1000
             log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             return result
@@ -929,6 +983,7 @@ class IORails(BaseGuardrails):
         req_id: str,
         request_span: Optional["Span"] = None,
         *,
+        conversation: Optional["_TurnConversation"] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         **kwargs,
     ) -> Union[LLMMessage, GenerationResponse]:
@@ -972,16 +1027,22 @@ class IORails(BaseGuardrails):
             return _blocked_return()
 
         if self._speculative_generation:
-            response = await self._do_generate_speculative(
+            turn = await self._do_generate_speculative(
                 messages, req_id, llm_kwargs, request_span, input_enabled=input_enabled, records_out=records
             )
         else:
-            response = await self._do_generate_sequential(
+            turn = await self._do_generate_sequential(
                 messages, req_id, llm_kwargs, input_enabled=input_enabled, records_out=records
             )
 
-        if response is None:
+        if turn.response is None:
             return _blocked_return()
+
+        # What the model read: judging the text an input rail replaced would judge the wrong turn.
+        response = turn.response
+        messages = turn.messages
+        if conversation is not None:
+            conversation.messages = messages
 
         # Log raw content before reasoning extraction and think-token removal
         log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
@@ -1021,6 +1082,11 @@ class IORails(BaseGuardrails):
                     record_request_blocked(RailDirection.OUTPUT)
                 return _blocked_return()
 
+            rewritten = _rewritten_bot_message(output_result)
+            if rewritten is not None:
+                log.info("[%s] Output rails rewrote the response", req_id)
+                response_text = rewritten
+
         if has_generation_options:
             log_obj = _build_generation_log(records, options, time.monotonic() - t_start)
             return _build_generation_response(response_text, reasoning_content, response, log_obj)
@@ -1057,8 +1123,8 @@ class IORails(BaseGuardrails):
         *,
         input_enabled: Union[bool, list[str]] = True,
         records_out: Optional[list[RailCallRecord]] = None,
-    ) -> Optional[LLMResponse]:
-        """Sequential path: input rails block before LLM generation starts."""
+    ) -> _GeneratedTurn:
+        """Sequential path: input rails block, or rewrite, before LLM generation starts."""
         log.info("[%s] Running input rails", req_id)
         input_result = await self.rails_manager.is_input_safe(messages, enabled=input_enabled)
         if records_out is not None:
@@ -1067,7 +1133,12 @@ class IORails(BaseGuardrails):
             log.info("[%s] Input blocked: %s", req_id, display_reason(input_result))
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.INPUT)
-            return None
+            return _GeneratedTurn(response=None, messages=messages)
+
+        rewritten = _rewritten_user_message(input_result)
+        if rewritten is not None:
+            log.info("[%s] Input rails rewrote the user message", req_id)
+            messages = rewrite_user_message(messages, rewritten)
 
         log.info("[%s] Calling main LLM", req_id)
         timed_llm_response = await self._timed_main_call(messages, llm_kwargs)
@@ -1075,7 +1146,7 @@ class IORails(BaseGuardrails):
             provider = self.engine_registry.provider_name("main")
             prompt = serialize_prompt(messages)
             records_out.append(_make_generation_record(timed_llm_response, provider, prompt))
-        return timed_llm_response.response
+        return _GeneratedTurn(response=timed_llm_response.response, messages=messages)
 
     async def _do_generate_speculative(
         self,
@@ -1086,8 +1157,8 @@ class IORails(BaseGuardrails):
         *,
         input_enabled: Union[bool, list[str]] = True,
         records_out: Optional[list[RailCallRecord]] = None,
-    ) -> Optional[LLMResponse]:
-        """Speculative path: input rails and LLM generation race concurrently."""
+    ) -> _GeneratedTurn:
+        """Speculative path: input rails and LLM generation race, so no rewrite can arrive."""
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
 
         rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages, enabled=input_enabled))
@@ -1125,7 +1196,7 @@ class IORails(BaseGuardrails):
                     )
             raise
 
-        return response
+        return _GeneratedTurn(response=response, messages=messages)
 
     async def _parallel_input_rail_and_response_generation(
         self,
@@ -1291,10 +1362,15 @@ class IORails(BaseGuardrails):
                 return RailsResult(status=RailStatus.PASSED, content=last if isinstance(last, str) else "")
             rails_to_run = determined["rails"]
 
-        if "output" in rails_to_run:
+        # Which direction's text the caller gets back, and so which rewrites it can observe: with
+        # output rails in play the answer is the response, and an input rewrite is internal to the
+        # check. Matches how LLMRails decides what ``check`` reports.
+        reports_output = "output" in rails_to_run
+        if reports_output:
             pass_content = _get_last_content_by_role(messages, "assistant")
         else:
             pass_content = _get_last_content_by_role(messages, "user")
+        original_content = pass_content
 
         if "input" in rails_to_run:
             user_content = _get_last_content_by_role(messages, "user")
@@ -1310,10 +1386,16 @@ class IORails(BaseGuardrails):
                     return RailsResult(
                         status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=input_result.triggered_rail
                     )
+                rewritten = _rewritten_user_message(input_result)
+                if rewritten is not None:
+                    log.info("[%s] Input rails rewrote the user message", req_id)
+                    messages = rewrite_user_message(messages, rewritten)
+                    if not reports_output:
+                        pass_content = rewritten
             else:
                 log.info("[%s] Input rails requested but no user content to check; skipping", req_id)
 
-        if "output" in rails_to_run:
+        if reports_output:
             bot_response = _get_last_content_by_role(messages, "assistant")
             # Skip when there is no assistant content: the content-safety action requires
             # bot_response and would otherwise raise, surfacing a false BLOCK.
@@ -1327,9 +1409,17 @@ class IORails(BaseGuardrails):
                     return RailsResult(
                         status=RailStatus.BLOCKED, content=REFUSAL_MESSAGE, rail=output_result.triggered_rail
                     )
+                rewritten = _rewritten_bot_message(output_result)
+                if rewritten is not None:
+                    log.info("[%s] Output rails rewrote the response", req_id)
+                    pass_content = rewritten
             else:
                 log.info("[%s] Output rails requested but no assistant content to check; skipping", req_id)
 
+        # MODIFIED is decided by comparing content, as LLMRails does, and names no rail: a rewrite
+        # is not a rail "triggering", and several rails may have contributed to the final text.
+        if pass_content != original_content:
+            return RailsResult(status=RailStatus.MODIFIED, content=pass_content)
         return RailsResult(status=RailStatus.PASSED, content=pass_content)
 
     def _validate_streaming_with_output_rails(self) -> None:
@@ -1399,6 +1489,9 @@ class IORails(BaseGuardrails):
         tool_output_enabled = options.rails.tool_output if options else True
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
+        # The output-rail wrapper is built before the generation task runs, so it cannot be handed
+        # the messages by value: an input rail may rewrite them after that point.
+        conversation = _TurnConversation(messages=messages)
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
         # after the content stream drains. The engine emits the complete list once
@@ -1416,7 +1509,7 @@ class IORails(BaseGuardrails):
 
             Inherits the request ID from the caller context via create_task().
             """
-            nonlocal accumulated_tool_calls
+            nonlocal accumulated_tool_calls, messages
             req_id = get_request_id()
             t0 = time.monotonic()
             try:
@@ -1451,6 +1544,14 @@ class IORails(BaseGuardrails):
                     )
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
+
+                # Input rails finish before the first token, so the rewrite reaches the model
+                # here, and the output rails through ``conversation`` rather than a stale capture.
+                rewritten = _rewritten_user_message(input_result)
+                if rewritten is not None:
+                    log.info("[%s] Input rails rewrote the user message", req_id)
+                    messages = rewrite_user_message(messages, rewritten)
+                conversation.messages = messages
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
@@ -1576,7 +1677,7 @@ class IORails(BaseGuardrails):
                                     if self._has_streaming_output_rails:
                                         base_iterator = self._run_output_rails_in_streaming(
                                             streaming_handler=streaming_handler,
-                                            messages=messages,
+                                            conversation=conversation,
                                             enabled=output_enabled,
                                             include_metadata=include_metadata,
                                         )
@@ -1660,7 +1761,7 @@ class IORails(BaseGuardrails):
     async def _run_output_rails_in_streaming(
         self,
         streaming_handler: AsyncIterator[Union[str, dict]],
-        messages: LLMMessages,
+        conversation: "_TurnConversation",
         *,
         enabled: Union[bool, list[str]] = True,
         include_metadata: Optional[bool] = False,
@@ -1673,6 +1774,10 @@ class IORails(BaseGuardrails):
           rails.  If unsafe, inject an error and stop.
         - ``stream_first=False``: run output rails first, only yield chunks
           if safe.
+
+        A rewrite is applied rather than declined, which holds only where it maps onto what is
+        still to be sent -- hence the ``RailsConfig`` refusal of ``stream_first`` and a context
+        window alongside a rewriting rail.
         """
 
         # Unpack streaming config and get the buffer strategy
@@ -1705,7 +1810,9 @@ class IORails(BaseGuardrails):
                 continue
 
             log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk, enabled=enabled)
+            output_result = await self.rails_manager.is_output_safe(
+                conversation.messages, bot_response_chunk, enabled=enabled
+            )
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                 if self._metrics_enabled:
@@ -1716,6 +1823,24 @@ class IORails(BaseGuardrails):
                 yield _frame_for_stream(violation, include_metadata)
                 return
 
+            rewritten = _rewritten_bot_message(output_result)
+            if rewritten is not None and stream_first:
+                # No config reaches here: ``RailsConfig`` refuses ``stream_first`` alongside a
+                # rail that declares a rewrite, and one the catalog cannot describe never runs on
+                # this engine. What is left is a manifest declaring no target whose action rewrites
+                # anyway -- and the batch has gone, so stopping is all that remains.
+                log.error("[%s] Output rewrite arrived after the batch was streamed", req_id)
+                violation = self._guardrails_violation_payload(
+                    "Blocked by output rails: a rewrite could not be applied to the stream", "output_rails"
+                )
+                yield _frame_for_stream(violation, include_metadata)
+                return
+
             if not stream_first:
-                for chunk in user_output_chunks:
-                    yield chunk
+                if rewritten is None:
+                    for chunk in user_output_chunks:
+                        yield chunk
+                else:
+                    # One frame: with ``context_size`` at zero the judged window is this batch.
+                    log.info("[%s] Output rails rewrote the streamed batch", req_id)
+                    yield _frame_for_stream(rewritten, include_metadata)

@@ -43,6 +43,7 @@ from tests.recorded.rails.library.configs import (
     CONTENT_SAFETY_INVALID_MODEL_CONFIG,
     F5_GUARDRAILS_CONFIG,
     F5_GUARDRAILS_INVALID_KEY_CONFIG,
+    INJECTION_OMIT_CONFIG,
     JAILBREAK_PROMPT,
     NIM_CONTENT_SAFETY_CONFIG,
     NIM_JAILBREAK_CONFIG,
@@ -82,10 +83,18 @@ CASSETTE_SOURCE = {
     "test_the_rail_name_drops_its_surface_parameter_on_iorails": "test_content_safety",
 }
 
+# Tests whose rail decides in-process, so no provider reply is replayed and no cassette exists.
+# Named rather than left out of ``CASSETTE_SOURCE``, so a missing entry stays an error.
+NO_CASSETTE = {"test_injection_detection_omits_sql_output"}
+
 
 @pytest.fixture
 def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
     """Point at the sibling module's cassette directory rather than this module's own."""
+    if request.node.name in NO_CASSETTE:
+        # An empty directory of its own: VCR opens nothing, and pointing at a sibling's
+        # cassettes would suggest a recording this test neither needs nor replays.
+        return str(Path(__file__).parent / "cassettes" / "no_cassette")
     source = CASSETTE_SOURCE.get(request.node.name)
     if source is None:
         raise AssertionError(f"{request.node.name!r} has no CASSETTE_SOURCE entry")
@@ -315,3 +324,19 @@ async def test_the_rail_name_drops_its_surface_parameter_on_iorails(nvidia_api_k
     assert result.content == REFUSAL
     assert result.rail == "content safety check input"
     assert "$model=" not in result.rail
+
+
+async def test_injection_detection_omits_sql_output(rail_ran_cleanly):
+    """The sanitized output the LLMRails snapshot records is what IORails produces, byte for byte."""
+    result = await check_iorails(
+        INJECTION_OMIT_CONFIG,
+        [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "This is a SELECT * FROM users; -- malicious comment in text"},
+        ],
+        (RailType.OUTPUT,),
+    )
+
+    assert result.status is RailStatus.MODIFIED
+    assert result.rail is None
+    assert result.content == "This is a  * FROM usersmalicious comment in text"

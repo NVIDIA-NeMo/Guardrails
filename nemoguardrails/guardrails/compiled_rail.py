@@ -30,8 +30,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
-from nemoguardrails.actions.rail_outcome import RailOutcome, require_rail_outcome
-from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget, require_rail_outcome
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, current_user_turn_index, last_user_content
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.logging.processing_log import processing_log_var
@@ -93,15 +93,6 @@ _BOT_UTTERANCE_EVENT = "StartUtteranceBotAction"
 _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 
 
-def _current_turn_index(messages: LLMMessages) -> Optional[int]:
-    """Position of the turn being checked: the last user message that carries content."""
-    for index in range(len(messages) - 1, -1, -1):
-        message = messages[index]
-        if message.get("role") == "user" and message.get("content"):
-            return index
-    return None
-
-
 def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
     """The turns preceding the one being checked.
 
@@ -111,7 +102,7 @@ def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
     transcript, say — would place a later turn ahead of it and reorder the conversation.
     With no user turn to check, every message is history.
     """
-    index = _current_turn_index(messages)
+    index = current_user_turn_index(messages)
     return messages if index is None else messages[:index]
 
 
@@ -132,16 +123,6 @@ def messages_to_events(messages: LLMMessages) -> list[dict[str, Any]]:
         elif role == "system":
             events.append({"type": _SYSTEM_MESSAGE_EVENT, "content": content})
     return events
-
-
-def _last_user_content(messages: LLMMessages) -> str:
-    """Return the most recent user message's content, or "" when there is none.
-
-    Empty rather than raising: the library actions read ``context.get(...)`` with a default
-    and call the model with empty text, and IORails now matches that.
-    """
-    index = _current_turn_index(messages)
-    return "" if index is None else messages[index]["content"]
 
 
 def _llm_calls_from(sink: list[dict[str, Any]]) -> tuple["LLMCallInfo", ...]:
@@ -176,7 +157,7 @@ _CONTEXT_KEYS = ("user_message", "bot_message")
 
 def _request_context(messages: LLMMessages, bot_response: Optional[str]) -> dict[str, str]:
     """Build the conversation variables for one request."""
-    return {"user_message": _last_user_content(messages), "bot_message": bot_response or ""}
+    return {"user_message": last_user_content(messages), "bot_message": bot_response or ""}
 
 
 class CompiledRail:
@@ -212,6 +193,11 @@ class CompiledRail:
     def surface_name(self) -> str:
         """The manifest surface name, without any ``$param=`` suffix."""
         return self.surface.name
+
+    @property
+    def transform_target(self) -> Optional[TransformTarget]:
+        """The variable the manifest says this rail may rewrite, which is how it is scheduled."""
+        return self.surface.transform_target
 
     async def run(self, messages: LLMMessages, bot_response: Optional[str] = None) -> RailOutcome:
         """Execute the rail and return its engine-neutral verdict."""
@@ -377,11 +363,24 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     return tuple(bound)
 
 
-def _transform_target_reason(surface: RailSurface) -> Optional[str]:
-    """Report a surface that rewrites content, which IORails cannot apply yet."""
+# The conversation variable a rail may rewrite in each direction; retrieval has no home here.
+_REWRITABLE_TARGET: dict[RailDirection, TransformTarget] = {
+    RailDirection.INPUT: TransformTarget.USER_MESSAGE,
+    RailDirection.OUTPUT: TransformTarget.BOT_MESSAGE,
+}
+
+
+def _unapplicable_transform_reason(surface: RailSurface) -> Optional[str]:
+    """Report a surface declaring a rewrite IORails has nowhere to put.
+
+    Refuses nothing today: every shipped surface agrees with its direction, and no schema rule
+    makes it.
+    """
     if surface.transform_target is None:
         return None
-    return f"transforms {surface.transform_target.value!r}"
+    if surface.transform_target is _REWRITABLE_TARGET.get(surface.direction):
+        return None
+    return f"rewrites {surface.transform_target.value!r}, which a {surface.direction.value} rail cannot apply here"
 
 
 # Surfaces whose actions read retrieval evidence out of the request context: ``relevant_chunks``,
@@ -420,11 +419,10 @@ def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
     return blocked.get((surface.direction, surface.name))
 
 
-# Ordered so the cheapest, most structural check reports first. Each entry is removed by the
-# work that lifts its limitation: the context-binding refusal went when resolution was built,
-# and the transform refusal goes when IORails can apply a rewrite.
+# Ordered so the cheapest, most structural check reports first. Each entry goes when the work
+# lifting its limitation lands, as the blanket transform refusal did.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
-    _transform_target_reason,
+    _unapplicable_transform_reason,
     _retrieval_context_reason,
     _unsupported_rail_reason,
 )

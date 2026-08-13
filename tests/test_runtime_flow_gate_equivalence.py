@@ -2887,7 +2887,7 @@ class _StubAction:
         return self._raw_return
 
 
-async def _run_flow_iorails(case: FlowEquivalenceCase) -> dict[str, Any]:
+async def _run_flow_iorails(case: FlowEquivalenceCase) -> "_IORailsRun":
     """Drive one case through IORails, stubbing the rail's action at its manifest target.
 
     IORails resolves actions through ``resolve_import_ref`` at compile time, which
@@ -2909,21 +2909,45 @@ async def _run_flow_iorails(case: FlowEquivalenceCase) -> dict[str, Any]:
             for engine in iorails.engine_registry._engines.values():
                 if isinstance(engine, ModelEngine):
                     engine.chat_completion = AsyncMock(return_value=LLMResponse(content=NORMAL_OUTPUT))
+            main_engine = iorails.engine_registry._engines["main"]
             response = await iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
     if not isinstance(response, dict):
         raise AssertionError(f"Unexpected IORails response type: {response!r}")
-    return response
+    return _IORailsRun(response=response, user_message_sent=_user_message_given_to(main_engine))
 
 
-def _iorails_decision(response: dict[str, Any]) -> FlowDecision:
-    """Classify an IORails reply, which renders every block as one refusal string."""
-    content = response.get("content")
-    if content == NORMAL_OUTPUT:
-        return FlowDecision.ALLOW
+@dataclass(frozen=True)
+class _IORailsRun:
+    """What one IORails run showed: the reply, and the user text the main model was given.
+
+    Two signals, because an input rewrite shows up only in what the model was asked.
+    """
+
+    response: dict[str, Any]
+    user_message_sent: str
+
+
+def _user_message_given_to(engine: Any) -> str:
+    """The user text the main model read, or the request's own when it was never called."""
+    call = engine.chat_completion.call_args
+    if call is None:
+        return USER_INPUT
+    messages = call.args[0]
+    user_turns = [message for message in messages if message.get("role") == "user"]
+    return user_turns[-1]["content"] if user_turns else USER_INPUT
+
+
+def _iorails_decision(run: _IORailsRun) -> FlowDecision:
+    """Classify an IORails run, which renders every block as one refusal string."""
+    content = run.response.get("content")
     if content == REFUSAL_MESSAGE:
         return FlowDecision.BLOCK
-    return FlowDecision.TRANSFORM
+    if content != NORMAL_OUTPUT:
+        return FlowDecision.TRANSFORM
+    if run.user_message_sent != USER_INPUT:
+        return FlowDecision.TRANSFORM
+    return FlowDecision.ALLOW
 
 
 def test_every_enabled_surface_has_an_iorails_case():
@@ -2952,9 +2976,9 @@ def test_llmrails_only_fixtures_are_refused_by_the_routing_gate():
 @pytest.mark.parametrize("case", [_iorails_case_param(case) for case in IORAILS_FIXTURES])
 async def test_iorails_flow_gate_matches_rail_outcome(case: FlowEquivalenceCase):
     """IORails reaches the same allow-or-block decision as the rail's RailOutcome."""
-    response = await _run_flow_iorails(case)
+    run = await _run_flow_iorails(case)
 
-    assert _iorails_decision(response) is case.expected_decision
+    assert _iorails_decision(run) is case.expected_decision
     assert _outcome_decision(case.raw_return, case.spec) is case.expected_decision
 
 
@@ -2962,18 +2986,20 @@ def test_enable_rails_exceptions_is_honoured_only_by_llmrails():
     """A blocked rail raises an exception turn on LLMRails and returns the refusal on IORails."""
     # The flag is implemented entirely in each rail's Colang flow, which branches on
     # $config.enable_rails_exceptions to `create event <Rail>Exception`. IORails runs no Colang
-    # runtime, so it has nothing to raise and no per-rail event name to raise it under; 29 of
-    # the 42 enabled rails diverge this way. The decision agrees on both engines -- only the
-    # shape of the block differs -- so this is pinned here rather than left to the table above,
-    # where a decision-level assertion would pass without recording it.
+    # runtime, so it has nothing to raise and no per-rail event name to raise it under; 36 of
+    # the enabled cases carry the flag and diverge this way. The decision agrees on both engines
+    # -- only the shape of the block differs -- so this is pinned here rather than left to the
+    # table above, where a decision-level assertion would pass without recording it.
+    # A rewriting rail is the one place the decision could diverge, since some flows branch on
+    # the flag to block instead; no fixture pairs the two, and that gap is a known delta.
     case = next(case for case in IORAILS_FIXTURES if case.case_id == "self_check_input_blocks_outcome_block_exception")
 
     # asyncio.run rather than an async test: _run_flow drives LLMRails through the sync
     # generate(), which refuses to run inside an already-running loop.
     llmrails_response, _ = _run_flow(case)
-    iorails_response = asyncio.run(_run_flow_iorails(case))
+    iorails_run = asyncio.run(_run_flow_iorails(case))
 
     assert llmrails_response["role"] == "exception"
-    assert iorails_response == {"role": "assistant", "content": REFUSAL_MESSAGE}
+    assert iorails_run.response == {"role": "assistant", "content": REFUSAL_MESSAGE}
     assert _decision_from_observable(case.expected_observable) is FlowDecision.BLOCK
-    assert _iorails_decision(iorails_response) is FlowDecision.BLOCK
+    assert _iorails_decision(iorails_run) is FlowDecision.BLOCK

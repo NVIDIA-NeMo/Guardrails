@@ -36,6 +36,7 @@ from nemoguardrails.guardrails.iorails import (
 )
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import RailStatus, RailType
+from tests.guardrails.rail_stubs import bot_message_rewrite, user_message_rewrite
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 SAFE = RailResult.allow()
@@ -601,3 +602,72 @@ class TestCheckHelpers:
     def test_get_last_content_by_role_none_content_returns_empty(self):
         """content=None on the matched message is normalized to ''."""
         assert _get_last_content_by_role([{"role": "user", "content": None}], "user") == ""
+
+
+USER_TEXT = "my ssn is 123-45-6789"
+MASKED_USER_TEXT = "my ssn is <SSN>"
+BOT_TEXT = "call me on 555-0100"
+MASKED_BOT_TEXT = "call me on <PHONE>"
+CONVERSATION = [{"role": "user", "content": USER_TEXT}, {"role": "assistant", "content": BOT_TEXT}]
+
+
+@pytest.mark.asyncio
+class TestCheckWithRewritingRails:
+    """``check`` reports a rewrite as MODIFIED, carrying the text the rails produced."""
+
+    async def test_an_input_rewrite_is_reported_with_the_new_text(self, iorails):
+        """The caller gets back what the rails made of their message, not what they sent."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+
+        result = await iorails.check_async([{"role": "user", "content": USER_TEXT}])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == MASKED_USER_TEXT
+
+    async def test_a_rewrite_names_no_rail(self, iorails):
+        """A rewrite is not a rail triggering, and several rails may have contributed to the text."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+
+        result = await iorails.check_async([{"role": "user", "content": USER_TEXT}])
+
+        assert result.rail is None
+
+    async def test_an_output_rewrite_is_reported_with_the_new_text(self, iorails):
+        """The output direction reports against the response its rails checked."""
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=bot_message_rewrite(MASKED_BOT_TEXT))
+
+        result = await iorails.check_async(CONVERSATION, rail_types=[RailType.OUTPUT])
+
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == MASKED_BOT_TEXT
+
+    async def test_an_input_rewrite_reaches_the_output_rails(self, iorails):
+        """Both directions run against one conversation, so the second sees what the first made of it."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=SAFE)
+
+        await iorails.check_async(CONVERSATION)
+
+        checked_messages = iorails.rails_manager.is_output_safe.call_args.args[0]
+        assert _get_last_content_by_role(checked_messages, "user") == MASKED_USER_TEXT
+
+    async def test_an_input_rewrite_is_internal_when_the_output_is_reported(self, iorails):
+        """With output rails in play the caller is told about the response, which nothing changed."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=SAFE)
+
+        result = await iorails.check_async(CONVERSATION)
+
+        assert result.status == RailStatus.PASSED
+        assert result.content == BOT_TEXT
+
+    async def test_a_block_behind_a_rewrite_is_reported_as_blocked(self, iorails):
+        """A later block decides the outcome; the rewrite has nothing left to be applied to."""
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(MASKED_USER_TEXT))
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=_unsafe("content safety check output"))
+
+        result = await iorails.check_async(CONVERSATION)
+
+        assert result.status == RailStatus.BLOCKED
+        assert result.content == REFUSAL_MESSAGE
+        assert result.rail == "content safety check output"
