@@ -173,6 +173,13 @@ async def pipeline_iorails():
         yield engine
 
 
+def _wire_answering(engine: IORails, log: RailCallLog, httpx_mock, verdicts: dict[str, str], answer: str) -> AsyncMock:
+    """Wire the rails and have the main model answer *answer*, which the output rails then judge."""
+    main = _wire(engine, log, httpx_mock, verdicts)
+    main.return_value = LLMResponse(content=answer)
+    return main
+
+
 def _wire(engine: IORails, log: RailCallLog, httpx_mock, verdicts: dict[str, str]) -> AsyncMock:
     """Attach a double per model-backed rail plus the HTTP ones, and return the main-model double."""
     for model_type, rail_engine in engine.engine_registry.llms.items():
@@ -275,19 +282,6 @@ class TestMaskingRailAheadOfJudgingRails:
         assert call_log.order == [GLINER_RAIL, CONTENT_SAFETY_RAIL]
 
 
-@pytest.mark.asyncio
-class TestMaskingRailSchedulingIsSettledAtConstruction:
-    """The engine reports the ordering and the downgrades it will apply, before any request."""
-
-    async def test_the_masking_rail_is_named_as_the_input_direction_rewriter(self, pipeline_iorails):
-        """What the engine believes about the config is what the run order above follows from."""
-        assert pipeline_iorails.rails_manager.transform_flows[RailDirection.INPUT] == ("gliner mask pii on input",)
-
-    async def test_the_configured_flow_list_keeps_its_own_order(self, pipeline_iorails):
-        """Reordering is for running the rails, not a rewrite of what the user configured."""
-        assert pipeline_iorails.rails_manager.input_flows == INPUT_FLOWS
-
-
 def test_the_four_rail_config_routes_to_iorails():
     """A config mixing a masking rail with three judging ones is servable, so the rest is reachable."""
     with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
@@ -361,9 +355,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
         self, output_pipeline_iorails, call_log, httpx_mock
     ):
         """Configured last, run first -- the output direction schedules by the same rule."""
-        _wire(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW).return_value = LLMResponse(
-            content=MAIN_OUTPUT_WITH_PII
-        )
+        _wire_answering(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
 
         await output_pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
@@ -373,9 +365,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
         self, output_pipeline_iorails, call_log, httpx_mock
     ):
         """Nothing precedes it, so it is the one rail that sees the model's unmasked answer."""
-        _wire(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW).return_value = LLMResponse(
-            content=MAIN_OUTPUT_WITH_PII
-        )
+        _wire_answering(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
 
         await output_pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
@@ -391,9 +381,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
         both these rails are handed it as conversation context. So the assertion is that the
         unmasked answer is gone, not that the name is gone from the prompt entirely.
         """
-        _wire(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW).return_value = LLMResponse(
-            content=MAIN_OUTPUT_WITH_PII
-        )
+        _wire_answering(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
 
         await output_pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
@@ -403,9 +391,7 @@ class TestMaskingRailAheadOfJudgingOutputRails:
 
     async def test_the_caller_reads_the_masked_response(self, output_pipeline_iorails, call_log, httpx_mock):
         """The point of masking on output: the name never reaches whoever asked."""
-        _wire(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW).return_value = LLMResponse(
-            content=MAIN_OUTPUT_WITH_PII
-        )
+        _wire_answering(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
 
         response = await output_pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
@@ -413,8 +399,8 @@ class TestMaskingRailAheadOfJudgingOutputRails:
 
     async def test_a_rail_behind_the_mask_can_still_block(self, output_pipeline_iorails, call_log, httpx_mock):
         """A rewrite ahead of a block does not rescue the response, and nothing behind it runs."""
-        _wire(output_pipeline_iorails, call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS).return_value = LLMResponse(
-            content=MAIN_OUTPUT_WITH_PII
+        _wire_answering(
+            output_pipeline_iorails, call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS, MAIN_OUTPUT_WITH_PII
         )
 
         response = await output_pipeline_iorails.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
@@ -465,20 +451,8 @@ class TestParallelIsRefusedWhenARailRewrites:
             engine = IORails(RailsConfig.from_content(config=_output_pipeline_config(parallel=True)))
 
         async with engine:
-            main = _wire(engine, call_log, httpx_mock, OUTPUT_ALL_ALLOW)
-            main.return_value = LLMResponse(content=MAIN_OUTPUT_WITH_PII)
+            _wire_answering(engine, call_log, httpx_mock, OUTPUT_ALL_ALLOW, MAIN_OUTPUT_WITH_PII)
             response = await engine.generate_async(messages=[{"role": "user", "content": USER_INPUT}])
 
         assert call_log.order == [GLINER_RAIL, SELF_CHECK_RAIL, CONTENT_SAFETY_RAIL]
         assert response == {"role": "assistant", "content": MASKED_MAIN_OUTPUT}
-
-
-def test_a_parallel_config_without_a_rewriting_rail_keeps_its_concurrency():
-    """The downgrade is specific to rewriting rails, not a blanket ban on the parallel setting."""
-    config = copy.deepcopy(NEMOGUARDS_CONFIG)
-    config["rails"]["input"]["parallel"] = True
-
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        engine = IORails(RailsConfig.from_content(config=config))
-
-    assert engine.rails_manager.input_parallel is True

@@ -1252,14 +1252,17 @@ class TestRailsThatRewrite:
         for flow, rail in rails.items():
             manager._rails[(direction, flow)] = rail
 
+    def _install_input_pair(self, manager, first: StubRail, second: StubRail = None) -> None:
+        """Stand in for the two input rails ``INPUT_PAIR`` runs, in the order it runs them."""
+        rails = {CONTENT_SAFETY_INPUT_FLOW: first}
+        if second is not None:
+            rails[TOPIC_SAFETY_INPUT_FLOW] = second
+        self._install(manager, RailDirection.INPUT, rails)
+
     async def test_a_rewrite_reaches_the_next_rail(self, nemoguards_rails_manager):
         """The rail behind a masking rail checks the masked text, which is the point of rewriting."""
         recorder = StubRail(RailOutcome.allow())
-        self._install(
-            nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)), TOPIC_SAFETY_INPUT_FLOW: recorder},
-        )
+        self._install_input_pair(nemoguards_rails_manager, StubRail(_mask_user_message(MASKED)), recorder)
 
         await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
 
@@ -1270,13 +1273,10 @@ class TestRailsThatRewrite:
 
     async def test_the_verdict_carries_the_text_the_last_rail_left(self, nemoguards_rails_manager):
         """Two rewrites compose, and the surviving text is what the caller is told to use."""
-        self._install(
+        self._install_input_pair(
             nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {
-                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
-                TOPIC_SAFETY_INPUT_FLOW: StubRail(_mask_user_message("my ssn is [redacted]")),
-            },
+            StubRail(_mask_user_message(MASKED)),
+            StubRail(_mask_user_message("my ssn is [redacted]")),
         )
 
         result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
@@ -1286,13 +1286,10 @@ class TestRailsThatRewrite:
 
     async def test_a_rewrite_back_to_the_original_reports_nothing_happened(self, nemoguards_rails_manager):
         """Only a net change counts, so ``check`` can tell PASSED from MODIFIED by comparing content."""
-        self._install(
+        self._install_input_pair(
             nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {
-                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
-                TOPIC_SAFETY_INPUT_FLOW: StubRail(_mask_user_message("my ssn is 123-45-6789")),
-            },
+            StubRail(_mask_user_message(MASKED)),
+            StubRail(_mask_user_message("my ssn is 123-45-6789")),
         )
 
         result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
@@ -1302,13 +1299,10 @@ class TestRailsThatRewrite:
 
     async def test_a_block_behind_a_rewrite_returns_the_block(self, nemoguards_rails_manager):
         """A later block wins: the request is refused, so the rewrite has nothing left to apply to."""
-        self._install(
+        self._install_input_pair(
             nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {
-                CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED)),
-                TOPIC_SAFETY_INPUT_FLOW: StubRail(RailOutcome.block(reason="off topic")),
-            },
+            StubRail(_mask_user_message(MASKED)),
+            StubRail(RailOutcome.block(reason="off topic")),
         )
 
         result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
@@ -1322,11 +1316,7 @@ class TestRailsThatRewrite:
         """The caller's list arrives by identity, so masking must not edit the conversation it owns."""
         messages = [{"role": "user", "content": "my ssn is 123-45-6789"}]
         original_turn = messages[0]
-        self._install(
-            nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED))},
-        )
+        self._install_input_pair(nemoguards_rails_manager, StubRail(_mask_user_message(MASKED)))
 
         await nemoguards_rails_manager.is_input_safe(messages, enabled=["content safety check input"])
 
@@ -1353,22 +1343,14 @@ class TestRailsThatRewrite:
 
     async def test_a_rail_rewriting_the_other_directions_variable_raises(self, nemoguards_rails_manager):
         """An action contradicting its surface's declared target fails loudly rather than being dropped."""
-        self._install(
-            nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_bot_message("masked"))},
-        )
+        self._install_input_pair(nemoguards_rails_manager, StubRail(_mask_bot_message("masked")))
 
         with pytest.raises(NotImplementedError, match="cannot apply"):
             await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=["content safety check input"])
 
     async def test_a_rewrite_from_a_rail_running_in_parallel_raises(self, parallel_input_rails_manager):
         """Concurrent rails all read the arriving text, so a rewrite there cannot be applied to anything."""
-        self._install(
-            parallel_input_rails_manager,
-            RailDirection.INPUT,
-            {CONTENT_SAFETY_INPUT_FLOW: StubRail(_mask_user_message(MASKED))},
-        )
+        self._install_input_pair(parallel_input_rails_manager, StubRail(_mask_user_message(MASKED)))
 
         with pytest.raises(NotImplementedError, match="in parallel"):
             await parallel_input_rails_manager.is_input_safe(SSN_MESSAGES, enabled=["content safety check input"])
@@ -1376,14 +1358,7 @@ class TestRailsThatRewrite:
     async def test_a_rail_behind_a_block_is_never_dispatched(self, nemoguards_rails_manager):
         """Rails are built when their turn comes, so a short-circuited one does no work at all."""
         recorder = StubRail(RailOutcome.allow())
-        self._install(
-            nemoguards_rails_manager,
-            RailDirection.INPUT,
-            {
-                CONTENT_SAFETY_INPUT_FLOW: StubRail(RailOutcome.block(reason="unsafe")),
-                TOPIC_SAFETY_INPUT_FLOW: recorder,
-            },
-        )
+        self._install_input_pair(nemoguards_rails_manager, StubRail(RailOutcome.block(reason="unsafe")), recorder)
 
         result = await nemoguards_rails_manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
 
@@ -1434,13 +1409,18 @@ class TestTransformsFirst:
         assert _transforms_first([], flows) == flows
 
 
+def _manager_compiling(rails: dict, config: dict = NEMOGUARDS_CONFIG) -> RailsManager:
+    """A manager whose named flows compiled to *rails*, for scheduling decided at construction."""
+    with rails_compiled_as(rails):
+        return _make_rails_manager(RailsConfig.from_content(config=config))
+
+
 class TestSchedulingRailsThatRewrite:
     """A configured rewriting rail decides run order and rules out concurrent execution."""
 
     def test_the_rewriting_rails_are_named_per_direction(self):
         """Each direction is asked separately, because the two are scheduled for different reasons."""
-        with rails_compiled_as({TOPIC_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)}):
-            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        manager = _manager_compiling({TOPIC_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)})
 
         assert manager.transform_flows[RailDirection.INPUT] == (TOPIC_SAFETY_INPUT_FLOW,)
         assert manager.transform_flows[RailDirection.OUTPUT] == ()
@@ -1449,13 +1429,9 @@ class TestSchedulingRailsThatRewrite:
     async def test_a_rewriting_rail_runs_before_a_rail_configured_ahead_of_it(self):
         """Ordering is observable: the judging rail reads text the rewriting rail produced."""
         judge = StubRail()
-        with rails_compiled_as(
-            {
-                CONTENT_SAFETY_INPUT_FLOW: judge,
-                TOPIC_SAFETY_INPUT_FLOW: rewriting_stub(MASKED, SurfaceDirection.INPUT),
-            }
-        ):
-            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        manager = _manager_compiling(
+            {CONTENT_SAFETY_INPUT_FLOW: judge, TOPIC_SAFETY_INPUT_FLOW: rewriting_stub(MASKED, SurfaceDirection.INPUT)}
+        )
 
         await manager.is_input_safe(SSN_MESSAGES, enabled=INPUT_PAIR)
 
@@ -1463,15 +1439,13 @@ class TestSchedulingRailsThatRewrite:
 
     def test_the_configured_order_is_kept_when_nothing_rewrites(self):
         """Nothing about scheduling changes for the configs that shipped before rewrites existed."""
-        with rails_compiled_as({}):
-            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        manager = _manager_compiling({})
 
         assert manager._flows_to_run(RailDirection.INPUT, manager.input_flows, True) == manager.input_flows
 
     def test_emptying_the_configured_flows_leaves_nothing_to_run(self):
         """The configured list stays the single source of truth for what runs, ordering aside."""
-        with rails_compiled_as({CONTENT_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)}):
-            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        manager = _manager_compiling({CONTENT_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)})
         manager.input_flows = []
 
         assert manager._flows_to_run(RailDirection.INPUT, manager.input_flows, True) == []
@@ -1493,11 +1467,21 @@ class TestSchedulingRailsThatRewrite:
 
     def test_parallel_rails_are_left_alone_when_nothing_rewrites(self, recwarn):
         """The downgrade is silent and absent for every config that does not need it."""
-        with rails_compiled_as({}):
-            manager = _make_rails_manager(RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG))
+        manager = _manager_compiling({}, NEMOGUARDS_PARALLEL_CONFIG)
 
         assert manager.input_parallel is True
         assert manager.output_parallel is True
+        assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
+
+    def test_a_config_that_never_asked_for_parallel_is_not_warned_about(self, recwarn):
+        """The downgrade reports itself only where it takes something away.
+
+        A rewriting rail in an already-sequential config reaches the same code, and warning
+        there would tell every masking user their config had been overridden when it had not.
+        """
+        manager = _manager_compiling({CONTENT_SAFETY_INPUT_FLOW: declared_rewriter(SurfaceDirection.INPUT)})
+
+        assert manager.transform_flows[RailDirection.INPUT] == (CONTENT_SAFETY_INPUT_FLOW,)
         assert [warning for warning in recwarn if "parallel" in str(warning.message)] == []
 
     @pytest.mark.asyncio

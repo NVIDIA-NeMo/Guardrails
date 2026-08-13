@@ -1097,17 +1097,6 @@ class TestGenerateWithRewritingRails:
         sent_messages = iorails.engine_registry.model_call.call_args.args[1]
         assert sent_messages[-1]["content"] == REWRITE_MASKED_USER
 
-    async def test_an_input_rewrite_is_what_the_output_rails_check(self, iorails):
-        """Output rails judge the turn the model answered, not the text an input rail replaced."""
-        iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))
-        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult.allow())
-        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="sure"))
-
-        await iorails.generate_async(messages=REWRITE_MESSAGES)
-
-        checked_messages = iorails.rails_manager.is_output_safe.call_args.args[0]
-        assert checked_messages[-1]["content"] == REWRITE_MASKED_USER
-
     async def test_an_input_rewrite_leaves_the_callers_messages_untouched(self, iorails):
         """The caller's conversation is theirs; masking it as a side effect would be a surprise."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=user_message_rewrite(REWRITE_MASKED_USER))

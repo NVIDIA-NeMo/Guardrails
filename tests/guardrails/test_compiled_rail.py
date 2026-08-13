@@ -36,6 +36,7 @@ from nemoguardrails.guardrails.compiled_rail import (
     _hf_classifier_runs_locally,
     _is_installed,
     _jailbreak_detection_runs_locally,
+    _unapplicable_transform_reason,
     compile_rail,
     messages_to_events,
     unservable_reason,
@@ -454,6 +455,49 @@ class TestUnrunnableSurfaces:
             compile_rail(SYNTHETIC_FLOW, direction, deps, catalog=StubCatalog(surface, direction))
 
 
+class TestUnapplicableTransformReason:
+    """`_unapplicable_transform_reason` refuses a declared rewrite this engine cannot place."""
+
+    def _surface(self, direction: RailDirection, target) -> RailSurface:
+        return synthetic_surface(
+            ActionRef(name="takes_text", target=TAKES_TEXT_TARGET), direction=direction, transform_target=target
+        )
+
+    def test_a_rail_that_only_judges_has_nothing_to_refuse(self):
+        """The common surface, which declares no rewrite at all."""
+        assert _unapplicable_transform_reason(self._surface(RailDirection.INPUT, None)) is None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.BOT_MESSAGE),
+        ],
+        ids=["input-user", "output-bot"],
+    )
+    def test_a_direction_rewriting_its_own_variable_is_servable(self, direction, target):
+        """The agreement every shipped surface has, and the reason this check refuses nothing today."""
+        assert _unapplicable_transform_reason(self._surface(direction, target)) is None
+
+    @pytest.mark.parametrize(
+        "direction, target",
+        [
+            (RailDirection.INPUT, TransformTarget.BOT_MESSAGE),
+            (RailDirection.OUTPUT, TransformTarget.USER_MESSAGE),
+            (RailDirection.INPUT, TransformTarget.RELEVANT_CHUNKS),
+            (RailDirection.RETRIEVAL, TransformTarget.RELEVANT_CHUNKS),
+        ],
+        ids=["input-bot", "output-user", "input-chunks", "retrieval"],
+    )
+    def test_a_rewrite_with_nowhere_to_land_reports_why(self, direction, target):
+        """Nothing in the manifest schema forbids the mismatch, so the refusal is what keeps it out."""
+        reason = _unapplicable_transform_reason(self._surface(direction, target))
+
+        assert reason is not None
+        assert target.value in reason
+        assert "cannot apply" in reason
+
+
 class TestDeclaredTransformTarget:
     """A rail reports the variable its surface says it may rewrite, which is how it is scheduled."""
 
@@ -478,6 +522,10 @@ class TestDeclaredTransformTarget:
 
         assert rail.transform_target is TransformTarget.USER_MESSAGE
         assert rail.surface.transform_target is TransformTarget.USER_MESSAGE
+
+
+class TestSurfacesOutsideTheTier:
+    """Which catalog surfaces this engine refuses, and that the refusal is cheap."""
 
     @pytest.mark.parametrize(
         "direction, flow",
