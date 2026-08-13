@@ -544,6 +544,17 @@ def _rewritten_bot_message(result: RailResult) -> Optional[str]:
     return result.outcome.transform_text.get(TransformTarget.BOT_MESSAGE.value)
 
 
+@dataclass(slots=True)
+class _StreamedConversation:
+    """The messages a streamed turn is running against, shared by the parts that read them.
+
+    Mutable, and deliberately so: the output-rail wrapper is constructed before the generation
+    task starts, so a rewrite the input rails produce later has no other way to reach it.
+    """
+
+    messages: LLMMessages
+
+
 @dataclass(frozen=True, slots=True)
 class _GeneratedTurn:
     """The main model's response, and the messages it was generated from.
@@ -1484,6 +1495,9 @@ class IORails(BaseGuardrails):
         tool_output_enabled = options.rails.tool_output if options else True
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
+        # The output-rail wrapper is built before the generation task runs, so it cannot be handed
+        # the messages by value: an input rail may rewrite them after that point.
+        conversation = _StreamedConversation(messages=messages)
         # Tool calls assembled by the stream: _generation_task rebinds this (via
         # nonlocal) to the engine's finalized list and _wrapped_iterator reads it
         # after the content stream drains. The engine emits the complete list once
@@ -1538,13 +1552,15 @@ class IORails(BaseGuardrails):
                     return
 
                 # Input rails finish before the first token is requested, so a rewrite reaches the
-                # model here exactly as it does when not streaming. The output-rail wrapper was
-                # handed the original messages when the stream was set up, and keeps them: LLMRails
-                # builds its streaming output-rail context from the raw messages too.
+                # model here exactly as it does when not streaming. It reaches the output rails
+                # too: they are handed ``conversation``, which is rebound here rather than passed
+                # by value when the stream was set up, so they judge the turn the model answered
+                # rather than the text an input rail replaced.
                 rewritten = _rewritten_user_message(input_result)
                 if rewritten is not None:
                     log.info("[%s] Input rails rewrote the user message", req_id)
                     messages = rewrite_user_message(messages, rewritten)
+                conversation.messages = messages
 
                 # Step 2: Stream main LLM content from structured response.
                 # delta_content is forwarded as text chunks; delta_tool_calls are
@@ -1670,7 +1686,7 @@ class IORails(BaseGuardrails):
                                     if self._has_streaming_output_rails:
                                         base_iterator = self._run_output_rails_in_streaming(
                                             streaming_handler=streaming_handler,
-                                            messages=messages,
+                                            conversation=conversation,
                                             enabled=output_enabled,
                                             include_metadata=include_metadata,
                                         )
@@ -1754,7 +1770,7 @@ class IORails(BaseGuardrails):
     async def _run_output_rails_in_streaming(
         self,
         streaming_handler: AsyncIterator[Union[str, dict]],
-        messages: LLMMessages,
+        conversation: "_StreamedConversation",
         *,
         enabled: Union[bool, list[str]] = True,
         include_metadata: Optional[bool] = False,
@@ -1767,15 +1783,18 @@ class IORails(BaseGuardrails):
           rails.  If unsafe, inject an error and stop.
         - ``stream_first=False``: run output rails first, only yield chunks
           if safe.
+
+        A rail that rewrites the batch is applied rather than declined: the rewritten text is
+        what ships, and the rails that only judge have already read it, because a direction runs
+        its rewriting rails first. That holds only where the rewrite can be mapped onto what is
+        still to be sent, which is why ``RailsConfig`` refuses ``stream_first`` and a non-zero
+        ``context_size`` alongside a rewriting output rail.
         """
 
         # Unpack streaming config and get the buffer strategy
         output_streaming_config = self.config.rails.output.streaming
         stream_first = output_streaming_config.stream_first
         buffer_strategy = get_buffer_strategy(output_streaming_config)
-        # A rewrite arrives per buffered batch; saying so once is enough to explain a stream whose
-        # masking rail appears to have done nothing.
-        rewrite_reported = False
 
         async for chunk_batch in buffer_strategy(streaming_handler):
             user_output_chunks = chunk_batch.user_output_chunks
@@ -1802,7 +1821,9 @@ class IORails(BaseGuardrails):
                 continue
 
             log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk, enabled=enabled)
+            output_result = await self.rails_manager.is_output_safe(
+                conversation.messages, bot_response_chunk, enabled=enabled
+            )
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, display_reason(output_result))
                 if self._metrics_enabled:
@@ -1813,17 +1834,26 @@ class IORails(BaseGuardrails):
                 yield _frame_for_stream(violation, include_metadata)
                 return
 
-            # A rewrite cannot be applied to a stream: with stream_first the chunk has already
-            # reached the caller, and without it the rewrite covers one buffered batch rather than
-            # the response. So the check counts only as non-blocking, which is what LLMRails does.
-            if output_result.outcome.is_transform and not rewrite_reported:
-                rewrite_reported = True
-                log.info(
-                    "[%s] Output rails rewrote the response, which streaming cannot apply; rails %s",
-                    req_id,
-                    list(self.rails_manager.transform_flows[RailDirection.OUTPUT]),
+            rewritten = _rewritten_bot_message(output_result)
+            if rewritten is not None and stream_first:
+                # Unreachable through a loaded config: ``RailsConfig`` refuses this combination,
+                # because the batch has already been sent and there is nothing left to redact.
+                # Reachable only from a rail the catalog does not describe, and delivering more
+                # text after failing to mask is the one outcome worth refusing outright.
+                log.error("[%s] Output rewrite arrived after the batch was streamed", req_id)
+                violation = self._guardrails_violation_payload(
+                    "Blocked by output rails: a rewrite could not be applied to the stream", "output_rails"
                 )
+                yield _frame_for_stream(violation, include_metadata)
+                return
 
             if not stream_first:
-                for chunk in user_output_chunks:
-                    yield chunk
+                if rewritten is None:
+                    for chunk in user_output_chunks:
+                        yield chunk
+                else:
+                    # The batch is replaced by what the rails made of it, in one frame: with
+                    # ``context_size`` at zero the judged window is exactly this batch, so the
+                    # rewritten text stands in for it whole rather than chunk by chunk.
+                    log.info("[%s] Output rails rewrote the streamed batch", req_id)
+                    yield _frame_for_stream(rewritten, include_metadata)

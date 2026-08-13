@@ -24,7 +24,9 @@ directions and under both concurrency settings:
   masked response;
 - **parallel** — the same two configs asking for concurrent rails, which is refused with a
   warning and run in order instead, because concurrent rails would each read the text as it
-  arrived and the mask would reach none of them.
+  arrived and the mask would reach none of them;
+- **streaming** — masking applied to the batch that ships, judged after masking, and an input
+  rewrite reaching the output rails, which is where a stale conversation would leak it.
 
 Nothing is stubbed at the rail boundary -- the shipped actions run, against canned model and
 HTTP replies -- so a rail that stopped reading its conversation variable, or an ordering rule
@@ -42,7 +44,7 @@ import pytest_asyncio
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import JAILBREAK_NIM_URL, started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -87,8 +89,13 @@ def _pipeline_config() -> dict:
 
 
 def _gliner_entities(text: str) -> list[dict]:
-    """The detection GLiNER returns for *text*, positioned where the name actually is."""
-    start = text.index(PERSON)
+    """The detection GLiNER returns for *text*, positioned where the name actually is.
+
+    Nothing when the name is absent, which is what a streamed batch carrying none of it gets.
+    """
+    start = text.find(PERSON)
+    if start == -1:
+        return []
     return [
         {
             "value": PERSON,
@@ -140,8 +147,12 @@ def _model_double(log: RailCallLog, model_type: str, verdict: str) -> AsyncMock:
     return AsyncMock(side_effect=_chat_completion)
 
 
-def _register_http_doubles(httpx_mock, log: RailCallLog) -> None:
-    """Answer the two HTTP-backed rails, recording the text each was sent."""
+def _register_http_doubles(httpx_mock, log: RailCallLog, *, gliner_runs: bool = True) -> None:
+    """Answer the two HTTP-backed rails, recording the text each was sent.
+
+    *gliner_runs* is False for a config with no masking rail, where the callback would otherwise
+    be registered and never requested.
+    """
 
     def _gliner(request):
         # The entities are positioned against the text this call actually carried, so a rail
@@ -154,10 +165,10 @@ def _register_http_doubles(httpx_mock, log: RailCallLog) -> None:
         log.record(JAILBREAK_RAIL, json.loads(request.content)["input"])
         return httpx.Response(200, json={"jailbreak": False, "score": 0.01})
 
-    # The masking rail always runs, so leaving its callback required makes "gliner was called"
-    # an assertion the fixture enforces. Jailbreak runs last and is skipped whenever a rail
-    # ahead of it blocks, which is a case below, so its callback is optional.
-    httpx_mock.add_callback(_gliner, url=GLINER_URL)
+    # Where the masking rail is configured, leaving its callback required makes "gliner was
+    # called" an assertion the fixture enforces. Jailbreak runs last and is skipped whenever a
+    # rail ahead of it blocks, which is a case below, so its callback is always optional.
+    httpx_mock.add_callback(_gliner, url=GLINER_URL, is_optional=not gliner_runs)
     httpx_mock.add_callback(_jailbreak, url=JAILBREAK_NIM_URL, is_optional=True)
 
 
@@ -456,3 +467,136 @@ class TestParallelIsRefusedWhenARailRewrites:
 
         assert call_log.order == [GLINER_RAIL, SELF_CHECK_RAIL, CONTENT_SAFETY_RAIL]
         assert response == {"role": "assistant", "content": MASKED_MAIN_OUTPUT}
+
+
+STREAMED_ANSWER = f"Sure thing, {PERSON} — your order ships tomorrow."
+MASKED_STREAMED_ANSWER = "Sure thing, [PERSON] — your order ships tomorrow."
+GLINER_OUTPUT_FLOW = "gliner mask pii on output"
+CONTENT_SAFETY_OUTPUT_FLOW = "content safety check output $model=content_safety"
+
+
+def _streaming_config(flows: list[str], *, stream_first: bool = False, context_size: int = 0) -> dict:
+    """An output-rail streaming config, masking-safe by default per the settings RailsConfig requires."""
+    config = copy.deepcopy(NEMOGUARDS_CONFIG)
+    # No jailbreak flow runs in these configs, and leaving its section in warns on every one.
+    config["rails"]["config"].pop("jailbreak_detection", None)
+    config["rails"]["input"] = {"flows": []}
+    config["rails"]["output"] = {
+        "flows": flows,
+        "streaming": {
+            "enabled": True,
+            "chunk_size": 200,
+            "context_size": context_size,
+            "stream_first": stream_first,
+        },
+    }
+    config["rails"]["config"]["gliner"] = {"server_endpoint": GLINER_URL, "output": {"entities": ["person"]}}
+    return config
+
+
+async def _stream_of(text: str):
+    """A main-model stream delivering *text* in one chunk, so one batch reaches the output rails."""
+
+    async def _stream(model_type, messages, **kwargs):
+        yield LLMResponseChunk(delta_content=text)
+
+    return _stream
+
+
+async def _streamed(engine: IORails) -> str:
+    """Everything the caller received, joined."""
+    chunks = [str(chunk) async for chunk in engine.stream_async(messages=[{"role": "user", "content": USER_INPUT}])]
+    return "".join(chunks)
+
+
+@pytest.mark.asyncio
+class TestMaskingRailWhileStreaming:
+    """A masking output rail applies to what is streamed, rather than being computed and dropped."""
+
+    async def _engine(self, flows: list[str], call_log: RailCallLog, httpx_mock, verdicts: dict, **streaming):
+        engine = IORails(RailsConfig.from_content(config=_streaming_config(flows, **streaming)))
+        for model_type, rail_engine in engine.engine_registry.llms.items():
+            if model_type in verdicts:
+                rail_engine.chat_completion = _model_double(call_log, model_type, verdicts[model_type])
+        _register_http_doubles(httpx_mock, call_log, gliner_runs=GLINER_OUTPUT_FLOW in flows)
+        engine.engine_registry.stream_model_call = await _stream_of(STREAMED_ANSWER)
+        return engine
+
+    async def test_a_single_masking_rail_masks_what_is_streamed(self, call_log, httpx_mock):
+        """The one rail case: the caller reads the masked answer, never the name."""
+        engine = await self._engine([GLINER_OUTPUT_FLOW], call_log, httpx_mock, {})
+
+        async with engine:
+            streamed = await _streamed(engine)
+
+        assert MASKED_STREAMED_ANSWER in streamed
+        assert PERSON not in streamed
+
+    async def test_a_judging_rail_behind_the_mask_reads_the_masked_answer(self, call_log, httpx_mock):
+        """Masking first, judging second — the same order the non-streaming path runs them in."""
+        engine = await self._engine(
+            [CONTENT_SAFETY_OUTPUT_FLOW, GLINER_OUTPUT_FLOW], call_log, httpx_mock, OUTPUT_ALL_ALLOW
+        )
+
+        async with engine:
+            streamed = await _streamed(engine)
+
+        assert call_log.order == [GLINER_RAIL, CONTENT_SAFETY_RAIL]
+        # The response is what an output mask rewrites; the user's own turn reaches this rail as
+        # conversation context and is untouched, since no input mask is configured here.
+        assert MASKED_STREAMED_ANSWER in call_log.text_seen_by(CONTENT_SAFETY_RAIL)
+        assert STREAMED_ANSWER not in call_log.text_seen_by(CONTENT_SAFETY_RAIL)
+        assert MASKED_STREAMED_ANSWER in streamed
+
+    async def test_a_judging_rail_behind_the_mask_can_still_block(self, call_log, httpx_mock):
+        """The masked batch is judged before it ships, so a block stops it reaching the caller."""
+        engine = await self._engine(
+            [CONTENT_SAFETY_OUTPUT_FLOW, GLINER_OUTPUT_FLOW], call_log, httpx_mock, OUTPUT_CONTENT_SAFETY_BLOCKS
+        )
+
+        async with engine:
+            streamed = await _streamed(engine)
+
+        assert MASKED_STREAMED_ANSWER not in streamed
+        assert PERSON not in streamed
+        assert "content_blocked" in streamed
+
+    async def test_a_judging_rail_alone_still_streams_first(self, call_log, httpx_mock):
+        """No masking rail, so the setting that ships chunks before judging them is untouched."""
+        engine = await self._engine(
+            [CONTENT_SAFETY_OUTPUT_FLOW],
+            call_log,
+            httpx_mock,
+            OUTPUT_ALL_ALLOW,
+            stream_first=True,
+            context_size=50,
+        )
+
+        async with engine:
+            streamed = await _streamed(engine)
+
+        assert engine.config.rails.output.streaming.stream_first is True
+        assert STREAMED_ANSWER in streamed
+
+
+@pytest.mark.asyncio
+class TestInputMaskingReachesStreamingOutputRails:
+    """An input rewrite reaches the output rails, which judge the turn the model answered."""
+
+    async def test_the_output_rail_reads_the_masked_user_message(self, call_log, httpx_mock):
+        """Masking input and then handing the raw text to a vendor rail would defeat the mask."""
+        config = _streaming_config([CONTENT_SAFETY_OUTPUT_FLOW])
+        config["rails"]["input"] = {"flows": ["gliner mask pii on input"]}
+        config["rails"]["config"]["gliner"]["input"] = {"entities": ["person"]}
+        engine = IORails(RailsConfig.from_content(config=config))
+        for model_type, rail_engine in engine.engine_registry.llms.items():
+            if model_type in OUTPUT_ALL_ALLOW:
+                rail_engine.chat_completion = _model_double(call_log, model_type, OUTPUT_ALL_ALLOW[model_type])
+        _register_http_doubles(httpx_mock, call_log)
+        engine.engine_registry.stream_model_call = await _stream_of(MAIN_OUTPUT)
+
+        async with engine:
+            await _streamed(engine)
+
+        assert MASKED_INPUT in call_log.text_seen_by(CONTENT_SAFETY_RAIL)
+        assert PERSON not in call_log.text_seen_by(CONTENT_SAFETY_RAIL)

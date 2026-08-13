@@ -1119,6 +1119,52 @@ class RailsConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
+    def check_streaming_can_apply_output_rewrites(cls, values):
+        """Reject configs whose output rails transform response with `stream_first` == True"""
+        from nemoguardrails.manifests import RailDirection, default_rail_catalog, parse_configured_surface
+
+        rails = values.get("rails") or {}
+        output = rails.get("output") or {}
+        streaming = output.get("streaming") or {}
+        if not streaming.get("enabled", False):
+            return values
+
+        surfaces = default_rail_catalog().surfaces()
+        rewriting = []
+        for flow in output.get("flows") or []:
+            try:
+                name, _ = parse_configured_surface(flow)
+            except ValueError:
+                continue
+            surface = surfaces.get((RailDirection.OUTPUT, name))
+            # An unknown flow is a custom or Colang-defined rail, which declares no target here.
+            if surface is not None and surface.transform_target is not None:
+                rewriting.append(flow)
+        if not rewriting:
+            return values
+
+        defaults = OutputRailsStreamingConfig()
+        stream_first = streaming.get("stream_first", defaults.stream_first)
+        context_size = streaming.get("context_size", defaults.context_size)
+        offending = [
+            setting
+            for setting, unusable in (
+                ("stream_first: True", stream_first),
+                (f"context_size: {context_size}", context_size),
+            )
+            if unusable
+        ]
+        if not offending:
+            return values
+
+        raise InvalidRailsConfigurationError(
+            f"Output rails {rewriting} rewrite the response, which streaming cannot apply with "
+            f"{' and '.join(offending)}: set rails.output.streaming.stream_first to False and "
+            f"context_size to 0, or remove the rewriting rails from a streaming configuration."
+        )
+
+    @model_validator(mode="before")
+    @classmethod
     def check_jailbreak_detection_config(cls, values):
         """Validate jailbreak detection configuration against enabled flows."""
         rails = values.get("rails") or {}

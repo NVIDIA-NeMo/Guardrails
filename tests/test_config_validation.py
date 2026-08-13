@@ -122,3 +122,91 @@ def test_passthrough_and_single_call_incompatibility():
 #         LLMRails(config=config)
 #
 #     assert "You must provide a `self_check_facts` prompt" in str(exc_info.value)
+
+
+MASKING_OUTPUT_RAIL = """
+models: []
+rails:
+  config:
+    privateai:
+      server_endpoint: http://privateai.example/process
+      output:
+        entities: [NAME]
+  output:
+    flows:
+      - mask pii on output
+    streaming:
+      enabled: true
+      chunk_size: 5
+      context_size: {context_size}
+      stream_first: {stream_first}
+"""
+
+JUDGING_OUTPUT_RAIL = """
+models: []
+rails:
+  config:
+    regex_detection:
+      output:
+        patterns: ['\\d{3}-\\d{2}-\\d{4}']
+  output:
+    flows:
+      - regex check output
+    streaming:
+      enabled: true
+      chunk_size: 5
+      context_size: 50
+      stream_first: true
+"""
+
+
+@pytest.mark.parametrize(
+    "stream_first, context_size, offending",
+    [("true", 50, "stream_first"), ("false", 50, "context_size"), ("true", 0, "stream_first")],
+    ids=["stream-first", "context-window", "stream-first-with-zero-context"],
+)
+def test_streaming_refuses_a_rewrite_it_could_not_apply(stream_first, context_size, offending):
+    """A masking output rail is refused where streaming would compute the mask and ship the original."""
+    with pytest.raises(ValueError) as exc_info:
+        RailsConfig.from_content(
+            yaml_content=MASKING_OUTPUT_RAIL.format(stream_first=stream_first, context_size=context_size)
+        )
+
+    assert offending in str(exc_info.value)
+    assert "mask pii on output" in str(exc_info.value)
+
+
+def test_streaming_accepts_a_rewrite_it_can_apply():
+    """With the judged window equal to the batch being sent, the mask lands on what is still to come."""
+    config = RailsConfig.from_content(yaml_content=MASKING_OUTPUT_RAIL.format(stream_first="false", context_size=0))
+
+    assert config.rails.output.streaming.enabled is True
+    assert config.rails.output.streaming.context_size == 0
+
+
+def test_a_masking_rail_without_streaming_is_untouched():
+    """The refusal is about streaming, not about masking."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+        models: []
+        rails:
+          config:
+            privateai:
+              server_endpoint: http://privateai.example/process
+              output:
+                entities: [NAME]
+          output:
+            flows:
+              - mask pii on output
+        """
+    )
+
+    assert config.rails.output.flows == ["mask pii on output"]
+
+
+def test_a_judging_rail_keeps_stream_first():
+    """Nothing changes for the streaming configs that shipped before rewrites existed."""
+    config = RailsConfig.from_content(yaml_content=JUDGING_OUTPUT_RAIL)
+
+    assert config.rails.output.streaming.stream_first is True
+    assert config.rails.output.streaming.context_size == 50
