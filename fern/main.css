@@ -22,3 +22,44 @@
   font-weight: var(--font-weight-normal);
   text-decoration-color: var(--accent);
 }
+
+.starter-prompt {
+  display: inline-block;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.starter-prompt .fern-prompt[data-hidden-prompt="true"] {
+  background: var(--nv-color-green);
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  color: #111827;
+  padding: 0.375rem 0.5rem 0.375rem 1rem;
+}
+
+.starter-prompt .fern-prompt[data-hidden-prompt="true"] > div {
+  gap: 0.5rem;
+}
+
+.starter-prompt .fern-prompt[data-hidden-prompt="true"] h5 {
+  color: #111827;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding-left: 0;
+}
+
+.starter-prompt .fern-expand-button {
+  display: none;
+}
+
+.starter-prompt .fern-copy-button {
+  border-radius: 6px;
+  color: #111827;
+  height: 2rem;
+  width: 2rem;
+}
+
+.starter-prompt .fern-copy-button:hover {
+  background: rgb(17 24 39 / 10%);
+  color: #111827;
+}
