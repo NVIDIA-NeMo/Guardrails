@@ -36,6 +36,7 @@ libraries:
     input:
       git: https://github.com/NVIDIA-NeMo/Guardrails
       subpath: nemoguardrails
+      ref: fb73f41b0fa2ef6c50c90d76f8b20533e4c9a51e
     output:
       path: ../docs/_static/python-sdk-reference
     lang: python
