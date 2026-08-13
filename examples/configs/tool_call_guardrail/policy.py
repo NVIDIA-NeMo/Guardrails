@@ -139,7 +139,13 @@ def require_owns_arg(arg_name: str, owned_attr: str) -> Rule:
 
 
 def max_numeric_arg(arg_name: str, ceiling: float) -> Rule:
-    """Block when a numeric argument exceeds `ceiling`."""
+    """Block when a numeric argument exceeds `ceiling`.
+
+    Also rejects non-finite values (NaN, ±inf): ``float('nan') > ceiling``
+    is always False in Python, so without an explicit finiteness check a
+    prompt-injected ``timeout_seconds=nan`` would silently pass the ceiling.
+    """
+    import math
 
     def rule(call: ToolCall, principal: Principal) -> Optional[str]:
         value = call.args.get(arg_name)
@@ -149,6 +155,8 @@ def max_numeric_arg(arg_name: str, ceiling: float) -> Rule:
             numeric = float(value)
         except (TypeError, ValueError):
             return f"argument '{arg_name}'={value!r} is not numeric"
+        if not math.isfinite(numeric):
+            return f"{arg_name}={value!r} must be a finite number"
         if numeric > ceiling:
             return f"{arg_name}={numeric:g} exceeds the allowed ceiling of {ceiling:g}"
         return None
