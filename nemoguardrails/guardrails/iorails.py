@@ -535,8 +535,8 @@ class IORails(BaseGuardrails):
     # tool-call validator and tool_input only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
     # back to LLMRails rather than raising in RailsManager at construction.
-    SUPPORTED_TOOL_OUTPUT_FLOWS = frozenset({"tool call validation"})
-    SUPPORTED_TOOL_INPUT_FLOWS = frozenset({"tool result validation"})
+    SUPPORTED_TOOL_OUTPUT_FLOWS = frozenset({"tool call validation", "check tool call"})
+    SUPPORTED_TOOL_INPUT_FLOWS = frozenset({"tool result validation", "check tool call"})
 
     @classmethod
     def unsupported_reason(cls, config: RailsConfig, llm: Optional[LLMModel] = None) -> Optional[str]:
@@ -576,6 +576,17 @@ class IORails(BaseGuardrails):
             reason = _duplicate_flows_reason(tool_flows, label)
             if reason is not None:
                 return reason
+
+        # Validate per_tool flow names against the supported LLM tool action set.
+
+        for label, per_tool, supported in (
+            ("tool output", config.rails.tool_output.per_tool, cls.SUPPORTED_TOOL_OUTPUT_FLOWS),
+            ("tool input", config.rails.tool_input.per_tool, cls.SUPPORTED_TOOL_INPUT_FLOWS),
+        ):
+            for tool_name, flows in per_tool.items():
+                reason = _unsupported_flows_reason(flows, supported, f"{label} per_tool[{tool_name!r}]")
+                if reason is not None:
+                    return reason
 
         return None
 
@@ -623,6 +634,8 @@ class IORails(BaseGuardrails):
             output_parallel=config.rails.output.parallel or False,
             tool_call_flows=config.rails.tool_output.flows,
             tool_result_flows=config.rails.tool_input.flows,
+            per_tool_output=dict(config.rails.tool_output.per_tool),
+            per_tool_input=dict(config.rails.tool_input.per_tool),
             tracer=self._tracer,
             content_capture_enabled=self._content_capture_enabled,
         )
@@ -932,7 +945,7 @@ class IORails(BaseGuardrails):
         # Symmetric with OUTPUT rails
         if response.tool_calls:
             tool_call = await self.rails_manager.are_tool_calls_safe(
-                response.tool_calls, llm_kwargs, enabled=tool_output_enabled
+                response.tool_calls, llm_kwargs, enabled=tool_output_enabled, messages=list(messages)
             )
             records.extend(tool_call.records)
             if not tool_call.is_safe:
@@ -1543,7 +1556,10 @@ class IORails(BaseGuardrails):
                                     if accumulated_tool_calls and not error_emitted:
                                         # ToolCallRail checks tool calls from the main LLM (OUTPUT)
                                         tool_call = await self.rails_manager.are_tool_calls_safe(
-                                            accumulated_tool_calls, llm_kwargs, enabled=tool_output_enabled
+                                            accumulated_tool_calls,
+                                            llm_kwargs,
+                                            enabled=tool_output_enabled,
+                                            messages=list(messages),
                                         )
                                         if not tool_call.is_safe:
                                             log.info(

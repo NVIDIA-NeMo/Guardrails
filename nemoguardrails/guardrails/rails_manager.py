@@ -32,6 +32,7 @@ from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyOutputAction,
 )
 from nemoguardrails.guardrails.actions.jailbreak_detection_action import JailbreakDetectionAction
+from nemoguardrails.guardrails.actions.per_tool_check_action import PerToolCheckAction
 from nemoguardrails.guardrails.actions.tool_call_action import ToolCallRailAction
 from nemoguardrails.guardrails.actions.tool_result_action import ToolResultRailAction
 from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
@@ -75,6 +76,12 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
         ToolCallRailAction,
         ToolResultRailAction,
     ]
+}
+
+# LLM-based per-tool check actions. Registered separately because they require
+# engine_registry and task_manager at construction (unlike model-free ToolRailAction).
+_LLM_TOOL_ACTION_CLASSES: dict[str, type[PerToolCheckAction]] = {
+    PerToolCheckAction.action_name: PerToolCheckAction,
 }
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
@@ -132,6 +139,8 @@ class RailsManager:
         output_parallel: bool = False,
         tool_call_flows: Optional[list[str]] = None,
         tool_result_flows: Optional[list[str]] = None,
+        per_tool_output: Optional[dict[str, list[str]]] = None,
+        per_tool_input: Optional[dict[str, list[str]]] = None,
         tracer: Optional["Tracer"] = None,
         content_capture_enabled: bool = False,
     ) -> None:
@@ -159,6 +168,8 @@ class RailsManager:
 
         self.tool_call_flows: list[str] = list(tool_call_flows or [])
         self.tool_result_flows: list[str] = list(tool_result_flows or [])
+        self.per_tool_output: dict[str, list[str]] = dict(per_tool_output or {})
+        self.per_tool_input: dict[str, list[str]] = dict(per_tool_input or {})
 
         # Build action instances for each configured flow
         self._actions: dict[str, RailAction] = {}
@@ -171,13 +182,20 @@ class RailsManager:
         self._tool_call_actions = self._build_tool_actions(self.tool_call_flows, ToolCallRailAction)
         self._tool_result_actions = self._build_tool_actions(self.tool_result_flows, ToolResultRailAction)
 
+        # Per-tool LLM check actions, keyed by flow string
+        self._per_tool_check_actions: dict[str, PerToolCheckAction] = self._build_per_tool_check_actions(
+            self.per_tool_output, self.per_tool_input
+        )
+
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "
-            "tool_result_flows=%s, input_parallel=%s, output_parallel=%s",
+            "tool_result_flows=%s, per_tool_output=%s, per_tool_input=%s, input_parallel=%s, output_parallel=%s",
             self.input_flows,
             self.output_flows,
             self.tool_call_flows,
             self.tool_result_flows,
+            list(self.per_tool_output),
+            list(self.per_tool_input),
             self.input_parallel,
             self.output_parallel,
         )
@@ -189,6 +207,29 @@ class RailsManager:
             available = sorted(_ACTION_CLASSES.keys())
             raise RuntimeError(f"Rail flow '{base_name}' not supported. Available: {available}")
         return action_cls(self.engine_registry, self.task_manager, tracer=self._tracer)
+
+    def _build_per_tool_check_actions(
+        self,
+        per_tool_output: dict[str, list[str]],
+        per_tool_input: dict[str, list[str]],
+    ) -> dict[str, PerToolCheckAction]:
+        """Instantiate a PerToolCheckAction for every unique flow string across per_tool configs."""
+        actions: dict[str, PerToolCheckAction] = {}
+        all_flows = [f for flows in per_tool_output.values() for f in flows]
+        all_flows += [f for flows in per_tool_input.values() for f in flows]
+        for flow in all_flows:
+            if flow not in actions:
+                base_name = _get_flow_name(flow) or flow
+                action_cls = _LLM_TOOL_ACTION_CLASSES.get(base_name)
+                if action_cls is None:
+                    available = sorted(_LLM_TOOL_ACTION_CLASSES.keys())
+                    raise RuntimeError(
+                        f"Per-tool flow '{base_name}' is not a supported LLM-based check action. "
+                        f"'per_tool' only supports LLM-based checks; structural validators such as "
+                        f"'tool call validation' belong in 'flows'. Available: {available}"
+                    )
+                actions[flow] = action_cls(self.engine_registry, self.task_manager, tracer=self._tracer)
+        return actions
 
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
@@ -257,24 +298,55 @@ class RailsManager:
         *,
         enabled: Union[bool, list[str]] = True,
         model_type: str = "main",
+        messages: Optional[list[dict]] = None,
     ) -> RailResult:
         """Validate the model's emitted tool calls (OUTPUT-direction tool rail).
 
         The tool-call counterpart to :meth:`is_output_safe`: takes the model's output
         (``tool_calls``) plus the request's declared tools (``llm_params``) and returns
-        a ``RailResult``.
+        a ``RailResult``. When ``per_tool_output`` is configured, per-tool LLM checks
+        run after the global structural validators pass.
         """
-        active = self._enabled_flows(list(self._tool_call_actions), enabled)
-        if not active or not tool_calls:
+        if not tool_calls:
             return RailResult(is_safe=True)
-        try:
-            toolset = self.engine_registry.parse_tools(model_type, llm_params)
-        except Exception as e:
-            log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"tool parsing failed: {e}")
 
-        rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
-        return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
+        active = self._enabled_flows(list(self._tool_call_actions), enabled)
+        if active:
+            try:
+                toolset = self.engine_registry.parse_tools(model_type, llm_params)
+            except Exception as e:
+                log.warning("[%s] tool parsing failed; blocking tool calls: %s", get_request_id(), e)
+                return RailResult(is_safe=False, reason=f"tool parsing failed: {e}")
+
+            rails = {flow: self._run_tool_call_rail(flow, tool_calls, toolset) for flow in active}
+            result = await self._run_rails_sequential(rails, RailDirection.OUTPUT)
+            if not result.is_safe:
+                return result
+        else:
+            result = RailResult(is_safe=True)
+
+        if not self.per_tool_output:
+            return result
+
+        collected = list(result.records)
+        conv_messages = messages or []
+        for tc in tool_calls:
+            tool_name = tc.function.name or tc.type or ""
+            flows = self.per_tool_output.get(tool_name, [])
+            for flow in flows:
+                per_result = await self._run_per_tool_check_rail(
+                    flow, conv_messages, tool_call=tc, tool_name=tool_name, direction=RailDirection.OUTPUT
+                )
+                collected.extend(per_result.records)
+                if not per_result.is_safe:
+                    return RailResult(
+                        is_safe=False,
+                        reason=per_result.reason,
+                        triggered_rail=per_result.triggered_rail,
+                        records=tuple(collected),
+                    )
+
+        return RailResult(is_safe=True, records=tuple(collected))
 
     async def are_tool_results_safe(
         self,
@@ -289,21 +361,59 @@ class RailsManager:
         ``messages`` and returns a ``RailResult``. Groups the conversation into per-turn
         ``(calls, results)`` exchanges via the engine adapter and validates each result
         against its own turn's calls, so call ids reused across turns (spec-allowed) are
-        not flagged as ambiguous duplicates.
+        not flagged as ambiguous duplicates. When ``per_tool_input`` is configured,
+        per-tool LLM checks run after the global structural validators pass.
         """
         active = self._enabled_flows(list(self._tool_result_actions), enabled)
-        if not active:
-            return RailResult(is_safe=True)
-        try:
-            exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
-        except Exception as e:
-            log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
-            return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
-        if not any(exchange.results for exchange in exchanges):
-            return RailResult(is_safe=True)
+        has_results = False
+        collected: list[RailCallRecord] = []
 
-        rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
-        return await self._run_rails_sequential(rails, RailDirection.INPUT)
+        if active:
+            try:
+                exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
+            except Exception as e:
+                log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
+                return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
+            has_results = any(exchange.results for exchange in exchanges)
+            if has_results:
+                rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
+                result = await self._run_rails_sequential(rails, RailDirection.INPUT)
+                collected.extend(result.records)
+                if not result.is_safe:
+                    return result
+
+        if not self.per_tool_input:
+            return RailResult(is_safe=True, records=tuple(collected))
+
+        if not active:
+            try:
+                exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
+            except Exception as e:
+                log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
+                return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
+
+        for exchange in exchanges:
+            for tool_result in exchange.results:
+                tool_name = tool_result.name or ""
+                flows = self.per_tool_input.get(tool_name, [])
+                for flow in flows:
+                    per_result = await self._run_per_tool_check_rail(
+                        flow,
+                        messages,
+                        tool_name=tool_name,
+                        tool_result=str(tool_result.content or ""),
+                        direction=RailDirection.INPUT,
+                    )
+                    collected.extend(per_result.records)
+                    if not per_result.is_safe:
+                        return RailResult(
+                            is_safe=False,
+                            reason=per_result.reason,
+                            triggered_rail=per_result.triggered_rail,
+                            records=tuple(collected),
+                        )
+
+        return RailResult(is_safe=True, records=tuple(collected))
 
     @staticmethod
     def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:
@@ -398,6 +508,40 @@ class RailsManager:
                             {"call_id": r.call_id, "name": r.name, "is_error": r.is_error} for r in all_results
                         ]
                     },
+                    reason=result.reason if not result.is_safe else None,
+                )
+            return result
+
+    async def _run_per_tool_check_rail(
+        self,
+        flow: str,
+        messages: list[dict],
+        *,
+        tool_call: Optional[ToolCall] = None,
+        tool_name: Optional[str] = None,
+        tool_result: Optional[str] = None,
+        direction: RailDirection,
+    ) -> RailResult:
+        """Dispatch a per-tool LLM check action for a single tool call or result."""
+        rail_type = "tool_output" if direction == RailDirection.OUTPUT else "tool_input"
+        with rail_span(self._tracer, flow, direction) as span:
+            action = self._per_tool_check_actions[flow]
+            result = await action.run(
+                flow,
+                messages,
+                tool_call=tool_call,
+                tool_name=tool_name,
+                tool_result=tool_result,
+            )
+            call = get_and_clear_rail_llm_call_contextvar()
+            if not result.is_safe and result.triggered_rail is None:
+                result = replace(result, triggered_rail=_get_flow_name(flow) or flow)
+            result = replace(result, records=(_rail_call_record(flow, rail_type, result, call),))
+            mark_rail_stop(span, result.is_safe)
+            if self._content_capture_enabled:
+                set_rail_content(
+                    span,
+                    {"tool_call": tool_call.to_dict() if tool_call else None, "tool_result": tool_result},
                     reason=result.reason if not result.is_safe else None,
                 )
             return result
