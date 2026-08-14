@@ -628,6 +628,9 @@ navigation:
     slug: resources
     collapsed: open-by-default
     contents:
+      - page: Runtime Security FAQ
+        path: resources/runtime-security-faq.mdx
+        slug: runtime-security-faq
       - page: Security
         path: resources/security/guidelines.mdx
         slug: guidelines
