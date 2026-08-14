@@ -84,10 +84,12 @@ class PerToolCheckAction(RailAction):
         tool_result: Optional[str] = None,
     ) -> RailResult:
         """Evaluate a tool call or result against the named prompt task."""
+        # Clear model-call data left by an earlier rail on the same async task.
         _rail_llm_call_var.set(None)
         with action_span(self._tracer, self.action_name) as span:
             req_id = get_request_id()
 
+            # Resolve the prompt task and optional model from the configured flow.
             _, params = parse_configured_surface(flow)
             check_name = params.get("check")
             if not check_name:
@@ -102,6 +104,7 @@ class PerToolCheckAction(RailAction):
             if tool_call is not None:
                 tool_call_json = json.dumps(tool_call.to_dict())
 
+            # Expose the current tool traffic and user message to the prompt.
             user_message = self._last_user_content_or_empty(messages)
 
             context: dict[str, Any] = {
@@ -120,6 +123,7 @@ class PerToolCheckAction(RailAction):
             prompt_messages = self._prompt_to_messages(prompt)
             log.debug("[%s] check tool call: task=%s model=%s", req_id, check_name, model_type)
 
+            # Run the policy model and convert its final verdict into a rail result.
             try:
                 response = await self._get_llm_response(model_type, prompt_messages)
                 text = (response.content or "").strip()
