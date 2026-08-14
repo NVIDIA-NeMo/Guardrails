@@ -18,6 +18,7 @@ import logging
 from typing import Any, Optional
 
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailResult, get_request_id
+from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_action import RailAction, _rail_llm_call_var
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
 from nemoguardrails.llm.clients._errors import _redact_secrets
@@ -34,13 +35,11 @@ def _parse_verdict(text: str) -> bool:
     like "BLOCK." or "ALLOW " are handled correctly. Fails closed: returns
     False when no clear verdict is found.
     """
-    for line in reversed(text.strip().splitlines()):
-        token = line.strip().rstrip(".!: ").upper()
-        if token == "ALLOW":
-            return True
-        if token == "BLOCK":
-            return False
-    return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    token = lines[-1].rstrip(".!: ").upper()
+    return token == "ALLOW"
 
 
 class PerToolCheckAction(RailAction):
@@ -126,6 +125,13 @@ class PerToolCheckAction(RailAction):
                 text = (response.content or "").strip()
                 log.debug("[%s] check tool call: response=%r", req_id, text)
                 return self._parse_response(text)
+            except ModelEngineError as e:
+                record_span_error(span, e)
+                if e.status is not None:
+                    log.error("[%s] check tool call failed (HTTP %d): %s", req_id, e.status, e)
+                    raise
+                log.error("[%s] check tool call failed: %s", req_id, e)
+                return RailResult(is_safe=False, reason=_redact_secrets(f"check tool call error: {e}"))
             except Exception as e:
                 record_span_error(span, e)
                 log.error("[%s] check tool call failed: %s", req_id, e)

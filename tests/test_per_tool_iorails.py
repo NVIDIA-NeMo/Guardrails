@@ -19,7 +19,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from nemoguardrails import Guardrails
+from nemoguardrails.exceptions import InvalidRailsConfigurationError
+from nemoguardrails.guardrails.actions.per_tool_check_action import _parse_verdict
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
+from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.tool_schema import Tool, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -99,6 +104,7 @@ async def test_per_tool_output_matching_tool_blocked():
     result = await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
 
     assert not result.is_safe
+    assert result.reason is not None
     assert "block" in result.reason.lower()
 
 
@@ -168,12 +174,16 @@ async def test_per_tool_output_global_flows_still_run():
         per_tool_output={"run_sql": [f"check tool call $check={_PROMPT_TASK}"]},
     )
     mgr = _make_manager(config)
-    mgr.engine_registry.parse_tools = lambda *_: Toolset(
-        [Tool(name="run_sql", arguments_schema={"type": "object", "properties": {"query": {"type": "string"}}})]
-    )
     mgr.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ALLOW"))
 
-    result = await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
+    with patch.object(
+        mgr.engine_registry,
+        "parse_tools",
+        return_value=Toolset(
+            [Tool(name="run_sql", arguments_schema={"type": "object", "properties": {"query": {"type": "string"}}})]
+        ),
+    ):
+        result = await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
 
     assert result.is_safe
     assert len(result.records) == 2
@@ -195,11 +205,118 @@ async def test_per_tool_input_matching_tool_blocked():
         },
         {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": "sensitive data"},
     ]
-    mgr.engine_registry.extract_tool_exchanges = mgr.engine_registry.extract_tool_exchanges
 
     result = await mgr.are_tool_results_safe(messages)
 
     assert not result.is_safe
+
+
+@pytest.mark.asyncio
+async def test_per_tool_input_resolves_missing_name_from_prior_call():
+    config = _make_config(per_tool_input={"run_sql": [f"check tool call $check={_PROMPT_TASK}"]})
+    mgr = _make_manager(config)
+    mgr.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="BLOCK"))
+    messages = [
+        {"role": "user", "content": "Run a query"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "sensitive data"},
+    ]
+
+    result = await mgr.are_tool_results_safe(messages)
+
+    assert not result.is_safe
+    mgr.engine_registry.model_call.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("boundary", ["output", "input"])
+async def test_disabled_boundary_skips_per_tool_checks(boundary):
+    flow = f"check tool call $check={_PROMPT_TASK}"
+    config = _make_config(
+        per_tool_output={"run_sql": [flow]} if boundary == "output" else None,
+        per_tool_input={"run_sql": [flow]} if boundary == "input" else None,
+    )
+    mgr = _make_manager(config)
+    mgr.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="BLOCK"))
+
+    if boundary == "output":
+        result = await mgr.are_tool_calls_safe([_sql_call()], {}, enabled=False, messages=MESSAGES)
+    else:
+        result = await mgr.are_tool_results_safe(
+            [
+                {"role": "user", "content": "Run a query"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "call_1", "type": "function", "function": {"name": "run_sql", "arguments": "{}"}}
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_1", "name": "run_sql", "content": "sensitive data"},
+            ],
+            enabled=False,
+        )
+
+    assert result.is_safe
+    mgr.engine_registry.model_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_enabled_list_filters_per_tool_checks():
+    config = _make_config(per_tool_output={"run_sql": [f"check tool call $check={_PROMPT_TASK}"]})
+    mgr = _make_manager(config)
+    mgr.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="BLOCK"))
+
+    result = await mgr.are_tool_calls_safe(
+        [_sql_call()],
+        {},
+        enabled=["tool call validation"],
+        messages=MESSAGES,
+    )
+
+    assert result.is_safe
+    mgr.engine_registry.model_call.assert_not_called()
+
+
+def test_invalid_per_tool_action_raises_configuration_error():
+    config = _make_config(per_tool_output={"run_sql": ["typo tool check"]})
+
+    with pytest.raises(InvalidRailsConfigurationError, match="typo tool check"):
+        Guardrails(config)
+
+
+def test_structural_validator_in_per_tool_raises_configuration_error():
+    config = _make_config(per_tool_output={"run_sql": ["tool call validation"]})
+
+    with pytest.raises(InvalidRailsConfigurationError, match="tool call validation"):
+        IORails.unsupported_reason(config)
+
+
+def test_global_check_action_routes_away_from_iorails():
+    config = _make_config(flows=[f"check tool call $check={_PROMPT_TASK}"])
+
+    assert IORails.unsupported_reason(config) is not None
+
+
+def test_parse_verdict_requires_verdict_on_final_non_empty_line():
+    assert _parse_verdict("Reasoning\nALLOW")
+    assert not _parse_verdict("ALLOW\nUncertain")
+
+
+@pytest.mark.asyncio
+async def test_per_tool_provider_http_error_propagates():
+    config = _make_config(per_tool_output={"run_sql": [f"check tool call $check={_PROMPT_TASK}"]})
+    mgr = _make_manager(config)
+    mgr.engine_registry.model_call = AsyncMock(
+        side_effect=ModelEngineError("unauthorized", model_name="gpt-4o", status=401)
+    )
+
+    with pytest.raises(ModelEngineError, match="unauthorized"):
+        await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
 
 
 @pytest.mark.asyncio
@@ -260,8 +377,7 @@ async def test_per_tool_model_override():
         captured_model_types.append(model_type)
         return LLMResponse(content="ALLOW")
 
-    mgr.engine_registry.model_call = _capture
-
-    await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
+    with patch.object(mgr.engine_registry, "model_call", side_effect=_capture):
+        await mgr.are_tool_calls_safe([_sql_call()], {}, messages=MESSAGES)
 
     assert captured_model_types == ["safety_classifier"]

@@ -46,7 +46,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.rail_action import RailAction, RailLLMCall, get_and_clear_rail_llm_call_contextvar
 from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span, set_rail_content
 from nemoguardrails.guardrails.tool_rail_action import ToolRailAction
-from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
+from nemoguardrails.guardrails.tool_schema import ToolExchange, ToolResult, Toolset
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import ToolCall
@@ -311,6 +311,12 @@ class RailsManager:
             return RailResult(is_safe=True)
 
         active = self._enabled_flows(list(self._tool_call_actions), enabled)
+        active_per_tool = {
+            tool_name: self._enabled_flows(flows, enabled) for tool_name, flows in self.per_tool_output.items()
+        }
+        if not active and not any(active_per_tool.values()):
+            return RailResult(is_safe=True)
+
         if active:
             try:
                 toolset = self.engine_registry.parse_tools(model_type, llm_params)
@@ -325,14 +331,14 @@ class RailsManager:
         else:
             result = RailResult(is_safe=True)
 
-        if not self.per_tool_output:
+        if not any(active_per_tool.values()):
             return result
 
         collected = list(result.records)
         conv_messages = messages or []
         for tc in tool_calls:
             tool_name = tc.function.name or tc.type or ""
-            flows = self.per_tool_output.get(tool_name, [])
+            flows = active_per_tool.get(tool_name, [])
             for flow in flows:
                 per_result = await self._run_per_tool_check_rail(
                     flow, conv_messages, tool_call=tc, tool_name=tool_name, direction=RailDirection.OUTPUT
@@ -365,37 +371,37 @@ class RailsManager:
         per-tool LLM checks run after the global structural validators pass.
         """
         active = self._enabled_flows(list(self._tool_result_actions), enabled)
-        has_results = False
+        active_per_tool = {
+            tool_name: self._enabled_flows(flows, enabled) for tool_name, flows in self.per_tool_input.items()
+        }
+        if not active and not any(active_per_tool.values()):
+            return RailResult(is_safe=True)
+
         collected: list[RailCallRecord] = []
 
+        try:
+            exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
+        except Exception as e:
+            log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
+            return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
+
+        if not any(exchange.results for exchange in exchanges):
+            return RailResult(is_safe=True)
+
         if active:
-            try:
-                exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
-            except Exception as e:
-                log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
-                return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
-            has_results = any(exchange.results for exchange in exchanges)
-            if has_results:
-                rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
-                result = await self._run_rails_sequential(rails, RailDirection.INPUT)
-                collected.extend(result.records)
-                if not result.is_safe:
-                    return result
+            rails = {flow: self._run_tool_result_rail(flow, exchanges) for flow in active}
+            result = await self._run_rails_sequential(rails, RailDirection.INPUT)
+            collected.extend(result.records)
+            if not result.is_safe:
+                return result
 
-        if not self.per_tool_input:
+        if not any(active_per_tool.values()):
             return RailResult(is_safe=True, records=tuple(collected))
-
-        if not active:
-            try:
-                exchanges = self.engine_registry.extract_tool_exchanges(model_type, messages)
-            except Exception as e:
-                log.warning("[%s] tool exchange extraction failed; blocking: %s", get_request_id(), e)
-                return RailResult(is_safe=False, reason=f"tool exchange extraction failed: {e}")
 
         for exchange in exchanges:
             for tool_result in exchange.results:
-                tool_name = tool_result.name or ""
-                flows = self.per_tool_input.get(tool_name, [])
+                tool_name = self._resolve_tool_result_name(exchange, tool_result)
+                flows = active_per_tool.get(tool_name, [])
                 for flow in flows:
                     per_result = await self._run_per_tool_check_rail(
                         flow,
@@ -414,6 +420,15 @@ class RailsManager:
                         )
 
         return RailResult(is_safe=True, records=tuple(collected))
+
+    @staticmethod
+    def _resolve_tool_result_name(exchange: ToolExchange, tool_result: ToolResult) -> str:
+        if tool_result.name:
+            return tool_result.name
+        matching_calls = [call for call in exchange.calls if call.id == tool_result.call_id]
+        if len(matching_calls) == 1:
+            return matching_calls[0].function.name
+        return ""
 
     @staticmethod
     def _enabled_flows(configured: list[str], enabled: Union[bool, list[str]]) -> list[str]:

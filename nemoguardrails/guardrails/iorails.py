@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
 from nemoguardrails.base_guardrails import BaseGuardrails
-from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.exceptions import InvalidRailsConfigurationError, StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
@@ -68,6 +68,7 @@ from nemoguardrails.llm.clients._errors import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.manifests.surface_reference import parse_configured_surface
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
@@ -535,12 +536,40 @@ class IORails(BaseGuardrails):
     # tool-call validator and tool_input only the tool-result validator. The
     # supported sets double as the direction check so a misdirected flow falls
     # back to LLMRails rather than raising in RailsManager at construction.
-    SUPPORTED_TOOL_OUTPUT_FLOWS = frozenset({"tool call validation", "check tool call"})
-    SUPPORTED_TOOL_INPUT_FLOWS = frozenset({"tool result validation", "check tool call"})
+    SUPPORTED_TOOL_OUTPUT_FLOWS = frozenset({"tool call validation"})
+    SUPPORTED_TOOL_INPUT_FLOWS = frozenset({"tool result validation"})
+    SUPPORTED_PER_TOOL_FLOWS = frozenset({"check tool call"})
+
+    @classmethod
+    def _validate_per_tool_flows(cls, config: RailsConfig) -> None:
+        for label, per_tool in (
+            ("tool output", config.rails.tool_output.per_tool),
+            ("tool input", config.rails.tool_input.per_tool),
+        ):
+            for tool_name, flows in per_tool.items():
+                for flow in flows:
+                    try:
+                        action_name, params = parse_configured_surface(flow)
+                    except ValueError as exc:
+                        raise InvalidRailsConfigurationError(
+                            f"Invalid {label} per_tool[{tool_name!r}] flow {flow!r}: {exc}"
+                        ) from exc
+                    if action_name not in cls.SUPPORTED_PER_TOOL_FLOWS:
+                        available = sorted(cls.SUPPORTED_PER_TOOL_FLOWS)
+                        raise InvalidRailsConfigurationError(
+                            f"Unsupported {label} per_tool[{tool_name!r}] action {action_name!r}. "
+                            f"Available: {available}"
+                        )
+                    if not params.get("check"):
+                        raise InvalidRailsConfigurationError(
+                            f"{label} per_tool[{tool_name!r}] flow {flow!r} requires a $check= parameter"
+                        )
 
     @classmethod
     def unsupported_reason(cls, config: RailsConfig, llm: Optional[LLMModel] = None) -> Optional[str]:
         """Return None if IORails can handle (config, llm), else a human-readable reason."""
+        cls._validate_per_tool_flows(config)
+
         if llm is not None:
             return "an `llm` argument was provided; IORails does not accept a custom LLM"
 
@@ -576,17 +605,6 @@ class IORails(BaseGuardrails):
             reason = _duplicate_flows_reason(tool_flows, label)
             if reason is not None:
                 return reason
-
-        # Validate per_tool flow names against the supported LLM tool action set.
-
-        for label, per_tool, supported in (
-            ("tool output", config.rails.tool_output.per_tool, cls.SUPPORTED_TOOL_OUTPUT_FLOWS),
-            ("tool input", config.rails.tool_input.per_tool, cls.SUPPORTED_TOOL_INPUT_FLOWS),
-        ):
-            for tool_name, flows in per_tool.items():
-                reason = _unsupported_flows_reason(flows, supported, f"{label} per_tool[{tool_name!r}]")
-                if reason is not None:
-                    return reason
 
         return None
 
