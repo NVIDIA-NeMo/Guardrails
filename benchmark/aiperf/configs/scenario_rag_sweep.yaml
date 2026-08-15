@@ -24,7 +24,7 @@ base_config:
 
   use_legacy_max_tokens: true
 
-  input_file: benchmark/datasets/rag.jsonl
+  input_file: datasets/rag.jsonl
   custom_dataset_type: single_turn
 
   # Synthetic data generation (disabled in favor of real data above)
