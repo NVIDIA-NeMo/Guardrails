@@ -64,6 +64,16 @@ class BaseConfig(BaseModel):
         description="Request rate mode (constant, poisson, etc.)",
     )
 
+    # Real dataset input
+    input_file: Optional[str] = Field(
+        default=None,
+        description="Path to JSONL file containing benchmark dataset (single_turn format)",
+    )
+    custom_dataset_type: Optional[str] = Field(
+        default=None,
+        description="Dataset format for --input-file (e.g. single_turn)",
+    )
+
     # Synthetic data generation
     random_seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
     prompt_input_tokens_mean: Optional[int] = Field(
