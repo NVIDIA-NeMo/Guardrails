@@ -23,6 +23,7 @@ base_config:
   request_rate_mode: "constant"
 
   use_legacy_max_tokens: true
+  use_server_token_count: true
 
   input_file: datasets/dialog.jsonl
   custom_dataset_type: single_turn
