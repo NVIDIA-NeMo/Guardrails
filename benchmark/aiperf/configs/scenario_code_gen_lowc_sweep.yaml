@@ -25,7 +25,7 @@ base_config:
 
   use_legacy_max_tokens: true
 
-  input_file: benchmark/datasets/code_gen.jsonl
+  input_file: datasets/code_gen.jsonl
   custom_dataset_type: single_turn
 
   # Synthetic data generation (disabled in favor of real data above)
