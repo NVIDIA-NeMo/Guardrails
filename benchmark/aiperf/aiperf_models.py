@@ -50,6 +50,10 @@ class BaseConfig(BaseModel):
         default=None,
         description="Use max_tokens instead of max_completion_tokens (workaround for servers that do not support max_completion_tokens)",
     )
+    use_server_token_count: Optional[bool] = Field(
+        default=None,
+        description="Use server-reported token counts instead of client-side tokenizer (required for real dataset inputs)",
+    )
 
     # Load generation settings
     warmup_request_count: int = Field(description="Requests to send before beginning performance-test")
