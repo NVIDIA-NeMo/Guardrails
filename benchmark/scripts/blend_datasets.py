@@ -26,7 +26,8 @@ Scenarios and source datasets:
              https://huggingface.co/datasets/lmsys/lmsys-chat-1m
   rag      — MS MARCO V1.1 queries + concatenated passage context to ~4k ISL (Apache 2.0)
   code_gen — DS-1000 real StackOverflow coding problems (Apache 2.0)
-  agent    — StableToolBench tool-use trajectories (Apache 2.0)
+  agent    — NousResearch Hermes function-calling v1 trajectories (Apache 2.0)
+             (StableToolBench migrated to leaderboard-only in 2026)
 
 Unsafe slice (~3% of rows) from HarmBench standard behaviors (MIT).
 Unsafe prompts are blended in so the Content Safety NIM can flag and block them,
@@ -144,7 +145,7 @@ def load_harmbench(rng: random.Random, n: int = 500) -> list[dict]:
     ]
 
     try:
-        ds = hf.load_dataset("walledai/HarmBench", split="train")
+        ds = hf.load_dataset("walledai/HarmBench", "standard", split="train")
         text_field = next(
             (f for f in ("behavior", "prompt", "instruction", "text") if f in ds.column_names),
             None,
@@ -214,8 +215,8 @@ def build_dialog(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> 
 
 def build_rag(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> list[dict]:
     """
-    MS MARCO V1.1 queries + passages concatenated to ~4k ISL.
-    ISL 3000–5000 tokens. OSL: 200 tokens.
+    MS MARCO V1.1 queries + passages concatenated to ~1k ISL.
+    ISL 500–2000 tokens. OSL: 200 tokens.
     License: Apache 2.0.
     """
     hf = _import_datasets()
@@ -227,8 +228,8 @@ def build_rag(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> lis
         print(f"ERROR: failed to load MS MARCO: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    isl_target = 4000  # tokens to aim for
-    isl_min, isl_max = 3000, 5000
+    isl_target = 1000  # tokens to aim for (MS MARCO passages are ~500-1500 tokens)
+    isl_min, isl_max = 500, 2000
     safe_rows: list[dict] = []
     want = target_n * 3
 
@@ -251,7 +252,8 @@ def build_rag(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> lis
                 continue
             p_tokens = approx_tokens(passage)
             if context_tokens + p_tokens > budget:
-                break
+                # Skip oversized passages but keep trying shorter ones.
+                continue
             context_parts.append(passage)
             context_tokens += p_tokens
 
@@ -313,22 +315,22 @@ def build_code_gen(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -
 
 def build_agent(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> list[dict]:
     """
-    StableToolBench tool-use trajectories with tool schemas.
-    ISL 4000–12000 tokens. OSL: 4000 tokens.
+    NousResearch Hermes function-calling trajectories with tool schemas.
+    System turn embeds tool JSON schemas; first user turn adds the query.
+    ISL 1000–12000 tokens. OSL: 4000 tokens.
     License: Apache 2.0.
-    Note: for the unsafe slice, InjecAgent (prompt-injection-into-tool-results) would
-    be more realistic than HarmBench. Swap in load_injecagent() once available on HF.
+    Note: StableToolBench migrated to a leaderboard-only dataset in 2026; replaced here.
     """
     hf = _import_datasets()
-    print("Loading StableToolBench (large dataset — may take a few minutes)...")
+    print("Loading NousResearch/hermes-function-calling-v1...")
 
     try:
-        ds = hf.load_dataset("stabletoolbench/StableToolBench_data", split="train")
+        ds = hf.load_dataset("NousResearch/hermes-function-calling-v1", split="train")
     except Exception as exc:
-        print(f"ERROR: failed to load StableToolBench: {exc}", file=sys.stderr)
+        print(f"ERROR: failed to load hermes-function-calling-v1: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    isl_min, isl_max = 4000, 12000
+    isl_min, isl_max = 1000, 12000
     safe_rows: list[dict] = []
     want = target_n * 3
 
@@ -346,8 +348,7 @@ def build_agent(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> l
 
     if not safe_rows:
         print(
-            "  WARNING: no agent prompts collected — StableToolBench schema may have changed.\n"
-            "  Check column names and update _extract_agent_text().",
+            "  WARNING: no agent prompts collected — dataset schema may have changed.",
             file=sys.stderr,
         )
         return []
@@ -360,34 +361,29 @@ def build_agent(rng: random.Random, target_n: int, unsafe_rows: list[dict]) -> l
 
 def _extract_agent_text(row: dict) -> str | None:
     """
-    Try to reconstruct an agent prompt from a StableToolBench row.
-    The schema has evolved across versions; this tries the most common shapes.
+    Reconstruct an agent prompt from a Hermes function-calling row.
+    Concatenates the system turn (contains tool schemas) and first user turn.
     Returns None if no usable text can be extracted.
     """
-    # Shape 1: 'conversations' list of {from/role, value/content} dicts
     convs = row.get("conversations")
-    if convs and isinstance(convs, list):
-        parts: list[str] = []
-        for turn in convs:
-            if not isinstance(turn, dict):
-                continue
-            role = turn.get("from") or turn.get("role") or ""
-            content = turn.get("value") or turn.get("content") or ""
-            if role in ("system", "human", "user") and content:
-                parts.append(str(content).strip())
-                # Stop accumulating once we have enough context.
-                if approx_tokens("\n\n".join(parts)) >= 4000:
-                    break
-        if parts:
-            return "\n\n".join(parts)
+    if not convs or not isinstance(convs, list):
+        return None
 
-    # Shape 2: flat 'input' or 'instruction' string
-    for field in ("input", "instruction", "prompt", "query"):
-        val = row.get(field)
-        if val and isinstance(val, str) and val.strip():
-            return val.strip()
+    parts: list[str] = []
+    for turn in convs:
+        if not isinstance(turn, dict):
+            continue
+        role = (turn.get("from") or turn.get("role") or "").lower()
+        content = (turn.get("value") or turn.get("content") or "").strip()
+        if not content:
+            continue
+        if role in ("system", "human", "user"):
+            parts.append(content)
+            # System + first user turn is enough for a realistic agent prompt.
+            if role in ("human", "user") and len(parts) >= 2:
+                break
 
-    return None
+    return "\n\n".join(parts) if parts else None
 
 
 # ---------------------------------------------------------------------------

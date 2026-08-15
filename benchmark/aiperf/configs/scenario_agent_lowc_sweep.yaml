@@ -25,11 +25,15 @@ base_config:
 
   use_legacy_max_tokens: true
 
-  random_seed: 12345
-  prompt_input_tokens_mean: 8000
-  prompt_input_tokens_stddev: 100
-  prompt_output_tokens_mean: 4000
-  prompt_output_tokens_stddev: 100
+  input_file: benchmark/datasets/agent.jsonl
+  custom_dataset_type: single_turn
+
+  # Synthetic data generation (disabled in favor of real data above)
+  # random_seed: 12345
+  # prompt_input_tokens_mean: 8000
+  # prompt_input_tokens_stddev: 100
+  # prompt_output_tokens_mean: 4000
+  # prompt_output_tokens_stddev: 100
 
 sweeps:
   concurrency: [1, 2]
