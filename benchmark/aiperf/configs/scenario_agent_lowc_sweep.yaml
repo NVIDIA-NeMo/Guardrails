@@ -25,7 +25,6 @@ base_config:
 
   use_legacy_max_tokens: true
   use_server_token_count: true
-  streaming: true
 
   input_file: datasets/agent.jsonl
   custom_dataset_type: single_turn
