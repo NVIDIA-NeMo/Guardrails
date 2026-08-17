@@ -834,6 +834,25 @@ class TestModelDependencyValidation:
 
         assert compile_rail("llama guard check input", RailDirection.INPUT, deps_with_llama_guard) is not None
 
+    def test_model_validation_is_not_inferred_from_the_parameter_name(self, deps):
+        """An ordinary binding named model_name does not silently become a model dependency."""
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.literal("model_name", "not-a-model-resource"),),
+        )
+
+        assert compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)) is not None
+
+    def test_model_validation_follows_the_declared_resource(self, deps):
+        """A model binding is validated even when its action parameter has another name."""
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.model("threshold_mode", "absent_model"),),
+        )
+
+        with pytest.raises(RailCompilationError, match="absent_model"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
+
 
 class TestMissingOptionalDependencies:
     """A rail whose declared distribution is absent is refused at compile time.

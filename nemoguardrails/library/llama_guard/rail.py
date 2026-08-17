@@ -56,7 +56,7 @@ RAIL = RailManifest(
                 direction=RailDirection.INPUT,
                 action=LLAMA_GUARD_CHECK_INPUT,
                 bindings=(
-                    Binding.literal("model_name", "llama_guard"),
+                    Binding.model("model_name", "llama_guard"),
                     Binding.context("user_message", "user_message"),
                 ),
             ),
@@ -65,7 +65,7 @@ RAIL = RailManifest(
                 direction=RailDirection.OUTPUT,
                 action=LLAMA_GUARD_CHECK_OUTPUT,
                 bindings=(
-                    Binding.literal("model_name", "llama_guard"),
+                    Binding.model("model_name", "llama_guard"),
                     Binding.context("user_message", "user_message", required=False),
                     Binding.context("bot_message", "bot_message"),
                 ),

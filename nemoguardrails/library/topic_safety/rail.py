@@ -53,7 +53,7 @@ RAIL = RailManifest(
                 direction=RailDirection.INPUT,
                 action=TOPIC_SAFETY_CHECK_INPUT,
                 bindings=(
-                    Binding.surface_param("model_name", "model"),
+                    Binding.model_param("model_name", "model"),
                     Binding.context("user_message", "user_message"),
                 ),
             ),

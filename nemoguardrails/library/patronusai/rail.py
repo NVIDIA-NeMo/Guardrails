@@ -64,7 +64,7 @@ RAIL = RailManifest(
                 direction=RailDirection.OUTPUT,
                 action=PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
                 bindings=(
-                    Binding.literal("model_name", "patronus_lynx"),
+                    Binding.model("model_name", "patronus_lynx"),
                     Binding.context("user_message", "user_message"),
                     Binding.context("bot_message", "bot_message"),
                     Binding.context("relevant_chunks", "relevant_chunks"),

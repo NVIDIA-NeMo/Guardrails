@@ -194,10 +194,29 @@ def test_named_model_surfaces_bind_literal_model_names():
     manifests = all_rail_manifests()
 
     for surface in manifests["llama_guard"].surfaces:
-        assert surface.bindings[0] == Binding.literal("model_name", "llama_guard")
+        assert surface.bindings[0] == Binding.model("model_name", "llama_guard")
 
     patronus_surfaces = manifests["patronusai"].surfaces
-    assert patronus_surfaces[0].bindings[0] == Binding.literal("model_name", "patronus_lynx")
+    assert patronus_surfaces[0].bindings[0] == Binding.model("model_name", "patronus_lynx")
+
+
+def test_model_dependent_surfaces_declare_model_bindings():
+    surfaces = default_rail_catalog().surfaces()
+    expected = {
+        (RailDirection.INPUT, "content safety check input"),
+        (RailDirection.OUTPUT, "content safety check output"),
+        (RailDirection.INPUT, "llama guard check input"),
+        (RailDirection.OUTPUT, "llama guard check output"),
+        (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
+        (RailDirection.INPUT, "topic safety check input"),
+    }
+    declared = {
+        surface_key
+        for surface_key, surface in surfaces.items()
+        if any(binding.resource == "model" for binding in surface.bindings)
+    }
+
+    assert declared == expected
 
 
 def test_retrieval_dependent_surfaces_declare_context_inputs():

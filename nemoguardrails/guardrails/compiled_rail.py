@@ -37,6 +37,7 @@ from nemoguardrails.guardrails.telemetry import action_span
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.manifests import (
     Binding,
+    BindingResource,
     RailDirection,
     RailSurface,
     default_rail_catalog,
@@ -136,6 +137,7 @@ class _BoundParameter:
 
     action_param: str
     value: Any
+    resource: Optional[BindingResource] = None
 
 
 @dataclass(frozen=True)
@@ -322,13 +324,13 @@ def _frozen_parameters(surface: RailSurface, params: Mapping[str, str], flow: st
     bound: list[_BoundParameter] = []
     for binding in surface.bindings:
         if binding.kind == "literal":
-            bound.append(_BoundParameter(binding.action_param, binding.value))
+            bound.append(_BoundParameter(binding.action_param, binding.value, binding.resource))
             continue
 
         key = _binding_source_key(binding, flow)
         if binding.kind == "surface_param":
             if key in params:
-                bound.append(_BoundParameter(binding.action_param, params[key]))
+                bound.append(_BoundParameter(binding.action_param, params[key], binding.resource))
             elif binding.required:
                 raise RailCompilationError(f"{flow!r} is missing required parameter ${key}=")
             continue
@@ -469,26 +471,15 @@ def _reject_unaccepted_bindings(
     )
 
 
-# The parameter library actions resolve against ``llms``, by convention: an action needing a
-# model declares ``model_name`` and indexes ``llms[model_name]``.
-_MODEL_NAME_PARAM = "model_name"
-
-
 def _reject_unconfigured_models(bound: tuple[_BoundParameter, ...], deps: RailDependencies, flow: str) -> None:
     """Fail compilation when a rail names a model type the configuration does not declare.
 
-    The live gap is the *literal* binding. ``RailsConfig`` already rejects a ``$model=``
-    naming an undeclared type (``check_model_exists_for_input_rails``), but it finds the model
-    by parsing that suffix — so a rail whose model is baked into the manifest, such as
-    ``llama guard check input``, passes config validation and then fails per request, where
-    the fail-closed envelope reports the missing model as a rail block.
+    Model bindings identify this dependency explicitly. This covers both a configurable
+    ``$model=`` and a model type baked into the manifest without coupling compilation to the
+    action parameter's name.
     """
     missing = sorted(
-        {
-            str(param.value)
-            for param in bound
-            if param.action_param == _MODEL_NAME_PARAM and param.value not in deps.llms
-        }
+        {str(param.value) for param in bound if param.resource == "model" and param.value not in deps.llms}
     )
     if not missing:
         return

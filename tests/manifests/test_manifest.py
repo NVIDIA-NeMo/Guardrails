@@ -147,6 +147,26 @@ def test_binding_source_matches_binding_kind(factory):
         factory()
 
 
+def test_model_bindings_identify_fixed_and_configurable_model_types():
+    assert Binding.model("model_name", "llama_guard") == Binding(
+        kind="literal",
+        action_param="model_name",
+        value="llama_guard",
+        resource="model",
+    )
+    assert Binding.model_param("model_name", "model") == Binding(
+        kind="surface_param",
+        action_param="model_name",
+        key="model",
+        resource="model",
+    )
+
+
+def test_model_binding_rejects_request_context_as_its_source():
+    with pytest.raises(ValidationError, match="cannot read the model type"):
+        Binding(kind="context", action_param="model_name", key="model", resource="model")
+
+
 def test_surface_rejects_duplicate_action_parameter_bindings():
     with pytest.raises(ValidationError, match="more than once"):
         RailSurface(
