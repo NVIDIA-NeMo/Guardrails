@@ -259,6 +259,32 @@ class TestStream:
         assert results[2].usage.total_tokens == 7
 
     @pytest.mark.asyncio
+    async def test_usage_on_final_content_chunk(self):
+        mc = _mock_client()
+
+        async def mock_stream(*args, **kwargs):
+            yield HTTPResponse(
+                body={
+                    "id": "chatcmpl-123",
+                    "model": "gpt-4o",
+                    "choices": [{"index": 0, "delta": {"content": "Hello"}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+                }
+            )
+
+        mc.stream_chat_completion = mock_stream
+        m = _model(mc)
+
+        results = [chunk async for chunk in m.stream_async("Hi")]
+
+        assert len(results) == 1
+        assert results[0].delta_content == "Hello"
+        assert results[0].finish_reason == "stop"
+        assert results[0].usage.input_tokens == 5
+        assert results[0].usage.output_tokens == 1
+        assert results[0].usage.total_tokens == 6
+
+    @pytest.mark.asyncio
     async def test_tool_call_accumulation(self):
         mc = _mock_client()
 
