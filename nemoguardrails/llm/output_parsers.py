@@ -154,20 +154,20 @@ def nemoguard_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
     Returns:
         Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict.
     """
     try:
         # try parsing it as json
         parsed_json_result = json.loads(response)
-        assert "User Safety" in parsed_json_result
         result = parsed_json_result["User Safety"].lower()
         if "Safety Categories" in parsed_json_result:
             safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
-    except Exception:
-        # If there is an error, and we can't parse the response, we return unsafe assuming this is a potential jailbreaking attempt
-        result = "unsafe"
-        safety_categories = ["JSON parsing failed"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Failed to parse content safety model response") from exc
 
     is_safe = result == "safe"
     if is_safe:
@@ -193,20 +193,20 @@ def nemoguard_parse_response_safety(response: str) -> Sequence[Union[bool, str]]
     Returns:
         Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
+
+    Raises:
+        ValueError: If the model response cannot be parsed as a content safety verdict.
     """
     try:
         # try parsing it as json
         parsed_json_result = json.loads(response)
-        assert "Response Safety" in parsed_json_result
         result = parsed_json_result["Response Safety"].lower()
         if "Safety Categories" in parsed_json_result:
             safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
-    except Exception:
-        # If there is an error, and we can't parse the response, we return unsafe assuming this is a potential jailbreaking attempt
-        result = "unsafe"
-        safety_categories = ["JSON parsing failed"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+        raise ValueError("Failed to parse content safety model response") from exc
 
     is_safe = result == "safe"
     if is_safe:

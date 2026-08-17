@@ -206,24 +206,18 @@ class TestContentSafetyParserIntegration:
         assert result.metadata["policy_violations"] == expected_violations
 
     @pytest.mark.asyncio
-    async def test_content_safety_input_with_nemoguard_parser_json_parsing_failed(
-        self,
-    ):
-        """Test input action with nemoguard_parse_prompt_safety parser; JSON parsing failure."""
-        invalid_json = '{"invalid": json}'
-        parsed_result = nemoguard_parse_prompt_safety(invalid_json)
-        llms, mock_task_manager = _create_mock_setup([invalid_json], parsed_result)
+    async def test_content_safety_input_propagates_parser_error(self):
+        llms, mock_task_manager = _create_mock_setup([""], None)
+        mock_task_manager.parse_task_output.side_effect = lambda task, output: nemoguard_parse_prompt_safety(output)
         context = _create_input_context("Some content")
 
-        result = await content_safety_check_input(
-            llms=llms,
-            llm_task_manager=mock_task_manager,
-            model_name="test_model",
-            context=context,
-        )
-
-        assert result.is_blocked is True
-        assert result.metadata["policy_violations"] == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            await content_safety_check_input(
+                llms=llms,
+                llm_task_manager=mock_task_manager,
+                model_name="test_model",
+                context=context,
+            )
 
 
 class TestIterableUnpackingIntegration:
@@ -261,12 +255,11 @@ class TestIterableUnpackingIntegration:
                 False,
                 ["Violence", "Hate"],
             ),
-            ("invalid json", False, ["JSON parsing failed"]),
         ],
     )
     def test_iterable_unpacking_with_nemoguard_outputs(self, json_response, expected_safe, expected_violations):
         """Test iterable unpacking directly with real NemoGuard parser outputs."""
-        if "User Safety" in json_response or json_response == "invalid json":
+        if "User Safety" in json_response:
             result = nemoguard_parse_prompt_safety(json_response)
         else:
             result = nemoguard_parse_response_safety(json_response)
