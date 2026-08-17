@@ -25,6 +25,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.rail_outcome import RailOutcome
+from nemoguardrails.guardrails.compiled_rail import RailDependencies, compile_rail
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
     content_safety_check_output,
@@ -36,6 +38,7 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_reasoning_parse_prompt_safety,
     nemotron_reasoning_parse_response_safety,
 )
+from nemoguardrails.manifests import RailDirection
 from tests.utils import FakeLLMModel, TestChat
 
 
@@ -205,19 +208,40 @@ class TestContentSafetyParserIntegration:
         assert result.is_blocked == (not expected_allowed)
         assert result.metadata["policy_violations"] == expected_violations
 
+    @pytest.mark.parametrize(
+        ("action", "parser", "context"),
+        [
+            (content_safety_check_input, nemoguard_parse_prompt_safety, _create_input_context("Some content")),
+            (content_safety_check_output, nemoguard_parse_response_safety, _create_output_context()),
+        ],
+        ids=["input", "output"],
+    )
     @pytest.mark.asyncio
-    async def test_content_safety_input_propagates_parser_error(self):
+    async def test_content_safety_action_propagates_parser_error(self, action, parser, context):
         llms, mock_task_manager = _create_mock_setup([""], None)
-        mock_task_manager.parse_task_output.side_effect = lambda task, output: nemoguard_parse_prompt_safety(output)
-        context = _create_input_context("Some content")
+        mock_task_manager.parse_task_output.side_effect = lambda task, output: parser(output)
 
         with pytest.raises(ValueError, match="Failed to parse content safety model response"):
-            await content_safety_check_input(
+            await action(
                 llms=llms,
                 llm_task_manager=mock_task_manager,
                 model_name="test_model",
                 context=context,
             )
+
+    @pytest.mark.asyncio
+    async def test_content_safety_parser_error_fails_closed_through_compiled_rail(self):
+        llms, mock_task_manager = _create_mock_setup([""], None)
+        mock_task_manager.parse_task_output.side_effect = lambda task, output: nemoguard_parse_prompt_safety(output)
+        dependencies = RailDependencies(llms=llms, llm_task_manager=mock_task_manager, config=MagicMock())
+
+        outcome = await compile_rail(
+            "content safety check input $model=test_model", RailDirection.INPUT, dependencies
+        ).run([{"role": "user", "content": "Some content"}])
+
+        assert outcome == RailOutcome.block(
+            reason="content safety check input error: Failed to parse content safety model response"
+        )
 
 
 class TestIterableUnpackingIntegration:
