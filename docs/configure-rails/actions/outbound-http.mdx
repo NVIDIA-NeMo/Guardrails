@@ -47,6 +47,8 @@ The client argument determines ownership for each call:
 
 The `None` fallback is safe and deterministic. Inject a shared client for applications that make repeated requests and benefit from connection-pool reuse.
 
+A runtime can own one shared pooled client, pass it to every action that declares `http_client`, and close it when the runtime stops. The action signature is the injection contract; rail manifests do not declare whether the runtime should allocate a transport.
+
 Create and close a shared client at the same application-lifecycle boundary:
 
 ```python
