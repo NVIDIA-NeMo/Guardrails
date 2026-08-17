@@ -45,8 +45,8 @@ def ensure_retrying_http_client(client: HTTPClient, policy: RetryPolicy) -> Clos
     if retrying_client is None:
         retrying_client = RetryingHTTPClient(wrapped_client, policy)
     else:
-        retrying_client = retrying_client.with_wrapped_client(wrapped_client)
+        retrying_client = retrying_client._with_wrapped_client(wrapped_client)
 
     if instrumented_client is None:
         return retrying_client
-    return instrumented_client.with_wrapped_client(retrying_client)
+    return instrumented_client._with_wrapped_client(retrying_client)

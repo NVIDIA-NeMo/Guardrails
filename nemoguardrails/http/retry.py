@@ -152,7 +152,7 @@ class RetryingHTTPClient:
         """Return the underlying client."""
         return self._client
 
-    def with_wrapped_client(self, client: HTTPClient) -> "RetryingHTTPClient":
+    def _with_wrapped_client(self, client: HTTPClient) -> "RetryingHTTPClient":
         """Apply the current retry settings to another client."""
         if client is self._client:
             return self
