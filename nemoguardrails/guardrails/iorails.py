@@ -1873,7 +1873,7 @@ class IORails(BaseGuardrails):
                 include_metadata,
             )
 
-        def _mark_rail_error(exc):
+        def _mark_rail_error(exc, first_completed, cancellation_event):
             """A rail raised: report an infrastructure failure, not a refusal.
 
             ``first_rejector`` stays ``none`` because nothing rejected the
@@ -1885,9 +1885,9 @@ class IORails(BaseGuardrails):
             outage and a generation outage are indistinguishable to the client.
             """
             spec_stats["rail_error"] = exc
-            spec_stats["first_completed"] = input_rails
+            spec_stats["first_completed"] = first_completed
             spec_stats["first_rejector"] = none_value
-            spec_stats["cancellation_event"] = GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION
+            spec_stats["cancellation_event"] = cancellation_event
             spec_stats["output_rails_wasted_chunks"] = len(held)
             spec_stats["safe"] = False
             return _frame_for_stream(build_streaming_error_payload(exc), include_metadata)
@@ -1955,7 +1955,11 @@ class IORails(BaseGuardrails):
 
                 if isinstance(input_result, _RailFailure):
                     log.error("[%s] Input rails failed (speculative streaming)", req_id)
-                    error_chunk = _mark_rail_error(input_result.exc)
+                    error_chunk = _mark_rail_error(
+                        input_result.exc,
+                        first_completed,
+                        GuardrailsAttributes.SPECULATIVE_CANCELLATION_GENERATION,
+                    )
                     held.clear()
                     yield error_chunk
                     return
@@ -1987,7 +1991,8 @@ class IORails(BaseGuardrails):
                 input_result, input_param = await input_task
                 if isinstance(input_result, _RailFailure):
                     log.error("[%s] Input rails failed (speculative streaming, gen-first)", req_id)
-                    error_chunk = _mark_rail_error(input_result.exc)
+                    # Generation already completed, so nothing is cancelled here.
+                    error_chunk = _mark_rail_error(input_result.exc, generation, none_value)
                     held.clear()
                     yield error_chunk
                     return

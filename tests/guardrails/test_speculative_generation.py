@@ -869,6 +869,26 @@ class TestSpeculativeStreamingTelemetry:
         assert attrs["speculative_generation.cancellation_event"] == "input_rails_cancelled"
 
     @pytest.mark.asyncio
+    async def test_streaming_gen_first_rail_error_span_attrs(self, iorails_spec_stream_tracing, span_exporter):
+        """A rail raising *after* the stream ended: generation completed first
+        and nothing was cancelled, so neither may be reported as if the verdict
+        had landed mid-stream."""
+
+        async def _slow_raise(messages, *, enabled=True):
+            await asyncio.sleep(0.15)
+            raise RuntimeError("boom")
+
+        _wire_stream(iorails_spec_stream_tracing, stream=_token_stream(delay=0.0))
+        iorails_spec_stream_tracing.rails_manager.is_input_safe = _slow_raise
+        await asyncio.wait_for(_collect(iorails_spec_stream_tracing.stream_async(MESSAGES)), timeout=3.0)
+
+        attrs = await self._request_attrs(span_exporter)
+        assert attrs["speculative_generation.first_completed"] == "generation"
+        assert attrs["speculative_generation.cancellation_event"] == "none"
+        # An outage is not a rejection, so no branch is named as the rejector.
+        assert attrs["speculative_generation.first_rejector"] == "none"
+
+    @pytest.mark.asyncio
     async def test_release_queue_attrs_recorded_when_buffer_fills(self, test_tracer, span_exporter):
         """Overflow path: the held buffer's size and hold time are both recorded."""
         cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_STREAMING_SMALL_BUFFER_CONFIG)
