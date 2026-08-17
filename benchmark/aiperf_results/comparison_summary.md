@@ -570,6 +570,139 @@ IORails agent c=256: 1,097 errors; code_gen c=256: 1,906 errors. LLMRails: essen
 
 ---
 
+## Scenario Sweeps v5 (2026-08-15, 300s per level; lowc 1200s) ← latest
+**Hardware:** 8× H100 80GB (Brev node brev-sax6j9j37)
+**NIMs:** 6× Nemotron 3 Nano 2.0.10 (GPUs 0–5, ports 8010–8015, nginx → port 8000) + 2× Nemotron 3.5 Content Safety 2.0.5-variant (GPUs 6–7, ports 8001–8002, nginx → port 8003)
+**Guardrails:** branch dev/schilton/iorails-vs-llmrails-benchmarking (tip 988757da3)
+**Key changes vs v4:**
+- Real-world datasets wired into aiperf via `--input-file` / `--custom-dataset-type single_turn` (v4 inadvertently used synthetic token distributions)
+- Datasets regenerated: dialog (LMSYS-Chat-1M CC BY-NC, ISL 50–300 tok), rag (MS MARCO v1.1 Apache-2.0, ISL 500–2,000 tok), code_gen (DS-1000 Apache-2.0), agent (NousResearch/hermes-function-calling-v1 Apache-2.0; StableToolBench migrated to leaderboard-only)
+- `use_server_token_count: true` — client-side tokenizer bypassed; server reports token counts
+- RAG ISL target corrected from 4,000 tok (synthetic) to ~1,000 tok (actual MS MARCO distribution)
+
+**Streaming sweep attempted but failed** — Guardrails server rejects all streaming requests unconditionally; TTFT/ITL metrics not available. Filed as a separate blocker.
+
+---
+
+### Dialog (LMSYS-Chat-1M real data, ISL ~100 tok / OSL 100 tok)
+
+Zero IORails errors across all concurrency levels. Blog-ready.
+
+| Concurrency | LLMRails req/s | LLMRails P50 (ms) | LLMRails P99 (ms) | LLM err | IORails req/s | IORails P50 (ms) | IORails P99 (ms) | IO err | IOR/LLM tput |
+|-------------|---------------|-------------------|-------------------|---------|--------------|------------------|------------------|--------|--------------|
+|           1 |          2.294 |             516 |             543 |       1 |         2.582 |            462 |            474 |      0 |         1.1× |
+|           2 |          4.380 |             526 |             625 |       3 |         5.150 |            460 |            486 |      0 |         1.2× |
+|           4 |          7.497 |             586 |             986 |       4 |         9.944 |            472 |            505 |      0 |         1.3× |
+|           8 |         11.807 |             729 |           1,234 |       8 |        18.204 |            504 |            592 |      0 |         1.5× |
+|          16 |         14.753 |           1,139 |           1,967 |       8 |        29.824 |            614 |            752 |      0 |         2.0× |
+|          32 |         14.387 |           2,478 |           3,700 |       9 |        42.409 |            859 |          1,071 |      0 |         2.9× |
+|          64 |         15.808 |           3,683 |          10,729 |       9 |        56.378 |          1,298 |          1,645 |      0 |         3.6× |
+|         128 |         15.632 |           7,339 |          22,093 |      10 |        88.697 |          1,631 |          2,133 |      0 |         5.7× |
+|         256 |         14.989 |          14,782 |          48,715 |      10 |       105.248 |          2,866 |          3,280 |      0 |     **7.0×** |
+
+**IORails peak:** 105.2 req/s @ c=256 vs LLMRails 15.8 req/s @ c=64 → **6.66× throughput**. P99 at c=256: IORails 3.3s vs LLMRails 48.7s → **−93%** (14.85×). IORails scales continuously through c=256 with zero errors.
+
+**v4 comparison:** v4 dialog was 6.6×; v5 is 6.66× — near-identical. Real-data dialog workload confirms synthetic result. High confidence.
+
+---
+
+### RAG (MS MARCO v1.1 real data, ISL ~1,000 tok / OSL 200 tok)
+
+Note: v4 used synthetic 4,000-token RAG prompts; v5 uses real MS MARCO queries + passages (actual distribution: ISL 500–2,000 tok, median ~1,000 tok). This explains the throughput ratio change vs v4.
+
+| Concurrency | LLMRails req/s | LLMRails P50 (ms) | LLMRails P99 (ms) | LLM err | IORails req/s | IORails P50 (ms) | IORails P99 (ms) | IO err | IOR/LLM tput |
+|-------------|---------------|-------------------|-------------------|---------|--------------|------------------|------------------|--------|--------------|
+|           1 |          1.166 |             899 |             912 |       1 |         1.294 |            824 |            832 |      0 |         1.1× |
+|           2 |          2.278 |             905 |           1,021 |       1 |         2.608 |            824 |            850 |      0 |         1.1× |
+|           4 |          4.192 |             968 |           1,240 |       1 |         5.130 |            828 |            873 |      0 |         1.2× |
+|           8 |          7.323 |           1,101 |           1,526 |       1 |         9.198 |            877 |          1,185 |      0 |         1.3× |
+|          16 |          9.664 |           1,614 |           3,836 |       1 |        14.868 |          1,133 |          1,328 |      0 |         1.5× |
+|          32 |         10.660 |           2,910 |           5,689 |       1 |        21.970 |          1,515 |          1,942 |      0 |         2.1× |
+|          64 |         10.739 |           6,120 |          10,965 |       1 |        29.201 |          2,256 |          3,092 |      0 |         2.7× |
+|         128 |         11.235 |          10,326 |          26,765 |       2 |        40.301 |          3,320 |          4,030 |      0 |     **3.6×** |
+|     256 ⚠  |         10.714 |          24,612 |          35,172 |      21 |        39.937 |          6,571 |          7,756 |      0 |         3.7× |
+
+**IORails peak:** 40.3 req/s @ c=128 vs LLMRails 11.2 req/s @ c=128 → **3.59× throughput**. P99 at c=128: IORails 4.0s vs LLMRails 26.8s → **6.64× lower**. Both engines plateau at c=128; neither benefits from c=256. LLMRails accumulates 21 errors at c=256 (IORails: 0).
+
+**v4 comparison: 7.4× → 3.59% — significant drop.** Real MS MARCO queries are shorter and more uniform than the synthetic 4,000-token prompts used in v4 (actual median ~1,000 tok vs synthetic 4,000 tok). Shorter, more uniform input reduces the queuing pressure that IORails resolves, narrowing the gap. This is the correct real-world figure.
+
+---
+
+### Code Generation (DS-1000 real data, ISL ~200–800 tok / OSL 2,000 tok)
+
+c=1 and c=2 from `_lowc` directories (1200s runs). c=256 IORails excluded — 1,741 errors.
+
+| Concurrency | LLMRails req/s | LLMRails P50 (ms) | LLMRails P99 (ms) | LLM err | IORails req/s | IORails P50 (ms) | IORails P99 (ms) | IO err | IOR/LLM tput |
+|-------------|---------------|-------------------|-------------------|---------|--------------|------------------|------------------|--------|--------------|
+|          1* |          0.228 |           4,426 |           6,552 |       0 |         0.220 |          4,691 |          6,427 |      0 |         1.0× |
+|          2* |          0.439 |           4,683 |           6,562 |       0 |         0.436 |          4,706 |          6,428 |      0 |         1.0× |
+|           4 |          0.889 |           4,485 |           6,745 |       0 |         0.841 |          5,028 |          6,944 |      0 |         0.9× |
+|           8 |          1.605 |           4,896 |           7,628 |       0 |         1.547 |          5,489 |          7,712 |      0 |         1.0× |
+|          16 |          2.699 |           5,895 |           9,761 |       0 |         2.667 |          6,240 |          9,345 |      0 |         1.0× |
+|          32 |          4.043 |           7,963 |          13,031 |       0 |         4.034 |          8,078 |         12,214 |      0 |         1.0× |
+|          64 |          5.617 |          11,327 |          19,554 |       1 |         5.762 |         11,215 |         16,463 |      0 |         1.0× |
+|         128 |          7.230 |          17,229 |          33,716 |       4 |         7.697 |         16,435 |         24,061 |      0 |     **+6%** |
+|     256 ⚠  |          7.618 |          30,138 |          64,725 |      12 |         7.940 |         20,499 |         34,470 |  1,741 |      suspect |
+
+**Clean operating point: c=128.** IORails 7.7 req/s vs LLMRails 7.2 req/s → **+6% throughput, −29% P99**. Engines are at parity for output-dominated workloads; LLM inference time dominates. Do not use IORails c=256 (1,741 errors — backend saturation).
+
+---
+
+### Code Generation — Low Concurrency (1200s runs)
+
+| Concurrency | LLMRails req/s | LLMRails count | LLMRails P50 (ms) | IORails req/s | IORails count | IORails P50 (ms) |
+|-------------|---------------|---------------|-------------------|--------------|--------------|------------------|
+|           1 |          0.228 |           274 |           4,426 |         0.220 |          264 |          4,691 |
+|           2 |          0.439 |           528 |           4,683 |         0.436 |          524 |          4,706 |
+
+Near-identical at low concurrency — LLM dominates completely.
+
+---
+
+### Agent (Hermes function-calling real data, ISL ~1,000–12,000 tok / OSL 4,000 tok)
+
+c=1 and c=2 from `_lowc` directories (1200s runs). IORails error onset at c=64; significant errors at c=128+.
+
+**Note:** Agent dataset changed from StableToolBench (v4, ~8,000 tok ISL) to NousResearch/hermes-function-calling-v1 (v5, ISL 1,000–12,000 tok). Output size discrepancy present: IORails generates ~35% more tokens at low concurrency vs LLMRails, suggesting different generation behavior between engines for this dataset. This is the same pattern investigated in v4 but now with a different dataset.
+
+| Concurrency | LLMRails req/s | LLMRails P50 (ms) | LLMRails P99 (ms) | LLM err | IORails req/s | IORails P50 (ms) | IORails P99 (ms) | IO err | IOR/LLM tput |
+|-------------|---------------|-------------------|-------------------|---------|--------------|------------------|------------------|--------|--------------|
+|          1* |          0.393 |           2,212 |           9,496 |       0 |         0.341 |          2,443 |         12,449 |      0 |         0.9× |
+|          2* |          0.801 |           2,131 |           9,062 |       0 |         0.635 |          2,511 |         12,672 |      0 |         0.8× |
+|           4 |          1.496 |           2,282 |          10,097 |       0 |         1.308 |          2,508 |         13,205 |      0 |         0.9× |
+|           8 |          2.650 |           2,524 |          12,300 |       0 |         2.267 |          2,744 |         15,363 |      0 |         0.9× |
+|          16 |          4.453 |           3,033 |          14,404 |       1 |         3.719 |          3,305 |         18,945 |      0 |         0.8× |
+|          32 |          6.118 |           4,430 |          20,494 |       1 |         5.844 |          4,116 |         24,252 |      0 |         1.0× |
+|      64 ⚠  |          6.731 |           8,714 |          23,906 |       1 |         8.374 |          5,700 |         27,956 |     61 |         1.2× |
+|     128 ⚠  |          6.876 |          17,707 |          35,665 |       9 |        11.128 |          9,104 |         27,467 |    159 |         1.6× |
+|     256 ⚠  |          6.830 |          34,853 |          57,924 |      14 |        10.783 |         15,382 |         35,227 |  1,108 |         1.6× |
+
+**LLMRails wins at c=1–c=32 (clean operating points, zero errors both engines).** IORails takes the throughput lead at c=64+ but with significant error rates (61–1,108). Last clean parity point: c=32 (6.12 vs 5.84 req/s, ~1.05× LLMRails). Agent scenario requires Tim's diagnosis of IORails error onset and output-size discrepancy before blog use.
+
+---
+
+### v5 Pre-Blog Investigation Items
+
+**1. RAG throughput ratio drop (7.4× → 3.59×) — informational, not a blocker**
+Real MS MARCO ISL (~1,000 tok median) is substantially shorter than the v4 synthetic prompts (4,000 tok). Shorter, more uniform inputs reduce the IORails queuing advantage. The 3.59× figure is the correct real-world RAG result. Recommend updating blog copy accordingly.
+
+**2. Agent IORails error onset at c=64 (blocker)**
+Same pattern as v4 — IORails dispatches more requests than LLMRails, eventually saturating the NIM pool. Agent output-size discrepancy (IORails generates ~35% more tokens at low concurrency) persists from v4 with a different dataset, suggesting it is an engine-level behavior, not a dataset artifact. Pending Tim's diagnosis.
+
+**3. Code Gen IORails c=256 saturation (informational)**
+1,741 IORails errors at c=256; c=128 is the reliable operating point. Same as v4.
+
+**4. Streaming metrics unavailable**
+Guardrails server rejects all streaming requests unconditionally (api.py:625 — condition fires for any streaming request regardless of tools). TTFT/ITL cannot be measured without a server-side fix.
+
+**v5 blog-ready results:**
+- **Dialog:** 6.66× throughput, −93% P99 at c=256. Confirmed with real data. Zero IORails errors.
+- **RAG:** 3.59× throughput, −85% P99 at c=128. Real-world figure (lower than v4 synthetic due to shorter real ISL).
+- **Code Gen:** ~1.06× throughput at c=128, −29% P99. Parity scenario. Exclude IORails c=256.
+- **Agent:** Hold. IORails error onset + output-size discrepancy pending diagnosis.
+
+---
+
 ## Methodology notes
 - OSL classification thresholds (1–5 = overload, 6–20 = blocked, >20 = safe) were validated against the OSL distribution: no records fall in the 12–20 range, confirming a clean natural separator
 - RAG/Agent cross-engine block rate comparisons are not reliable: aiperf regenerates the input corpus independently for each engine run, so different Shakespeare passages are sampled
