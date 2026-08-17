@@ -26,11 +26,21 @@ from unittest import mock
 
 import httpx
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import TypeAdapter, ValidationError
 from pytest_httpx import HTTPXMock
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.http import HTTPConnectionError, HTTPResponse, HTTPTimeoutError
+from nemoguardrails.http import (
+    HTTPConnectionError,
+    HTTPResponse,
+    HTTPTimeoutError,
+    InstrumentedHTTPClient,
+    RetryingHTTPClient,
+    RetryPolicy,
+)
 from nemoguardrails.library.hf_classifier import backends as backends_mod
 from nemoguardrails.library.hf_classifier.actions import (
     _classify_and_check,
@@ -103,6 +113,14 @@ def _clear_caches():
     backends_mod._ssl_cache.clear()
     backends_mod._warned_env_vars.clear()
     backends_mod._backend_instances.clear()
+
+
+@pytest.fixture
+def http_otel():
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider.get_tracer("test"), exporter
 
 
 class TestConfig:
@@ -331,6 +349,106 @@ class TestVLLMBackend:
 
         assert result == [ClassificationResult(label="safe", score=0.95)]
         assert len(client.requests) == 2
+
+    @pytest.mark.asyncio
+    async def test_injected_instrumented_client_observes_all_retry_attempts(self, http_otel):
+        tracer, exporter = http_otel
+        transport = RecordingHTTPClient(
+            [
+                HTTPTimeoutError("timeout"),
+                HTTPResponse(
+                    status_code=200,
+                    content=b'{"data":[{"label":"safe","probs":[0.95]}]}',
+                ),
+            ]
+        )
+        client = InstrumentedHTTPClient(transport, tracer)
+        backend = VLLMBackend(
+            _remote(engine="vllm", base_url="http://vllm:8000"),
+            http_client=client,
+        )
+
+        result = await backend.classify("text")
+
+        assert result == [ClassificationResult(label="safe", score=0.95)]
+        assert len(transport.requests) == 2
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].attributes["http.request.resend_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_injected_retry_policy_is_not_compounded(self, http_otel):
+        tracer, exporter = http_otel
+        transport = RecordingHTTPClient(
+            [
+                HTTPTimeoutError("first timeout"),
+                HTTPTimeoutError("second timeout"),
+                HTTPResponse(
+                    status_code=200,
+                    content=b'{"data":[{"label":"safe","probs":[0.95]}]}',
+                ),
+            ]
+        )
+        retrying = RetryingHTTPClient(
+            transport,
+            RetryPolicy(
+                max_attempts=2,
+                retryable_methods=frozenset({"POST"}),
+                retryable_status_codes=frozenset(),
+                initial_delay=0,
+                max_delay=0,
+            ),
+        )
+        client = InstrumentedHTTPClient(retrying, tracer)
+        backend = VLLMBackend(
+            _remote(engine="vllm", base_url="http://vllm:8000"),
+            http_client=client,
+        )
+
+        with pytest.raises(HTTPTimeoutError, match="second timeout"):
+            await backend.classify("text")
+
+        assert len(transport.requests) == 2
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].attributes["http.request.resend_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_injected_retrying_instrumented_client_is_normalized(self, http_otel):
+        tracer, exporter = http_otel
+        transport = RecordingHTTPClient(
+            [
+                HTTPTimeoutError("first timeout"),
+                HTTPTimeoutError("second timeout"),
+                HTTPResponse(
+                    status_code=200,
+                    content=b'{"data":[{"label":"safe","probs":[0.95]}]}',
+                ),
+            ]
+        )
+        instrumented = InstrumentedHTTPClient(transport, tracer)
+        client = RetryingHTTPClient(
+            instrumented,
+            RetryPolicy(
+                max_attempts=3,
+                retryable_methods=frozenset({"POST"}),
+                retryable_status_codes=frozenset(),
+                initial_delay=0,
+                max_delay=0,
+            ),
+        )
+        backend = VLLMBackend(
+            _remote(engine="vllm", base_url="http://vllm:8000"),
+            http_client=client,
+        )
+
+        result = await backend.classify("text")
+
+        assert result == [ClassificationResult(label="safe", score=0.95)]
+        assert len(transport.requests) == 3
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].attributes["http.request.resend_count"] == 2
 
 
 class TestKServeBackend:
