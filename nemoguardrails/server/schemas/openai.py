@@ -21,7 +21,7 @@ from typing import Annotated, Any, List, Literal, Optional, Union
 from openai.types.chat.chat_completion import ChatCompletion
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.rails.llm.options import GenerationOptions, RailType
 
 
 class GuardrailsDataOutput(BaseModel):
@@ -195,11 +195,20 @@ class OpenAIModelsList(BaseModel):
     data: list[OpenAIModel] = Field(..., description="List of OpenAI model objects.")
 
 
+class GuardrailCheckDataInput(GuardrailsDataInput):
+    """Guardrails input options specific to the /v1/checks endpoint."""
+
+    rail_types: Optional[List[RailType]] = Field(
+        default=None,
+        description="Rail types to run. When omitted, auto-detected from message roles.",
+    )
+
+
 class GuardrailCheckRequest(OpenAIChatCompletionRequest):
     """Request body for the /v1/checks endpoint."""
 
-    guardrails: GuardrailsDataInput = Field(
-        default_factory=GuardrailsDataInput,
+    guardrails: GuardrailCheckDataInput = Field(
+        default_factory=GuardrailCheckDataInput,
         description="Guardrails specific options for the request.",
     )
 

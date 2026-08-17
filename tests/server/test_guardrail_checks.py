@@ -20,7 +20,7 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails.rails.llm.options import RailsResult, RailStatus
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
 from nemoguardrails.server import api
 
 client = TestClient(api.app)
@@ -247,3 +247,45 @@ def test_context_prepended_to_messages():
     messages = call_args.kwargs.get("messages") or call_args[0][0]
     assert messages[0]["role"] == "context"
     assert messages[0]["content"] == {"topic": "science"}
+
+
+@pytest.mark.parametrize(
+    "rail_types_input, expected",
+    [
+        (["input"], [RailType.INPUT]),
+        (["output"], [RailType.OUTPUT]),
+        (["input", "output"], [RailType.INPUT, RailType.OUTPUT]),
+        (None, None),
+    ],
+)
+def test_rail_types_passed_through(rail_types_input, expected):
+    result = RailsResult(status=RailStatus.PASSED, content="hi")
+    mock = _mock_rails(result)
+
+    guardrails = {"config_id": "test"}
+    if rail_types_input is not None:
+        guardrails["rail_types"] = rail_types_input
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(
+            {
+                "model": "test",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": guardrails,
+            }
+        )
+
+    assert resp.status_code == 200
+    mock.check_async.assert_called_once()
+    assert mock.check_async.call_args.kwargs["rail_types"] == expected
+
+
+def test_rail_types_invalid_value_returns_422():
+    resp = _post(
+        {
+            "model": "test",
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {"config_id": "test", "rail_types": ["invalid"]},
+        }
+    )
+    assert resp.status_code == 422
