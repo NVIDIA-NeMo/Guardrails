@@ -16,7 +16,7 @@
 import pytest
 
 from nemoguardrails.context import reasoning_trace_var
-from nemoguardrails.llm.call import _store_reasoning_traces
+from nemoguardrails.llm.call import _store_reasoning_traces, llm_call
 from nemoguardrails.types import LLMResponse
 from tests.utils import FakeLLMModel
 
@@ -132,8 +132,6 @@ class TestReasoningTraceIntegration:
 
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="The answer is 42", reasoning=test_reasoning)])
 
-        from nemoguardrails.actions.llm.utils import llm_call
-
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "What is the answer?")
 
@@ -146,8 +144,6 @@ class TestReasoningTraceIntegration:
     @pytest.mark.asyncio
     async def test_llm_call_handles_missing_reasoning_content(self):
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Regular response")])
-
-        from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "Hello")
@@ -163,8 +159,6 @@ class TestReasoningTraceIntegration:
         test_reasoning = "Analyzing the conversation context..."
 
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Here's my response", reasoning=test_reasoning)])
-
-        from nemoguardrails.actions.llm.utils import llm_call
 
         messages = [
             {"role": "user", "content": "Hello"},
@@ -192,8 +186,6 @@ class TestReasoningTraceIntegration:
             ]
         )
 
-        from nemoguardrails.actions.llm.utils import llm_call
-
         reasoning_trace_var.set(None)
         result1 = await llm_call(fake_llm, "First query")
         trace1 = reasoning_trace_var.get()
@@ -213,8 +205,6 @@ class TestReasoningTraceIntegration:
 
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Response", reasoning=test_reasoning)])
 
-        from nemoguardrails.actions.llm.utils import llm_call
-
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "Query")
 
@@ -229,8 +219,6 @@ class TestReasoningTraceIntegration:
         test_reasoning = "Let me analyze this step by step"
 
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content=f"<think>{test_reasoning}</think>The answer is 42")])
-
-        from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "What is the answer?")
@@ -256,8 +244,6 @@ class TestReasoningTraceIntegration:
             ]
         )
 
-        from nemoguardrails.actions.llm.utils import llm_call
-
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "Query")
 
@@ -277,8 +263,6 @@ Step 3: Formulate the answer"""
             llm_responses=[LLMResponse(content=f"<think>{multiline_reasoning}</think>Final answer")]
         )
 
-        from nemoguardrails.actions.llm.utils import llm_call
-
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "Question")
 
@@ -292,8 +276,6 @@ Step 3: Formulate the answer"""
     @pytest.mark.asyncio
     async def test_llm_call_handles_incomplete_think_tags(self):
         fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="<think>This is incomplete")])
-
-        from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
         result = await llm_call(fake_llm, "Query")
