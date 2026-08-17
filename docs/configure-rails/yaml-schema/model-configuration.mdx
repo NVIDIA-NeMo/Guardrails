@@ -317,3 +317,45 @@ Header values must be strings; a bare numeric or boolean value in YAML, such as 
 Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_headers` in a checked-in `config.yml`.
 
 This behavior is the same for both the IORails and LLMRails engines.
+
+### Model-Level Query Parameters
+
+Set `parameters.default_query` to attach query-string parameters to every request a model sends to its provider endpoint.
+This is useful for API versioning, multi-tenant routing, or trace correlation when the provider or gateway reads the query string rather than the headers.
+Query parameters are configured per model: each model sends only the parameters declared in its own `parameters` block, so a parameter you want on several models must be repeated under each one.
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      default_query:
+        tenant: acme-corp
+        routing-pool: main-llm
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      default_query:
+        tenant: acme-corp
+        routing-pool: safety-pool
+```
+
+The configured parameters are appended to the chat-completions URL, so the main model above posts to `/v1/chat/completions?tenant=acme-corp&routing-pool=main-llm`.
+Configured parameters appear only in the URL and never in the request body.
+
+Values follow these rules:
+
+- A string or a number is used as written, so `retries: 3` becomes `retries=3`.
+- A boolean uses its lowercase wire form, so `beta: true` becomes `beta=true` rather than `beta=True`.
+- A list repeats the parameter once per element in the configured order, so `tag: [red, blue]` becomes `tag=red&tag=blue`.
+- An empty value becomes a parameter with no value, so `flag:` becomes `flag=`.
+- A nested object is rejected when the engine is initialized, because a query string has no standard encoding for one. Flatten it into separate parameters instead.
+
+Keep secrets such as API keys in environment variables through `api_key_env_var` rather than hardcoding them in `default_query` in a checked-in `config.yml`.
+Provider and proxy access logs commonly record full request URLs, so a query parameter is a poor place for a sensitive value.
+
+For the value types above, this behavior is the same for both the IORails and LLMRails engines.
+The nested-object case differs: IORails rejects the configuration when the engine is initialized, and LLMRails forwards the object as an encoded Python representation that most servers cannot interpret.
