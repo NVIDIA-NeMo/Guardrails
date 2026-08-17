@@ -138,6 +138,33 @@ async def test_instrumented_client_creates_one_observation_for_all_retry_attempt
 
 
 @pytest.mark.asyncio
+async def test_instrumented_client_can_replace_wrapped_client(otel, metric_reader):
+    tracer, exporter = otel
+    original = RecordingHTTPClient()
+    replacement_transport = RecordingHTTPClient([HTTPResponse(status_code=200)])
+    client = InstrumentedHTTPClient(original, tracer, metrics_enabled=True)
+
+    recomposed = client._with_wrapped_client(replacement_transport)
+    await recomposed.request("GET", "https://example.com/check")
+
+    assert recomposed is not client
+    assert recomposed.wrapped_client is replacement_transport
+    assert original.requests == []
+    assert len(exporter.get_finished_spans()) == 1
+    assert len(collect_metric_points(metric_reader)["http.client.request.duration"]) == 1
+
+
+def test_instrumented_client_rejects_instrumented_replacement(otel):
+    tracer, _ = otel
+    replacement_tracer = TracerProvider().get_tracer("replacement")
+    original = InstrumentedHTTPClient(RecordingHTTPClient(), tracer, metrics_enabled=True)
+    replacement = InstrumentedHTTPClient(RecordingHTTPClient(), replacement_tracer)
+
+    with pytest.raises(ValueError, match="already instrumented"):
+        original._with_wrapped_client(replacement)
+
+
+@pytest.mark.asyncio
 async def test_instrumented_client_records_status_errors(otel):
     tracer, exporter = otel
     client = InstrumentedHTTPClient(RecordingHTTPClient([HTTPResponse(status_code=503)]), tracer)

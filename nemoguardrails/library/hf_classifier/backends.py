@@ -29,11 +29,11 @@ from nemoguardrails.http import (
     HTTPClient,
     HTTPResponse,
     HTTPTLSConfig,
-    RetryingHTTPClient,
     RetryPolicy,
     create_http_client,
     http_call,
 )
+from nemoguardrails.http.composition import ensure_retrying_http_client
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import (
@@ -313,7 +313,7 @@ class _RemoteBackend(ClassifierBackend):
 
     @staticmethod
     def _retrying_http_client(client: HTTPClient) -> HTTPClient:
-        return RetryingHTTPClient(client, _HF_RETRY_POLICY)
+        return ensure_retrying_http_client(client, _HF_RETRY_POLICY)
 
     def _create_http_client(self) -> HTTPClient:
         return self._retrying_http_client(

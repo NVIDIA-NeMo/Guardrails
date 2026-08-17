@@ -71,6 +71,18 @@ class InstrumentedHTTPClient:
         """Return the underlying client for direct access or re-instrumentation."""
         return self._client
 
+    def _with_wrapped_client(self, client: HTTPClient) -> "InstrumentedHTTPClient":
+        """Apply the current instrumentation settings to another client."""
+        if isinstance(client, InstrumentedHTTPClient):
+            raise ValueError("Replacement HTTP client is already instrumented")
+        if client is self._client:
+            return self
+        return InstrumentedHTTPClient(
+            client,
+            self._tracer,
+            metrics_enabled=self._metrics_enabled,
+        )
+
     async def request(
         self,
         method: str,

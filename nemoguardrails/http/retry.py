@@ -147,6 +147,23 @@ class RetryingHTTPClient:
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._closed = False
 
+    @property
+    def wrapped_client(self) -> HTTPClient:
+        """Return the underlying client."""
+        return self._client
+
+    def _with_wrapped_client(self, client: HTTPClient) -> "RetryingHTTPClient":
+        """Apply the current retry settings to another client."""
+        if client is self._client:
+            return self
+        return RetryingHTTPClient(
+            client,
+            self._policy,
+            sleep=self._sleep,
+            random_value=self._random_value,
+            now=self._now,
+        )
+
     async def request(
         self,
         method: str,
