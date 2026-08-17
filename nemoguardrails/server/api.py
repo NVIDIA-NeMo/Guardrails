@@ -373,39 +373,77 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     If a model with type="main" exists, it replaces it. Otherwise, adds it.
     """
     models = config.models.copy()
-    main_model_index = None
-
-    for index, model in enumerate(models):
-        if model.type == main_model.type:
-            main_model_index = index
-            break
+    main_model_index = next(
+        (index for index, model in enumerate(models) if model.type == main_model.type),
+        None,
+    )
 
     if main_model_index is not None:
-        configured_model = models[main_model_index]
-        parameters = {**configured_model.parameters, **main_model.parameters}
-        models[main_model_index] = main_model.model_copy(
-            update={
-                "api_key_env_var": main_model.api_key_env_var or configured_model.api_key_env_var,
-                "parameters": parameters,
-            }
-        )
+        models[main_model_index] = main_model
     else:
         models.append(main_model)
 
     return config.model_copy(update={"models": models})
 
 
-def _inject_model(config: RailsConfig, model_name: str) -> RailsConfig:
-    """Inject the request's model into a RailsConfig using env-based engine/base_url."""
+def _configured_main_model(config: RailsConfig) -> Optional[Model]:
+    """Return the model the config declares as "main", if it declares one."""
+    for model in config.models:
+        if model.type == "main":
+            return model
+    return None
+
+
+def _resolve_main_model_engine(configured_model: Optional[Model]) -> str:
+    """Resolve the engine for an injected main model. Priority order:
+    1. MAIN_MODEL_ENGINE environment variable (warns if mismatch with `configured_model.engine`)
+    2. `configured_model.engine` if configured_model is provided
+    3. Fallback to `openai`
+    """
     engine = os.environ.get("MAIN_MODEL_ENGINE")
-    if not engine:
-        engine = "openai"
-        log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
-    parameters = {}
+
+    if engine:
+        if configured_model is not None and configured_model.engine != engine:
+            log.warning(
+                "MAIN_MODEL_ENGINE is set to '%s', overriding the configured main model engine '%s'.",
+                engine,
+                configured_model.engine,
+            )
+        return engine
+
+    if configured_model is not None:
+        return configured_model.engine
+
+    log.warning("MAIN_MODEL_ENGINE not set and no main model is configured, defaulting to 'openai'. ")
+    return "openai"
+
+
+def _resolve_main_model_parameters(configured_model: Optional[Model]) -> dict[str, Any]:
+    """Resolve the parameters for an injected main model, preferring MAIN_MODEL_BASE_URL."""
+    parameters = dict(configured_model.parameters) if configured_model is not None else {}
+
     base_url = os.environ.get("MAIN_MODEL_BASE_URL")
     if base_url:
         parameters["base_url"] = base_url
-    main_model = Model(model=model_name, type="main", engine=engine, parameters=parameters)
+
+    return parameters
+
+
+def _build_main_model(model_name: str, configured_model: Optional[Model]) -> Model:
+    """Build the main model for a request, on top of the configured one when there is one."""
+    engine = _resolve_main_model_engine(configured_model)
+    parameters = _resolve_main_model_parameters(configured_model)
+
+    if configured_model is None:
+        return Model(model=model_name, type="main", engine=engine, parameters=parameters)
+
+    # Copy the configured model to retain non-request metadata
+    return configured_model.model_copy(update={"model": model_name, "engine": engine, "parameters": parameters})
+
+
+def _inject_model(config: RailsConfig, model_name: str) -> RailsConfig:
+    """Inject the request's model into a RailsConfig, keeping the configured main model's fields."""
+    main_model = _build_main_model(model_name, _configured_main_model(config))
     return _update_models_in_config(config, main_model)
 
 
