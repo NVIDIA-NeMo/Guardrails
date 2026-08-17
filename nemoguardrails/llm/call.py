@@ -87,12 +87,14 @@ async def llm_call(
     _setup_llm_call_info(model, model_name, model_provider)
     _log_prompt(prompt)
     chat_prompt = _ensure_chat_messages(prompt)
+    call_params = dict(llm_params or {})
+    stop = call_params.pop("stop", stop)
 
     if streaming_handler:
-        return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
+        return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, call_params)
 
     try:
-        response: LLMResponse = await model.generate_async(chat_prompt, stop=stop, **(llm_params or {}))
+        response: LLMResponse = await model.generate_async(chat_prompt, stop=stop, **call_params)
     except Exception as e:
         _raise_llm_call_exception(e, model)
 
@@ -112,7 +114,7 @@ async def _stream_llm_call(
     stop: Optional[List[str]],
     llm_params: Optional[dict] = None,
 ) -> LLMResponse:
-    handler.stop = stop or []
+    handler.stop = [stop] if isinstance(stop, str) else stop or []
     streaming_handler_metadata: Dict[str, Any] = {}
     accumulated_provider_metadata: Dict[str, Any] = {}
     accumulated_reasoning: List[str] = []

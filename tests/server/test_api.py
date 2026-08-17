@@ -293,9 +293,25 @@ def test_request_body_messages():
         "messages": [{"content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
-    request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.messages is not None
-    assert len(request_body.messages) == 1
+    with pytest.raises(ValueError, match="role"):
+        GuardrailsChatCompletionRequest.model_validate(data)
+
+
+def test_chat_completion_rejects_message_without_role():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"content": "Hello"}],
+                "guardrails": {"config_id": "test_config"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    assert response.json()["error"]["param"] == "messages.0.role"
+    get_rails.assert_not_awaited()
 
 
 def test_request_body_tools_and_tool_choice():
@@ -396,6 +412,39 @@ def test_chat_completion_passes_tools_to_llm_params():
     assert captured_options["options"].llm_params["tools"] == tools
     assert captured_options["options"].llm_params["tool_choice"] == "auto"
     assert captured_options["options"].llm_params["parallel_tool_calls"] is False
+
+
+@pytest.mark.parametrize("stop", ["END", ["END"], None])
+def test_chat_completion_accepts_stop_parameter(stop):
+    from nemoguardrails.rails.llm.options import GenerationResponse
+
+    captured_options = {}
+
+    async def mock_generate_async(*, messages, options, state):
+        captured_options["options"] = options
+        return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
+
+    mock_rails = AsyncMock()
+    mock_rails.generate_async = mock_generate_async
+    mock_rails.config.colang_version = "1.0"
+    mock_rails.config.passthrough = False
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock(return_value=mock_rails)):
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "stop": stop,
+                "guardrails": {"config_id": "with_custom_llm"},
+            },
+        )
+
+    assert response.status_code == 200
+    if stop is None:
+        assert "stop" not in captured_options["options"].llm_params
+    else:
+        assert captured_options["options"].llm_params["stop"] == stop
 
 
 def test_chat_completion_rejects_tools_for_non_passthrough_config():

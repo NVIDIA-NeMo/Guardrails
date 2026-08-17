@@ -16,10 +16,10 @@
 """OpenAI API schema definitions for the NeMo Guardrails server."""
 
 import os
-from typing import Any, List, Literal, Optional, Union
+from typing import Annotated, Any, List, Literal, Optional, Union
 
 from openai.types.chat.chat_completion import ChatCompletion
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from nemoguardrails.rails.llm.options import GenerationOptions
 
@@ -43,10 +43,30 @@ class GuardrailsChatCompletion(ChatCompletion):
     guardrails: Optional[GuardrailsDataOutput] = Field(default=None, description="Guardrails specific output data.")
 
 
+class _OpenAIChatMessageSchema(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    role: str
+
+
+def _validate_openai_chat_message(message: Any) -> Any:
+    _OpenAIChatMessageSchema.model_validate(message)
+    return message
+
+
+OpenAIChatMessage = Annotated[
+    dict[str, Any],
+    BeforeValidator(
+        _validate_openai_chat_message,
+        json_schema_input_type=_OpenAIChatMessageSchema,
+    ),
+]
+
+
 class OpenAIChatCompletionRequest(BaseModel):
     """Standard OpenAI chat completion request parameters."""
 
-    messages: Optional[List[dict]] = Field(
+    messages: Optional[List[OpenAIChatMessage]] = Field(
         default=None,
         description="The list of messages in the current conversation.",
     )
