@@ -14,6 +14,8 @@
 # limitations under the License.
 
 
+import pytest
+
 from nemoguardrails.llm.output_parsers import (
     _extract_harm_value,
     _strip_think_tags,
@@ -172,19 +174,15 @@ class TestNemoguardParsePromptSafety:
         assert is_safe is False
         assert violated_policies == []
 
-    def test_invalid_json_defaults_to_unsafe(self):
-        """Test that invalid JSON defaults to unsafe with error message."""
-        response = '{"invalid": json}'
-        is_safe, *violated_policies = nemoguard_parse_prompt_safety(response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+    @pytest.mark.parametrize("response", ["", '{"invalid": json}'])
+    def test_invalid_response_raises_parsing_error(self, response):
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_prompt_safety(response)
 
     def test_missing_user_safety_field(self):
-        """Test parsing when User Safety field is missing."""
         response = '{"Response Safety": "safe"}'
-        is_safe, *violated_policies = nemoguard_parse_prompt_safety(response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_prompt_safety(response)
 
     def test_single_category(self):
         """Test parsing with single safety category."""
@@ -252,19 +250,15 @@ class TestNemoguardParseResponseSafety:
         assert is_safe is False
         assert violated_policies == []
 
-    def test_invalid_json_defaults_to_unsafe(self):
-        """Test that invalid JSON defaults to unsafe with error message."""
-        response = '{"invalid": json}'
-        is_safe, *violated_policies = nemoguard_parse_response_safety(response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+    @pytest.mark.parametrize("response", ["", '{"invalid": json}'])
+    def test_invalid_response_raises_parsing_error(self, response):
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_response_safety(response)
 
     def test_missing_response_safety_field(self):
-        """Test parsing when Response Safety field is missing."""
         response = '{"User Safety": "safe"}'
-        is_safe, *violated_policies = nemoguard_parse_response_safety(response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_response_safety(response)
 
     def test_full_nemoguard_response(self):
         """Test parsing a full NemoGuard response with both user and response safety."""
@@ -275,11 +269,9 @@ class TestNemoguardParseResponseSafety:
         assert "S8" in violated_policies
 
     def test_malformed_json_with_extra_text(self):
-        """Test parsing malformed JSON with extra characters."""
         response = '{"Response Safety": "unsafe", "Safety Categories": "S1"} extra text'
-        is_safe, *violated_policies = nemoguard_parse_response_safety(response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_response_safety(response)
 
 
 class TestOutputParsersRealWorldScenarios:
@@ -322,19 +314,16 @@ class TestOutputParsersRealWorldScenarios:
         assert violated_policies == []
 
     def test_parser_robustness(self):
-        """Test parser robustness with various edge cases."""
         invalid_response = "The model refused to answer"
 
         is_safe, *violated_policies = is_content_safe(invalid_response)
         assert is_safe is False
 
-        is_safe, *violated_policies = nemoguard_parse_prompt_safety(invalid_response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_prompt_safety(invalid_response)
 
-        is_safe, *violated_policies = nemoguard_parse_response_safety(invalid_response)
-        assert is_safe is False
-        assert violated_policies == ["JSON parsing failed"]
+        with pytest.raises(ValueError, match="Failed to parse content safety model response"):
+            nemoguard_parse_response_safety(invalid_response)
 
     def test_starred_unpacking_compatibility(self):
         """Test that parser outputs are compatible with starred unpacking logic."""
