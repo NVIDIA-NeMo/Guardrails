@@ -199,14 +199,14 @@ The `passthrough` parameter controls this behavior.
 - **`passthrough=False`**: Allows guardrails to modify prompts for enhanced protection.
 
 ```python
-# Minimal intervention (required for tool calling)
+# Minimal intervention
 guardrails = RunnableRails(config, passthrough=True)
 
 # Enhanced guardrails (modifies prompts as needed)
 guardrails = RunnableRails(config, passthrough=False)
 ```
 
-**Tool Calling Requirement**: Set `passthrough=True` for proper tool call handling.
+**Tool Calling**: Tool calls work with either `passthrough` setting, as long as the guardrails configuration does not define dialog flows (`user_messages` or `rails.dialog.single_call.enabled`).
 
 ### Custom Input/Output Keys
 
@@ -238,13 +238,13 @@ When a guardrail is triggered and predefined messages must be returned instead o
 
 ## Tool Calling
 
-`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` to work properly.
+`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling works with or without `passthrough`, as long as the guardrails configuration does not define dialog flows (`user_messages` or `rails.dialog.single_call.enabled`). Configurations that define dialog flows drop tool calls and return only the generated text.
 
-The following steps are required to use tool calling with `RunnableRails`:
+To use tool calling with `RunnableRails`:
 
-- Set `passthrough=True` when creating `RunnableRails` instance.
 - Use `bind_tools()` to attach tools to your model.
 - Handle tool execution in your application logic.
+- Avoid guardrail configurations that define dialog flows if you need tool calls to surface in the response.
 
 ### Basic Tool Setup
 

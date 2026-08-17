@@ -301,6 +301,70 @@ class TestDialogMode:
             "generate_bot_message",
         ]
 
+    def test_tools_not_supported_when_dialog_flows_are_enabled(self):
+        """Tool calls the model returns are dropped when dialog flows are enabled."""
+        config = RailsConfig.from_content(
+            """
+            define user express greeting
+                "hello"
+            define flow
+                user express greeting
+                bot express greeting
+            """
+        )
+        config.rails.dialog.single_call.enabled = True
+
+        llm = RecordingFakeLLM(
+            llm_responses=[
+                LLMResponse(
+                    content='  express greeting\nbot express greeting\n  "Hello, there!"',
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ToolCallFunction(name="get_weather", arguments={"city": "Boston"}),
+                        )
+                    ],
+                )
+            ]
+        )
+        chat = TestChat(config, llm=llm)
+        response = cast(
+            GenerationResponse,
+            chat.app.generate(
+                "hello there!",
+                options={
+                    **LOG_OPTS,
+                    "llm_params": {
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "get_weather",
+                                    "description": "Get the weather",
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": {"city": {"type": "string"}},
+                                    },
+                                },
+                            }
+                        ]
+                    },
+                },
+            ),
+        )
+
+        assert response.response == "Hello, there!"
+        assert response.tool_calls is None
+        assert event_sequence(response) == [
+            "UserIntent:express greeting|cache:bot_intent_event,bot_message_event",
+            "BotIntent:express greeting",
+            "BotMessage:Hello, there!",
+        ]
+        assert llm_tasks(response) == ["generate_intent_steps_message"]
+        assert llm.calls == [("generate", None)]
+        assert 'user "hello there!"' in call_prompts(response)[0]
+
 
 _EMBEDDINGS_COLANG = """
 define user express greeting
@@ -819,6 +883,43 @@ class TestGeneralAndPassthrough:
             {"id": "call_1", "type": "function", "function": {"name": "t", "arguments": {"p": "v"}}}
         ]
 
+    def test_non_passthrough_tool_calls(self):
+        """Tool calls in the non-passthrough general path also emit ``BotToolCalls``.
+
+        ``_emit_general_bot_turn`` reads ``tool_calls_var`` after generating the
+        text regardless of which branch produced it, so the rendered-GENERAL
+        (non-passthrough) branch reaches the same ``BotToolCalls`` outcome as
+        ``test_passthrough_tool_calls`` -- the divergence is only in the prompt
+        and the ``stop=["User:"]`` call mode, both pinned here via ``llm.calls``.
+        """
+        config = RailsConfig.from_content(yaml_content="models: []\n")
+        llm = RecordingFakeLLM(
+            llm_responses=[
+                LLMResponse(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ToolCallFunction(name="t", arguments={"p": "v"}),
+                        )
+                    ],
+                )
+            ]
+        )
+        chat = TestChat(config, llm=llm)
+        response = cast(GenerationResponse, chat.app.generate("call the tool", options=LOG_OPTS))
+
+        assert event_sequence(response) == ["BotToolCalls:1"]
+        assert llm_tasks(response) == ["general"]
+        assert llm.calls == [("generate", ("User:",))]
+        # The full tool-call payload (id, function name, arguments) is surfaced on
+        # the public response, not just the count.
+        assert response.response == ""
+        assert response.tool_calls == [
+            {"id": "call_1", "type": "function", "function": {"name": "t", "arguments": {"p": "v"}}}
+        ]
+
     def test_single_call_general_no_user_messages(self):
         """Single-call enabled but no user messages: the converged general bot turn.
 
@@ -877,6 +978,45 @@ class TestGeneralAndPassthrough:
         assert response.response == "passthrough bot answer"
         assert llm_tasks(response) == ["generate_user_intent", "generate_bot_message"]
         assert event_sequence(response)[-1] == "BotMessage:passthrough bot answer"
+
+    def test_single_call_tools_not_supported(self):
+        """Test that tool calls are dropped in the single-call path when dialog flows exist."""
+        config = RailsConfig.from_content(
+            """
+            define user express greeting
+                "hello"
+            define flow
+                user express greeting
+                bot express greeting
+            """
+        )
+        config.rails.dialog.single_call.enabled = True
+        llm = RecordingFakeLLM(
+            llm_responses=[
+                LLMResponse(
+                    content='  express greeting\nbot express greeting\n  "Hello, there!"',
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ToolCallFunction(name="get_weather", arguments={"city": "Boston"}),
+                        )
+                    ],
+                )
+            ]
+        )
+        chat = TestChat(config, llm=llm)
+        response = cast(GenerationResponse, chat.app.generate("call the tool", options=LOG_OPTS))
+
+        assert response.response == "Hello, there!"
+        assert response.tool_calls is None
+        assert event_sequence(response) == [
+            "UserIntent:express greeting|cache:bot_intent_event,bot_message_event",
+            "BotIntent:express greeting",
+            "BotMessage:Hello, there!",
+        ]
+        assert llm_tasks(response) == ["generate_intent_steps_message"]
+        assert llm.calls == [("generate", None)]
 
 
 class TestGenerateValue:

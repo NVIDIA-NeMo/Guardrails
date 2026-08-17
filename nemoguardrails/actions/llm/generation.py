@@ -32,6 +32,7 @@ from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.llm.utils import (
     flow_to_colang,
     get_and_clear_reasoning_trace_contextvar,
+    get_and_clear_tool_calls_contextvar,
     get_first_nonempty_line,
     get_last_bot_intent_event,
     get_last_user_intent_event,
@@ -653,17 +654,10 @@ class LLMGenerationActions:
             context_updates["bot_thinking"] = reasoning_trace
             output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
 
-        if self.config.passthrough:
-            from nemoguardrails.actions.llm.utils import (
-                get_and_clear_tool_calls_contextvar,
-            )
+        tool_calls = get_and_clear_tool_calls_contextvar()
 
-            tool_calls = get_and_clear_tool_calls_contextvar()
-
-            if tool_calls:
-                output_events.append(new_event_dict("BotToolCalls", tool_calls=tool_calls))
-            else:
-                output_events.append(new_event_dict("BotMessage", text=text))
+        if tool_calls:
+            output_events.append(new_event_dict("BotToolCalls", tool_calls=tool_calls))
         else:
             output_events.append(new_event_dict("BotMessage", text=text))
 
