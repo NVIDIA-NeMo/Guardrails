@@ -99,7 +99,7 @@ _SYSTEM_MESSAGE_EVENT = "SystemMessage"
 def _history_before_current_turn(messages: LLMMessages) -> LLMMessages:
     """The turns preceding the one being checked.
 
-    Actions append the checked turn themselves, from ``context["user_message"]``, and always
+    Actions append the checked turn themselves, from their bound ``user_message``, and always
     at the end. So the history stops short of it: emitting it here would hand the model the
     same turn twice, and emitting what follows it — an assistant reply in a ``check()``
     transcript, say — would place a later turn ahead of it and reorder the conversation.
@@ -154,8 +154,7 @@ class _ContextParameter:
     key: str
 
 
-# The conversation variables a context binding may name. Also the keys of the ``context``
-# dict injected wholesale into actions that declare it, so the two cannot drift.
+# The conversation variables IORails can supply to explicit context bindings.
 _CONTEXT_KEYS = ("user_message", "bot_message")
 
 
@@ -239,18 +238,14 @@ class CompiledRail:
     def _call_kwargs(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
         """Assemble the action's arguments from its declared parameters and the manifest."""
         context = _request_context(messages, bot_response)
-        kwargs = {
-            name: value
-            for name, value in self._request_dependencies(messages, context).items()
-            if name in self._accepted
-        }
+        kwargs = {name: value for name, value in self._request_dependencies(messages).items() if name in self._accepted}
         for bound in self._bound:
             kwargs[bound.action_param] = bound.value
         for context_bound in self._context_bound:
             kwargs[context_bound.action_param] = context[context_bound.key]
         return kwargs
 
-    def _request_dependencies(self, messages: LLMMessages, context: Mapping[str, str]) -> dict[str, Any]:
+    def _request_dependencies(self, messages: LLMMessages) -> dict[str, Any]:
         """Every value injectable by parameter name; the caller filters against the signature."""
         return {
             "llms": self._deps.llms,
@@ -259,7 +254,6 @@ class CompiledRail:
             "config": self._deps.config,
             "http_client": self._deps.http_client,
             "model_caches": self._deps.model_caches,
-            "context": context,
             "events": messages_to_events(messages),
         }
 
@@ -339,18 +333,20 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     same as injecting the whole ``context`` dict: ``user_message`` reaches an action that
     calls the parameter ``text`` or ``user_prompt``.
     """
+    unsupported = _unsupported_context_keys(surface)
+    if unsupported:
+        raise RailCompilationError(
+            f"{flow!r} needs context variable(s) {', '.join(repr(key) for key in unsupported)}, "
+            f"which IORails does not supply; it has {list(_CONTEXT_KEYS)}"
+        )
+
     bound: list[_ContextParameter] = []
     for binding in surface.bindings:
         if binding.kind != "context":
             continue
         key = _binding_source_key(binding, flow)
-        if key not in _CONTEXT_KEYS:
-            # Refused rather than passed an empty value: the rail would otherwise return a
-            # verdict computed over evidence IORails never supplied.
-            raise RailCompilationError(
-                f"{flow!r} binds {binding.action_param!r} to context variable {key!r}, "
-                f"which IORails does not supply; it has {list(_CONTEXT_KEYS)}"
-            )
+        if key not in _CONTEXT_KEYS and not binding.required:
+            continue
         bound.append(_ContextParameter(binding.action_param, key))
     return tuple(bound)
 
@@ -375,27 +371,25 @@ def _unapplicable_transform_reason(surface: RailSurface) -> Optional[str]:
     return f"rewrites {surface.transform_target.value!r}, which a {surface.direction.value} rail cannot apply here"
 
 
-# Surfaces whose actions read retrieval evidence out of the request context: ``relevant_chunks``,
-# ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``. Keyed by direction as well
-# as name, because one rail can surface in both directions.
-_RETRIEVAL_CONTEXT_SURFACES: frozenset[tuple[RailDirection, str]] = frozenset(
-    {
-        (RailDirection.OUTPUT, "alignscore check facts"),
-        (RailDirection.OUTPUT, "autoalign groundedness output"),
-        (RailDirection.OUTPUT, "fiddler bot faithfulness"),
-        (RailDirection.OUTPUT, "patronus api check output"),
-        (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
-        (RailDirection.OUTPUT, "self check facts"),
-        (RailDirection.OUTPUT, "self check hallucination"),
+def _unsupported_context_keys(surface: RailSurface) -> tuple[str, ...]:
+    """Return declared context variables that IORails cannot construct."""
+    keys = {
+        binding.key
+        for binding in surface.bindings
+        if binding.kind == "context"
+        and binding.required
+        and binding.key is not None
+        and binding.key not in _CONTEXT_KEYS
     }
-)
+    return tuple(sorted(keys))
 
 
-def _retrieval_context_reason(surface: RailSurface) -> Optional[str]:
-    """Report a surface needing retrieval evidence IORails has no source for."""
-    if (surface.direction, surface.name) not in _RETRIEVAL_CONTEXT_SURFACES:
+def _unsupported_context_reason(surface: RailSurface) -> Optional[str]:
+    """Report context requirements outside IORails' request contract."""
+    keys = _unsupported_context_keys(surface)
+    if not keys:
         return None
-    return "needs retrieval evidence, which manifest-driven execution does not supply yet"
+    return f"needs context variable(s) {', '.join(repr(key) for key in keys)}, which IORails does not supply"
 
 
 def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
@@ -415,7 +409,7 @@ def _unsupported_rail_reason(surface: RailSurface) -> Optional[str]:
 # lifting its limitation lands, as the blanket transform refusal did.
 _SURFACE_SUPPORT_CHECKS: tuple[Callable[[RailSurface], Optional[str]], ...] = (
     _unapplicable_transform_reason,
-    _retrieval_context_reason,
+    _unsupported_context_reason,
     _unsupported_rail_reason,
 )
 

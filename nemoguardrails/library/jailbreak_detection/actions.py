@@ -58,6 +58,7 @@ log = logging.getLogger(__name__)
 async def jailbreak_detection_heuristics(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
@@ -68,7 +69,9 @@ async def jailbreak_detection_heuristics(
     lp_threshold = jailbreak_config.length_per_perplexity_threshold
     ps_ppl_threshold = jailbreak_config.prefix_suffix_perplexity_threshold
 
-    prompt = context.get("user_message")
+    context = context or {}
+    prompt = user_message if user_message is not None else context.get("user_message")
+    prompt = prompt or ""
 
     if not jailbreak_api_url:
         from nemoguardrails.library.jailbreak_detection.heuristics.checks import (
@@ -101,11 +104,11 @@ async def jailbreak_detection_heuristics(
 async def jailbreak_detection_model(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Uses a trained classifier to determine if a user input is a jailbreak attempt"""
-    prompt: str = ""
     jailbreak_config = llm_task_manager.config.rails.config.jailbreak_detection
 
     jailbreak_api_url = jailbreak_config.server_endpoint
@@ -113,8 +116,9 @@ async def jailbreak_detection_model(
     nim_classification_path = jailbreak_config.nim_server_endpoint
     nim_auth_token = jailbreak_config.get_api_key()
 
-    if context is not None:
-        prompt = context.get("user_message", "")
+    context = context or {}
+    prompt = user_message if user_message is not None else context.get("user_message")
+    prompt = prompt or ""
 
     # we do this as a hack to treat this action as an LLM call for tracing
     llm_call_info_var.set(LLMCallInfo(task="jailbreak_detection_model"))

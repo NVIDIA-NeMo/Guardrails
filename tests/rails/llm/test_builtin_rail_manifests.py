@@ -275,6 +275,8 @@ def test_legacy_context_actions_declare_message_inputs():
         (RailDirection.INPUT, "hf classifier check input"): {"user_message"},
         (RailDirection.OUTPUT, "hf classifier check output"): {"bot_message"},
         (RailDirection.RETRIEVAL, "hf classifier check retrieval"): {"relevant_chunks"},
+        (RailDirection.INPUT, "jailbreak detection heuristics"): {"user_message"},
+        (RailDirection.INPUT, "jailbreak detection model"): {"user_message"},
         (RailDirection.INPUT, "llama guard check input"): {"user_message"},
         (RailDirection.OUTPUT, "llama guard check output"): {"user_message", "bot_message"},
         (RailDirection.INPUT, "self check input"): {"user_message"},

@@ -26,6 +26,42 @@ class TestJailbreakDetectionActions:
     """Test suite for jailbreak detection actions with comprehensive coverage of PR changes."""
 
     @pytest.mark.asyncio
+    async def test_missing_user_message_is_normalized_for_both_actions(self, monkeypatch):
+        from nemoguardrails.library.jailbreak_detection.actions import (
+            jailbreak_detection_heuristics,
+            jailbreak_detection_model,
+        )
+
+        heuristics_request = mock.AsyncMock(return_value=False)
+        model_request = mock.AsyncMock(return_value=False)
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_heuristics_request",
+            heuristics_request,
+        )
+        monkeypatch.setattr(
+            "nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model_request",
+            model_request,
+        )
+        config = RailsConfig.from_content(
+            config={
+                "rails": {
+                    "config": {
+                        "jailbreak_detection": {
+                            "server_endpoint": "http://localhost:1337/check",
+                        }
+                    }
+                }
+            }
+        )
+        task_manager = LLMTaskManager(config=config)
+
+        await jailbreak_detection_heuristics(task_manager, {"user_message": None})
+        await jailbreak_detection_model(task_manager, {"user_message": None})
+
+        assert heuristics_request.await_args.args[0] == ""
+        assert model_request.await_args.kwargs["prompt"] == ""
+
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_heuristics_forwards_http_client(self, monkeypatch):
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_heuristics,
