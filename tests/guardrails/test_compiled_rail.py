@@ -23,7 +23,7 @@ sink rather than read from a contextvar afterwards.
 import inspect
 from dataclasses import replace
 from typing import Any, Callable, Optional
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -1064,31 +1064,15 @@ class TestDependencyInjection:
 
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
-        """jailbreak_detection_model declares http_client and receives the one compiled into the rail."""
+        """An action declaring http_client receives the runtime-owned shared client."""
         action = RecordingAction(signature_of=jailbreak_detection_model)
         monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
         mock_client = MagicMock()
+        deps = replace(deps, http_client=mock_client)
 
-        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client).run(USER_MESSAGES)
+        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
         assert action.kwargs["http_client"] is mock_client
-
-    @pytest.mark.asyncio
-    async def test_close_calls_http_client_close(self, deps):
-        """close() forwards to the rail's HTTP client so the connection pool is released."""
-        mock_client = AsyncMock()
-        rail = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client)
-
-        await rail.close()
-
-        mock_client.close.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_close_is_a_no_op_when_no_http_client(self, deps):
-        """close() on a rail with no HTTP client (LLM-backed) does not raise."""
-        rail = compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
-
-        await rail.close()
 
 
 class TestOutcomePassthrough:

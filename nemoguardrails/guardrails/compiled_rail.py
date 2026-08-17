@@ -48,6 +48,7 @@ from nemoguardrails.manifests import (
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
 
+    from nemoguardrails.http import HTTPClient
     from nemoguardrails.logging.explain import LLMCallInfo
     from nemoguardrails.manifests import RailCatalog
 
@@ -75,6 +76,7 @@ class RailDependencies:
     llm_task_manager: Any
     config: Any
     model_caches: Optional[Mapping[str, Any]] = None
+    http_client: Optional["HTTPClient"] = None
     tracer: Optional["Tracer"] = None
 
 
@@ -175,7 +177,6 @@ class CompiledRail:
         context_bound: tuple[_ContextParameter, ...],
         deps: RailDependencies,
         accepted: frozenset[str],
-        http_client: Any = None,
     ) -> None:
         """Store the frozen execution plan. Build through :func:`compile_rail`.
 
@@ -189,7 +190,6 @@ class CompiledRail:
         self._context_bound = context_bound
         self._deps = deps
         self._accepted = accepted
-        self._http_client = http_client
 
     @property
     def surface_name(self) -> str:
@@ -257,21 +257,11 @@ class CompiledRail:
             "llm": self._deps.llms.get("main"),
             "llm_task_manager": self._deps.llm_task_manager,
             "config": self._deps.config,
-            "http_client": self._http_client,
+            "http_client": self._deps.http_client,
             "model_caches": self._deps.model_caches,
             "context": context,
             "events": messages_to_events(messages),
         }
-
-    async def close(self) -> None:
-        """Close the rail's HTTP client, if it owns one.
-
-        Failures propagate: releasing one client is the whole job here, and the caller
-        closing a whole set of rails is the only layer that can decide a leak is
-        survivable. Repeat calls are safe, as a closed client's ``close()`` is a no-op.
-        """
-        if self._http_client is not None:
-            await self._http_client.close()
 
 
 def _accepted_parameters(action: Callable[..., Any]) -> frozenset[str]:
@@ -595,7 +585,6 @@ def compile_rail(
     direction: RailDirection,
     deps: RailDependencies,
     *,
-    http_client: Any = None,
     catalog: Optional["RailCatalog"] = None,
 ) -> CompiledRail:
     """Compile one configured flow string into an executable rail.
@@ -641,5 +630,4 @@ def compile_rail(
         context_bound=context_bound,
         deps=deps,
         accepted=accepted,
-        http_client=http_client,
     )

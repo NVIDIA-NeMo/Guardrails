@@ -16,7 +16,6 @@
 import asyncio
 import copy
 import gc
-import inspect
 import json
 import logging
 import warnings
@@ -28,12 +27,11 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
-from nemoguardrails.guardrails.compiled_rail import RailCompilationError, unservable_reason
+from nemoguardrails.guardrails.compiled_rail import RailCompilationError
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailCallRecord, RailDirection, RailResult, serialize_prompt
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.rails_manager import (
-    _HTTP_CLIENT_SURFACE_NAMES,
     RailsManager,
     _checked_text,
     _rail_call_record,
@@ -49,7 +47,6 @@ from nemoguardrails.http.retry import RetryingHTTPClient
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
-from nemoguardrails.manifests import default_rail_catalog, resolve_import_ref
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.types import LLMResponse, ToolCall, ToolCallFunction
@@ -195,14 +192,35 @@ class TestRailsManagerInit:
         assert mgr.input_flows == []
         assert mgr.output_flows == []
 
-    def test_unsupported_flow_raises(self):
+    def test_unsupported_flow_does_not_allocate_http_client(self):
         config_with_unknown = {
             **CONTENT_SAFETY_CONFIG,
             "rails": {"input": {"flows": ["unknown rail $model=content_safety"]}},
         }
-        with pytest.raises(RailCompilationError, match="no surface named"):
-            config = RailsConfig.from_content(config=config_with_unknown)
-            _make_rails_manager(config)
+        with (
+            patch("nemoguardrails.guardrails.rails_manager.create_http_client") as create_client,
+            pytest.raises(RailCompilationError, match="no surface named"),
+        ):
+            _make_rails_manager(RailsConfig.from_content(config=config_with_unknown))
+
+        create_client.assert_not_called()
+
+    def test_invalid_tool_flow_does_not_allocate_http_client(
+        self, content_safety_rails_config, content_safety_engine_registry
+    ):
+        with (
+            patch("nemoguardrails.guardrails.rails_manager.create_http_client") as create_client,
+            pytest.raises(RuntimeError, match="not supported"),
+        ):
+            RailsManager(
+                engine_registry=content_safety_engine_registry,
+                task_manager=LLMTaskManager(content_safety_rails_config),
+                input_flows=[],
+                output_flows=[],
+                tool_call_flows=["unknown tool rail"],
+            )
+
+        create_client.assert_not_called()
 
     def test_unparseable_flow_raises(self, content_safety_rails_config, content_safety_engine_registry):
         """A flow the surface parser rejects fails compilation instead of raising a raw ValueError."""
@@ -262,35 +280,26 @@ class _RecordingClient:
             raise self.close_error
 
 
-def _give_every_rail_a_client(manager: RailsManager) -> list[_RecordingClient]:
-    """Swap in a recording client for every compiled rail, returned in dispatch order."""
-    clients = [_RecordingClient() for _ in manager._rails]
-    for rail, client in zip(manager._rails.values(), clients):
-        rail._http_client = client
-    return clients
+class TestRailsManagerHTTPClient:
+    """The manager owns one pooled client shared by all compiled rail actions."""
 
+    def test_every_compiled_rail_borrows_the_runtime_client(self, nemoguards_rails_manager):
+        """HTTP transport is runtime infrastructure, independent of the selected rail."""
+        clients = {rail._deps.http_client for rail in nemoguards_rails_manager._rails.values()}
 
-class TestRailsManagerStop:
-    """Only API-backed rails own an HTTP client, and stop() releases every one of them."""
-
-    def test_only_api_backed_rails_are_given_a_client(self, nemoguards_rails_manager):
-        """A vendor API surface compiles with its own client; an LLM-backed surface gets none."""
-        clients = {flow: rail._http_client for (_, flow), rail in nemoguards_rails_manager._rails.items()}
-
-        assert clients["jailbreak detection model"] is not None
-        assert clients["content safety check input $model=content_safety"] is None
+        assert clients == {nemoguards_rails_manager._http_client}
 
     def test_the_injected_client_carries_no_retry_policy(self, nemoguards_rails_manager):
         """The injected client pools connections only; retry stays the vendor action's to apply."""
         # Vendor actions wrap whatever client they are handed -- clavata and f5 build a
         # RetryingHTTPClient around it -- so a retrying client here would nest inside theirs
         # and multiply attempts against an API that is already rate-limiting us.
-        client = nemoguards_rails_manager._rails[(RailDirection.INPUT, "jailbreak detection model")]._http_client
+        client = nemoguards_rails_manager._http_client
 
         assert not isinstance(client, RetryingHTTPClient)
 
-    def test_each_api_backed_rail_gets_its_own_client(self):
-        """Two API-backed flows get separate clients, so one vendor's pool cannot starve another."""
+    def test_api_backed_rails_share_one_connection_pool(self):
+        """Two vendor rails borrow one transport whose pool separates connections by origin."""
         config_dict = {
             **NEMOGUARDS_CONFIG,
             "rails": {
@@ -303,74 +312,37 @@ class TestRailsManagerStop:
         }
         manager = _make_rails_manager(RailsConfig.from_content(config=config_dict))
 
-        clients = [rail._http_client for rail in manager._rails.values()]
+        clients = [rail._deps.http_client for rail in manager._rails.values()]
 
         assert len(clients) == 2
-        assert clients[0] is not clients[1]
+        assert clients[0] is clients[1] is manager._http_client
 
     @pytest.mark.asyncio
-    async def test_stop_closes_every_client(self, nemoguards_rails_manager):
-        """Shutdown releases each rail's connection pool."""
-        clients = _give_every_rail_a_client(nemoguards_rails_manager)
+    async def test_stop_closes_the_shared_client_once(self, nemoguards_rails_manager):
+        """Shutdown releases the manager's connection pool once, not once per rail."""
+        client = _RecordingClient()
+        nemoguards_rails_manager._http_client = client
 
         await nemoguards_rails_manager.stop()
 
-        assert [client.close_count for client in clients] == [1] * len(clients)
+        assert client.close_count == 1
 
     @pytest.mark.asyncio
-    async def test_a_failing_close_still_releases_the_remaining_clients(self, nemoguards_rails_manager):
-        """One client raising does not leak the pools behind it in the dispatch order."""
-        clients = _give_every_rail_a_client(nemoguards_rails_manager)
-        clients[0].close_error = RuntimeError("Event loop is closed")
+    async def test_a_failing_close_propagates(self, nemoguards_rails_manager):
+        """The owner exposes a shared-client shutdown failure to its caller."""
+        client = _RecordingClient(RuntimeError("socket stuck"))
+        nemoguards_rails_manager._http_client = client
 
-        with pytest.raises(RuntimeError, match="Failed to close rail HTTP clients"):
+        with pytest.raises(RuntimeError, match="socket stuck"):
             await nemoguards_rails_manager.stop()
 
-        assert [client.close_count for client in clients] == [1] * len(clients)
-
-    @pytest.mark.asyncio
-    async def test_stop_names_the_rail_whose_client_failed(self, nemoguards_rails_manager):
-        """The combined error names the flow, so a leaked pool is attributable."""
-        clients = _give_every_rail_a_client(nemoguards_rails_manager)
-        clients[0].close_error = RuntimeError("socket stuck")
-
-        with pytest.raises(RuntimeError, match="socket stuck") as excinfo:
-            await nemoguards_rails_manager.stop()
-
-        failed_flow = list(nemoguards_rails_manager._rails)[0][1]
-        assert failed_flow in str(excinfo.value)
+        assert client.close_count == 1
 
     @pytest.mark.asyncio
     async def test_second_stop_is_safe(self, nemoguards_rails_manager):
-        """stop() is idempotent, because a closed client's close() is a no-op."""
+        """stop() is idempotent because the managed client's close() is a no-op."""
         await nemoguards_rails_manager.stop()
         await nemoguards_rails_manager.stop()
-
-
-class TestPooledClientCoverage:
-    """Every rail IORails enables that speaks HTTP is named in the pooling list."""
-
-    # _HTTP_CLIENT_SURFACE_NAMES is hand-maintained while the set of rails IORails runs is
-    # derived from the catalog, so nothing holds the two in agreement. Enabling a vendor rail
-    # without adding it here regresses silently rather than loudly: http_call builds an owned
-    # client per request when it receives None, so the rail still returns the right verdict
-    # and only the connection pooling is lost. The pooling list may name surfaces IORails has
-    # not enabled -- it is deliberately ahead of the tier -- so only this direction is checked.
-
-    def test_every_enabled_http_surface_is_pooled(self):
-        """A rail in the enabled tier whose action declares http_client is compiled with one."""
-        declares_http_client = {
-            name
-            for (direction, name), surface in default_rail_catalog().surfaces().items()
-            if direction is not SurfaceDirection.RETRIEVAL
-            and unservable_reason(name, direction) is None
-            and "http_client" in inspect.signature(resolve_import_ref(surface.action)).parameters
-        }
-
-        unpooled = sorted(declares_http_client - _HTTP_CLIENT_SURFACE_NAMES)
-
-        assert declares_http_client, "no enabled surface declares http_client; this test is broken, not the tier"
-        assert not unpooled, f"enabled rails absent from _HTTP_CLIENT_SURFACE_NAMES: {unpooled}"
 
 
 # --- Sequential input/output tests ---

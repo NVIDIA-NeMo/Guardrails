@@ -42,7 +42,6 @@ from nemoguardrails.guardrails.tool_schema import ToolExchange, Toolset
 from nemoguardrails.http.runtime import create_http_client
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.manifests import RailDirection as SurfaceDirection
-from nemoguardrails.manifests import parse_configured_surface
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 from nemoguardrails.types import ToolCall, UsageInfo
 
@@ -71,82 +70,6 @@ _TOOL_ACTION_CLASSES: dict[str, type[ToolRailAction]] = {
 }
 
 _ToolActionT = TypeVar("_ToolActionT", bound=ToolRailAction)
-
-# Integrations requiring API calls (rather than LLM inference). They should wrap
-# plain http_client with server-side retry, timeout, max_attempts requirements
-# TODO: Encode these in RailManifest
-_HTTP_CLIENT_SURFACE_NAMES: frozenset[str] = frozenset(
-    {
-        # activefence
-        "activefence moderation on input",
-        "activefence moderation on input detailed",
-        "activefence moderation on output",
-        # ai_defense
-        "ai defense inspect prompt",
-        "ai defense inspect response",
-        # autoalign
-        "autoalign check input",
-        "autoalign check output",
-        "autoalign factcheck output",
-        "autoalign groundedness output",
-        # clavata
-        "clavata check input",
-        "clavata check output",
-        # crowdstrike_aidr
-        "crowdstrike aidr guard input",
-        "crowdstrike aidr guard output",
-        # f5
-        "f5 guardrails scan input",
-        "f5 guardrails scan output",
-        # fiddler
-        "fiddler bot faithfulness",
-        "fiddler bot safety",
-        "fiddler user safety",
-        # gliner
-        "gliner detect pii on input",
-        "gliner detect pii on output",
-        "gliner detect pii on retrieval",
-        "gliner mask pii on input",
-        "gliner mask pii on output",
-        "gliner mask pii on retrieval",
-        # hf_classifier
-        "hf classifier check input",
-        "hf classifier check output",
-        "hf classifier check retrieval",
-        # jailbreak_detection
-        "jailbreak detection heuristics",
-        "jailbreak detection model",
-        # pangea
-        "pangea ai guard input",
-        "pangea ai guard output",
-        # patronusai
-        "patronus api check output",
-        # policyai
-        "policyai moderation on input",
-        "policyai moderation on output",
-        # polygraf
-        "polygraf detect pii on input",
-        "polygraf detect pii on output",
-        "polygraf detect pii on retrieval",
-        "polygraf mask pii on input",
-        "polygraf mask pii on output",
-        "polygraf mask pii on retrieval",
-        # privateai
-        "detect pii on input",
-        "detect pii on output",
-        "detect pii on retrieval",
-        "mask pii on input",
-        "mask pii on output",
-        "mask pii on retrieval",
-        # prompt_security
-        "protect prompt",
-        "protect response",
-        # trend_micro
-        "trend ai guard input",
-        "trend ai guard output",
-    }
-)
-
 
 # The conversation variable each direction's rails may rewrite; anything else is refused.
 _REWRITABLE_TARGET = {
@@ -319,14 +242,7 @@ class RailsManager:
         configured = ((RailDirection.INPUT, self.input_flows), (RailDirection.OUTPUT, self.output_flows))
         for direction, flows in configured:
             for flow in flows:
-                try:
-                    surface_name, _ = parse_configured_surface(flow)
-                except ValueError:
-                    surface_name = flow
-                http_client = create_http_client() if surface_name in _HTTP_CLIENT_SURFACE_NAMES else None
-                self._rails[(direction, flow)] = compile_rail(
-                    flow, _SURFACE_DIRECTIONS[direction], deps, http_client=http_client
-                )
+                self._rails[(direction, flow)] = compile_rail(flow, _SURFACE_DIRECTIONS[direction], deps)
 
         # Which rails may rewrite decides whether this config can run its rails concurrently at
         # all, which is settled once, here. The order they run in is not: it follows from the
@@ -341,6 +257,11 @@ class RailsManager:
         # Tool Result Actions run on the results of executing Tool Calls in the harness
         self._tool_call_actions = self._build_tool_actions(self.tool_call_flows, ToolCallRailAction)
         self._tool_result_actions = self._build_tool_actions(self.tool_result_flows, ToolResultRailAction)
+
+        self._http_client = create_http_client()
+        runtime_deps = replace(deps, http_client=self._http_client)
+        for rail in self._rails.values():
+            rail._deps = runtime_deps
 
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "
@@ -377,23 +298,8 @@ class RailsManager:
         )
 
     async def stop(self) -> None:
-        """Close the HTTP clients owned by compiled rails.
-
-        Every rail is closed even if an earlier one fails, so one stuck client cannot
-        leak the pools behind it; the failures are reported together afterwards.
-        Repeat calls are safe, because a closed client's ``close()`` is a no-op.
-        """
-        errors: dict[str, Exception] = {}
-        for (direction, flow), rail in self._rails.items():
-            try:
-                await rail.close()
-            except Exception as e:
-                errors[f"{direction.value} rail '{flow}'"] = e
-                log.error("Error closing the HTTP client for %s rail '%s': %s", direction.value, flow, e)
-
-        if errors:
-            error_string = ", ".join(f"{component}: exception {exception}" for component, exception in errors.items())
-            raise RuntimeError(f"Failed to close rail HTTP clients: {error_string}")
+        """Close the runtime-owned pooled HTTP client."""
+        await self._http_client.close()
 
     def _build_tool_actions(self, flows: list[str], expected_cls: type[_ToolActionT]) -> dict[str, _ToolActionT]:
         """Instantiate the tool rails for *flows*, checking each resolves to *expected_cls*.
