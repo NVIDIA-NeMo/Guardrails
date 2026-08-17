@@ -46,14 +46,17 @@ async def self_check_hallucination(
     context: Optional[dict] = None,
     use_llm_checking: bool = True,
     config: Optional[RailsConfig] = None,
+    bot_message: Optional[str] = None,
+    last_bot_prompt: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
 
     :return: A blocking outcome if hallucination is detected, otherwise an allowing outcome.
     """
-    bot_response = context.get("bot_message")
-    last_bot_prompt_string = context.get("_last_bot_prompt")
+    context = context or {}
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    last_bot_prompt_string = last_bot_prompt if last_bot_prompt is not None else context.get("_last_bot_prompt")
 
     if bot_response and last_bot_prompt_string:
         num_responses = HALLUCINATION_NUM_EXTRA_RESPONSES

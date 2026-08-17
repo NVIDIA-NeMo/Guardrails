@@ -101,10 +101,12 @@ async def hf_classifier_check_input(
     classifier: str,
     config: Any | None = None,
     context: Optional[dict] = None,
+    text: Optional[str] = None,
     http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
-    allowed = await _classify_and_check(classifier, _extract_text(context, "user_message"), config, http_client)
+    text = text if text is not None else _extract_text(context, "user_message")
+    allowed = await _classify_and_check(classifier, text, config, http_client)
     return _hf_classifier_outcome(allowed)
 
 
@@ -114,6 +116,7 @@ async def hf_classifier_check_output(
     config: Any | None = None,
     context: Optional[dict] = None,
     model_name: Optional[str] = None,
+    text: Optional[str] = None,
     http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
@@ -122,7 +125,8 @@ async def hf_classifier_check_output(
     # engine extracts from the flow_id.
     if classifier.startswith("$") and model_name:
         classifier = model_name
-    allowed = await _classify_and_check(classifier, _extract_text(context, "bot_message"), config, http_client)
+    text = text if text is not None else _extract_text(context, "bot_message")
+    allowed = await _classify_and_check(classifier, text, config, http_client)
     return _hf_classifier_outcome(allowed)
 
 
@@ -131,8 +135,10 @@ async def hf_classifier_check_retrieval(
     classifier: str,
     config: Any | None = None,
     context: Optional[dict] = None,
+    text: Optional[str] = None,
     http_client: HTTPClient | None = None,
     **kwargs,
 ) -> RailOutcome:
-    allowed = await _classify_and_check(classifier, _extract_text(context, "relevant_chunks"), config, http_client)
+    text = text if text is not None else _extract_text(context, "relevant_chunks")
+    allowed = await _classify_and_check(classifier, text, config, http_client)
     return _hf_classifier_retrieval_outcome(allowed)

@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ModelRequirement,
     RailActions,
     RailDirection,
@@ -47,7 +48,13 @@ RAIL = RailManifest(
         actions=RailActions(refs=(SELF_CHECK_HALLUCINATION,)),
         surfaces=(
             RailSurface(
-                name="self check hallucination", direction=RailDirection.OUTPUT, action=SELF_CHECK_HALLUCINATION
+                name="self check hallucination",
+                direction=RailDirection.OUTPUT,
+                action=SELF_CHECK_HALLUCINATION,
+                bindings=(
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("last_bot_prompt", "_last_bot_prompt", required=False),
+                ),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="llm", required=True),)),

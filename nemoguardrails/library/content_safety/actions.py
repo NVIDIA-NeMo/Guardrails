@@ -45,14 +45,16 @@ async def content_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> RailOutcome:
     _MAX_TOKENS = 1024
-    user_input: str = ""
+    user_input = user_message or ""
 
     if context is not None:
-        user_input = context.get("user_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
         model_name = model_name or context.get("model", None)
 
     if model_name is None:
@@ -134,16 +136,20 @@ async def content_safety_check_output(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> RailOutcome:
     _MAX_TOKENS = 1024
-    user_input: str = ""
-    bot_response: str = ""
+    user_input = user_message or ""
+    bot_response = bot_message or ""
 
     if context is not None:
-        user_input = context.get("user_message", "")
-        bot_response = context.get("bot_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
+        if bot_message is None:
+            bot_response = context.get("bot_message", "")
         model_name = model_name or context.get("model", None)
 
     if model_name is None:

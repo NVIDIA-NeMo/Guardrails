@@ -49,15 +49,17 @@ async def topic_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     events: Optional[List[dict]] = None,
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> RailOutcome:
-    user_input: str = ""
+    user_input = user_message or ""
     conversation_history: List[dict] = []
 
     if context is not None:
-        user_input = context.get("user_message", "")
+        if user_message is None:
+            user_input = context.get("user_message", "")
         model_name = model_name or context.get("model", None)
 
     if events is not None:

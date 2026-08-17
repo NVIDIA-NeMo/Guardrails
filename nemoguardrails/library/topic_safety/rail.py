@@ -52,7 +52,10 @@ RAIL = RailManifest(
                 name="topic safety check input",
                 direction=RailDirection.INPUT,
                 action=TOPIC_SAFETY_CHECK_INPUT,
-                bindings=(Binding.surface_param("model_name", "model"),),
+                bindings=(
+                    Binding.surface_param("model_name", "model"),
+                    Binding.context("user_message", "user_message"),
+                ),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="topic_control", required=True),)),

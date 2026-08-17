@@ -34,6 +34,8 @@ async def alignscore_check_facts(
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    relevant_chunks: Optional[list] = None,
+    bot_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
@@ -44,8 +46,8 @@ async def alignscore_check_facts(
     alignscore_api_url = fact_checking_config.parameters.get("endpoint")
 
     context = context or {}
-    evidence = context.get("relevant_chunks", [])
-    response = context.get("bot_message")
+    evidence = relevant_chunks if relevant_chunks is not None else context.get("relevant_chunks", [])
+    response = bot_message if bot_message is not None else context.get("bot_message")
 
     alignscore = await alignscore_request(
         alignscore_api_url,
@@ -56,7 +58,14 @@ async def alignscore_check_facts(
     if alignscore is None:
         log.warning("AlignScore endpoint not set up properly. Falling back to the ask_llm approach for fact-checking.")
         if fallback_to_self_check:
-            return await self_check_facts(llm_task_manager, context, llm, config)
+            return await self_check_facts(
+                llm_task_manager,
+                context,
+                llm,
+                config,
+                relevant_chunks=evidence,
+                bot_message=response,
+            )
         else:
             return _fact_check_outcome(1.0)
     else:

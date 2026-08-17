@@ -70,13 +70,20 @@ RAIL = RailManifest(
                 name="content safety check input",
                 direction=RailDirection.INPUT,
                 action=CONTENT_SAFETY_CHECK_INPUT,
-                bindings=(Binding.surface_param("model_name", "model"),),
+                bindings=(
+                    Binding.surface_param("model_name", "model"),
+                    Binding.context("user_message", "user_message"),
+                ),
             ),
             RailSurface(
                 name="content safety check output",
                 direction=RailDirection.OUTPUT,
                 action=CONTENT_SAFETY_CHECK_OUTPUT,
-                bindings=(Binding.surface_param("model_name", "model"),),
+                bindings=(
+                    Binding.surface_param("model_name", "model"),
+                    Binding.context("user_message", "user_message", required=False),
+                    Binding.context("bot_message", "bot_message"),
+                ),
             ),
         ),
         privacy=RailPrivacy(sends_user_text=True, sends_bot_text=True),

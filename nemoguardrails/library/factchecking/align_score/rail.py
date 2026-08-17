@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     RailActions,
     RailDirection,
     RailFlows,
@@ -50,7 +51,15 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("alignscore check facts",)),
         actions=RailActions(refs=(ALIGNSCORE_CHECK_FACTS, ALIGNSCORE_REQUEST)),
         surfaces=(
-            RailSurface(name="alignscore check facts", direction=RailDirection.OUTPUT, action=ALIGNSCORE_CHECK_FACTS),
+            RailSurface(
+                name="alignscore check facts",
+                direction=RailDirection.OUTPUT,
+                action=ALIGNSCORE_CHECK_FACTS,
+                bindings=(
+                    Binding.context("relevant_chunks", "relevant_chunks", required=False),
+                    Binding.context("bot_message", "bot_message"),
+                ),
+            ),
         ),
         requirements=RailRequirements(services=(ServiceRequirement(name="AlignScore HTTP service", required=True),)),
         privacy=RailPrivacy(

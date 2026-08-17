@@ -175,20 +175,97 @@ def test_every_manifested_action_is_declared_in_its_manifest():
 def test_self_check_surfaces_bind_optional_variant():
     manifests = all_rail_manifests()
 
-    for rail_name in ("self_check.input_check", "self_check.output_check"):
-        surface = manifests[rail_name].surfaces[0]
-        assert surface.bindings == (Binding.surface_param(action_param="variant", name="variant", required=False),)
+    input_surface = manifests["self_check.input_check"].surfaces[0]
+    assert input_surface.bindings == (
+        Binding.surface_param(action_param="variant", name="variant", required=False),
+        Binding.context("user_message", "user_message"),
+    )
+
+    output_surface = manifests["self_check.output_check"].surfaces[0]
+    assert output_surface.bindings == (
+        Binding.surface_param(action_param="variant", name="variant", required=False),
+        Binding.context("user_message", "user_message", required=False),
+        Binding.context("bot_message", "bot_message"),
+        Binding.context("bot_thinking", "bot_thinking", required=False),
+    )
 
 
 def test_named_model_surfaces_bind_literal_model_names():
     manifests = all_rail_manifests()
 
     for surface in manifests["llama_guard"].surfaces:
-        assert surface.bindings == (Binding.literal("model_name", "llama_guard"),)
+        assert surface.bindings[0] == Binding.literal("model_name", "llama_guard")
 
     patronus_surfaces = manifests["patronusai"].surfaces
-    assert patronus_surfaces[0].bindings == (Binding.literal("model_name", "patronus_lynx"),)
-    assert patronus_surfaces[1].bindings == ()
+    assert patronus_surfaces[0].bindings[0] == Binding.literal("model_name", "patronus_lynx")
+
+
+def test_retrieval_dependent_surfaces_declare_context_inputs():
+    surfaces = default_rail_catalog().surfaces()
+    expected = {
+        (RailDirection.OUTPUT, "alignscore check facts"): (
+            Binding.context("relevant_chunks", "relevant_chunks", required=False),
+            Binding.context("bot_message", "bot_message"),
+        ),
+        (RailDirection.OUTPUT, "autoalign groundedness output"): (
+            Binding.context("bot_message", "bot_message"),
+            Binding.context("relevant_chunks_sep", "relevant_chunks_sep"),
+        ),
+        (RailDirection.OUTPUT, "fiddler bot faithfulness"): (
+            Binding.context("bot_message", "bot_message"),
+            Binding.context("relevant_chunks", "relevant_chunks", required=False),
+        ),
+        (RailDirection.OUTPUT, "patronus api check output"): (
+            Binding.context("user_message", "user_message"),
+            Binding.context("bot_message", "bot_message"),
+            Binding.context("relevant_chunks", "relevant_chunks"),
+        ),
+        (RailDirection.OUTPUT, "patronus lynx check output hallucination"): (
+            Binding.context("user_message", "user_message"),
+            Binding.context("bot_message", "bot_message"),
+            Binding.context("relevant_chunks", "relevant_chunks"),
+        ),
+        (RailDirection.OUTPUT, "self check facts"): (
+            Binding.context("relevant_chunks", "relevant_chunks"),
+            Binding.context("bot_message", "bot_message"),
+        ),
+        (RailDirection.OUTPUT, "self check hallucination"): (
+            Binding.context("bot_message", "bot_message"),
+            Binding.context("last_bot_prompt", "_last_bot_prompt", required=False),
+        ),
+    }
+
+    for surface_key, bindings in expected.items():
+        declared = surfaces[surface_key].bindings
+        assert all(binding in declared for binding in bindings)
+
+
+def test_legacy_context_actions_declare_message_inputs():
+    surfaces = default_rail_catalog().surfaces()
+    expected = {
+        (RailDirection.INPUT, "autoalign check input"): {"user_message"},
+        (RailDirection.OUTPUT, "autoalign check output"): {"bot_message"},
+        (RailDirection.OUTPUT, "autoalign factcheck output"): {"user_message", "bot_message"},
+        (RailDirection.OUTPUT, "cleanlab trustworthiness"): {"user_message", "bot_message"},
+        (RailDirection.INPUT, "content safety check input"): {"user_message"},
+        (RailDirection.OUTPUT, "content safety check output"): {"user_message", "bot_message"},
+        (RailDirection.INPUT, "fiddler user safety"): {"user_message"},
+        (RailDirection.OUTPUT, "fiddler bot safety"): {"bot_message"},
+        (RailDirection.INPUT, "gcpnlp moderation"): {"user_message"},
+        (RailDirection.INPUT, "gcpnlp moderation detailed"): {"user_message"},
+        (RailDirection.INPUT, "hf classifier check input"): {"user_message"},
+        (RailDirection.OUTPUT, "hf classifier check output"): {"bot_message"},
+        (RailDirection.RETRIEVAL, "hf classifier check retrieval"): {"relevant_chunks"},
+        (RailDirection.INPUT, "llama guard check input"): {"user_message"},
+        (RailDirection.OUTPUT, "llama guard check output"): {"user_message", "bot_message"},
+        (RailDirection.INPUT, "self check input"): {"user_message"},
+        (RailDirection.OUTPUT, "self check output"): {"user_message", "bot_message", "bot_thinking"},
+        (RailDirection.INPUT, "topic safety check input"): {"user_message"},
+    }
+
+    for surface_key, expected_keys in expected.items():
+        declared_keys = {binding.key for binding in surfaces[surface_key].bindings if binding.kind == "context"}
+        assert declared_keys == expected_keys
 
 
 def test_configurable_api_key_requirements_document_shipped_names():
@@ -266,9 +343,11 @@ def test_builtin_surfaces_preserve_flow_contracts():
         Binding.literal("threshold_mode", "detailed")
     )
     assert surfaces[(RailDirection.INPUT, "gcpnlp moderation")].bindings == (
+        Binding.context("user_message", "user_message"),
         Binding.literal("threshold_mode", "simple"),
     )
     assert surfaces[(RailDirection.INPUT, "gcpnlp moderation detailed")].bindings == (
+        Binding.context("user_message", "user_message"),
         Binding.literal("threshold_mode", "detailed"),
     )
     assert surfaces[(RailDirection.RETRIEVAL, "hf classifier check retrieval")].transform_target == (

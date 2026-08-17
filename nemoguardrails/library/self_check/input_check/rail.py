@@ -51,7 +51,10 @@ RAIL = RailManifest(
                 name="self check input",
                 direction=RailDirection.INPUT,
                 action=SELF_CHECK_INPUT,
-                bindings=(Binding.surface_param(action_param="variant", name="variant", required=False),),
+                bindings=(
+                    Binding.surface_param(action_param="variant", name="variant", required=False),
+                    Binding.context("user_message", "user_message"),
+                ),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="llm", required=True),)),

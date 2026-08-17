@@ -63,10 +63,22 @@ RAIL = RailManifest(
                 name="patronus lynx check output hallucination",
                 direction=RailDirection.OUTPUT,
                 action=PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION,
-                bindings=(Binding.literal("model_name", "patronus_lynx"),),
+                bindings=(
+                    Binding.literal("model_name", "patronus_lynx"),
+                    Binding.context("user_message", "user_message"),
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("relevant_chunks", "relevant_chunks"),
+                ),
             ),
             RailSurface(
-                name="patronus api check output", direction=RailDirection.OUTPUT, action=PATRONUS_API_CHECK_OUTPUT
+                name="patronus api check output",
+                direction=RailDirection.OUTPUT,
+                action=PATRONUS_API_CHECK_OUTPUT,
+                bindings=(
+                    Binding.context("user_message", "user_message"),
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("relevant_chunks", "relevant_chunks"),
+                ),
             ),
         ),
         requirements=RailRequirements(

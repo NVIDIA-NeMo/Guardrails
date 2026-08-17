@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ModelRequirement,
     RailActions,
     RailDirection,
@@ -45,7 +46,17 @@ RAIL = RailManifest(
     spec=RailSpec(
         flows=RailFlows(flow_names=("self check facts",)),
         actions=RailActions(refs=(SELF_CHECK_FACTS,)),
-        surfaces=(RailSurface(name="self check facts", direction=RailDirection.OUTPUT, action=SELF_CHECK_FACTS),),
+        surfaces=(
+            RailSurface(
+                name="self check facts",
+                direction=RailDirection.OUTPUT,
+                action=SELF_CHECK_FACTS,
+                bindings=(
+                    Binding.context("relevant_chunks", "relevant_chunks"),
+                    Binding.context("bot_message", "bot_message"),
+                ),
+            ),
+        ),
         requirements=RailRequirements(models=(ModelRequirement(type="llm", required=True),)),
         privacy=RailPrivacy(sends_bot_text=True, sends_retrieved_chunks=True),
     ),

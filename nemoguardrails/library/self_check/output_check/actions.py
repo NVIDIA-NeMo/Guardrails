@@ -47,6 +47,9 @@ async def self_check_output(
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     variant: Optional[str] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
+    bot_thinking: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks if the output from the bot.
@@ -62,9 +65,9 @@ async def self_check_output(
     """
 
     context = context or {}
-    bot_response = context.get("bot_message")
-    user_input = context.get("user_message")
-    bot_thinking = context.get("bot_thinking")
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
+    bot_thinking = bot_thinking if bot_thinking is not None else context.get("bot_thinking")
 
     task = resolve_self_check_task(
         variant,

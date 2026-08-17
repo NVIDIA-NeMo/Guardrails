@@ -271,6 +271,7 @@ async def autoalign_factcheck_infer(
 async def autoalign_input_api(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     show_autoalign_message: bool = True,
     show_toxic_phrases: bool = False,
     http_client: Optional[HTTPClient] = None,
@@ -293,7 +294,8 @@ async def autoalign_input_api(
     Returns:
         An allow, block, or user-message transform outcome.
     """
-    user_message = context.get("user_message")
+    context = context or {}
+    user_message = user_message if user_message is not None else context.get("user_message")
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_api_url = autoalign_config.parameters.get("endpoint")
     multi_language = autoalign_config.parameters.get("multi_language", False)
@@ -329,6 +331,7 @@ async def autoalign_input_api(
 async def autoalign_output_api(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    bot_message: Optional[str] = None,
     show_autoalign_message: bool = True,
     show_toxic_phrases: bool = False,
     http_client: Optional[HTTPClient] = None,
@@ -351,7 +354,8 @@ async def autoalign_output_api(
     Returns:
         An allow, block, or bot-message transform outcome.
     """
-    bot_message = context.get("bot_message")
+    context = context or {}
+    bot_message = bot_message if bot_message is not None else context.get("bot_message")
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_api_url = autoalign_config.parameters.get("endpoint")
     multi_language = autoalign_config.parameters.get("multi_language", False)
@@ -384,6 +388,8 @@ async def autoalign_groundedness_output_api(
     context: Optional[dict] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
+    bot_message: Optional[str] = None,
+    relevant_chunks_sep: Optional[List[str]] = None,
     http_client: Optional[HTTPClient] = None,
     **kwargs,
 ) -> RailOutcome:
@@ -405,8 +411,9 @@ async def autoalign_groundedness_output_api(
         An allow or block outcome containing the score and threshold.
     """
 
-    bot_message = context.get("bot_message")
-    documents = context.get("relevant_chunks_sep", [])
+    context = context or {}
+    bot_message = bot_message if bot_message is not None else context.get("bot_message")
+    documents = relevant_chunks_sep if relevant_chunks_sep is not None else context.get("relevant_chunks_sep", [])
 
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_groundedness_api_url = autoalign_config.parameters.get("groundedness_check_endpoint")
@@ -432,6 +439,8 @@ async def autoalign_groundedness_output_api(
 async def autoalign_factcheck_output_api(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
     factcheck_threshold: float = 0.0,
     show_autoalign_message: bool = True,
     http_client: Optional[HTTPClient] = None,
@@ -452,8 +461,9 @@ async def autoalign_factcheck_output_api(
         An allow or block outcome containing the score and threshold.
     """
 
-    user_message = context.get("user_message")
-    bot_message = context.get("bot_message")
+    context = context or {}
+    user_message = user_message if user_message is not None else context.get("user_message")
+    bot_message = bot_message if bot_message is not None else context.get("bot_message")
     autoalign_config = llm_task_manager.config.rails.config.autoalign
     autoalign_factcheck_api_url = autoalign_config.parameters.get("fact_check_endpoint")
     multi_language = autoalign_config.parameters.get("multi_language", False)

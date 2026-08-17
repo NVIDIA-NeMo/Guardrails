@@ -47,6 +47,7 @@ async def self_check_input(
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     variant: Optional[str] = None,
+    user_message: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks the input from the user.
@@ -59,7 +60,7 @@ async def self_check_input(
     """
 
     context = context or {}
-    user_input = context.get("user_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
 
     task = resolve_self_check_task(
         variant,

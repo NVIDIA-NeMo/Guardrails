@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     ConfigSpecRef,
     EnvVar,
     RailActions,
@@ -61,9 +62,27 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("fiddler user safety", "fiddler bot safety", "fiddler bot faithfulness")),
         actions=RailActions(refs=(FIDDLER_USER, FIDDLER_BOT, FIDDLER_FAITHFULNESS)),
         surfaces=(
-            RailSurface(name="fiddler user safety", direction=RailDirection.INPUT, action=FIDDLER_USER),
-            RailSurface(name="fiddler bot safety", direction=RailDirection.OUTPUT, action=FIDDLER_BOT),
-            RailSurface(name="fiddler bot faithfulness", direction=RailDirection.OUTPUT, action=FIDDLER_FAITHFULNESS),
+            RailSurface(
+                name="fiddler user safety",
+                direction=RailDirection.INPUT,
+                action=FIDDLER_USER,
+                bindings=(Binding.context("user_message", "user_message"),),
+            ),
+            RailSurface(
+                name="fiddler bot safety",
+                direction=RailDirection.OUTPUT,
+                action=FIDDLER_BOT,
+                bindings=(Binding.context("bot_message", "bot_message"),),
+            ),
+            RailSurface(
+                name="fiddler bot faithfulness",
+                direction=RailDirection.OUTPUT,
+                action=FIDDLER_FAITHFULNESS,
+                bindings=(
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("relevant_chunks", "relevant_chunks", required=False),
+                ),
+            ),
         ),
         requirements=RailRequirements(
             env_vars=(EnvVar(name="FIDDLER_API_KEY", required=True),),
