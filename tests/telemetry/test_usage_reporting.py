@@ -1022,6 +1022,19 @@ class TestBuiltinFeatures:
             "polygraf",
         ]
 
+    def test_manifest_catalog_failure_skips_flow_detection(self):
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        config.rails.input.flows = ["content safety check input"]
+
+        with patch(
+            "nemoguardrails.manifests.default_rail_catalog",
+            side_effect=RuntimeError("catalog unavailable"),
+        ):
+            assert _detect_builtin_features(config) == []
+
     def test_every_manifest_flow_resolves_to_a_builtin_feature(self):
         from nemoguardrails.manifests import default_rail_catalog
         from nemoguardrails.rails.llm.config import Rails
