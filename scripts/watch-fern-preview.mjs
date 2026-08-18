@@ -18,7 +18,8 @@ const fernDocsInstance = "nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/gua
 const branchName = currentBranchName();
 let running = false;
 let pending = false;
-let sdkReferenceReady = false;
+let sdkReferenceRevision = 0;
+let generatedSdkReferenceRevision = -1;
 let debounceTimer;
 let currentChild;
 const watchers = new Map();
@@ -77,14 +78,15 @@ function watchDirectoryTree(directory) {
     watchers.set(
       directory,
       watch(directory, { persistent: true }, (_eventType, filename) => {
+        let changedPath;
         if (filename) {
-          const changedPath = path.join(directory, filename.toString());
+          changedPath = path.join(directory, filename.toString());
           if (shouldIgnorePath(changedPath) || !shouldTriggerRun(changedPath)) {
             return;
           }
           addWatcherForNewDirectory(changedPath);
         }
-        scheduleRun();
+        scheduleRun(changedPath);
       }),
     );
   } catch (error) {
@@ -149,9 +151,20 @@ function shouldTriggerRun(candidatePath) {
   return true;
 }
 
-function scheduleRun() {
+function scheduleRun(changedPath) {
+  if (requiresSdkReferenceRegeneration(changedPath)) {
+    sdkReferenceRevision += 1;
+  }
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => runFernGenerate("file change"), debounceMs);
+}
+
+function requiresSdkReferenceRegeneration(candidatePath) {
+  if (!candidatePath) {
+    return true;
+  }
+  const relativePath = path.relative(repoRoot, candidatePath).split(path.sep).join("/");
+  return relativePath === "fern/docs.yml" || relativePath === "fern/fern.config.json";
 }
 
 function runFernGenerate(reason) {
@@ -188,7 +201,8 @@ function runFernGenerate(reason) {
   ];
 
   console.log(`\n[${new Date().toLocaleTimeString()}] Running Fern (${reason})`);
-  if (!sdkReferenceReady) {
+  const targetSdkReferenceRevision = sdkReferenceRevision;
+  if (generatedSdkReferenceRevision !== targetSdkReferenceRevision) {
     if (!generateSdkReference()) {
       running = false;
       if (pending) {
@@ -196,7 +210,7 @@ function runFernGenerate(reason) {
       }
       return;
     }
-    sdkReferenceReady = true;
+    generatedSdkReferenceRevision = targetSdkReferenceRevision;
   }
   console.log(`cd fern && npx ${args.join(" ")}`);
 

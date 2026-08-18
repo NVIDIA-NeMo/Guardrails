@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -15,7 +16,17 @@ import path from "node:path";
 import { parse } from "yaml";
 
 const libraryName = "guardrails-python-sdk";
-const cacheSchemaVersion = "v1";
+const cacheSchemaVersion = "v2";
+// CI restores archives by a broad prefix, so each entry also carries a content
+// fingerprint and cannot be reused after the generation pipeline changes.
+const generatorInputPaths = [
+  "package.json",
+  "package-lock.json",
+  "scripts/cache-fern-ref-sdk.mjs",
+  "scripts/fern-ref-sdk-environment.mjs",
+  "scripts/fern-ref-sdk-hooks/post-checkout",
+  "scripts/normalize-fern-sdk-reference.mjs",
+];
 const minimumPageCount = 10;
 const [worktreeRootArgument, expectedCommit] = process.argv.slice(2);
 const repoRoot = requiredEnvironment("FERN_REF_SDK_REPO_ROOT");
@@ -46,6 +57,9 @@ const libraryConfig = docsConfig?.libraries?.[libraryName];
 if (!libraryConfig) {
   throw new Error(`Historical ref ${expectedCommit} does not configure library ${libraryName}`);
 }
+if (typeof libraryConfig.input?.git !== "string" || libraryConfig.input.git.length === 0) {
+  throw new Error(`Historical ref ${expectedCommit} must configure libraries.${libraryName}.input.git`);
+}
 if (typeof libraryConfig.input?.ref !== "string" || libraryConfig.input.ref.length === 0) {
   throw new Error(`Historical ref ${expectedCommit} must pin libraries.${libraryName}.input.ref`);
 }
@@ -56,21 +70,27 @@ if (typeof libraryConfig.output?.path !== "string" || libraryConfig.output.path.
 const outputRoot = path.resolve(fernRoot, libraryConfig.output.path);
 assertInsideWorktree(outputRoot, worktreeRoot);
 const sdkRoot = path.join(outputRoot, libraryName);
+const sdkInputCommit = resolveSdkInputCommit(libraryConfig.input.git, libraryConfig.input.ref);
+const generatorFingerprint = computeGeneratorFingerprint();
 const cacheDirectory = path.join(
   cacheRoot,
   cacheSchemaVersion,
+  generatorFingerprint,
   fernVersion,
   expectedCommit,
+  sdkInputCommit,
   libraryName,
 );
 
 if (isCompleteReference(cacheDirectory)) {
   restoreFromCache(cacheDirectory, outputRoot);
-  console.log(`Restored ${libraryName} for ${libraryConfig.input.ref} from cache.`);
+  console.log(
+    `Restored ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}) from cache.`,
+  );
   process.exit(0);
 }
 
-console.log(`Generating ${libraryName} for ${libraryConfig.input.ref}.`);
+console.log(`Generating ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}).`);
 rmSync(outputRoot, { force: true, recursive: true });
 const originalFernConfig = readFileSync(fernConfigPath, "utf8");
 const fernConfig = JSON.parse(originalFernConfig);
@@ -110,6 +130,55 @@ function requiredEnvironment(name) {
     throw new Error(`Missing required environment variable ${name}`);
   }
   return value;
+}
+
+function resolveSdkInputCommit(gitUrl, inputRef) {
+  if (/^[0-9a-f]{40}$/i.test(inputRef)) {
+    return inputRef.toLowerCase();
+  }
+
+  const tagRef = inputRef.startsWith("refs/tags/") ? inputRef : `refs/tags/${inputRef}`;
+  let output;
+  try {
+    output = execFileSync("git", ["ls-remote", "--tags", gitUrl, tagRef, `${tagRef}^{}`], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+    });
+  } catch {
+    throw new Error(`Could not resolve SDK input tag ${inputRef} from ${gitUrl}`);
+  }
+
+  const refs = new Map(
+    output
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => line.split(/\s+/, 2).reverse()),
+  );
+  const resolvedCommit = refs.get(`${tagRef}^{}`) ?? refs.get(tagRef);
+  if (typeof resolvedCommit !== "string" || !/^[0-9a-f]{40}$/i.test(resolvedCommit)) {
+    throw new Error(
+      `Historical ref ${expectedCommit} must pin libraries.${libraryName}.input.ref to a commit SHA or tag`,
+    );
+  }
+  return resolvedCommit.toLowerCase();
+}
+
+function computeGeneratorFingerprint() {
+  const hash = createHash("sha256");
+  for (const relativePath of generatorInputPaths) {
+    const inputPath = path.join(repoRoot, relativePath);
+    if (!existsSync(inputPath)) {
+      throw new Error(`Missing SDK cache generator input: ${relativePath}`);
+    }
+    hash.update(relativePath);
+    hash.update("\0");
+    hash.update(readFileSync(inputPath));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 function assertInsideWorktree(candidatePath, rootPath) {

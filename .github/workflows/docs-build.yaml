@@ -102,7 +102,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
           restore-keys: |
             fern-ref-sdk-${{ runner.os }}-
 
@@ -172,7 +172,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
           restore-keys: |
             fern-ref-sdk-${{ runner.os }}-
 
@@ -186,4 +186,4 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: .fern-cache/fern-ref-sdk
-          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}

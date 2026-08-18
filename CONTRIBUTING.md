@@ -154,7 +154,8 @@ cd nemoguardrails
 make install
 ```
 
-Documentation tooling requires Node.js 22. The Fern CLI version is pinned in
+Documentation tooling requires Node.js 22. Run `npm ci` before using the Fern
+build, preview, or publishing commands. The Fern CLI version is pinned in
 `fern/fern.config.json` and invoked through `npx`; no separate Python docs
 dependency group is required.
 
@@ -208,7 +209,8 @@ Documentation lives in `docs/` as MDX and is built with Fern. Edit the `.mdx`
 files directly and check changes with `make docs-fern` (`make docs-fern-live`
 serves locally; `make docs-fern-strict` validates links). The Fern CLI version
 is pinned in `fern/fern.config.json`; do not run `fern upgrade` as part of normal
-documentation changes.
+documentation changes. See [Documentation](./docs/README.mdx) for the publishing
+workflow, including permanent snapshot tags for historical Fern versions.
 
 For notebook documentation, place the notebook in its own folder and generate a
 matching `README.md` with:
