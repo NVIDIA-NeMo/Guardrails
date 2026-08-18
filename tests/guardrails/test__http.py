@@ -67,12 +67,12 @@ class TestSafeReadBody:
         assert len(result) == 500
 
     @pytest.mark.asyncio
-    async def test_max_chars_none_reads_the_whole_body(self):
-        """No truncation when max_chars is None, so an oversized JSON error body still parses."""
+    async def test_explicit_max_chars_overrides_the_default(self):
+        """Error classification reads further than the default, so an oversized JSON body still parses."""
         text = "a" * 5000
         mock_response = AsyncMock()
         mock_response.text = AsyncMock(return_value=text)
-        result = await safe_read_body(mock_response, max_chars=None)
+        result = await safe_read_body(mock_response, max_chars=8192)
         assert result == text
 
 

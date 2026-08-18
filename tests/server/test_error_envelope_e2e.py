@@ -294,6 +294,34 @@ class TestRailEngineErrors:
         assert response.status_code == 429
         assert response.json()["error"]["type"] == "rate_limit_error"
 
+    def test_rail_upstream_error_forwards_provider_code_and_param(self, serve_config):
+        """A rail failure nests twice and still carries the provider's fields.
+
+        The rail reaches its model through ``llm_call``, which wraps the engine error again:
+        LLMCallException -> ModelEngineError -> LLMClientError. Unwrapping only one link
+        nulls code and param for every rail-served failure.
+        """
+        serve_config(CONTENT_SAFETY_CONFIG, iorails=True)
+        body = {
+            "error": {
+                "message": "slow down",
+                "type": "rate_limit_error",
+                "code": "rate_limit_exceeded",
+                "param": "messages",
+            }
+        }
+
+        with aioresponses() as mocked:
+            mocked.post(MAIN_MODEL_URL, status=429, body=json.dumps(body), repeat=True)
+            response = _chat()
+
+        assert response.status_code == 429
+        error = response.json()["error"]
+        assert error["message"] == "slow down"
+        assert error["code"] == "rate_limit_exceeded"
+        assert error["param"] == "messages"
+        assert "gpt-4o-mini" not in error["message"]
+
 
 # The two upstream failures from QA case P0_0.24.0_NGUARD-745_http_error_openai_sdk_E2E TC-13
 OPENAI_UPSTREAM_FAILURES = [
@@ -422,6 +450,57 @@ class TestQACaseTC13EnvelopeParity:
         assert response.status_code == 429
         assert response.headers["retry-after"] == "7"
         assert response.json()["error"]["code"] == "rate_limit_exceeded"
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    @pytest.mark.parametrize(
+        "upstream_status,expected_type",
+        [
+            (401, "authentication_error"),
+            (403, "permission_error"),
+            (500, "server_error"),
+            (503, "server_error"),
+        ],
+    )
+    def test_status_and_type_agree_beyond_the_qa_scenarios(
+        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, expected_type
+    ):
+        """Statuses outside TC-13 map to the same type and message on either engine.
+
+        401 and 403 matter most: a rail model rejecting the server's own key must not read
+        as the caller's credentials being bad.
+        """
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        body = {"error": {"message": f"upstream returned {upstream_status}", "type": expected_type}}
+
+        with _upstream_failure(engine, httpx_mock, upstream_status, body):
+            response = _chat()
+
+        _assert_served_engine(engine)
+        assert response.status_code == upstream_status
+        error = response.json()["error"]
+        assert error["type"] == expected_type
+        assert error["message"] == f"upstream returned {upstream_status}"
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    def test_streaming_initial_failure_is_promoted_to_an_http_status(self, httpx_mock: HTTPXMock, serve_config, engine):
+        """A failure before the first token becomes a real HTTP status, not a 200 SSE stream.
+
+        An SSE response has no status line, so ``code`` carries it; the server reads that
+        back to promote the frame. This is the path the report flags where ``code`` is the
+        only status carrier.
+        """
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        body = {"error": {"message": "overloaded", "type": "server_error"}}
+
+        with _upstream_failure(engine, httpx_mock, 503, body):
+            response = _chat(stream=True)
+
+        _assert_served_engine(engine)
+        assert response.status_code == 503
+        error = response.json()["error"]
+        assert error["message"] == "overloaded"
+        assert error["code"] == 503
+        assert "gpt-4o-mini" not in error["message"]
 
     @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
     def test_engines_render_identical_envelopes(

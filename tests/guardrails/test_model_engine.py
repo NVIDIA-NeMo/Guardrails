@@ -39,6 +39,7 @@ from nemoguardrails.guardrails._http import (
 from nemoguardrails.guardrails.model_engine import (
     _CHAT_COMPLETIONS_ENDPOINT,
     _ENGINE_BASE_URLS,
+    _ERROR_BODY_MAX_CHARS,
     ModelEngine,
     ModelEngineError,
     _parse_chat_completion,
@@ -763,6 +764,63 @@ class TestModelEngineCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_call_unparseable_error_body_is_bounded(self):
+        """An unparseable body becomes the client message, so its length must be bounded.
+
+        A proxy returning an HTML page would otherwise be forwarded to the caller whole.
+        """
+        engine = ModelEngine(_make_model())
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 502
+        mock_response.text = AsyncMock(return_value="<html>" + "x" * 20000 + "</html>")
+        mock_response.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert len(client_facing_message(exc_info.value)) <= _ERROR_BODY_MAX_CHARS
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_error_identifies_the_model_to_the_classifier(self):
+        """The classified error carries the engine's model, provider and endpoint for diagnostics.
+
+        These reach logs through ``LLMClientError.__str__``, never the client envelope, which
+        renders ``error_message`` alone.
+        """
+        engine = ModelEngine(_make_model())
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 400
+        mock_response.text = AsyncMock(return_value='{"error": {"message": "bad request"}}')
+        mock_response.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        client_error = exc_info.value.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert client_error.model_name == "meta/llama-3.3-70b-instruct"
+        assert client_error.provider_name == engine.provider_name
+        assert client_error.base_url == engine.base_url
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_call_unclassifiable_error_response_keeps_the_status(self):
         """A classifier failure must not cost the caller the upstream status.
 
@@ -1034,6 +1092,28 @@ class TestModelEngineStreamCall:
 
         assert exc_info.value.status is None
         assert client_facing_message(exc_info.value) == "something broke"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_transport_failure_carries_a_typed_client_error(self):
+        """Opening a stream shares the non-streaming path's transport classification.
+
+        ``_wrap_exception`` is reached with a different label here, so the streaming branch
+        needs its own case.
+        """
+        engine = ModelEngine(_make_model())
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(side_effect=aiohttp.ServerTimeoutError("read timed out"))
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
+
+        assert isinstance(exc_info.value.inner_exception, LLMTimeoutError)
+        message = client_facing_message(exc_info.value)
+        assert message.startswith("Request timed out: ")
+        assert "meta/llama-3.3-70b-instruct" not in message
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio

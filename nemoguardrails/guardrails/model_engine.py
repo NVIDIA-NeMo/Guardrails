@@ -498,6 +498,13 @@ def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
     return _extract_tool_exchanges_openai(messages)
 
 
+# How much of a failed response to read for error classification. Large enough that any
+# realistic provider error body parses as JSON and yields its message/code/param, bounded
+# because an unparseable body (an HTML proxy error page) becomes the client-facing message
+# verbatim, and must not be forwarded whole.
+_ERROR_BODY_MAX_CHARS = 8192
+
+
 _TOOL_EXCHANGE_EXTRACTORS = {
     "openai": _extract_tool_exchanges_openai,
     "nim": _extract_tool_exchanges_nim,
@@ -743,9 +750,7 @@ class ModelEngine(BaseEngine):
         """Raise ``ModelEngineError`` if the HTTP status indicates an error."""
         if response.status >= 400:
             elapsed_ms = (time.monotonic() - t0) * 1000
-            # Read in full: raise_for_status parses this as JSON to recover the provider's
-            # message, code and param, and a truncated body would fall back to raw text.
-            error_body = await safe_read_body(response, max_chars=None)
+            error_body = await safe_read_body(response, max_chars=_ERROR_BODY_MAX_CHARS)
             log.warning(
                 "[%s] HTTP %s from model '%s' time=%.1fms",
                 req_id,
