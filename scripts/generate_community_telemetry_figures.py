@@ -20,6 +20,7 @@ import html
 import json
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -95,8 +96,17 @@ def _load_data(path: Path) -> dict[str, Any]:
 
 
 def _snapshot_label(data: dict[str, Any]) -> str:
-    versions = " and ".join(f"v{version}" for version in data["snapshot"]["versions"])
-    return f"{versions} · May 22–Aug 18, 2026"
+    snapshot = data["snapshot"]
+    versions = " and ".join(f"v{version}" for version in snapshot["versions"])
+    start = datetime.fromisoformat(snapshot["start_utc"].replace("Z", "+00:00")).astimezone(timezone.utc)
+    end = datetime.fromisoformat(snapshot["end_utc"].replace("Z", "+00:00")).astimezone(timezone.utc)
+    start_label = f"{start:%b} {start.day}"
+    end_label = f"{end:%b} {end.day}"
+    if start.year == end.year:
+        date_range = f"{start_label}–{end_label}, {end.year}"
+    else:
+        date_range = f"{start_label}, {start.year}–{end_label}, {end.year}"
+    return f"{versions} · {date_range}"
 
 
 def _format_count(value: int) -> str:
