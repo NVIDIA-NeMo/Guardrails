@@ -102,6 +102,8 @@ def _mock_streaming_response(raw_lines, status=200, headers=None):
 
 _OK_COMPLETION = {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
 
+_SSE_OK_LINES = [b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n', b"data: [DONE]\n\n"]
+
 
 def _mock_chat_client(payload: dict | None = None, status: int = 200):
     """Create a mock aiohttp client whose post() returns a chat-completion payload.
@@ -467,9 +469,7 @@ class TestModelEngineBodyParamDefaults:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     def test_excludes_client_only_keys(self):
-        """default_headers / default_query configure the OpenAI-compatible
-        client, not the chat-completion body, so they never reach the body
-        defaults; a sampling param alongside them is kept."""
+        """default_headers and default_query are excluded from body_param_defaults, while a sampling param is kept."""
         engine = ModelEngine(
             _make_model(
                 parameters={
@@ -611,7 +611,7 @@ class TestModelEngineCall:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_successful_call(self):
-        """Successful call returns parsed JSON and posts to correct URL with headers."""
+        """Successful call returns parsed JSON and posts to the correct URL with base headers and no query params."""
         model = _make_model()
         engine = ModelEngine(model)
 
@@ -640,7 +640,9 @@ class TestModelEngineCall:
         expected_url = _ENGINE_BASE_URLS[model.engine] + "/v1/chat/completions"
         expected_json = {"messages": messages, "model": model.model}
         expected_headers = {"Content-Type": "application/json", "Authorization": "Bearer test-key"}
-        mock_client.post.assert_called_once_with(expected_url, json=expected_json, headers=expected_headers)
+        mock_client.post.assert_called_once_with(
+            expected_url, json=expected_json, headers=expected_headers, params=None
+        )
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -779,6 +781,24 @@ class TestModelEngineDefaultHeaders:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_config_default_headers_merged_into_stream_request(self):
+        """A configured default_header reaches the streaming request, not only the non-streaming one."""
+        engine = ModelEngine(_make_model(parameters={"default_headers": {"X-Tenant": "acme"}}))
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(_SSE_OK_LINES))
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        headers = self._headers_from(mock_client)
+        assert headers["X-Tenant"] == "acme"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_config_default_header_overrides_authorization_case_insensitive(self):
         """A configured 'authorization' header replaces the api_key-derived Authorization."""
         engine = ModelEngine(_make_model(parameters={"default_headers": {"authorization": "Bearer custom"}}))
@@ -834,6 +854,131 @@ class TestModelEngineDefaultHeaders:
         headers: Any = engine.default_headers
         with pytest.raises(TypeError):
             headers["X-Injected"] = "nope"
+
+
+class TestModelEngineDefaultQuery:
+    """Test that config-level parameters.default_query reaches outbound requests."""
+
+    @staticmethod
+    def _mock_client():
+        """Build a mock aiohttp client whose post() records call args."""
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _mock_stream_client():
+        """Build a mock aiohttp client whose post() returns a one-chunk SSE stream."""
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(_SSE_OK_LINES))
+        mock_client.closed = False
+        return mock_client
+
+    @staticmethod
+    def _params_from(mock_client):
+        """Extract the query params passed to the mocked post()."""
+        return mock_client.post.call_args[1]["params"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_applied_to_request(self):
+        """A configured default_query is sent as query parameters on the non-streaming request."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) == (("tenant", "acme-corp"),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_applied_to_stream_request(self):
+        """A configured default_query is sent as query parameters on the streaming request."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_stream_client()
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        assert self._params_from(engine._client) == (("tenant", "acme-corp"),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_bool_value_serializes_lowercase(self):
+        """A YAML boolean becomes the wire form 'true'/'false', matching httpx, not Python's 'True'/'False'."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"beta": True, "cache": False}}))
+        assert engine.default_query == (("beta", "true"), ("cache", "false"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_numeric_values_stringify(self):
+        """Int and float values are stringified."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"retries": 3, "ratio": 1.5}}))
+        assert engine.default_query == (("retries", "3"), ("ratio", "1.5"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_none_value_becomes_empty_string(self):
+        """A null value becomes a valueless parameter rather than the string 'None'."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"flag": None}}))
+        assert engine.default_query == (("flag", ""),)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_list_value_expands_to_one_pair_per_element(self):
+        """A list value repeats the key once per element, in order, instead of stringifying the list."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tag": ["b", "a"], "tenant": "acme"}}))
+        assert engine.default_query == (("tag", "b"), ("tag", "a"), ("tenant", "acme"))
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_nested_mapping_value_raises_at_construction(self):
+        """A nested object value is rejected when the engine is built, naming the field and the offending key."""
+        with pytest.raises(ValueError) as exc_info:
+            ModelEngine(_make_model(parameters={"default_query": {"meta": {"region": "us"}}}))
+        assert "default_query" in str(exc_info.value)
+        assert "meta" in str(exc_info.value)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_absent_default_query_sends_no_params(self):
+        """Without default_query the request carries params=None rather than an empty collection."""
+        engine = ModelEngine(_make_model())
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_empty_default_query_sends_no_params(self):
+        """An empty default_query block is equivalent to omitting it."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert self._params_from(engine._client) is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_config_default_query_absent_from_body(self):
+        """default_query configures the URL, never the JSON request body."""
+        engine = ModelEngine(_make_model(parameters={"default_query": {"tenant": "acme-corp"}}))
+        engine._client = self._mock_client()
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        body = engine._client.post.call_args[1]["json"]
+        assert "default_query" not in body
+        assert "tenant" not in body
 
 
 class TestModelEngineStreamCall:
