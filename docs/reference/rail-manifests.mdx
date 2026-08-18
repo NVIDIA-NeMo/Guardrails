@@ -11,7 +11,7 @@ A rail manifest is the versioned, declarative contract for a built-in rail under
 
 The manifest keeps discovery separate from execution. Import references remain strings until the runtime needs the corresponding configuration factory or action. This lets the catalog inspect a rail without eagerly importing its optional integration dependencies.
 
-## File layout
+## File Layout
 
 A manifest-backed library rail uses the following files:
 
@@ -35,7 +35,7 @@ The `rail.py` module must:
 
 The built-in catalog discovers `rail.py` modules under `nemoguardrails/library`. It does not discover arbitrary application or third-party package paths.
 
-## Minimal manifest
+## Minimal Manifest
 
 The following manifest declares one action and one input surface:
 
@@ -82,7 +82,9 @@ RAIL = RailManifest(
 )
 ```
 
-## Top-level fields
+## Top-Level Fields
+
+The following table describes the top-level manifest fields:
 
 | Field | Purpose |
 | --- | --- |
@@ -112,11 +114,11 @@ List every action reference in `RailActions`, including actions used by surfaces
 actions=RailActions(refs=(CHECK_CUSTOM_POLICY,))
 ```
 
-Manifest actions are registered lazily. The action module and its optional dependencies are imported when the action is resolved, not when the catalog first reads the manifest.
+The runtime registers manifest actions lazily. It imports the action module and its optional dependencies when it resolves the action, not when the catalog first reads the manifest.
 
 Every action declared by a rail manifest must return a [`RailOutcome`](/configure-guardrails/actions/rail-outcomes). Actions decide whether to allow, block, or transform content. Colang flows and other runtimes decide how to present and enforce that decision.
 
-## Colang flows
+## Colang Flows
 
 Use `RailFlows` when the rail includes Colang implementations:
 
@@ -134,9 +136,11 @@ flows=RailFlows(
 
 Keep both dialect implementations behaviorally equivalent when the rail supports both. The flows should consume `RailOutcome` properties and own presentation behavior such as refusal intents and stopping the flow.
 
-## Action-backed surfaces
+## Action-Backed Surfaces
 
 A `RailSurface` describes how to invoke a declared action in one pipeline direction. It is independent of a Colang implementation.
+
+The following table describes the surface fields:
 
 | Field | Purpose |
 | --- | --- |
@@ -170,7 +174,7 @@ RailSurface(
 )
 ```
 
-## Typed configuration
+## Typed Configuration
 
 Use `RailConfigSchema` to project a rail-specific field under `rails.config`:
 
@@ -187,7 +191,7 @@ config_schema=RailConfigSchema(
 
 The referenced factory must return a `RailConfigSpec`. Keep the factory and its model types in `rail_config.py` so reading the manifest does not import the implementation eagerly.
 
-## Requirements and privacy
+## Requirements and Privacy
 
 Declare install and runtime requirements instead of leaving them implicit:
 
@@ -216,7 +220,7 @@ privacy=RailPrivacy(
 
 These declarations must match the action's actual behavior. Do not include credentials or secret values in the manifest.
 
-## Catalog validation
+## Catalog Validation
 
 The built-in `RailCatalog` validates the combined manifest set. Catalog construction fails when it finds:
 
@@ -240,7 +244,9 @@ manifests = all_rail_manifests()
 input_surfaces = default_rail_catalog().surfaces(direction=RailDirection.INPUT)
 ```
 
-## Author checklist
+## Author Checklist
+
+Use the following checklist when you author a rail manifest:
 
 - Define a lightweight `RAIL` value in `rail.py`.
 - Use stable, globally unique manifest, action, flow, configuration, and surface names.
