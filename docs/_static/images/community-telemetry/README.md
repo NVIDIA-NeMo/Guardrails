@@ -22,12 +22,13 @@ Generate the assets from the repository root:
 uv run --locked python scripts/generate_community_telemetry_figures.py
 ```
 
-The command always produces SVG files. It produces matching PNG files only when `rsvg-convert` is available on `PATH`. Install `librsvg`, or otherwise make `rsvg-convert` available, before running the command when you need PNG output.
+The default command produces both SVG and PNG files. It exits before writing any files when `rsvg-convert` is unavailable, preventing existing PNGs from becoming stale. Install `librsvg`, or otherwise make `rsvg-convert` available on `PATH`, before running it. Use `--svg-only` when you intentionally need only SVG output.
 
-Verify the generated files:
+The generator prints every file it writes. Verify that a default run reports three SVG and three PNG paths:
 
 ```bash
-rg --files docs/_static/images/community-telemetry | rg '\.(svg|png)$'
+uv run --locked python scripts/generate_community_telemetry_figures.py \
+  | rg 'docs/_static/images/community-telemetry/.*\.(svg|png)$'
 ```
 
 The rail-type and built-in-feature figures use the estimated unique count of startup process sessions as their denominator. A process session can use multiple rail types or built-in features, so percentages in those figures do not sum to 100%.

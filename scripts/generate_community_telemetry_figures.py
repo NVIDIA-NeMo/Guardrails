@@ -238,10 +238,7 @@ def _render_configured_rails(data: dict[str, Any], output_dir: Path) -> Path:
     return output
 
 
-def _render_png(svg_path: Path) -> Path | None:
-    renderer = shutil.which("rsvg-convert")
-    if renderer is None:
-        return None
+def _render_png(svg_path: Path, renderer: str) -> Path:
     png_path = svg_path.with_suffix(".png")
     subprocess.run([renderer, "--output", str(png_path), str(svg_path)], check=True)
     return png_path
@@ -254,6 +251,10 @@ def main() -> int:
     parser.add_argument("--svg-only", action="store_true")
     args = parser.parse_args()
 
+    renderer = None if args.svg_only else shutil.which("rsvg-convert")
+    if not args.svg_only and renderer is None:
+        parser.error("rsvg-convert is required for PNG output; install librsvg or use --svg-only")
+
     data = _load_data(args.data)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     svg_paths = [
@@ -264,10 +265,9 @@ def main() -> int:
 
     for svg_path in svg_paths:
         print(svg_path)
-        if not args.svg_only:
-            png_path = _render_png(svg_path)
-            if png_path is not None:
-                print(png_path)
+        if renderer is not None:
+            png_path = _render_png(svg_path, renderer)
+            print(png_path)
     return 0
 
 
