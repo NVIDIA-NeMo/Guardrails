@@ -37,6 +37,13 @@ from pydantic import ValidationError
 
 from benchmark.locust.locust_models import LocustConfig
 
+# The mock LLM servers serve `/health`; the Guardrails server serves
+# `/v1/health` (and `/healthz`). Probe both so either target works.
+HEALTH_PATHS = ("/health", "/v1/health")
+
+# `/health` reports "healthy"; the Guardrails health endpoint reports "pass".
+HEALTHY_STATUSES = frozenset({"healthy", "pass"})
+
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
@@ -60,29 +67,50 @@ class LocustRunner:
         self.config = config
         self.locustfile_path = Path(__file__).parent / "locustfile.py"
 
-    def _check_service(self) -> None:
-        """Check if the NeMo Guardrails server is up before running tests."""
-        url = f"{self.config.host}/health"
+    def _get(self, url: str) -> httpx.Response:
+        """Issue a preflight GET, translating transport failures into RuntimeError."""
         log.debug("Checking service is up at %s", url)
 
         try:
             # Try a simple request to verify the server is accessible
-            response = httpx.get(url, timeout=5)
+            return httpx.get(url, timeout=5)
         except httpx.ConnectError as e:
-            raise RuntimeError(f"ConnectError accessing {url}: {e}")
+            raise RuntimeError(f"ConnectError accessing {url}: {e}") from e
         except httpx.TimeoutException as e:
-            raise RuntimeError(f"HTTP Timeout accessing {url}: {e}")
+            raise RuntimeError(f"HTTP Timeout accessing {url}: {e}") from e
 
+    def _check_service(self) -> None:
+        """Check the server under test is up before running tests.
+
+        The mock LLM servers serve `/health` and the Guardrails server serves
+        `/v1/health`, so try each path and use the first one the host answers.
+        """
+        for path in HEALTH_PATHS:
+            url = f"{self.config.host}{path}"
+            response = self._get(url)
+
+            if response.status_code == httpx.codes.NOT_FOUND:
+                log.debug("No %s endpoint at %s", path, self.config.host)
+                continue
+
+            self._check_health_response(url, response)
+            log.info("Successfully connected to server at %s", self.config.host)
+            return
+
+        raise RuntimeError(f"No health endpoint found at {self.config.host}: tried {', '.join(HEALTH_PATHS)}")
+
+    def _check_health_response(self, url: str, response: httpx.Response) -> None:
+        """Raise unless the health response reports a healthy service."""
         if response.is_error:
             raise RuntimeError(f"Error {response.status_code} connecting to {url}: {response.text}")
 
         try:
-            if response.json().get("status") != "healthy":
-                raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
+            status = response.json().get("status")
         except json.decoder.JSONDecodeError as e:
-            raise RuntimeError(f"Error: response {response.text} couldn't be parsed as JSON: {e}")
+            raise RuntimeError(f"Error: response {response.text} couldn't be parsed as JSON: {e}") from e
 
-        log.info("Successfully connected to server at %s", self.config.host)
+        if status not in HEALTHY_STATUSES:
+            raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
 
     def _build_locust_command(self, output_dir: Optional[Path] = None) -> list[str]:
         """Build the Locust command with all parameters."""
