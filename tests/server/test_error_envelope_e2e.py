@@ -22,6 +22,7 @@
 # ``ModelEngine`` over aiohttp (``aioresponses``).
 
 import json
+from contextlib import contextmanager
 
 import pytest
 from aioresponses import aioresponses
@@ -292,6 +293,136 @@ class TestRailEngineErrors:
 
         assert response.status_code == 429
         assert response.json()["error"]["type"] == "rate_limit_error"
+
+
+# The two upstream failures from QA case P0_0.24.0_NGUARD-745_http_error_openai_sdk_E2E TC-13
+OPENAI_UPSTREAM_FAILURES = [
+    pytest.param(
+        400,
+        {
+            "error": {
+                "message": (
+                    "Invalid 'temperature': decimal above maximum value. Expected a value <= 2, but got 100.0 instead."
+                ),
+                "type": "invalid_request_error",
+                "param": "temperature",
+                "code": "decimal_above_max_value",
+            }
+        },
+        id="temperature-above-maximum",
+    ),
+    pytest.param(
+        404,
+        {
+            "error": {
+                "message": "The model `gpt-4o-does-not-exist-qa-745` does not exist or you do not have access to it.",
+                "type": "invalid_request_error",
+                "param": None,
+                "code": "model_not_found",
+            }
+        },
+        id="model-not-found",
+    ),
+]
+
+
+@contextmanager
+def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict):
+    """Mock the main-model transport the given engine uses: aiohttp for IORails, httpx for LLMRails."""
+    if engine == "iorails":
+        with aioresponses() as mocked:
+            mocked.post(MAIN_MODEL_URL, status=status, body=json.dumps(body), repeat=True)
+            yield
+    else:
+        httpx_mock.add_response(
+            url=MAIN_MODEL_URL,
+            method="POST",
+            status_code=status,
+            json=body,
+            is_reusable=True,
+        )
+        yield
+
+
+def _assert_served_engine(engine: str) -> None:
+    """Fail if the request ran on the other engine, which would make the envelope assertions vacuous."""
+    served = list(api.llm_rails_instances.values())
+    assert served, "no rails instance was constructed, so no upstream call was attempted"
+    rails = served[0]
+    if engine == "iorails":
+        assert isinstance(rails, Guardrails) and rails.use_iorails_engine
+    else:
+        assert not isinstance(rails, Guardrails)
+
+
+class TestQACaseTC13EnvelopeParity:
+    """QA case NGUARD-745 TC-13: both engines render one envelope for the same upstream failure.
+
+    The LLMRails leg is the passing baseline the QA case compares against; the IORails leg
+    is where all four TC-13 failures and both code/param observations were reported.
+    """
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
+    def test_message_is_the_provider_message_alone(
+        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, upstream_body
+    ):
+        """The client message carries no model-routing prefix and no raw upstream body."""
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+
+        with _upstream_failure(engine, httpx_mock, upstream_status, upstream_body):
+            response = _chat()
+
+        _assert_served_engine(engine)
+        assert response.status_code == upstream_status
+        message = response.json()["error"]["message"]
+        assert message == upstream_body["error"]["message"]
+        assert "gpt-4o-mini" not in message
+        assert "upstream.invalid" not in message
+        assert '"error"' not in message
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
+    def test_provider_code_and_param_are_preserved(
+        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, upstream_body
+    ):
+        """The provider's own code and param reach the caller instead of being nulled."""
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+
+        with _upstream_failure(engine, httpx_mock, upstream_status, upstream_body):
+            response = _chat()
+
+        _assert_served_engine(engine)
+        error = response.json()["error"]
+        assert error["code"] == upstream_body["error"]["code"]
+        assert error["param"] == upstream_body["error"]["param"]
+
+    @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
+    def test_engines_render_identical_envelopes(
+        self, httpx_mock: HTTPXMock, serve_config, upstream_status, upstream_body
+    ):
+        """Both engines return the same status and the same whole envelope for one upstream failure.
+
+        The field-level tests above pin each engine to the provider's own values; this one
+        catches drift on any field nobody enumerated, which is what the QA case's two servers
+        against one config store actually compare.
+        """
+        # LLMRails runs first so the IORails instance is the one left in the cache for the
+        # reset fixture to shut down; clearing it afterwards would leak its aiohttp session.
+        serve_config(MAIN_MODEL_CONFIG)
+        with _upstream_failure("llmrails", httpx_mock, upstream_status, upstream_body):
+            llmrails_response = _chat()
+        _assert_served_engine("llmrails")
+
+        api.llm_rails_instances.clear()
+
+        serve_config(MAIN_MODEL_CONFIG, iorails=True)
+        with _upstream_failure("iorails", httpx_mock, upstream_status, upstream_body):
+            iorails_response = _chat()
+        _assert_served_engine("iorails")
+
+        assert iorails_response.status_code == llmrails_response.status_code
+        assert iorails_response.json() == llmrails_response.json()
 
 
 class TestProtocolLevelResponses:
