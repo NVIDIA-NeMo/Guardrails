@@ -999,6 +999,79 @@ class TestBuiltinFeatures:
         assert "topic_safety" in result
         assert "jailbreak_detection" in result
 
+    def test_detects_features_added_to_manifest_catalog(self):
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        config.rails.input.flows = [
+            "context bloat detection on input",
+            "f5 guardrails scan input",
+            "gcpnlp moderation",
+            "hf classifier check input",
+            "polygraf detect pii on input",
+        ]
+
+        result = _detect_builtin_features(config)
+
+        assert result == [
+            "context_bloat_detection",
+            "f5",
+            "gcp_moderate_text",
+            "hf_classifier",
+            "polygraf",
+        ]
+
+    def test_every_manifest_flow_resolves_to_a_builtin_feature(self):
+        from nemoguardrails.manifests import default_rail_catalog
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        catalog = default_rail_catalog()
+
+        unresolved = []
+        for manifest in catalog.manifests.values():
+            if manifest.flows is None:
+                continue
+            for flow_name in manifest.flows.flow_names:
+                config.rails.input.flows = [flow_name]
+                if not _detect_builtin_features(config):
+                    unresolved.append(flow_name)
+
+        assert unresolved == []
+
+    @pytest.mark.parametrize(
+        ("flow_name", "feature_id"),
+        [
+            ("alignscore check facts", "factchecking"),
+            ("detect pii on input", "sensitive_data_detection"),
+            ("self check facts", "self_check"),
+            ("self check hallucination", "self_check"),
+        ],
+    )
+    def test_manifest_flow_preserves_compatibility_feature_id(self, flow_name, feature_id):
+        from nemoguardrails.rails.llm.config import Rails
+
+        config = MagicMock()
+        config.rails = Rails()
+        config.rails.input.flows = [flow_name]
+
+        assert _detect_builtin_features(config) == [feature_id]
+
+    def test_privateai_config_and_flow_share_compatibility_feature_id(self):
+        from nemoguardrails.rails.llm.config import PrivateAIDetection, Rails, RailsConfigData
+
+        config = MagicMock()
+        config.rails = Rails(
+            config=RailsConfigData(
+                privateai=PrivateAIDetection(server_endpoint="https://private-ai.example.com"),
+            )
+        )
+        config.rails.input.flows = ["detect pii on input"]
+
+        assert _detect_builtin_features(config) == ["sensitive_data_detection"]
+
     def test_ignores_unknown_flow_names(self):
         from nemoguardrails.rails.llm.config import Rails
 
