@@ -181,8 +181,11 @@ test("preview watcher reports invalid Git configuration without crashing", async
   const root = temporaryDirectory(t);
   const binDirectory = path.join(root, "bin");
   const makePath = path.join(binDirectory, "make");
+  const gitPath = path.join(binDirectory, "git");
   writeFile(root, "bin/make", "#!/bin/sh\nexit 0\n");
+  writeFile(root, "bin/git", "#!/bin/sh\nprintf '%s\\n' 'test-preview-branch'\n");
   chmodSync(makePath, 0o755);
+  chmodSync(gitPath, 0o755);
 
   const child = spawn(process.execPath, [path.join(repoRoot, "scripts/watch-fern-preview.mjs")], {
     cwd: repoRoot,
@@ -201,7 +204,7 @@ test("preview watcher reports invalid Git configuration without crashing", async
   });
 
   const errorOutput = await waitForOutput(child, "Failed to configure Fern preview generation");
-  assert.match(errorOutput, /Invalid GIT_CONFIG_COUNT: \+0/);
+  assert.doesNotMatch(errorOutput, /\+0/);
   assert.equal(child.exitCode, null);
 
   child.kill("SIGTERM");

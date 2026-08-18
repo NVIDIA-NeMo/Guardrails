@@ -217,11 +217,9 @@ function runFernGenerate(reason) {
   let fernEnvironment;
   try {
     fernEnvironment = createFernRefSdkEnvironment(repoRoot);
-  } catch (error) {
+  } catch {
     running = false;
-    console.error(
-      `Failed to configure Fern preview generation: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    console.error("Failed to configure Fern preview generation. Check the Git configuration values.");
     if (pending) {
       runFernGenerate("queued file change");
     }
