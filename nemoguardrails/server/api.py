@@ -775,7 +775,10 @@ def _map_rail_status(status: RailStatus) -> str:
     response_model_exclude_none=True,
 )
 async def guardrail_check(body: GuardrailCheckRequest, request: Request):
-    """Guardrail check request."""
+    """Guardrail check request.
+
+    Returns 422 when ``rail_types`` includes a type with no configured flows.
+    """
     api_request_headers.set(request.headers)
 
     if not body.messages:

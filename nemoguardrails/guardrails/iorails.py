@@ -1280,6 +1280,10 @@ class IORails(BaseGuardrails):
         Mirrors ``generate``: spins up a short-lived IORails engine with tracing
         and metrics disabled and runs the check on it. For production use, prefer
         the asynchronous ``check_async``.
+
+        Raises:
+            UnsatisfiableRailTypeError: If a requested rail type has no
+                configured flows.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(

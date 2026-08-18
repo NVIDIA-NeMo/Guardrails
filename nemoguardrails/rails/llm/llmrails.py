@@ -1719,6 +1719,10 @@ class LLMRails(BaseGuardrails):
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
+
+        Raises:
+            UnsatisfiableRailTypeError: If a requested rail type has no
+                configured flows.
         """
         if check_sync_call_from_async_loop():
             raise RuntimeError(
