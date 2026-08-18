@@ -327,11 +327,11 @@ OPENAI_UPSTREAM_FAILURES = [
 
 
 @contextmanager
-def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict):
+def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict, headers: dict | None = None):
     """Mock the main-model transport the given engine uses: aiohttp for IORails, httpx for LLMRails."""
     if engine == "iorails":
         with aioresponses() as mocked:
-            mocked.post(MAIN_MODEL_URL, status=status, body=json.dumps(body), repeat=True)
+            mocked.post(MAIN_MODEL_URL, status=status, body=json.dumps(body), headers=headers or {}, repeat=True)
             yield
     else:
         httpx_mock.add_response(
@@ -339,6 +339,7 @@ def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dic
             method="POST",
             status_code=status,
             json=body,
+            headers=headers,
             is_reusable=True,
         )
         yield
@@ -396,6 +397,31 @@ class TestQACaseTC13EnvelopeParity:
         error = response.json()["error"]
         assert error["code"] == upstream_body["error"]["code"]
         assert error["param"] == upstream_body["error"]["param"]
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    def test_rate_limit_forwards_retry_after(self, httpx_mock: HTTPXMock, serve_config, engine):
+        """A 429 forwards the provider's Retry-After header and code on either engine.
+
+        IORails never read the response headers on the error path, so an SDK's backoff was
+        blind even though the provider had supplied the value.
+        """
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        body = {
+            "error": {
+                "message": "slow down",
+                "type": "rate_limit_error",
+                "code": "rate_limit_exceeded",
+                "param": None,
+            }
+        }
+
+        with _upstream_failure(engine, httpx_mock, 429, body, headers={"retry-after": "7"}):
+            response = _chat()
+
+        _assert_served_engine(engine)
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "7"
+        assert response.json()["error"]["code"] == "rate_limit_exceeded"
 
     @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
     def test_engines_render_identical_envelopes(

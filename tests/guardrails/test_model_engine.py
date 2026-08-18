@@ -24,7 +24,13 @@ import aiohttp
 import pytest
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
-from nemoguardrails.exceptions import LLMCallException, LLMConnectionError, LLMRateLimitError, LLMTimeoutError
+from nemoguardrails.exceptions import (
+    LLMCallException,
+    LLMClientError,
+    LLMConnectionError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+)
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -719,6 +725,74 @@ class TestModelEngineCall:
 
         assert exc_info.value.status == 400
         assert exc_info.value.model_name == "meta/llama-3.3-70b-instruct"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_oversized_error_body_still_yields_provider_fields(self):
+        """An error body past the log truncation limit still parses into code and param.
+
+        Truncating before classification would cut the JSON mid-object, and the provider's
+        fields would be replaced by the raw text.
+        """
+        long_message = "Invalid 'temperature': " + "x" * 900
+        body = json.dumps(
+            {"error": {"message": long_message, "type": "invalid_request_error", "param": "temperature", "code": "bad"}}
+        )
+        engine = ModelEngine(_make_model())
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 400
+        mock_response.text = AsyncMock(return_value=body)
+        mock_response.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        client_error = exc_info.value.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert client_error.error_code == "bad"
+        assert client_error.param == "temperature"
+        assert client_facing_message(exc_info.value) == long_message
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_unclassifiable_error_response_keeps_the_status(self):
+        """A classifier failure must not cost the caller the upstream status.
+
+        Letting it escape would strip the status in call()'s catch-all, and the server would
+        report 500 for what was really a 429.
+        """
+        engine = ModelEngine(_make_model())
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 429
+        mock_response.text = AsyncMock(return_value='{"error": {"message": "slow down"}}')
+        mock_response.headers = {}
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with patch(
+            "nemoguardrails.guardrails.model_engine.raise_for_status",
+            side_effect=RuntimeError("classifier blew up"),
+        ):
+            with pytest.raises(ModelEngineError) as exc_info:
+                await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert exc_info.value.status == 429
+        assert exc_info.value.inner_exception is None
+        assert "slow down" not in str(exc_info.value)
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio

@@ -66,6 +66,15 @@ class TestSafeReadBody:
         result = await safe_read_body(mock_response)
         assert len(result) == 500
 
+    @pytest.mark.asyncio
+    async def test_max_chars_none_reads_the_whole_body(self):
+        """No truncation when max_chars is None, so an oversized JSON error body still parses."""
+        text = "a" * 5000
+        mock_response = AsyncMock()
+        mock_response.text = AsyncMock(return_value=text)
+        result = await safe_read_body(mock_response, max_chars=None)
+        assert result == text
+
 
 class TestMergeHeadersCaseInsensitive:
     """Test case-insensitive header merging (override wins, base preserved)."""
