@@ -37,6 +37,7 @@ from nemoguardrails.guardrails._http import (
     DEFAULT_TIMEOUT_CONNECT,
     DEFAULT_TIMEOUT_TOTAL,
     merge_headers_case_insensitive,
+    normalize_query_params,
     safe_read_body,
 )
 from nemoguardrails.guardrails.base_engine import BaseEngine
@@ -124,6 +125,7 @@ class _RequestParams(NamedTuple):
     url: str
     headers: dict[str, str]
     body: dict[str, Any]
+    params: tuple[tuple[str, str], ...]
 
 
 # TODO: duplicates OpenAIChatModel._to_messages in
@@ -543,7 +545,7 @@ class ModelEngine(BaseEngine):
         metrics_enabled: bool = False,
         content_capture_enabled: bool = False,
     ) -> None:
-        """Resolve base URL, API key, and retry settings from the model config.
+        """Resolve base URL, API key, retry settings, and per-request defaults from the model config.
 
         The telemetry arguments carry the OTEL instrumentation for every call
         this engine makes.  They live here rather than one level up in
@@ -568,6 +570,8 @@ class ModelEngine(BaseEngine):
         self.default_headers: Mapping[str, str] = MappingProxyType(
             {str(key): str(value) for key, value in (params.get("default_headers") or {}).items()}
         )
+
+        self.default_query: tuple[tuple[str, str], ...] = normalize_query_params(params.get("default_query"))
 
         # Default `llm_params` used on inference are the subset of Model.parameters after
         # filtering out keys in _RESERVED_LLM_PARAMETERS.  Exposed as a read-only
@@ -654,7 +658,7 @@ class ModelEngine(BaseEngine):
             )
 
     def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
-        """Build the client, URL, headers, and body common to every request."""
+        """Build the client, URL, headers, query params, and body common to every request."""
         client = cast(RetryClient, self._client)
         url = self.base_url + _CHAT_COMPLETIONS_ENDPOINT
 
@@ -664,7 +668,7 @@ class ModelEngine(BaseEngine):
         headers = merge_headers_case_insensitive(headers, self.default_headers)
 
         body: dict[str, Any] = {"model": self.model_name, "messages": messages, **kwargs}
-        return _RequestParams(client=client, url=url, headers=headers, body=body)
+        return _RequestParams(client=client, url=url, headers=headers, body=body, params=self.default_query)
 
     async def _raise_for_status(self, response: aiohttp.ClientResponse, req_id: str, t0: float) -> None:
         """Raise ``ModelEngineError`` if the HTTP status indicates an error."""
@@ -722,7 +726,9 @@ class ModelEngine(BaseEngine):
 
         t0 = time.monotonic()
         try:
-            async with req.client.post(req.url, json=req.body, headers=req.headers) as response:
+            async with req.client.post(
+                req.url, json=req.body, headers=req.headers, params=req.params or None
+            ) as response:
                 await self._raise_for_status(response, req_id, t0)
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
@@ -805,7 +811,9 @@ class ModelEngine(BaseEngine):
 
         t0 = time.monotonic()
         try:
-            async with req.client.post(req.url, json=req.body, headers=req.headers, timeout=stream_timeout) as response:
+            async with req.client.post(
+                req.url, json=req.body, headers=req.headers, params=req.params or None, timeout=stream_timeout
+            ) as response:
                 await self._raise_for_status(response, req_id, t0)
 
                 # Surface response headers on every chunk as provider_metadata['response_headers'],

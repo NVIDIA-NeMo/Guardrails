@@ -20,6 +20,7 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
+from nemoguardrails.exceptions import RailTypeNotConfiguredError
 from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
 from nemoguardrails.server import api
 
@@ -289,3 +290,26 @@ def test_rail_types_invalid_value_returns_422():
         }
     )
     assert resp.status_code == 422
+
+
+# --- Unsatisfiable rail_types ---
+
+
+def test_unsatisfiable_rail_types_returns_422():
+    result = RailsResult(status=RailStatus.PASSED, content="hi")
+    mock = _mock_rails(result)
+    mock.check_async = AsyncMock(
+        side_effect=RailTypeNotConfiguredError("Requested rail type 'output' has no configured rails.")
+    )
+
+    with patch.object(api, "_get_rails", new_callable=AsyncMock, return_value=mock):
+        resp = _post(
+            {
+                "model": "test",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": {"config_id": "test", "rail_types": ["output"]},
+            }
+        )
+
+    assert resp.status_code == 422
+    assert "output" in resp.json()["error"]["message"]

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="940" viewBox="0 0 1600 940">
+<rect width="1600" height="940" fill="#FFFFFF"/>
+<rect x="70.00" y="58.00" width="14.00" height="112.00" rx="0.00" fill="#76B900"/>
+<text x="110.00" y="78.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#76B900" text-anchor="start">NVIDIA NeMo Guardrails</text>
+<text x="110.00" y="132.00" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" fill="#000000" text-anchor="start">Which rail types are most common?</text>
+<text x="110.00" y="174.00" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="400" fill="#5E5E5E" text-anchor="start">Share of estimated unique startup sessions · v0.22.0 and v0.23.0 · May 22–Aug 18, 2026</text>
+<line x1="70.00" y1="205.00" x2="1530.00" y2="205.00" stroke="#CDCDCD" stroke-width="2.00"/>
+<line x1="430.00" y1="238.00" x2="430.00" y2="854.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="430.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">0%</text>
+<line x1="682.50" y1="238.00" x2="682.50" y2="854.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="682.50" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">25%</text>
+<line x1="935.00" y1="238.00" x2="935.00" y2="854.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="935.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">50%</text>
+<line x1="1187.50" y1="238.00" x2="1187.50" y2="854.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1187.50" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">75%</text>
+<line x1="1440.00" y1="238.00" x2="1440.00" y2="854.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1440.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">100%</text>
+<text x="402.00" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Input</text>
+<rect x="430.00" y="270.00" width="939.90" height="50.00" rx="5.00" fill="#76B900"/>
+<text x="1351.90" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">93.1%  ·  619,589</text>
+<text x="402.00" y="402.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Output</text>
+<rect x="430.00" y="368.00" width="617.71" height="50.00" rx="5.00" fill="#008564"/>
+<text x="1029.71" y="402.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">61.2%  ·  407,195</text>
+<text x="402.00" y="500.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Retrieval</text>
+<rect x="430.00" y="466.00" width="3.09" height="50.00" rx="5.00" fill="#0071C5"/>
+<text x="451.09" y="500.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.3%  ·  2,037</text>
+<text x="402.00" y="598.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Tool output</text>
+<rect x="430.00" y="564.00" width="3.00" height="50.00" rx="5.00" fill="#5D1682"/>
+<text x="451.00" y="598.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.2%  ·  1,573</text>
+<text x="402.00" y="696.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Dialog</text>
+<rect x="430.00" y="662.00" width="3.00" height="50.00" rx="5.00" fill="#890C58"/>
+<text x="451.00" y="696.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.2%  ·  1,567</text>
+<text x="402.00" y="794.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Tool input</text>
+<rect x="430.00" y="760.00" width="3.00" height="50.00" rx="5.00" fill="#FAC200"/>
+<text x="451.00" y="794.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.2%  ·  1,522</text>
+<text x="70.00" y="832.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">Based on 665,798 estimated unique process sessions.</text>
+<text x="70.00" y="862.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">A session can use multiple rail types, so percentages do not sum to 100%.</text>
+</svg>

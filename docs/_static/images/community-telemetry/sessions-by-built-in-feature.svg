@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100">
+<rect width="1600" height="1100" fill="#FFFFFF"/>
+<rect x="70.00" y="58.00" width="14.00" height="112.00" rx="0.00" fill="#76B900"/>
+<text x="110.00" y="78.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#76B900" text-anchor="start">NVIDIA NeMo Guardrails</text>
+<text x="110.00" y="132.00" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" fill="#000000" text-anchor="start">Which built-in features are most common?</text>
+<text x="110.00" y="174.00" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="400" fill="#5E5E5E" text-anchor="start">Top 10 by share of estimated unique startup sessions · v0.22.0 and v0.23.0 · May 22–Aug 18, 2026</text>
+<line x1="70.00" y1="205.00" x2="1530.00" y2="205.00" stroke="#CDCDCD" stroke-width="2.00"/>
+<line x1="430.00" y1="238.00" x2="430.00" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="430.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">0%</text>
+<line x1="574.29" y1="238.00" x2="574.29" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="574.29" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">10%</text>
+<line x1="718.57" y1="238.00" x2="718.57" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="718.57" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">20%</text>
+<line x1="862.86" y1="238.00" x2="862.86" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="862.86" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">30%</text>
+<line x1="1007.14" y1="238.00" x2="1007.14" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1007.14" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">40%</text>
+<line x1="1151.43" y1="238.00" x2="1151.43" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1151.43" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">50%</text>
+<line x1="1295.71" y1="238.00" x2="1295.71" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1295.71" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">60%</text>
+<line x1="1440.00" y1="238.00" x2="1440.00" y2="986.00" stroke="#CDCDCD" stroke-width="1.00"/>
+<text x="1440.00" y="232.00" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#8C8C8C" text-anchor="middle">70%</text>
+<text x="402.00" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Self-check</text>
+<rect x="430.00" y="270.00" width="937.98" height="50.00" rx="5.00" fill="#76B900"/>
+<text x="1349.98" y="304.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="end">65.0%  ·  432,827</text>
+<text x="402.00" y="376.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Jailbreak detection</text>
+<rect x="430.00" y="342.00" width="145.79" height="50.00" rx="5.00" fill="#008564"/>
+<text x="593.79" y="376.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">10.1%  ·  67,273</text>
+<text x="402.00" y="448.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Content safety</text>
+<rect x="430.00" y="414.00" width="24.05" height="50.00" rx="5.00" fill="#0071C5"/>
+<text x="472.05" y="448.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">1.7%  ·  11,097</text>
+<text x="402.00" y="520.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Sensitive data detection</text>
+<rect x="430.00" y="486.00" width="17.05" height="50.00" rx="5.00" fill="#5D1682"/>
+<text x="465.05" y="520.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">1.2%  ·  7,868</text>
+<text x="402.00" y="592.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Injection detection</text>
+<rect x="430.00" y="558.00" width="10.68" height="50.00" rx="5.00" fill="#890C58"/>
+<text x="458.68" y="592.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.7%  ·  4,929</text>
+<text x="402.00" y="664.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Topic safety</text>
+<rect x="430.00" y="630.00" width="9.38" height="50.00" rx="5.00" fill="#76B900"/>
+<text x="457.38" y="664.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.7%  ·  4,330</text>
+<text x="402.00" y="736.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Llama Guard</text>
+<rect x="430.00" y="702.00" width="6.64" height="50.00" rx="5.00" fill="#008564"/>
+<text x="454.64" y="736.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.5%  ·  3,065</text>
+<text x="402.00" y="808.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Regex</text>
+<rect x="430.00" y="774.00" width="5.45" height="50.00" rx="5.00" fill="#0071C5"/>
+<text x="453.45" y="808.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.4%  ·  2,516</text>
+<text x="402.00" y="880.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">Fact-checking</text>
+<rect x="430.00" y="846.00" width="3.00" height="50.00" rx="5.00" fill="#5D1682"/>
+<text x="451.00" y="880.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.1%  ·  595</text>
+<text x="402.00" y="952.00" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="600" fill="#000000" text-anchor="end">GLiNER</text>
+<rect x="430.00" y="918.00" width="3.00" height="50.00" rx="5.00" fill="#890C58"/>
+<text x="451.00" y="952.00" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#5E5E5E" text-anchor="start">0.1%  ·  464</text>
+<text x="70.00" y="992.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">Based on 665,798 estimated unique process sessions.</text>
+<text x="70.00" y="1022.00" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" fill="#5E5E5E" text-anchor="start">A session can use multiple built-in features, so percentages do not sum to 100%.</text>
+</svg>

@@ -208,6 +208,68 @@ class TestConfigDefaultHeadersOverHTTP:
         assert "X-Tenant" not in captured["body"]
 
 
+class TestConfigDefaultQueryOverHTTP:
+    """True end-to-end: run generate_async over a real loopback HTTP server and
+    assert on the query string the aiohttp client actually put on the wire."""
+
+    @staticmethod
+    async def _capture_request(default_query: dict) -> dict:
+        """Run one generate_async against a loopback server and return what the server received."""
+        captured: dict = {}
+
+        async def handler(request):
+            captured["path"] = request.path
+            captured["query"] = list(request.rel_url.query.items())
+            captured["body"] = await request.json()
+            return web.json_response({"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+        app = web.Application()
+        app.router.add_post("/v1/chat/completions", handler)
+        server = TestServer(app)
+        await server.start_server()
+        try:
+            config = RailsConfig.from_content(
+                config={
+                    "models": [
+                        {
+                            "type": "main",
+                            "engine": "openai",
+                            "model": "test-model",
+                            "parameters": {
+                                "base_url": str(server.make_url("/")),
+                                "default_query": default_query,
+                            },
+                        }
+                    ]
+                }
+            )
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                iorails = IORails(config)
+            async with iorails:
+                captured["result"] = await iorails.generate_async(messages=[{"role": "user", "content": "hi"}])
+        finally:
+            await server.close()
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_config_default_query_sent_on_the_wire(self):
+        """Configured query parameters reach the provider request URL, leaving the path and the JSON body alone."""
+        captured = await self._capture_request({"tenant": "acme-corp", "api-version": "2024-10-21"})
+
+        assert captured["result"] == {"role": "assistant", "content": "ok"}
+        assert captured["query"] == [("tenant", "acme-corp"), ("api-version", "2024-10-21")]
+        assert captured["path"] == "/v1/chat/completions"
+        assert "tenant" not in captured["body"]
+        assert "default_query" not in captured["body"]
+
+    @pytest.mark.asyncio
+    async def test_list_and_bool_query_values_survive_the_wire(self):
+        """A list value repeats the key on the wire and a boolean arrives lowercased."""
+        captured = await self._capture_request({"tag": ["red", "blue"], "beta": True})
+
+        assert captured["query"] == [("tag", "red"), ("tag", "blue"), ("beta", "true")]
+
+
 class TestGenerateAsync:
     """Test the generate_async input-check → LLM → output-check pipeline."""
 

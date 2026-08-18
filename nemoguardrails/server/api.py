@@ -39,6 +39,7 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidStateError,
     LLMCallException,
+    RailTypeNotConfiguredError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -55,6 +56,7 @@ from nemoguardrails.server.exception_handlers import (
     invalid_state_error_handler,
     llm_call_exception_handler,
     model_initialization_error_handler,
+    rail_type_not_configured_error_handler,
     validation_error_handler,
 )
 from nemoguardrails.server.schemas.openai import (
@@ -222,6 +224,7 @@ _EXCEPTION_HANDLERS = (
     (HTTPClientError, llm_call_exception_handler),
     (ModelInitializationError, model_initialization_error_handler),
     (StreamingNotSupportedError, bad_request_error_handler),
+    (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
     (InvalidStateError, invalid_state_error_handler),
     (RequestValidationError, validation_error_handler),
     (StarletteHTTPException, http_exception_handler),
@@ -820,7 +823,10 @@ def _map_rail_status(status: RailStatus) -> str:
     response_model_exclude_none=True,
 )
 async def guardrail_check(body: GuardrailCheckRequest, request: Request):
-    """Guardrail check request."""
+    """Guardrail check request.
+
+    Returns 422 when ``rail_types`` includes a type with no configured flows.
+    """
     api_request_headers.set(request.headers)
 
     if not body.messages:
