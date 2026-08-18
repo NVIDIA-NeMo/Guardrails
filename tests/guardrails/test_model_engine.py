@@ -24,7 +24,7 @@ import aiohttp
 import pytest
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
-from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.exceptions import LLMCallException, LLMConnectionError, LLMRateLimitError, LLMTimeoutError
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -40,6 +40,7 @@ from nemoguardrails.guardrails.model_engine import (
 )
 from nemoguardrails.guardrails.tool_schema import Toolset
 from nemoguardrails.llm.call import llm_call
+from nemoguardrails.llm.clients._errors import client_facing_message
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.types import (
     ChatMessage,
@@ -114,6 +115,9 @@ def _mock_chat_client(payload: dict | None = None, status: int = 200):
     mock_response.status = status
     mock_response.json = AsyncMock(return_value=payload if payload is not None else _OK_COMPLETION)
     mock_response.text = AsyncMock(return_value='{"error": "boom"}')
+    # A real ClientResponse exposes a mapping here. Left as an auto-created AsyncMock,
+    # error classification cannot read it and falls back to an unclassified error.
+    mock_response.headers = {}
 
     mock_client = AsyncMock()
     mock_client.post = MagicMock(return_value=mock_response)
@@ -702,6 +706,7 @@ class TestModelEngineCall:
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.status = 400
         mock_response.text = AsyncMock(return_value='{"error": "bad request"}')
+        mock_response.headers = {}
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)
@@ -714,6 +719,59 @@ class TestModelEngineCall:
 
         assert exc_info.value.status == 400
         assert exc_info.value.model_name == "meta/llama-3.3-70b-instruct"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "transport_error,expected_type,expected_message",
+        [
+            (aiohttp.ServerTimeoutError("read timed out"), LLMTimeoutError, "Request timed out: read timed out"),
+            (asyncio.TimeoutError(), LLMTimeoutError, "Request timed out: "),
+            (
+                aiohttp.ClientConnectionError("cannot connect"),
+                LLMConnectionError,
+                "Connection error: cannot connect",
+            ),
+        ],
+        ids=["server-timeout", "asyncio-timeout", "connection-error"],
+    )
+    async def test_call_transport_failure_carries_a_typed_client_error(
+        self, transport_error, expected_type, expected_message
+    ):
+        """A timeout or connection failure is classified, so the caller sees no internal model name."""
+        engine = ModelEngine(_make_model())
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(side_effect=transport_error)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert isinstance(exc_info.value.inner_exception, expected_type)
+        assert exc_info.value.status is None
+        message = client_facing_message(exc_info.value)
+        assert message.startswith(expected_message)
+        assert "meta/llama-3.3-70b-instruct" not in message
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_unclassifiable_failure_carries_no_client_error(self):
+        """An exception that is not a transport failure is wrapped without an inner client error."""
+        engine = ModelEngine(_make_model())
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(side_effect=ValueError("something else"))
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            await engine.call([{"role": "user", "content": "Hi"}])
+
+        assert exc_info.value.inner_exception is None
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -848,6 +906,71 @@ class TestModelEngineStreamCall:
             lines.append(f"data: {payload}\n\n".encode())
         lines.append(b"data: [DONE]\n\n")
         return lines
+
+    @staticmethod
+    def _make_sse_payloads(payloads):
+        """Build raw SSE byte lines from a list of whole chunk payloads."""
+        lines = [f"data: {json.dumps(payload)}\n\n".encode() for payload in payloads]
+        lines.append(b"data: [DONE]\n\n")
+        return lines
+
+    def _streaming_engine(self, raw_lines):
+        """Create a started ModelEngine whose client streams ``raw_lines``."""
+        engine = ModelEngine(_make_model())
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=_mock_streaming_response(raw_lines))
+        engine._client = mock_client
+        engine._running = True
+        return engine
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_raises_on_mid_stream_provider_error(self):
+        """A provider error frame mid-stream ends the stream carrying the status its type implies."""
+        engine = self._streaming_engine(
+            self._make_sse_payloads(
+                [
+                    {"choices": [{"delta": {"content": "Hel"}}]},
+                    {"error": {"message": "slow down", "type": "rate_limit_error", "code": "rate_limit_exceeded"}},
+                ]
+            )
+        )
+
+        chunks = []
+        with pytest.raises(ModelEngineError) as exc_info:
+            async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                chunks.append(chunk)
+
+        assert [c.delta_content for c in chunks] == ["Hel"]
+        assert exc_info.value.status == 429
+        assert isinstance(exc_info.value.inner_exception, LLMRateLimitError)
+        assert client_facing_message(exc_info.value) == "slow down"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_mid_stream_error_without_a_known_type_has_no_status(self):
+        """An unrecognized provider error frame ends the stream without inventing an HTTP status."""
+        engine = self._streaming_engine(
+            self._make_sse_payloads([{"error": {"message": "something broke", "type": "weird_error"}}])
+        )
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                pass
+
+        assert exc_info.value.status is None
+        assert client_facing_message(exc_info.value) == "something broke"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_content_resembling_an_error_is_streamed(self):
+        """Model output that merely looks like an error object is content, not a provider failure."""
+        forged = '{"error": {"message": "not real", "type": "rate_limit_error"}}'
+        engine = self._streaming_engine(self._make_sse_payloads([{"choices": [{"delta": {"content": forged}}]}]))
+
+        chunks = [chunk async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert [c.delta_content for c in chunks] == [forged]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -1065,6 +1188,7 @@ class TestModelEngineStreamCall:
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.status = 500
         mock_response.text = AsyncMock(return_value="internal error")
+        mock_response.headers = {}
 
         mock_client = AsyncMock()
         mock_client.post = MagicMock(return_value=mock_response)

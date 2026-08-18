@@ -30,7 +30,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Tracer
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.exceptions import LLMCallException, LLMTimeoutError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
@@ -91,6 +91,25 @@ class TestFailsClosed:
         outcome = rail_error_outcome(None, ACTION_NAME, RuntimeError("auth rejected token nvapi-abc123secret"))
 
         assert outcome.reason == "content safety check input error: auth rejected token nvapi-***"
+
+    def test_reason_does_not_disclose_the_rail_model(self):
+        """A classified transport failure reaches the caller as the provider message alone.
+
+        The reason is rendered into the streaming violation payload through ``client_reason``,
+        so ``str(exc)`` here would disclose the internal rail model to an API caller.
+        """
+        transport_error = LLMTimeoutError(0, "Request timed out: read timed out")
+        exc = ModelEngineError(
+            "Request to model 'internal-guard-model' failed: read timed out",
+            model_name="internal-guard-model",
+            inner_exception=transport_error,
+        )
+
+        outcome = rail_error_outcome(None, ACTION_NAME, exc)
+
+        assert outcome.is_blocked
+        assert outcome.reason == "content safety check input error: Request timed out: read timed out"
+        assert "internal-guard-model" not in outcome.reason
 
     def test_blocking_verdict_records_the_span_error(self):
         """A blocked rail marks its span, so the failure is visible in the trace."""

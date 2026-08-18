@@ -41,10 +41,16 @@ def merge_headers_case_insensitive(base: Mapping[str, str], overrides: Optional[
     return merged
 
 
-async def safe_read_body(response: aiohttp.ClientResponse, max_chars: int = 500) -> str:
-    """Read response body for error messages, truncating if too large."""
+async def safe_read_body(response: aiohttp.ClientResponse, max_chars: Optional[int] = 500) -> str:
+    """Read response body for error messages, truncating unless ``max_chars`` is None.
+
+    Error classification passes None: a body cut mid-JSON no longer parses, and the
+    provider's ``message``/``code``/``param`` would be lost in favour of the raw text.
+    """
     try:
         text = await response.text()
-        return text[:max_chars] if len(text) > max_chars else text
+        if max_chars is not None and len(text) > max_chars:
+            return text[:max_chars]
+        return text
     except Exception:
         return "<could not read response body>"
