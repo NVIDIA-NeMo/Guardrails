@@ -9,17 +9,17 @@ content:
 
 Rail actions return a `RailOutcome` to express an allow, block, or transform decision. This contract separates a rail's decision from the way a runtime presents or enforces that decision.
 
-Actions declared by a rail manifest must return `RailOutcome`. Ordinary custom actions can return other Python values when a Colang flow consumes those values explicitly, but the runtime does not infer a rail decision from a boolean, number, tuple, or dictionary.
+Actions declared by a rail manifest must return `RailOutcome`. Ordinary custom actions can return other Python values when a Colang flow consumes them explicitly. The runtime does not infer a rail decision from a boolean, number, tuple, or dictionary.
 
 <Warning title="Breaking Change">
 
-The `output_mapping` parameter and its default boolean and numeric mappings have been removed from `@action`. Passing `output_mapping` now raises `TypeError`. Migrate rail decisions to `RailOutcome`; do not rely on implicit return-value interpretation.
+The `output_mapping` parameter and its default boolean and numeric mappings have been removed from `@action`. Passing `output_mapping` now raises `TypeError`. Migrate rail decisions to `RailOutcome`. Do not rely on implicit return-value interpretation.
 
 </Warning>
 
 ## Decisions
 
-Each outcome contains exactly one decision.
+Each outcome contains one of the following decisions:
 
 | Decision | Meaning |
 | --- | --- |
@@ -33,7 +33,9 @@ Import the outcome and transform target types from the actions package:
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 ```
 
-### Allow content
+### Allow Content
+
+Return an allow outcome:
 
 ```python
 return RailOutcome.allow(
@@ -42,7 +44,9 @@ return RailOutcome.allow(
 )
 ```
 
-### Block content
+### Block Content
+
+Return a block outcome:
 
 ```python
 return RailOutcome.block(
@@ -53,7 +57,7 @@ return RailOutcome.block(
 
 A block outcome does not contain a refusal message, exception type, bot intent, or localized text. The runtime or Colang flow owns those presentation choices.
 
-### Transform content
+### Transform Content
 
 Use a transform outcome when the rail rewrites checked content. A transform must include at least one rewrite and cannot repeat a target.
 
@@ -73,13 +77,13 @@ The supported transform targets are:
 
 Transform outcomes apply to non-streaming processing. Streaming output paths do not apply the rewrite.
 
-## Evidence fields
+## Evidence Fields
 
 Use `reason` for a neutral, human-readable explanation of the decision. Use `metadata` for structured evidence such as categories, scores, detections, or provider response details.
 
 Do not make `metadata` load-bearing for the decision. Consumers should use `decision`, `is_blocked`, or `is_transform` to determine the outcome. Treat metadata as potentially observable data and avoid storing secrets, credentials, or unnecessary user content.
 
-## Consume an outcome in a flow
+## Consume an Outcome in a Flow
 
 The action decides whether content is allowed, blocked, or transformed. The flow decides how to handle that result.
 
@@ -108,11 +112,11 @@ The following convenience properties are available:
 | `is_transform` | `True` only for a transform outcome. |
 | `transform_text` | A mapping from transform target names to replacement text. |
 
-## Migrate from `output_mapping`
+## Migrate From Output Mapping
 
 Replace the mapping function with an explicit decision at the action's return site. This makes the action's meaning visible to every runtime and avoids conventions such as whether `True` means safe or blocked.
 
-### Safe boolean results
+### Safe Boolean Results
 
 Previously, an action could return whether content was safe and negate that result through `output_mapping`:
 
@@ -135,7 +139,7 @@ async def check_output_safety(text: str) -> RailOutcome:
     return RailOutcome.block(reason="The output did not pass the safety policy.")
 ```
 
-### Unsafe boolean results
+### Unsafe Boolean Results
 
 For a detector where `True` means unsafe, return `block` when the detector matches:
 
@@ -147,7 +151,7 @@ async def check_hallucination(text: str) -> RailOutcome:
     return RailOutcome.allow()
 ```
 
-### Numeric thresholds and structured results
+### Numeric Thresholds and Structured Results
 
 Apply thresholds in the action and preserve useful evidence in metadata:
 
@@ -163,10 +167,10 @@ async def score_output_safety(text: str) -> RailOutcome:
 
 The migration follows these mappings:
 
-| Previous convention | `RailOutcome` replacement |
+| Previous Convention | `RailOutcome` Replacement |
 | --- | --- |
-| Safe boolean: `True` allows, `False` blocks | Return `allow()` for `True`; otherwise return `block()`. |
-| Unsafe boolean: `True` blocks, `False` allows | Return `block()` for `True`; otherwise return `allow()`. |
+| Safe boolean: `True` allows, `False` blocks | Return `allow()` for `True` and `block()` for `False`. |
+| Unsafe boolean: `True` blocks, `False` allows | Return `block()` for `True` and `allow()` for `False`. |
 | Numeric threshold | Compare the score in the action and return the chosen decision. |
 | Dictionary or tuple plus custom mapping | Read the relevant fields in the action and put non-sensitive evidence in `metadata`. |
 
@@ -182,7 +186,7 @@ if $result.is_blocked
 
 If the action is not a rail decision, keep its ordinary return type and branch on that value explicitly in the flow. `RailOutcome` is not required for general-purpose actions.
 
-## Validation rules
+## Validation Rules
 
 `RailOutcome` validates its state when you construct it:
 
