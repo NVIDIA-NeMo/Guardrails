@@ -267,6 +267,7 @@ def init(app: LLMRails):
 from nemoguardrails.actions import action
 from nemoguardrails.http import HTTPClient, http_call
 
+
 @action()
 async def fetch_with_cache(
     url: str,
@@ -286,7 +287,7 @@ async def fetch_with_cache(
     return data
 ```
 
-An injected HTTP client remains caller-owned and must be closed by the application that created it. See [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#client-ownership) for the shared-client lifecycle pattern.
+An injected HTTP client remains caller-owned and must be closed by the application that created it. For the shared-client lifecycle pattern, refer to [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#client-ownership).
 
 ## Best Practices
 

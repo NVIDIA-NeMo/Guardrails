@@ -8,16 +8,16 @@ content:
     type: "reference"
 ---
 
-The NeMo Guardrails library emits OpenTelemetry spans, allowing you to trace individual requests.
-This reference documents shared outbound HTTP client spans and the spans each engine produces.
+The NVIDIA NeMo Guardrails library emits OpenTelemetry spans, allowing you to trace individual requests.
+This reference documents shared outbound HTTP client spans and engine-specific spans.
 
 ## Outbound HTTP Client Spans
 
-The canonical outbound HTTP boundary can emit a `CLIENT` span for each logical request. This instrumentation is engine-neutral and is enabled by wrapping a client with `instrument_http_client` and supplying a tracer. It is not enabled by `create_http_client` alone.
+An instrumented canonical outbound HTTP client can emit a `CLIENT` span for each logical request. To enable this engine-neutral instrumentation, wrap a client with `instrument_http_client` and supply a tracer. Calling `create_http_client` alone does not enable it.
 
-The span is named `HTTP {METHOD}`, such as `HTTP GET` or `HTTP POST`. When a request runs under an active OpenTelemetry span, the HTTP span uses that span as its parent.
+The instrumentation names the span `HTTP {METHOD}`, such as `HTTP GET` or `HTTP POST`. When a request runs under an active OpenTelemetry span, the HTTP span uses that span as its parent.
 
-| Attribute | Type | When set | Description |
+| Attribute | Type | When Set | Description |
 | --- | --- | --- | --- |
 | `http.request.method` | string | Always | Uppercase HTTP method. |
 | `url.full` | string | Always | URL with credentials, query parameters, and fragments removed. |
@@ -32,7 +32,7 @@ The span is named `HTTP {METHOD}`, such as `HTTP GET` or `HTTP POST`. When a req
 
 Raised errors add an `exception` event containing only `exception.type`. The instrumentation does not record header values, query values, JSON bodies, raw body content, credentials, response content, or exception messages.
 
-Wrap the retrying client rather than its underlying transport to produce one span for the logical request and include its retry count. See [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#add-privacy-safe-instrumentation) for configuration and lifecycle examples.
+Wrap the retrying client rather than its underlying transport to produce one span for the logical request and include its retry count. For configuration and lifecycle examples, refer to [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http#add-privacy-safe-instrumentation).
 
 ## LLMRails
 

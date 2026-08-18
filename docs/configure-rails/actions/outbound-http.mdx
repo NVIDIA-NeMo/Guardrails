@@ -11,7 +11,7 @@ Use the `nemoguardrails.http` boundary for outbound HTTP requests from actions a
 
 Do not construct `aiohttp`, `httpx`, `requests`, or `urllib3` clients inside an action. Direct transports bypass shared ownership, retry, testing, and observability policy.
 
-## Send a request from an action
+## Send a Request From an Action
 
 Accept an optional `HTTPClient` and call `http_call`:
 
@@ -36,7 +36,7 @@ async def query_policy_service(
 
 `http_call` raises `HTTPStatusError` for responses with status code 400 or greater by default. Pass `raise_for_status=False` only when the integration must inspect an error response and apply provider-specific behavior.
 
-## Client ownership
+## Client Ownership
 
 The client argument determines ownership for each call:
 
@@ -49,7 +49,7 @@ The `None` fallback is safe and deterministic. Inject a shared client for applic
 
 A runtime can own one shared pooled client, pass it to every action that declares `http_client`, and close it when the runtime stops. The action signature is the injection contract; rail manifests do not declare whether the runtime should allocate a transport.
 
-Create and close a shared client at the same application-lifecycle boundary:
+Create and close a shared client at the same application lifecycle boundary:
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
@@ -71,13 +71,13 @@ async def run():
 
 The synchronous `config.py` initialization hook has no asynchronous teardown hook. Do not create a long-lived HTTP client there unless another application component owns and closes it.
 
-## Request and response contract
+## Request and Response Contract
 
 `HTTPClient.request` and `http_call` support:
 
 - HTTP method and absolute URL.
 - Headers and query parameters.
-- A JSON body or raw string or byte content.
+- A JSON body, raw string content, or raw byte content.
 - A per-request total timeout.
 
 They return a materialized `HTTPResponse`. Its body bytes remain available after a call-scoped client closes.
@@ -103,7 +103,7 @@ The canonical error hierarchy is:
 
 Catch the narrowest error that the integration can handle without changing its intended fail-open or fail-closed behavior. Do not log response bodies, request bodies, credentials, or unsanitized exception details.
 
-## Configure the pooled transport
+## Configure the Pooled Transport
 
 `create_http_client` creates a closable HTTPX-backed client behind the neutral protocol. The default client:
 
@@ -129,7 +129,7 @@ client = create_http_client(
 
 `HTTPTLSConfig` also supports a client certificate and key for mutual TLS. Configure both together. Keep certificate verification enabled in production.
 
-## Add bounded retries
+## Add Bounded Retries
 
 Requests are not retried unless the client has a `RetryPolicy`. `max_attempts` includes the initial request.
 
@@ -144,20 +144,23 @@ policy = RetryPolicy(
 client = create_http_client(retry_policy=policy)
 ```
 
-The default policy retries eligible connection and timeout failures and the status codes `408`, `409`, `429`, `500`, `502`, `503`, and `504`. It uses bounded exponential backoff with jitter and accepts an in-policy `Retry-After` value.
+The default policy retries eligible connection and timeout failures and the status codes `408`, `409`, `429`, `500`, `502`, `503`, and `504`. It uses bounded exponential backoff with jitter and accepts `Retry-After` values within the configured limit.
 
 The safe default method set excludes `POST`. Add `POST` only when the provider documents the operation as retry-safe or the request uses a supported idempotency mechanism:
 
 ```python
+default_methods = RetryPolicy().retryable_methods
 policy = RetryPolicy(
     max_attempts=3,
-    retryable_methods=frozenset({"POST"}),
+    retryable_methods=default_methods | {"POST"},
 )
 ```
 
+The `retryable_methods` argument replaces the default set. This example preserves the default methods and adds `POST`.
+
 Keep retry policy close to the integration that owns the provider semantics. Do not add a broad global POST retry policy.
 
-## Add privacy-safe instrumentation
+## Add Privacy-Safe Instrumentation
 
 Wrap a shared client with `instrument_http_client` to enable tracing, metrics, or both:
 
@@ -192,9 +195,9 @@ Instrumentation does not record header values, query values, JSON bodies, raw bo
 
 Instrumentation is explicit at this boundary. Creating an HTTP client without `instrument_http_client` does not enable HTTP spans or metrics automatically. The component that creates the instrumented client must also close it.
 
-See [Span Reference](/observability/tracing/span-reference#outbound-http-client-spans) and [Metric Reference](/observability/metrics/reference#http-client-metrics) for the emitted names and attributes.
+For the emitted names and attributes, refer to [Span Reference](/observability/tracing/span-reference#outbound-http-client-spans) and [Metric Reference](/observability/metrics/reference#http-client-metrics).
 
-## Test without network access
+## Test Without Network Access
 
 Use `RecordingHTTPClient` to queue responses and inspect the exact provider request:
 
@@ -222,4 +225,4 @@ async def test_policy_request_contract():
 
 Queue transport errors and non-success responses to verify retry, timeout, decoding, and fail-open or fail-closed behavior. Unit tests must not call a live provider.
 
-For configuration-level testing patterns, see [Testing Your Guardrails Configuration](/configure-guardrails/custom-initialization/testing-your-config).
+For configuration-level testing patterns, refer to [Testing Your Guardrails Configuration](/configure-guardrails/custom-initialization/testing-your-config).

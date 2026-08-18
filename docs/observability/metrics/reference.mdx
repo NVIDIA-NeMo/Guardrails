@@ -88,7 +88,7 @@ The canonical outbound HTTP instrumentation records one observation for each log
 | --- | --- | --- | --- | --- |
 | `http.client.request.duration` | Histogram | `s` | `http.request.method`, `server.address`, `server.port`, optionally `http.response.status_code` and `error.type` | Wall-clock duration of an outbound HTTP request. |
 
-The method is normalized to uppercase. The server port is the explicit URL port or the default port for `http` and `https`. A response contributes `http.response.status_code`; status codes of 400 or greater also contribute `error.type` as the status string. A raised exception contributes its class name as `error.type` and has no response-status label.
+The instrumentation normalizes the method to uppercase. The server port is the explicit URL port or the default port for `http` and `https`. A response contributes `http.response.status_code`. Status codes of 400 or greater also contribute `error.type` as the status string. A raised exception contributes its class name as `error.type` and has no response-status label.
 
 The metric does not include URL paths, query parameters, headers, bodies, credentials, or exception messages. URLs without a host or a recognized port do not produce an observation.
 

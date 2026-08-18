@@ -121,11 +121,12 @@ def init(app: LLMRails):
 
 The synchronous `init` function has no asynchronous teardown hook. Do not create a long-lived HTTP client in `init` unless another application component owns and closes it.
 
-Create a shared canonical client at the surrounding application-lifecycle boundary, register it as an action parameter, and close it at shutdown:
+Create a shared canonical client at the surrounding application lifecycle boundary, register it as an action parameter, and close it at shutdown:
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.http import create_http_client
+
 
 async def run():
     http_client = create_http_client(timeout=10.0)
@@ -141,4 +142,4 @@ async def run():
         await http_client.close()
 ```
 
-Actions that accept `http_client: HTTPClient | None = None` can use a shared injected client or let `http_call` create and close a call-scoped fallback. See [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).
+Actions that accept `http_client: HTTPClient | None = None` can use a shared injected client or let `http_call` create and close a call-scoped fallback. For details, refer to [Outbound HTTP in Actions](/configure-guardrails/actions/outbound-http).

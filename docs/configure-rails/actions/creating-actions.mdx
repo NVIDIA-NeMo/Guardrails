@@ -30,7 +30,7 @@ async def my_custom_action():
 |-----------|------|-------------|---------|
 | `name` | `str` | Custom name for the action | Function name |
 | `is_system_action` | `bool` | Always run locally, bypassing the actions server | `False` |
-| `execute_async` | `bool` | Don't block event processing while the action runs (Colang 2.x only) | `False` |
+| `execute_async` | `bool` | Continue event processing while the action runs (Colang 2.x only) | `False` |
 
 ### Custom Action Name
 
@@ -70,7 +70,7 @@ async def check_policy_compliance(context: Optional[dict] = None):
 
 ### Async Execution
 
-When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background and the result is picked up later via polling. This is useful for long-running operations where you don't need the result immediately.
+When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background, and the event processing loop retrieves the result later by polling. Use this setting for long-running operations when you do not need the result immediately.
 
 <Note>
 
@@ -79,7 +79,9 @@ This flag is only supported in the Colang 2.x runtime. In the Colang 1.0 runtime
 </Note>
 
 ```python
+from nemoguardrails.actions import action
 from nemoguardrails.http import HTTPClient, http_call
+
 
 @action(execute_async=True)
 async def call_external_api(
@@ -201,7 +203,9 @@ if not $is_safe
 Handle errors gracefully within actions:
 
 ```python
+from nemoguardrails.actions import action
 from nemoguardrails.http import HTTPClient, HTTPTimeoutError, http_call
+
 
 @action()
 async def fetch_data(
@@ -307,7 +311,9 @@ rails:
 ### External API Action
 
 ```python
+from nemoguardrails.actions import action
 from nemoguardrails.http import HTTPClient, http_call
+
 
 @action(execute_async=True)
 async def query_knowledge_base(

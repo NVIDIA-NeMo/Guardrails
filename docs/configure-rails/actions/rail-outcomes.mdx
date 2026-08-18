@@ -79,9 +79,9 @@ Transform outcomes apply to non-streaming processing. Streaming output paths do 
 
 ## Evidence Fields
 
-Use `reason` for a neutral, human-readable explanation of the decision. Use `metadata` for structured evidence such as categories, scores, detections, or provider response details.
+Use `reason` for a neutral, human-readable explanation of the decision. Use `metadata` for structured evidence such as categories, scores, detections, or redacted provider status and error codes.
 
-Do not make `metadata` load-bearing for the decision. Consumers should use `decision`, `is_blocked`, or `is_transform` to determine the outcome. Treat metadata as potentially observable data and avoid storing secrets, credentials, or unnecessary user content.
+Do not make `metadata` load-bearing for the decision. Consumers should use `decision`, `is_blocked`, or `is_transform` to determine the outcome. Treat metadata as potentially observable data. Do not store secrets, credentials, raw provider payloads, or unnecessary user content.
 
 ## Consume an Outcome in a Flow
 
