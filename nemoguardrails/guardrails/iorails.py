@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from nemoguardrails.actions.rail_outcome import TransformTarget
 from nemoguardrails.base_guardrails import BaseGuardrails
-from nemoguardrails.exceptions import StreamingNotSupportedError, UnsatisfiableRailTypeError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError, StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.compiled_rail import (
     RailCompilationError,
@@ -1282,7 +1282,7 @@ class IORails(BaseGuardrails):
         the asynchronous ``check_async``.
 
         Raises:
-            UnsatisfiableRailTypeError: If a requested rail type has no
+            RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         if check_sync_call_from_async_loop():
@@ -1316,7 +1316,7 @@ class IORails(BaseGuardrails):
         the per-request trace span.
 
         Raises:
-            UnsatisfiableRailTypeError: If a requested rail type has no
+            RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         await self.start()
@@ -1364,7 +1364,7 @@ class IORails(BaseGuardrails):
         if rail_types is not None:
             for rt in rail_types:
                 if not getattr(self.config.rails, rt.value).flows:
-                    raise UnsatisfiableRailTypeError(f"Requested rail type '{rt.value}' has no configured rails.")
+                    raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
             rails_to_run = [rail_type.value for rail_type in rail_types]
         else:
             determined = _determine_rails_from_messages(messages)

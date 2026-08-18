@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
-from nemoguardrails.exceptions import UnsatisfiableRailTypeError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import (
     REFUSAL_MESSAGE,
@@ -675,7 +675,7 @@ class TestCheckWithRewritingRails:
 
 
 class TestUnsatisfiableRailTypes:
-    """Requesting a rail type with no configured flows raises UnsatisfiableRailTypeError."""
+    """Requesting a rail type with no configured flows raises RailTypeNotConfiguredError."""
 
     @pytest.fixture
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
@@ -692,7 +692,7 @@ class TestUnsatisfiableRailTypes:
 
     @pytest.mark.asyncio
     async def test_unsatisfiable_output_raises(self, input_only_engine):
-        with pytest.raises(UnsatisfiableRailTypeError, match="output"):
+        with pytest.raises(RailTypeNotConfiguredError, match="output"):
             await input_only_engine.check_async([{"role": "user", "content": "hi"}], rail_types=[RailType.OUTPUT])
 
     @pytest.mark.asyncio

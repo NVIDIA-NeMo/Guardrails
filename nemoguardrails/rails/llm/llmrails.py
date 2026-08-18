@@ -71,8 +71,8 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
     InvalidStateError,
+    RailTypeNotConfiguredError,
     StreamingNotSupportedError,
-    UnsatisfiableRailTypeError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
@@ -1665,13 +1665,13 @@ class LLMRails(BaseGuardrails):
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
 
         Raises:
-            UnsatisfiableRailTypeError: If a requested rail type has no
+            RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         if rail_types is not None:
             for rt in rail_types:
                 if not getattr(self.config.rails, rt.value).flows:
-                    raise UnsatisfiableRailTypeError(f"Requested rail type '{rt.value}' has no configured rails.")
+                    raise RailTypeNotConfiguredError(f"Requested rail type '{rt.value}' has no configured rails.")
             options: Optional[dict] = {"rails": [r.value for r in rail_types]}
         else:
             options = _determine_rails_from_messages(messages)
@@ -1721,7 +1721,7 @@ class LLMRails(BaseGuardrails):
             RailsResult containing status, content, and optional blocking rail name.
 
         Raises:
-            UnsatisfiableRailTypeError: If a requested rail type has no
+            RailTypeNotConfiguredError: If a requested rail type has no
                 configured flows.
         """
         if check_sync_call_from_async_loop():

@@ -38,8 +38,8 @@ from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.exceptions import (
     InvalidStateError,
     LLMCallException,
+    RailTypeNotConfiguredError,
     StreamingNotSupportedError,
-    UnsatisfiableRailTypeError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
@@ -55,7 +55,7 @@ from nemoguardrails.server.exception_handlers import (
     invalid_state_error_handler,
     llm_call_exception_handler,
     model_initialization_error_handler,
-    unsatisfiable_rail_type_error_handler,
+    rail_type_not_configured_error_handler,
     validation_error_handler,
 )
 from nemoguardrails.server.schemas.openai import (
@@ -223,7 +223,7 @@ _EXCEPTION_HANDLERS = (
     (HTTPClientError, llm_call_exception_handler),
     (ModelInitializationError, model_initialization_error_handler),
     (StreamingNotSupportedError, bad_request_error_handler),
-    (UnsatisfiableRailTypeError, unsatisfiable_rail_type_error_handler),
+    (RailTypeNotConfiguredError, rail_type_not_configured_error_handler),
     (InvalidStateError, invalid_state_error_handler),
     (RequestValidationError, validation_error_handler),
     (StarletteHTTPException, http_exception_handler),

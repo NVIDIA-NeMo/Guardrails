@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.exceptions import UnsatisfiableRailTypeError
+from nemoguardrails.exceptions import RailTypeNotConfiguredError
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
@@ -560,7 +560,7 @@ class TestUnsatisfiableRailTypes:
     @pytest.mark.asyncio
     async def test_unsatisfiable_output_raises(self, input_only_rails):
         messages = [{"role": "user", "content": "hello"}]
-        with pytest.raises(UnsatisfiableRailTypeError, match="output"):
+        with pytest.raises(RailTypeNotConfiguredError, match="output"):
             await input_only_rails.check_async(messages, rail_types=[RailType.OUTPUT])
 
     @pytest.mark.asyncio
