@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 const libraryName = "guardrails-python-sdk";
@@ -28,111 +29,125 @@ const generatorInputPaths = [
   "scripts/normalize-fern-sdk-reference.mjs",
 ];
 const minimumPageCount = 10;
-const [worktreeRootArgument, expectedCommit] = process.argv.slice(2);
-const repoRoot = requiredEnvironment("FERN_REF_SDK_REPO_ROOT");
-const cacheRoot = requiredEnvironment("FERN_REF_SDK_CACHE_ROOT");
-const fernVersion = requiredEnvironment("FERN_REF_SDK_VERSION");
 
-if (!worktreeRootArgument || !expectedCommit) {
-  throw new Error("Usage: cache-fern-ref-sdk.mjs <worktree-root> <commit-sha>");
-}
-if (!/^[0-9a-f]{40}$/i.test(expectedCommit)) {
-  throw new Error(`Invalid ref commit SHA: ${expectedCommit}`);
-}
+export function main(args = process.argv.slice(2), environment = process.env) {
+  const [worktreeRootArgument, expectedCommit] = args;
+  if (!worktreeRootArgument || !expectedCommit) {
+    throw new Error("Usage: cache-fern-ref-sdk.mjs <worktree-root> <commit-sha>");
+  }
+  if (!/^[0-9a-f]{40}$/i.test(expectedCommit)) {
+    throw new Error(`Invalid ref commit SHA: ${expectedCommit}`);
+  }
 
-const worktreeRoot = path.resolve(worktreeRootArgument);
-const actualCommit = execFileSync("git", ["rev-parse", "HEAD"], {
-  cwd: worktreeRoot,
-  encoding: "utf8",
-}).trim();
-if (actualCommit !== expectedCommit) {
-  throw new Error(`Fern ref worktree is at ${actualCommit}, expected ${expectedCommit}`);
-}
+  const repoRoot = requiredEnvironment("FERN_REF_SDK_REPO_ROOT", environment);
+  const cacheRoot = requiredEnvironment("FERN_REF_SDK_CACHE_ROOT", environment);
+  const fernVersion = requiredEnvironment("FERN_REF_SDK_VERSION", environment);
+  const worktreeRoot = path.resolve(worktreeRootArgument);
+  const actualCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: worktreeRoot,
+    encoding: "utf8",
+  }).trim();
+  if (actualCommit !== expectedCommit) {
+    throw new Error(`Fern ref worktree is at ${actualCommit}, expected ${expectedCommit}`);
+  }
 
-const fernRoot = path.join(worktreeRoot, "fern");
-const docsConfigPath = path.join(fernRoot, "docs.yml");
-const fernConfigPath = path.join(fernRoot, "fern.config.json");
-const docsConfig = parse(readFileSync(docsConfigPath, "utf8"));
-const libraryConfig = docsConfig?.libraries?.[libraryName];
-if (!libraryConfig) {
-  throw new Error(`Historical ref ${expectedCommit} does not configure library ${libraryName}`);
-}
-if (typeof libraryConfig.input?.git !== "string" || libraryConfig.input.git.length === 0) {
-  throw new Error(`Historical ref ${expectedCommit} must configure libraries.${libraryName}.input.git`);
-}
-if (typeof libraryConfig.input?.ref !== "string" || libraryConfig.input.ref.length === 0) {
-  throw new Error(`Historical ref ${expectedCommit} must pin libraries.${libraryName}.input.ref`);
-}
-if (typeof libraryConfig.output?.path !== "string" || libraryConfig.output.path.length === 0) {
-  throw new Error(`Historical ref ${expectedCommit} does not configure an SDK output path`);
-}
+  const fernRoot = path.join(worktreeRoot, "fern");
+  const docsConfigPath = path.join(fernRoot, "docs.yml");
+  const fernConfigPath = path.join(fernRoot, "fern.config.json");
+  const docsConfig = parse(readFileSync(docsConfigPath, "utf8"));
+  const libraryConfig = docsConfig?.libraries?.[libraryName];
+  if (!libraryConfig) {
+    throw new Error(`Historical ref ${expectedCommit} does not configure library ${libraryName}`);
+  }
+  if (typeof libraryConfig.input?.git !== "string" || libraryConfig.input.git.length === 0) {
+    throw new Error(`Historical ref ${expectedCommit} must configure libraries.${libraryName}.input.git`);
+  }
+  if (typeof libraryConfig.input?.ref !== "string" || libraryConfig.input.ref.length === 0) {
+    throw new Error(`Historical ref ${expectedCommit} must pin libraries.${libraryName}.input.ref`);
+  }
+  if (typeof libraryConfig.output?.path !== "string" || libraryConfig.output.path.length === 0) {
+    throw new Error(`Historical ref ${expectedCommit} does not configure an SDK output path`);
+  }
 
-const outputRoot = path.resolve(fernRoot, libraryConfig.output.path);
-assertInsideWorktree(outputRoot, worktreeRoot);
-const sdkRoot = path.join(outputRoot, libraryName);
-const sdkInputCommit = resolveSdkInputCommit(libraryConfig.input.git, libraryConfig.input.ref);
-const generatorFingerprint = computeGeneratorFingerprint();
-const cacheDirectory = path.join(
-  cacheRoot,
-  cacheSchemaVersion,
-  generatorFingerprint,
-  fernVersion,
-  expectedCommit,
-  sdkInputCommit,
-  libraryName,
-);
-
-if (isCompleteReference(cacheDirectory)) {
-  restoreFromCache(cacheDirectory, outputRoot);
-  console.log(
-    `Restored ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}) from cache.`,
+  const outputRoot = path.resolve(fernRoot, libraryConfig.output.path);
+  assertInsideWorktree(outputRoot, worktreeRoot);
+  const sdkRoot = path.join(outputRoot, libraryName);
+  const sdkInputCommit = resolveSdkInputCommit(libraryConfig.input.git, libraryConfig.input.ref, {
+    environment,
+    expectedCommit,
+  });
+  const generatorFingerprint = computeGeneratorFingerprint(repoRoot);
+  const cacheDirectory = path.join(
+    cacheRoot,
+    cacheSchemaVersion,
+    generatorFingerprint,
+    fernVersion,
+    expectedCommit,
+    sdkInputCommit,
+    libraryName,
   );
-  process.exit(0);
+
+  if (isCompleteReference(cacheDirectory)) {
+    restoreFromCache(cacheDirectory, outputRoot);
+    console.log(
+      `Restored ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}) from cache.`,
+    );
+    return;
+  }
+
+  console.log(`Generating ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}).`);
+  rmSync(outputRoot, { force: true, recursive: true });
+  const originalFernConfig = readFileSync(fernConfigPath, "utf8");
+  const fernConfig = JSON.parse(originalFernConfig);
+  fernConfig.version = fernVersion;
+  writeFileSync(fernConfigPath, `${JSON.stringify(fernConfig, null, 2)}\n`);
+
+  try {
+    execFileSync(
+      "npx",
+      ["--yes", `fern-api@${fernVersion}`, "docs", "md", "generate", "--library", libraryName],
+      {
+        cwd: fernRoot,
+        env: { ...environment, FERN_REF_SDK_HOOK: "0" },
+        stdio: "inherit",
+      },
+    );
+  } finally {
+    writeFileSync(fernConfigPath, originalFernConfig);
+  }
+
+  execFileSync(process.execPath, [path.join(repoRoot, "scripts", "normalize-fern-sdk-reference.mjs")], {
+    cwd: repoRoot,
+    env: { ...environment, FERN_SDK_REFERENCE_ROOT: sdkRoot },
+    stdio: "inherit",
+  });
+
+  if (!isCompleteReference(outputRoot)) {
+    throw new Error(`Generated SDK reference is incomplete for ${libraryConfig.input.ref}`);
+  }
+
+  writeCache(outputRoot, cacheDirectory);
+  console.log(`Cached ${countMdxFiles(outputRoot)} SDK pages for ${libraryConfig.input.ref}.`);
 }
 
-console.log(`Generating ${libraryName} for ${libraryConfig.input.ref} (${sdkInputCommit.slice(0, 12)}).`);
-rmSync(outputRoot, { force: true, recursive: true });
-const originalFernConfig = readFileSync(fernConfigPath, "utf8");
-const fernConfig = JSON.parse(originalFernConfig);
-fernConfig.version = fernVersion;
-writeFileSync(fernConfigPath, `${JSON.stringify(fernConfig, null, 2)}\n`);
-
-try {
-  execFileSync(
-    "npx",
-    ["--yes", `fern-api@${fernVersion}`, "docs", "md", "generate", "--library", libraryName],
-    {
-      cwd: fernRoot,
-      env: { ...process.env, FERN_REF_SDK_HOOK: "0" },
-      stdio: "inherit",
-    },
-  );
-} finally {
-  writeFileSync(fernConfigPath, originalFernConfig);
-}
-
-execFileSync(process.execPath, [path.join(repoRoot, "scripts", "normalize-fern-sdk-reference.mjs")], {
-  cwd: repoRoot,
-  env: { ...process.env, FERN_SDK_REFERENCE_ROOT: sdkRoot },
-  stdio: "inherit",
-});
-
-if (!isCompleteReference(outputRoot)) {
-  throw new Error(`Generated SDK reference is incomplete for ${libraryConfig.input.ref}`);
-}
-
-writeCache(outputRoot, cacheDirectory);
-console.log(`Cached ${countMdxFiles(outputRoot)} SDK pages for ${libraryConfig.input.ref}.`);
-
-function requiredEnvironment(name) {
-  const value = process.env[name];
+export function requiredEnvironment(name, environment = process.env) {
+  const value = environment[name];
   if (!value) {
     throw new Error(`Missing required environment variable ${name}`);
   }
   return value;
 }
 
-function resolveSdkInputCommit(gitUrl, inputRef) {
+export function resolveSdkInputCommit(
+  gitUrl,
+  inputRef,
+  {
+    environment = process.env,
+    expectedCommit = "unknown",
+    executor = execFileSync,
+    referenceLibraryName = libraryName,
+  } = {},
+) {
   if (/^[0-9a-f]{40}$/i.test(inputRef)) {
     return inputRef.toLowerCase();
   }
@@ -140,9 +155,9 @@ function resolveSdkInputCommit(gitUrl, inputRef) {
   const tagRef = inputRef.startsWith("refs/tags/") ? inputRef : `refs/tags/${inputRef}`;
   let output;
   try {
-    output = execFileSync("git", ["ls-remote", "--tags", gitUrl, tagRef, `${tagRef}^{}`], {
+    output = executor("git", ["ls-remote", "--tags", gitUrl, tagRef, `${tagRef}^{}`], {
       encoding: "utf8",
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      env: { ...environment, GIT_TERMINAL_PROMPT: "0" },
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 30_000,
     });
@@ -160,15 +175,15 @@ function resolveSdkInputCommit(gitUrl, inputRef) {
   const resolvedCommit = refs.get(`${tagRef}^{}`) ?? refs.get(tagRef);
   if (typeof resolvedCommit !== "string" || !/^[0-9a-f]{40}$/i.test(resolvedCommit)) {
     throw new Error(
-      `Historical ref ${expectedCommit} must pin libraries.${libraryName}.input.ref to a commit SHA or tag`,
+      `Historical ref ${expectedCommit} must pin libraries.${referenceLibraryName}.input.ref to a commit SHA or tag`,
     );
   }
   return resolvedCommit.toLowerCase();
 }
 
-function computeGeneratorFingerprint() {
+export function computeGeneratorFingerprint(repoRoot, relativePaths = generatorInputPaths) {
   const hash = createHash("sha256");
-  for (const relativePath of generatorInputPaths) {
+  for (const relativePath of relativePaths) {
     const inputPath = path.join(repoRoot, relativePath);
     if (!existsSync(inputPath)) {
       throw new Error(`Missing SDK cache generator input: ${relativePath}`);
@@ -181,22 +196,22 @@ function computeGeneratorFingerprint() {
   return hash.digest("hex");
 }
 
-function assertInsideWorktree(candidatePath, rootPath) {
+export function assertInsideWorktree(candidatePath, rootPath) {
   const relativePath = path.relative(rootPath, candidatePath);
   if (relativePath === "" || relativePath === ".." || relativePath.startsWith(`..${path.sep}`)) {
     throw new Error(`SDK output path must stay inside the Fern ref worktree: ${candidatePath}`);
   }
 }
 
-function isCompleteReference(directory) {
+export function isCompleteReference(directory, referenceLibraryName = libraryName) {
   return (
     existsSync(path.join(directory, "_navigation.yml")) &&
-    existsSync(path.join(directory, libraryName)) &&
+    existsSync(path.join(directory, referenceLibraryName)) &&
     countMdxFiles(directory) >= minimumPageCount
   );
 }
 
-function countMdxFiles(directory) {
+export function countMdxFiles(directory) {
   if (!existsSync(directory)) {
     return 0;
   }
@@ -212,14 +227,14 @@ function countMdxFiles(directory) {
   return count;
 }
 
-function restoreFromCache(sourceDirectory, destinationDirectory) {
+export function restoreFromCache(sourceDirectory, destinationDirectory) {
   rmSync(destinationDirectory, { force: true, recursive: true });
   mkdirSync(path.dirname(destinationDirectory), { recursive: true });
   cpSync(sourceDirectory, destinationDirectory, { recursive: true });
 }
 
-function writeCache(sourceDirectory, destinationDirectory) {
-  if (isCompleteReference(destinationDirectory)) {
+export function writeCache(sourceDirectory, destinationDirectory, referenceLibraryName = libraryName) {
+  if (isCompleteReference(destinationDirectory, referenceLibraryName)) {
     return;
   }
   mkdirSync(path.dirname(destinationDirectory), { recursive: true });
@@ -232,4 +247,8 @@ function writeCache(sourceDirectory, destinationDirectory) {
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
 }

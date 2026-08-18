@@ -214,9 +214,23 @@ function runFernGenerate(reason) {
   }
   console.log(`cd fern && npx ${args.join(" ")}`);
 
+  let fernEnvironment;
+  try {
+    fernEnvironment = createFernRefSdkEnvironment(repoRoot);
+  } catch (error) {
+    running = false;
+    console.error(
+      `Failed to configure Fern preview generation: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    if (pending) {
+      runFernGenerate("queued file change");
+    }
+    return;
+  }
+
   const child = spawn("npx", args, {
     cwd: fernRoot,
-    env: createFernRefSdkEnvironment(repoRoot),
+    env: fernEnvironment,
     stdio: "inherit",
   });
   currentChild = child;

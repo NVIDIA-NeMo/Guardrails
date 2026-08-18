@@ -16,6 +16,7 @@ on:
       - "scripts/fern-ref-sdk-environment.mjs"
       - "scripts/fern-ref-sdk-hooks/**"
       - "scripts/run-fern-with-ref-sdk.mjs"
+      - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
   push:
@@ -35,6 +36,7 @@ on:
       - "scripts/fern-ref-sdk-environment.mjs"
       - "scripts/fern-ref-sdk-hooks/**"
       - "scripts/run-fern-with-ref-sdk.mjs"
+      - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
   workflow_dispatch:
@@ -68,6 +70,9 @@ jobs:
 
       - name: Install documentation dependencies
         run: npm ci
+
+      - name: Test Fern documentation scripts
+        run: make test-docs-scripts
 
       - name: Check Fern docs
         env:
