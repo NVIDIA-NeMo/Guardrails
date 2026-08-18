@@ -47,7 +47,7 @@ versions:
   # Permanent snapshot tags keep these curated commits reachable after this PR
   # is squash-merged. Do not move or delete these tags.
   - display-name: v0.23.0
-    ref: fern-docs-snapshot-v0.23.0
+    ref: fern-docs-snapshot-v0.23.0-r2
     slug: v0.23.0
   - display-name: v0.22.0
     ref: fern-docs-snapshot-v0.22.0

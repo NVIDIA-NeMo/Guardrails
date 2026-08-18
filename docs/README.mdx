@@ -75,7 +75,7 @@ versions:
     path: ../docs/index.yml
     slug: latest
   - display-name: v0.23.0
-    ref: fern-docs-snapshot-v0.23.0
+    ref: fern-docs-snapshot-v0.23.0-r2
     slug: v0.23.0
   - display-name: v0.22.0
     ref: fern-docs-snapshot-v0.22.0
@@ -84,6 +84,6 @@ versions:
 
 Use an immutable tag when the release tag contains the exact documentation snapshot. Use a commit SHA when a curated historical snapshot does not align with a release tag. Avoid release branches for frozen versions because republishing from a branch can change historical content.
 
-Curated snapshots use permanent `fern-docs-snapshot-v<semver>` tags so their commits remain reachable after a feature branch is squash-merged or deleted. Do not move or delete these tags.
+Curated snapshots use permanent `fern-docs-snapshot-v<semver>` tags so their commits remain reachable after a feature branch is squash-merged or deleted. If a snapshot needs a correction, create a new `-r<number>` tag instead of moving the existing tag. Do not move or delete snapshot tags.
 
 The local Fern development server renders only versions backed by a working-tree `path`; use a published Fern preview to verify a `ref`-backed version.

@@ -44,7 +44,7 @@ Assume I may not have installed the Python package yet and may not have cloned t
 - Use Markdown documentation under `https://docs.nvidia.com/nemo/guardrails/` when loading information for agent context. When presenting references or citations to me, use the canonical human-readable docs links without `.md`.
 - If a full Markdown documentation bundle is available, use it only when you need broad cross-page context.
 - Do not hardcode staging documentation URLs unless I explicitly ask you to use staging.
-- Check my installed `nemoguardrails` version only after you confirm the package is installed. If it is not installed yet, use the current Installation docs first. If you cannot determine the version after installation, ask whether to use the latest docs.
+- Before using installation or tutorial instructions, select the package and documentation version as described in the Developer Path.
 - If I am working from a cloned repository, you may also use local `docs/**/*.mdx`, `README.md`, `CONTRIBUTING.md`, and `AGENTS.md` files as context.
 
 ## Identify My Role First
@@ -59,9 +59,21 @@ If I choose contributor, follow the Contributor Path.
 
 ## Developer Path
 
+Before loading installation or tutorial documentation, select the package and documentation version:
+
+1. Check whether `nemoguardrails` is already installed. If it is installed, determine its version.
+2. Discover the currently available stable package releases and published documentation versions from official sources. Do not rely on a version list hardcoded in this prompt.
+3. If the installed version has matching documentation, recommend that documentation version and ask whether to keep the installed package, upgrade it, or install a different version.
+4. If the package is not installed, ask which version I want to install. Present the available versions as a numbered list with actual version numbers, newest first. Mark the most recent stable release as "Recommended for first-time installation," include each older release that has published documentation, and add a final option to specify a different version.
+5. If I am installing the library for the first time and have no compatibility requirement, recommend the most recent stable release, but wait for my selection before installing it.
+6. If I need a specific version for an existing application, environment, or dependency constraint, let me select it from the numbered list or provide an exact version. Verify that the version is available before installing it.
+7. If the selected package version has no matching documentation version, explain the mismatch and ask which published documentation version to use. Do not silently fall back to Latest.
+
+After I choose, set `DOCS_BASE` to the canonical base URL for the selected documentation version and use that base for every documentation page. Replace `DOCS_BASE` with the selected URL when fetching a page.
+
 Use this Markdown documentation page as the first source for installation and prerequisite handling:
 
-`https://docs.nvidia.com/nemo/guardrails/latest/get-started/installation-guide.md`
+`DOCS_BASE/get-started/installation-guide.md`
 
 Help me install the library based on that page.
 Check whether prerequisites already exist before asking me to install anything:
@@ -73,14 +85,15 @@ Check whether prerequisites already exist before asking me to install anything:
 If a prerequisite is missing, explain the gap and help me handle it while referring to the relevant docs page.
 Then help me create a virtual environment, install `nemoguardrails`, and set required environment variables with placeholders, following the Installation docs.
 Never ask me to paste real API keys into chat.
+After installation succeeds, verify the installed package version and confirm that `DOCS_BASE` still matches it.
 After installation succeeds, ask which tutorial I want to try next from the Tutorials docs:
 
-1. Check Harmful Content. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemotron-safety-guard-deployment.md`
-2. Content Safety Reasoning. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemotron-content-safety-reasoning-deployment.md`
-3. Restrict Topics. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemoguard-topiccontrol-deployment.md`
-4. Detect Jailbreak Attempts. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/nemoguard-jailbreakdetect-deployment.md`
-5. Jailbreak Heuristics. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/jailbreak-detection-heuristics.md`
-6. Add Multimodal Content Safety. If this is selected, load `https://docs.nvidia.com/nemo/guardrails/latest/get-started/tutorials/multimodal.md`
+1. Check Harmful Content. If this is selected, load `DOCS_BASE/get-started/tutorials/nemotron-safety-guard-deployment.md`
+2. Content Safety Reasoning. If this is selected, load `DOCS_BASE/get-started/tutorials/nemotron-content-safety-reasoning-deployment.md`
+3. Restrict Topics. If this is selected, load `DOCS_BASE/get-started/tutorials/nemoguard-topiccontrol-deployment.md`
+4. Detect Jailbreak Attempts. If this is selected, load `DOCS_BASE/get-started/tutorials/nemoguard-jailbreakdetect-deployment.md`
+5. Jailbreak Heuristics. If this is selected, load `DOCS_BASE/get-started/tutorials/jailbreak-detection-heuristics.md`
+6. Add Multimodal Content Safety. If this is selected, load `DOCS_BASE/get-started/tutorials/multimodal.md`
 
 ## Contributor Path
 
