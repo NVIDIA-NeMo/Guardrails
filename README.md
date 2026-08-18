@@ -311,6 +311,18 @@ To the best of our knowledge, the NeMo Guardrails library is the only guardrails
 
 The NVIDIA NeMo Guardrails library collects anonymous telemetry to help NVIDIA understand which deployment patterns and safety features are most used. The library emits one usage event when you instantiate `LLMRails`, `IORails`, or `Guardrails`, then emits periodic heartbeats from a single daemon thread per process. This telemetry is separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html). You configure tracing in your guardrails config and send it to your own observability backend. Telemetry is a minimal anonymous ping to NVIDIA.
 
+### Community usage snapshot
+
+Aggregate anonymous usage across exact `0.22.0` and `0.23.0` release builds, May 22–August 18, 2026:
+
+![Sessions by rail type](docs/_static/images/community-telemetry/sessions-by-rail-type.png)
+
+![Sessions by built-in feature](docs/_static/images/community-telemetry/sessions-by-built-in-feature.png)
+
+![Configured rails at startup](docs/_static/images/community-telemetry/configured-rails-at-startup.png)
+
+_Last updated on August 18, 2026_
+
 The telemetry includes:
 
 - Installed library version, Python version, operating system, and platform string
