@@ -35,7 +35,12 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
-from nemoguardrails.exceptions import InvalidStateError, LLMCallException, StreamingNotSupportedError
+from nemoguardrails.exceptions import (
+    InvalidModelConfigurationError,
+    InvalidStateError,
+    LLMCallException,
+    StreamingNotSupportedError,
+)
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.http.errors import HTTPClientError
 from nemoguardrails.llm.clients._errors import build_error_payload, normalize_error_status
@@ -429,16 +434,25 @@ def _resolve_main_model_parameters(configured_model: Optional[Model]) -> dict[st
     return parameters
 
 
+def _validated_main_model(model_fields: dict[str, Any]) -> Model:
+    """Build a main model from its fields, reporting a rejected field as a configuration error."""
+    try:
+        return Model.model_validate(model_fields)
+    except ValidationError as exc:
+        raise InvalidModelConfigurationError(exc.errors()[0]["msg"]) from exc
+
+
 def _build_main_model(model_name: str, configured_model: Optional[Model]) -> Model:
     """Build the main model for a request, on top of the configured one when there is one."""
     engine = _resolve_main_model_engine(configured_model)
     parameters = _resolve_main_model_parameters(configured_model)
 
-    if configured_model is None:
-        return Model(model=model_name, type="main", engine=engine, parameters=parameters)
+    # Validating a field mapping rather than copying the configured model keeps the two
+    # cases on one path: model_copy(update=...) skips validation, so a request model name
+    # that a fresh Model would reject used to slip through whenever a main model existed.
+    configured_fields = configured_model.model_dump() if configured_model is not None else {"type": "main"}
 
-    # Copy the configured model to retain non-request metadata
-    return configured_model.model_copy(update={"model": model_name, "engine": engine, "parameters": parameters})
+    return _validated_main_model({**configured_fields, "model": model_name, "engine": engine, "parameters": parameters})
 
 
 def _inject_model(config: RailsConfig, model_name: str) -> RailsConfig:

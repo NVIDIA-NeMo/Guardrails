@@ -273,6 +273,35 @@ def test_inject_model_rejects_whitespace_only_name_with_configured_main_model():
         api._inject_model(_config_with_main_model(), "   ")
 
 
+def test_inject_model_rejects_whitespace_only_name_without_configured_main_model():
+    """Reject an invalid request model the same way when the config declares no main model."""
+    config = RailsConfig.from_content(config={"models": []})
+
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(config, "   ")
+
+
+def test_inject_model_accepts_a_config_that_names_its_model_in_parameters(monkeypatch):
+    """Test injection still succeeds when the configured main model took its name from parameters."""
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "parameters": {"model_name": "configured-model", "base_url": "https://configured.example/v1"},
+                }
+            ]
+        }
+    )
+
+    injected = api._inject_model(config, "requested-model")
+
+    assert injected.models[0].model == "requested-model"
+    assert injected.models[0].parameters == {"base_url": "https://configured.example/v1"}
+
+
 def test_inject_model_without_configured_main_model_defaults_to_openai(monkeypatch):
     """Test injection falls back to the openai engine when the config declares no main model."""
     monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)

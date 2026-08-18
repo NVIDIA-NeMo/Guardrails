@@ -143,12 +143,12 @@ def _completion(content: str) -> dict:
     }
 
 
-def _chat(client: TestClient):
+def _chat(client: TestClient, model: str = REQUEST_MODEL):
     """POST a chat completion that carries the request model, the way an OpenAI client does."""
     return client.post(
         "/v1/chat/completions",
         json={
-            "model": REQUEST_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {"config_id": "test"},
         },
@@ -196,6 +196,19 @@ def test_main_and_rail_models_both_carry_the_configured_credential(httpx_mock: H
         "integrate.api.nvidia.com": f"Bearer {API_KEY}",
         "rail.invalid": f"Bearer {API_KEY}",
     }
+
+
+def test_whitespace_only_request_model_is_rejected_before_the_provider_is_called(
+    httpx_mock: HTTPXMock, serve_config, client
+):
+    """Test a blank request model is rejected as a bad request instead of reaching the provider."""
+    serve_config(ENGINE_ONLY_CONFIG)
+    httpx_mock.add_response(url=NIM_URL, method="POST", json=_completion("hello"), is_optional=True)
+
+    response = _chat(client, model="   ")
+
+    assert response.status_code == 400
+    assert httpx_mock.get_requests() == []
 
 
 def test_env_engine_redirects_the_main_model_but_keeps_its_credential(
