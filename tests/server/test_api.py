@@ -25,6 +25,7 @@ pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.exceptions import InvalidModelConfigurationError
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails import LLMRails
@@ -264,6 +265,12 @@ def test_inject_model_preserves_configured_mode_and_cache(monkeypatch):
     assert injected.models[0].mode == "text"
     assert injected.models[0].cache is not None
     assert injected.models[0].cache.enabled is True
+
+
+def test_inject_model_rejects_whitespace_only_name_with_configured_main_model():
+    """Reject an invalid request model even when injection copies a configured main model."""
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(_config_with_main_model(), "   ")
 
 
 def test_inject_model_without_configured_main_model_defaults_to_openai(monkeypatch):
