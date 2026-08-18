@@ -26,6 +26,7 @@ from nemoguardrails.exceptions import (
     InvalidStateError,
     LLMCallException,
     LLMRateLimitError,
+    RailTypeNotConfiguredError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.guardrails.model_engine import ModelEngineError
@@ -111,6 +112,11 @@ async def bad_request_error_handler(request: Request, exc: StreamingNotSupported
     """
     log.warning("Bad request: %s", exc)
     return _error_response(400, str(exc))
+
+
+async def rail_type_not_configured_error_handler(request: Request, exc: RailTypeNotConfiguredError) -> Response:
+    log.warning("Rail type not configured: %s", exc)
+    return _error_response(422, str(exc))
 
 
 async def invalid_state_error_handler(request: Request, exc: InvalidStateError) -> Response:

@@ -85,6 +85,15 @@ result = await rails.check_async(
 | `RailType.INPUT` | Run input rails |
 | `RailType.OUTPUT` | Run output rails |
 
+<Note>
+
+Requesting a rail type that has no configured flows raises
+`RailTypeNotConfiguredError` (HTTP 422 on the `/v1/checks` endpoint). For
+example, passing `rail_types=[RailType.OUTPUT]` on a config that only defines
+input flows will raise an error instead of silently returning a passed result.
+
+</Note>
+
 ## RailsResult
 
 The `RailsResult` object contains the outcome of the rails check.
