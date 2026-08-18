@@ -384,6 +384,25 @@ def _assert_served_engine(engine: str) -> None:
         assert not isinstance(rails, Guardrails)
 
 
+@pytest.fixture
+def chat_against_failing_upstream(httpx_mock: HTTPXMock, serve_config):
+    """Serve the main-model config on one engine and post one chat request to a failing provider.
+
+    The engine guard runs here rather than in each test: ``Guardrails`` falls back to LLMRails
+    for a config IORails cannot serve, and an unguarded IORails case would then assert against
+    the wrong engine and pass.
+    """
+
+    def _request(engine: str, status: int, body: dict, *, headers: dict | None = None, stream: bool = False):
+        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        with _upstream_failure(engine, httpx_mock, status, body, headers):
+            response = _chat(stream=stream)
+        _assert_served_engine(engine)
+        return response
+
+    return _request
+
+
 class TestQACaseTC13EnvelopeParity:
     """QA case NGUARD-745 TC-13: both engines render one envelope for the same upstream failure.
 
@@ -394,15 +413,11 @@ class TestQACaseTC13EnvelopeParity:
     @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
     @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
     def test_message_is_the_provider_message_alone(
-        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, upstream_body
+        self, chat_against_failing_upstream, engine, upstream_status, upstream_body
     ):
         """The client message carries no model-routing prefix and no raw upstream body."""
-        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        response = chat_against_failing_upstream(engine, upstream_status, upstream_body)
 
-        with _upstream_failure(engine, httpx_mock, upstream_status, upstream_body):
-            response = _chat()
-
-        _assert_served_engine(engine)
         assert response.status_code == upstream_status
         message = response.json()["error"]["message"]
         assert message == upstream_body["error"]["message"]
@@ -413,27 +428,22 @@ class TestQACaseTC13EnvelopeParity:
     @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
     @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
     def test_provider_code_and_param_are_preserved(
-        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, upstream_body
+        self, chat_against_failing_upstream, engine, upstream_status, upstream_body
     ):
         """The provider's own code and param reach the caller instead of being nulled."""
-        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
+        response = chat_against_failing_upstream(engine, upstream_status, upstream_body)
 
-        with _upstream_failure(engine, httpx_mock, upstream_status, upstream_body):
-            response = _chat()
-
-        _assert_served_engine(engine)
         error = response.json()["error"]
         assert error["code"] == upstream_body["error"]["code"]
         assert error["param"] == upstream_body["error"]["param"]
 
     @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
-    def test_rate_limit_forwards_retry_after(self, httpx_mock: HTTPXMock, serve_config, engine):
+    def test_rate_limit_forwards_retry_after(self, chat_against_failing_upstream, engine):
         """A 429 forwards the provider's Retry-After header and code on either engine.
 
         IORails never read the response headers on the error path, so an SDK's backoff was
         blind even though the provider had supplied the value.
         """
-        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
         body = {
             "error": {
                 "message": "slow down",
@@ -443,10 +453,8 @@ class TestQACaseTC13EnvelopeParity:
             }
         }
 
-        with _upstream_failure(engine, httpx_mock, 429, body, headers={"retry-after": "7"}):
-            response = _chat()
+        response = chat_against_failing_upstream(engine, 429, body, headers={"retry-after": "7"})
 
-        _assert_served_engine(engine)
         assert response.status_code == 429
         assert response.headers["retry-after"] == "7"
         assert response.json()["error"]["code"] == "rate_limit_exceeded"
@@ -462,40 +470,34 @@ class TestQACaseTC13EnvelopeParity:
         ],
     )
     def test_status_and_type_agree_beyond_the_qa_scenarios(
-        self, httpx_mock: HTTPXMock, serve_config, engine, upstream_status, expected_type
+        self, chat_against_failing_upstream, engine, upstream_status, expected_type
     ):
         """Statuses outside TC-13 map to the same type and message on either engine.
 
         401 and 403 matter most: a rail model rejecting the server's own key must not read
         as the caller's credentials being bad.
         """
-        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
         body = {"error": {"message": f"upstream returned {upstream_status}", "type": expected_type}}
 
-        with _upstream_failure(engine, httpx_mock, upstream_status, body):
-            response = _chat()
+        response = chat_against_failing_upstream(engine, upstream_status, body)
 
-        _assert_served_engine(engine)
         assert response.status_code == upstream_status
         error = response.json()["error"]
         assert error["type"] == expected_type
         assert error["message"] == f"upstream returned {upstream_status}"
 
     @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
-    def test_streaming_initial_failure_is_promoted_to_an_http_status(self, httpx_mock: HTTPXMock, serve_config, engine):
+    def test_streaming_initial_failure_is_promoted_to_an_http_status(self, chat_against_failing_upstream, engine):
         """A failure before the first token becomes a real HTTP status, not a 200 SSE stream.
 
         An SSE response has no status line, so ``code`` carries it; the server reads that
         back to promote the frame. This is the path the report flags where ``code`` is the
         only status carrier.
         """
-        serve_config(MAIN_MODEL_CONFIG, iorails=(engine == "iorails"))
         body = {"error": {"message": "overloaded", "type": "server_error"}}
 
-        with _upstream_failure(engine, httpx_mock, 503, body):
-            response = _chat(stream=True)
+        response = chat_against_failing_upstream(engine, 503, body, stream=True)
 
-        _assert_served_engine(engine)
         assert response.status_code == 503
         error = response.json()["error"]
         assert error["message"] == "overloaded"
@@ -503,9 +505,7 @@ class TestQACaseTC13EnvelopeParity:
         assert "gpt-4o-mini" not in error["message"]
 
     @pytest.mark.parametrize("upstream_status,upstream_body", OPENAI_UPSTREAM_FAILURES)
-    def test_engines_render_identical_envelopes(
-        self, httpx_mock: HTTPXMock, serve_config, upstream_status, upstream_body
-    ):
+    def test_engines_render_identical_envelopes(self, chat_against_failing_upstream, upstream_status, upstream_body):
         """Both engines return the same status and the same whole envelope for one upstream failure.
 
         The field-level tests above pin each engine to the provider's own values; this one
@@ -514,17 +514,13 @@ class TestQACaseTC13EnvelopeParity:
         """
         # LLMRails runs first so the IORails instance is the one left in the cache for the
         # reset fixture to shut down; clearing it afterwards would leak its aiohttp session.
-        serve_config(MAIN_MODEL_CONFIG)
-        with _upstream_failure("llmrails", httpx_mock, upstream_status, upstream_body):
-            llmrails_response = _chat()
-        _assert_served_engine("llmrails")
+        llmrails_response = chat_against_failing_upstream("llmrails", upstream_status, upstream_body)
 
+        # Forces a fresh instance, otherwise the second request reuses the first engine and
+        # the comparison below is a response against itself.
         api.llm_rails_instances.clear()
 
-        serve_config(MAIN_MODEL_CONFIG, iorails=True)
-        with _upstream_failure("iorails", httpx_mock, upstream_status, upstream_body):
-            iorails_response = _chat()
-        _assert_served_engine("iorails")
+        iorails_response = chat_against_failing_upstream("iorails", upstream_status, upstream_body)
 
         assert iorails_response.status_code == llmrails_response.status_code
         assert iorails_response.json() == llmrails_response.json()

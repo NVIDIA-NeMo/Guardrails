@@ -132,6 +132,28 @@ def _mock_chat_client(payload: dict | None = None, status: int = 200):
     return mock_client
 
 
+def _mock_error_client(body: str, status: int):
+    """Create a mock aiohttp client whose post() returns a failed response carrying ``body``."""
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = status
+    mock_response.text = AsyncMock(return_value=body)
+    mock_response.headers = {}
+
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    mock_client.closed = False
+    return mock_client
+
+
+def _mock_failing_client(exc: BaseException):
+    """Create a mock aiohttp client whose post() raises ``exc`` instead of responding."""
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(side_effect=exc)
+    mock_client.closed = False
+    return mock_client
+
+
 def _started_engine(client, **model_kwargs) -> ModelEngine:
     """Create a ModelEngine wired to ``client`` and marked as started."""
     engine = ModelEngine(_make_model(**model_kwargs))
@@ -739,19 +761,7 @@ class TestModelEngineCall:
         body = json.dumps(
             {"error": {"message": long_message, "type": "invalid_request_error", "param": "temperature", "code": "bad"}}
         )
-        engine = ModelEngine(_make_model())
-
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 400
-        mock_response.text = AsyncMock(return_value=body)
-        mock_response.headers = {}
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_error_client(body, status=400))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -769,19 +779,7 @@ class TestModelEngineCall:
 
         A proxy returning an HTML page would otherwise be forwarded to the caller whole.
         """
-        engine = ModelEngine(_make_model())
-
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 502
-        mock_response.text = AsyncMock(return_value="<html>" + "x" * 20000 + "</html>")
-        mock_response.headers = {}
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_error_client("<html>" + "x" * 20000 + "</html>", status=502))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -796,19 +794,7 @@ class TestModelEngineCall:
         These reach logs through ``LLMClientError.__str__``, never the client envelope, which
         renders ``error_message`` alone.
         """
-        engine = ModelEngine(_make_model())
-
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 400
-        mock_response.text = AsyncMock(return_value='{"error": {"message": "bad request"}}')
-        mock_response.headers = {}
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_error_client('{"error": {"message": "bad request"}}', status=400))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -827,19 +813,7 @@ class TestModelEngineCall:
         Letting it escape would strip the status in call()'s catch-all, and the server would
         report 500 for what was really a 429.
         """
-        engine = ModelEngine(_make_model())
-
-        mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.status = 429
-        mock_response.text = AsyncMock(return_value='{"error": {"message": "slow down"}}')
-        mock_response.headers = {}
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(return_value=mock_response)
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_error_client('{"error": {"message": "slow down"}}', status=429))
 
         with patch(
             "nemoguardrails.guardrails.model_engine.raise_for_status",
@@ -871,13 +845,7 @@ class TestModelEngineCall:
         self, transport_error, expected_type, expected_message
     ):
         """A timeout or connection failure is classified, so the caller sees no internal model name."""
-        engine = ModelEngine(_make_model())
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(side_effect=transport_error)
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_failing_client(transport_error))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -892,13 +860,7 @@ class TestModelEngineCall:
     @pytest.mark.asyncio
     async def test_call_unclassifiable_failure_carries_no_client_error(self):
         """An exception that is not a transport failure is wrapped without an inner client error."""
-        engine = ModelEngine(_make_model())
-
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(side_effect=ValueError("something else"))
-        mock_client.closed = False
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_failing_client(ValueError("something else")))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -1101,11 +1063,7 @@ class TestModelEngineStreamCall:
         ``_wrap_exception`` is reached with a different label here, so the streaming branch
         needs its own case.
         """
-        engine = ModelEngine(_make_model())
-        mock_client = AsyncMock()
-        mock_client.post = MagicMock(side_effect=aiohttp.ServerTimeoutError("read timed out"))
-        engine._client = mock_client
-        engine._running = True
+        engine = _started_engine(_mock_failing_client(aiohttp.ServerTimeoutError("read timed out")))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
