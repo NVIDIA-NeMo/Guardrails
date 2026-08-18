@@ -138,7 +138,9 @@ Use `--auto-reload` only in development environments. It is not recommended for 
 
 ## Model Provider Configuration
 
-When the `model` field is specified in a chat completion request, the server uses environment variables to determine which LLM provider and endpoint to use.
+When the `model` field is specified in a chat completion request, that model name replaces the name of the main model in your configuration.
+The rest of the configured main model still applies, including `engine`, `api_key_env_var`, `mode`, and `parameters`.
+Use the following environment variables to override the provider and endpoint the server uses for that model.
 
 ```{list-table}
 :header-rows: 1
@@ -148,10 +150,10 @@ When the `model` field is specified in a chat completion request, the server use
   - Description
 
 * - `MAIN_MODEL_ENGINE`
-  - The LLM engine to use (e.g., `"openai"`, `"nim"`, `"vllm"`, `"anthropic"`). Default: `"openai"`.
+  - The LLM engine to use (e.g., `"openai"`, `"nim"`, `"vllm"`, `"anthropic"`). Overrides the `engine` of the configured main model. Defaults to that configured `engine`, or to `"openai"` if your configuration declares no main model.
 
 * - `MAIN_MODEL_BASE_URL`
-  - Base URL for the LLM provider. Use this for self-hosted models (e.g., `"http://localhost:8080/v1"`).
+  - Base URL for the LLM provider. Overrides `parameters.base_url` of the configured main model. Use this for self-hosted models (e.g., `"http://localhost:8080/v1"`).
 ```
 
 Set the appropriate API key for your provider:

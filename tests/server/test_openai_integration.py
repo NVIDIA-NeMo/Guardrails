@@ -40,21 +40,20 @@ from nemoguardrails.server import api
 
 
 @pytest.fixture(scope="function", autouse=True)
-def set_rails_config_path():
+def set_rails_config_path(monkeypatch):
     """Set the rails_config_path to test configs and required env vars."""
+    # Set the engine through monkeypatch rather than os.environ directly, so that tests
+    # overriding MAIN_MODEL_ENGINE or MAIN_MODEL_BASE_URL share this MonkeyPatch instance
+    # and every undo is strictly LIFO. Hand-rolled restore here would run first and let a
+    # test's undo leak its value into every later test in the worker.
     original_path = api.app.rails_config_path
-    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     test_configs_path = os.path.join(os.path.dirname(__file__), "..", "test_configs")
     api.app.rails_config_path = test_configs_path
-    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "custom_llm")
     api.llm_rails_instances.clear()
     yield
     api.app.rails_config_path = original_path
     api.llm_rails_instances.clear()
-    if original_engine is not None:
-        os.environ["MAIN_MODEL_ENGINE"] = original_engine
-    else:
-        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 @pytest.fixture(scope="function")
@@ -315,10 +314,11 @@ def test_openai_client_with_rails_disabled(openai_client):
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY is required for this test.",
 )
-def test_list_models_openai(openai_client):
+def test_list_models_openai(openai_client, monkeypatch):
     """List models from the OpenAI API."""
-    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
-    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+    if not os.environ.get("MAIN_MODEL_BASE_URL"):
+        monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
 
     models = list(openai_client.models.list())
 
@@ -333,10 +333,11 @@ def test_list_models_openai(openai_client):
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY is required for this test.",
 )
-def test_list_models_openai_fields(openai_client):
+def test_list_models_openai_fields(openai_client, monkeypatch):
     """Verify that well-known OpenAI models appear with expected fields."""
-    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
-    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+    if not os.environ.get("MAIN_MODEL_BASE_URL"):
+        monkeypatch.setenv("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
 
     models = {m.id: m for m in openai_client.models.list()}
 
@@ -353,9 +354,9 @@ def test_list_models_openai_fields(openai_client):
     not os.environ.get("ANTHROPIC_API_KEY"),
     reason="ANTHROPIC_API_KEY is required for this test.",
 )
-def test_list_models_anthropic(openai_client):
+def test_list_models_anthropic(openai_client, monkeypatch):
     """List models from the Anthropic API."""
-    os.environ["MAIN_MODEL_ENGINE"] = "anthropic"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "anthropic")
 
     models = list(openai_client.models.list())
 
@@ -371,9 +372,9 @@ def test_list_models_anthropic(openai_client):
     not os.environ.get("COHERE_API_KEY"),
     reason="COHERE_API_KEY is required for this test.",
 )
-def test_list_models_cohere(openai_client):
+def test_list_models_cohere(openai_client, monkeypatch):
     """List models from the Cohere API."""
-    os.environ["MAIN_MODEL_ENGINE"] = "cohere"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "cohere")
 
     models = list(openai_client.models.list())
 
@@ -389,9 +390,9 @@ def test_list_models_cohere(openai_client):
     not (os.environ.get("AZURE_OPENAI_ENDPOINT") and os.environ.get("AZURE_OPENAI_API_KEY")),
     reason="AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY are required for this test.",
 )
-def test_list_models_azure(openai_client):
+def test_list_models_azure(openai_client, monkeypatch):
     """List models from Azure OpenAI."""
-    os.environ["MAIN_MODEL_ENGINE"] = "azure"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "azure")
 
     models = list(openai_client.models.list())
 
@@ -401,10 +402,10 @@ def test_list_models_azure(openai_client):
     assert all(m.owned_by == "azure" for m in models)
 
 
-def test_list_models_unknown_engine_no_url(openai_client):
+def test_list_models_unknown_engine_no_url(openai_client, monkeypatch):
     """Unknown engine with no MAIN_MODEL_BASE_URL returns an empty list."""
-    os.environ["MAIN_MODEL_ENGINE"] = "some_custom_llm"
-    os.environ.pop("MAIN_MODEL_BASE_URL", None)
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "some_custom_llm")
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
 
     models = list(openai_client.models.list())
 

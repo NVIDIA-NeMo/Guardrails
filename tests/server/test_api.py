@@ -25,6 +25,7 @@ pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.exceptions import InvalidModelConfigurationError
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.rails import LLMRails
@@ -38,19 +39,15 @@ client = TestClient(api.app)
 
 
 @pytest.fixture(scope="function", autouse=True)
-def set_rails_config_path():
+def set_rails_config_path(monkeypatch):
+    # Set the engine through monkeypatch rather than os.environ directly to avoid test leaking state
     original_path = api.app.rails_config_path
-    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "test_configs"))
-    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "custom_llm")
     api.llm_rails_instances.clear()
     yield
     api.app.rails_config_path = original_path
     api.llm_rails_instances.clear()
-    if original_engine is not None:
-        os.environ["MAIN_MODEL_ENGINE"] = original_engine
-    else:
-        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def test_get():
@@ -217,6 +214,104 @@ def test_inject_model_preserves_main_model_api_key_for_llmrails(injected_model_c
     assert rails.llm.provider_name == "custom_llm"
     assert headers["Authorization"] == "Bearer main-key"
     assert headers["X-Tenant"] == "acme"
+
+
+def _config_with_main_model(**overrides) -> RailsConfig:
+    main_model = {
+        "type": "main",
+        "engine": "nim",
+        "model": "meta/llama-3.1-70b-instruct",
+    }
+    main_model.update(overrides)
+    return RailsConfig.from_content(config={"models": [main_model]})
+
+
+def test_inject_model_preserves_configured_engine_when_env_unset(monkeypatch):
+    """Test the configured main model engine survives injection when MAIN_MODEL_ENGINE is unset."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+
+    injected = api._inject_model(_config_with_main_model(), "meta/llama-3.3-70b-instruct")
+
+    assert injected.models[0].model == "meta/llama-3.3-70b-instruct"
+    assert injected.models[0].engine == "nim"
+
+
+def test_inject_model_preserves_engine_derived_base_url(monkeypatch):
+    """Test a config without base_url still routes to the configured engine's endpoint after injection."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
+
+    injected = api._inject_model(_config_with_main_model(), "meta/llama-3.3-70b-instruct")
+
+    assert ModelEngine(injected.models[0]).base_url == "https://integrate.api.nvidia.com"
+
+
+def test_inject_model_env_engine_overrides_configured_engine(monkeypatch):
+    """Test an explicitly set MAIN_MODEL_ENGINE still takes precedence over the configured engine."""
+    monkeypatch.setenv("MAIN_MODEL_ENGINE", "openai")
+
+    injected = api._inject_model(_config_with_main_model(), "gpt-4o")
+
+    assert injected.models[0].engine == "openai"
+
+
+def test_inject_model_preserves_configured_mode_and_cache(monkeypatch):
+    """Test the configured main model mode and cache survive injection."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    config = _config_with_main_model(mode="text", cache={"enabled": True})
+
+    injected = api._inject_model(config, "meta/llama-3.3-70b-instruct")
+
+    assert injected.models[0].mode == "text"
+    assert injected.models[0].cache is not None
+    assert injected.models[0].cache.enabled is True
+
+
+def test_inject_model_rejects_whitespace_only_name_with_configured_main_model():
+    """Reject an invalid request model even when injection copies a configured main model."""
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(_config_with_main_model(), "   ")
+
+
+def test_inject_model_rejects_whitespace_only_name_without_configured_main_model():
+    """Reject an invalid request model the same way when the config declares no main model."""
+    config = RailsConfig.from_content(config={"models": []})
+
+    with pytest.raises(InvalidModelConfigurationError, match="Model name must be specified"):
+        api._inject_model(config, "   ")
+
+
+def test_inject_model_accepts_a_config_that_names_its_model_in_parameters(monkeypatch):
+    """Test injection still succeeds when the configured main model took its name from parameters."""
+    monkeypatch.delenv("MAIN_MODEL_BASE_URL", raising=False)
+    config = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "nim",
+                    "parameters": {"model_name": "configured-model", "base_url": "https://configured.example/v1"},
+                }
+            ]
+        }
+    )
+
+    injected = api._inject_model(config, "requested-model")
+
+    assert injected.models[0].model == "requested-model"
+    assert injected.models[0].parameters == {"base_url": "https://configured.example/v1"}
+
+
+def test_inject_model_without_configured_main_model_defaults_to_openai(monkeypatch):
+    """Test injection falls back to the openai engine when the config declares no main model."""
+    monkeypatch.delenv("MAIN_MODEL_ENGINE", raising=False)
+    config = RailsConfig.from_content(config={"models": []})
+
+    injected = api._inject_model(config, "gpt-4o")
+
+    assert len(injected.models) == 1
+    assert injected.models[0].type == "main"
+    assert injected.models[0].engine == "openai"
 
 
 def test_thread_id_without_datastore_returns_400(monkeypatch):
