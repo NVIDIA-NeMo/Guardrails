@@ -135,26 +135,12 @@ class _OpenAIFunctionToolCallSchema(_OpenAIChatMessageBase):
     type: Literal["function"]
 
 
-class _OpenAICustomToolSchema(_OpenAIChatMessageBase):
-    input: str
-    name: str
-
-
-class _OpenAICustomToolCallSchema(_OpenAIChatMessageBase):
-    id: str
-    custom: _OpenAICustomToolSchema
-    type: Literal["custom"]
-
-
-_OpenAIToolCallSchema = Union[_OpenAIFunctionToolCallSchema, _OpenAICustomToolCallSchema]
-
-
 class _OpenAIAssistantMessageSchema(_OpenAIChatMessageBase):
     role: Literal["assistant"]
     content: Optional[Union[str, List[Union[_OpenAITextContentPartSchema, _OpenAIRefusalContentPartSchema]]]] = None
     function_call: Optional[_OpenAIFunctionCallSchema] = None
     name: Optional[str] = None
-    tool_calls: Optional[List[_OpenAIToolCallSchema]] = None
+    tool_calls: Optional[List[_OpenAIFunctionToolCallSchema]] = None
     refusal: Optional[str] = None
 
     @model_validator(mode="before")
@@ -232,10 +218,32 @@ class OpenAIChatCompletionRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
+    def reject_unsupported_custom_tools(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            tools = data.get("tools")
+            if isinstance(tools, list) and any(
+                isinstance(tool, dict) and tool.get("type") == "custom" for tool in tools
+            ):
+                raise ValueError("Custom tools are not supported.")
+
+            tool_choice = data.get("tool_choice")
+            if isinstance(tool_choice, dict):
+                allowed_tools = tool_choice.get("tools")
+                if tool_choice.get("type") == "custom" or (
+                    isinstance(allowed_tools, list)
+                    and any(isinstance(tool, dict) and tool.get("type") == "custom" for tool in allowed_tools)
+                ):
+                    raise ValueError("Custom tools are not supported.")
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
     def reject_unsupported_audio(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            modalities = data.get("modalities")
-            if "audio" in data or (isinstance(modalities, list) and "audio" in modalities):
+            if "modalities" in data and not isinstance(data["modalities"], list):
+                raise ValueError("The 'modalities' parameter must be a list.")
+            modalities = data.get("modalities", [])
+            if "audio" in data or "audio" in modalities:
                 raise ValueError("Audio input and output are not supported.")
         return data
 

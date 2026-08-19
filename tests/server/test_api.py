@@ -539,6 +539,7 @@ def test_chat_completion_rejects_unsupported_audio_messages(message):
     "audio_options",
     [
         {"modalities": ["text", "audio"]},
+        {"modalities": "audio"},
         {"audio": {"voice": "alloy", "format": "wav"}},
     ],
 )
@@ -553,6 +554,59 @@ def test_chat_completion_rejects_unsupported_audio_options(audio_options):
                 **audio_options,
             },
         )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["type"] == "invalid_request_error"
+    get_rails.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "custom_tool_input",
+    [
+        {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_custom",
+                            "type": "custom",
+                            "custom": {"name": "code_exec", "input": "print('hello')"},
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "tools": [
+                {
+                    "type": "custom",
+                    "custom": {"name": "code_exec", "description": "Execute code"},
+                }
+            ]
+        },
+        {"tool_choice": {"type": "custom", "custom": {"name": "code_exec"}}},
+        {
+            "tool_choice": {
+                "type": "allowed_tools",
+                "mode": "auto",
+                "tools": [{"type": "custom", "name": "code_exec"}],
+            }
+        },
+    ],
+    ids=["assistant-message", "tool-definition", "tool-choice", "allowed-tools"],
+)
+def test_chat_completion_rejects_unsupported_custom_tools(custom_tool_input):
+    request = {
+        "model": "gpt-5.2",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
+        **custom_tool_input,
+    }
+
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post("/v1/chat/completions", json=request)
 
     assert response.status_code == 422
     assert response.json()["error"]["type"] == "invalid_request_error"
@@ -601,8 +655,8 @@ def test_request_body_accepts_guardrails_context_message():
             "tool_calls": [
                 {
                     "id": "call_abc",
-                    "type": "custom",
-                    "custom": {"name": "code_exec", "input": "print('hello')"},
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city":"Boston"}'},
                 }
             ],
         },
