@@ -26,10 +26,11 @@ They run on every request and fail closed: a violation, a parsing error, or a ma
 </Note>
 
 <Warning>
-    Tool-calling rails run only on the IORails engine, which is opt-in and
-    experimental. They are not available on the default `LLMRails` engine. See
-    [Enable the IORails engine](#enable-the-iorails-engine) below. This feature
-    supports only the OpenAI Chat Completions wire format (the `openai` and
+    `LLMRails` supports custom Colang flows in the `rails.tool_call` and
+    `rails.tool_result` sections. The built-in structural validation flows
+    described on this page require the opt-in, experimental IORails engine. See
+    [Enable the IORails engine](#enable-the-iorails-engine) below. These flows
+    support only the OpenAI Chat Completions wire format (the `openai` and
     `nim` engines).
 </Warning>
 
@@ -100,7 +101,7 @@ When any rail blocks, IORails returns the refusal message `I'm sorry, I can't re
 
 ## Enable the IORails Engine
 
-Tool-calling rails require the IORails engine.
+The built-in validation flows described on this page require the IORails engine.
 Enable it in one of two ways.
 
 Set the `NEMO_GUARDRAILS_IORAILS_ENGINE` environment variable so the top-level `LLMRails` import resolves to the IORails-backed engine.
@@ -133,7 +134,7 @@ A configuration is IORails-compatible only when it uses Colang version `1.0`, de
 ## Configure the Rails
 
 Add the tool-calling flows to your `config.yml`.
-Each `tool_*` section accepts only its own flow name:
+When you use IORails, each `tool_*` section accepts only its own built-in flow name:
 
 ```yaml
 models:
@@ -159,9 +160,9 @@ To validate only the model's tool calls, configure `rails.tool_call` and leave `
 </Note>
 
 <Warning>
-    The flow names are fixed and direction-specific. `rails.tool_call` accepts
-    only `tool call validation`, and `rails.tool_result` accepts only `tool
-    result validation`. A misdirected, unknown, or duplicated tool flow name
+    The IORails flow names are fixed and direction-specific. `rails.tool_call`
+    accepts only `tool call validation`, and `rails.tool_result` accepts only
+    `tool result validation`. A misdirected, unknown, or duplicated tool flow name
     makes the configuration ineligible for IORails: the `Guardrails` facade
     silently falls back to `LLMRails`, and none of the IORails tool rails run. A
     typo in a flow name disables the tool rails you configured, with only a log
@@ -347,7 +348,7 @@ IORails streams the text response as it arrives, accumulates the tool-call fragm
 - **Intra-request consistency.** The linkage check verifies consistency within a single request, not cross-turn provenance.
 - **Schema dialect.** Argument validation uses JSON Schema.
   Tool schemas written in a different dialect are not validated against that dialect.
-- **Engine requirement.** Tool-calling rails require the IORails engine and a Colang `1.0` configuration.
+- **Engine requirement.** The built-in structural validation flows described on this page require the IORails engine and a Colang `1.0` configuration.
 
 ## Related Tool Features
 
