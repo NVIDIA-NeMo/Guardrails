@@ -1035,24 +1035,39 @@ class TestBuiltinFeatures:
         ):
             assert _detect_builtin_features(config) == []
 
-    def test_every_manifest_flow_resolves_to_a_builtin_feature(self):
+    def test_every_manifest_flow_resolves_to_the_expected_builtin_feature(self):
         from nemoguardrails.manifests import default_rail_catalog
         from nemoguardrails.rails.llm.config import Rails
 
         config = MagicMock()
         config.rails = Rails()
         catalog = default_rail_catalog()
+        manifest_feature_ids = {
+            "factchecking.align_score": "factchecking",
+            "privateai": "sensitive_data_detection",
+            "self_check.facts": "self_check",
+            "self_check.input_check": "self_check",
+            "self_check.output_check": "self_check",
+        }
+        flow_feature_overrides = {
+            "self check hallucination": "self_check",
+        }
 
-        unresolved = []
+        mismatches = []
         for manifest in catalog.manifests.values():
             if manifest.flows is None:
                 continue
             for flow_name in manifest.flows.flow_names:
                 config.rails.input.flows = [flow_name]
-                if not _detect_builtin_features(config):
-                    unresolved.append(flow_name)
+                expected = flow_feature_overrides.get(
+                    flow_name,
+                    manifest_feature_ids.get(manifest.name, manifest.name),
+                )
+                actual = _detect_builtin_features(config)
+                if actual != [expected]:
+                    mismatches.append((flow_name, expected, actual))
 
-        assert unresolved == []
+        assert mismatches == []
 
     @pytest.mark.parametrize(
         ("flow_name", "feature_id"),
