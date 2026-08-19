@@ -387,86 +387,23 @@ def _is_usage_stats_enabled() -> bool:
     return True
 
 
-_KNOWN_BUILTIN_FLOWS = {
-    "activefence moderation on input": "activefence",
-    "activefence moderation on input detailed": "activefence",
-    "activefence moderation on output": "activefence",
-    "ai defense inspect prompt": "ai_defense",
-    "ai defense inspect response": "ai_defense",
-    "alignscore check facts": "factchecking",
-    "autoalign check input": "autoalign",
-    "autoalign check output": "autoalign",
-    "autoalign factcheck output": "autoalign",
-    "autoalign groundedness output": "autoalign",
-    "clavata check for": "clavata",
-    "clavata check input": "clavata",
-    "clavata check output": "clavata",
-    "cleanlab trustworthiness": "cleanlab",
-    "content safety check input": "content_safety",
-    "content safety check output": "content_safety",
-    "crowdstrike aidr guard input": "crowdstrike_aidr",
-    "crowdstrike aidr guard output": "crowdstrike_aidr",
-    "detect pii on input": "sensitive_data_detection",
-    "detect pii on output": "sensitive_data_detection",
-    "detect pii on retrieval": "sensitive_data_detection",
-    "detect sensitive data on input": "sensitive_data_detection",
-    "detect sensitive data on output": "sensitive_data_detection",
-    "detect sensitive data on retrieval": "sensitive_data_detection",
-    "fiddler bot faithfulness": "fiddler",
-    "fiddler bot safety": "fiddler",
-    "fiddler user safety": "fiddler",
-    "gliner detect pii on input": "gliner",
-    "gliner detect pii on output": "gliner",
-    "gliner detect pii on retrieval": "gliner",
-    "gliner mask pii on input": "gliner",
-    "gliner mask pii on output": "gliner",
-    "gliner mask pii on retrieval": "gliner",
-    "guardrailsai check input": "guardrails_ai",
-    "guardrailsai check output": "guardrails_ai",
-    "hallucination warning": "hallucination",
-    "injection detection": "injection_detection",
-    "jailbreak detection heuristics": "jailbreak_detection",
-    "jailbreak detection model": "jailbreak_detection",
-    "llama guard check input": "llama_guard",
-    "llama guard check output": "llama_guard",
-    "mask pii on input": "sensitive_data_detection",
-    "mask pii on output": "sensitive_data_detection",
-    "mask pii on retrieval": "sensitive_data_detection",
-    "mask sensitive data on input": "sensitive_data_detection",
-    "mask sensitive data on output": "sensitive_data_detection",
-    "mask sensitive data on retrieval": "sensitive_data_detection",
-    "pangea ai guard input": "pangea",
-    "pangea ai guard output": "pangea",
-    "patronus api check output": "patronusai",
-    "patronus lynx check output hallucination": "patronusai",
-    "policyai moderation on input": "policyai",
-    "policyai moderation on output": "policyai",
-    "protect prompt": "prompt_security",
-    "protect response": "prompt_security",
-    "regex check input": "regex",
-    "regex check output": "regex",
-    "regex check retrieval": "regex",
-    "self check facts": "self_check",
-    "self check hallucination": "self_check",
-    "self check input": "self_check",
-    "self check output": "self_check",
-    "topic safety check input": "topic_safety",
-    "trend ai guard input": "trend_micro",
-    "trend ai guard output": "trend_micro",
-}
-
-_CONFIG_BUILTIN_FEATURE_ALIASES = {
+_BUILTIN_FEATURE_ID_ALIASES = {
     "fact_checking": "factchecking",
     "patronus": "patronusai",
+    "privateai": "sensitive_data_detection",
     "regex_detection": "regex",
+}
+
+_BUILTIN_FLOW_FEATURE_OVERRIDES = {
+    "self check hallucination": "self_check",
 }
 
 _COLANG_V2_LIBRARY_DIR = Path(__file__).resolve().parent / "colang" / "v2_x" / "library"
 
 
-def _normalize_builtin_feature_id(field_name: str) -> str:
-    """Return the documented feature id for a RailsConfigData field."""
-    return _CONFIG_BUILTIN_FEATURE_ALIASES.get(field_name, field_name)
+def _normalize_builtin_feature_id(feature_id: str) -> str:
+    """Return the stable telemetry id for a config field or manifest."""
+    return _BUILTIN_FEATURE_ID_ALIASES.get(feature_id, feature_id.split(".", 1)[0])
 
 
 def _flow_file_name(flow: Any) -> Optional[str]:
@@ -509,7 +446,7 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
 
     Uses two signals: (1) fields on ``RailsConfigData`` that differ from
     their defaults (explicit config), and (2) exact-match flow names
-    against a known set of built-in library flows. Only our own feature
+    declared by the built-in rail manifest catalog. Only our own feature
     names are ever reported, never user-defined flow names.
 
     Args:
@@ -539,6 +476,17 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
         except Exception:
             pass
 
+    try:
+        from nemoguardrails.manifests import default_rail_catalog
+
+        catalog = default_rail_catalog()
+    except Exception:
+        log.debug("Failed to load the built-in rail catalog for usage telemetry", exc_info=True)
+        catalog = None
+
+    if catalog is None:
+        return sorted(features)
+
     all_flows = []
     for rail_group in ["input", "output", "retrieval", "tool_output", "tool_input"]:
         group = getattr(rails, rail_group, None)
@@ -547,9 +495,14 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
 
     for flow_name in all_flows:
         normalized = _normalize_flow_id(flow_name)
-        feature = _KNOWN_BUILTIN_FLOWS.get(normalized)
-        if feature is not None:
-            features.add(feature)
+        manifest_name = catalog.owner_for_flow(normalized)
+        if manifest_name is None:
+            continue
+        feature = _BUILTIN_FLOW_FEATURE_OVERRIDES.get(
+            normalized,
+            _normalize_builtin_feature_id(manifest_name),
+        )
+        features.add(feature)
 
     return sorted(features)
 
