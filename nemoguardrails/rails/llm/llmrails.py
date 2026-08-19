@@ -807,7 +807,7 @@ class LLMRails(BaseGuardrails):
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
-                elif msg["role"] == "system":
+                elif msg["role"] in ("developer", "system"):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
@@ -864,7 +864,7 @@ class LLMRails(BaseGuardrails):
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
-                elif msg["role"] == "system":
+                elif msg["role"] in ("developer", "system"):
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
