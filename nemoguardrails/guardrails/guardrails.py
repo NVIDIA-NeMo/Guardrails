@@ -68,15 +68,20 @@ class Guardrails(BaseGuardrails):
         LLMRails and logs a warning. Set ``require_iorails=True`` to raise a
         ``ValueError`` instead — use this when IORails-only features such as
         OpenTelemetry metrics are required.
+
+        ``verbose=True`` additionally routes this package's logs to stderr through
+        ``configure_logging``. Without it the package logs nothing on its own and
+        leaves handlers, levels and formatting to the calling application.
         """
 
         self.config = config
         self.verbose = verbose
 
+        # configure_logging attaches a handler and stops the package logger propagating.
+        # Calling it unconditionally would detach nemoguardrails.guardrails from
+        # the handlers the calling application installed on the root logger
         if verbose:
             configure_logging(logging.DEBUG)
-        else:
-            configure_logging(logging.INFO)
 
         if use_iorails:
             fallback_reason = IORails.unsupported_reason(config, llm)

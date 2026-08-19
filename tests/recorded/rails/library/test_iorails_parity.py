@@ -112,6 +112,17 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
     """
     with caplog.at_level(logging.ERROR):
         yield
+        # rail_guard reports a failed rail under nemoguardrails.guardrails, so this fixture is only
+        # as good as caplog's view of that logger. Configuring it detaches it from root, where caplog
+        # listens; pytest re-attaches its handler only to loggers already non-propagating when the
+        # phase opened, so a logger configured *mid-test* is captured nowhere and the records below
+        # read empty however the rail behaved. Asserting nothing configured it at all is the
+        # conservative form of that check: it cannot distinguish the mid-test case, which is silently
+        # wrong, from the before-the-test case, which happens to work.
+        assert logging.getLogger("nemoguardrails.guardrails").propagate, (
+            "something configured the nemoguardrails.guardrails logger, which detaches it from the "
+            "root logger caplog listens on; when that happens mid-test the check below reads empty"
+        )
         # get_records("call") rather than .records: during teardown the latter reports the
         # teardown phase, which is empty, and the check would pass no matter what the rail did.
         # Restricted to this package's loggers because the question is whether a *rail* failed,

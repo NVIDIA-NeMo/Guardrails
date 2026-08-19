@@ -20,6 +20,7 @@ class correctly delegates method calls with properly formatted parameters.
 """
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -99,6 +100,28 @@ def mock_llm():
     """Create a mock LLM for testing."""
     llm = MagicMock()
     return llm
+
+
+@pytest.fixture
+def pristine_package_logger():
+    """Hand back an unconfigured ``nemoguardrails.guardrails`` logger, restoring it afterward.
+
+    Any earlier test that built a Guardrails leaves the logger already configured, and a test
+    starting from that state cannot tell a fixed constructor from a broken one.
+    """
+    logger = logging.getLogger("nemoguardrails.guardrails")
+    saved_handlers = list(logger.handlers)
+    saved_propagate = logger.propagate
+    saved_level = logger.level
+    logger.handlers.clear()
+    logger.propagate = True
+    logger.setLevel(logging.NOTSET)
+    try:
+        yield logger
+    finally:
+        logger.handlers[:] = saved_handlers
+        logger.propagate = saved_propagate
+        logger.setLevel(saved_level)
 
 
 class TestGuardrailsRouting:
@@ -346,6 +369,54 @@ class TestGuardrailsInit:
         guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
         assert isinstance(guardrails.rails_engine, IORails)
         mock_iorails_init.assert_called_once_with(_content_safety_rails_config)
+
+
+class TestConstructionLoggingSideEffects:
+    """Constructing Guardrails must not take over the ``nemoguardrails.guardrails`` logger.
+
+    Configuring the package logger detaches it from whatever handlers the embedding application
+    installed, so its records stop reaching root: an app's log shipper and pytest's caplog both
+    go silent on this subtree, with no error to say so.
+    """
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_default_construction_leaves_the_package_logger_propagating(
+        self, _mock_iorails_init, _content_safety_rails_config, pristine_package_logger
+    ):
+        """A default construction leaves package records reaching ancestor handlers."""
+        Guardrails(config=_content_safety_rails_config, use_iorails=True)
+
+        assert pristine_package_logger.propagate is True
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_default_construction_adds_no_handler_of_its_own(
+        self, _mock_iorails_init, _content_safety_rails_config, pristine_package_logger
+    ):
+        """A default construction attaches no handler, leaving output routing to the application."""
+        Guardrails(config=_content_safety_rails_config, use_iorails=True)
+
+        assert pristine_package_logger.handlers == []
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_records_logged_after_a_default_construction_stay_visible(
+        self, _mock_iorails_init, _content_safety_rails_config, pristine_package_logger, caplog
+    ):
+        """A package record emitted after a construction still reaches caplog, which listens at root."""
+        with caplog.at_level(logging.WARNING):
+            Guardrails(config=_content_safety_rails_config, use_iorails=True)
+            logging.getLogger("nemoguardrails.guardrails.iorails").warning("visible after construction")
+
+        assert "visible after construction" in caplog.text
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_verbose_construction_still_configures_the_package_logger(
+        self, _mock_iorails_init, _content_safety_rails_config, pristine_package_logger
+    ):
+        """verbose=True still opts in to the package's own handler and debug level."""
+        Guardrails(config=_content_safety_rails_config, use_iorails=True, verbose=True)
+
+        assert pristine_package_logger.handlers
+        assert pristine_package_logger.level == logging.DEBUG
 
 
 class TestIORailsUnsupportedReason:
