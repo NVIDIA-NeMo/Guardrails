@@ -233,16 +233,21 @@ def resolve_tool_calls(bot_message: dict, response_tool_calls: Optional[list] = 
 def build_chat_completion_message(
     bot_message: dict,
     tool_calls: Optional[List[dict]] = None,
+    reasoning_content: Optional[str] = None,
 ) -> ChatCompletionMessage:
     """Build an OpenAI ChatCompletionMessage from an internal bot message dict."""
     content = bot_message.get("content")
     if content == "" and tool_calls:
         content = None
 
+    # Only pass the key when there is reasoning to report.
+    extra: Dict[str, Any] = {"reasoning_content": reasoning_content} if reasoning_content else {}
+
     if not tool_calls:
         return ChatCompletionMessage(
             role="assistant",
             content=content,
+            **extra,
         )
 
     openai_tool_calls = normalize_tool_calls_openai(tool_calls)
@@ -251,6 +256,7 @@ def build_chat_completion_message(
         role="assistant",
         content=content,
         tool_calls=cast(Any, openai_tool_calls),
+        **extra,
     )
 
 
@@ -360,7 +366,7 @@ def generation_response_to_chat_completion(
         choices=[
             Choice(
                 index=0,
-                message=build_chat_completion_message(bot_message, tool_calls),
+                message=build_chat_completion_message(bot_message, tool_calls, response.reasoning_content),
                 finish_reason=finish_reason,
                 logprobs=None,
             )
