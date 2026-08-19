@@ -196,12 +196,16 @@ Admission control through an `AsyncWorkQueue` (and a separate semaphore for stre
 | Feature | LLMRails | IORails | Notes |
 |---|:---:|:---:|---|
 | Reasoning trace handling (`<think>` tags or reasoning field) | ✓ | ✓ | |
-| `reasoning_content` in a structured response | ✓ | ✗ | Requires `GenerationResponse` |
+| `reasoning_content` in a structured response | ✓ | ✓ | Requires `GenerationResponse` |
+| `reasoning_content` over HTTP | ✓ | ✓ | Non-streaming only |
 
 Both engines preserve model reasoning traces, whether the model returns them in a dedicated reasoning field or inline within `<think>` tags, and both keep reasoning out of the prompt history sent back to the model.
 
-`LLMRails` can expose reasoning in the structured response through `reasoning_content`.
-Because `IORails` returns a message dictionary rather than a `GenerationResponse`, the structured `reasoning_content` field is an `LLMRails` capability.
+Both engines expose reasoning through `GenerationResponse.reasoning_content` when `generate_async` is called with `options`, and inline it into the message content as a `<think>` prefix when it is called without them.
+
+Neither engine returns reasoning that output rails have blocked or rewritten.
+Reasoning does not pass through output rails, so once a rail changes the response the trace no longer describes what the caller receives -- and after a redaction rail it would still contain the text the rail removed.
+In both cases the reasoning is dropped and only the rail-approved content is returned.
 
 ### Multimodal
 

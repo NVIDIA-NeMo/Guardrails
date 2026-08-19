@@ -70,6 +70,44 @@ The `guardrails` response object may include additional fields depending on your
 - **`output_data`** — Values for requested context variables (when `guardrails.options.output_vars` is set).
 - **`log`** — Logging information (when `guardrails.options.log` is configured).
 
+## Reasoning Models
+
+When the configured model is a reasoning model, the reasoning it produces before its answer is returned in `reasoning_content` on the response message, alongside the answer in `content`.
+This matches the field NIM, vLLM, and DeepSeek-style endpoints already return, so putting guardrails in front of a reasoning model does not change the response shape your client parses.
+
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris.",
+        "reasoning_content": "The user is asking for a capital city. France's capital is Paris."
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+The answer in `content` is always clean.
+Reasoning is never merged into it, whether the model returned reasoning in a dedicated field or inline within `<think>` tags, so clients that only read `content` need no changes.
+
+The `reasoning_content` field is omitted entirely, rather than returned as `null`, in three cases:
+
+- The model is not a reasoning model, or returned no reasoning for this request.
+- An output rail blocked the response. The reasoning describes the answer the rail rejected, so it is not returned with the refusal.
+- An output rail rewrote the response, for example a rail that masks personally identifiable information. The reasoning describes the answer the model generated rather than the redacted one, and would otherwise still contain the text the rail removed.
+
+<Note>
+Reasoning is not evaluated by output rails.
+It is dropped whenever a rail changes the response, so only rail-approved content reaches the caller.
+</Note>
+
+Streaming responses do not currently carry reasoning.
+When `stream` is `true`, the server emits content deltas only.
+
 ## Using the OpenAI Python SDK
 
 Since the server is OpenAI-compatible, you can use the [OpenAI Python SDK](https://github.com/openai/openai-python) to interact with it.

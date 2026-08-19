@@ -82,6 +82,7 @@ paths:
                         message:
                           role: assistant
                           content: Paris is the capital of France.
+                          reasoning_content: The user asked for the capital of France, which is Paris.
                         finish_reason: stop
                     guardrails:
                       config_id: content_safety
@@ -469,13 +470,27 @@ components:
             $ref: "#/components/schemas/ChatCompletionChoice"
         guardrails:
           $ref: "#/components/schemas/GuardrailsResponseData"
+    ChatCompletionResponseMessage:
+      allOf:
+        - $ref: "#/components/schemas/ChatMessage"
+        - type: object
+          properties:
+            reasoning_content:
+              type: string
+              description: >-
+                Reasoning the model produced before its answer, present only for reasoning
+                models. Omitted when the model returns no reasoning, and omitted when an
+                output rail blocked or rewrote the response, because the reasoning describes
+                the answer the model generated rather than the one being returned. Response
+                only; sending this field on a request has no effect.
+              example: The user asked for the capital of France, which is Paris.
     ChatCompletionChoice:
       type: object
       properties:
         index:
           type: integer
         message:
-          $ref: "#/components/schemas/ChatMessage"
+          $ref: "#/components/schemas/ChatCompletionResponseMessage"
         finish_reason:
           type: string
           nullable: true
