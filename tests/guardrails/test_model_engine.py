@@ -833,12 +833,20 @@ class TestModelEngineCall:
     @pytest.mark.parametrize(
         "transport_error,expected_type,expected_message",
         [
-            (aiohttp.ServerTimeoutError("read timed out"), LLMTimeoutError, "Request timed out: read timed out"),
-            (asyncio.TimeoutError(), LLMTimeoutError, "Request timed out: "),
             (
-                aiohttp.ClientConnectionError("cannot connect"),
+                aiohttp.ServerTimeoutError("read timed out at https://private.example/v1/chat/completions"),
+                LLMTimeoutError,
+                "Request timed out.",
+            ),
+            (
+                asyncio.TimeoutError("POST https://private.example/v1/chat/completions"),
+                LLMTimeoutError,
+                "Request timed out.",
+            ),
+            (
+                aiohttp.ClientConnectionError("cannot connect to https://private.example/v1/chat/completions"),
                 LLMConnectionError,
-                "Connection error: cannot connect",
+                "Connection error.",
             ),
         ],
         ids=["server-timeout", "asyncio-timeout", "connection-error"],
@@ -846,34 +854,46 @@ class TestModelEngineCall:
     async def test_call_transport_failure_carries_a_typed_client_error(
         self, transport_error, expected_type, expected_message
     ):
-        """A timeout or connection failure is classified, so the caller sees no internal model name."""
+        """Transport details stay out of both wrapped and client-facing messages."""
         engine = _started_engine(_mock_failing_client(transport_error))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
 
-        assert isinstance(exc_info.value.inner_exception, expected_type)
-        assert exc_info.value.status is None
-        message = client_facing_message(exc_info.value)
-        assert message.startswith(expected_message)
-        assert "meta/llama-3.3-70b-instruct" not in message
+        error = exc_info.value
+        client_error = error.inner_exception
+        assert isinstance(client_error, expected_type)
+        assert error.status is None
+        assert str(error) == expected_message
+        assert client_error.error_message == expected_message
+        assert client_facing_message(error) == expected_message
+        assert "private.example" not in str(error)
+        assert "private.example" not in client_error.error_message
+        assert "private.example" not in client_facing_message(error)
+        assert error.__cause__ is transport_error
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_call_unclassifiable_failure_still_hides_the_model(self):
-        """A failure that is not a transport error still reaches the caller without the model name.
-
-        Without an inner client error, ``client_facing_message`` falls back to ``str(exc)``,
-        and this engine's wrap message names the model.
-        """
-        engine = _started_engine(_mock_failing_client(ValueError("something else")))
+    async def test_call_unclassifiable_failure_uses_a_fixed_client_message(self, caplog):
+        """Unexpected failure details remain available in logs and the cause chain."""
+        endpoint = "https://private.example/v1/chat/completions"
+        original_error = ValueError(f"cannot POST {endpoint}")
+        engine = _started_engine(_mock_failing_client(original_error))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
 
-        message = client_facing_message(exc_info.value)
-        assert message == "Request failed: something else"
-        assert "meta/llama-3.3-70b-instruct" not in message
+        error = exc_info.value
+        client_error = error.inner_exception
+        assert isinstance(client_error, LLMClientError)
+        assert str(error) == "Request failed."
+        assert client_error.error_message == "Request failed."
+        assert client_facing_message(error) == "Request failed."
+        assert endpoint not in str(error)
+        assert endpoint not in client_error.error_message
+        assert endpoint not in client_facing_message(error)
+        assert error.__cause__ is original_error
+        assert endpoint in caplog.text
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -887,7 +907,7 @@ class TestModelEngineCall:
         engine._client = mock_client
         engine._running = True
 
-        with pytest.raises(ModelEngineError, match="connection dropped"):
+        with pytest.raises(ModelEngineError, match=r"^Request failed\.$"):
             await engine.call([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
@@ -1078,7 +1098,8 @@ class TestModelEngineStreamCall:
 
         assert isinstance(exc_info.value.inner_exception, LLMTimeoutError)
         message = client_facing_message(exc_info.value)
-        assert message.startswith("Request timed out: ")
+        assert str(exc_info.value) == "Request timed out."
+        assert message == "Request timed out."
         assert "meta/llama-3.3-70b-instruct" not in message
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
@@ -1456,7 +1477,7 @@ class TestModelEngineStreamCall:
         engine._client = mock_client
         engine._running = True
 
-        with pytest.raises(ModelEngineError, match="connection dropped"):
+        with pytest.raises(ModelEngineError, match=r"^Stream request failed\.$"):
             await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})

@@ -787,25 +787,33 @@ class ModelEngine(BaseEngine):
 
         Mirrors the httpx mapping in ``nemoguardrails.llm.clients.base``, so the same
         transport failure reads the same to a caller whichever engine served the request.
-        No HTTP response arrived, hence status 0.
+        No HTTP response arrived, hence status 0. Exception details stay on the cause
+        chain instead of entering the client-facing message.
         """
         # Order matters: aiohttp's ServerTimeoutError subclasses ClientConnectionError, so
         # testing for a connection failure first would report every timeout as one.
         if isinstance(exc, (asyncio.TimeoutError, aiohttp.ServerTimeoutError)):
-            return LLMTimeoutError(0, f"Request timed out: {exc}", **self._error_context.as_kwargs())
+            return LLMTimeoutError(0, "Request timed out.", **self._error_context.as_kwargs())
         if isinstance(exc, aiohttp.ClientConnectionError):
-            return LLMConnectionError(0, f"Connection error: {exc}", **self._error_context.as_kwargs())
+            return LLMConnectionError(0, "Connection error.", **self._error_context.as_kwargs())
         return None
 
     def _wrap_exception(self, exc: Exception, req_id: str, t0: float, label: str = "Request") -> ModelEngineError:
         """Wrap an unexpected exception in a ``ModelEngineError``."""
         elapsed_ms = (time.monotonic() - t0) * 1000
-        log.warning("[%s] %s to model '%s' failed time=%.1fms", req_id, label, self.model_name, elapsed_ms)
+        log.warning(
+            "[%s] %s to model '%s' failed time=%.1fms",
+            req_id,
+            label,
+            self.model_name,
+            elapsed_ms,
+            exc_info=exc,
+        )
         client_error = self._classify_transport_failure(exc)
         if client_error is None:
-            client_error = self._generic_client_error(0, f"{label} failed: {exc}")
+            client_error = self._generic_client_error(0, f"{label} failed.")
         return ModelEngineError(
-            f"{label} to model '{self.model_name}' failed: {exc}",
+            client_error.error_message,
             model_name=self.model_name,
             inner_exception=client_error,
         )
