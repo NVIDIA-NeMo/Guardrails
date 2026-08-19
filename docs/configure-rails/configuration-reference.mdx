@@ -199,11 +199,11 @@ rails:
     actions:
         instant_actions: []
 
-    tool_output:
+    tool_call:
         flows: []
         parallel: false
 
-    tool_input:
+    tool_result:
         flows: []
         parallel: false
 
@@ -356,20 +356,21 @@ rails:
 #### Tool Rails
 
 Validate tool calls and tool results when you use the IORails engine.
-The `tool_output` rails check the tool calls a model emits, and the `tool_input` rails check the tool results returned to the model.
+The `tool_call` rails check the tool calls a model emits, and the `tool_result` rails check the tool results returned to the model.
 
 ```yaml
 rails:
-    tool_output:
+    tool_call:
         flows:
             - tool call validation
-    tool_input:
+    tool_result:
         flows:
             - tool result validation
 ```
 
-Each section accepts only its own flow name: `tool_output` accepts `tool call validation`, and `tool_input` accepts `tool result validation`.
+Each section accepts only its own flow name: `tool_call` accepts `tool call validation`, and `tool_result` accepts `tool result validation`.
 These rails run only on the IORails engine, which accepts the `parallel` field for symmetry with other rails but does not honor it for tool rails.
+The `tool_output` and `tool_input` fields are deprecated aliases for `tool_call` and `tool_result`, respectively.
 For configuration details and behavior, see [Tool Calling](/configure-guardrails/guardrail-catalog/tool-calling).
 
 ### Rails Config Section

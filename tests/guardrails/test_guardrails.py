@@ -498,8 +498,8 @@ class TestUnsupportedFlowsReason:
         assert reason == "config has unsupported input flows: ['self check input']"
 
     def test_label_appears_in_message(self):
-        reason = _unsupported_flows_reason(["bogus"], self.SUPPORTED, "tool output")
-        assert reason == "config has unsupported tool output flows: ['bogus']"
+        reason = _unsupported_flows_reason(["bogus"], self.SUPPORTED, "tool call")
+        assert reason == "config has unsupported tool call flows: ['bogus']"
 
     def test_offenders_reported_sorted_and_deduplicated(self):
         flows = ["zeta", "alpha", "zeta"]
@@ -526,8 +526,8 @@ class TestUnsupportedFlowsReason:
         assert _unsupported_flows_reason(["$model=x"], self.SUPPORTED, "input") is None
 
     def test_empty_supported_set_rejects_every_named_flow(self):
-        reason = _unsupported_flows_reason(["anything"], frozenset(), "tool input")
-        assert reason == "config has unsupported tool input flows: ['anything']"
+        reason = _unsupported_flows_reason(["anything"], frozenset(), "tool result")
+        assert reason == "config has unsupported tool result flows: ['anything']"
 
 
 class TestDuplicateFlowsReason:
@@ -535,27 +535,27 @@ class TestDuplicateFlowsReason:
     duplicate pre-check in ``IORails.unsupported_reason``."""
 
     def test_no_duplicates_returns_none(self):
-        assert _duplicate_flows_reason(["tool call validation"], "tool output") is None
+        assert _duplicate_flows_reason(["tool call validation"], "tool call") is None
 
     def test_empty_flows_returns_none(self):
-        assert _duplicate_flows_reason([], "tool output") is None
+        assert _duplicate_flows_reason([], "tool call") is None
 
     def test_exact_duplicate_is_caught(self):
-        reason = _duplicate_flows_reason(["tool call validation", "tool call validation"], "tool output")
+        reason = _duplicate_flows_reason(["tool call validation", "tool call validation"], "tool call")
         assert reason is not None
-        assert "duplicate tool output flows" in reason
+        assert "duplicate tool call flows" in reason
 
     def test_normalized_duplicate_is_caught(self):
         # Entries differing only by a `$model=` suffix normalize to the same name.
-        reason = _duplicate_flows_reason(["tool call validation", "tool call validation $model=x"], "tool output")
+        reason = _duplicate_flows_reason(["tool call validation", "tool call validation $model=x"], "tool call")
         assert reason is not None
         assert "duplicate" in reason
 
     def test_flow_normalizing_to_empty_is_skipped(self):
         # A flow that normalizes to an empty name has no comparable identity, so it is
         # neither flagged as a duplicate nor matched against other empty-normalizing flows.
-        assert _duplicate_flows_reason(["$model=x", "tool call validation"], "tool output") is None
-        assert _duplicate_flows_reason(["$model=x", "$model=y"], "tool output") is None
+        assert _duplicate_flows_reason(["$model=x", "tool call validation"], "tool call") is None
+        assert _duplicate_flows_reason(["$model=x", "$model=y"], "tool call") is None
 
 
 class TestRequireIORails:
@@ -1215,14 +1215,14 @@ class TestIORailsCanHandle:
         config = _make_iorails_config({**_IORAILS_BASE_RAILS, "actions": {"instant_actions": ["some_action"]}})
         assert not IORails.can_handle(config)
 
-    def test_unsupported_tool_output_rails(self):
-        """Configs with tool_output rails are not supported by IORails."""
-        config = _make_iorails_config({**_IORAILS_BASE_RAILS, "tool_output": {"flows": ["check tool output"]}})
+    def test_unsupported_tool_call_rails(self):
+        """Configs with tool_call rails are not supported by IORails."""
+        config = _make_iorails_config({**_IORAILS_BASE_RAILS, "tool_call": {"flows": ["check tool call"]}})
         assert not IORails.can_handle(config)
 
-    def test_unsupported_tool_input_rails(self):
-        """Configs with tool_input rails are not supported by IORails."""
-        config = _make_iorails_config({**_IORAILS_BASE_RAILS, "tool_input": {"flows": ["check tool input"]}})
+    def test_unsupported_tool_result_rails(self):
+        """Configs with tool_result rails are not supported by IORails."""
+        config = _make_iorails_config({**_IORAILS_BASE_RAILS, "tool_result": {"flows": ["check tool result"]}})
         assert not IORails.can_handle(config)
 
     def test_topic_safety_input_rails_supported(self):

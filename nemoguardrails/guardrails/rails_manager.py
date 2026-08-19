@@ -560,7 +560,7 @@ class RailsManager:
         """Dispatch a single tool-call rail to its action, wrapped in an OUTPUT rail span."""
         with rail_span(self._tracer, flow, RailDirection.OUTPUT) as span:
             result = _tool_rail_result(await self._tool_call_actions[flow].run(toolset, tool_calls), flow)
-            result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_call", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 set_rail_content(
@@ -584,7 +584,7 @@ class RailsManager:
                 if outcome.is_blocked:
                     break
             result = _tool_rail_result(outcome, flow)
-            result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_result", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 all_results = [r for exchange in exchanges for r in exchange.results]

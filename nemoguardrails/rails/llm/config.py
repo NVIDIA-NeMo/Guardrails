@@ -434,38 +434,42 @@ class ActionRails(BaseModel):
     )
 
 
-class ToolOutputRails(BaseModel):
-    """Configuration of tool output rails.
+class ToolCallRails(BaseModel):
+    """Configuration of tool call rails.
 
-    Tool output rails are applied to tool calls before they are executed.
+    Tool call rails are applied to tool calls before they are executed.
     They can validate tool names, parameters, and context to ensure safe tool usage.
     """
 
     flows: List[str] = Field(
         default_factory=list,
-        description="The names of all the flows that implement tool output rails.",
+        description="The names of all the flows that implement tool call rails.",
     )
     parallel: Optional[bool] = Field(
         default=False,
-        description="If True, the tool output rails are executed in parallel.",
+        description="If True, the tool call rails are executed in parallel.",
     )
 
 
-class ToolInputRails(BaseModel):
-    """Configuration of tool input rails.
+class ToolResultRails(BaseModel):
+    """Configuration of tool result rails.
 
-    Tool input rails are applied to tool results before they are processed.
+    Tool result rails are applied to tool results before they are processed.
     They can validate, filter, or transform tool outputs for security and safety.
     """
 
     flows: List[str] = Field(
         default_factory=list,
-        description="The names of all the flows that implement tool input rails.",
+        description="The names of all the flows that implement tool result rails.",
     )
     parallel: Optional[bool] = Field(
         default=False,
-        description="If True, the tool input rails are executed in parallel.",
+        description="If True, the tool result rails are executed in parallel.",
     )
+
+
+ToolOutputRails = ToolCallRails
+ToolInputRails = ToolResultRails
 
 
 class SingleCallConfig(BaseModel):
@@ -551,14 +555,58 @@ class Rails(BaseModel):
     )
     dialog: DialogRails = Field(default_factory=DialogRails, description="Configuration of the dialog rails.")
     actions: ActionRails = Field(default_factory=ActionRails, description="Configuration of action rails.")
-    tool_output: ToolOutputRails = Field(
-        default_factory=ToolOutputRails,
-        description="Configuration of tool output rails.",
+    tool_call: ToolCallRails = Field(
+        default_factory=ToolCallRails,
+        description="Configuration of tool call rails.",
     )
-    tool_input: ToolInputRails = Field(
-        default_factory=ToolInputRails,
-        description="Configuration of tool input rails.",
+    tool_result: ToolResultRails = Field(
+        default_factory=ToolResultRails,
+        description="Configuration of tool result rails.",
     )
+    tool_output: ToolCallRails = Field(
+        default_factory=ToolCallRails,
+        deprecated="Use 'tool_call' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_call instead.",
+        exclude=True,
+    )
+    tool_input: ToolResultRails = Field(
+        default_factory=ToolResultRails,
+        deprecated="Use 'tool_result' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use tool_result instead.",
+        exclude=True,
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_deprecated_tool_rail_fields(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        values = dict(values)
+        for deprecated_name, canonical_name in (
+            ("tool_output", "tool_call"),
+            ("tool_input", "tool_result"),
+        ):
+            if deprecated_name not in values:
+                continue
+            if canonical_name in values:
+                raise ValueError(
+                    f"Cannot configure both rails.{deprecated_name} and rails.{canonical_name}; "
+                    f"use rails.{canonical_name}."
+                )
+            warnings.warn(
+                f"rails.{deprecated_name} is deprecated; use rails.{canonical_name} instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            values[canonical_name] = values.pop(deprecated_name)
+        return values
+
+    @model_validator(mode="after")
+    def sync_deprecated_tool_rail_fields(self) -> "Rails":
+        self.__dict__["tool_output"] = self.tool_call
+        self.__dict__["tool_input"] = self.tool_result
+        return self
 
 
 def merge_two_dicts(dict_1: dict, dict_2: dict, ignore_keys: Set[str]) -> None:
