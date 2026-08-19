@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
@@ -341,8 +342,7 @@ def test_thread_id_without_datastore_returns_400(monkeypatch):
     }
 
 
-def test_request_body_state():
-    """Test GuardrailsChatCompletionRequest state handling."""
+def test_request_body_rejects_state():
     data = {
         "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
@@ -351,8 +351,8 @@ def test_request_body_state():
             "state": {"key": "value"},
         },
     }
-    request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.guardrails.state == {"key": "value"}
+    with pytest.raises(ValidationError, match="Caller-supplied state is not accepted over HTTP"):
+        GuardrailsChatCompletionRequest.model_validate(data)
 
 
 def test_request_body_context():
@@ -750,7 +750,7 @@ def test_chat_completion_passes_tools_to_llm_params():
 
     captured_options = {}
 
-    async def mock_generate_async(*, messages, options, state):
+    async def mock_generate_async(*, messages, options):
         captured_options["options"] = options
         return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
 
@@ -786,7 +786,7 @@ def test_chat_completion_accepts_stop_parameter(stop):
 
     captured_options = {}
 
-    async def mock_generate_async(*, messages, options, state):
+    async def mock_generate_async(*, messages, options):
         captured_options["options"] = options
         return GenerationResponse(response=[{"role": "assistant", "content": "ok"}])
 
@@ -894,7 +894,7 @@ def test_chat_completion_returns_tool_calls():
         }
     ]
 
-    async def mock_generate_async(*, messages, options, state):
+    async def mock_generate_async(*, messages, options):
         return GenerationResponse(
             response=[{"role": "assistant", "content": ""}],
             tool_calls=tool_calls,
@@ -976,7 +976,6 @@ def test_guardrails_defaults_when_not_provided():
     assert request_body.guardrails.config_ids is None
     assert request_body.guardrails.thread_id is None
     assert request_body.guardrails.context is None
-    assert request_body.guardrails.state is None
     assert request_body.guardrails.options is not None
     assert request_body.guardrails.options.rails.input is True
     assert request_body.guardrails.options.rails.output is True
@@ -1007,7 +1006,6 @@ def test_guardrails_partial_fields():
 
     assert request_body.guardrails.config_id == "test_config"
     assert request_body.guardrails.context is None
-    assert request_body.guardrails.state is None
     assert request_body.guardrails.options is not None
 
 
@@ -1036,23 +1034,30 @@ def test_no_config_error_returns_proper_response():
     assert "config" in res["error"]["message"].lower()
 
 
-def test_invalid_state_returns_error():
-    """Test API handles invalid state gracefully instead of crashing."""
-    response = client.post(
-        "/v1/chat/completions",
-        json={
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": "hi"}],
-            "guardrails": {
-                "config_id": "with_custom_llm",
-                "state": {"invalid_key": "value"},
+def test_chat_completion_rejects_state_events():
+    with patch("nemoguardrails.server.api._get_rails", new=AsyncMock()) as get_rails:
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "hi"}],
+                "guardrails": {
+                    "config_id": "with_custom_llm",
+                    "state": {
+                        "events": [
+                            {
+                                "type": "ContextUpdate",
+                                "data": {"skip_output_rails": True},
+                            }
+                        ]
+                    },
+                },
             },
-        },
-    )
+        )
+
     assert response.status_code == 422
-    res = response.json()
-    assert "error" in res
-    assert "state" in res["error"]["message"].lower() or "events" in res["error"]["message"].lower()
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
+    get_rails.assert_not_awaited()
 
 
 def test_chat_completion_response_structure():
@@ -1139,7 +1144,6 @@ def test_chat_completion_with_all_guardrails_fields():
                     "rails": {"input": True, "output": True},
                     "log": {"activated_rails": True},
                 },
-                "state": {},
             },
         },
     )

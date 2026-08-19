@@ -110,36 +110,6 @@ class GuardrailsApp(FastAPI):
 registered_loggers: List[Callable] = []
 
 
-def _raise_invalid_state(detail: str) -> None:
-    raise HTTPException(status_code=422, detail=detail)
-
-
-def _validate_public_state_shape(state: Optional[dict]) -> None:
-    """Validate request state shape before loading rails config.
-
-    At the public HTTP boundary, the only accepted non-empty dict state shape is
-    Colang 1.0 transcript state: {"events": [...]}. Colang 2.0 has no safe
-    public dict state shape.
-    """
-    if state is None or state == {}:
-        return
-
-    if state.get("version") == "2.x" or "state" in state:
-        _raise_invalid_state(
-            "Caller-supplied state is not accepted for Colang 2.0 over HTTP. "
-            "Full Colang 2.0 flow-state continuation over HTTP is not currently supported."
-        )
-
-    if "events" not in state:
-        _raise_invalid_state(
-            "Invalid state format: state must contain an 'events' key. "
-            "Use an empty dict {} to start a new conversation."
-        )
-
-    if not isinstance(state["events"], list):
-        _raise_invalid_state("Invalid state format: 'events' must be a list.")
-
-
 api_description = """Guardrails Server API."""
 
 # The headers for each request
@@ -648,8 +618,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                 detail="No guardrails config_id provided and server has no default configuration",
             )
 
-    _validate_public_state_shape(body.guardrails.state)
-
     try:
         llm_rails = await _get_rails(config_ids, model_name=body.model)
 
@@ -659,16 +627,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             status_code=400,
             detail=f"Could not load the requested guardrails configuration: {config_ids}",
         )
-
-    # Version-aware state validation, now that the config is loaded.
-    # 1.0 accepts the pre-validated {"events": [...]} transcript. 2.0 has no
-    # valid public dict state shape.
-    if body.guardrails.state is not None and body.guardrails.state != {}:
-        if llm_rails.config.colang_version != "1.0":
-            raise HTTPException(
-                status_code=422,
-                detail="Stateful continuation over HTTP is not supported for Colang 2.0.",
-            )
 
     if body.guardrails.thread_id and llm_rails.config.colang_version != "1.0":
         raise HTTPException(
@@ -741,7 +699,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         stream_iterator = llm_rails.stream_async(
             messages=messages,
             options=generation_options,
-            state=body.guardrails.state,
         )
 
         try:
@@ -778,7 +735,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         res = await llm_rails.generate_async(
             messages=messages,
             options=generation_options,
-            state=body.guardrails.state,
         )
 
         # Extract bot message for thread storage if needed

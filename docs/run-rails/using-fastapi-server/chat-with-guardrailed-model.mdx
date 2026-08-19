@@ -55,7 +55,6 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
   ],
   "guardrails": {
     "config_id": "content_safety",
-    "state": null,
     "llm_output": null,
     "output_data": null,
     "log": null
@@ -65,10 +64,15 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
 
 The `guardrails` response object may include additional fields depending on your request options:
 
-- **`state`** — State object for continuing the conversation. Return this in subsequent requests to resume.
 - **`llm_output`** — Additional LLM output data (when `guardrails.options.llm_output` is `true`).
 - **`output_data`** — Values for requested context variables (when `guardrails.options.output_vars` is set).
 - **`log`** — Logging information (when `guardrails.options.log` is configured).
+
+<Note>
+
+The HTTP endpoint does not accept caller-supplied runtime state. To continue a conversation, send the full message history or use a `thread_id`. Trusted in-process Python callers using Colang 1.x can pass state directly to `LLMRails.generate_async()`.
+
+</Note>
 
 ## Using the OpenAI Python SDK
 

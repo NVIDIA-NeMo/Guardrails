@@ -40,7 +40,6 @@ class GuardrailsDataOutput(BaseModel):
         default=None,
         description="The guardrails configuration ID associated with this response.",
     )
-    state: Optional[dict] = Field(default=None, description="State object for continuing the conversation.")
     llm_output: Optional[dict] = Field(default=None, description="Additional LLM output data.")
     output_data: Optional[dict] = Field(default=None, description="Additional output data.")
     log: Optional[dict] = Field(default=None, description="Generation log data.")
@@ -331,10 +330,13 @@ class GuardrailsDataInput(BaseModel):
         default_factory=GenerationOptions,
         description="Additional generation options.",
     )
-    state: Optional[dict] = Field(
-        default=None,
-        description="State object to continue the interaction.",
-    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_caller_supplied_state(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("state") is not None:
+            raise ValueError("Caller-supplied state is not accepted over HTTP.")
+        return data
 
     @model_validator(mode="before")
     @classmethod

@@ -23,6 +23,7 @@ from nemoguardrails.server import api
 from nemoguardrails.server.datastore.memory_store import MemoryStore
 
 client = TestClient(api.app)
+_UNSET = object()
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -47,8 +48,8 @@ def setup_test_env():
         os.environ.pop("MAIN_MODEL_BASE_URL", None)
 
 
-def _chat_payload(config_id, state, stream=False):
-    return {
+def _chat_payload(config_id, state=_UNSET, stream=False):
+    payload = {
         "model": "gpt-4o",
         "stream": stream,
         "messages": [
@@ -59,42 +60,51 @@ def _chat_payload(config_id, state, stream=False):
         ],
         "guardrails": {
             "config_id": config_id,
-            "state": state,
         },
     }
+    if state is not _UNSET:
+        payload["guardrails"]["state"] = state
+    return payload
 
 
-def _test_call(config_id):
+def test_1_x_without_state_runs_without_returning_state():
+    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
     response = client.post(
         "/v1/chat/completions",
-        json=_chat_payload(config_id, {}),
+        json=_chat_payload("config_1"),
     )
     assert response.status_code == 200
     res = response.json()
-    print(res)
     assert len(res["choices"][0]["message"]) == 2
     assert res["choices"][0]["message"]["content"] == "Hello!"
-    assert res["guardrails"]["state"]
+    assert "state" not in res["guardrails"]
 
+
+def test_1_x_events_state_rejected_at_server():
+    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
     response = client.post(
         "/v1/chat/completions",
-        json=_chat_payload(config_id, res["guardrails"]["state"]),
+        json=_chat_payload(
+            "config_1",
+            {
+                "events": [
+                    {
+                        "type": "ContextUpdate",
+                        "data": {"skip_output_rails": True},
+                    }
+                ]
+            },
+        ),
     )
-    assert response.status_code == 200
-    res = response.json()
-    assert res["choices"][0]["message"]["content"] == "Hello again!"
+    assert response.status_code == 422
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
 
 
-def test_1():
-    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
-    _test_call("config_1")
-
-
-def test_2_x_empty_state_runs_without_returning_state():
+def test_2_x_without_state_runs_without_returning_state():
     api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server_2_x")
     response = client.post(
         "/v1/chat/completions",
-        json=_chat_payload("config_2", {}),
+        json=_chat_payload("config_2"),
     )
 
     assert response.status_code == 200
@@ -104,18 +114,13 @@ def test_2_x_empty_state_runs_without_returning_state():
 
 
 def test_2_x_raw_state_rejected_at_server():
-    """Colang 2.0 stateful continuation over HTTP is no longer supported.
-
-    The serialized 2.0 State carried trusted control-plane fields, so the server
-    rejects any 2.0-shaped state with a 422 instead of forwarding it to the core.
-    """
     api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server_2_x")
     response = client.post(
         "/v1/chat/completions",
         json=_chat_payload("config_2", {"version": "2.x", "state": "{}"}),
     )
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["error"]["message"]
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
 
 
 def test_2_x_raw_state_rejected_at_server_streaming():
@@ -126,10 +131,10 @@ def test_2_x_raw_state_rejected_at_server_streaming():
     )
 
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["error"]["message"]
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
 
 
-def test_2_x_events_state_rejected_after_config_load():
+def test_2_x_events_state_rejected_at_server():
     api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server_2_x")
     response = client.post(
         "/v1/chat/completions",
@@ -137,7 +142,7 @@ def test_2_x_events_state_rejected_after_config_load():
     )
 
     assert response.status_code == 422
-    assert "Colang 2.0" in response.json()["error"]["message"]
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
 
 
 def test_2_x_thread_id_rejected_after_config_load():
@@ -171,7 +176,7 @@ def test_invalid_state_shape_rejected_before_model_init():
     )
 
     assert response.status_code == 422
-    assert "events" in response.json()["error"]["message"]
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
 
 
 def test_invalid_events_state_type_rejected_before_model_init():
@@ -184,4 +189,4 @@ def test_invalid_events_state_type_rejected_before_model_init():
     )
 
     assert response.status_code == 422
-    assert response.json()["error"]["message"] == "Invalid state format: 'events' must be a list."
+    assert "Caller-supplied state is not accepted over HTTP" in response.json()["error"]["message"]
