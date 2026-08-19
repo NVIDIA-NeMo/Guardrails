@@ -9,7 +9,14 @@ on:
       - "Makefile"
       - "docs/**"
       - "fern/**"
+      - "package.json"
+      - "package-lock.json"
       - "scripts/normalize-fern-sdk-reference.mjs"
+      - "scripts/cache-fern-ref-sdk.mjs"
+      - "scripts/fern-ref-sdk-environment.mjs"
+      - "scripts/fern-ref-sdk-hooks/**"
+      - "scripts/run-fern-with-ref-sdk.mjs"
+      - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
   push:
@@ -22,7 +29,14 @@ on:
       - "Makefile"
       - "docs/**"
       - "fern/**"
+      - "package.json"
+      - "package-lock.json"
       - "scripts/normalize-fern-sdk-reference.mjs"
+      - "scripts/cache-fern-ref-sdk.mjs"
+      - "scripts/fern-ref-sdk-environment.mjs"
+      - "scripts/fern-ref-sdk-hooks/**"
+      - "scripts/run-fern-with-ref-sdk.mjs"
+      - "scripts/tests/**"
       - "scripts/watch-fern-preview.mjs"
       - "scripts/fix-empty-fern-links.mjs"
   workflow_dispatch:
@@ -54,6 +68,12 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Install documentation dependencies
+        run: npm ci
+
+      - name: Test Fern documentation scripts
+        run: make test-docs-scripts
+
       - name: Check Fern docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
@@ -71,6 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -78,6 +99,17 @@ jobs:
         with:
           node-version: "22"
           package-manager-cache: false
+
+      - name: Install documentation dependencies
+        run: npm ci
+
+      - name: Restore historical SDK references
+        uses: actions/cache/restore@v5
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          restore-keys: |
+            fern-ref-sdk-${{ runner.os }}-
 
       - name: Generate Python SDK reference
         env:
@@ -89,10 +121,7 @@ jobs:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
           PREVIEW_ID: pr-${{ github.event.pull_request.number }}
           FERN_DOCS_INSTANCE: nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
-        run: |
-          FERN_VERSION=$(node -p "require('./fern/fern.config.json').version")
-          cd fern
-          npx --yes "fern-api@${FERN_VERSION}" generate --docs --preview --id "${PREVIEW_ID}" --force --instance "${FERN_DOCS_INSTANCE}"
+        run: node scripts/run-fern-with-ref-sdk.mjs generate --docs --preview --id "${PREVIEW_ID}" --force --instance "${FERN_DOCS_INSTANCE}"
 
       - name: Comment preview URL
         uses: actions/github-script@v9
@@ -131,6 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
@@ -139,7 +169,26 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Install documentation dependencies
+        run: npm ci
+
+      - name: Restore historical SDK references
+        id: fern-sdk-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}
+          restore-keys: |
+            fern-ref-sdk-${{ runner.os }}-
+
       - name: Publish Fern staging docs
         env:
           FERN_TOKEN: ${{ secrets.DOCS_FERN_TOKEN }}
         run: make docs-fern-publish-staging
+
+      - name: Save historical SDK references
+        if: steps.fern-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .fern-cache/fern-ref-sdk
+          key: fern-ref-sdk-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json', 'fern/fern.config.json', 'fern/docs.yml', 'scripts/cache-fern-ref-sdk.mjs', 'scripts/fern-ref-sdk-environment.mjs', 'scripts/fern-ref-sdk-hooks/**', 'scripts/normalize-fern-sdk-reference.mjs') }}

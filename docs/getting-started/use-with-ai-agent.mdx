@@ -8,8 +8,6 @@ content:
     type: "get_started"
 ---
 
-import { StarterPromptButton } from "../_components/StarterPromptButton";
-
 Use an AI coding agent to help you install, configure, evaluate, debug, or deploy the NVIDIA NeMo Guardrails library.
 
 The easiest path is to connect your agent to the documentation MCP server.
@@ -20,7 +18,60 @@ If your agent does not support MCP, copy the starter prompt and paste it into yo
 Copy this prompt and paste it into your AI coding agent, such as Cursor, Claude Code, Codex, or another agent.
 The prompt tells the agent how to find the Markdown documentation, align docs to your installed package version, and avoid asking for secrets in chat.
 
-<StarterPromptButton />
+<div
+  className="starter-prompt"
+  style={{
+    "--accent-a2": "#76b900",
+    "--accent-a3": "#8dd600",
+    "--accent-a6": "#76b900",
+    "--accent-11": "#111827",
+    "--grayscale-a11": "#111827",
+    display: "inline-block",
+    margin: "0.5rem 0 1.5rem",
+    maxWidth: "100%",
+    width: "fit-content",
+  }}
+>
+<Prompt title="Copy Starter Prompt" hidePrompt>
+# NVIDIA NeMo Guardrails Library Agent Instructions
+
+You are helping me get started with the NVIDIA NeMo Guardrails library from this AI coding agent.
+Use the official NVIDIA NeMo Guardrails library documentation as the source of truth instead of relying on memory.
+
+## Start with My Role and Goal
+
+Ask whether I am:
+
+1. A developer using the library in an application.
+2. A contributor changing the Guardrails repository.
+
+Then ask one focused question about what I want to accomplish.
+
+## Select the Package and Documentation Version
+
+Before using installation or tutorial instructions:
+
+1. Check whether `nemoguardrails` is installed and determine its version when possible.
+2. Discover the stable package releases and published documentation versions from official sources. Do not rely on a hardcoded version list.
+3. If the installed version has matching documentation, recommend that version and ask whether to keep it, upgrade, or choose another version.
+4. For a first-time installation, present the available versions as a numbered list with actual version numbers, newest first. Mark the most recent stable release as "Recommended for first-time installation," include older releases with published documentation, and let me provide another exact version for an existing setup.
+5. If the selected package version has no matching documentation, explain the mismatch and ask which published version to use. Do not silently fall back to Latest.
+6. Set `DOCS_BASE` to the canonical base URL for the selected documentation version and use it for every documentation page.
+
+## Load the Canonical Guidance
+
+- Prefer the documentation MCP server when this agent supports MCP.
+- Otherwise, use `https://docs.nvidia.com/nemo/guardrails/llms.txt` to find the relevant page, then load its clean Markdown form by appending `.md` to the page URL.
+- After selecting `DOCS_BASE`, retrieve only the documentation pages required for my goal.
+- Present canonical human-readable documentation links without `.md` when citing sources to me.
+- Do not use staging documentation unless I explicitly ask for it.
+- If I am contributing, clone the repository when needed and follow its `AGENTS.md`, `CONTRIBUTING.md`, and `AI_POLICY.md` files.
+
+Never ask me to paste real API keys, tokens, passwords, or other credentials into chat. Use placeholders and let me set secrets through my local environment or secret manager.
+
+Begin by asking which role applies and what I want to do.
+</Prompt>
+</div>
 
 ## Use the Documentation MCP Server
 
@@ -57,7 +108,8 @@ python -c "import nemoguardrails; print(nemoguardrails.__version__)"
 ```
 
 Use the matching versioned documentation when it is available.
-If you cannot determine the installed version, use the latest docs unless your project requires an older version.
+For a first-time installation, ask which version to install and recommend the most recent stable release.
+For an existing setup with an unknown version, determine the version requirement before selecting documentation instead of silently using Latest.
 
 ## Fetch Only The Agent Skills
 

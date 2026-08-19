@@ -1,6 +1,6 @@
 .PHONY: help install
 .PHONY: test test-parallel test-serial test-benchmark test-watch test-coverage test-profile record-cassettes rewrite-cassettes replay-cassettes snapshot-cassettes check-record-test-env warm-fastembed-cache
-.PHONY: docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
+.PHONY: test-docs-scripts docs-fern-node-dependencies docs-fern docs-fern-strict docs-fern-live docs-fern-preview-watch docs-fern-generate-sdk docs-fern-fix-empty-links docs-fern-publish-staging docs-fern-publish-public
 .PHONY: pre-commit pre-commit-install
 
 .DEFAULT_GOAL := help
@@ -29,6 +29,7 @@ FASTEMBED_MODEL ?= sentence-transformers/all-MiniLM-L6-v2
 FASTEMBED_ENV ?= env FASTEMBED_CACHE_PATH=$(FASTEMBED_CACHE)
 FERN_STAGING_INSTANCE ?= nvidia-nemo-guardrails-staging.docs.buildwithfern.com/nemo/guardrails
 FERN_PUBLIC_INSTANCE ?= nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/guardrails
+DOCS_NODE_STAMP := node_modules/.package-lock.json
 
 install:
 	uv sync --group dev
@@ -83,24 +84,32 @@ check-record-test-env:
 warm-fastembed-cache:
 	$(FASTEMBED_ENV) uv run python -c 'from fastembed import TextEmbedding; model = TextEmbedding("$(FASTEMBED_MODEL)"); next(model.embed(["warmup"]))'
 
+test-docs-scripts: docs-fern-node-dependencies
+	npm run test:docs-scripts
+
+docs-fern-node-dependencies: $(DOCS_NODE_STAMP)
+
+$(DOCS_NODE_STAMP): package.json package-lock.json
+	npm ci
+
 docs-fern: docs-fern-strict
 
 docs-fern-strict: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" check
+	node scripts/run-fern-with-ref-sdk.mjs check
 
 docs-fern-live: docs-fern-generate-sdk
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs dev
 
 docs-fern-publish-staging: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_STAGING_INSTANCE)"
+	node scripts/run-fern-with-ref-sdk.mjs generate --docs --instance "$(FERN_STAGING_INSTANCE)"
 
 docs-fern-publish-public: docs-fern-generate-sdk
-	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
+	node scripts/run-fern-with-ref-sdk.mjs generate --docs --instance "$(FERN_PUBLIC_INSTANCE)"
 
-docs-fern-preview-watch: docs-fern-generate-sdk
+docs-fern-preview-watch: docs-fern-node-dependencies
 	node scripts/watch-fern-preview.mjs
 
-docs-fern-generate-sdk:
+docs-fern-generate-sdk: docs-fern-node-dependencies
 	FERN_VERSION=$$(node -p "require('./fern/fern.config.json').version") && cd fern && npx --yes "fern-api@$${FERN_VERSION}" docs md generate --library guardrails-python-sdk
 	node scripts/normalize-fern-sdk-reference.mjs
 
@@ -146,6 +155,7 @@ help:
 		'  warm-fastembed-cache  Prime the repo-local FastEmbed cache' \
 		'' \
 		'Docs:' \
+		'  test-docs-scripts     Run unit tests for Fern documentation scripts' \
 		'  docs-fern             Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-strict      Check Fern docs using the pinned Fern CLI' \
 		'  docs-fern-live        Serve Fern docs locally' \

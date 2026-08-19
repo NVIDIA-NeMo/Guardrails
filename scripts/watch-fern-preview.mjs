@@ -6,6 +6,8 @@ import { existsSync, readdirSync, readFileSync, statSync, watch } from "node:fs"
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createFernRefSdkEnvironment } from "./fern-ref-sdk-environment.mjs";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fernRoot = path.join(repoRoot, "fern");
 const watchRoots = ["docs", "fern"];
@@ -16,6 +18,8 @@ const fernDocsInstance = "nvidia-nemo-guardrails.docs.buildwithfern.com/nemo/gua
 const branchName = currentBranchName();
 let running = false;
 let pending = false;
+let sdkReferenceRevision = 0;
+let generatedSdkReferenceRevision = -1;
 let debounceTimer;
 let currentChild;
 const watchers = new Map();
@@ -74,14 +78,15 @@ function watchDirectoryTree(directory) {
     watchers.set(
       directory,
       watch(directory, { persistent: true }, (_eventType, filename) => {
+        let changedPath;
         if (filename) {
-          const changedPath = path.join(directory, filename.toString());
+          changedPath = path.join(directory, filename.toString());
           if (shouldIgnorePath(changedPath) || !shouldTriggerRun(changedPath)) {
             return;
           }
           addWatcherForNewDirectory(changedPath);
         }
-        scheduleRun();
+        scheduleRun(changedPath);
       }),
     );
   } catch (error) {
@@ -140,18 +145,26 @@ function shouldIgnorePath(candidatePath) {
 
 function shouldTriggerRun(candidatePath) {
   const relativePath = path.relative(repoRoot, candidatePath).split(path.sep).join("/");
-  if (relativePath === "docs/index.yml") {
-    return false;
-  }
   if (relativePath.startsWith("docs/_static/python-sdk-reference/")) {
     return false;
   }
   return true;
 }
 
-function scheduleRun() {
+function scheduleRun(changedPath) {
+  if (requiresSdkReferenceRegeneration(changedPath)) {
+    sdkReferenceRevision += 1;
+  }
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => runFernGenerate("file change"), debounceMs);
+}
+
+function requiresSdkReferenceRegeneration(candidatePath) {
+  if (!candidatePath) {
+    return true;
+  }
+  const relativePath = path.relative(repoRoot, candidatePath).split(path.sep).join("/");
+  return relativePath === "fern/docs.yml" || relativePath === "fern/fern.config.json";
 }
 
 function runFernGenerate(reason) {
@@ -188,17 +201,34 @@ function runFernGenerate(reason) {
   ];
 
   console.log(`\n[${new Date().toLocaleTimeString()}] Running Fern (${reason})`);
-  if (!generateSdkReference()) {
+  const targetSdkReferenceRevision = sdkReferenceRevision;
+  if (generatedSdkReferenceRevision !== targetSdkReferenceRevision) {
+    if (!generateSdkReference()) {
+      running = false;
+      if (pending) {
+        runFernGenerate("queued file change");
+      }
+      return;
+    }
+    generatedSdkReferenceRevision = targetSdkReferenceRevision;
+  }
+  console.log(`cd fern && npx ${args.join(" ")}`);
+
+  let fernEnvironment;
+  try {
+    fernEnvironment = createFernRefSdkEnvironment(repoRoot);
+  } catch {
     running = false;
+    console.error("Failed to configure Fern preview generation. Check the Git configuration values.");
     if (pending) {
       runFernGenerate("queued file change");
     }
     return;
   }
-  console.log(`cd fern && npx ${args.join(" ")}`);
 
   const child = spawn("npx", args, {
     cwd: fernRoot,
+    env: fernEnvironment,
     stdio: "inherit",
   });
   currentChild = child;

@@ -5,7 +5,8 @@
     "docs:deps": "node -p \"require('./fern/fern.config.json').version\" | xargs -I {} npx --yes fern-api@{} --version",
     "docs:preview:watch": "make docs-fern-preview-watch",
     "docs:strict": "make docs-fern-strict",
-    "docs:live": "make docs-fern-live"
+    "docs:live": "make docs-fern-live",
+    "test:docs-scripts": "node --test scripts/tests/*.test.mjs"
   },
   "dependencies": {
     "yaml": "^2.9.0"

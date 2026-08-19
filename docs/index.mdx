@@ -9,15 +9,46 @@ keywords:
 layout: overview
 ---
 
-import { StarterPromptButton } from "./_components/StarterPromptButton";
-
 The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
 
 ## Get Started
 
-Copy the starter prompt and paste it into your AI coding agent to help it install the NVIDIA NeMo Guardrails library, choose the right docs, or follow contributor guidance.
+Use the starter prompt with your AI coding agent to help it install the NVIDIA NeMo Guardrails library, choose the right docs, or follow contributor guidance.
 
-<StarterPromptButton />
+<div
+  className="starter-prompt"
+  style={{
+    "--accent-a2": "#76b900",
+    "--accent-a3": "#8dd600",
+    "--accent-a6": "#76b900",
+    "--accent-11": "#111827",
+    "--grayscale-a11": "#111827",
+    display: "inline-block",
+    margin: "0.5rem 0 1.5rem",
+    maxWidth: "100%",
+    width: "fit-content",
+  }}
+>
+<Prompt title="Copy Starter Prompt" hidePrompt>
+# NVIDIA NeMo Guardrails Library Agent Instructions
+
+You are helping me get started with the NVIDIA NeMo Guardrails library from this AI coding agent.
+Use the official documentation as the source of truth instead of relying on memory.
+
+1. Ask whether I am a developer using the library or a contributor changing the Guardrails repository, then ask what I want to accomplish.
+2. Before using installation or tutorial instructions, check whether `nemoguardrails` is installed and determine its version when possible.
+3. Discover the stable package releases and published documentation versions from official sources. Use `https://docs.nvidia.com/nemo/guardrails/llms.txt` to find documentation when needed. Do not rely on a hardcoded version list.
+4. If the installed version has matching documentation, recommend that version and ask whether to keep it, upgrade, or choose another version.
+5. For a first-time installation, present the available versions as a numbered list, newest first. Mark the most recent stable release as "Recommended for first-time installation," include older releases with published documentation, and let me specify another exact version for an existing setup.
+6. If the selected package version has no matching documentation, explain the mismatch and ask which published version to use. Do not silently fall back to Latest.
+7. Set `DOCS_BASE` to the selected documentation version, load `DOCS_BASE/get-started/use-with-ai-agent.md`, and follow that canonical agent guidance. Prefer the documentation MCP server when available.
+8. If I am contributing, clone the repository when needed and follow its `AGENTS.md`, `CONTRIBUTING.md`, and `AI_POLICY.md` files.
+
+Never ask me to paste real credentials into chat. Use placeholders and let me set secrets through my local environment or secret manager.
+
+Begin by asking which role applies and what I want to do.
+</Prompt>
+</div>
 
 Browse the following introductory guides to learn more about the NVIDIA NeMo Guardrails library.
 
