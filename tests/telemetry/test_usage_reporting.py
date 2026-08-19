@@ -1050,17 +1050,21 @@ class TestBuiltinFeatures:
         ]
 
     def test_manifest_catalog_failure_skips_flow_detection(self):
-        from nemoguardrails.rails.llm.config import Rails
+        from nemoguardrails.rails.llm.config import JailbreakDetectionConfig, Rails, RailsConfigData
 
         config = MagicMock()
-        config.rails = Rails()
+        config.rails = Rails(
+            config=RailsConfigData(
+                jailbreak_detection=JailbreakDetectionConfig(nim_base_url="https://example.com"),
+            )
+        )
         config.rails.input.flows = ["content safety check input"]
 
         with patch(
             "nemoguardrails.manifests.default_rail_catalog",
             side_effect=RuntimeError("catalog unavailable"),
         ):
-            assert _detect_builtin_features(config) == []
+            assert _detect_builtin_features(config) == ["jailbreak_detection"]
 
     def test_every_manifest_flow_resolves_to_the_expected_builtin_feature(self):
         from nemoguardrails.manifests import default_rail_catalog

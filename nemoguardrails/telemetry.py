@@ -484,6 +484,9 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
         log.debug("Failed to load the built-in rail catalog for usage telemetry", exc_info=True)
         catalog = None
 
+    if catalog is None:
+        return sorted(features)
+
     all_flows = []
     for rail_group in ["input", "output", "retrieval", "tool_output", "tool_input"]:
         group = getattr(rails, rail_group, None)
@@ -492,8 +495,6 @@ def _detect_builtin_features(config: "RailsConfig") -> List[str]:
 
     for flow_name in all_flows:
         normalized = _normalize_flow_id(flow_name)
-        if catalog is None:
-            continue
         manifest_name = catalog.owner_for_flow(normalized)
         if manifest_name is None:
             continue
