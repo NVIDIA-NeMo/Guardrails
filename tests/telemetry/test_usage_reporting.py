@@ -994,6 +994,22 @@ class TestBuiltinFeatures:
     def test_dotted_feature_ids_use_namespace(self, feature_id, expected):
         assert _normalize_builtin_feature_id(feature_id) == expected
 
+    def test_documented_builtin_feature_ids_match_manifest_catalog(self):
+        from nemoguardrails.manifests import default_rail_catalog
+
+        docs = (Path(__file__).parents[2] / "docs" / "telemetry.mdx").read_text(encoding="utf-8")
+        section = docs.split("### Possible Values for Built-In Features", 1)[1].split(
+            "## Data Not Collected by Telemetry",
+            1,
+        )[0]
+        documented_line = next(line for line in section.splitlines() if line.startswith("`"))
+        documented = set(documented_line.removesuffix(".").replace("`", "").split(", "))
+        expected = {
+            _normalize_builtin_feature_id(manifest.name) for manifest in default_rail_catalog().manifests.values()
+        }
+
+        assert documented == expected
+
     def test_detects_features_from_exact_flow_names(self):
         from nemoguardrails.rails.llm.config import Rails
 
