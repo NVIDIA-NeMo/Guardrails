@@ -355,20 +355,28 @@ OPENAI_UPSTREAM_FAILURES = [
 
 
 @contextmanager
-def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict, headers: dict | None = None):
-    """Mock the main-model transport the given engine uses: aiohttp for IORails, httpx for LLMRails."""
+def _upstream_failure(engine: str, httpx_mock: HTTPXMock, status: int, body: dict | str, headers: dict | None = None):
+    """Mock the main-model transport the given engine uses: aiohttp for IORails, httpx for LLMRails.
+
+    ``body`` is a dict for a JSON provider error, or a str for a body the provider did not
+    render as JSON at all (an empty body, or a gateway's HTML page).
+    """
+    raw_body = json.dumps(body) if isinstance(body, dict) else body
     if engine == "iorails":
         with aioresponses() as mocked:
-            mocked.post(MAIN_MODEL_URL, status=status, body=json.dumps(body), headers=headers or {}, repeat=True)
+            mocked.post(MAIN_MODEL_URL, status=status, body=raw_body, headers=headers or {}, repeat=True)
             yield
     else:
+        # A dict goes through ``json=`` so the common case keeps its content-type; a raw body
+        # has none to declare.
+        payload = {"json": body} if isinstance(body, dict) else {"content": raw_body.encode()}
         httpx_mock.add_response(
             url=MAIN_MODEL_URL,
             method="POST",
             status_code=status,
-            json=body,
             headers=headers,
             is_reusable=True,
+            **payload,
         )
         yield
 
@@ -485,6 +493,21 @@ class TestQACaseTC13EnvelopeParity:
         error = response.json()["error"]
         assert error["type"] == expected_type
         assert error["message"] == f"upstream returned {upstream_status}"
+
+    @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
+    def test_provider_error_without_a_usable_body_hides_the_model(self, chat_against_failing_upstream, engine):
+        """A provider that returns no usable body still yields no model-routing detail.
+
+        With nothing to extract, the message falls back to the bare status. This is the path
+        where IORails previously had only its own ``HTTP <status> from model '<name>'`` text
+        to offer the caller.
+        """
+        response = chat_against_failing_upstream(engine, 502, "")
+
+        assert response.status_code == 502
+        message = response.json()["error"]["message"]
+        assert message == "HTTP 502"
+        assert "gpt-4o-mini" not in message
 
     @pytest.mark.parametrize("engine", ["llmrails", "iorails"])
     def test_streaming_initial_failure_is_promoted_to_an_http_status(self, chat_against_failing_upstream, engine):

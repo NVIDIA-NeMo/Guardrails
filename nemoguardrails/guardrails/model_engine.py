@@ -33,7 +33,12 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 import aiohttp
 from aiohttp_retry import RetryClient
 
-from nemoguardrails.exceptions import LLMClientError, LLMConnectionError, LLMTimeoutError
+from nemoguardrails.exceptions import (
+    LLMClientError,
+    LLMConnectionError,
+    LLMResponseValidationError,
+    LLMTimeoutError,
+)
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -673,6 +678,7 @@ class ModelEngine(BaseEngine):
             raise ModelEngineError(
                 f"ModelEngine for '{self.model_name}' has not been started. Call start() first.",
                 model_name=self.model_name,
+                inner_exception=self._generic_client_error(0, "The model engine is not running."),
             )
 
     def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
@@ -696,6 +702,17 @@ class ModelEngine(BaseEngine):
             provider_name=self.provider_name,
             base_url=self.base_url,
         )
+
+    def _generic_client_error(self, status_code: int, message: str) -> LLMClientError:
+        """Build a caller-safe client error for a failure the shared classifier cannot type.
+
+        Every ``ModelEngineError`` needs one of these, because ``client_facing_message`` falls
+        back to ``str(exception)`` without it, and this engine's messages name the model.
+        The model context still travels for diagnostics: it reaches logs through
+        ``LLMClientError.__str__``, never the client envelope, which renders
+        ``error_message`` alone.
+        """
+        return LLMClientError(status_code, message, **self._error_context.as_kwargs())
 
     def _wrap_client_error(self, client_error: LLMClientError, summary: str) -> ModelEngineError:
         """Carry a classified provider error inside the ``ModelEngineError`` this engine raises.
@@ -759,15 +776,11 @@ class ModelEngine(BaseEngine):
                 elapsed_ms,
             )
             client_error = self._classify_error_response(response.status, error_body, response.headers, req_id)
-            if client_error is not None:
-                raise self._wrap_client_error(client_error, f"HTTP {response.status}") from client_error
-            # The body is left out deliberately: unclassified is exactly the case where it
-            # could be anything, and it must not reach the caller.
-            raise ModelEngineError(
-                f"HTTP {response.status} from model '{self.model_name}'",
-                model_name=self.model_name,
-                status=response.status,
-            )
+            if client_error is None:
+                # The body is left out deliberately: unclassified is exactly the case where it
+                # could be anything, and it must not reach the caller. The status still does.
+                client_error = self._generic_client_error(response.status, f"HTTP {response.status}")
+            raise self._wrap_client_error(client_error, f"HTTP {response.status}") from client_error
 
     def _classify_transport_failure(self, exc: Exception) -> LLMClientError | None:
         """Return the typed client error for a timeout or connection failure, or None for anything else.
@@ -788,10 +801,13 @@ class ModelEngine(BaseEngine):
         """Wrap an unexpected exception in a ``ModelEngineError``."""
         elapsed_ms = (time.monotonic() - t0) * 1000
         log.warning("[%s] %s to model '%s' failed time=%.1fms", req_id, label, self.model_name, elapsed_ms)
+        client_error = self._classify_transport_failure(exc)
+        if client_error is None:
+            client_error = self._generic_client_error(0, f"{label} failed: {exc}")
         return ModelEngineError(
             f"{label} to model '{self.model_name}' failed: {exc}",
             model_name=self.model_name,
-            inner_exception=self._classify_transport_failure(exc),
+            inner_exception=client_error,
         )
 
     async def call(
@@ -950,9 +966,11 @@ class ModelEngine(BaseEngine):
 
                     # A provider can report a failure in a frame rather than in the HTTP
                     # status, and the stream would otherwise end as though generation had
-                    # completed. Only a top-level "error" key counts, so model output that
-                    # merely looks like an error object stays ordinary content.
-                    if isinstance(raw_chunk, dict) and "error" in raw_chunk:
+                    # completed. The value must be non-null, not merely present: a gateway
+                    # that emits "error": null on every frame would otherwise end a healthy
+                    # stream. Only a top-level key counts, so model output that merely looks
+                    # like an error object stays ordinary content.
+                    if isinstance(raw_chunk, dict) and raw_chunk.get("error") is not None:
                         self._raise_for_sse_error(raw_chunk, response.headers)
 
                     last_chunk_id = raw_chunk.get("id") or last_chunk_id
@@ -1031,6 +1049,11 @@ class ModelEngine(BaseEngine):
             raise ModelEngineError(
                 f"Unexpected response format from model '{self.model_name}': {exc}",
                 model_name=self.model_name,
+                inner_exception=LLMResponseValidationError(
+                    f"Unexpected response format from the model: {exc}",
+                    response_data=response,
+                    **self._error_context.as_kwargs(),
+                ),
             ) from exc
 
     async def stream_chat_completion(

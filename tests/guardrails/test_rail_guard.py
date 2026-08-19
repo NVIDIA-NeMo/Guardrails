@@ -30,7 +30,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Tracer
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
-from nemoguardrails.exceptions import LLMCallException, LLMTimeoutError
+from nemoguardrails.exceptions import LLMCallException, LLMClientError, LLMTimeoutError
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.rail_guard import rail_error_outcome
 from nemoguardrails.guardrails.telemetry import action_span
@@ -109,6 +109,25 @@ class TestFailsClosed:
 
         assert outcome.is_blocked
         assert outcome.reason == "content safety check input error: Request timed out: read timed out"
+        assert "internal-guard-model" not in outcome.reason
+
+    def test_reason_does_not_disclose_the_rail_model_when_unclassified(self):
+        """A failure the classifier cannot type is still rendered without the rail model.
+
+        This is the shape ``_wrap_exception`` produces for anything that is not a transport
+        failure, and it reaches the caller through the same streaming violation payload.
+        """
+        generic_error = LLMClientError(0, "Request failed: bad payload", model_name="internal-guard-model")
+        exc = ModelEngineError(
+            "Request to model 'internal-guard-model' failed: bad payload",
+            model_name="internal-guard-model",
+            inner_exception=generic_error,
+        )
+
+        outcome = rail_error_outcome(None, ACTION_NAME, exc)
+
+        assert outcome.is_blocked
+        assert outcome.reason == "content safety check input error: Request failed: bad payload"
         assert "internal-guard-model" not in outcome.reason
 
     def test_blocking_verdict_records_the_span_error(self):

@@ -823,8 +823,10 @@ class TestModelEngineCall:
                 await engine.call([{"role": "user", "content": "Hi"}])
 
         assert exc_info.value.status == 429
-        assert exc_info.value.inner_exception is None
         assert "slow down" not in str(exc_info.value)
+        message = client_facing_message(exc_info.value)
+        assert message == "HTTP 429"
+        assert "meta/llama-3.3-70b-instruct" not in message
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -858,14 +860,20 @@ class TestModelEngineCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_call_unclassifiable_failure_carries_no_client_error(self):
-        """An exception that is not a transport failure is wrapped without an inner client error."""
+    async def test_call_unclassifiable_failure_still_hides_the_model(self):
+        """A failure that is not a transport error still reaches the caller without the model name.
+
+        Without an inner client error, ``client_facing_message`` falls back to ``str(exc)``,
+        and this engine's wrap message names the model.
+        """
         engine = _started_engine(_mock_failing_client(ValueError("something else")))
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
 
-        assert exc_info.value.inner_exception is None
+        message = client_facing_message(exc_info.value)
+        assert message == "Request failed: something else"
+        assert "meta/llama-3.3-70b-instruct" not in message
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -1072,6 +1080,23 @@ class TestModelEngineStreamCall:
         message = client_facing_message(exc_info.value)
         assert message.startswith("Request timed out: ")
         assert "meta/llama-3.3-70b-instruct" not in message
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_null_error_field_is_not_a_failure(self):
+        """A gateway that emits ``error: null`` on every frame must not end a healthy stream.
+
+        Testing key presence rather than value also echoed the frame back to the caller: with
+        no usable message, classification falls back to the serialized chunk, putting the
+        model's own output inside an error envelope.
+        """
+        engine = self._streaming_engine(
+            self._make_sse_payloads([{"error": None, "choices": [{"delta": {"content": "Hello"}}]}])
+        )
+
+        chunks = [chunk async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}])]
+
+        assert [c.delta_content for c in chunks] == ["Hello"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
