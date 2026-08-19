@@ -32,6 +32,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: builtin-rail-catalog
+        name: builtin rail catalog
+        entry: uv run --locked python scripts/generate_builtin_rail_catalog.py --check
+        language: system
+        pass_filenames: false
+        files: ^(\.pre-commit-config\.yaml|nemoguardrails/library/.*/rail\.py|nemoguardrails/manifests/(__init__|catalog|manifest)\.py|nemoguardrails/manifests/builtin_rails\.json|scripts/generate_builtin_rail_catalog\.py)$
+        require_serial: true
       - id: ty
         name: ty
         entry: uv run --locked ty check
