@@ -110,19 +110,24 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
     with the same refusal text, and status, rail and content all still match. The rail logs at
     ERROR when it fails and does not when it reaches a verdict, so that is the difference.
     """
-    with caplog.at_level(logging.ERROR):
-        yield
-        # rail_guard reports a failed rail under nemoguardrails.guardrails, so this fixture is only
-        # as good as caplog's view of that logger. Configuring it detaches it from root, where caplog
-        # listens; pytest re-attaches its handler only to loggers already non-propagating when the
-        # phase opened, so a logger configured *mid-test* is captured nowhere and the records below
-        # read empty however the rail behaved. Asserting nothing configured it at all is the
-        # conservative form of that check: it cannot distinguish the mid-test case, which is silently
-        # wrong, from the before-the-test case, which happens to work.
-        assert logging.getLogger("nemoguardrails.guardrails").propagate, (
-            "something configured the nemoguardrails.guardrails logger, which detaches it from the "
-            "root logger caplog listens on; when that happens mid-test the check below reads empty"
-        )
+    # rail_guard reports a failed rail under nemoguardrails.guardrails, so this fixture is only as
+    # good as caplog's view of that logger, and a logger configured to stop propagating is detached
+    # from the root logger caplog listens on. Opening the door here rather than asserting it is
+    # already open: a Guardrails built with verbose=True anywhere earlier in this worker closes it
+    # process-wide, which says nothing about the rail this test runs.
+    package_logger = logging.getLogger("nemoguardrails.guardrails")
+    was_propagating = package_logger.propagate
+    package_logger.propagate = True
+    try:
+        with caplog.at_level(logging.ERROR):
+            yield
+            # Set above and checked here because pytest attaches its handler only to loggers already
+            # non-propagating when the phase opened: one closed *mid-test* is captured nowhere, and
+            # the records below read empty however the rail behaved.
+            assert package_logger.propagate, (
+                "something configured the nemoguardrails.guardrails logger mid-test, detaching it "
+                "from the root logger caplog listens on, so the check below reads empty"
+            )
         # get_records("call") rather than .records: during teardown the latter reports the
         # teardown phase, which is empty, and the check would pass no matter what the rail did.
         # Restricted to this package's loggers because the question is whether a *rail* failed,
@@ -135,6 +140,8 @@ def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
             if record.levelno >= logging.ERROR and record.name.startswith("nemoguardrails")
         ]
         assert not errors, f"a rail errored, so the cassette did not replay: {errors}"
+    finally:
+        package_logger.propagate = was_propagating
 
 
 async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):

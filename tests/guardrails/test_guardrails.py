@@ -327,7 +327,7 @@ class TestGuardrailsInit:
         assert guardrails.rails_engine == mock_llmrails_instance
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_init_with_llm(self, mock_llmrails_class, _nemoguards_rails_config, mock_llm):
+    def test_init_with_llm(self, mock_llmrails_class, _nemoguards_rails_config, mock_llm, pristine_package_logger):
         """Test initialization with a custom LLM."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
@@ -1848,7 +1848,9 @@ class TestGuardrailsPickle:
         assert mock_llmrails_init.call_count == 2
 
     @patch.object(IORails, "__init__", return_value=None)
-    def test_getstate_preserves_verbose_true(self, mock_iorails_init, _nemoguards_rails_config):
+    def test_getstate_preserves_verbose_true(
+        self, mock_iorails_init, _nemoguards_rails_config, pristine_package_logger
+    ):
         """__getstate__ captures verbose=True so a verbose Guardrails round-trips
         with logging configuration intact."""
         guardrails = Guardrails(config=_nemoguards_rails_config, verbose=True)
@@ -1864,7 +1866,9 @@ class TestGuardrailsPickle:
         assert guardrails.verbose is True
 
     @patch.object(IORails, "__init__", return_value=None)
-    def test_pickle_round_trip_preserves_verbose(self, mock_iorails_init, _nemoguards_rails_config):
+    def test_pickle_round_trip_preserves_verbose(
+        self, mock_iorails_init, _nemoguards_rails_config, pristine_package_logger
+    ):
         """Full round-trip: a Guardrails constructed with verbose=True must come
         back from __getstate__/__setstate__ with verbose=True. Regression for the
         bug where verbose was hardcoded to False on restore, silently obscuring
