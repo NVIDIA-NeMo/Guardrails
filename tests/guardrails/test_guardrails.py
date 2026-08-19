@@ -104,11 +104,8 @@ def mock_llm():
 
 @pytest.fixture
 def pristine_package_logger():
-    """Hand back an unconfigured ``nemoguardrails.guardrails`` logger, restoring it afterward.
-
-    Any earlier test that built a Guardrails leaves the logger already configured, and a test
-    starting from that state cannot tell a fixed constructor from a broken one.
-    """
+    """Hand back an unconfigured ``nemoguardrails.guardrails`` logger, restoring it afterward."""
+    # A test inheriting the configured state cannot tell a fixed constructor from a broken one.
     logger = logging.getLogger("nemoguardrails.guardrails")
     saved_handlers = list(logger.handlers)
     saved_propagate = logger.propagate
@@ -374,9 +371,7 @@ class TestGuardrailsInit:
 class TestConstructionLoggingSideEffects:
     """Constructing Guardrails must not take over the ``nemoguardrails.guardrails`` logger.
 
-    Configuring the package logger detaches it from whatever handlers the embedding application
-    installed, so its records stop reaching root: an app's log shipper and pytest's caplog both
-    go silent on this subtree, with no error to say so.
+    Doing so detaches it from the application's root handlers, silencing that subtree with no error.
     """
 
     @patch.object(IORails, "__init__", return_value=None)

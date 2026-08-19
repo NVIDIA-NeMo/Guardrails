@@ -103,37 +103,19 @@ def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
 
 @pytest.fixture
 def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
-    """Fail the test if any rail errored, which is what an unreplayed cassette looks like.
-
-    Without this a blocked-case assertion is vacuous: a cassette that fails to replay raises
-    inside the action, the fail-closed envelope turns that into a block naming the same rail
-    with the same refusal text, and status, rail and content all still match. The rail logs at
-    ERROR when it fails and does not when it reaches a verdict, so that is the difference.
-    """
-    # rail_guard reports a failed rail under nemoguardrails.guardrails, so this fixture is only as
-    # good as caplog's view of that logger, and a logger configured to stop propagating is detached
-    # from the root logger caplog listens on. Opening the door here rather than asserting it is
-    # already open: a Guardrails built with verbose=True anywhere earlier in this worker closes it
-    # process-wide, which says nothing about the rail this test runs.
+    """Fail the test if any rail errored, which is what an unreplayed cassette looks like."""
+    # caplog listens at root, so rail_guard's records only arrive while this logger propagates.
+    # Set it rather than trust it: a verbose=True construction earlier closes it process-wide.
     package_logger = logging.getLogger("nemoguardrails.guardrails")
     was_propagating = package_logger.propagate
     package_logger.propagate = True
     try:
         with caplog.at_level(logging.ERROR):
             yield
-            # Set above and checked here because pytest attaches its handler only to loggers already
-            # non-propagating when the phase opened: one closed *mid-test* is captured nowhere, and
-            # the records below read empty however the rail behaved.
-            assert package_logger.propagate, (
-                "something configured the nemoguardrails.guardrails logger mid-test, detaching it "
-                "from the root logger caplog listens on, so the check below reads empty"
-            )
-        # get_records("call") rather than .records: during teardown the latter reports the
-        # teardown phase, which is empty, and the check would pass no matter what the rail did.
-        # Restricted to this package's loggers because the question is whether a *rail* failed,
-        # which rail_guard reports. Anything at ERROR would also catch aiohttp's unclosed-session
-        # message, which the asyncio exception handler emits from __del__ whenever the collector
-        # happens to run -- so an unrelated leak elsewhere in the suite would fail this test.
+            # Closed mid-test it is captured nowhere, leaving the errors below empty either way.
+            assert package_logger.propagate, "the nemoguardrails.guardrails logger stopped propagating mid-test"
+        # get_records("call"): .records would report the empty teardown phase here. Package loggers
+        # only, so aiohttp's unclosed-session ERROR from an unrelated leak cannot fail the test.
         errors = [
             record.getMessage()
             for record in caplog.get_records("call")
