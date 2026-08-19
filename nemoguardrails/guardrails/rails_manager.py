@@ -855,7 +855,7 @@ class RailsManager:
                     triggered_rail=_get_flow_name(flow) or flow,
                     tool_violations=_global_tool_rail_violations(result, "tool_call", flow),
                 )
-            result = replace(result, records=(_rail_call_record(flow, "tool_output", result),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_call", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 set_rail_content(
@@ -880,7 +880,7 @@ class RailsManager:
                     triggered_rail=_get_flow_name(flow) or flow,
                     tool_violations=_global_tool_rail_violations(result, "tool_result", flow),
                 )
-            result = replace(result, records=(_rail_call_record(flow, "tool_input", result),))
+            result = replace(result, records=(_rail_call_record(flow, "tool_result", result),))
             mark_rail_stop(span, result.is_safe)
             if self._content_capture_enabled:
                 all_results = [r for exchange in exchanges for r in exchange.results]

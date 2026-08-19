@@ -60,7 +60,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_basic():
+async def test_tool_call_rails_basic():
     test_tool_calls = [
         {
             "name": "allowed_tool",
@@ -86,7 +86,7 @@ async def test_tool_output_rails_basic():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - self check tool calls
         """,
@@ -107,7 +107,7 @@ async def test_tool_output_rails_basic():
 
 
 @pytest.mark.asyncio
-async def test_tool_output_rails_blocking():
+async def test_tool_call_rails_blocking():
     dangerous_tool_call_objects = [
         ToolCall(
             id="call_bad",
@@ -132,7 +132,7 @@ async def test_tool_output_rails_blocking():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -150,7 +150,7 @@ async def test_tool_output_rails_blocking():
 
 
 @pytest.mark.asyncio
-async def test_multiple_tool_output_rails():
+async def test_multiple_tool_call_rails():
     test_tool_calls = [
         {
             "name": "test_tool",
@@ -184,7 +184,7 @@ async def test_multiple_tool_output_rails():
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - self check tool calls
               - validate tool parameters
@@ -206,7 +206,7 @@ async def test_multiple_tool_output_rails():
 
 
 @pytest.mark.asyncio
-async def test_assistant_tool_calls_run_tool_output_rails_when_dialog_disabled():
+async def test_assistant_tool_calls_run_tool_call_rails_when_dialog_disabled():
     config = RailsConfig.from_content(
         """
         define subflow validate tool parameters
@@ -223,7 +223,7 @@ async def test_assistant_tool_calls_run_tool_output_rails_when_dialog_disabled()
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,
@@ -274,7 +274,7 @@ async def test_approved_assistant_tool_calls_are_returned_when_dialog_disabled()
         models: []
         passthrough: true
         rails:
-          tool_output:
+          tool_call:
             flows:
               - validate tool parameters
         """,

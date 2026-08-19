@@ -26,8 +26,8 @@ In this context, a *session* is the lifetime of a single Python process running 
 | `osName` | string | `"Linux"` | Operating system name (`"Darwin"`, `"Linux"`, `"Windows"`). |
 | `colangVersion` | string | `"1.0"` | Colang configuration language version (`"1.0"`, `"2.x"`, or `"unknown"` when no config context exists). This describes the loaded guardrails config, not the runtime rails engine. |
 | `llmProviders` | array of strings | `["nim", "openai"]` | LLM engine names, sorted. Engine identifiers, not model names. |
-| `numRailsConfigured` | integer | `4` | Count of configured rail flows for input, output, retrieval, tool input, and tool output rails. Dialog usage is represented in `railTypesInUse` but not counted as a flow. |
-| `railTypesInUse` | array of strings | `["input", "output"]` | Active rail categories from `input`, `output`, `retrieval`, `tool_input`, `tool_output`, `dialog`. |
+| `numRailsConfigured` | integer | `4` | Count of configured rail flows for input, output, retrieval, tool call, and tool result rails. Dialog usage is represented in `railTypesInUse` but not counted as a flow. |
+| `railTypesInUse` | array of strings | `["input", "output"]` | Active rail categories from `input`, `output`, `retrieval`, `tool_call`, `tool_result`, `dialog`. |
 | `tracingEnabled` | boolean | `false` | Whether the tracing subsystem is enabled. |
 | `deploymentType` | string | `"library"` | How you deployed guardrails: `"library"` (direct `LLMRails`, `IORails`, or `Guardrails` use), `"api"` (FastAPI server), or `"cli"` (interactive `nemoguardrails chat`). |
 | `nemoSource` | string | `"guardrails"` | The NVIDIA NeMo product that produced the event. Always `"guardrails"` for this event type. |

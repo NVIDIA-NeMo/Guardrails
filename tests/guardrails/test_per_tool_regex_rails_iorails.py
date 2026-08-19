@@ -164,7 +164,7 @@ class TestStreamingPerToolCallRegex:
         chunks = await _collect(call_pattern_iorails.stream_async(MESSAGES))
         violations = _stream_violation_chunks(chunks)
         assert len(violations) == 1
-        assert violations[0]["error"]["param"] == "tool_output_rails"
+        assert violations[0]["error"]["param"] == "tool_call_rails"
 
     @pytest.mark.asyncio
     async def test_non_matching_pattern_streams_through(self, call_pattern_iorails):

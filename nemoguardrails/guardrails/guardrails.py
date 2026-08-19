@@ -89,7 +89,7 @@ class Guardrails(BaseGuardrails):
                 self._rails_engine = IORails(config)
                 self.use_iorails_engine = True
             else:
-                if config.rails.tool_output.per_tool or config.rails.tool_input.per_tool:
+                if config.rails.tool_call.per_tool or config.rails.tool_result.per_tool:
                     raise ValueError(
                         f"IORails cannot be used: {fallback_reason}. Configured per-tool rails "
                         "(rails.tool_output.per_tool / rails.tool_input.per_tool) are IORails-only; "

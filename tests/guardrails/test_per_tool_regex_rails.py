@@ -366,7 +366,7 @@ class TestAreToolCallsSafe:
         # No declared tools in llm_params -> the global allowlist check blocks first.
         result = await manager.are_tool_calls_safe([_sql_call("SELECT 1")], {})
         assert_result_blocked(result)
-        assert result.records[0].rail_type == "tool_output"
+        assert result.records[0].rail_type == "tool_call"
         assert result.records[0].flow == "tool call validation"
 
 
