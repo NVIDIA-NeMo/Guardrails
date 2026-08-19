@@ -39,6 +39,21 @@ This outputs detailed information about:
 - Action executions
 - Flow transitions
 
+### Verbose mode on `Guardrails` and `LLMRails`
+
+The two entry points interpret `verbose=True` differently.
+
+| Entry point | Effect of `verbose=True` |
+|-------------|--------------------------|
+| `LLMRails(config, verbose=True)` | Adds a verbose console handler at `INFO` to the root logger and logs LLM prompts and completions. |
+| `Guardrails(config, verbose=True)` | Calls `configure_logging(logging.DEBUG)`, attaching a stderr handler to the `nemoguardrails.guardrails` logger and setting it to `DEBUG`. |
+
+When `Guardrails` falls back to `LLMRails` — because an `llm` was passed, or the config contains flows IORails does not support — both apply, because `verbose` is forwarded to the `LLMRails` instance it creates.
+
+Note that `configure_logging` also stops the `nemoguardrails.guardrails` logger propagating to the root logger; see [OpenTelemetry logs](/observability/tracing/opentelemetry-logs) for what that means for handlers you attach yourself.
+
+A default `Guardrails(config)` construction configures no logging at all, leaving handlers, levels, and formatting to your application.
+
 ## Explain Method
 
 Get a quick summary of the last generation using the `explain()` method:
