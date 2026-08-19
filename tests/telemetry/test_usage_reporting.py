@@ -31,6 +31,7 @@ from nemoguardrails.telemetry import (
     _detect_builtin_features,
     _get_heartbeat_interval_s,
     _is_usage_stats_enabled,
+    _normalize_builtin_feature_id,
     _rotate_audit_file,
     _send_report,
     _write_audit_file,
@@ -983,6 +984,16 @@ class TestBuiltinFeatures:
         assert "patronus" not in result
         assert "regex_detection" not in result
 
+    @pytest.mark.parametrize(
+        ("feature_id", "expected"),
+        [
+            ("factchecking.align_score", "factchecking"),
+            ("self_check.tool_call", "self_check"),
+        ],
+    )
+    def test_dotted_feature_ids_use_namespace(self, feature_id, expected):
+        assert _normalize_builtin_feature_id(feature_id) == expected
+
     def test_detects_features_from_exact_flow_names(self):
         from nemoguardrails.rails.llm.config import Rails
 
@@ -1043,11 +1054,7 @@ class TestBuiltinFeatures:
         config.rails = Rails()
         catalog = default_rail_catalog()
         manifest_feature_ids = {
-            "factchecking.align_score": "factchecking",
             "privateai": "sensitive_data_detection",
-            "self_check.facts": "self_check",
-            "self_check.input_check": "self_check",
-            "self_check.output_check": "self_check",
         }
         flow_feature_overrides = {
             "self check hallucination": "self_check",
@@ -1061,7 +1068,7 @@ class TestBuiltinFeatures:
                 config.rails.input.flows = [flow_name]
                 expected = flow_feature_overrides.get(
                     flow_name,
-                    manifest_feature_ids.get(manifest.name, manifest.name),
+                    manifest_feature_ids.get(manifest.name, manifest.name.split(".", 1)[0]),
                 )
                 actual = _detect_builtin_features(config)
                 if actual != [expected]:

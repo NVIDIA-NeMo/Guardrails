@@ -389,13 +389,9 @@ def _is_usage_stats_enabled() -> bool:
 
 _BUILTIN_FEATURE_ID_ALIASES = {
     "fact_checking": "factchecking",
-    "factchecking.align_score": "factchecking",
     "patronus": "patronusai",
     "privateai": "sensitive_data_detection",
     "regex_detection": "regex",
-    "self_check.facts": "self_check",
-    "self_check.input_check": "self_check",
-    "self_check.output_check": "self_check",
 }
 
 _BUILTIN_FLOW_FEATURE_OVERRIDES = {
@@ -407,7 +403,7 @@ _COLANG_V2_LIBRARY_DIR = Path(__file__).resolve().parent / "colang" / "v2_x" / "
 
 def _normalize_builtin_feature_id(feature_id: str) -> str:
     """Return the stable telemetry id for a config field or manifest."""
-    return _BUILTIN_FEATURE_ID_ALIASES.get(feature_id, feature_id)
+    return _BUILTIN_FEATURE_ID_ALIASES.get(feature_id, feature_id.split(".", 1)[0])
 
 
 def _flow_file_name(flow: Any) -> Optional[str]:
