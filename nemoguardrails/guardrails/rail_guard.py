@@ -34,7 +34,7 @@ from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.guardrails.guardrails_types import get_request_id
 from nemoguardrails.guardrails.model_engine import ModelEngineError
 from nemoguardrails.guardrails.telemetry import record_span_error
-from nemoguardrails.llm.clients._errors import _redact_secrets
+from nemoguardrails.llm.clients._errors import _redact_secrets, client_facing_message
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -57,9 +57,13 @@ def _upstream_http_status(exc: Exception) -> Optional[int]:
 def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Exception) -> str:
     """Record *exc* on *span* and return a redacted block reason, or re-raise on an HTTP status.
 
-    The text is redacted once and that form is what reaches the log on both paths: a provider
-    error can carry a credential in its message (CWE-532). *exc* itself propagates unmodified,
-    so an operator still sees the real text in a traceback.
+    The log keeps the full text, redacted once: a provider error can carry a credential in its
+    message (CWE-532). *exc* itself propagates unmodified, so an operator still sees the real
+    text in a traceback.
+
+    The returned reason is the client-facing form instead, because it is rendered into the
+    streaming violation payload through ``client_reason``. ``str(exc)`` there would disclose
+    the internal rail model to an API caller.
 
     The span error is recorded only on the blocking path. Callers run inside ``action_span``,
     which records anything escaping it, so recording here too would double up.
@@ -77,7 +81,7 @@ def _blocked_reason_or_reraise(span: Optional["Span"], action_name: str, exc: Ex
 
     record_span_error(span, exc)
     log.error("[%s] %s failed: %s", request_id, action_name, detail)
-    return f"{action_name} error: {detail}"
+    return f"{action_name} error: {_redact_secrets(client_facing_message(exc))}"
 
 
 def rail_error_outcome(span: Optional["Span"], action_name: str, exc: Exception) -> RailOutcome:

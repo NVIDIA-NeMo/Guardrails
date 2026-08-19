@@ -20,6 +20,7 @@ OpenAI-compatible /v1/chat/completions endpoint via aiohttp.
 Retries are handled by aiohttp-retry (ExponentialRetry).
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -32,6 +33,12 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 import aiohttp
 from aiohttp_retry import RetryClient
 
+from nemoguardrails.exceptions import (
+    LLMClientError,
+    LLMConnectionError,
+    LLMResponseValidationError,
+    LLMTimeoutError,
+)
 from nemoguardrails.guardrails._http import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_TIMEOUT_CONNECT,
@@ -49,6 +56,7 @@ from nemoguardrails.guardrails.telemetry import (
     set_llm_response_attributes,
 )
 from nemoguardrails.guardrails.tool_schema import Tool, ToolExchange, ToolResult, Toolset
+from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.tracing.constants import (
     llm_operation_duration,
@@ -497,6 +505,13 @@ def _extract_tool_exchanges_nim(messages: LLMMessages) -> list[ToolExchange]:
     return _extract_tool_exchanges_openai(messages)
 
 
+# How much of a failed response to read for error classification. Large enough that any
+# realistic provider error body parses as JSON and yields its message/code/param, bounded
+# because an unparseable body (an HTML proxy error page) becomes the client-facing message
+# verbatim, and must not be forwarded whole.
+_ERROR_BODY_MAX_CHARS = 8192
+
+
 _TOOL_EXCHANGE_EXTRACTORS = {
     "openai": _extract_tool_exchanges_openai,
     "nim": _extract_tool_exchanges_nim,
@@ -506,9 +521,21 @@ _TOOL_EXCHANGE_EXTRACTORS = {
 class ModelEngineError(Exception):
     """Raised when a model engine call fails."""
 
-    def __init__(self, message: str, model_name: str, status: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        model_name: str,
+        status: int | None = None,
+        *,
+        inner_exception: BaseException | None = None,
+    ) -> None:
         self.model_name = model_name
         self.status = status
+        # The typed LLMClientError this failure was classified into, when it came from a
+        # provider response. ``nemoguardrails.llm.clients._errors.as_client_error`` reads
+        # this attribute, which is how the server renders the provider's own message, code,
+        # param, and Retry-After instead of falling back to ``str(exception)``.
+        self.inner_exception = inner_exception
         super().__init__(message)
 
     @property
@@ -655,6 +682,7 @@ class ModelEngine(BaseEngine):
             raise ModelEngineError(
                 f"ModelEngine for '{self.model_name}' has not been started. Call start() first.",
                 model_name=self.model_name,
+                inner_exception=self._generic_client_error(0, "The model engine is not running."),
             )
 
     def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
@@ -670,11 +698,80 @@ class ModelEngine(BaseEngine):
         body: dict[str, Any] = {"model": self.model_name, "messages": messages, **kwargs}
         return _RequestParams(client=client, url=url, headers=headers, body=body, params=self.default_query)
 
+    @property
+    def _error_context(self) -> ErrorContext:
+        """Identify this engine's model to the shared error classifier."""
+        return ErrorContext(
+            model_name=self.model_name,
+            provider_name=self.provider_name,
+            base_url=self.base_url,
+        )
+
+    def _generic_client_error(self, status_code: int, message: str) -> LLMClientError:
+        """Build a caller-safe client error for a failure the shared classifier cannot type.
+
+        Every ``ModelEngineError`` needs one of these, because ``client_facing_message`` falls
+        back to ``str(exception)`` without it, and this engine's messages name the model.
+        The model context still travels for diagnostics: it reaches logs through
+        ``LLMClientError.__str__``, never the client envelope, which renders
+        ``error_message`` alone.
+        """
+        return LLMClientError(status_code, message, **self._error_context.as_kwargs())
+
+    def _wrap_client_error(self, client_error: LLMClientError, summary: str) -> ModelEngineError:
+        """Carry a classified provider error inside the ``ModelEngineError`` this engine raises.
+
+        The message keeps the model name for the server log; it is the inner error, not this
+        text, that the server renders for the caller, so the raw upstream body is left out
+        rather than concatenated in.
+        """
+        if client_error.status_code > 0:
+            status = client_error.status_code
+        else:
+            status = None
+        return ModelEngineError(
+            f"{summary} from model '{self.model_name}': {client_error.error_message}",
+            model_name=self.model_name,
+            status=status,
+            inner_exception=client_error,
+        )
+
+    def _classify_error_response(self, status: int, body: str, headers: Any, req_id: str) -> LLMClientError | None:
+        """Return the typed provider error for a failed response, or None if it cannot be classified."""
+        try:
+            raise_for_status(status, body, headers, self._error_context)
+        except LLMClientError as client_error:
+            return client_error
+        except Exception:
+            # A classifier failure must not cost the caller the upstream status. Letting this
+            # escape would strip it in ``call``'s catch-all, and the server would report 500
+            # for what was really a 429 or 503, which SDKs retry differently.
+            log.warning(
+                "[%s] could not classify HTTP %s from model '%s'",
+                req_id,
+                status,
+                self.model_name,
+                exc_info=True,
+            )
+        return None
+
+    def _raise_for_sse_error(self, raw_chunk: dict, headers: Any) -> None:
+        """Raise ``ModelEngineError`` for a provider error frame carried inside a stream.
+
+        Mirrors ``BaseClient._check_sse_error``. Anything ``raise_for_sse_error`` raises other
+        than an ``LLMClientError`` still terminates the stream through ``stream_call``'s
+        catch-all, so the frame is never silently dropped.
+        """
+        try:
+            raise_for_sse_error(raw_chunk, headers, self._error_context)
+        except LLMClientError as client_error:
+            raise self._wrap_client_error(client_error, "Stream error") from client_error
+
     async def _raise_for_status(self, response: aiohttp.ClientResponse, req_id: str, t0: float) -> None:
         """Raise ``ModelEngineError`` if the HTTP status indicates an error."""
         if response.status >= 400:
             elapsed_ms = (time.monotonic() - t0) * 1000
-            error_body = await safe_read_body(response)
+            error_body = await safe_read_body(response, max_chars=_ERROR_BODY_MAX_CHARS)
             log.warning(
                 "[%s] HTTP %s from model '%s' time=%.1fms",
                 req_id,
@@ -682,19 +779,47 @@ class ModelEngine(BaseEngine):
                 self.model_name,
                 elapsed_ms,
             )
-            raise ModelEngineError(
-                f"HTTP {response.status} from model '{self.model_name}': {error_body}",
-                model_name=self.model_name,
-                status=response.status,
-            )
+            client_error = self._classify_error_response(response.status, error_body, response.headers, req_id)
+            if client_error is None:
+                # The body is left out deliberately: unclassified is exactly the case where it
+                # could be anything, and it must not reach the caller. The status still does.
+                client_error = self._generic_client_error(response.status, f"HTTP {response.status}")
+            raise self._wrap_client_error(client_error, f"HTTP {response.status}") from client_error
+
+    def _classify_transport_failure(self, exc: Exception) -> LLMClientError | None:
+        """Return the typed client error for a timeout or connection failure, or None for anything else.
+
+        Mirrors the httpx mapping in ``nemoguardrails.llm.clients.base``, so the same
+        transport failure reads the same to a caller whichever engine served the request.
+        No HTTP response arrived, hence status 0. Exception details stay on the cause
+        chain instead of entering the client-facing message.
+        """
+        # Order matters: aiohttp's ServerTimeoutError subclasses ClientConnectionError, so
+        # testing for a connection failure first would report every timeout as one.
+        if isinstance(exc, (asyncio.TimeoutError, aiohttp.ServerTimeoutError)):
+            return LLMTimeoutError(0, "Request timed out.", **self._error_context.as_kwargs())
+        if isinstance(exc, aiohttp.ClientConnectionError):
+            return LLMConnectionError(0, "Connection error.", **self._error_context.as_kwargs())
+        return None
 
     def _wrap_exception(self, exc: Exception, req_id: str, t0: float, label: str = "Request") -> ModelEngineError:
         """Wrap an unexpected exception in a ``ModelEngineError``."""
         elapsed_ms = (time.monotonic() - t0) * 1000
-        log.warning("[%s] %s to model '%s' failed time=%.1fms", req_id, label, self.model_name, elapsed_ms)
+        log.warning(
+            "[%s] %s to model '%s' failed time=%.1fms",
+            req_id,
+            label,
+            self.model_name,
+            elapsed_ms,
+            exc_info=exc,
+        )
+        client_error = self._classify_transport_failure(exc)
+        if client_error is None:
+            client_error = self._generic_client_error(0, f"{label} failed.")
         return ModelEngineError(
-            f"{label} to model '{self.model_name}' failed: {exc}",
+            client_error.error_message,
             model_name=self.model_name,
+            inner_exception=client_error,
         )
 
     async def call(
@@ -855,6 +980,15 @@ class ModelEngine(BaseEngine):
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
+                    # A provider can report a failure in a frame rather than in the HTTP
+                    # status, and the stream would otherwise end as though generation had
+                    # completed. The value must be non-null, not merely present: a gateway
+                    # that emits "error": null on every frame would otherwise end a healthy
+                    # stream. Only a top-level key counts, so model output that merely looks
+                    # like an error object stays ordinary content.
+                    if isinstance(raw_chunk, dict) and raw_chunk.get("error") is not None:
+                        self._raise_for_sse_error(raw_chunk, response.headers)
+
                     last_chunk_id = raw_chunk.get("id") or last_chunk_id
                     _accumulate_tool_call_delta(tool_calls, raw_chunk)
 
@@ -931,6 +1065,11 @@ class ModelEngine(BaseEngine):
             raise ModelEngineError(
                 f"Unexpected response format from model '{self.model_name}': {exc}",
                 model_name=self.model_name,
+                inner_exception=LLMResponseValidationError(
+                    f"Unexpected response format from the model: {exc}",
+                    response_data=response,
+                    **self._error_context.as_kwargs(),
+                ),
             ) from exc
 
     async def stream_chat_completion(
