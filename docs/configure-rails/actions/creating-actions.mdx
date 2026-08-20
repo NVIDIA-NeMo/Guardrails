@@ -166,14 +166,29 @@ async def get_user_info(user_id: str):
     }
 ```
 
-### Boolean Return (for validation)
+### Boolean Return for Flow Logic
+
+A boolean remains application data until a Colang flow interprets it explicitly:
 
 ```python
+from typing import Optional
+
+from nemoguardrails.actions import action
+
+
 @action(is_system_action=True)
 async def is_safe_content(context: Optional[dict] = None):
     content = context.get("bot_message", "")
-    # Returns True if safe, False if blocked
     return not contains_harmful_content(content)
+```
+
+Branch on the value in the flow:
+
+```text
+$is_safe = execute is_safe_content
+if not $is_safe
+  bot refuse to respond
+  stop
 ```
 
 ## Error Handling
@@ -201,23 +216,52 @@ async def fetch_data(url: str):
 
 ```python
 from typing import Optional
+
 from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
 
 @action(is_system_action=True)
 async def check_input_length(context: Optional[dict] = None):
     """Ensure user input is not too long."""
-    user_message = context.get("last_user_message", "")
+    user_message = context.get("user_message", "")
     max_length = 1000
 
     if len(user_message) > max_length:
-        return False  # Block the input
+        return RailOutcome.block(reason="The input exceeds the length limit.")
 
-    return True  # Allow the input
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow check input length
+  $result = execute check_input_length
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an input rail in `config.yml`:
+
+```yaml
+rails:
+  input:
+    flows:
+      - check input length
 ```
 
 ### Output Filtering Action
 
 ```python
+import re
+from typing import Optional
+
+from nemoguardrails.actions import action
+from nemoguardrails.actions.rail_outcome import RailOutcome
+
+
 @action(is_system_action=True)
 async def filter_sensitive_data(context: Optional[dict] = None):
     """Check for sensitive data in bot response."""
@@ -225,15 +269,33 @@ async def filter_sensitive_data(context: Optional[dict] = None):
 
     sensitive_patterns = [
         r"\b\d{3}-\d{2}-\d{4}\b",  # SSN pattern
-        r"\b\d{16}\b",              # Credit card pattern
+        r"\b\d{16}\b",  # Credit card pattern
     ]
 
-    import re
     for pattern in sensitive_patterns:
         if re.search(pattern, bot_response):
-            return True  # Contains sensitive data
+            return RailOutcome.block(reason="The response contains sensitive data.")
 
-    return False  # No sensitive data found
+    return RailOutcome.allow()
+```
+
+Add a Colang 1.0 flow to `rails.co` that consumes the decision:
+
+```text
+define subflow filter sensitive data
+  $result = execute filter_sensitive_data
+  if $result.is_blocked
+    bot refuse to respond
+    stop
+```
+
+Enable the flow as an output rail in `config.yml`:
+
+```yaml
+rails:
+  output:
+    flows:
+      - filter sensitive data
 ```
 
 ### External API Action

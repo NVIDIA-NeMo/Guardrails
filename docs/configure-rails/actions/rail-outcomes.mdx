@@ -98,6 +98,8 @@ if $result.is_blocked
 For a transform, read the replacement by its target name:
 
 ```colang
+global $relevant_chunks
+
 $result = await SanitizeCustomChunksAction(text=$relevant_chunks)
 
 if $result.is_transform
