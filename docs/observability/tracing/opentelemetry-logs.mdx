@@ -150,7 +150,7 @@ Log records emitted outside any guardrails request, such as startup, engine regi
 - Performance
   : At high log volumes or DEBUG level, log export can add measurable overhead. Use `BatchLogRecordProcessor` (as shown) rather than the synchronous `SimpleLogRecordProcessor` in production, and consider filtering at the logger level (`logging.getLogger("nemoguardrails").setLevel(logging.INFO)`) to limit what crosses the bridge.
 - Interaction with `propagate=False`
-  : If your application calls `nemoguardrails.guardrails.configure_logging()` on a freshly initialized logger, that helper sets `propagate=False` on the `nemoguardrails.guardrails` logger to prevent duplicate console output. The flag is only set on the first call, when no handlers exist yet. Records from submodules under `nemoguardrails.guardrails.*` will then not reach the handler attached to `nemoguardrails`. To capture them, attach the handler to `nemoguardrails.guardrails` instead of (or in addition to) `nemoguardrails`.
+  : `nemoguardrails.guardrails.configure_logging()` sets `propagate=False` on the `nemoguardrails.guardrails` logger to prevent duplicate console output. It runs when your application calls it directly, and when you construct `Guardrails(..., verbose=True)`. The flag is only set on the first call, when no handlers exist yet. Records from submodules under `nemoguardrails.guardrails.*` will then not reach the handler attached to `nemoguardrails`. To capture them, attach the handler to `nemoguardrails.guardrails` instead of (or in addition to) `nemoguardrails`. A default `Guardrails(...)` construction does not configure logging, so its records propagate normally.
 
 ## Related Resources
 

@@ -103,27 +103,27 @@ def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
 
 @pytest.fixture
 def rail_ran_cleanly(caplog: pytest.LogCaptureFixture):
-    """Fail the test if any rail errored, which is what an unreplayed cassette looks like.
-
-    Without this a blocked-case assertion is vacuous: a cassette that fails to replay raises
-    inside the action, the fail-closed envelope turns that into a block naming the same rail
-    with the same refusal text, and status, rail and content all still match. The rail logs at
-    ERROR when it fails and does not when it reaches a verdict, so that is the difference.
-    """
-    with caplog.at_level(logging.ERROR):
-        yield
-        # get_records("call") rather than .records: during teardown the latter reports the
-        # teardown phase, which is empty, and the check would pass no matter what the rail did.
-        # Restricted to this package's loggers because the question is whether a *rail* failed,
-        # which rail_guard reports. Anything at ERROR would also catch aiohttp's unclosed-session
-        # message, which the asyncio exception handler emits from __del__ whenever the collector
-        # happens to run -- so an unrelated leak elsewhere in the suite would fail this test.
+    """Fail the test if any rail errored, which is what an unreplayed cassette looks like."""
+    # caplog listens at root, so rail_guard's records only arrive while this logger propagates.
+    # Set it rather than trust it: a verbose=True construction earlier closes it process-wide.
+    package_logger = logging.getLogger("nemoguardrails.guardrails")
+    was_propagating = package_logger.propagate
+    package_logger.propagate = True
+    try:
+        with caplog.at_level(logging.ERROR):
+            yield
+            # Closed mid-test it is captured nowhere, leaving the errors below empty either way.
+            assert package_logger.propagate, "the nemoguardrails.guardrails logger stopped propagating mid-test"
+        # get_records("call"): .records would report the empty teardown phase here. Package loggers
+        # only, so aiohttp's unclosed-session ERROR from an unrelated leak cannot fail the test.
         errors = [
             record.getMessage()
             for record in caplog.get_records("call")
             if record.levelno >= logging.ERROR and record.name.startswith("nemoguardrails")
         ]
         assert not errors, f"a rail errored, so the cassette did not replay: {errors}"
+    finally:
+        package_logger.propagate = was_propagating
 
 
 async def check_iorails(config, messages: list[dict], rail_types: tuple[RailType, ...]):
