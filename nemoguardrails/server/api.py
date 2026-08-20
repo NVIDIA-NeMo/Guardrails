@@ -635,7 +635,7 @@ def _inline_reasoning_as_think_tags(res: GenerationResponse) -> GenerationRespon
         # IORails only strips inline tags when the provider gave no structured reasoning
         # (`response.reasoning or _extract_and_remove_think_tags(...)`), so a provider that
         # sends both leaves a block already in the content; prepending would duplicate it.
-        if "<think>" in content:
+        if content.startswith("<think>"):
             continue
         message["content"] = _prepend_think_tags(content, res.reasoning_content)
         inlined = True

@@ -307,3 +307,17 @@ def test_inline_reasoning_does_not_duplicate_an_existing_think_block():
     assert folded.response[0]["content"] == inline
     assert folded.response[0]["content"].count("<think>") == 1
     assert folded.reasoning_content == REASONING_TRACE
+
+
+def test_inline_reasoning_folds_when_think_is_mentioned_mid_content():
+    """Content that merely mentions <think> outside a leading block still receives its reasoning prefix."""
+    quoted = f"{LLM_ANSWER} Reasoning models wrap traces in <think> tags."
+    res = GenerationResponse(
+        response=[{"role": "assistant", "content": quoted}],
+        reasoning_content=REASONING_TRACE,
+    )
+
+    folded = api._inline_reasoning_as_think_tags(res)
+
+    assert folded.response[0]["content"] == f"<think>{REASONING_TRACE}</think>\n{quoted}"
+    assert folded.reasoning_content is None
