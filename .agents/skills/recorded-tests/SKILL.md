@@ -6,14 +6,16 @@ license: "Apache-2.0"
 
 # Recorded Tests: When and How
 
-`tests/recorded/` is a replay suite: it pins real provider wire traffic in
-cassettes and pins the public API outputs produced from that traffic in inline
-snapshots. Its value is refreshability: `make rewrite-cassettes` re-records
-against live providers and detects drift. `make record-cassettes` runs record
+`tests/recorded/` is primarily a replay suite: it pins real provider wire
+traffic in cassettes and pins the public API outputs produced from that traffic
+in inline snapshots. Its value is refreshability: `make rewrite-cassettes`
+re-records against live providers and detects drift. `make record-cassettes` runs record
 mode `once`, so it only fills in cassettes that are missing and will not
 refresh an existing one. A test that records no provider
-traffic gets none of that value and pays all of the suite's overhead (config
-directory, cassette plumbing, snapshot conventions, refresh workflow).
+traffic gets none of that value. Two repository policies still place selected
+non-provider cases here: public-API equivalence/validation contracts and the
+mandatory public entry for each library rail. Those tests do not fabricate a
+cassette.
 
 Read `tests/recorded/README.md` before writing any test in this suite. This
 skill decides WHETHER and WHERE a recorded test is needed; the README defines
@@ -21,10 +23,11 @@ HOW the suite works.
 
 ## When a change requires a recorded test
 
-The single criterion: a recorded test is required when the change alters bytes
+The default criterion: a recording is required when the change alters bytes
 sent to a provider, the interpretation of bytes received from one, or the
-public output shape derived from them. Recorded tests are the only tests whose
-expectations come from the provider rather than from us.
+public output shape derived from them. A cassette-backed expectation must come
+from the provider rather than from us. Apply the two repository-owned
+non-cassette exceptions below separately.
 
 Concretely, add or update a recorded test when:
 
@@ -57,7 +60,7 @@ Concretely, add or update a recorded test when:
    a provider error body variant). The regression test must be recorded, or a
    fake cassette per the README ladder if the payload is unrecordable.
 
-A recorded test is NOT required when:
+A cassette-backed test is NOT required when:
 
 - The change is deterministic runtime logic, even when the diff touches
   `llmrails.py` (our own error envelopes, action dispatch, rail sequencing,
@@ -66,7 +69,8 @@ A recorded test is NOT required when:
   be RUN, not extended: replay with `--block-network` before and after is the
   equivalence proof.
 - The change is config or input validation, Colang runtime behavior, docs, or
-  tooling.
+  tooling, unless it changes a public-API contract intentionally pinned in the
+  recorded suite or the mandatory library-rail entry.
 
 File paths are a heuristic, not the rule: `llmrails.py` contains both
 wire-adjacent contract code and deterministic logic in the same file. Always
@@ -74,14 +78,24 @@ apply the byte-level criterion above.
 
 ## Placement checklist
 
-Answer these in order. The first "no" that routes you to `tests/` is final.
+Before applying the provider-traffic checklist, preserve these existing suite
+responsibilities:
+
+- `tests/recorded/rails/public_api/` may pin deterministic validation and
+  public method contracts used for engine/refactor equivalence.
+- `tests/recorded/rails/library/` has one public entry per library rail by
+  repository policy. A pure-Python rail uses a non-vcr test; IORails parity may
+  reuse a sibling cassette or deliberately exercise a no-cassette case.
+
+For every other scenario, answer these in order. A "no" that routes to
+`tests/` is final.
 
 1. **Does the scenario send at least one real provider request?** Main model,
    a rail's model, or embeddings must actually cross the wire during the test.
-   If nothing crosses the wire, there is nothing to record. Write a unit test
-   in `tests/` using `TestChat` with `llm_completions` (see
-   `tests/utils.py`), or `FakeLLMModel` from
-   `nemoguardrails.testing.fake_model` directly.
+   If nothing crosses the wire, there is nothing to record. Unless one of the
+   two suite responsibilities above applies, write a unit test in `tests/`
+   using `TestChat` with `llm_completions` (see `tests/utils.py`), or
+   `FakeLLMModel` from `nemoguardrails.testing.fake_model` directly.
 
    Red flags that mean the answer is "no":
    - The test passes `generator=` to `stream_async` AND no rail model or
@@ -96,21 +110,21 @@ Answer these in order. The first "no" that routes you to `tests/` is final.
      test config (a fake checker, a deliberately failing action).
    - The assertion fires before any model call (input validation,
      `pytest.raises` on config errors).
-   - You did not add `@pytest.mark.vcr` and the test still passes. No vcr
-     mark means no cassette, which means it is a unit test wearing a
-     recorded-suite costume.
+   - The effective test markers do not include `vcr`. That means no cassette;
+     require one of the explicit suite responsibilities above.
 
 2. **Is the interesting behavior in the provider response, or in our own
    deterministic logic?** Provider response shape (streaming chunk framing,
    error body format, usage metadata, tool-call structure, header handling)
-   belongs here. Deterministic library logic belongs in `tests/`. The question
+   belongs here. Deterministic library logic belongs in `tests/`, with the
+   separate public library entry required above. The question
    to ask: "if the provider changed its behavior tomorrow, could this test's
    expected output change?" If it cannot, the test does not need a recording.
 
 3. **Does an equivalent test already exist?** Search both `tests/` and
-   `tests/recorded/` for the behavior. Never add a unit test and a recorded
-   test for the same assertion in the same change; keep the unit test unless
-   rule 2 says the behavior is provider-shaped.
+   `tests/recorded/` for the behavior. Do not duplicate the same assertion
+   unless the recorded version exercises provider-shaped behavior or the
+   library/public-API suite contract at a distinct public layer.
 
 4. **Is the scenario a failure that cannot occur against a live provider?**
    Follow the negative-path ladder in `tests/recorded/README.md`: prefer a
@@ -118,27 +132,25 @@ Answer these in order. The first "no" that routes you to `tests/` is final.
    404), then pure runtime `pytest.raises`, and only as a last resort a
    `@pytest.mark.fake_cassette` with the required metadata. If the failure is
    injected by local test code rather than the provider, that is rule 1
-   territory: unit test.
+   territory: normally a unit test.
 
 ## Colang dialects
 
-Recorded tests are dialect-single: do not duplicate a recorded test across
-Colang 1 and Colang 2. For library rails the provider traffic is made by the
-action, so both dialects record identical wire bytes; what varies between
-dialects is deterministic flow routing, which unit tests own (both-dialect
-`TestChat` coverage) together with the flow-files gate. As of this writing
-`tests/recorded/rails/library/` is Colang 1 throughout: no config there sets
-`colang_version`, so there is no v2 coverage in the library suite to
-extend or imitate. One exception:
+LLMRails library recordings are dialect-single: do not duplicate a provider
+recording across Colang 1 and Colang 2 when both dialects produce identical
+wire bytes. Deterministic flow routing belongs in both-dialect unit tests.
+IORails parity tests are engine-equivalence tests rather than another Colang
+dialect; they may reuse the LLMRails cassette and may contain deterministic
+no-cassette cases. One separate exception exists:
 
 - In `tests/recorded/rails/public_api/`, the v2 runtime is a different
   generation pipeline (different prompts and LLM calls for dialog and
   generation surfaces), so v2 coverage there records genuinely different
   provider traffic and is legitimate recorded-suite material.
 
-## The narrow non-vcr exception
+## Non-vcr and mixed-marker suite tests
 
-The suite intentionally hosts a small number of non-vcr, pure-runtime tests
+The suite intentionally hosts non-vcr, pure-runtime tests
 (for example `StreamingNotSupportedError` validation, `generate_async`
 argument validation over `FakeLLMModel`, and the `check()` contracts over
 local-rail configs) because `public_api` doubles as the public API surface
@@ -173,6 +185,12 @@ these hold:
 
 When in doubt, put it in `tests/`. Do not park a test here just because it
 collects; nothing is checking, so the discipline is yours.
+
+A module-level `vcr` mark is a default, not proof that every test opens a
+cassette. A mixed-purpose parity module may deliberately route a deterministic
+test to an empty cassette directory. Review cassette completeness against the
+test's actual provider path and cassette routing, not the inherited marker
+alone.
 
 ## Worked examples
 
@@ -210,24 +228,29 @@ Follow `tests/recorded/README.md` exactly. The short version:
   `nvidia_api_key`); the fixture name is what gates recording.
 - Config constants live in the suite-local `configs.py`; reuse an existing
   config directory before creating a new one.
-- Record with `make record-cassettes RECORDED_TESTS=<node>
-  RECORDED_REQUIRED_KEYS=<KEY>`, fill snapshots offline, then verify replay
-  with `--block-network`. A new vcr test with no cassette committed is
-  incomplete.
+- Record with credentials using the first pytest command in
+  `tests/recorded/README.md`, fill an empty snapshot offline with
+  `--inline-snapshot=create`, then verify replay with `--block-network`.
+  `--inline-snapshot=fix` only updates an existing value. The current
+  `make record-cassettes` target runs its record pass before snapshot creation,
+  so a brand-new empty `snapshot()` stops that target at the expected teardown
+  error; use the documented explicit two-pass workflow for a new test.
 - Name negative tests `test_<surface>_<failure>_<behavior>` with `_raises`,
   `_fails_closed`, or `_invalid_*` suffixes.
 
 ## Review checklist for diffs touching tests/recorded/
 
-- vcr-marked test with no committed cassette: incomplete, must be recorded.
+- Test that actually sends or replays provider traffic with no committed
+  cassette: incomplete, must be recorded. A module-level `vcr` mark can cover
+  a deliberate deterministic no-cassette test, so inspect its routing.
 - New non-vcr suite test: challenge it against the exception criteria above;
   it usually signals a test that belongs in `tests/`. Nothing enforces this,
   so read every test in the diff that has no `vcr` mark.
 - New config directory for a single deterministic test: the test is in the
   wrong suite, unless it is the per-rail config for a new
   `nemoguardrails/library/` rail, which is the usual shape there.
-- Same behavior asserted in both `tests/` and `tests/recorded/` in one
-  change: keep one, prefer the unit test unless the behavior is
-  provider-shaped.
+- Same behavior asserted in both `tests/` and `tests/recorded/` in one change:
+  require a provider-shaped distinction or one of the explicit public
+  contract/library policy reasons; otherwise keep the unit test.
 - Diff changes `nemoguardrails/llm/clients/` or a model-calling library rail
   with no change under `tests/recorded/`: ask where the recorded coverage is.

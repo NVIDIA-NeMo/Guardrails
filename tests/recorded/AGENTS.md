@@ -6,9 +6,8 @@ Guidance for agents editing files under `tests/recorded/`.
   cassettes, snapshots). The `recorded-tests` skill under `.agents/skills/`
   owns the placement decision procedure, including the real-provider-request
   criterion. Do not restate either here.
-- Most suite tests carry `@pytest.mark.vcr`. A few do not, and their marker
-  form follows from whether the tests are async, not from the non-vcr status
-  itself:
+- The suite intentionally mixes vcr and non-vcr tests. Marker form follows
+  whether tests are async and whether every test in the module needs VCR:
   - async rail tests carry `pytestmark = [pytest.mark.recorded,
     pytest.mark.asyncio]` (`rails/library/test_regex.py`,
     `rails/library/test_injection.py`);
@@ -20,7 +19,12 @@ Guidance for agents editing files under `tests/recorded/`.
   misplaced deterministic test collects and passes here silently. Apply the
   skill's criteria yourself, and do not pattern-match on the non-vcr
   neighbours.
-- Recorded tests are dialect-single: do not duplicate a test for Colang 2.
-- A vcr test without a committed cassette is incomplete: record with
-  `make record-cassettes`, fill snapshots offline, verify replay with
-  `--block-network`.
+- LLMRails library recordings are dialect-single: do not duplicate identical
+  provider traffic for Colang 2. Public-API v2 recordings are valid when the
+  different runtime produces different provider traffic. IORails parity may
+  reuse sibling cassettes.
+- A test that actually sends or replays provider traffic without a committed
+  cassette is incomplete. A module-level `vcr` mark can also cover a deliberate
+  deterministic no-cassette parity test, so inspect the test's cassette
+  routing. For a new empty snapshot, follow the README's explicit record,
+  create, and offline-replay sequence.
