@@ -77,19 +77,28 @@ RAIL = RailManifest(
                 name="hf classifier check input",
                 direction=RailDirection.INPUT,
                 action=HF_CLASSIFIER_CHECK_INPUT,
-                bindings=(Binding.surface_param("classifier", "classifier"),),
+                bindings=(
+                    Binding.surface_param("classifier", "classifier"),
+                    Binding.context("text", "user_message"),
+                ),
             ),
             RailSurface(
                 name="hf classifier check output",
                 direction=RailDirection.OUTPUT,
                 action=HF_CLASSIFIER_CHECK_OUTPUT,
-                bindings=(Binding.surface_param("classifier", "classifier"),),
+                bindings=(
+                    Binding.surface_param("classifier", "classifier"),
+                    Binding.context("text", "bot_message"),
+                ),
             ),
             RailSurface(
                 name="hf classifier check retrieval",
                 direction=RailDirection.RETRIEVAL,
                 action=HF_CLASSIFIER_CHECK_RETRIEVAL,
-                bindings=(Binding.surface_param("classifier", "classifier"),),
+                bindings=(
+                    Binding.surface_param("classifier", "classifier"),
+                    Binding.context("text", "relevant_chunks"),
+                ),
                 transform_target=TransformTarget.RELEVANT_CHUNKS,
             ),
         ),

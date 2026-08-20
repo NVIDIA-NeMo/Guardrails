@@ -36,6 +36,8 @@ def _cleanlab_outcome(trustworthiness_score: float) -> RailOutcome:
 )
 async def call_cleanlab_api(
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     api_key = os.environ.get("CLEANLAB_API_KEY")
@@ -49,8 +51,8 @@ async def call_cleanlab_api(
         raise ImportError("Please install cleanlab-studio using 'pip install --upgrade cleanlab-studio' command")
 
     context = context or {}
-    bot_response = context.get("bot_message")
-    user_input = context.get("user_message")
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
 
     studio = Studio(api_key)
     cleanlab_tlm = studio.TLM()

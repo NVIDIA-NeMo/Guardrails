@@ -15,6 +15,7 @@
 
 from nemoguardrails.manifests import (
     ActionRef,
+    Binding,
     EnvVar,
     RailActions,
     RailDirection,
@@ -47,7 +48,15 @@ RAIL = RailManifest(
         flows=RailFlows(flow_names=("cleanlab trustworthiness",)),
         actions=RailActions(refs=(CALL_CLEANLAB_API,)),
         surfaces=(
-            RailSurface(name="cleanlab trustworthiness", direction=RailDirection.OUTPUT, action=CALL_CLEANLAB_API),
+            RailSurface(
+                name="cleanlab trustworthiness",
+                direction=RailDirection.OUTPUT,
+                action=CALL_CLEANLAB_API,
+                bindings=(
+                    Binding.context("user_message", "user_message", required=False),
+                    Binding.context("bot_message", "bot_message"),
+                ),
+            ),
         ),
         requirements=RailRequirements(
             env_vars=(EnvVar(name="CLEANLAB_API_KEY", required=True),),

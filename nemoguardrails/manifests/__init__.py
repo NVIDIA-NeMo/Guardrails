@@ -19,6 +19,7 @@ from nemoguardrails.manifests.catalog import RailCatalog, RailManifestRecord
 from nemoguardrails.manifests.manifest import (
     ActionRef,
     Binding,
+    BindingResource,
     ConfigSpecRef,
     EnvVar,
     ImportRef,
@@ -54,6 +55,7 @@ from nemoguardrails.manifests.surface_reference import (
 __all__ = [
     "ActionRef",
     "Binding",
+    "BindingResource",
     "ConfigSpecRef",
     "EnvVar",
     "ImportRef",

@@ -58,12 +58,12 @@ _LLMRAILS_ONLY_INPUT_REASON = (
     "'jailbreak detection heuristics' Conflates dependencies with 'jailbreak detection model', "
     "so IORails cannot tell whether it needs 'torch' and 'transformers' installed"
 )
-# Chosen from the retrieval-evidence group for needing no prompt template of its own, so a
-# config built for a routing test does not have to carry one.
-_LLMRAILS_ONLY_OUTPUT_FLOW = "alignscore check facts"
+# Chosen from the surfaces that still require retrieval evidence unavailable to IORails.
+_LLMRAILS_ONLY_OUTPUT_FLOW = "self check facts"
 _LLMRAILS_ONLY_OUTPUT_REASON = (
-    "'alignscore check facts' needs retrieval evidence, which manifest-driven execution does not supply yet"
+    "'self check facts' needs context variable(s) 'relevant_chunks', which IORails does not supply"
 )
+_LLMRAILS_ONLY_OUTPUT_PROMPT = {"task": "self_check_facts", "content": "placeholder"}
 
 
 def _make_iorails_config(rails: dict, extra_prompts: list | None = None) -> RailsConfig:
@@ -464,7 +464,7 @@ class TestIORailsUnsupportedReason:
         reason = IORails.unsupported_reason(config, llm=None)
 
         assert reason is not None
-        assert "retrieval" in reason
+        assert "relevant_chunks_sep" in reason
 
     def test_a_transform_flow_is_admitted(self):
         """A rewrite-capable surface runs here, having been refused at selection until IORails
@@ -480,6 +480,7 @@ class TestIORailsUnsupportedReason:
                 "input": {"flows": ["content safety check input $model=content_safety"]},
                 "output": {"flows": [_LLMRAILS_ONLY_OUTPUT_FLOW]},
             },
+            extra_prompts=[_LLMRAILS_ONLY_OUTPUT_PROMPT],
         )
         reason = IORails.unsupported_reason(config, llm=None)
         assert reason == _LLMRAILS_ONLY_OUTPUT_REASON
@@ -1333,7 +1334,10 @@ class TestIORailsCanHandle:
                     ]
                 },
             },
-            extra_prompts=[{"task": "self_check_output", "content": "placeholder"}],
+            extra_prompts=[
+                {"task": "self_check_output", "content": "placeholder"},
+                _LLMRAILS_ONLY_OUTPUT_PROMPT,
+            ],
         )
         assert IORails.can_handle(config) is False
 
@@ -2268,7 +2272,7 @@ class TestScopeGateCharacterization:
             (
                 "self check facts",
                 SurfaceDirection.OUTPUT,
-                "'self check facts' needs retrieval evidence, which manifest-driven execution does not supply yet",
+                "'self check facts' needs context variable(s) 'relevant_chunks', which IORails does not supply",
             ),
             (
                 "content safety check output",

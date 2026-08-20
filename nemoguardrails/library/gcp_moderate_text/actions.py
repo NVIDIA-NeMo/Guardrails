@@ -83,6 +83,7 @@ def _gcp_text_moderation_outcome(
 )
 async def call_gcp_text_moderation_api(
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     threshold_mode: Literal["simple", "detailed"] = "simple",
     **kwargs,
 ) -> RailOutcome:
@@ -104,7 +105,7 @@ async def call_gcp_text_moderation_api(
         )
 
     context = context or {}
-    user_message = context.get("user_message")
+    user_message = user_message if user_message is not None else context.get("user_message")
     client = language_v2.LanguageServiceAsyncClient()
 
     # Initialize request argument(s)

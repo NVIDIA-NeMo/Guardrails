@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+from types import ModuleType, SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome
 from nemoguardrails.library.activefence.actions import ACTIVEFENCE_DETAILED_RULES, _activefence_outcome
 from nemoguardrails.library.ai_defense.actions import _ai_defense_outcome
 from nemoguardrails.library.clavata.actions import _clavata_outcome
-from nemoguardrails.library.cleanlab.actions import _cleanlab_outcome
+from nemoguardrails.library.cleanlab.actions import _cleanlab_outcome, call_cleanlab_api
 from nemoguardrails.library.fiddler.actions import _fiddler_outcome
 from nemoguardrails.library.gcp_moderate_text.actions import (
     GCP_TEXT_DETAILED_THRESHOLDS,
     _gcp_text_moderation_outcome,
+    call_gcp_text_moderation_api,
 )
 from nemoguardrails.library.trend_micro.actions import GuardResult, _trend_micro_outcome
 
@@ -55,6 +60,37 @@ def test_trend_micro_outcome_preserves_action_and_reason(guard_result, expected)
 )
 def test_cleanlab_outcome_pins_threshold(score, expected):
     assert _cleanlab_outcome(score) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("context", "explicit", "expected"),
+    [
+        (
+            {"user_message": "legacy prompt", "bot_message": "legacy response"},
+            {"user_message": "bound prompt", "bot_message": "bound response"},
+            ("bound prompt", "bound response"),
+        ),
+        (
+            {"user_message": "legacy prompt", "bot_message": "legacy response"},
+            {},
+            ("legacy prompt", "legacy response"),
+        ),
+    ],
+)
+async def test_cleanlab_prefers_bound_messages_and_retains_context_fallback(monkeypatch, context, explicit, expected):
+    score = AsyncMock(return_value={"trustworthiness_score": 0.9})
+    studio = MagicMock()
+    studio.TLM.return_value = SimpleNamespace(get_trustworthiness_score_async=score)
+    studio_factory = MagicMock(return_value=studio)
+    cleanlab_studio = ModuleType("cleanlab_studio")
+    setattr(cleanlab_studio, "Studio", studio_factory)
+    monkeypatch.setitem(sys.modules, "cleanlab_studio", cleanlab_studio)
+    monkeypatch.setenv("CLEANLAB_API_KEY", "test-key")
+
+    await call_cleanlab_api(context=context, **explicit)
+
+    score.assert_awaited_once_with(expected[0], response=expected[1])
 
 
 @pytest.mark.parametrize(
@@ -144,6 +180,37 @@ def test_gcp_text_moderation_outcome_pins_simple_and_detailed_thresholds(
         "Derogatory" if threshold_mode == "detailed" and expected_blocked else None
     )
     assert bool(outcome.reason) is expected_blocked
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("context", "explicit_user_message", "expected"),
+    [
+        ({"user_message": "legacy prompt"}, "bound prompt", "bound prompt"),
+        ({"user_message": "legacy prompt"}, None, "legacy prompt"),
+    ],
+)
+async def test_gcp_moderation_prefers_bound_message_and_retains_context_fallback(
+    monkeypatch, context, explicit_user_message, expected
+):
+    class Document:
+        class Type:
+            PLAIN_TEXT = "plain_text"
+
+    moderate_text = AsyncMock(return_value=SimpleNamespace(moderation_categories=[]))
+    client_factory = MagicMock(return_value=SimpleNamespace(moderate_text=moderate_text))
+    language_v2 = ModuleType("google.cloud.language_v2")
+    setattr(language_v2, "Document", Document)
+    setattr(language_v2, "LanguageServiceAsyncClient", client_factory)
+    google_cloud = ModuleType("google.cloud")
+    setattr(google_cloud, "language_v2", language_v2)
+    monkeypatch.setitem(sys.modules, "google.cloud", google_cloud)
+    monkeypatch.setitem(sys.modules, "google.cloud.language_v2", language_v2)
+
+    await call_gcp_text_moderation_api(context=context, user_message=explicit_user_message)
+
+    document = moderate_text.await_args.kwargs["document"]
+    assert document.content == expected
 
 
 @pytest.mark.parametrize(

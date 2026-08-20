@@ -55,6 +55,7 @@ RailCapability = Literal[
 ]
 RailLifecycle = Literal["stable", "experimental", "deprecated"]
 BindingKind = Literal["surface_param", "context", "literal"]
+BindingResource = Literal["model"]
 
 
 class RailDirection(str, Enum):
@@ -163,7 +164,9 @@ class Binding(BaseModel):
 
     Each binding tells the runtime where one argument of a surface's action comes
     from. Prefer the constructor classmethods over building instances directly, as
-    they set `kind` and the relevant fields correctly.
+    they set `kind` and the relevant fields correctly. A `resource` classifies the
+    resolved value for runtime validation; use `model` and `model_param` when that
+    value identifies a configured model type.
     """
 
     kind: BindingKind
@@ -171,6 +174,7 @@ class Binding(BaseModel):
     key: Optional[str] = None
     value: Any = None
     required: bool = True
+    resource: Optional[BindingResource] = None
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -180,6 +184,8 @@ class Binding(BaseModel):
             raise ValueError("Literal bindings cannot declare a source key.")
         if self.kind != "literal" and self.key is None:
             raise ValueError(f"{self.kind} bindings must declare a source key.")
+        if self.resource == "model" and self.kind == "context":
+            raise ValueError("Model bindings cannot read the model type from request context.")
         return self
 
     @classmethod
@@ -222,6 +228,50 @@ class Binding(BaseModel):
             A `literal` binding.
         """
         return cls(kind="literal", action_param=action_param, value=value)
+
+    @classmethod
+    def model_param(cls, action_param: str, name: str, *, required: bool = True) -> "Binding":
+        """Bind an action parameter to a configurable model type.
+
+        The returned binding reads the model type from a configured surface
+        parameter and sets `resource="model"`, allowing the runtime to validate
+        the resolved model before invoking the action. For example,
+        `Binding.model_param("model_name", "model")` binds `$model=content_safety`
+        to `model_name="content_safety"`.
+
+        Args:
+            action_param: Name of the action parameter receiving the model type.
+            name: Name of the surface parameter that selects the model type.
+            required: Whether the surface parameter must be provided.
+
+        Returns:
+            A model resource binding backed by a surface parameter.
+        """
+        return cls(
+            kind="surface_param",
+            action_param=action_param,
+            key=name,
+            required=required,
+            resource="model",
+        )
+
+    @classmethod
+    def model(cls, action_param: str, model_type: str) -> "Binding":
+        """Bind an action parameter to a fixed model type.
+
+        The returned literal binding sets `resource="model"`, allowing the
+        runtime to validate a model that is selected by the manifest rather than
+        the configured flow. For example, `Binding.model("model_name",
+        "llama_guard")` always supplies `model_name="llama_guard"`.
+
+        Args:
+            action_param: Name of the action parameter receiving the model type.
+            model_type: Configured model type supplied to the action.
+
+        Returns:
+            A model resource binding with a fixed value.
+        """
+        return cls(kind="literal", action_param=action_param, value=model_type, resource="model")
 
 
 class RailSurface(BaseModel):

@@ -43,13 +43,15 @@ async def self_check_facts(
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    relevant_chunks: Optional[list] = None,
+    bot_message: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """Checks the facts for the bot response by appropriately prompting the base llm."""
     _MAX_TOKENS = 1024
     context = context or {}
-    evidence = context.get("relevant_chunks", [])
-    response = context.get("bot_message")
+    evidence = relevant_chunks if relevant_chunks is not None else context.get("relevant_chunks", [])
+    response = bot_message if bot_message is not None else context.get("bot_message")
 
     if not evidence:
         return _fact_check_outcome(1.0)

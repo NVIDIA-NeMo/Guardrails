@@ -23,13 +23,12 @@ sink rather than read from a contextvar afterwards.
 import inspect
 from dataclasses import replace
 from typing import Any, Callable, Optional
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from nemoguardrails.actions.rail_outcome import RailOutcome, TransformTarget
 from nemoguardrails.guardrails.compiled_rail import (
-    _RETRIEVAL_CONTEXT_SURFACES,
     CompiledRail,
     RailCompilationError,
     RailDependencies,
@@ -84,15 +83,9 @@ EXECUTABLE_SURFACES = {
     "jailbreak detection model",
 }
 
-# Surfaces whose actions read retrieval evidence from the request context —
-# ``relevant_chunks``, ``relevant_chunks_sep``, or the Colang-internal ``_last_bot_prompt``.
-# Keyed by direction as well as name, because one rail can surface in both directions.
-# Held here independently of the production deny-list so the two cross-check each other.
-# Blocked by decision rather than by anything the manifest declares. Held here independently
-# of the production blocklist so the two cross-check each other.
 UNSUPPORTED_RAIL_SURFACES = {(RailDirection.INPUT, "jailbreak detection heuristics")}
 
-RETRIEVAL_DEPENDENT_SURFACES = {
+UNSUPPORTED_CONTEXT_SURFACES = {
     (RailDirection.OUTPUT, "alignscore check facts"),
     (RailDirection.OUTPUT, "autoalign groundedness output"),
     (RailDirection.OUTPUT, "fiddler bot faithfulness"),
@@ -525,27 +518,25 @@ class TestSurfacesOutsideTheTier:
 
     @pytest.mark.parametrize(
         "direction, flow",
-        sorted(RETRIEVAL_DEPENDENT_SURFACES, key=lambda surface: surface[1]),
+        sorted(UNSUPPORTED_CONTEXT_SURFACES, key=lambda surface: surface[1]),
         ids=lambda value: value if isinstance(value, str) else value.value,
     )
-    def test_retrieval_dependent_surfaces_do_not_compile(self, deps, direction, flow):
-        """A surface reading retrieval evidence is refused; IORails supplies none."""
-        with pytest.raises(RailCompilationError, match="retrieval"):
+    def test_required_unsupported_context_surfaces_do_not_compile(self, deps, direction, flow):
+        """A surface requiring unavailable context is refused before execution."""
+        with pytest.raises(RailCompilationError, match="does not supply"):
             compile_rail(flow, direction, deps)
 
-    def test_the_deny_list_names_only_real_surfaces(self):
-        """Every refused surface exists in the catalog, so no entry can rot into a no-op."""
+    def test_refused_surfaces_declare_required_unsupported_context(self):
+        """The manifest, rather than an IORails surface list, explains each refusal."""
         surfaces = default_rail_catalog().surfaces()
-        missing = sorted(
-            f"{direction.value} {name!r}"
-            for direction, name in _RETRIEVAL_CONTEXT_SURFACES
-            if (direction, name) not in surfaces
-        )
+        supported_context = {"user_message", "bot_message"}
 
-        assert not missing, f"deny-list names surfaces the catalog does not have: {missing}"
+        for surface_key in UNSUPPORTED_CONTEXT_SURFACES:
+            declared_context = {binding.key for binding in surfaces[surface_key].bindings if binding.kind == "context"}
+            assert declared_context - supported_context
 
     def test_the_input_output_tier_splits_into_servable_and_refused(self):
-        """59 servable -- 41 judging and 18 rewriting -- against the 8 refused, pinned by name.
+        """59 servable against the eight refused surfaces, pinned by name.
 
         A predicate would follow the code it is checking; a new manifest surface fails here.
         """
@@ -556,7 +547,7 @@ class TestSurfacesOutsideTheTier:
             bucket = refused if unsupported_surface_reason(surface) is not None else servable
             bucket.append((direction, name))
 
-        assert sorted(refused) == sorted(RETRIEVAL_DEPENDENT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
+        assert sorted(refused) == sorted(UNSUPPORTED_CONTEXT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
         assert len(servable) == 59
 
     def test_the_rewriting_surfaces_are_all_servable(self):
@@ -580,7 +571,7 @@ class TestSurfacesOutsideTheTier:
 
         monkeypatch.setattr("nemoguardrails.guardrails.compiled_rail.resolve_import_ref", unreachable)
 
-        with pytest.raises(RailCompilationError, match="retrieval"):
+        with pytest.raises(RailCompilationError, match="relevant_chunks"):
             compile_rail("self check facts", RailDirection.OUTPUT, deps)
 
 
@@ -641,11 +632,12 @@ class TestBindingResolution:
         assert content_safety_action.kwargs["model_name"] == "content_safety"
 
     @pytest.mark.asyncio
-    async def test_context_carries_the_request_messages(self, deps, content_safety_action):
-        """The per-request context dict exposes user_message for context-bound actions."""
+    async def test_manifest_binding_carries_the_request_message(self, deps, content_safety_action):
+        """The declared user_message binding supplies request text without a context dict."""
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
-        assert content_safety_action.kwargs["context"]["user_message"] == "hello there"
+        assert content_safety_action.kwargs["user_message"] == "hello there"
+        assert "context" not in content_safety_action.kwargs
 
     @pytest.mark.asyncio
     async def test_literal_binding_supplies_a_constant(self, deps, content_safety_action):
@@ -666,31 +658,30 @@ class TestBindingResolution:
     async def test_user_message_is_empty_when_the_request_has_no_user_turn(self, deps, content_safety_action):
         """A request with no user turn yields an empty user_message instead of raising.
 
-        Matches the library actions, which read ``context.get(...)`` with a default and call
-        the model with empty text. The hand-written rails raised here and failed closed.
+        Matches the library actions, which call the model with empty text. The hand-written
+        rails raised here and failed closed.
         """
         await compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps).run([{"role": "system", "content": "hi"}])
 
-        assert content_safety_action.kwargs["context"]["user_message"] == ""
+        assert content_safety_action.kwargs["user_message"] == ""
 
     @pytest.mark.asyncio
     async def test_bot_response_reaches_an_output_rail_as_bot_message(self, deps, monkeypatch):
-        """An output rail's context carries the generated response under bot_message."""
+        """An output rail's binding carries the generated response under bot_message."""
         action = RecordingAction(signature_of=content_safety_check_output)
         monkeypatch.setattr("nemoguardrails.library.content_safety.actions.content_safety_check_output", action)
 
         rail = compile_rail("content safety check output $model=content_safety", RailDirection.OUTPUT, deps)
         await rail.run(USER_MESSAGES, bot_response="the reply")
 
-        assert action.kwargs["context"]["bot_message"] == "the reply"
+        assert action.kwargs["bot_message"] == "the reply"
 
 
 class TestContextBindingResolution:
     """A context binding maps one conversation variable onto a differently named parameter.
 
-    This is the kind 3a refused and PR 4 implements. It is not "pass the context dict" — the
-    dict is already injected under ``context`` for actions that declare it. A context binding
-    names *one* variable and *one* action parameter, and 25 block-only surfaces need it.
+    A context binding names one request variable and one action parameter. IORails does not
+    inject its whole request context, so every action input must be declared here.
     """
 
     @pytest.fixture
@@ -723,6 +714,20 @@ class TestContextBindingResolution:
         await rail.run(USER_MESSAGES, bot_response="the reply")
 
         assert text_action.kwargs["text"] == "the reply"
+
+    @pytest.mark.asyncio
+    async def test_an_optional_unavailable_context_variable_is_omitted(self, deps, monkeypatch):
+        """Optional state outside IORails' request contract does not disable the rail."""
+        action = RecordingAction(signature_of=takes_text)
+        monkeypatch.setattr(CONTENT_SAFETY_ACTION, action)
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.context("text", "bot_thinking", required=False),),
+        )
+
+        await compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)).run(USER_MESSAGES)
+
+        assert "text" not in action.kwargs
 
     @pytest.mark.asyncio
     async def test_the_value_is_resolved_per_request(self, deps, text_action):
@@ -833,6 +838,25 @@ class TestModelDependencyValidation:
         deps_with_llama_guard = replace(deps, llms={**deps.llms, "llama_guard": FakeLLMModel(responses=["safe"])})
 
         assert compile_rail("llama guard check input", RailDirection.INPUT, deps_with_llama_guard) is not None
+
+    def test_model_validation_is_not_inferred_from_the_parameter_name(self, deps):
+        """An ordinary binding named model_name does not silently become a model dependency."""
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.literal("model_name", "not-a-model-resource"),),
+        )
+
+        assert compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface)) is not None
+
+    def test_model_validation_follows_the_declared_resource(self, deps):
+        """A model binding is validated even when its action parameter has another name."""
+        surface = synthetic_surface(
+            CONTENT_SAFETY_ACTION_REF,
+            (Binding.model("threshold_mode", "absent_model"),),
+        )
+
+        with pytest.raises(RailCompilationError, match="absent_model"):
+            compile_rail(SYNTHETIC_FLOW, RailDirection.INPUT, deps, catalog=StubCatalog(surface))
 
 
 class TestMissingOptionalDependencies:
@@ -989,9 +1013,10 @@ class TestDependencyInjection:
         """
         captured = {}
 
-        async def narrow_action(llm_task_manager, model_name):
+        async def narrow_action(llm_task_manager, model_name, user_message):
             captured["llm_task_manager"] = llm_task_manager
             captured["model_name"] = model_name
+            captured["user_message"] = user_message
             return RailOutcome.allow()
 
         monkeypatch.setattr(TOPIC_SAFETY_ACTION, narrow_action)
@@ -999,7 +1024,11 @@ class TestDependencyInjection:
         outcome = await compile_rail(TOPIC_SAFETY_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
         assert not outcome.is_blocked
-        assert captured == {"llm_task_manager": deps.llm_task_manager, "model_name": "topic_control"}
+        assert captured == {
+            "llm_task_manager": deps.llm_task_manager,
+            "model_name": "topic_control",
+            "user_message": "hello there",
+        }
 
     @pytest.mark.asyncio
     async def test_events_are_supplied_to_actions_that_declare_them(self, deps, monkeypatch):
@@ -1023,7 +1052,7 @@ class TestDependencyInjection:
     async def test_events_stop_at_the_checked_turn_for_an_assistant_terminated_transcript(self, deps, monkeypatch):
         """A check() transcript ending in an assistant turn leaves that turn out of the history.
 
-        The action appends the checked turn last, from context, so an assistant turn that
+        The action appends the checked turn last, from the bound user message, so an assistant turn that
         followed it in the transcript would otherwise be classified ahead of it.
         """
         action = RecordingAction(signature_of=topic_safety_check_input)
@@ -1041,35 +1070,35 @@ class TestDependencyInjection:
             {"type": "UserMessage", "text": "an earlier question"},
             {"type": "StartUtteranceBotAction", "script": "an earlier answer"},
         ]
-        assert action.kwargs["context"]["user_message"] == "hello there"
+        assert action.kwargs["user_message"] == "hello there"
+        assert "context" not in action.kwargs
 
     @pytest.mark.asyncio
     async def test_http_client_is_supplied_to_vendor_actions(self, deps, monkeypatch):
-        """jailbreak_detection_model declares http_client and receives the one compiled into the rail."""
+        """An action declaring http_client receives the runtime-owned shared client."""
         action = RecordingAction(signature_of=jailbreak_detection_model)
         monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
         mock_client = MagicMock()
+        deps = replace(deps, http_client=mock_client)
 
-        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client).run(USER_MESSAGES)
+        await compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps).run(USER_MESSAGES)
 
         assert action.kwargs["http_client"] is mock_client
 
     @pytest.mark.asyncio
-    async def test_close_calls_http_client_close(self, deps):
-        """close() forwards to the rail's HTTP client so the connection pool is released."""
-        mock_client = AsyncMock()
-        rail = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps, http_client=mock_client)
+    async def test_runtime_dependencies_finalize_without_mutating_the_compiled_plan(self, deps, monkeypatch):
+        """Finalizing transport returns a new rail and leaves the validated plan unchanged."""
+        action = RecordingAction(signature_of=jailbreak_detection_model)
+        monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
+        compiled = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps)
+        mock_client = MagicMock()
 
-        await rail.close()
+        finalized = compiled.with_runtime_dependencies(replace(deps, http_client=mock_client))
+        await finalized.run(USER_MESSAGES)
 
-        mock_client.close.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_close_is_a_no_op_when_no_http_client(self, deps):
-        """close() on a rail with no HTTP client (LLM-backed) does not raise."""
-        rail = compile_rail(CONTENT_SAFETY_INPUT, RailDirection.INPUT, deps)
-
-        await rail.close()
+        assert finalized is not compiled
+        assert compiled._deps.http_client is None
+        assert action.kwargs["http_client"] is mock_client
 
 
 class TestOutcomePassthrough:

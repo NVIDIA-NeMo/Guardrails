@@ -75,6 +75,7 @@ async def llama_guard_check_input(
     llms: Mapping[str, LLMModel],
     model_name: str,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """
@@ -82,7 +83,7 @@ async def llama_guard_check_input(
     and the configured prompt containing the safety guidelines.
     """
     context = context or {}
-    user_input = context.get("user_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
     llm = _get_llama_guard_model(llms, model_name)
     check_input_prompt = llm_task_manager.render_task_prompt(
         task=Task.LLAMA_GUARD_CHECK_INPUT,
@@ -107,14 +108,16 @@ async def llama_guard_check_output(
     llms: Mapping[str, LLMModel],
     model_name: str,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
 ) -> RailOutcome:
     """
     Check the bot response using the configured Llama Guard model
     and the configured prompt containing the safety guidelines.
     """
     context = context or {}
-    user_input = context.get("user_message")
-    bot_response = context.get("bot_message")
+    user_input = user_message if user_message is not None else context.get("user_message")
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
     llm = _get_llama_guard_model(llms, model_name)
 
     check_output_prompt = llm_task_manager.render_task_prompt(

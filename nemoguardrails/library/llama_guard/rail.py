@@ -55,13 +55,20 @@ RAIL = RailManifest(
                 name="llama guard check input",
                 direction=RailDirection.INPUT,
                 action=LLAMA_GUARD_CHECK_INPUT,
-                bindings=(Binding.literal("model_name", "llama_guard"),),
+                bindings=(
+                    Binding.model("model_name", "llama_guard"),
+                    Binding.context("user_message", "user_message"),
+                ),
             ),
             RailSurface(
                 name="llama guard check output",
                 direction=RailDirection.OUTPUT,
                 action=LLAMA_GUARD_CHECK_OUTPUT,
-                bindings=(Binding.literal("model_name", "llama_guard"),),
+                bindings=(
+                    Binding.model("model_name", "llama_guard"),
+                    Binding.context("user_message", "user_message", required=False),
+                    Binding.context("bot_message", "bot_message"),
+                ),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="llama_guard", required=True),)),

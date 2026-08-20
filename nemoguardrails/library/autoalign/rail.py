@@ -95,14 +95,20 @@ RAIL = RailManifest(
                 name="autoalign check input",
                 direction=RailDirection.INPUT,
                 action=AUTOALIGN_INPUT_API,
-                bindings=(Binding.literal("show_autoalign_message", True),),
+                bindings=(
+                    Binding.context("user_message", "user_message"),
+                    Binding.literal("show_autoalign_message", True),
+                ),
                 transform_target=TransformTarget.USER_MESSAGE,
             ),
             RailSurface(
                 name="autoalign check output",
                 direction=RailDirection.OUTPUT,
                 action=AUTOALIGN_OUTPUT_API,
-                bindings=(Binding.literal("show_autoalign_message", True),),
+                bindings=(
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.literal("show_autoalign_message", True),
+                ),
                 transform_target=TransformTarget.BOT_MESSAGE,
             ),
             RailSurface(
@@ -110,6 +116,8 @@ RAIL = RailManifest(
                 direction=RailDirection.OUTPUT,
                 action=AUTOALIGN_GROUNDEDNESS_OUTPUT_API,
                 bindings=(
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("relevant_chunks_sep", "relevant_chunks_sep"),
                     Binding.literal("factcheck_threshold", 0.5),
                     Binding.literal("show_autoalign_message", True),
                 ),
@@ -119,6 +127,8 @@ RAIL = RailManifest(
                 direction=RailDirection.OUTPUT,
                 action=AUTOALIGN_FACTCHECK_OUTPUT_API,
                 bindings=(
+                    Binding.context("user_message", "user_message"),
+                    Binding.context("bot_message", "bot_message"),
                     Binding.literal("factcheck_threshold", 0.5),
                     Binding.literal("show_autoalign_message", True),
                 ),

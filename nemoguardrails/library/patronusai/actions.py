@@ -83,15 +83,19 @@ async def patronus_lynx_check_output_hallucination(
     llms: Mapping[str, LLMModel],
     model_name: str,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
+    relevant_chunks: Optional[str] = None,
     **kwargs,
 ) -> RailOutcome:
     """
     Check the bot response for hallucinations based on the given chunks
     using the configured Patronus Lynx model.
     """
-    user_input = context.get("user_message")
-    bot_response = context.get("bot_message")
-    provided_context = context.get("relevant_chunks")
+    context = context or {}
+    user_input = user_message if user_message is not None else context.get("user_message")
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    provided_context = relevant_chunks if relevant_chunks is not None else context.get("relevant_chunks")
 
     if not provided_context or not isinstance(provided_context, str) or not provided_context.strip():
         log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
@@ -224,15 +228,19 @@ async def patronus_evaluate_request(
 async def patronus_api_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
+    relevant_chunks: Optional[Union[str, List[str]]] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """
     Check the user message, bot response, and/or provided context
     for issues based on the Patronus Evaluate API
     """
-    user_input = context.get("user_message")
-    bot_response = context.get("bot_message")
-    provided_context = context.get("relevant_chunks")
+    context = context or {}
+    user_input = user_message if user_message is not None else context.get("user_message")
+    bot_response = bot_message if bot_message is not None else context.get("bot_message")
+    provided_context = relevant_chunks if relevant_chunks is not None else context.get("relevant_chunks")
 
     patronus_config = llm_task_manager.config.rails.config.patronus.output
     evaluate_config = getattr(patronus_config, "evaluate_config", {})

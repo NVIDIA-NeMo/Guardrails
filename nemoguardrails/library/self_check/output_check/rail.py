@@ -51,7 +51,12 @@ RAIL = RailManifest(
                 name="self check output",
                 direction=RailDirection.OUTPUT,
                 action=SELF_CHECK_OUTPUT,
-                bindings=(Binding.surface_param(action_param="variant", name="variant", required=False),),
+                bindings=(
+                    Binding.surface_param(action_param="variant", name="variant", required=False),
+                    Binding.context("user_message", "user_message", required=False),
+                    Binding.context("bot_message", "bot_message"),
+                    Binding.context("bot_thinking", "bot_thinking", required=False),
+                ),
             ),
         ),
         requirements=RailRequirements(models=(ModelRequirement(type="llm", required=True),)),

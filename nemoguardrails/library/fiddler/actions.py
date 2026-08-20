@@ -119,6 +119,7 @@ async def call_fiddler_guardrail(
 async def call_fiddler_safety_user(
     config: RailsConfig,
     context: Optional[dict] = None,
+    user_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Check the user message with the Fiddler safety guardrail.
@@ -145,7 +146,7 @@ async def call_fiddler_safety_user(
         log.error("Fiddler endpoint not set in config")
         return RailOutcome.allow(metadata={"blocked": False})
 
-    user_message = context.get("user_message", "")
+    user_message = user_message if user_message is not None else context.get("user_message", "")
     if not user_message:
         log.error("Fiddler Jailbreak Guardrails could not be run. User message must be provided.")
         return RailOutcome.allow(metadata={"blocked": False})
@@ -168,6 +169,7 @@ async def call_fiddler_safety_user(
 async def call_fiddler_safety_bot(
     config: RailsConfig,
     context: Optional[dict] = None,
+    bot_message: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Check the bot message with the Fiddler safety guardrail.
@@ -194,7 +196,7 @@ async def call_fiddler_safety_bot(
         log.error("Fiddler endpoint not set in config")
         return RailOutcome.allow(metadata={"blocked": False})
 
-    bot_message = context.get("bot_message", "")
+    bot_message = bot_message if bot_message is not None else context.get("bot_message", "")
     if not bot_message:
         log.error("Fiddler Safety Guardrails could not be run. Bot message must be provided.")
         return RailOutcome.allow(metadata={"blocked": False})
@@ -217,6 +219,8 @@ async def call_fiddler_safety_bot(
 async def call_fiddler_faithfulness(
     config: RailsConfig,
     context: Optional[dict] = None,
+    bot_message: Optional[str] = None,
+    relevant_chunks: Optional[str] = None,
     http_client: Optional[HTTPClient] = None,
 ) -> RailOutcome:
     """Check the bot message with the Fiddler faithfulness guardrail.
@@ -244,8 +248,8 @@ async def call_fiddler_faithfulness(
         log.error("Fiddler endpoint not set in config")
         return RailOutcome.allow(metadata={"blocked": False})
 
-    bot_message = context.get("bot_message", "")
-    knowledge = context.get("relevant_chunks", "")
+    bot_message = bot_message if bot_message is not None else context.get("bot_message", "")
+    knowledge = relevant_chunks if relevant_chunks is not None else context.get("relevant_chunks", "")
     if not bot_message:
         log.error("Fiddler Faithfulness Guardrails could not be run. Chatbot message must be provided.")
         return RailOutcome.allow(metadata={"blocked": False})
