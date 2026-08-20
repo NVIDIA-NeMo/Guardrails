@@ -86,10 +86,13 @@ EXECUTABLE_SURFACES = {
 UNSUPPORTED_RAIL_SURFACES = {(RailDirection.INPUT, "jailbreak detection heuristics")}
 
 UNSUPPORTED_CONTEXT_SURFACES = {
+    (RailDirection.OUTPUT, "alignscore check facts"),
     (RailDirection.OUTPUT, "autoalign groundedness output"),
+    (RailDirection.OUTPUT, "fiddler bot faithfulness"),
     (RailDirection.OUTPUT, "patronus api check output"),
     (RailDirection.OUTPUT, "patronus lynx check output hallucination"),
     (RailDirection.OUTPUT, "self check facts"),
+    (RailDirection.OUTPUT, "self check hallucination"),
 }
 
 
@@ -533,7 +536,7 @@ class TestSurfacesOutsideTheTier:
             assert declared_context - supported_context
 
     def test_the_input_output_tier_splits_into_servable_and_refused(self):
-        """62 servable against the five refused surfaces, pinned by name.
+        """59 servable against the eight refused surfaces, pinned by name.
 
         A predicate would follow the code it is checking; a new manifest surface fails here.
         """
@@ -545,7 +548,7 @@ class TestSurfacesOutsideTheTier:
             bucket.append((direction, name))
 
         assert sorted(refused) == sorted(UNSUPPORTED_CONTEXT_SURFACES | UNSUPPORTED_RAIL_SURFACES)
-        assert len(servable) == 62
+        assert len(servable) == 59
 
     def test_the_rewriting_surfaces_are_all_servable(self):
         """The eighteen this work exists for, nine each way, with no direction half-enabled."""

@@ -56,7 +56,7 @@ RAIL = RailManifest(
                 direction=RailDirection.OUTPUT,
                 action=ALIGNSCORE_CHECK_FACTS,
                 bindings=(
-                    Binding.context("relevant_chunks", "relevant_chunks", required=False),
+                    Binding.context("relevant_chunks", "relevant_chunks"),
                     Binding.context("bot_message", "bot_message"),
                 ),
             ),

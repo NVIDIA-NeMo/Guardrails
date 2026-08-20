@@ -223,7 +223,7 @@ def test_retrieval_dependent_surfaces_declare_context_inputs():
     surfaces = default_rail_catalog().surfaces()
     expected = {
         (RailDirection.OUTPUT, "alignscore check facts"): (
-            Binding.context("relevant_chunks", "relevant_chunks", required=False),
+            Binding.context("relevant_chunks", "relevant_chunks"),
             Binding.context("bot_message", "bot_message"),
         ),
         (RailDirection.OUTPUT, "autoalign groundedness output"): (
@@ -232,7 +232,7 @@ def test_retrieval_dependent_surfaces_declare_context_inputs():
         ),
         (RailDirection.OUTPUT, "fiddler bot faithfulness"): (
             Binding.context("bot_message", "bot_message"),
-            Binding.context("relevant_chunks", "relevant_chunks", required=False),
+            Binding.context("relevant_chunks", "relevant_chunks"),
         ),
         (RailDirection.OUTPUT, "patronus api check output"): (
             Binding.context("user_message", "user_message"),
@@ -250,7 +250,7 @@ def test_retrieval_dependent_surfaces_declare_context_inputs():
         ),
         (RailDirection.OUTPUT, "self check hallucination"): (
             Binding.context("bot_message", "bot_message"),
-            Binding.context("last_bot_prompt", "_last_bot_prompt", required=False),
+            Binding.context("last_bot_prompt", "_last_bot_prompt"),
         ),
     }
 

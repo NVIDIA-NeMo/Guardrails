@@ -2123,7 +2123,6 @@ class TestScopeGateCharacterization:
             ("input", "trend ai guard input"),
             ("output", "activefence moderation on output"),
             ("output", "ai defense inspect response"),
-            ("output", "alignscore check facts"),
             ("output", "autoalign check output"),
             ("output", "autoalign factcheck output"),
             ("output", "clavata check output"),
@@ -2134,7 +2133,6 @@ class TestScopeGateCharacterization:
             ("output", "detect sensitive data on output"),
             ("output", "f5 guardrails scan output"),
             ("output", "fiddler bot safety"),
-            ("output", "fiddler bot faithfulness"),
             ("output", "gliner detect pii on output"),
             ("output", "gliner mask pii on output"),
             ("output", "guardrailsai check output"),
@@ -2150,7 +2148,6 @@ class TestScopeGateCharacterization:
             ("output", "protect response"),
             ("output", "regex check output"),
             ("output", "self check output"),
-            ("output", "self check hallucination"),
             ("output", "trend ai guard output"),
         }
     )
@@ -2167,7 +2164,7 @@ class TestScopeGateCharacterization:
         return IORails._unservable_rails_reason([flow], direction, deps)
 
     def test_the_admitted_surfaces_are_exactly_the_pinned_set(self):
-        """Every catalog surface in scope is one of the 62 named here, and vice versa."""
+        """Every catalog surface in scope is one of the 59 named here, and vice versa."""
         admitted = {
             (direction.value, name)
             for direction in (SurfaceDirection.INPUT, SurfaceDirection.OUTPUT)

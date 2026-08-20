@@ -80,7 +80,7 @@ RAIL = RailManifest(
                 action=FIDDLER_FAITHFULNESS,
                 bindings=(
                     Binding.context("bot_message", "bot_message"),
-                    Binding.context("relevant_chunks", "relevant_chunks", required=False),
+                    Binding.context("relevant_chunks", "relevant_chunks"),
                 ),
             ),
         ),

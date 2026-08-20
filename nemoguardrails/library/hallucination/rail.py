@@ -53,7 +53,7 @@ RAIL = RailManifest(
                 action=SELF_CHECK_HALLUCINATION,
                 bindings=(
                     Binding.context("bot_message", "bot_message"),
-                    Binding.context("last_bot_prompt", "_last_bot_prompt", required=False),
+                    Binding.context("last_bot_prompt", "_last_bot_prompt"),
                 ),
             ),
         ),
