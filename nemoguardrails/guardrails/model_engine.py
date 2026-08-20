@@ -207,7 +207,14 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
         raise ValueError(f"Unexpected /v1/chat/completions response shape: {exc}") from exc
 
     raw_tool_calls = message.get("tool_calls")
-    reasoning = message.get("reasoning_content") or None
+
+    # Validated like content below: reasoning reaches ``LLMResponse.reasoning``,
+    # which is typed ``Optional[str]``, and a truthy non-string would otherwise
+    # also rescue a null content on the branch below.
+    raw_reasoning = message.get("reasoning_content")
+    if raw_reasoning is not None and not isinstance(raw_reasoning, str):
+        raise ValueError(f"Expected string reasoning_content, got {type(raw_reasoning).__name__}")
+    reasoning = raw_reasoning or None
 
     if content is None:
         # Tool-call-only and reasoning-only frames both legitimately carry

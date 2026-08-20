@@ -2451,6 +2451,16 @@ class TestParseChatCompletion:
         with pytest.raises(ValueError, match="Expected string content, got int"):
             _parse_chat_completion({"choices": [{"message": {"content": 123}}]})
 
+    def test_raises_on_non_string_reasoning_content(self):
+        """reasoning_content that is neither a string nor None raises ValueError with its type."""
+        with pytest.raises(ValueError, match="Expected string reasoning_content, got int"):
+            _parse_chat_completion({"choices": [{"message": {"content": "hi", "reasoning_content": 123}}]})
+
+    def test_raises_on_null_content_with_non_string_reasoning(self):
+        """A truthy non-string reasoning_content does not rescue a null content."""
+        with pytest.raises(ValueError, match="Expected string reasoning_content, got dict"):
+            _parse_chat_completion({"choices": [{"message": {"content": None, "reasoning_content": {"a": 1}}}]})
+
     def test_parses_tool_calls_when_content_none(self):
         """content=None with tool_calls parses the calls and normalizes content to ''.
 
