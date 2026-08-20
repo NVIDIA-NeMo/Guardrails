@@ -49,6 +49,10 @@ class StubRail:
         self.call_count += 1
         return RailExecution(outcome=self.outcome)
 
+    def with_runtime_dependencies(self, deps: Any) -> "StubRail":
+        """Model dependency finalization while retaining this behavior-only test double."""
+        return self
+
     async def close(self) -> None:
         """A compiled rail may own an HTTP client; a stub has nothing to release."""
 

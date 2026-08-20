@@ -260,8 +260,7 @@ class RailsManager:
 
         self._http_client = create_http_client()
         runtime_deps = replace(deps, http_client=self._http_client)
-        for rail in self._rails.values():
-            rail._deps = runtime_deps
+        self._rails = {key: rail.with_runtime_dependencies(runtime_deps) for key, rail in self._rails.items()}
 
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, tool_call_flows=%s, "

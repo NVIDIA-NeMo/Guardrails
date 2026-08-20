@@ -1085,6 +1085,21 @@ class TestDependencyInjection:
 
         assert action.kwargs["http_client"] is mock_client
 
+    @pytest.mark.asyncio
+    async def test_runtime_dependencies_finalize_without_mutating_the_compiled_plan(self, deps, monkeypatch):
+        """Finalizing transport returns a new rail and leaves the validated plan unchanged."""
+        action = RecordingAction(signature_of=jailbreak_detection_model)
+        monkeypatch.setattr("nemoguardrails.library.jailbreak_detection.actions.jailbreak_detection_model", action)
+        compiled = compile_rail(JAILBREAK_INPUT, RailDirection.INPUT, deps)
+        mock_client = MagicMock()
+
+        finalized = compiled.with_runtime_dependencies(replace(deps, http_client=mock_client))
+        await finalized.run(USER_MESSAGES)
+
+        assert finalized is not compiled
+        assert compiled._deps.http_client is None
+        assert action.kwargs["http_client"] is mock_client
+
 
 class TestOutcomePassthrough:
     """The action's RailOutcome is returned unmodified; CompiledRail invents nothing."""

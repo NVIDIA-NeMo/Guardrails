@@ -190,6 +190,18 @@ class CompiledRail:
         self._deps = deps
         self._accepted = accepted
 
+    def with_runtime_dependencies(self, deps: RailDependencies) -> "CompiledRail":
+        """Return the same execution plan with its runtime collaborators finalized."""
+        return CompiledRail(
+            flow=self.flow,
+            surface=self.surface,
+            action=self._action,
+            bound=self._bound,
+            context_bound=self._context_bound,
+            deps=deps,
+            accepted=self._accepted,
+        )
+
     @property
     def surface_name(self) -> str:
         """The manifest surface name, without any ``$param=`` suffix."""
