@@ -16,42 +16,45 @@ you when they are wrong: privacy honesty, retry semantics, fail-closed
 behavior, telemetry content-freeness, docs accuracy, and cassette provenance
 need the rail-specific tests you write plus a reviewer's judgment.
 
-The workflow is: copy the closest exemplar, adapt, run the gates until green,
-then write the behavioral and recorded end-to-end coverage the gates cannot
-stand in for. Do not invent structure; the exemplars are the specification.
+The workflow is: start from the closest maintained pattern, adapt it, run the
+gates until green, then write the behavioral and recorded end-to-end coverage
+the gates cannot stand in for. Shipped rails span several generations of the
+architecture, so an exemplar is authoritative only for the specific pattern
+named below; apply the current contracts in this guide to everything else.
 
 ## Step 1: Pick the archetype and exemplar
 
 | Archetype | Exemplar to copy | Extra files beyond the core set |
 | --- | --- | --- |
 | Pure Python (no network, no model) | `nemoguardrails/library/regex/` | none |
-| HTTP / vendor API | `nemoguardrails/library/clavata/` | `request.py` (HTTP layer), `errs.py` (vendor errors) |
+| HTTP / vendor API | `nemoguardrails/library/hf_classifier/backends.py` for client composition; `nemoguardrails/library/clavata/` for request/error layering | optional `request.py` and `errs.py` |
 | Model-backed (LLM judge) | `nemoguardrails/library/content_safety/` | none; model bound via `Binding.surface_param("model_name", "model")` |
 
-For an HTTP rail, pick the exemplar by complexity: `clavata/` factors its
-vendor client into `request.py` for a multi-endpoint API, while
+For an HTTP rail, pick the layout by complexity: `clavata/` factors its vendor
+client into `request.py` for a multi-endpoint API, while
 `nemoguardrails/library/f5/` inlines a single `http_call` in `actions.py` and
-returns `RailOutcome` directly. F5 is the smallest complete vendor rail on the
-managed HTTP client, so copy it when the vendor is one endpoint.
+returns `RailOutcome` directly. Use those layouts and their behavior-test
+shapes, but use `hf_classifier/backends.py` for current retry/instrumentation
+composition. Do not copy F5's deterministic retry random source or Clavata's
+payload-bearing exception strings; both predate the current resilience and
+telemetry contracts in Step 4.
 
-Copy clavata's `request.py` and `errs.py` layering, and its response-model
-tests: `tests/test_clavata_models.py` is a solid example of validating a
-vendor payload shape. Its rail-behavior coverage is NOT exemplary. Of the 32
-tests collected across its two files, only the 8 in `tests/test_clavata.py`
-exercise the rail, and there is no Colang 2 coverage, no action-raise flow
-test, and no recorded suite entry, so it fails three of the five completeness
-items in the `review-library-rail` skill. Copy
+Use Clavata's separation between request handling, typed vendor errors, and
+response-model tests; `tests/test_clavata_models.py` is a solid example of
+validating a vendor payload shape. Rewrite error messages so they identify the
+operation and status without response bodies, validation input, or arbitrary
+nested exception text. Its rail-behavior coverage is NOT exemplary. Copy
 `tests/test_f5_guardrails.py` and
 `tests/recorded/rails/library/test_f5_guardrails.py` for the behavior test
-shape.
+shape, applying the archetype conditions in Step 6.
 
 For a model-backed rail, the model call is not `http_call`. Use the shared
 generation surface, in this fixed order (exemplar:
 `nemoguardrails/library/content_safety/actions.py`):
 
 ```python
-from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.call import llm_call, warn_if_truncated
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -70,14 +73,22 @@ Use `warn_if_truncated` when the response can hit the token limit. Repeated
 judgments can go through the `model_caches` action parameter, which the
 runtime also registers.
 
-Core file set required for every rail:
+Every rail requires:
 
 - `rail.py` (the manifest; discovery keys off this file)
+- `__init__.py` (empty package marker)
+
+Executable rails also require:
+
 - `actions.py` (`@action` functions returning `RailOutcome`)
 - `rail_config.py` (pydantic config models + `build_config_spec()`), only
   when the rail has configurable options
-- `flows.co` (Colang 2.x) and `flows.v1.co` (Colang 1.0)
-- `__init__.py` (empty package marker)
+- `flows.co` (Colang 2.x) and `flows.v1.co` (Colang 1.0), only when the rail
+  exposes Colang flows
+
+Config-only manifests such as `factchecking` legitimately omit actions and
+flows. Their manifest, config schema, docs, and tests must still describe and
+exercise the configuration they contribute.
 
 Bundled data files (e.g. `injection_detection/yara_rules/*.yara`) are allowed
 when the rail needs them.
@@ -156,14 +167,15 @@ async def my_rail_check(source: str, text: str, config: RailsConfig, **kwargs) -
     return RailOutcome.allow()
 ```
 
-The runtime fills parameters BY NAME, so the signature is the injection
-contract. It injects `events`, `context`, `config`, and `llm_task_manager`,
-then anything registered as an action parameter (`llm`, `llms`, `kb`,
-`model_caches`, plus whatever the application adds through
-`register_action_param`, which is also how tests inject `http_client`). A
-per-action `<action_name>_llm` registration overrides `llm` for that action.
-Anything else your action needs must come from a manifest `Binding`: in the
-example above, `source` is not injected, it is
+The signature is the injection contract. IORails supplies its fixed request
+dependencies by name: `events`, `context`, `config`, `llm_task_manager`,
+`llm`, `llms`, `model_caches`, and `http_client`. It does not support
+`register_action()` or `register_action_param()`. LLMRails additionally
+supplies `kb` and application-registered action parameters; a per-action
+`<action_name>_llm` registration overrides `llm` there. Unit tests that use
+`TestChat` exercise this LLMRails registration path when they inject an HTTP
+double. Anything else an action needs must come from a manifest `Binding`: in
+the example above, `source` is not injected, it is
 `Binding.literal("source", "input")` in `rail.py`, and `text` is
 `Binding.context("text", "user_message")`.
 
@@ -171,15 +183,12 @@ example above, `source` is not injected, it is
 settings at `config.rails.config.<config_schema key>` and handle `None`
 (exemplar: `nemoguardrails/library/regex/actions.py`).
 
-`is_system_action=True` is not automatic and is not cosmetic. It defaults to
-`False`, and it does two things: it omits the action's start and finish
-events from rendered prompt history, and it keeps the action local. Both
-runtimes dispatch NON-system actions to `config.actions_server_url` when one
-is set (`nemoguardrails/colang/v1_0/runtime/runtime.py`,
-`nemoguardrails/colang/v2_x/runtime/runtime.py`), so a rail action left at
-the default is executed off-box in an actions-server deployment, carrying
-whatever text it was given. Set it on every rail action. No gate checks
-this.
+`is_system_action=True` is not automatic and is not cosmetic for LLMRails. It
+defaults to `False`, omits the action's start and finish events from rendered
+prompt history, and keeps the action local when an actions server is
+configured. IORails invokes manifest actions locally and does not use that
+dispatch flag, but library actions must remain safe under both engines. Set it
+on every executable rail action. No gate checks this.
 
 The seam here is **actions decide, flows present**: the action returns a
 neutral verdict (allow/block/transform plus evidence in `metadata`), and the
@@ -252,9 +261,14 @@ declared `RetryPolicy` value -- the client applies it.
   parameter when their workload warrants it; never close an injected client
   inside the rail.
 - Send requests with the canonical helpers, threading the injected client
-  down (from `nemoguardrails/library/clavata/request.py`):
+  down. Compose retry with `ensure_retrying_http_client`, which preserves an
+  existing retry policy, places retry inside instrumentation, and rejects
+  duplicate retry or instrumentation layers:
 
 ```python
+def _retrying_http_client(client: HTTPClient) -> ClosableHTTPClient:
+    return ensure_retrying_http_client(client, _RETRY_POLICY)
+
 client = self._retrying_http_client(self.http_client) if self.http_client is not None else None
 response = await http_call(
     client,
@@ -270,7 +284,9 @@ response = await http_call(
 - `http_call` manages the fallback client's lifecycle. Wrapping an injected
   client must not transfer ownership; the factory must return the fully
   composed closable client (a `ClosableHTTPClient`) for the fallback path,
-  built with `create_http_client` from `nemoguardrails.http`.
+  built with `create_http_client` from `nemoguardrails.http`. Import
+  `ensure_retrying_http_client` from `nemoguardrails.http.composition`; do not
+  construct `RetryingHTTPClient(injected_client, policy)` directly.
 - Retries are rail-owned: define the `RetryPolicy` in one named module-level
   place, either a constant when it is fixed (`_CLAVATA_RETRY_POLICY` in
   `nemoguardrails/library/clavata/request.py`) or a single builder function
@@ -279,16 +295,16 @@ response = await http_call(
   call site. The default policy never retries POST; if your vendor call is a
   POST and safe to resend, you must opt in explicitly with
   `retryable_methods=frozenset({"POST"})`, and you may do so only when you
-  can name the resend-safety mechanism in a comment on the policy itself, in
+  can name the resend-safety mechanism next to the policy itself, in
   one of exactly three forms: the vendor documents the endpoint as
   idempotent (link the doc), the request carries an idempotency key (name
   the header), or the endpoint is a stateless scan or classification call
   that changes nothing server-side. No comment means no POST retry. If
   you find yourself writing `for attempt in range(...)`, an `asyncio.sleep`
   backoff, or a manual timeout race in the action or request helper, stop:
-  that is resilience, so declare it in the `RetryPolicy` and wrap the client
-  instead of implementing it by hand (this is the F5-v1 mistake the managed
-  client migration removed).
+  that is resilience, so declare it in the `RetryPolicy` and compose the
+  client instead of implementing it by hand. Some shipped policies predate
+  this documentation requirement; do not copy that omission.
 - Know what `RetryingHTTPClient` already gives you before documenting or
   reimplementing anything. Full-jitter exponential backoff: each sleep is a
   uniform random value in `[0, min(initial_delay * 2**retries, max_delay)]`,
@@ -407,8 +423,9 @@ requirements=RailRequirements(optional_dependencies=("yara-python",)),
 
 ## Step 6: Tests
 
-Three layers, all required; `nemoguardrails/library/README.md` makes layer 3
-explicitly mandatory:
+Three layers apply. Catalog coverage and a recorded-suite entry are required
+for every rail; behavioral cases within the unit and recorded layers depend on
+the rail's declared actions, flows, surfaces, and provider usage.
 
 1. **Catalog gates (free).** `tests/rails/llm/test_builtin_rail_manifests.py`,
    `tests/rails/llm/test_library_flow_files.py`, and
@@ -419,27 +436,39 @@ explicitly mandatory:
    awaiting a registered action's snake_case name as a Colang 2 flow, which
    must be `CamelCaseAction`
    (`test_library_flows_do_not_invoke_actions_as_flows`), and
-   cross-artifact conformance (surfaces declare `RailOutcome`, requirements
-   and privacy are consistent, and the projected config schema matches
-   `schemas/rails_config.snapshot.json`). Run them first; they catch most
-   wiring mistakes. If a config change moves the schema, regenerate the
+   structural conformance (surfaces declare `RailOutcome`, requirement
+   identifiers are unique, privacy services are declared requirements, and
+   the projected config schema matches `schemas/rails_config.snapshot.json`).
+   They do not compare implementation or docs with env vars, imports, outbound
+   calls, or retention claims; verify those manually. Run the gates first;
+   they catch most wiring mistakes. If a config change moves the schema, regenerate the
    snapshot with `scripts/generate_rails_config_schema_snapshot.py` and
    review the diff. Never edit a generic gate or add your rail to an
    exception list (`LEGACY_UNMANIFESTED_PACKAGES`,
    `NON_PORTABLE_DECLARED_FLOWS`) to get green; fix the manifest.
 
-   **Rail registries you must join by hand.** Two gates enumerate library
-   rails explicitly and will NOT pick your rail up automatically. They are
-   not exception lists, and adding your rail to them is required, not a
-   workaround:
-   - `tests/rails/llm/test_config.py::test_builtin_rails_config_fields_canonical_set_and_legacy_exports`:
-     add your config key and your exported config model name.
-   - `tests/test_runtime_flow_gate_equivalence.py`: add one case per
-     manifest surface, including transform surfaces.
+   **Pinned contracts you must update deliberately.** Current `develop` has
+   several exact expectations in addition to the discovery gates. Add only
+   entries that match the rail's archetype; do not loosen the assertions:
+   - `tests/rails/llm/test_config.py`: config key and exported model, when the
+     rail contributes typed configuration.
+   - `tests/test_runtime_flow_gate_equivalence.py`: one case per manifest
+     surface, including transforms.
+   - `tests/guardrails/test_compiled_rail.py`: update the pinned servable or
+     refused surface inventory for each input/output surface.
+   - `tests/guardrails/test_guardrails.py`: add each IORails-admitted surface
+     to `ADMITTED_SURFACES`; an unsupported surface instead needs an explicit,
+     reviewed refusal reason.
+   - `tests/guardrails/test_rails_manager.py`: add each IORails-served action
+     that accepts `http_client` to `_HTTP_CLIENT_SURFACE_NAMES`.
+   - `docs/telemetry.mdx`, checked by
+     `tests/telemetry/test_usage_reporting.py`: add the manifest's normalized
+     built-in feature identifier.
 
-   The verification loop at the end runs both. Until you register the rail
-   in them they fail while every catalog gate above stays green, so do not
-   read a green catalog-gate run as done.
+   Also run `tests/llm/test_call_import_graph.py`; it discovers manifest
+   action modules automatically and rejects library actions that import
+   Colang. A green subset is not proof that the relevant cases ran: inspect
+   skips for missing optional dependencies.
 2. **Unit tests** in `tests/test_<rail>*.py`:
    - `TestChat` end-to-end for flow behavior, `FakeLLMModel` for
      deterministic main-model output.
@@ -457,9 +486,10 @@ explicitly mandatory:
      `nemoguardrails/testing/http.py`, re-exported from
      `nemoguardrails.testing`). Secrets via `monkeypatch`. Unit tests
      must never reach live services.
-   - Include one flow-level test of what happens when the action RAISES
-     (vendor down): fail-closed is a claim about the runtime, not your code,
-     so test it rather than asserting it in a summary.
+   - For an executable provider-backed rail, include one flow-level test of
+     what happens when the action RAISES (vendor down): fail-closed is a claim
+     about the runtime, not your code, so test it rather than asserting it in
+     a summary. Config-only rails have no action-error path.
    - Cover EVERY error branch the action can take, not just one. With a
      mocked transport synthetic errors are cheap and deterministic, so this
      is where exhaustive error coverage belongs. Use `RecordingHTTPClient`,
@@ -474,7 +504,7 @@ explicitly mandatory:
      with fail-open and fail-closed where the rail supports both. A silently
      swallowed vendor error is the worst failure mode for a guardrail, so
      "one raise test" is not enough.
-   - Cover BOTH Colang dialects end to end, not just the default. `TestChat`
+   - For a flow-bearing rail, cover BOTH Colang dialects end to end, not just the default. `TestChat`
      runs Colang 1 (`flows.v1.co`) unless the config sets
      `colang_version: "2.x"`, which exercises `flows.co` instead (exemplar:
      the `config_v2` fixture and the `test_f5_guardrails_colang_2_*` tests in
@@ -491,10 +521,14 @@ explicitly mandatory:
      executed while still satisfying the block-path minimum above.
 3. **Recorded e2e suite** in `tests/recorded/rails/library/`: add a config
    dir under `configs/<name>/`, a constant in `configs.py`, and a
-   `test_<rail>.py` covering the outcome triad (allow, block, and
-   provider-error) using `check_rails`, `generate_with_fake_main`, and
+   `test_<rail>.py` covering the applicable public contract using
+   `check_rails`, `generate_with_fake_main`, and
    `stream_with_fake_main` from `helpers.py`, with `assert_rails_result` +
-   `snapshot`. The recorded provider-error is only the RECORDABLE real error
+   `snapshot`. Provider-backed rails cover allow, block, and one recordable
+   provider-error. Pure-Python rails cover their applicable allow/block or
+   transform behavior and have no provider-error requirement. Config-only
+   manifests cover the public configuration contract they contribute. The
+   recorded provider-error is only the RECORDABLE real error
    (an invalid key yielding a real 401 is the canonical one; a real 429 with
    a `Retry-After` header is a common second). Do NOT try to mirror every
    error branch here: a synthetic timeout or 5xx injected by test code
@@ -509,19 +543,19 @@ explicitly mandatory:
    `pytest.mark.recorded` alone, and the suite-infrastructure test
    `tests/recorded/test_cassette_provenance.py` carries no `pytestmark` at
    all. Nothing enforces any of this, so follow the rail exemplar rather
-   than the nearest neighbour. Recorded tests are
-   dialect-single: do not add a Colang 2 recorded test for YOUR rail (the
-   wire traffic is identical; dialect behavior is unit-test territory). The
-   suite is Colang 1 throughout: no config under `tests/recorded/` sets
-   `colang_version`, so introducing v2 recorded coverage is a
-   maintainer-directed change to the suite, not part of a new-rail PR. For
-   what belongs in
+   than the nearest neighbour. LLMRails library recordings are
+   dialect-single: do not add a Colang 2 duplicate for YOUR rail when the
+   wire traffic is identical; dialect behavior is unit-test territory.
+   IORails parity tests may reuse the same cassettes and may include a
+   deterministic no-cassette case in a module carrying a shared `vcr` mark.
+   For what belongs in
    the recorded suite versus `tests/`, follow the `recorded-tests` skill.
-   Snapshot the NORMALIZED output and leave `snapshot()` empty for the
-   record workflow to fill: `--inline-snapshot=create`/`fix` rewrites your
-   test file in place (review that diff, do not revert it), and it only
-   works serially, never under xdist `make test`. See the README's
-   Snapshots section for the exact behavior. If you do not hold a real vendor
+   Normalize composite or volatile output before snapshotting; stable scalar
+   public outputs may be asserted directly. Leave a new `snapshot()` empty and
+   fill it with `--inline-snapshot=create`; `fix` updates an incorrect existing
+   value but does not create an empty one. Snapshot updates work only serially,
+   never under xdist `make test`. See the README's Snapshots section for the
+   exact two-pass behavior. If you do not hold a real vendor
    key, do NOT hand-author a cassette that looks recorded: either ask a
    maintainer to record it, or mark the test `@pytest.mark.fake_cassette` and
    supply the metadata `tests/recorded/README.md` requires (`reason`,
@@ -576,6 +610,8 @@ Run until green, in this order (cheapest first):
 ```bash
 make test TEST="tests/rails/llm/test_builtin_rail_manifests.py tests/rails/llm/test_builtin_rail_conformance.py tests/rails/llm/test_library_flow_files.py"
 make test TEST="tests/rails/llm/test_config.py tests/test_runtime_flow_gate_equivalence.py"
+make test TEST="tests/guardrails/test_compiled_rail.py tests/guardrails/test_guardrails.py tests/guardrails/test_rails_manager.py"
+make test TEST="tests/llm/test_call_import_graph.py tests/telemetry/test_usage_reporting.py"
 make test TEST=tests/http/test_library_boundary.py
 make test TEST=tests/test_<rail>.py
 make test TEST=tests/recorded/rails/library ARGS="--block-network -q"
