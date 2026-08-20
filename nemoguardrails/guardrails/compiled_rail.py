@@ -333,13 +333,6 @@ def _context_parameters(surface: RailSurface, flow: str) -> tuple[_ContextParame
     same as injecting the whole ``context`` dict: ``user_message`` reaches an action that
     calls the parameter ``text`` or ``user_prompt``.
     """
-    unsupported = _unsupported_context_keys(surface)
-    if unsupported:
-        raise RailCompilationError(
-            f"{flow!r} needs context variable(s) {', '.join(repr(key) for key in unsupported)}, "
-            f"which IORails does not supply; it has {list(_CONTEXT_KEYS)}"
-        )
-
     bound: list[_ContextParameter] = []
     for binding in surface.bindings:
         if binding.kind != "context":
